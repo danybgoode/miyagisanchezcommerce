@@ -1,65 +1,99 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { getRecentListings, formatPrice } from '@/lib/listings'
 
-export default function Home() {
+const CATEGORIES = [
+  { label: 'Productos', value: 'product', icon: '📦' },
+  { label: 'Servicios', value: 'service', icon: '🔧' },
+  { label: 'Alquiler', value: 'rental', icon: '🔑' },
+]
+
+export default async function HomePage() {
+  const recent = await getRecentListings(8)
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Search */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-[var(--color-text)] mb-4">
+          ¿Qué estás buscando?
+        </h1>
+        <form action="/l" method="GET" className="flex gap-2 max-w-xl">
+          <input
+            name="q"
+            type="search"
+            placeholder="Buscar productos, servicios..."
+            className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:border-[var(--color-accent)]"
+          />
+          <button
+            type="submit"
+            className="bg-[var(--color-accent)] text-white px-5 py-2 rounded text-sm font-medium hover:bg-[var(--color-accent-hover)]"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Buscar
+          </button>
+        </form>
+      </div>
+
+      {/* Categories */}
+      <div className="flex gap-3 mb-10">
+        {CATEGORIES.map(cat => (
+          <Link
+            key={cat.value}
+            href={`/l?type=${cat.value}`}
+            className="border border-[var(--color-border)] bg-white rounded px-4 py-2 text-sm flex items-center gap-2 no-underline text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
-            Documentation
-          </a>
+            <span>{cat.icon}</span>
+            <span>{cat.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Recent listings */}
+      {recent.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-[var(--color-text)]">Publicaciones recientes</h2>
+            <Link href="/l" className="text-sm text-[var(--color-accent)]">Ver todo →</Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {recent.map(listing => (
+              <Link
+                key={listing.id}
+                href={`/l/${listing.id}`}
+                className="no-underline group"
+              >
+                <div className="bg-white border border-[var(--color-border)] rounded overflow-hidden hover:border-[var(--color-accent)] transition-colors">
+                  {listing.images?.[0] ? (
+                    <img
+                      src={listing.images[0].url}
+                      alt={listing.images[0].alt ?? listing.title}
+                      className="w-full h-36 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-36 bg-[var(--color-background)] flex items-center justify-center text-3xl">
+                      📦
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <p className="text-xs text-[var(--color-text)] font-medium line-clamp-2 leading-snug">{listing.title}</p>
+                    <p className="text-sm font-bold text-[var(--color-accent)] mt-1">{formatPrice(listing)}</p>
+                    {listing.shop && (
+                      <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">{listing.shop.name}</p>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recent.length === 0 && (
+        <div className="text-center py-16 text-[var(--color-muted)]">
+          <p className="text-4xl mb-3">🏪</p>
+          <p className="font-medium text-[var(--color-text)] mb-1">El marketplace está tomando forma</p>
+          <p className="text-sm">Las primeras publicaciones aparecerán aquí pronto.</p>
         </div>
-      </main>
+      )}
     </div>
-  );
+  )
 }
