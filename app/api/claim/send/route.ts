@@ -3,6 +3,16 @@ import { signClaimToken } from '@/lib/claimJwt'
 import { db } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
+  // Top-level guard — always return JSON even on unexpected errors
+  try {
+    return await handlePost(req)
+  } catch (err) {
+    console.error('[claim/send] unhandled error:', err)
+    return Response.json({ error: 'Error interno. Intenta de nuevo.' }, { status: 500 })
+  }
+}
+
+async function handlePost(req: NextRequest) {
   let body: Record<string, string>
   try {
     body = await req.json()
@@ -14,6 +24,11 @@ export async function POST(req: NextRequest) {
 
   if (!shopId || !shopSlug || !shopName || !email) {
     return Response.json({ error: 'Missing required fields: shopId, shopSlug, shopName, email' }, { status: 400 })
+  }
+
+  if (!process.env.CLAIM_JWT_SECRET) {
+    console.error('[claim/send] CLAIM_JWT_SECRET is not set')
+    return Response.json({ error: 'Configuración incompleta en el servidor.' }, { status: 500 })
   }
 
   const token = await signClaimToken({ shopId, shopSlug, shopName, email })

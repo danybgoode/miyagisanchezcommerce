@@ -29,15 +29,22 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
         body: JSON.stringify({ shopId, shopSlug, shopName, email, message }),
       })
 
-      const data = await res.json()
-
-      if (!res.ok || !data.ok) {
-        setErrorMsg(data.error ?? 'Algo salió mal. Intenta de nuevo.')
+      let data: Record<string, unknown> = {}
+      try {
+        data = await res.json()
+      } catch {
+        setErrorMsg('El servidor devolvió una respuesta inesperada. Intenta de nuevo.')
         setState('error')
         return
       }
 
-      if (data.link) {
+      if (!res.ok || !data.ok) {
+        setErrorMsg((data.error as string) ?? 'Algo salió mal. Intenta de nuevo.')
+        setState('error')
+        return
+      }
+
+      if (typeof data.link === 'string') {
         setDevLink(data.link)
       }
       setState('sent')
