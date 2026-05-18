@@ -44,11 +44,27 @@ export async function scrapeMercadoLibre(params: MLScrapeParams): Promise<Scrape
   url.searchParams.set('q', query)
   url.searchParams.set('limit', String(Math.min(limit, 50)))
 
-  const res = await fetch(url.toString(), {
-    headers: { 'User-Agent': 'miyagisanchez/1.0' },
-    next: { revalidate: 0 },
-  })
-  if (!res.ok) throw new Error(`ML API HTTP ${res.status}`)
+  // ML public search requires an app-level access token since ~2024.
+  // Use client_credentials flow if ML_APP_ID + ML_APP_SECRET are set.
+  const headers: Record<string, string> = { 'User-Agent': 'miyagisanchez/1.0' }
+  if (process.env.ML_APP_ID && process.env.ML_APP_SECRET) {
+    const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: process.env.ML_APP_ID,
+        client_secret: process.env.ML_APP_SECRET,
+      }),
+    })
+    if (tokenRes.ok) {
+      const tok = await tokenRes.json()
+      if (tok.access_token) headers['Authorization'] = `Bearer ${tok.access_token}`
+    }
+  }
+
+  const res = await fetch(url.toString(), { headers, next: { revalidate: 0 } })
+  if (!res.ok) throw new Error(`ML API HTTP ${res.status} — add ML_APP_ID + ML_APP_SECRET to .env.local`)
   const data = await res.json() as MLSearchResponse
   const items: MLSearchItem[] = data.results ?? []
 
