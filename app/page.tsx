@@ -1,11 +1,6 @@
 import Link from 'next/link'
 import { getRecentListings, formatPrice } from '@/lib/listings'
-
-const CATEGORIES = [
-  { label: 'Productos', value: 'product', icon: '📦' },
-  { label: 'Servicios', value: 'service', icon: '🔧' },
-  { label: 'Alquiler', value: 'rental', icon: '🔑' },
-]
+import { CATEGORIES } from '@/lib/types'
 
 export default async function HomePage() {
   const recent = await getRecentListings(8)
@@ -34,11 +29,11 @@ export default async function HomePage() {
       </div>
 
       {/* Categories */}
-      <div className="flex gap-3 mb-10">
+      <div className="flex flex-wrap gap-2 mb-10">
         {CATEGORIES.map(cat => (
           <Link
-            key={cat.value}
-            href={`/l?type=${cat.value}`}
+            key={cat.key}
+            href={`/l?category=${cat.key}`}
             className="border border-[var(--color-border)] bg-white rounded px-4 py-2 text-sm flex items-center gap-2 no-underline text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             <span>{cat.icon}</span>

@@ -81,9 +81,12 @@ type ListingInput = {
   currency: string
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'parts' | null
   listing_type: 'product' | 'service' | 'rental'
+  category?: string
+  state?: string
   location: string
   images: { url: string; alt?: string }[]
   tags: string[]
+  metadata?: Record<string, unknown>
 }
 
 const LISTINGS_BY_SHOP: Record<string, ListingInput[]> = {
@@ -95,6 +98,8 @@ const LISTINGS_BY_SHOP: Record<string, ListingInput[]> = {
       currency: 'MXN',
       condition: 'like_new',
       listing_type: 'product',
+      category: 'hogar',
+      state: 'Ciudad de México',
       location: 'CDMX',
       images: [
         { url: 'https://images.unsplash.com/photo-1599598425984-24d15d3b87f5?w=600', alt: 'Ficus retusa bonsái' },

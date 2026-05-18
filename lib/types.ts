@@ -21,7 +21,11 @@ export type Listing = {
   currency: string
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'parts' | null
   listing_type: 'product' | 'service' | 'rental'
+  category: string | null
+  state: string | null
+  municipio: string | null
   location: string | null
+  metadata: Record<string, unknown>
   images: Array<{ url: string; alt?: string }>
   tags: string[]
   status: string
@@ -33,10 +37,51 @@ export type Listing = {
 
 export type SearchParams = {
   q?: string
-  type?: string
+  category?: string
+  state?: string
+  municipio?: string
   condition?: string
   min_price?: string
   max_price?: string
   location?: string
   page?: string
+  // Autos filters
+  brand?: string
+  year_from?: string
+  year_to?: string
+  km_from?: string
+  km_to?: string
+  transmission?: string
+  fuel?: string
+  // Inmuebles filters
+  rooms_min?: string
+  rooms_max?: string
+  surface_min?: string
+  surface_max?: string
+  property_type?: string  // comma-separated: "casa,departamento"
 }
+
+export const CATEGORIES = [
+  { key: 'autos', label: 'Autos y motos', icon: '🚗' },
+  { key: 'inmuebles', label: 'Inmuebles', icon: '🏠' },
+  { key: 'electronica', label: 'Electrónica', icon: '📱' },
+  { key: 'hogar', label: 'Hogar y jardín', icon: '🪴' },
+  { key: 'moda', label: 'Moda y ropa', icon: '👗' },
+  { key: 'deportes', label: 'Deportes', icon: '⚽' },
+  { key: 'servicios', label: 'Servicios', icon: '🔧' },
+  { key: 'mascotas', label: 'Mascotas', icon: '🐾' },
+  { key: 'herramientas', label: 'Herramientas', icon: '🔨' },
+  { key: 'negocios', label: 'Negocios B2B', icon: '🏭' },
+  { key: 'otros', label: 'Otros', icon: '📦' },
+] as const
+
+export type CategoryKey = typeof CATEGORIES[number]['key']
+
+export const MEXICAN_STATES = [
+  'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche',
+  'Chiapas', 'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango',
+  'Estado de México', 'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco',
+  'Michoacán', 'Morelos', 'Nayarit', 'Nuevo León', 'Oaxaca', 'Puebla',
+  'Querétaro', 'Quintana Roo', 'San Luis Potosí', 'Sinaloa', 'Sonora',
+  'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
+] as const

@@ -15,13 +15,34 @@ export async function searchListings(params: SearchParams): Promise<{ listings: 
     .range(offset, offset + PAGE_SIZE - 1)
 
   if (params.q) {
-    query = query.textSearch('title', params.q, { type: 'websearch', config: 'spanish' })
+    query = query.textSearch('search_vector', params.q, { type: 'websearch', config: 'spanish' })
   }
-  if (params.type) query = query.eq('listing_type', params.type)
+  if (params.category) query = query.eq('category', params.category)
+  if (params.state) query = query.eq('state', params.state)
+  if (params.municipio) query = query.ilike('municipio', `%${params.municipio}%`)
   if (params.condition) query = query.eq('condition', params.condition)
   if (params.min_price) query = query.gte('price_cents', parseInt(params.min_price) * 100)
   if (params.max_price) query = query.lte('price_cents', parseInt(params.max_price) * 100)
   if (params.location) query = query.ilike('location', `%${params.location}%`)
+
+  // Autos-specific metadata filters
+  if (params.brand) query = query.ilike('metadata->>brand', `%${params.brand}%`)
+  if (params.year_from) query = query.gte('metadata->>year', params.year_from)
+  if (params.year_to) query = query.lte('metadata->>year', params.year_to)
+  if (params.km_from) query = query.gte('metadata->>km', params.km_from)
+  if (params.km_to) query = query.lte('metadata->>km', params.km_to)
+  if (params.transmission) query = query.eq('metadata->>transmission', params.transmission)
+  if (params.fuel) query = query.eq('metadata->>fuel', params.fuel)
+
+  // Inmuebles-specific metadata filters
+  if (params.rooms_min) query = query.gte('metadata->>rooms', params.rooms_min)
+  if (params.rooms_max) query = query.lte('metadata->>rooms', params.rooms_max)
+  if (params.surface_min) query = query.gte('metadata->>surface', params.surface_min)
+  if (params.surface_max) query = query.lte('metadata->>surface', params.surface_max)
+  if (params.property_type) {
+    const types = params.property_type.split(',').filter(Boolean)
+    if (types.length > 0) query = query.in('metadata->>property_type', types)
+  }
 
   const { data, count, error } = await query
   if (error) throw new Error(error.message)
