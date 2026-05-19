@@ -8,6 +8,8 @@ export type Shop = {
   clerk_user_id: string | null
   verified: boolean
   source: string | null
+  source_url: string | null
+  metadata: Record<string, unknown> | null
   created_at: string
 }
 
@@ -30,10 +32,13 @@ export type Listing = {
   tags: string[]
   status: string
   source_platform: string | null
+  source_url: string | null
   views: number
   created_at: string
   shop?: Shop
 }
+
+export type SortOption = 'reciente' | 'precio_asc' | 'precio_desc' | 'popular'
 
 export type SearchParams = {
   q?: string
@@ -44,6 +49,7 @@ export type SearchParams = {
   min_price?: string
   max_price?: string
   location?: string
+  sort?: SortOption
   page?: string
   // Autos filters
   brand?: string

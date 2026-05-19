@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { scrapeSerpApiLocal } from '@/lib/scrapers/serpapi'
-import { scrapeMercadoLibre } from '@/lib/scrapers/mercadolibre'
+import { scrapeMercadoLibre, scrapeMLSeller } from '@/lib/scrapers/mercadolibre'
 
 function checkSecret(req: NextRequest): boolean {
   const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json() as {
-    source: 'serpapi_google_local' | 'mercadolibre_public'
+    source: 'serpapi_google_local' | 'mercadolibre_public' | 'mercadolibre_seller'
     params: Record<string, string | number>
   }
   const { source, params } = body
@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
 
   // Run scraper synchronously and return result
   try {
-    let result
+    let result: { inserted: number; skipped: number; errors: number; sellerNickname?: string }
+
     if (source === 'serpapi_google_local') {
       result = await scrapeSerpApiLocal({
         query: String(params.query ?? ''),
@@ -47,6 +48,14 @@ export async function POST(req: NextRequest) {
         category: params.category ? String(params.category) : undefined,
         state: params.state ? String(params.state) : undefined,
         limit: Number(params.limit ?? 20),
+        clerkUserId: params.clerkUserId ? String(params.clerkUserId) : undefined,
+      })
+    } else if (source === 'mercadolibre_seller') {
+      result = await scrapeMLSeller({
+        sellerUrl: String(params.sellerUrl ?? ''),
+        category: params.category ? String(params.category) : undefined,
+        limit: Number(params.limit ?? 50),
+        clerkUserId: params.clerkUserId ? String(params.clerkUserId) : undefined,
       })
     } else {
       throw new Error(`Unknown source: ${source}`)

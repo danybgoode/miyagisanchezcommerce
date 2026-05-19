@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { CATEGORIES, MEXICAN_STATES } from '@/lib/types'
-import type { SearchParams } from '@/lib/types'
+import type { SearchParams, SortOption } from '@/lib/types'
 
 type SearchBarProps = {
   initialQ?: string
@@ -10,6 +10,13 @@ type SearchBarProps = {
   initialState?: string
   params: SearchParams
 }
+
+const SORT_OPTIONS: { value: SortOption | ''; label: string }[] = [
+  { value: 'reciente', label: 'Más recientes' },
+  { value: 'precio_asc', label: 'Menor precio' },
+  { value: 'precio_desc', label: 'Mayor precio' },
+  { value: 'popular', label: 'Más vistos' },
+]
 
 const CONDITIONS = [
   { value: '', label: 'Cualquier condición' },
@@ -88,6 +95,18 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             <option value="">Todo México</option>
             {MEXICAN_STATES.map(s => (
               <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="sm:w-40">
+          <select
+            name="sort"
+            defaultValue={params.sort ?? 'reciente'}
+            className={selectClass}
+          >
+            {SORT_OPTIONS.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
         </div>

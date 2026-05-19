@@ -7,11 +7,21 @@ export async function searchListings(params: SearchParams): Promise<{ listings: 
   const page = Math.max(1, parseInt(params.page ?? '1'))
   const offset = (page - 1) * PAGE_SIZE
 
+  // Determine sort order
+  const sort = params.sort ?? 'reciente'
+  const orderMap: Record<string, { column: string; ascending: boolean }> = {
+    reciente:    { column: 'created_at', ascending: false },
+    precio_asc:  { column: 'price_cents', ascending: true },
+    precio_desc: { column: 'price_cents', ascending: false },
+    popular:     { column: 'views', ascending: false },
+  }
+  const { column: orderCol, ascending: orderAsc } = orderMap[sort] ?? orderMap.reciente
+
   let query = db
     .from('marketplace_listings')
     .select('*, shop:marketplace_shops(id,slug,name,verified,location)', { count: 'exact' })
     .eq('status', 'active')
-    .order('created_at', { ascending: false })
+    .order(orderCol, { ascending: orderAsc })
     .range(offset, offset + PAGE_SIZE - 1)
 
   if (params.q) {
@@ -52,7 +62,7 @@ export async function searchListings(params: SearchParams): Promise<{ listings: 
 export async function getListing(id: string): Promise<Listing | null> {
   const { data } = await db
     .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id)')
+    .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url)')
     .eq('id', id)
     .eq('status', 'active')
     .single()
