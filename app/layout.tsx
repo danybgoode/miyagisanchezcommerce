@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
             <nav className="flex items-center gap-5 text-sm">
               <a href="/l" className="text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline">Explorar</a>
-              <a href="/sell" className="bg-[var(--color-accent)] text-white px-3 py-1 rounded text-sm font-medium no-underline hover:bg-[var(--color-accent-hover)]">
+              <a href="/sell" className="bg-[var(--color-accent)] !text-white px-3 py-1 rounded text-sm font-medium no-underline hover:bg-[var(--color-accent-hover)]">
                 Publicar
               </a>
             </nav>
