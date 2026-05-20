@@ -10,28 +10,44 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const nickname = req.nextUrl.searchParams.get('nickname') ?? 'automotrizgtrcoyoacn'
   const key = process.env.SERPAPI_KEY
-  const q = req.nextUrl.searchParams.get('q') ?? '(site:auto.mercadolibre.com.mx OR site:articulo.mercadolibre.com.mx) automotrizgtrcoyoacn'
 
-  const url = new URL('https://serpapi.com/search.json')
-  url.searchParams.set('engine', 'google')
-  url.searchParams.set('q', q)
-  url.searchParams.set('gl', 'mx')
-  url.searchParams.set('hl', 'es')
-  url.searchParams.set('num', '10')
-  url.searchParams.set('api_key', key ?? 'MISSING')
+  // --- Step 1: Exactly replicate the scrapeMLSeller URL build ---
+  const searchUrl = new URL('https://serpapi.com/search.json')
+  searchUrl.searchParams.set('engine', 'google')
+  searchUrl.searchParams.set('q', `(site:auto.mercadolibre.com.mx OR site:articulo.mercadolibre.com.mx) ${nickname}`)
+  searchUrl.searchParams.set('gl', 'mx')
+  searchUrl.searchParams.set('hl', 'es')
+  searchUrl.searchParams.set('num', '10')
+  searchUrl.searchParams.set('start', '0')   // same as page=0
+  searchUrl.searchParams.set('api_key', key ?? 'MISSING')
 
-  const res = await fetch(url.toString(), { cache: 'no-store', signal: AbortSignal.timeout(15000) })
-  const body = await res.json()
+  const res = await fetch(searchUrl.toString(), {
+    signal: AbortSignal.timeout(15000),
+    cache: 'no-store',
+  })
+
+  const body = await res.json() as { organic_results?: { title?: string; link?: string }[]; error?: string }
+
+  const results = body.organic_results ?? []
+
+  // --- Step 2: Apply the same MLM regex filter ---
+  const MLM_RE = /MLM[-_]?\d+/i
+  const filteredLinks = results
+    .filter(r => r.link && MLM_RE.test(r.link))
+    .map(r => ({ link: r.link, title: r.title }))
 
   return NextResponse.json({
     key_present: !!key,
     key_prefix: key ? key.slice(0, 8) + '...' : null,
     http_status: res.status,
-    has_organic: Array.isArray(body.organic_results),
-    organic_count: body.organic_results?.length ?? 0,
     serp_error: body.error ?? null,
-    first_link: body.organic_results?.[0]?.link ?? null,
-    request_url_sans_key: url.toString().replace(key ?? '', '[KEY]'),
+    raw_count: results.length,
+    filtered_count: filteredLinks.length,
+    raw_first_link: results[0]?.link ?? null,
+    filtered_items: filteredLinks.slice(0, 5),
+    built_url_sans_key: searchUrl.toString().replace(key ?? '', '[KEY]'),
+    regex_test_on_first: results[0]?.link ? MLM_RE.test(results[0].link) : null,
   })
 }
