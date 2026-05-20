@@ -168,7 +168,10 @@ export async function scrapeMLSeller(params: MLSellerScrapeParams): Promise<Scra
     searchUrl.searchParams.set('gl', 'mx')
     searchUrl.searchParams.set('hl', 'es')
     searchUrl.searchParams.set('num', '10')
-    searchUrl.searchParams.set('start', String(page * 10))
+    // Note: SerpAPI `start=0` behaves differently from omitting `start` entirely.
+    // Setting start=0 returns only 1 result (the seller profile page).
+    // Only set `start` for pages beyond the first.
+    if (page > 0) searchUrl.searchParams.set('start', String(page * 10))
     searchUrl.searchParams.set('api_key', process.env.SERPAPI_KEY)
 
     const res = await fetch(searchUrl.toString(), {
