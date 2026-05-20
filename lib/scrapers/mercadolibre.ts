@@ -52,6 +52,7 @@ async function fetchOgData(url: string): Promise<{
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
       signal: AbortSignal.timeout(6000),
+      cache: 'no-store',
     })
     if (!res.ok) return { title: null, image: null, priceCents: null, currency: null }
     const html = await res.text()
@@ -103,6 +104,7 @@ async function resolveSellerFromUrl(sellerUrl: string): Promise<{
       const res = await fetch(pageUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
         signal: AbortSignal.timeout(8000),
+        cache: 'no-store',
       })
       if (res.ok) {
         const html = await res.text()
@@ -169,10 +171,17 @@ export async function scrapeMLSeller(params: MLSellerScrapeParams): Promise<Scra
     searchUrl.searchParams.set('start', String(page * 10))
     searchUrl.searchParams.set('api_key', process.env.SERPAPI_KEY)
 
-    const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(15000) })
-    if (!res.ok) break
+    const res = await fetch(searchUrl.toString(), {
+      signal: AbortSignal.timeout(15000),
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      throw new Error(`SerpAPI HTTP ${res.status}: ${errBody.slice(0, 200)}`)
+    }
 
-    const data = await res.json() as { organic_results?: SerpResult[] }
+    const data = await res.json() as { organic_results?: SerpResult[]; error?: string }
+    if (data.error) throw new Error(`SerpAPI error: ${data.error}`)
     const results = data.organic_results ?? []
     if (results.length === 0) break
 

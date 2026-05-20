@@ -57,7 +57,7 @@ export async function scrapeSerpApiLocal(params: SerpApiScrapeParams): Promise<S
   url.searchParams.set('gl', 'mx')
   url.searchParams.set('api_key', process.env.SERPAPI_KEY!)
 
-  const res = await fetch(url.toString(), { next: { revalidate: 0 } })
+  const res = await fetch(url.toString(), { cache: 'no-store' })
   if (!res.ok) throw new Error(`SerpAPI HTTP ${res.status}`)
   const data = await res.json() as {
     error?: string
