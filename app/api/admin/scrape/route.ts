@@ -55,7 +55,6 @@ export async function POST(req: NextRequest) {
         sellerUrl: String(params.sellerUrl ?? ''),
         category: params.category ? String(params.category) : undefined,
         limit: Number(params.limit ?? 50),
-        clerkUserId: params.clerkUserId ? String(params.clerkUserId) : undefined,
       })
     } else {
       throw new Error(`Unknown source: ${source}`)

@@ -95,7 +95,6 @@ interface MLSellerFormState {
   sellerUrl: string
   category: string
   limit: string
-  clerkUserId: string
 }
 
 export default function AdminScrapeClient({ secret }: { secret: string }) {
@@ -117,7 +116,6 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
     sellerUrl: '',
     category: 'electronica',
     limit: '50',
-    clerkUserId: '',
   })
 
   const [serpLoading, setSerpLoading] = useState(false)
@@ -208,7 +206,6 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             sellerUrl: mlSellerForm.sellerUrl,
             category: mlSellerForm.category,
             limit: Number(mlSellerForm.limit),
-            ...(mlSellerForm.clerkUserId ? { clerkUserId: mlSellerForm.clerkUserId } : {}),
           },
         }),
       })
@@ -304,8 +301,11 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
 
         {/* ── ML Keyword ──────────────────────────── */}
         <div style={card}>
-          <h2 style={sectionTitle}>🛒 MercadoLibre — Keyword Search</h2>
-          <p style={sectionSub}>Search ML catalog by keyword. Paste your Clerk user ID to use your connected ML account (avoids 403 errors).</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <h2 style={{ ...sectionTitle, margin: 0 }}>🛒 MercadoLibre — Keyword Search</h2>
+            <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, border: '1px solid #fca5a5' }}>Blocked in MX</span>
+          </div>
+          <p style={sectionSub}>ML's PolicyAgent blocks /sites/MLM/search for non-certified developer apps. This will return a 403 with explanation. Use "Seller Targeting" below instead.</p>
           <form onSubmit={(e) => { void runML(e) }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={field}>
@@ -340,22 +340,27 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
         <div style={{ ...card, border: '2px solid #3a8a7a' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <h2 style={{ ...sectionTitle, margin: 0 }}>🎯 MercadoLibre — Seller Targeting</h2>
-            <span style={{ backgroundColor: '#f0fdf4', color: '#166534', fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, border: '1px solid #86efac' }}>NEW</span>
+            <span style={{ backgroundColor: '#f0fdf4', color: '#166534', fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, border: '1px solid #86efac' }}>Works via Google</span>
           </div>
-          <p style={sectionSub}>Paste any ML listing URL or seller profile URL to scrape all their active listings. Requires a connected ML account.</p>
+          <p style={sectionSub}>
+            Paste any ML seller page URL → imports all their listings via Google search + HTML parsing.
+            No ML API access needed. Typically captures 10–50 items per seller.
+          </p>
           <form onSubmit={(e) => { void runMLSeller(e) }}>
             <div style={field}>
-              <label style={label}>ML Listing or Seller URL</label>
+              <label style={label}>ML Seller Page URL</label>
               <input
                 style={{ ...input, fontSize: 13 }}
                 value={mlSellerForm.sellerUrl}
                 onChange={e => setMlSellerForm(f => ({ ...f, sellerUrl: e.target.value }))}
-                placeholder="https://articulo.mercadolibre.com.mx/MLM-123456789-... or https://www.mercadolibre.com.mx/perfil/12345"
+                placeholder="https://www.mercadolibre.com.mx/pagina/automotrizgtrcoyoacn"
                 required
               />
-              <p style={hint}>Supports: product listing URL · seller numeric ID URL · seller nickname URL</p>
+              <p style={hint}>
+                Formats: mercadolibre.com.mx/pagina/NICKNAME · /perfil/NICKNAME · any listing URL with MLM-XXXXXX
+              </p>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={field}>
                 <label style={label}>Category</label>
                 <select style={input} value={mlSellerForm.category} onChange={e => setMlSellerForm(f => ({ ...f, category: e.target.value }))}>
@@ -363,13 +368,8 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
                 </select>
               </div>
               <div style={field}>
-                <label style={label}>Limit</label>
-                <input style={input} type="number" min={1} max={100} value={mlSellerForm.limit} onChange={e => setMlSellerForm(f => ({ ...f, limit: e.target.value }))} />
-              </div>
-              <div style={field}>
-                <label style={label}>Clerk User ID <span style={{ color: '#dc2626' }}>*</span></label>
-                <input style={input} value={mlSellerForm.clerkUserId} onChange={e => setMlSellerForm(f => ({ ...f, clerkUserId: e.target.value }))} placeholder="user_XXXXXXXXXXXX" required />
-                <p style={hint}>Required — uses your ML account token.</p>
+                <label style={label}>Limit (Google returns ~10/page, max 50)</label>
+                <input style={input} type="number" min={1} max={50} value={mlSellerForm.limit} onChange={e => setMlSellerForm(f => ({ ...f, limit: e.target.value }))} />
               </div>
             </div>
             <button type="submit" style={btn(mlSellerLoading)} disabled={mlSellerLoading}>
