@@ -82,7 +82,7 @@ async function resolveToken(clerkUserId?: string): Promise<{ token: string | nul
         let accessToken: string
 
         if (expiresAt.getTime() - Date.now() < 5 * 60 * 1000) {
-          // Refresh token
+          // Token expired or expiring soon — refresh it
           const decryptedRefresh = decrypt(data.refresh_token)
           const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
             method: 'POST',
@@ -95,14 +95,14 @@ async function resolveToken(clerkUserId?: string): Promise<{ token: string | nul
             }),
           })
           const tok = await tokenRes.json()
-          if (!tokenRes.ok) throw new Error(`Token refresh failed: ${JSON.stringify(tok)}`)
+          if (!tokenRes.ok) throw new Error(`Token refresh failed (${tokenRes.status}): ${JSON.stringify(tok)}`)
 
-          // Update stored tokens
+          // Persist refreshed tokens back to DB
           await db.from('commerce_ml_connections')
             .update({
               access_token: encrypt(tok.access_token),
               refresh_token: encrypt(tok.refresh_token),
-              expires_at: new Date(Date.now() + tok.expires_in * 1000).toISOString(),
+              expires_at: new Date(Date.now() + (tok.expires_in ?? 21600) * 1000).toISOString(),
               updated_at: new Date().toISOString(),
             })
             .eq('clerk_user_id', clerkUserId)
@@ -294,39 +294,72 @@ export async function scrapeMLSeller(params: MLSellerScrapeParams): Promise<Scra
   }
 
   // Resolve seller ID from URL
+  // Supported URL formats:
+  //   https://www.mercadolibre.com.mx/pagina/automotrizgtrcoyoacn#...&item_id=MLM2938280165
+  //   https://articulo.mercadolibre.com.mx/MLM-2938280165-...
+  //   https://www.mercadolibre.com.mx/perfil/12345  (numeric ID)
+  //   MLM2938280165  (bare item ID)
   let sellerId: number | null = null
   let sellerNickname = ''
 
+  // Extract MLM item ID from URL (including fragment after #)
   const mlmMatch = sellerUrl.match(/MLM[-_]?(\d+)/i)
-  const profileMatch = sellerUrl.match(/\/perfil\/(\d+)/)
-  const nicknameMatch = sellerUrl.match(/\/perfil\/([A-Z0-9_]+)/i)
+  // Numeric perfil ID: /perfil/12345
+  const profileNumMatch = sellerUrl.match(/\/perfil\/(\d+)(?:[^a-zA-Z]|$)/)
+  // Nickname from /pagina/NICKNAME or /perfil/NICKNAME
+  const nicknameMatch = sellerUrl.match(/\/(?:pagina|perfil)\/([A-Za-z0-9_-]+)/i)
 
   if (mlmMatch) {
-    // Listing URL — fetch item to get seller
+    // Item URL — use /items/{id} to get seller_id
+    // NOTE: requires "Items and searches" enabled in ML developer app.
+    // If this returns 403, enable it at: developers.mercadolibre.com → My Apps → API products
     const itemId = `MLM${mlmMatch[1]}`
     const itemRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`, { headers: authHeaders })
-    if (!itemRes.ok) throw new Error(`ML item fetch failed (${itemRes.status}) for ${itemId}`)
+    if (!itemRes.ok) {
+      const body = await itemRes.json().catch(() => ({}))
+      if (itemRes.status === 403) {
+        throw new Error(
+          `ML /items/${itemId} returned 403. ` +
+          `You need to enable "Items and searches" in your ML developer app: ` +
+          `developers.mercadolibre.com → My Apps → your app → API products tab → enable "Items and searches". ` +
+          `Raw: ${JSON.stringify(body)}`
+        )
+      }
+      throw new Error(`ML item fetch failed (${itemRes.status}) for ${itemId}: ${JSON.stringify(body)}`)
+    }
     const item = await itemRes.json()
     sellerId = item.seller_id
-  } else if (profileMatch) {
-    sellerId = parseInt(profileMatch[1])
+    sellerNickname = item.seller?.nickname ?? ''
+  } else if (profileNumMatch) {
+    sellerId = parseInt(profileNumMatch[1])
   } else if (nicknameMatch) {
-    // Try by nickname
+    const nickname = nicknameMatch[1]
+    // Resolve nickname → seller ID via seller's public items
+    // GET /users/search is restricted; use search with nickname param instead
     const nickRes = await fetch(
-      `https://api.mercadolibre.com/sites/MLM/search?nickname=${encodeURIComponent(nicknameMatch[1])}&limit=1`,
+      `https://api.mercadolibre.com/sites/MLM/search?nickname=${encodeURIComponent(nickname)}&limit=1`,
       { headers: authHeaders }
     )
     if (nickRes.ok) {
       const nickData = await nickRes.json()
       sellerId = nickData.seller?.id ?? null
+      sellerNickname = nickname
+    } else {
+      throw new Error(
+        `Could not look up seller "${nickname}" — ML returned ${nickRes.status}. ` +
+        `Try using a direct listing URL or numeric seller ID instead.`
+      )
     }
   }
 
   if (!sellerId) {
     throw new Error(
       `Could not resolve seller from URL: "${sellerUrl}". ` +
-      `Supported formats: ML listing URL (contains MLM-XXXXXX), ` +
-      `seller profile URL (.../perfil/12345 or .../perfil/NICKNAME).`
+      `Supported formats:\n` +
+      `• Any ML listing URL (contains MLM-XXXXXX or MLM2938280165)\n` +
+      `• Seller profile: mercadolibre.com.mx/perfil/12345678\n` +
+      `• Seller page: mercadolibre.com.mx/pagina/SELLER_NICKNAME\n` +
+      `Tip: paste the full URL including the # fragment — the item_id in the fragment is used.`
     )
   }
 

@@ -24,6 +24,7 @@ interface SerpLocalResult {
   reviews?: number
   type?: string
   thumbnail?: string
+  website?: string
   gps_coordinates?: { latitude: number; longitude: number }
 }
 
@@ -33,6 +34,16 @@ function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 48)
+}
+
+/** Quality score 0–4 for a Google Local result. Min 2 required for insertion. */
+function qualityScore(r: SerpLocalResult): number {
+  let score = 0
+  if (r.title && r.title.length >= 5) score++           // has a real name
+  if (r.address) score++                                 // has an address
+  if (r.phone || r.website) score++                     // has contact info
+  if (r.thumbnail) score++                               // has photo
+  return score
 }
 
 export async function scrapeSerpApiLocal(params: SerpApiScrapeParams): Promise<ScrapeResult> {
@@ -60,6 +71,9 @@ export async function scrapeSerpApiLocal(params: SerpApiScrapeParams): Promise<S
 
   for (const r of results) {
     try {
+      // Quality gate — min score 2 to insert
+      if (qualityScore(r) < 2) { skipped++; continue }
+
       const sourceUrl = r.place_id
         ? `https://maps.google.com/?cid=${r.place_id}`
         : `serpapi://local/${encodeURIComponent(r.title + '|' + (r.address ?? location))}`
@@ -73,7 +87,14 @@ export async function scrapeSerpApiLocal(params: SerpApiScrapeParams): Promise<S
 
       if (existing) { skipped++; continue }
 
-      // Create shop
+      // Build shop metadata — phone + website stored here for PDP contact block
+      const shopMetadata: Record<string, unknown> = {}
+      if (r.phone) shopMetadata.phone = r.phone
+      if (r.website) shopMetadata.website = r.website
+      if (r.rating) shopMetadata.rating = r.rating
+      if (r.reviews) shopMetadata.reviews = r.reviews
+
+      // Create shop — now includes metadata with contact info
       const slug = slugify(r.title) + '-' + Math.random().toString(36).slice(2, 6)
       const { data: shop, error: shopErr } = await db
         .from('marketplace_shops')
@@ -84,6 +105,7 @@ export async function scrapeSerpApiLocal(params: SerpApiScrapeParams): Promise<S
           source: 'scraped',
           source_url: sourceUrl,
           verified: false,
+          metadata: shopMetadata,
         })
         .select('id')
         .single()

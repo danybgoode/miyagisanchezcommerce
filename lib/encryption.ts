@@ -3,8 +3,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 const ALGORITHM = 'aes-256-cbc'
 
 function getKey(): Buffer {
-  const secret = process.env.ENCRYPTION_KEY
-  if (!secret) throw new Error('ENCRYPTION_KEY is not set')
+  const secret = process.env.ENCRYPTION_SECRET ?? process.env.ENCRYPTION_KEY
+  if (!secret) throw new Error('ENCRYPTION_SECRET is not set')
   return Buffer.from(secret.padEnd(32, '0').slice(0, 32), 'utf8')
 }
 
