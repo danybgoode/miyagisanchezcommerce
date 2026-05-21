@@ -22,7 +22,7 @@ export type Listing = {
   price_cents: number | null
   currency: string
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'parts' | null
-  listing_type: 'product' | 'service' | 'rental'
+  listing_type: 'product' | 'service' | 'rental' | 'digital'
   category: string | null
   state: string | null
   municipio: string | null

@@ -1,0 +1,190 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/supabase'
+import { canAcceptCounter, canWithdraw, formatOfferAmount } from '@/lib/offers'
+import { stripe } from '@/lib/stripe'
+import { sendOfferAccepted, sendCounterAccepted, sendOfferWithdrawn, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
+
+interface BuyerRespondBody {
+  action: 'accept-counter' | 'withdraw'
+  buyerEmail: string
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+
+  let body: BuyerRespondBody
+  try {
+    body = await req.json() as BuyerRespondBody
+  } catch {
+    return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
+  }
+
+  const { action, buyerEmail } = body
+
+  if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    return NextResponse.json({ error: 'Correo inválido.' }, { status: 400 })
+  }
+
+  // ── Fetch offer ───────────────────────────────────────────────────────────
+  const { data: offer } = await db
+    .from('marketplace_offers')
+    .select(`
+      *,
+      marketplace_listings!inner(
+        id, title, price_cents, currency, listing_type, images,
+        marketplace_shops!inner(id, metadata, clerk_user_id)
+      )
+    `)
+    .eq('id', id)
+    .ilike('buyer_email', buyerEmail)
+    .single()
+
+  if (!offer) {
+    return NextResponse.json({ error: 'Oferta no encontrada o correo incorrecto.' }, { status: 404 })
+  }
+
+  const scheduledIds = (offer.scheduled_reminder_ids ?? {}) as Record<string, string>
+
+  const listing = offer.marketplace_listings as unknown as {
+    id: string; title: string; price_cents: number; currency: string
+    listing_type: string; images: Array<{ url: string }> | null
+    marketplace_shops: { id: string; metadata: Record<string, unknown> | null; clerk_user_id: string | null }
+  }
+
+  // ── Withdraw ──────────────────────────────────────────────────────────────
+  if (action === 'withdraw') {
+    if (!canWithdraw(offer)) {
+      return NextResponse.json({ error: 'Esta oferta no puede retirarse.' }, { status: 409 })
+    }
+    // Cancel ALL pending reminders — offer is dead
+    for (const emailId of Object.values(scheduledIds)) {
+      cancelScheduledEmail(emailId).catch(() => {})
+    }
+    await db.from('marketplace_offers').update({ status: 'withdrawn' }).eq('id', id)
+    return NextResponse.json({ status: 'withdrawn' })
+  }
+
+  // ── Accept counter ────────────────────────────────────────────────────────
+  if (action === 'accept-counter') {
+    if (!canAcceptCounter(offer)) {
+      return NextResponse.json({ error: 'La contraoferta ya no está disponible.' }, { status: 409 })
+    }
+
+    const acceptedCents = offer.counter_amount_cents!
+    const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
+    const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
+      { account_id?: string; charges_enabled?: boolean } | undefined
+
+    const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
+
+    let checkoutSessionId: string | null = null
+    let checkoutExpires: string | null = null
+
+    if (stripeSettings?.charges_enabled && stripeSettings?.account_id) {
+      try {
+        const expiresAt = Math.floor(Date.now() / 1000) + 24 * 3600
+        const session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          customer_email: offer.buyer_email,
+          expires_at: expiresAt,
+          line_items: [{
+            price_data: {
+              currency: listing.currency.toLowerCase(),
+              unit_amount: acceptedCents,
+              product_data: {
+                name: `${listing.title} (contraoferta aceptada)`,
+                images: listing.images?.[0]?.url ? [listing.images[0].url] : [],
+              },
+            },
+            quantity: 1,
+          }],
+          payment_intent_data: {
+            transfer_data: { destination: stripeSettings.account_id },
+            application_fee_amount: 0,
+            metadata: {
+              listing_id: listing.id,
+              shop_id: listing.marketplace_shops.id,
+              listing_type: listing.listing_type,
+              offer_id: id,
+            },
+          },
+          metadata: {
+            listing_id: listing.id,
+            shop_id: listing.marketplace_shops.id,
+            listing_type: listing.listing_type,
+            offer_id: id,
+          },
+          success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/l/${listing.id}?offer=cancelled`,
+        })
+        checkoutSessionId = session.id
+        checkoutExpires = new Date(expiresAt * 1000).toISOString()
+      } catch (err) {
+        console.error('Checkout session error on counter-accept:', err)
+      }
+    }
+
+    // Cancel counter-expiry reminder — buyer has responded
+    if (scheduledIds.buyer_counter_expiry) {
+      cancelScheduledEmail(scheduledIds.buyer_counter_expiry).catch(() => {})
+    }
+
+    await db.from('marketplace_offers').update({
+      status: 'accepted',
+      checkout_session_id: checkoutSessionId,
+      checkout_expires_at: checkoutExpires,
+    }).eq('id', id)
+
+    const listingUrl = `${origin}/l/${listing.id}`
+
+    // Buyer: accepted — with payment link
+    sendOfferAccepted({
+      listingTitle: listing.title, listingId: listing.id, listingUrl,
+      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
+      currency: listing.currency, offerId: id,
+      expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      checkoutUrl: checkoutSessionId ? listingUrl : null,
+      checkoutExpiresAt: checkoutExpires,
+    }).catch(e => console.error('[email] counter-accept buyer:', e))
+
+    // Seller: counter was accepted — notify them
+    if (listing.marketplace_shops.clerk_user_id) {
+      getSellerEmail(listing.marketplace_shops.clerk_user_id).then(sellerEmail => {
+        if (sellerEmail) {
+          return sendCounterAccepted({
+            sellerEmail, listingTitle: listing.title, listingUrl,
+            counterAmount: formatOfferAmount(acceptedCents, listing.currency),
+            buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
+          })
+        }
+      }).catch(e => console.error('[email] counter-accept seller:', e))
+    }
+
+    // Schedule buyer payment-expiry reminder at checkoutExpires − 4h (Stripe flow only)
+    if (checkoutExpires) {
+      sendBuyerPaymentExpiryWarning({
+        buyerEmail: offer.buyer_email,
+        listingTitle: listing.title,
+        checkoutUrl: listingUrl,
+        agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
+        expiresAt: checkoutExpires,
+      }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))
+        .then(async paymentExpiryId => {
+          if (!paymentExpiryId) return
+          const newIds = { ...scheduledIds, buyer_payment_expiry: paymentExpiryId }
+          await db.from('marketplace_offers').update({ scheduled_reminder_ids: newIds }).eq('id', id)
+        })
+        .catch(e => console.error('[reminders] buyer payment expiry (counter):', e))
+    }
+
+    return NextResponse.json({ status: 'accepted' })
+  }
+
+  return NextResponse.json({ error: 'Acción desconocida.' }, { status: 400 })
+}

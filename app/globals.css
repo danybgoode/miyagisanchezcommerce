@@ -3,11 +3,14 @@
 @theme inline {
   --color-background: #f9f9f7;
   --color-surface: #ffffff;
+  --color-surface-alt: #f0f0ec;
   --color-border: #e2e2de;
   --color-text: #1a1a18;
+  --color-foreground: #1a1a18;
   --color-muted: #6b6b67;
   --color-accent: #1d6f42;
   --color-accent-hover: #155233;
+  --color-accent-foreground: #ffffff;
   --font-sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -20,5 +23,13 @@ body {
 }
 
 * { box-sizing: border-box; }
-a { color: var(--color-accent); }
-a:hover { color: var(--color-accent-hover); }
+
+/* Use :where() so specificity is 0 — any Tailwind text-* class overrides this */
+:where(a) { color: var(--color-accent); }
+:where(a:hover) { color: var(--color-accent-hover); }
+
+/* Accent buttons always get white text regardless of element type */
+[class~="bg-[var(--color-accent)]"],
+[class~="bg-[var(--color-accent-hover)]"] {
+  color: var(--color-accent-foreground);
+}

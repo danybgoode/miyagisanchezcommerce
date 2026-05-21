@@ -62,7 +62,7 @@ export async function searchListings(params: SearchParams): Promise<{ listings: 
 export async function getListing(id: string): Promise<Listing | null> {
   const { data } = await db
     .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url)')
+    .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url,mp_enabled)')
     .eq('id', id)
     .eq('status', 'active')
     .single()

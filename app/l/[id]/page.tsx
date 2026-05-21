@@ -1,6 +1,11 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { currentUser } from '@clerk/nextjs/server'
 import { getListing, formatPrice, conditionLabel } from '@/lib/listings'
+import { getShopStripe } from '@/lib/stripe'
+import BuyButton from '@/app/components/BuyButton'
+import MercadoPagoButton from '@/app/components/MercadoPagoButton'
+import MakeOfferButton from '@/app/components/MakeOfferButton'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -47,7 +52,7 @@ function whatsappUrl(raw: string, title: string): string {
 
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const listing = await getListing(id)
+  const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
 
   // Extract contact info — phone can be on listing metadata (SerpAPI) or shop metadata
@@ -57,6 +62,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   const shopWebsite = listing.shop?.metadata?.website as string | null | undefined
   const isClaimed = !!(listing.shop?.clerk_user_id && !listing.shop.clerk_user_id.startsWith('pending:'))
+
+  // Digital goods
+  const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
+  const isDigital = listing.listing_type === 'digital'
+
+  // Stripe — check if seller has connected payments
+  const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
+  const stripeSettings = getShopStripe(shopMeta)
+  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id)
+  // mp_enabled defaults true so existing shops without the column still show MP
+  const sellerHasMp = (listing.shop as unknown as { mp_enabled?: boolean | null } | null)?.mp_enabled !== false
+  const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -127,6 +144,20 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           <p className="text-2xl font-bold text-[var(--color-accent)] mb-1">{formatPrice(listing)}</p>
           <p className="text-xs text-[var(--color-muted)] mb-4">{timeAgo(listing.created_at)} · {listing.views} vistas</p>
 
+          {/* Digital goods badge */}
+          {isDigital && digitalFile && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 mb-4">
+              <span className="text-xl">💻</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-blue-800">Producto digital</div>
+                <div className="text-xs text-blue-600 truncate">
+                  {digitalFile.label} · {digitalFile.name}
+                  {digitalFile.size && ` · ${(digitalFile.size / 1024 / 1024).toFixed(1)} MB`}
+                </div>
+              </div>
+            </div>
+          )}
+
           <dl className="space-y-2 text-sm mb-5">
             {listing.condition && (
               <div className="flex gap-2">
@@ -142,9 +173,66 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             )}
             <div className="flex gap-2">
               <dt className="text-[var(--color-muted)] w-24 shrink-0">Tipo</dt>
-              <dd className="capitalize">{listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}</dd>
+              <dd className="capitalize">
+                {isDigital ? '💻 Digital' : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
+              </dd>
             </div>
           </dl>
+
+          {/* ── Buy / Download CTA ───────────────────── */}
+          {isDigital && hasBuyablePrice && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">📥</span>
+                <div>
+                  <div className="text-sm font-semibold text-blue-800">Entrega automática al instante</div>
+                  <div className="text-xs text-blue-600">Recibirás el archivo al completar el pago.</div>
+                </div>
+              </div>
+              <BuyButton
+                listingId={listing.id}
+                price={formatPrice(listing)}
+                isDigital
+                sellerHasStripe={sellerHasStripe}
+              />
+            </div>
+          )}
+
+          {/* Physical / service buy button + make offer */}
+          {!isDigital && hasBuyablePrice && isClaimed && (
+            <div className="mb-4 space-y-2">
+              {/* MercadoPago — primary for MX (cards, OXXO, wallets, installments) */}
+              {sellerHasMp && (
+                <MercadoPagoButton
+                  listingId={listing.id}
+                  price={formatPrice(listing)}
+                  buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress}
+                />
+              )}
+              {/* Stripe — international cards fallback */}
+              {sellerHasStripe && (
+                <BuyButton
+                  listingId={listing.id}
+                  price={formatPrice(listing)}
+                  isDigital={false}
+                  sellerHasStripe={sellerHasStripe}
+                />
+              )}
+              <MakeOfferButton
+                listing={{
+                  id: listing.id,
+                  title: listing.title,
+                  price_cents: listing.price_cents!,
+                  currency: listing.currency,
+                  imageUrl: listing.images?.[0]?.url ?? null,
+                }}
+                buyerInfo={clerkUser ? {
+                  name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '),
+                  email: clerkUser.emailAddresses[0]?.emailAddress ?? '',
+                } : undefined}
+              />
+            </div>
+          )}
 
           {/* ── Contact block ─────────────────────────── */}
           <div className="border border-[var(--color-border)] rounded-lg overflow-hidden mb-4">
