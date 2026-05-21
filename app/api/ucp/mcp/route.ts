@@ -15,11 +15,12 @@
  * }
  *
  * Tools:
- *   search_listings   Browse catalog with filters
- *   get_listing       Full detail for one listing
- *   create_checkout   Generate payment URL (MP or Stripe)
- *   make_offer        Submit price offer → returns offer_id
- *   get_shop          Seller profile + their listings
+ *   search_listings       Browse catalog with filters
+ *   get_listing           Full detail for one listing
+ *   get_checkout_options  All payment methods for a listing with pre-generated URLs
+ *   create_checkout       Generate a single payment URL (MP or Stripe)
+ *   make_offer            Submit price offer → returns offer_id
+ *   get_shop              Seller profile + their listings
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -94,8 +95,21 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_checkout_options',
+    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND contact-first methods (bank transfer/SPEI with CLABE, cash on pickup, WhatsApp) with full instructions. Always call this before create_checkout so you can present the buyer their best options.',
+    inputSchema: {
+      type: 'object',
+      required: ['listing_id'],
+      properties: {
+        listing_id:  { type: 'string', description: 'Listing UUID' },
+        offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
+        buyer_email: { type: 'string', description: 'Buyer email (optional)' },
+      },
+    },
+  },
+  {
     name: 'create_checkout',
-    description: 'Generate a payment checkout URL for a listing. Returns a URL the buyer should open to complete payment. Supports MercadoPago (cards, OXXO, wallet, meses sin intereses) and Stripe.',
+    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options.',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -220,6 +234,77 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
   return { content: [{ type: 'text', text: details }, { type: 'text', text: JSON.stringify(item, null, 2) }] }
 }
 
+async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: string) {
+  const body: Record<string, string> = { listing_id: String(args.listing_id ?? '') }
+  if (args.offer_id)    body.offer_id    = String(args.offer_id)
+  if (args.buyer_email) body.buyer_email = String(args.buyer_email)
+
+  try {
+    const res = await fetch(`${baseUrl}/api/ucp/checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const d = await res.json() as { error?: string }
+      return { isError: true, content: [{ type: 'text', text: `Failed to get checkout options: ${d.error ?? res.status}` }] }
+    }
+
+    const session = await res.json() as {
+      price?: { formatted?: string; is_offer_price?: boolean }
+      available_count?: number
+      recommended_method?: string
+      payment_options?: Array<{
+        method: string; label: string; description: string; available: boolean;
+        instant: boolean; checkout_url?: string; instructions?: string;
+        contact_url?: string; bank_details?: { clabe: string; bank_name: string | null; account_holder: string | null }
+        reason_unavailable?: string
+      }>
+      escrow?: { available: boolean; required: boolean; description: string }
+    }
+
+    const opts = session.payment_options ?? []
+    const available = opts.filter(o => o.available)
+    const unavailable = opts.filter(o => !o.available)
+
+    const formatOption = (o: typeof opts[0]) => {
+      const lines = [`**${o.label}** ${o.instant ? '⚡ Pago inmediato' : '📋 Coordinación requerida'}`]
+      lines.push(o.description)
+      if (o.checkout_url) lines.push(`→ Usar create_checkout con method="${o.method}" para generar el enlace de pago`)
+      if (o.instructions) lines.push(`📋 ${o.instructions}`)
+      if (o.bank_details) {
+        lines.push(`🏦 CLABE: \`${o.bank_details.clabe}\``)
+        if (o.bank_details.bank_name) lines.push(`   Banco: ${o.bank_details.bank_name}`)
+        if (o.bank_details.account_holder) lines.push(`   Titular: ${o.bank_details.account_holder}`)
+      }
+      if (o.contact_url) lines.push(`📱 ${o.contact_url}`)
+      return lines.join('\n')
+    }
+
+    const summary = [
+      `## Opciones de pago para este anuncio`,
+      session.price ? `**Precio:** ${session.price.formatted}${session.price.is_offer_price ? ' (precio negociado ✅)' : ''}` : '',
+      session.escrow?.available ? `🛡️ ${session.escrow.description}` : '',
+      '',
+      `### Disponibles (${available.length})`,
+      ...available.map(o => formatOption(o)),
+      ...(unavailable.length > 0 ? [
+        '',
+        `### No disponibles`,
+        ...unavailable.map(o => `~~${o.label}~~ — ${o.reason_unavailable ?? 'No disponible'}`),
+      ] : []),
+      '',
+      session.recommended_method
+        ? `✨ **Recomendado:** ${available.find(o => o.method === session.recommended_method)?.label ?? session.recommended_method}`
+        : '⚠️ No hay métodos de pago disponibles para este anuncio.',
+    ].filter(s => s !== '').join('\n\n')
+
+    return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(session, null, 2) }] }
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+}
+
 async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: string) {
   const method = String(args.method ?? 'mercadopago')
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
@@ -309,7 +394,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. Use search_listings to find items, get_listing for details, make_offer to negotiate prices, and create_checkout to buy.',
+      instructions: 'Miyagi Sánchez marketplace for Mexico. Workflow: search_listings → get_listing → get_checkout_options (see all payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer.',
     }
   }
 
@@ -326,11 +411,12 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
     const args = (params?.arguments as Record<string, unknown> | undefined) ?? {}
 
     switch (name) {
-      case 'search_listings':  return { content: (await handleSearchListings(args, baseUrl)).content }
-      case 'get_listing':      return { content: (await handleGetListing(args, baseUrl)).content }
-      case 'create_checkout':  return { content: (await handleCreateCheckout(args, baseUrl)).content }
-      case 'make_offer':       return { content: (await handleMakeOffer(args, baseUrl)).content }
-      case 'get_shop':         return { content: (await handleGetShop(args, baseUrl)).content }
+      case 'search_listings':      return { content: (await handleSearchListings(args, baseUrl)).content }
+      case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
+      case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
+      case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
+      case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl)).content }
+      case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
       default:                 return null  // will become MethodNotFound error
     }
   }

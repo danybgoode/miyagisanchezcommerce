@@ -27,6 +27,12 @@ export interface ShopSettingsData {
         payment_methods?: string[]
         show_phone?: boolean
         whatsapp_cta?: boolean
+        bank_transfer?: {
+          enabled: boolean
+          clabe?: string        // 18-digit CLABE
+          bank_name?: string
+          account_holder?: string
+        }
       }
       shipping?: {
         mercado_envios?: boolean
@@ -245,6 +251,13 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
   const logoInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
+  // Bank transfer (SPEI)
+  const bt = s.checkout?.bank_transfer ?? {} as NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['checkout']>['bank_transfer'] & {}
+  const [bankTransferEnabled, setBankTransferEnabled] = useState(bt?.enabled ?? false)
+  const [clabe, setClabe]                   = useState(bt?.clabe ?? '')
+  const [bankName, setBankName]             = useState(bt?.bank_name ?? '')
+  const [accountHolder, setAccountHolder]   = useState(bt?.account_holder ?? '')
+
   // MercadoPago settings
   const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
 
@@ -309,7 +322,17 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
           mp_enabled: mpEnabled,
           settings: {
             preset,
-            checkout: { escrow_mode: escrowMode, show_phone: showPhone, whatsapp_cta: whatsappCta },
+            checkout: {
+              escrow_mode: escrowMode,
+              show_phone: showPhone,
+              whatsapp_cta: whatsappCta,
+              bank_transfer: {
+                enabled: bankTransferEnabled,
+                clabe: clabe.trim() || undefined,
+                bank_name: bankName.trim() || undefined,
+                account_holder: accountHolder.trim() || undefined,
+              },
+            },
             shipping: { mercado_envios: mercadoEnvios, local_pickup: localPickup },
             notifications: { email_new_view: emailView, email_new_message: emailMessage },
             theme: {
@@ -610,7 +633,66 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
         )}
       </section>
 
-      {/* ══ Section 8: MercadoPago ══════════════════════════════════════════════ */}
+      {/* ══ Section 8: Transferencia bancaria (SPEI) ════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Permite que tus compradores paguen por transferencia bancaria. Tú confirmas el pago manualmente antes de entregar.
+        </p>
+        <div className="divide-y divide-[var(--color-border)]">
+          <ToggleSwitch
+            checked={bankTransferEnabled}
+            onChange={setBankTransferEnabled}
+            label="Aceptar transferencias bancarias"
+            description="Aparecerá como opción de pago en tus anuncios."
+          />
+        </div>
+
+        {bankTransferEnabled && (
+          <div className="mt-4 space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                CLABE interbancaria <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={clabe}
+                onChange={e => setClabe(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                maxLength={18}
+                placeholder="18 dígitos"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              {clabe && clabe.length !== 18 && (
+                <p className="text-amber-600 text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Banco</label>
+                <input
+                  value={bankName}
+                  onChange={e => setBankName(e.target.value)}
+                  placeholder="BBVA, Banorte, HSBC…"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Titular de la cuenta</label>
+                <input
+                  value={accountHolder}
+                  onChange={e => setAccountHolder(e.target.value)}
+                  placeholder="Nombre completo"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+              💡 El comprador verá estos datos al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar el artículo.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* ══ Section 9: MercadoPago ═══════════════════════════════════════════════ */}
       <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
         <SectionTitle>Mercado Pago</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
@@ -642,7 +724,7 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
         </div>
       </section>
 
-      {/* ══ Section 9: Apariencia ════════════════════════════════════════════════ */}
+      {/* ══ Section 10: Apariencia ═══════════════════════════════════════════════ */}
       <section className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
         <SectionTitle>Apariencia</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-5">

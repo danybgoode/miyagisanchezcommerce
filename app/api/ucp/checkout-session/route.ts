@@ -1,0 +1,310 @@
+/**
+ * POST /api/ucp/checkout-session
+ *
+ * The unified checkout intelligence endpoint. Given a listing (+ optional offer),
+ * returns every payment method the seller has enabled with:
+ *   - Pre-generated checkout URLs for instant methods (MP, Stripe)
+ *   - Structured instructions for contact-first methods (SPEI, cash, WhatsApp)
+ *   - A recommended_method field so an agent can present the best option first
+ *   - Escrow details when applicable
+ *
+ * Payment methods covered:
+ *   mercadopago    — cards, OXXO, digital wallet, meses sin intereses
+ *   stripe         — international cards (Visa/MC/AMEX)
+ *   bank_transfer  — SPEI with seller's CLABE, bank, and account holder
+ *   cash_on_pickup — derived from shop's local_pickup setting
+ *   whatsapp       — contact-first, derived from shop phone + whatsapp_cta
+ *
+ * Used by:
+ *   - MCP tool: get_checkout_options (buyer's AI agent)
+ *   - Any third-party integration or embed widget
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/supabase'
+import { toUcpListing } from '@/lib/ucp/schema'
+import type { Listing, Shop } from '@/lib/types'
+import { randomUUID } from 'crypto'
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS })
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type PaymentMethodKey = 'mercadopago' | 'stripe' | 'bank_transfer' | 'cash_on_pickup' | 'whatsapp'
+
+interface PaymentOption {
+  method:        PaymentMethodKey
+  label:         string
+  description:   string
+  available:     boolean
+  instant:       boolean        // true = payment completes now; false = seller confirms later
+  escrow_compatible: boolean    // can this method be combined with Compra Protegida?
+  // Instant methods
+  checkout_url?: string
+  // Contact-first methods
+  instructions?: string
+  contact_url?:  string         // wa.me link or tel: link
+  bank_details?: {
+    clabe:          string
+    bank_name:      string | null
+    account_holder: string | null
+  }
+  // Why unavailable (helps AI agent give useful feedback)
+  reason_unavailable?: string
+}
+
+interface UcpCheckoutSession {
+  session_id:          string
+  created_at:          string
+  expires_at:          string   // sessions are informational — 30 min expiry
+  listing_id:          string
+  offer_id:            string | null
+  price: {
+    amount_cents:      number
+    currency:          string
+    formatted:         string
+    is_offer_price:    boolean
+  } | null
+  payment_options:     PaymentOption[]
+  recommended_method:  PaymentMethodKey | null
+  available_count:     number
+  escrow: {
+    available:         boolean
+    required:          boolean
+    mode:              'off' | 'optional' | 'required'
+    description:       string
+  }
+  listing:             ReturnType<typeof toUcpListing>
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function formatMxn(cents: number, currency: string) {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN' }).format(cents / 100)
+}
+
+function whatsappLink(phone: string, listingTitle: string): string {
+  const digits = phone.replace(/\D/g, '')
+  const full   = digits.startsWith('52') ? digits : `52${digits}`
+  const text   = encodeURIComponent(`Hola, me interesa tu artículo "${listingTitle}". ¿Sigue disponible?`)
+  return `https://wa.me/${full}?text=${text}`
+}
+
+// ── Main handler ───────────────────────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  const host    = req.headers.get('host') ?? 'miyagisanchez.com'
+  const proto   = host.includes('localhost') ? 'http' : 'https'
+  const baseUrl = `${proto}://${host}`
+
+  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS })
+  }
+
+  const { listing_id, offer_id, buyer_email, buyer_name } = body
+  if (!listing_id) {
+    return NextResponse.json({ error: 'listing_id is required' }, { status: 400, headers: CORS })
+  }
+
+  // ── Fetch listing + shop ──────────────────────────────────────────────────
+  const { data: rawListing, error: listErr } = await db
+    .from('marketplace_listings')
+    .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled,source_url)')
+    .eq('id', listing_id)
+    .eq('status', 'active')
+    .single()
+
+  if (listErr || !rawListing) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
+  }
+
+  const listing = rawListing as Listing
+  const shop    = listing.shop as (Shop & { mp_enabled?: boolean | null }) | undefined
+  const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
+  const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
+  const checkout = (settings.checkout ?? {}) as Record<string, unknown>
+  const shipping = (settings.shipping ?? {}) as Record<string, unknown>
+
+  // ── Resolve effective price (list vs accepted offer) ──────────────────────
+  let priceCents = listing.price_cents
+  let isOfferPrice = false
+
+  if (offer_id) {
+    const { data: offer } = await db
+      .from('marketplace_offers')
+      .select('offer_amount_cents, counter_amount_cents, status')
+      .eq('id', offer_id)
+      .single()
+
+    if (offer?.status === 'accepted') {
+      priceCents   = offer.counter_amount_cents ?? offer.offer_amount_cents
+      isOfferPrice = true
+    }
+  }
+
+  const currency   = listing.currency ?? 'MXN'
+  const hasPrice   = priceCents != null && priceCents > 0
+  const isDigital  = listing.listing_type === 'digital'
+  const isClaimed  = !!(shop?.clerk_user_id && !shop.clerk_user_id.startsWith('pending:'))
+
+  // ── Shop signals ──────────────────────────────────────────────────────────
+  const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
+  const hasMp          = shop?.mp_enabled !== false
+  const hasStripe      = !!(stripeSettings.charges_enabled && stripeSettings.account_id)
+
+  const bankTransfer   = (checkout.bank_transfer ?? {}) as Record<string, unknown>
+  const hasBankTransfer = !!(bankTransfer.enabled && bankTransfer.clabe)
+
+  const localPickup    = !!(shipping.local_pickup)
+  const hasWhatsapp    = !!(checkout.whatsapp_cta && (shopMeta.phone || shopMeta.whatsapp))
+
+  const shopPhone: string | null = (shopMeta.phone as string | null) ?? (shopMeta.whatsapp as string | null) ?? null
+
+  // ── Escrow ────────────────────────────────────────────────────────────────
+  const escrowMode = (checkout.escrow_mode as 'off' | 'optional' | 'required' | undefined) ?? 'off'
+
+  // ── Build payment options ─────────────────────────────────────────────────
+
+  // 1. MercadoPago
+  let mpCheckoutUrl: string | undefined
+  if (hasMp && hasPrice && !isDigital && isClaimed) {
+    // Pre-generate MP preference lazily — we return the POST endpoint + params instead
+    // (avoids burning an MP API call on every session request)
+    mpCheckoutUrl = `${baseUrl}/api/mp/checkout`
+  }
+
+  const mpOption: PaymentOption = {
+    method: 'mercadopago',
+    label:  'Mercado Pago',
+    description: 'Tarjeta de crédito/débito, OXXO, Mercado Pago wallet, meses sin intereses',
+    available: hasMp && hasPrice && !isDigital && isClaimed,
+    instant:   true,
+    escrow_compatible: escrowMode !== 'off',
+    checkout_url: mpCheckoutUrl,
+    ...(!hasMp && { reason_unavailable: 'El vendedor no acepta Mercado Pago en este momento.' }),
+    ...(!isClaimed && { reason_unavailable: 'Este anuncio aún no tiene vendedor registrado.' }),
+    ...(isDigital && { reason_unavailable: 'Los productos digitales se pagan con tarjeta vía Stripe.' }),
+    ...(!hasPrice && { reason_unavailable: 'Este anuncio no tiene precio definido.' }),
+  }
+
+  // 2. Stripe
+  const stripeOption: PaymentOption = {
+    method: 'stripe',
+    label:  'Tarjeta internacional',
+    description: 'Visa, Mastercard, American Express — pago directo al vendedor',
+    available: hasStripe && hasPrice && isClaimed,
+    instant:   true,
+    escrow_compatible: escrowMode !== 'off',
+    checkout_url: hasStripe && hasPrice ? `${baseUrl}/api/stripe/checkout` : undefined,
+    ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
+  }
+
+  // 3. Bank transfer (SPEI)
+  const bankOption: PaymentOption = {
+    method: 'bank_transfer',
+    label:  'Transferencia bancaria (SPEI)',
+    description: 'Transfiere desde cualquier banco mexicano. El vendedor confirma antes de enviar.',
+    available: hasBankTransfer && hasPrice && !isDigital,
+    instant:   false,
+    escrow_compatible: false,  // manual confirmation — can't hold in escrow
+    ...(hasBankTransfer && {
+      instructions: `Transfiere ${ hasPrice ? formatMxn(priceCents!, currency) : '' } a la cuenta indicada y envía tu comprobante al vendedor.`,
+      bank_details: {
+        clabe:          String(bankTransfer.clabe ?? ''),
+        bank_name:      (bankTransfer.bank_name as string | null) ?? null,
+        account_holder: (bankTransfer.account_holder as string | null) ?? null,
+      },
+    }),
+    ...(!hasBankTransfer && { reason_unavailable: 'El vendedor no ha configurado transferencia bancaria.' }),
+  }
+
+  // 4. Cash on pickup
+  const cashOption: PaymentOption = {
+    method: 'cash_on_pickup',
+    label:  'Efectivo al recoger',
+    description: 'Paga en efectivo cuando vayas a recoger el artículo. Coordina con el vendedor.',
+    available: localPickup && !isDigital && isClaimed,
+    instant:   false,
+    escrow_compatible: false,
+    ...(localPickup && shopPhone && {
+      instructions: 'Contacta al vendedor para coordinar lugar y hora de entrega.',
+      contact_url:  checkout.whatsapp_cta ? whatsappLink(shopPhone, listing.title) : `tel:${shopPhone}`,
+    }),
+    ...(localPickup && !shopPhone && {
+      instructions: 'Escríbele al vendedor para coordinar la entrega.',
+    }),
+    ...(!localPickup && { reason_unavailable: 'El vendedor no ofrece entrega en mano.' }),
+    ...(isDigital && { reason_unavailable: 'Producto digital — no requiere entrega en persona.' }),
+  }
+
+  // 5. WhatsApp / direct contact
+  const waOption: PaymentOption = {
+    method: 'whatsapp',
+    label:  'Acordar por WhatsApp',
+    description: 'Contacta al vendedor directamente para acordar forma de pago y entrega.',
+    available: hasWhatsapp && !isDigital && isClaimed,
+    instant:   false,
+    escrow_compatible: false,
+    ...(hasWhatsapp && shopPhone && {
+      instructions: 'Escríbele al vendedor por WhatsApp para acordar el pago.',
+      contact_url:  whatsappLink(shopPhone, listing.title),
+    }),
+    ...(!hasWhatsapp && { reason_unavailable: 'El vendedor no tiene WhatsApp configurado.' }),
+  }
+
+  const allOptions = [mpOption, stripeOption, bankOption, cashOption, waOption]
+  const available  = allOptions.filter(o => o.available)
+
+  // ── Recommend best method ─────────────────────────────────────────────────
+  // Priority: instant escrow-compatible > instant > contact-first
+  const recommended: PaymentMethodKey | null =
+    available.find(o => o.instant && o.escrow_compatible)?.method ??
+    available.find(o => o.instant)?.method ??
+    available.find(o => o.available)?.method ??
+    null
+
+  // ── Compose session ────────────────────────────────────────────────────────
+  const now       = new Date()
+  const expiresAt = new Date(now.getTime() + 30 * 60 * 1000)
+
+  const session: UcpCheckoutSession = {
+    session_id:         randomUUID(),
+    created_at:         now.toISOString(),
+    expires_at:         expiresAt.toISOString(),
+    listing_id,
+    offer_id:           offer_id ?? null,
+    price: hasPrice ? {
+      amount_cents:  priceCents!,
+      currency,
+      formatted:     formatMxn(priceCents!, currency),
+      is_offer_price: isOfferPrice,
+    } : null,
+    payment_options:    allOptions,
+    recommended_method: recommended,
+    available_count:    available.length,
+    escrow: {
+      available:    escrowMode === 'optional' || escrowMode === 'required',
+      required:     escrowMode === 'required',
+      mode:         escrowMode,
+      description:  escrowMode === 'required'
+        ? 'Compra Protegida obligatoria — el pago queda retenido hasta que confirmes la recepción.'
+        : escrowMode === 'optional'
+        ? 'Compra Protegida disponible — puedes activarla para mayor seguridad.'
+        : 'Sin Compra Protegida en esta tienda.',
+    },
+    listing: toUcpListing(listing, baseUrl),
+  }
+
+  return NextResponse.json(session, { headers: CORS })
+}
