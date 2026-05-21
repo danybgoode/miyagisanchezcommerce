@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { computeTrustScore } from '@/lib/ucp/identity'
+import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import type { Listing } from '@/lib/types'
 
 const CORS = {
@@ -146,6 +147,36 @@ const TOOLS = [
       properties: {
         shop_slug: { type: 'string', description: 'Shop slug from listing.shop.slug in search results' },
         limit:     { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of listings to return' },
+      },
+    },
+  },
+  {
+    name: 'check_availability',
+    description: "Check available appointment slots for a listing. Returns the next available days and time slots from the seller's Cal.com calendar. Use before book_appointment to show the buyer what times are available.",
+    inputSchema: {
+      type: 'object',
+      required: ['listing_id'],
+      properties: {
+        listing_id: { type: 'string', description: 'Listing UUID' },
+        date_from:  { type: 'string', description: 'Start date to check (YYYY-MM-DD). Defaults to today.' },
+        date_to:    { type: 'string', description: 'End date to check (YYYY-MM-DD). Defaults to 7 days from today.' },
+        timezone:   { type: 'string', description: 'IANA timezone. Defaults to America/Mexico_City.' },
+      },
+    },
+  },
+  {
+    name: 'book_appointment',
+    description: 'Book an appointment slot for a listing — schedules a visit, test drive, or meeting with the seller. Returns booking confirmation with a unique ID.',
+    inputSchema: {
+      type: 'object',
+      required: ['listing_id', 'start_time', 'buyer_name', 'buyer_email'],
+      properties: {
+        listing_id:  { type: 'string', description: 'Listing UUID' },
+        start_time:  { type: 'string', description: 'ISO 8601 datetime of the desired slot (from check_availability)' },
+        buyer_name:  { type: 'string', description: 'Full name of the person booking' },
+        buyer_email: { type: 'string', description: 'Email to send booking confirmation to' },
+        notes:       { type: 'string', description: 'Optional notes for the seller (e.g., "Interested in test driving")' },
+        timezone:    { type: 'string', description: 'IANA timezone. Defaults to America/Mexico_City.' },
       },
     },
   },
@@ -397,6 +428,125 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop, listings }, null, 2) }] }
 }
 
+async function getShopCalcom(listingId: string): Promise<{
+  apiKey: string; eventTypeId: number; bookingUrl: string; listing: { title: string; category: string | null }
+} | null> {
+  const { data } = await db
+    .from('marketplace_listings')
+    .select('title, category, marketplace_shops!inner(calcom_api_key, metadata)')
+    .eq('id', listingId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!data) return null
+  const shop = data.marketplace_shops as unknown as { calcom_api_key: string | null; metadata: Record<string, unknown> | null }
+  if (!shop.calcom_api_key) return null
+  const calcomSettings = (shop.metadata?.settings as Record<string, unknown> | undefined)?.calcom as {
+    event_type_id?: number; booking_url?: string; connected?: boolean
+  } | undefined
+  if (!calcomSettings?.connected || !calcomSettings.event_type_id) return null
+  return {
+    apiKey: shop.calcom_api_key,
+    eventTypeId: calcomSettings.event_type_id,
+    bookingUrl: calcomSettings.booking_url ?? '',
+    listing: { title: data.title, category: data.category },
+  }
+}
+
+async function handleCheckAvailability(args: Record<string, unknown>) {
+  const listingId = String(args.listing_id ?? '')
+  if (!listingId) return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+
+  const cal = await getShopCalcom(listingId)
+  if (!cal) return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled. Use the booking_url from get_listing to book directly.' }] }
+
+  const today    = new Date()
+  const dateFrom = String(args.date_from ?? today.toISOString().slice(0, 10))
+  const dateTo   = String(args.date_to ?? new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10))
+  const timezone = String(args.timezone ?? 'America/Mexico_City')
+
+  let slots: Record<string, Array<{ time: string }>>
+  try {
+    slots = await getCalAvailableSlots(cal.apiKey, cal.eventTypeId, dateFrom, dateTo, timezone)
+  } catch (err) {
+    return { isError: true, content: [{ type: 'text', text: `Could not fetch availability: ${String(err)}` }] }
+  }
+
+  const days = Object.entries(slots).filter(([, daySlots]) => daySlots.length > 0)
+  if (days.length === 0) {
+    return { content: [{ type: 'text', text: `No available slots for **${cal.listing.title}** between ${dateFrom} and ${dateTo}.\n\nTry a wider date range or contact the seller directly.` }] }
+  }
+
+  const summary = [
+    `## Disponibilidad para ${cal.listing.title}`,
+    `📅 **${days.length} día${days.length > 1 ? 's' : ''} disponibles** (${dateFrom} → ${dateTo})`,
+    '',
+    ...days.map(([date, daySlots]) => {
+      const d = new Date(date)
+      const dayLabel = d.toLocaleDateString('es-MX', { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone })
+      const times = daySlots.slice(0, 8).map(s => {
+        const t = new Date(s.time)
+        return t.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: timezone })
+      }).join(' · ')
+      return `**${dayLabel}**\n${times}${daySlots.length > 8 ? ` +${daySlots.length - 8} más` : ''}`
+    }),
+    '',
+    '→ Use `book_appointment` with the `start_time` in ISO 8601 format to confirm a slot.',
+  ].join('\n')
+
+  return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify({ listing_id: listingId, slots }, null, 2) }] }
+}
+
+async function handleBookAppointment(args: Record<string, unknown>) {
+  const listingId  = String(args.listing_id ?? '')
+  const startTime  = String(args.start_time ?? '')
+  const buyerName  = String(args.buyer_name ?? '')
+  const buyerEmail = String(args.buyer_email ?? '')
+  const timezone   = String(args.timezone ?? 'America/Mexico_City')
+
+  if (!listingId || !startTime || !buyerName || !buyerEmail) {
+    return { isError: true, content: [{ type: 'text', text: 'Required: listing_id, start_time, buyer_name, buyer_email' }] }
+  }
+
+  const cal = await getShopCalcom(listingId)
+  if (!cal) return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled.' }] }
+
+  let booking
+  try {
+    booking = await createCalBooking(
+      cal.apiKey,
+      cal.eventTypeId,
+      startTime,
+      buyerName,
+      buyerEmail,
+      timezone,
+      args.notes ? String(args.notes) : undefined
+    )
+  } catch (err) {
+    return { isError: true, content: [{ type: 'text', text: `Booking failed: ${String(err)}` }] }
+  }
+
+  const startDate = new Date(booking.startTime)
+  const formattedDate = startDate.toLocaleString('es-MX', {
+    weekday: 'long', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZone: timezone,
+  })
+  const agendarLabel = cal.listing.category === 'autos' ? 'prueba de manejo'
+    : cal.listing.category === 'inmuebles' ? 'visita' : 'cita'
+
+  const summary = [
+    `## ✅ ${agendarLabel.charAt(0).toUpperCase() + agendarLabel.slice(1)} agendada`,
+    '',
+    `**Anuncio:** ${cal.listing.title}`,
+    `**Fecha:** ${formattedDate}`,
+    `**Confirmación enviada a:** ${buyerEmail}`,
+    `**Booking ID:** \`${booking.uid}\``,
+    '',
+    `El vendedor también recibió una notificación. Revisa tu correo para más detalles.`,
+  ].join('\n')
+
+  return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(booking, null, 2) }] }
+}
+
 async function handleGetBuyerTrust(args: Record<string, unknown>) {
   const identifier = String(args.identifier ?? '').trim()
   if (!identifier) {
@@ -442,7 +592,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. Workflow: search_listings → get_listing → get_checkout_options (see all payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. Use get_buyer_trust(email) before recommending a transaction to verify buyer reputation.',
+      instructions: 'Miyagi Sánchez marketplace for Mexico. Workflow: search_listings → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction.',
     }
   }
 
@@ -465,6 +615,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
       case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl)).content }
       case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
+      case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
+      case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
       default:                     return null  // will become MethodNotFound error
     }

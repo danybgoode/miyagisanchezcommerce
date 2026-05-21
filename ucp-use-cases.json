@@ -1,0 +1,65 @@
+[
+  {
+    "domain": "Generic Retail / Fashion",
+    "target_user": "B2C Consumer",
+    "primary_pain_point": "Friction in cross-platform authentication, manual input of sizing data, and tedious checkout forms.",
+    "ucp_mechanism": "Identity Linking (OAuth 2.0) & Embedded Checkout",
+    "operational_flow": "User requests brand updates via AI assistant. AI assistant invokes UCP Identity Linking token to securely access consumer's store profile, loyalty ledger, and physical dimensions. AI executes headless checkout using Google Wallet API without directing user to external web browser."
+  },
+  {
+    "domain": "Home Improvement / General Retail",
+    "target_user": "B2C Consumer",
+    "primary_pain_point": "High cart abandonment rates during multi-step redirection to unknown merchant domains.",
+    "ucp_mechanism": "Native Embedded Checkout (Merchant of Record pass-through)",
+    "operational_flow": "User identifies product within Google Search/Chat interface. UCP surfaces integrated checkout parameters (taxes, localized shipping). User completes transaction instantly inside native interface via Google Wallet. Retailer backend receives structured order payload as direct Merchant of Record."
+  },
+  {
+    "domain": "Electronics / Consumer Hardware",
+    "target_user": "Post-Purchase Support",
+    "primary_pain_point": "Complex, fragmented post-purchase return portals requiring manual customer service intervention.",
+    "ucp_mechanism": "Order Management & Real-Time Webhooks",
+    "operational_flow": "User requests a product return natively through AI assistant. AI leverages UCP order webhooks to trigger return authorization event in e-commerce backend. System generates automated return shipping label and registers refund parameters inside database without human intervention."
+  },
+  {
+    "domain": "P2P Marketplace (General / Vinted-Style Mexico)",
+    "target_user": "C2C Buyers & Tenants",
+    "primary_pain_point": "Low mobile app retention and friction for users navigating fragmented P2P listings across regions.",
+    "ucp_mechanism": "Open Liquidity Network & Medusa Headless Sourcing",
+    "operational_flow": "User requests highly specific second-hand item within Gemini environment. AI queries Medusa database exposed via UCP metadata attributes. Listing displays inline within user's active application. Purchase resolves via universal payment tokens, routing order straight to the tenant's inventory."
+  },
+  {
+    "domain": "P2P Marketplace (Price Negotiation)",
+    "target_user": "C2C Individual Sellers",
+    "primary_pain_point": "High operational fatigue for casual sellers managing manual, repetitive price haggling ('¿Cuánto lo menos?') over chat apps.",
+    "ucp_mechanism": "Model Context Protocol (MCP) & Agent-to-Agent (A2A) Negotiation",
+    "operational_flow": "Buyer's AI agent submits lower price offer to marketplace. Medusa backend AI evaluates offer against programmatic seller constraints (e.g., age of listing, predefined discount bounds). If valid, system automatically updates transaction price and processes immediate automated checkout."
+  },
+  {
+    "domain": "P2P Marketplace (Trust & Safety - Mexico)",
+    "target_user": "C2C Ecosystem Trust",
+    "primary_pain_point": "High prevalence of identity fraud, ghost accounts, and payment scams ('salvo buen cobro') in the Mexican secondary market.",
+    "ucp_mechanism": "Verifiable Identity Credentials & Escrow Logic",
+    "operational_flow": "Onboarding users link profiles to authenticated global ecosystems via UCP Identity framework. System transmits zero-knowledge trust proofs to Medusa backend. Marketplace displays decentralized trust metrics natively, while Medusa core executes secure payment hold escrow until delivery is verified."
+  },
+  {
+    "domain": "Automotive (Used Cars - Mexico)",
+    "target_user": "High-Value P2P Merchants",
+    "primary_pain_point": "Sellers flooded with low-intent inquiries; buyers paralyzed by lack of vehicle history verification (REPUVE) and physical safety fears.",
+    "ucp_mechanism": "Asynchronous Pre-Vetting & Escrow Deposits",
+    "operational_flow": "Buyer's agent queries car listings. Medusa serves UCP metadata containing cryptographically verified government database checks (REPUVE, original invoice validation). Buyer's agent automatically locks a refundable holding deposit into Medusa's escrow via UCP checkout to secure a physical vehicle inspection slot."
+  },
+  {
+    "domain": "Real Estate (Rentals & Sales - Mexico)",
+    "target_user": "Landlords and Real Estate Brokers",
+    "primary_pain_point": "High volume of unqualified leads and administrative friction collecting physical identity and income documents over WhatsApp.",
+    "ucp_mechanism": "Pre-Qualified Identity Transmission & Custom Transactional Flows",
+    "operational_flow": "Prospect's AI agent presents a verified UCP token representing identity and income background validation without revealing underlying sensitive raw data. Landlord's system reviews pre-qualification and executes custom UCP action requiring payment for a background check or booking deposit before releasing calendar availability."
+  },
+  {
+    "domain": "Handcrafted & Artisanal Goods (Etsy-Style)",
+    "target_user": "Independent Micro-Merchants (Oaxaca, Jalisco, etc.)",
+    "primary_pain_point": "Inability to calculate complex freight shipping variables dynamically for unique items, paired with manual friction handling custom modifications.",
+    "ucp_mechanism": "Dynamic API Parameter Routing & Conversational Customization",
+    "operational_flow": "User inputs custom sizing/color alterations to AI. AI updates product configuration schema and requests validation from Medusa API. Medusa calculates structural material adjustments, fetches real-time regional logistics shipping rates via local carrier APIs, and displays a single, binding UCP checkout price to the user instantly."
+  }
+]

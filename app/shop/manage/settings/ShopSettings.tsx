@@ -20,6 +20,10 @@ export interface ShopSettingsData {
   mp_enabled: boolean
   ucp_webhook_url?: string | null
   ucp_webhook_secret?: string | null
+  calcom_connected?: boolean
+  calcom_username?: string | null
+  calcom_event_type_title?: string | null
+  calcom_booking_url?: string | null
   stripe?: ShopStripe
   metadata: {
     settings?: {
@@ -296,6 +300,17 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
   // MercadoPago settings
   const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
 
+  // Cal.com scheduling
+  const [calcomConnected, setCalcomConnected]           = useState(initial.calcom_connected ?? false)
+  const [calcomUsername, setCalcomUsername]             = useState(initial.calcom_username ?? '')
+  const [calcomEventTitle, setCalcomEventTitle]         = useState(initial.calcom_event_type_title ?? '')
+  const [calcomBookingUrl, setCalcomBookingUrl]         = useState(initial.calcom_booking_url ?? '')
+  const [calcomApiKey, setCalcomApiKey]                 = useState('')
+  const [calcomConnecting, setCalcomConnecting]         = useState(false)
+  const [calcomEventTypes, setCalcomEventTypes]         = useState<Array<{ id: number; slug: string; title: string }>>([])
+  const [calcomPickEventTypeId, setCalcomPickEventTypeId] = useState<number | null>(null)
+  const [calcomPickStep, setCalcomPickStep]             = useState(false)
+
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -334,6 +349,56 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
     if (c.whatsapp_cta !== undefined) setWhatsappCta(c.whatsapp_cta)
     if (sh.mercado_envios !== undefined) setMercadoEnvios(sh.mercado_envios)
     if (sh.local_pickup !== undefined) setLocalPickup(sh.local_pickup)
+  }
+
+  async function handleCalcomConnect(eventTypeId?: number) {
+    if (!calcomApiKey.trim() && !eventTypeId) { showToast('Pega tu API key de Cal.com primero.', 'error'); return }
+    setCalcomConnecting(true)
+    try {
+      const body: Record<string, unknown> = {}
+      if (calcomApiKey.trim()) body.api_key = calcomApiKey.trim()
+      if (eventTypeId) body.event_type_id = eventTypeId
+      const res = await fetch('/api/sell/shop/calcom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as {
+        step?: string; user?: { username: string }; eventTypes?: Array<{ id: number; slug: string; title: string }>
+        username?: string; eventType?: { id: number; title: string }; bookingUrl?: string; error?: string
+      }
+      if (!res.ok) { showToast(data.error ?? 'Error al conectar.', 'error'); return }
+
+      if (data.step === 'pick_event_type' && data.eventTypes) {
+        setCalcomEventTypes(data.eventTypes)
+        setCalcomPickEventTypeId(data.eventTypes[0]?.id ?? null)
+        setCalcomPickStep(true)
+        return
+      }
+      if (data.step === 'connected') {
+        setCalcomConnected(true)
+        setCalcomUsername(data.username ?? '')
+        setCalcomEventTitle(data.eventType?.title ?? '')
+        setCalcomBookingUrl(data.bookingUrl ?? '')
+        setCalcomApiKey('')
+        setCalcomPickStep(false)
+        showToast('Cal.com conectado correctamente.', 'success')
+      }
+    } catch { showToast('Error de red al conectar Cal.com.', 'error') }
+    finally { setCalcomConnecting(false) }
+  }
+
+  async function handleCalcomDisconnect() {
+    try {
+      await fetch('/api/sell/shop/calcom', { method: 'DELETE' })
+      setCalcomConnected(false)
+      setCalcomUsername('')
+      setCalcomEventTitle('')
+      setCalcomBookingUrl('')
+      setCalcomApiKey('')
+      setCalcomPickStep(false)
+      showToast('Cal.com desconectado.', 'success')
+    } catch { showToast('Error al desconectar.', 'error') }
   }
 
   async function handleSave() {
@@ -1039,6 +1104,128 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ══ Section 13: Cal.com — Agendamiento ══════════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xl">📅</span>
+          <div>
+            <h2 className="font-semibold text-sm">Agendamiento — Cal.com</h2>
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
+              Permite que compradores agenden visitas, citas o pruebas de manejo directamente desde tus anuncios.
+            </p>
+          </div>
+        </div>
+
+        {calcomConnected ? (
+          /* Connected state */
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <span className="text-xl">✓</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
+                <p className="text-xs text-green-600 mt-0.5 truncate">
+                  Evento: {calcomEventTitle} · <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Ver página de reservas ↗</a>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCalcomDisconnect}
+                className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
+              >
+                Desconectar
+              </button>
+            </div>
+            <p className="text-xs text-[var(--color-muted)]">
+              El botón &ldquo;Agendar&rdquo; aparecerá automáticamente en todos tus anuncios activos.
+            </p>
+          </div>
+        ) : calcomPickStep ? (
+          /* Event type picker */
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
+            <div className="space-y-2">
+              {calcomEventTypes.map(et => (
+                <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                  calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                }`}>
+                  <input
+                    type="radio"
+                    name="cal_event_type"
+                    checked={calcomPickEventTypeId === et.id}
+                    onChange={() => setCalcomPickEventTypeId(et.id)}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{et.title}</p>
+                    <p className="text-xs text-[var(--color-muted)]">/{et.slug}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
+                className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!calcomPickEventTypeId || calcomConnecting}
+                onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
+                className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
+              >
+                {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Connect form */
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium mb-1.5">
+                API Key de Cal.com
+                <a
+                  href="https://app.cal.com/settings/developer/api-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 text-[var(--color-accent)] font-normal no-underline hover:underline"
+                >
+                  Obtener API key ↗
+                </a>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={calcomApiKey}
+                  onChange={e => setCalcomApiKey(e.target.value)}
+                  placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
+                  className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+                <button
+                  type="button"
+                  disabled={!calcomApiKey.trim() || calcomConnecting}
+                  onClick={() => handleCalcomConnect()}
+                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                >
+                  {calcomConnecting ? 'Verificando…' : 'Conectar'}
+                </button>
+              </div>
+            </div>
+            <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
+              <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
+              <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
+                <li>Crea una nueva API key (nombre: &ldquo;Miyagi Sánchez&rdquo;)</li>
+                <li>Copia y pega la key aquí arriba</li>
+                <li>Cal.com es gratis — incluye agendamiento ilimitado</li>
+              </ol>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── Save button ───────────────────────────────────────────────────────── */}

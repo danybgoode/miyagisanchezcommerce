@@ -38,7 +38,7 @@ export async function OPTIONS() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type PaymentMethodKey = 'mercadopago' | 'stripe' | 'bank_transfer' | 'cash_on_pickup' | 'whatsapp'
+type PaymentMethodKey = 'mercadopago' | 'stripe' | 'bank_transfer' | 'cash_on_pickup' | 'whatsapp' | 'schedule'
 
 interface PaymentOption {
   method:        PaymentMethodKey
@@ -59,6 +59,8 @@ interface PaymentOption {
   }
   // Why unavailable (helps AI agent give useful feedback)
   reason_unavailable?: string
+  // Scheduling (Cal.com)
+  booking_url?: string
 }
 
 interface UcpCheckoutSession {
@@ -263,7 +265,25 @@ export async function POST(req: NextRequest) {
     ...(!hasWhatsapp && { reason_unavailable: 'El vendedor no tiene WhatsApp configurado.' }),
   }
 
-  const allOptions = [mpOption, stripeOption, bankOption, cashOption, waOption]
+  // 6. Cal.com scheduling
+  const calcomSettings = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
+  const hasCalcom = !!(calcomSettings.connected && calcomSettings.booking_url)
+  const scheduleLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo'
+    : listing.category === 'inmuebles' ? '🏠 Agendar visita'
+    : listing.listing_type === 'service' ? '🕐 Agendar cita'
+    : '📅 Agendar'
+  const scheduleOption: PaymentOption = {
+    method:            'schedule',
+    label:             scheduleLabel,
+    description:       calcomSettings.event_type_title ?? 'Reserva una cita con el vendedor',
+    available:         hasCalcom,
+    instant:           false,
+    escrow_compatible: false,
+    ...(hasCalcom && { booking_url: calcomSettings.booking_url, instructions: 'Elige tu horario. Cal.com enviará una confirmación por correo a ambas partes.' }),
+    ...(!hasCalcom && { reason_unavailable: 'El vendedor no tiene agendamiento habilitado.' }),
+  }
+
+  const allOptions = [mpOption, stripeOption, bankOption, cashOption, waOption, scheduleOption]
   const available  = allOptions.filter(o => o.available)
 
   // ── Recommend best method ─────────────────────────────────────────────────

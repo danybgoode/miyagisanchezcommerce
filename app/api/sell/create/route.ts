@@ -39,6 +39,10 @@ interface CreatePayload {
       mime: string
       label: string
     } | null
+    repuve?: {
+      status: 'sin_reporte' | 'con_reporte'
+      folio?: string
+    } | null
   }
 }
 
@@ -166,9 +170,16 @@ export async function POST(req: NextRequest) {
       status: 'active',
       source: 'seller',
       source_platform: null,
-      metadata: body.listing.digital_file
-        ? { digital_file: body.listing.digital_file }
-        : {},
+      metadata: {
+        ...(body.listing.digital_file ? { digital_file: body.listing.digital_file } : {}),
+        ...(body.listing.repuve?.status ? {
+          repuve: {
+            status:      body.listing.repuve.status,
+            folio:       body.listing.repuve.folio?.trim().toUpperCase() || null,
+            verified_at: new Date().toISOString(),
+          }
+        } : {}),
+      },
     })
     .select('id')
     .single()

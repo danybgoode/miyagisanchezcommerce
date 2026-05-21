@@ -434,6 +434,130 @@ function StepShop({
 
 // ── Step 2: Listing form ──────────────────────────────────────────────────────
 
+// ── REPUVE section (autos only) ───────────────────────────────────────────────
+
+type RepuveStatus = 'sin_reporte' | 'con_reporte' | ''
+
+function RepuveSection({
+  status, setStatus,
+  folio, setFolio,
+}: {
+  status: RepuveStatus; setStatus: (v: RepuveStatus) => void
+  folio: string; setFolio: (v: string) => void
+}) {
+  const [pasteError, setPasteError] = useState('')
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText()
+      const cleaned = text.trim().replace(/\s+/g, '').toUpperCase().slice(0, 40)
+      setFolio(cleaned)
+      setPasteError('')
+    } catch {
+      setPasteError('Activa el permiso de portapapeles en tu navegador.')
+      setTimeout(() => setPasteError(''), 3000)
+    }
+  }
+
+  return (
+    <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <span className="text-2xl mt-0.5">🚗</span>
+        <div>
+          <h3 className="font-semibold text-sm text-amber-900">Verificación REPUVE</h3>
+          <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+            El REPUVE es el Registro Público Vehicular del gobierno mexicano. Los compradores
+            confían más en vehículos con reporte limpio.{' '}
+            <span className="font-medium">Aumenta hasta 3× las probabilidades de vender.</span>
+          </p>
+        </div>
+      </div>
+
+      {/* How-to link */}
+      <a
+        href="https://www.repuve.gob.mx/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 text-xs font-semibold text-amber-800 hover:text-amber-900 no-underline bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg px-3 py-2 transition-colors w-full"
+      >
+        <span>📋</span>
+        <span>Paso 1 — Consultar gratis en repuve.gob.mx →</span>
+        <span className="ml-auto text-amber-600 text-[10px] uppercase tracking-wide">Abre en nueva pestaña</span>
+      </a>
+
+      <p className="text-xs text-amber-700">
+        <strong>Paso 2</strong> — Descarga el PDF del resultado. El folio aparece en la parte superior del documento.
+      </p>
+
+      {/* Status radio */}
+      <div>
+        <p className="text-xs font-medium text-amber-900 mb-2">Paso 3 — ¿Qué dice el reporte?</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { key: 'sin_reporte', label: '✓ Sin reporte', hint: 'Vehículo limpio' },
+            { key: 'con_reporte', label: '⚠ Con reporte',  hint: 'Robo u otro reporte' },
+          ] as const).map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setStatus(opt.key)}
+              className={`border rounded-lg py-2.5 px-3 text-left transition-all ${
+                status === opt.key
+                  ? opt.key === 'sin_reporte'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-red-400 bg-red-50'
+                  : 'border-amber-300 bg-white hover:border-amber-500'
+              }`}
+            >
+              <p className={`text-sm font-semibold ${
+                status === opt.key
+                  ? opt.key === 'sin_reporte' ? 'text-green-700' : 'text-red-600'
+                  : 'text-amber-800'
+              }`}>{opt.label}</p>
+              <p className="text-xs text-amber-600 mt-0.5">{opt.hint}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Folio input — only when status selected */}
+      {status && (
+        <div>
+          <p className="text-xs font-medium text-amber-900 mb-1.5">
+            Paso 4 — Folio del reporte <span className="font-normal text-amber-700">(aparece en el PDF)</span>
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={folio}
+              onChange={e => setFolio(e.target.value.toUpperCase().replace(/\s+/g, '').slice(0, 40))}
+              placeholder="Ej: MX202600001234"
+              className="flex-1 border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono uppercase"
+            />
+            <button
+              type="button"
+              onClick={pasteFromClipboard}
+              className="flex items-center gap-1.5 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800 bg-white hover:bg-amber-100 hover:border-amber-400 transition-colors whitespace-nowrap"
+              title="Pegar desde portapapeles"
+            >
+              📋 Pegar
+            </button>
+          </div>
+          {pasteError && <p className="text-red-500 text-xs mt-1">{pasteError}</p>}
+        </div>
+      )}
+
+      {/* Skip option */}
+      {!status && (
+        <p className="text-xs text-amber-600 text-center">
+          Puedes agregar la verificación después desde tu panel de gestión.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function StepListing({
   photos, setPhotos,
   title, setTitle,
@@ -446,6 +570,8 @@ function StepListing({
   listingState, setListingState,
   listingCity, setListingCity,
   digitalFile, setDigitalFile,
+  repuveStatus, setRepuveStatus,
+  repuveFolio, setRepuveFolio,
   errors,
   submitting,
   submitError,
@@ -464,6 +590,8 @@ function StepListing({
   listingState: string; setListingState: (v: string) => void
   listingCity: string; setListingCity: (v: string) => void
   digitalFile: DigitalFile | null; setDigitalFile: (f: DigitalFile | null) => void
+  repuveStatus: RepuveStatus; setRepuveStatus: (v: RepuveStatus) => void
+  repuveFolio: string; setRepuveFolio: (v: string) => void
   errors: Record<string, string>
   submitting: boolean
   submitError: string | null
@@ -774,6 +902,16 @@ function StepListing({
         <p className="text-xs text-[var(--color-muted)] mt-1">Ayuda a compradores cercanos a encontrarte.</p>
       </div>
 
+      {/* REPUVE — only for autos */}
+      {category === 'autos' && (
+        <RepuveSection
+          status={repuveStatus}
+          setStatus={setRepuveStatus}
+          folio={repuveFolio}
+          setFolio={setRepuveFolio}
+        />
+      )}
+
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         {hasShopStep && (
@@ -930,6 +1068,8 @@ export default function SellWizard({
   const [listingState, setListingState] = useState(existingShop?.location?.split(', ').pop() ?? '')
   const [listingCity, setListingCity] = useState('')
   const [digitalFile, setDigitalFile] = useState<DigitalFile | null>(null)
+  const [repuveStatus, setRepuveStatus] = useState<RepuveStatus>('')
+  const [repuveFolio, setRepuveFolio] = useState('')
   const [listingErrors, setListingErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -999,6 +1139,7 @@ export default function SellWizard({
           municipio: listingCity.trim() || undefined,
           images: readyPhotos,
           digital_file: digitalFile ?? undefined,
+          repuve: repuveStatus ? { status: repuveStatus, folio: repuveFolio || undefined } : undefined,
         },
       }
 
@@ -1095,6 +1236,8 @@ export default function SellWizard({
             listingState={listingState} setListingState={setListingState}
             listingCity={listingCity} setListingCity={setListingCity}
             digitalFile={digitalFile} setDigitalFile={setDigitalFile}
+            repuveStatus={repuveStatus} setRepuveStatus={setRepuveStatus}
+            repuveFolio={repuveFolio} setRepuveFolio={setRepuveFolio}
             errors={listingErrors}
             submitting={submitting}
             submitError={submitError}

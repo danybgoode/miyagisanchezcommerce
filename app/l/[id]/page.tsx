@@ -75,6 +75,24 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const sellerHasMp = (listing.shop as unknown as { mp_enabled?: boolean | null } | null)?.mp_enabled !== false
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
 
+  // REPUVE — vehicle history verification (autos only)
+  const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
+  const showRepuve = listing.category === 'autos' && !!repuve?.status
+
+  // Cal.com — scheduling
+  const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
+  const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
+  const shopHasCalcom = !!(calcomSettings?.connected && calcomSettings?.booking_url)
+  const agendarLabel = listing.category === 'autos'
+    ? '🚗 Agendar prueba de manejo'
+    : listing.category === 'inmuebles'
+    ? '🏠 Agendar visita'
+    : listing.listing_type === 'service'
+    ? '🕐 Agendar cita'
+    : listing.listing_type === 'rental'
+    ? '📅 Ver disponibilidad'
+    : '📅 Agendar'
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <nav className="text-sm text-[var(--color-muted)] mb-4">
@@ -154,6 +172,25 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   {digitalFile.label} · {digitalFile.name}
                   {digitalFile.size && ` · ${(digitalFile.size / 1024 / 1024).toFixed(1)} MB`}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* REPUVE badge */}
+          {showRepuve && (
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 mb-4 text-sm font-medium ${
+              repuve!.status === 'sin_reporte'
+                ? 'bg-green-50 border border-green-200 text-green-800'
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}>
+              <span className="text-base">{repuve!.status === 'sin_reporte' ? '✓' : '⚠'}</span>
+              <div>
+                <span className="font-semibold">
+                  {repuve!.status === 'sin_reporte' ? 'Sin reporte REPUVE' : 'Con reporte REPUVE'}
+                </span>
+                {repuve!.folio && (
+                  <span className="ml-2 text-xs font-mono opacity-70">Folio: {repuve!.folio}</span>
+                )}
               </div>
             </div>
           )}
@@ -245,6 +282,24 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   {listing.shop.name}
                 </Link>
                 {listing.shop.location && <p className="text-xs text-[var(--color-muted)] mt-0.5">{listing.shop.location}</p>}
+              </div>
+            )}
+
+            {/* Cal.com — Agendar */}
+            {shopHasCalcom && (
+              <div className="px-4 py-3 border-b border-[var(--color-border)]">
+                <a
+                  href={calcomSettings!.booking_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-[var(--color-text)] text-white font-semibold py-2.5 rounded-md text-sm no-underline hover:opacity-90 transition-opacity"
+                >
+                  <span>{agendarLabel}</span>
+                  <span className="text-xs opacity-70">↗</span>
+                </a>
+                <p className="text-xs text-center text-[var(--color-muted)] mt-1.5">
+                  {calcomSettings!.event_type_title ?? 'Elige tu horario disponible'}
+                </p>
               </div>
             )}
 
