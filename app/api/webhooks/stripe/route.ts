@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail, cancelScheduledEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 
 // In Next.js App Router, req.text() reads the raw body before any parsing —
 // no need for bodyParser: false config (that was Pages Router only)
@@ -72,6 +73,9 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     console.error('Failed to create order record for session:', session.id)
     return
   }
+
+  // ── Fire UCP webhook (non-fatal) ─────────────────────────────────────────
+  deliverOrderWebhook(order.id, 'order.created').catch(e => console.error('[ucp-webhook] stripe:', e))
 
   // ── If this was an offer checkout, mark the offer as paid ────────────────
   if (offer_id) {

@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { computeTrustScore } from '@/lib/ucp/identity'
 import type { Listing } from '@/lib/types'
 
 const CORS = {
@@ -145,6 +146,17 @@ const TOOLS = [
       properties: {
         shop_slug: { type: 'string', description: 'Shop slug from listing.shop.slug in search results' },
         limit:     { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of listings to return' },
+      },
+    },
+  },
+  {
+    name: 'get_buyer_trust',
+    description: 'Check the OmniReputation trust score for a buyer by email address or Clerk user ID. Returns a 0–100 score, trust level (unverified/basic/trusted/verified/elite), and the individual signals that make up the score. Use before making a transaction recommendation to assess buyer trustworthiness.',
+    inputSchema: {
+      type: 'object',
+      required: ['identifier'],
+      properties: {
+        identifier: { type: 'string', description: 'Email address (e.g. "juan@example.com") or Clerk user ID (e.g. "user_abc123")' },
       },
     },
   },
@@ -385,6 +397,42 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop, listings }, null, 2) }] }
 }
 
+async function handleGetBuyerTrust(args: Record<string, unknown>) {
+  const identifier = String(args.identifier ?? '').trim()
+  if (!identifier) {
+    return { isError: true, content: [{ type: 'text', text: 'identifier is required (email or Clerk user ID)' }] }
+  }
+
+  const isClerkId = identifier.startsWith('user_')
+  const isEmail   = !isClerkId && identifier.includes('@')
+  if (!isClerkId && !isEmail) {
+    return { isError: true, content: [{ type: 'text', text: 'identifier must be an email address or Clerk user ID (user_xxx)' }] }
+  }
+
+  const trust = await computeTrustScore(identifier)
+
+  const earned   = trust.signals.filter(s => s.earned)
+  const unearned = trust.signals.filter(s => !s.earned)
+
+  const summary = [
+    `## OmniReputation — ${trust.level_label}`,
+    `**Score:** ${trust.score}/100 · **Nivel:** ${trust.level}`,
+    `**Buyer:** ${identifier}`,
+    '',
+    `### Señales obtenidas (${earned.length})`,
+    ...earned.map(s => `✅ ${s.label} (+${s.points} pts) — ${s.description}`),
+    ...(unearned.length > 0 ? [
+      '',
+      `### Señales no obtenidas (${unearned.length})`,
+      ...unearned.map(s => `⬜ ${s.label} (+${s.points} pts) — ${s.description}`),
+    ] : []),
+    '',
+    `*Calculado: ${trust.computed_at}*`,
+  ].join('\n')
+
+  return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(trust, null, 2) }] }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string) {
@@ -394,7 +442,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. Workflow: search_listings → get_listing → get_checkout_options (see all payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer.',
+      instructions: 'Miyagi Sánchez marketplace for Mexico. Workflow: search_listings → get_listing → get_checkout_options (see all payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. Use get_buyer_trust(email) before recommending a transaction to verify buyer reputation.',
     }
   }
 
@@ -417,7 +465,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
       case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl)).content }
       case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
-      default:                 return null  // will become MethodNotFound error
+      case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
+      default:                     return null  // will become MethodNotFound error
     }
   }
 

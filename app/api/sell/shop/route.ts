@@ -11,6 +11,8 @@ interface ShopUpdatePayload {
   city?: string
   logo_url?: string | null
   mp_enabled?: boolean
+  ucp_webhook_url?: string | null
+  ucp_webhook_secret?: string | null
   // metadata.settings fields
   settings?: {
     preset?: string
@@ -19,6 +21,12 @@ interface ShopUpdatePayload {
       payment_methods?: string[]
       show_phone?: boolean
       whatsapp_cta?: boolean
+      bank_transfer?: {
+        enabled?: boolean
+        clabe?: string | null
+        bank_name?: string | null
+        account_holder?: string | null
+      }
     }
     shipping?: {
       mercado_envios?: boolean
@@ -39,6 +47,15 @@ interface ShopUpdatePayload {
         whatsapp?: string
         tiktok?: string
         twitter?: string
+      }
+    }
+    offers?: {
+      min_buyer_trust_level?: string
+      negotiation?: {
+        enabled?: boolean
+        auto_accept_pct?: number
+        auto_decline_pct?: number
+        auto_counter_pct?: number
       }
     }
   }
@@ -91,6 +108,8 @@ export async function PATCH(req: NextRequest) {
   if (location !== undefined) updates.location = location
   if (body.logo_url !== undefined) updates.logo_url = body.logo_url
   if (body.mp_enabled !== undefined) updates.mp_enabled = body.mp_enabled
+  if (body.ucp_webhook_url !== undefined) updates.ucp_webhook_url = body.ucp_webhook_url
+  if (body.ucp_webhook_secret !== undefined) updates.ucp_webhook_secret = body.ucp_webhook_secret
 
   const { error } = await db
     .from('marketplace_shops')

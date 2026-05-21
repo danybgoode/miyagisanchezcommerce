@@ -18,6 +18,8 @@ export interface ShopSettingsData {
   location: string | null
   logo_url?: string | null
   mp_enabled: boolean
+  ucp_webhook_url?: string | null
+  ucp_webhook_secret?: string | null
   stripe?: ShopStripe
   metadata: {
     settings?: {
@@ -42,6 +44,19 @@ export interface ShopSettingsData {
       notifications?: {
         email_new_view?: boolean
         email_new_message?: boolean
+      }
+      offers?: {
+        min_buyer_trust_level?: 'unverified' | 'basic' | 'trusted' | 'verified' | 'elite'
+        negotiation?: {
+          enabled: boolean
+          auto_accept_pct?: number   // 0–100: auto-accept offers at or above this % of list price
+          auto_decline_pct?: number  // 0–100: auto-decline offers below this %
+          auto_counter_pct?: number  // 0–100: counter-offer at this % when between thresholds
+        }
+      }
+      ucp?: {
+        webhook_url?:    string
+        webhook_secret?: string
       }
       theme?: {
         banner_url?: string | null
@@ -258,6 +273,26 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
   const [bankName, setBankName]             = useState(bt?.bank_name ?? '')
   const [accountHolder, setAccountHolder]   = useState(bt?.account_holder ?? '')
 
+  // #14 Trust gate
+  type OffersSettings = NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['offers']>
+  type NegotiationSettings = NonNullable<OffersSettings['negotiation']>
+  const offersSettings = (s.offers ?? {}) as OffersSettings
+  const neg = (offersSettings.negotiation ?? {}) as NegotiationSettings
+  const [minBuyerTrust, setMinBuyerTrust] = useState<'unverified'|'basic'|'trusted'|'verified'|'elite'>(
+    offersSettings.min_buyer_trust_level ?? 'unverified'
+  )
+
+  // #15 Negotiation rules
+  const [negoEnabled, setNegoEnabled]     = useState(neg.enabled ?? false)
+  const [acceptPct, setAcceptPct]         = useState(neg.auto_accept_pct ?? 90)
+  const [declinePct, setDeclinePct]       = useState(neg.auto_decline_pct ?? 50)
+  const [counterPct, setCounterPct]       = useState(neg.auto_counter_pct ?? 75)
+
+  // #16 UCP Webhook
+  const [webhookUrl, setWebhookUrl]       = useState(initial.ucp_webhook_url ?? '')
+  const [webhookSecret, setWebhookSecret] = useState(initial.ucp_webhook_secret ?? '')
+  const [showSecret, setShowSecret]       = useState(false)
+
   // MercadoPago settings
   const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
 
@@ -320,6 +355,8 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
           city: city.trim(),
           logo_url: logoUrl,
           mp_enabled: mpEnabled,
+          ucp_webhook_url:    webhookUrl.trim() || null,
+          ucp_webhook_secret: webhookSecret.trim() || null,
           settings: {
             preset,
             checkout: {
@@ -335,6 +372,15 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
             },
             shipping: { mercado_envios: mercadoEnvios, local_pickup: localPickup },
             notifications: { email_new_view: emailView, email_new_message: emailMessage },
+            offers: {
+              min_buyer_trust_level: minBuyerTrust,
+              negotiation: {
+                enabled: negoEnabled,
+                auto_accept_pct: acceptPct,
+                auto_decline_pct: declinePct,
+                auto_counter_pct: counterPct,
+              },
+            },
             theme: {
               banner_url: bannerUrl,
               accent_color: accentColor,
@@ -724,7 +770,143 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
         </div>
       </section>
 
-      {/* ══ Section 10: Apariencia ═══════════════════════════════════════════════ */}
+      {/* ══ Section 10: Ofertas y confianza ════════════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Ofertas — nivel mínimo de comprador</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Elige el nivel de reputación mínimo que debe tener un comprador para enviarte una oferta. Los compradores por debajo del nivel serán rechazados automáticamente.
+        </p>
+        <div className="space-y-2">
+          {([
+            { value: 'unverified', label: '⚠️ Sin verificar', desc: 'Cualquier persona puede hacer una oferta.' },
+            { value: 'basic',      label: '📧 Básico',        desc: 'Solo compradores con correo verificado.' },
+            { value: 'trusted',    label: '🤝 Confiable',     desc: 'Correo + teléfono o al menos 1 compra previa.' },
+            { value: 'verified',   label: '✓ Verificado',     desc: 'Historial sólido de compras y cuenta establecida.' },
+            { value: 'elite',      label: '⭐ Elite',         desc: 'Solo los compradores más confiables de la plataforma.' },
+          ] as const).map(opt => (
+            <label
+              key={opt.value}
+              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                minBuyerTrust === opt.value
+                  ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
+                  : 'border-[var(--color-border)] hover:border-gray-400'
+              }`}
+            >
+              <input type="radio" name="min_buyer_trust" value={opt.value}
+                checked={minBuyerTrust === opt.value} onChange={() => setMinBuyerTrust(opt.value)}
+                className="accent-[var(--color-accent)]" />
+              <div>
+                <div className="text-sm font-semibold">{opt.label}</div>
+                <div className="text-xs text-[var(--color-muted)]">{opt.desc}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* ══ Section 11: Negociación automática (A2A) ════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Negociación automática</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Define reglas automáticas para aceptar, rechazar o contraofertear sin tener que revisar cada oferta manualmente. Ideal para catálogos grandes o tiendas de alto volumen.
+        </p>
+        <div className="divide-y divide-[var(--color-border)]">
+          <ToggleSwitch
+            checked={negoEnabled}
+            onChange={setNegoEnabled}
+            label="Activar negociación automática"
+            description="Las ofertas dentro de tus rangos se responden al instante."
+          />
+        </div>
+
+        {negoEnabled && (
+          <div className="mt-4 space-y-4">
+            {[
+              { label: 'Aceptar automáticamente si la oferta es ≥', value: acceptPct, set: setAcceptPct, color: 'green', hint: `Ofertas a ${ acceptPct }% o más del precio de lista se aceptan al instante.` },
+              { label: 'Contraofertear al', value: counterPct, set: setCounterPct, color: 'amber', hint: `Si la oferta está entre ${ declinePct }% y ${ acceptPct }%, se contraoferta al ${ counterPct }% del precio.` },
+              { label: 'Rechazar automáticamente si la oferta es <', value: declinePct, set: setDeclinePct, color: 'red', hint: `Ofertas por debajo del ${ declinePct }% se rechazan automáticamente.` },
+            ].map(row => (
+              <div key={row.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium">{row.label}</label>
+                  <span className={`text-sm font-bold tabular-nums ${
+                    row.color === 'green' ? 'text-green-700' : row.color === 'amber' ? 'text-amber-700' : 'text-red-700'
+                  }`}>{row.value}%</span>
+                </div>
+                <input
+                  type="range" min={0} max={100} step={5}
+                  value={row.value}
+                  onChange={e => row.set(parseInt(e.target.value))}
+                  className="w-full accent-[var(--color-accent)]"
+                />
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">{row.hint}</p>
+              </div>
+            ))}
+
+            {declinePct >= acceptPct && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                ⚠ El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
+              </p>
+            )}
+            {counterPct > acceptPct && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                ⚠ El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ══ Section 12: UCP Webhook de órdenes ══════════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Webhook de órdenes (UCP)</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Recibe notificaciones en tiempo real en tu sistema cuando se completa una venta. El payload incluye datos del comprador, la orden, el anuncio y el nivel de confianza del comprador.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">URL del webhook</label>
+            <input
+              value={webhookUrl}
+              onChange={e => setWebhookUrl(e.target.value)}
+              type="url"
+              placeholder="https://tu-sistema.com/webhooks/ordenes"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Clave secreta (HMAC-SHA256)
+              <span className="ml-1 text-xs font-normal text-[var(--color-muted)]">— para verificar autenticidad</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={webhookSecret}
+                onChange={e => setWebhookSecret(e.target.value)}
+                type={showSecret ? 'text' : 'password'}
+                placeholder="Genera o pega tu clave secreta"
+                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <button type="button" onClick={() => setShowSecret(s => !s)}
+                className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50 transition-colors">
+                {showSecret ? 'Ocultar' : 'Ver'}
+              </button>
+              <button type="button"
+                onClick={() => setWebhookSecret(Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,'0')).join(''))}
+                className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50 transition-colors">
+                Generar
+              </button>
+            </div>
+          </div>
+          {webhookUrl && (
+            <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+              💡 Verifica la firma en el header <code className="font-mono">X-UCP-Signature</code> usando HMAC-SHA256 con tu clave secreta y el cuerpo del request.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ══ Section 13: Apariencia ═══════════════════════════════════════════════ */}
       <section className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
         <SectionTitle>Apariencia</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-5">

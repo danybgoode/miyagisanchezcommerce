@@ -14,6 +14,7 @@ import { db } from '@/lib/supabase'
 import { getMpPayment } from '@/lib/mercadopago'
 import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 
 export async function POST(req: NextRequest) {
   // ── Parse notification ────────────────────────────────────────────────────
@@ -98,6 +99,9 @@ export async function POST(req: NextRequest) {
     console.error('[mp webhook] order insert failed for payment:', paymentId)
     return NextResponse.json({ received: true })
   }
+
+  // ── Fire UCP webhook (non-fatal) ─────────────────────────────────────────
+  deliverOrderWebhook(order.id, 'order.created').catch(e => console.error('[ucp-webhook] mp:', e))
 
   // ── Mark winning offer as paid + cancel payment-expiry reminder ───────────
   if (offer_id) {

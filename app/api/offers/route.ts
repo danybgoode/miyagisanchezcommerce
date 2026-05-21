@@ -3,6 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { validateOfferAmount, formatOfferAmount } from '@/lib/offers'
 import { sendOfferConfirmed, sendNewOfferToSeller, sendSellerOfferReminder, sendSellerExpiryWarning, getSellerEmail } from '@/lib/email'
+import { computeTrustScore, levelToMinScore, type TrustLevel } from '@/lib/ucp/identity'
 
 interface CreateOfferBody {
   listingId: string
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
     .from('marketplace_listings')
     .select('id, title, price_cents, currency, listing_type, status, images, marketplace_shops!inner(id, name, metadata, clerk_user_id)')
     .eq('id', listingId)
-    .single()
+    .maybeSingle()
 
   if (!listing) {
     return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
@@ -97,6 +98,26 @@ export async function POST(req: NextRequest) {
   // ── Clerk user (optional) ─────────────────────────────────────────────────
   const clerkUser = await currentUser()
   const buyerClerkId = clerkUser?.id ?? null
+
+  // ── Trust gate — check min_buyer_trust_level ──────────────────────────────
+  const shopMeta = (listing.marketplace_shops as unknown as { metadata: Record<string, unknown> | null }).metadata
+  const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
+  const offerSettings = (shopSettings.offers ?? {}) as Record<string, unknown>
+  const minTrustLevel = (offerSettings.min_buyer_trust_level as TrustLevel | undefined) ?? 'unverified'
+
+  if (minTrustLevel !== 'unverified') {
+    const identifier = buyerClerkId ?? buyerEmail
+    const trust = await computeTrustScore(identifier, { skipClerk: !buyerClerkId })
+    const minScore = levelToMinScore(minTrustLevel)
+    if (trust.score < minScore) {
+      return NextResponse.json({
+        error: `Este vendedor requiere un nivel de reputación mínimo (${minTrustLevel}) para enviar ofertas. Tu nivel actual es ${trust.level}.`,
+        trust_required: minTrustLevel,
+        trust_current: trust.level,
+        trust_score: trust.score,
+      }, { status: 403 })
+    }
+  }
 
   // ── Check for existing active offer ──────────────────────────────────────
   const { data: existing } = await db
@@ -134,9 +155,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo enviar la oferta.' }, { status: 500 })
   }
 
+  // ── A2A auto-negotiation ──────────────────────────────────────────────────
+  const negoSettings = (offerSettings.negotiation ?? {}) as {
+    enabled?: boolean
+    auto_accept_pct?: number
+    auto_decline_pct?: number
+    auto_counter_pct?: number
+  }
+  const negoEnabled  = negoSettings.enabled === true
+  const offerPct     = Math.round((offerAmountCents / listing.price_cents!) * 100)
+  let autoStatus: 'pending' | 'accepted' | 'declined' | 'countered' = 'pending'
+  let counterAmountCents: number | null = null
+
+  if (negoEnabled) {
+    const acceptPct  = negoSettings.auto_accept_pct  ?? 95
+    const declinePct = negoSettings.auto_decline_pct ?? 60
+    const counterPct = negoSettings.auto_counter_pct ?? 80
+
+    if (offerPct >= acceptPct) {
+      autoStatus = 'accepted'
+    } else if (offerPct < declinePct) {
+      autoStatus = 'declined'
+    } else if (offerPct < counterPct) {
+      // Counter at midpoint between offer and asking price
+      const midPct = Math.round((offerPct + 100) / 2)
+      counterAmountCents = Math.round(listing.price_cents! * midPct / 100)
+      autoStatus = 'countered'
+    }
+    // If between counterPct and acceptPct: leave as pending (needs manual review)
+  }
+
+  if (autoStatus !== 'pending') {
+    const updatePayload: Record<string, unknown> = { status: autoStatus }
+    if (autoStatus === 'countered' && counterAmountCents !== null) {
+      updatePayload.counter_amount_cents = counterAmountCents
+    }
+    await db.from('marketplace_offers')
+      .update(updatePayload)
+      .eq('id', offer.id)
+  }
+
   // ── Fire emails (non-fatal) ───────────────────────────────────────────────
   const shop = listing.marketplace_shops as unknown as { id: string; clerk_user_id: string | null }
-  const offerPct = Math.round((offerAmountCents / listing.price_cents!) * 100)
   const emailCtx = {
     listingTitle: listing.title,
     listingId,
@@ -191,5 +251,10 @@ export async function POST(req: NextRequest) {
     }).catch(e => console.error('[email] seller alert + reminders:', e))
   }
 
-  return NextResponse.json({ offerId: offer.id, status: 'pending' }, { status: 201 })
+  const responsePayload: Record<string, unknown> = { offerId: offer.id, status: autoStatus }
+  if (autoStatus === 'countered' && counterAmountCents !== null) {
+    responsePayload.counter_amount_cents = counterAmountCents
+    responsePayload.counter_amount = formatOfferAmount(counterAmountCents, listing.currency)
+  }
+  return NextResponse.json(responsePayload, { status: 201 })
 }
