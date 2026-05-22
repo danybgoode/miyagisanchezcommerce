@@ -1,22 +1,27 @@
 /**
- * Cloudflare R2 storage client (S3-compatible).
+ * Cloudflare R2 storage clients (S3-compatible).
  *
- * Required env vars:
+ * Public images bucket (listing photos):
  *   R2_ACCOUNT_ID          — e.g. f64b1f7dd7f2a2868768492239a1128b
  *   R2_ACCESS_KEY_ID       — from Cloudflare R2 API token
  *   R2_SECRET_ACCESS_KEY   — from Cloudflare R2 API token
  *   R2_BUCKET_IMAGES       — public bucket name (e.g. miyagicommerce)
  *   R2_PUBLIC_URL          — e.g. https://pub-xxxx.r2.dev  (no trailing slash)
  *
- * Digital files continue to use Supabase Storage (signed URLs, private).
- * R2 is used only for public listing images.
+ * Private digital files bucket (PDFs, ZIPs, videos — presigned URLs):
+ *   R2_DIGITAL_ACCOUNT_ID       — separate Cloudflare account
+ *   R2_DIGITAL_ACCESS_KEY_ID
+ *   R2_DIGITAL_SECRET_ACCESS_KEY
+ *   R2_BUCKET_DIGITAL           — private bucket name (e.g. miyagi-digital-content)
  */
 
 import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 function getR2Client(): S3Client {
   const accountId = process.env.R2_ACCOUNT_ID
@@ -94,4 +99,96 @@ export function isR2Configured(): boolean {
     process.env.R2_BUCKET_IMAGES &&
     process.env.R2_PUBLIC_URL
   )
+}
+
+// ── Private digital files bucket (separate Cloudflare account) ────────────────
+
+function getR2DigitalClient(): S3Client {
+  const accountId = process.env.R2_DIGITAL_ACCOUNT_ID
+  const accessKeyId = process.env.R2_DIGITAL_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_DIGITAL_SECRET_ACCESS_KEY
+
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new Error('Missing R2 digital env vars (R2_DIGITAL_ACCOUNT_ID, R2_DIGITAL_ACCESS_KEY_ID, R2_DIGITAL_SECRET_ACCESS_KEY)')
+  }
+
+  return new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  })
+}
+
+/**
+ * Returns true if the private digital files R2 bucket is configured.
+ */
+export function isR2DigitalConfigured(): boolean {
+  return !!(
+    process.env.R2_DIGITAL_ACCOUNT_ID &&
+    process.env.R2_DIGITAL_ACCESS_KEY_ID &&
+    process.env.R2_DIGITAL_SECRET_ACCESS_KEY &&
+    process.env.R2_BUCKET_DIGITAL
+  )
+}
+
+/**
+ * Upload a file buffer to the private digital files R2 bucket.
+ * Returns the storage key (NOT a public URL — use getR2DigitalSignedUrl to serve).
+ */
+export async function uploadDigitalToR2(
+  buffer: ArrayBuffer,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  const bucket = process.env.R2_BUCKET_DIGITAL
+  if (!bucket) throw new Error('Missing R2_BUCKET_DIGITAL environment variable')
+
+  const client = getR2DigitalClient()
+  await client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: Buffer.from(buffer),
+    ContentType: contentType,
+    // Private bucket — no ACL header
+  }))
+
+  return key
+}
+
+/**
+ * Generate a presigned URL for a private digital file.
+ * @param key           Storage key (as returned by uploadDigitalToR2)
+ * @param expirySeconds URL validity window, default 3600 (1 hour)
+ * @param fileName      Optional Content-Disposition download filename
+ */
+export async function getR2DigitalSignedUrl(
+  key: string,
+  expirySeconds = 3600,
+  fileName?: string,
+): Promise<string> {
+  const bucket = process.env.R2_BUCKET_DIGITAL
+  if (!bucket) throw new Error('Missing R2_BUCKET_DIGITAL environment variable')
+
+  const client = getR2DigitalClient()
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ...(fileName ? { ResponseContentDisposition: `attachment; filename="${fileName}"` } : {}),
+  })
+
+  return getSignedUrl(client, command, { expiresIn: expirySeconds })
+}
+
+/**
+ * Delete a file from the private digital files R2 bucket (best-effort).
+ */
+export async function deleteDigitalFromR2(key: string): Promise<void> {
+  const bucket = process.env.R2_BUCKET_DIGITAL
+  if (!bucket) return
+  try {
+    const client = getR2DigitalClient()
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+  } catch (e) {
+    console.error('[r2-digital] delete failed:', e)
+  }
 }

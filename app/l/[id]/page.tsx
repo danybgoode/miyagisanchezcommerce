@@ -6,6 +6,7 @@ import { getShopStripe } from '@/lib/stripe'
 import BuyButton from '@/app/components/BuyButton'
 import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
+import SubscriptionSection from './SubscriptionSection'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -82,6 +83,20 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // Cal.com — scheduling
   const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
+
+  // Subscription listing
+  const isSubscription = (listing.listing_type as string) === 'subscription'
+  const subMeta = listing.metadata?.subscription as {
+    interval?: 'month' | 'year'
+    content_description?: string
+    stripe_price_id?: string
+  } | undefined
+  const subInterval = subMeta?.interval ?? 'month'
+  const subContentDesc = subMeta?.content_description ?? null
+
+  // CLABE — seller has SPEI banking configured
+  const bankingSettings = shopSettings.banking as { clabe?: string } | undefined
+  const hasClabe = !!(bankingSettings?.clabe && bankingSettings.clabe.length === 18)
   const shopHasCalcom = !!(calcomSettings?.connected && calcomSettings?.booking_url)
   const agendarLabel = listing.category === 'autos'
     ? '🚗 Agendar prueba de manejo'
@@ -211,7 +226,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <div className="flex gap-2">
               <dt className="text-[var(--color-muted)] w-24 shrink-0">Tipo</dt>
               <dd className="capitalize">
-                {isDigital ? '💻 Digital' : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
+                {isDigital ? '💻 Digital' : isSubscription ? `🔔 Suscripción / ${subInterval === 'year' ? 'año' : 'mes'}` : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
               </dd>
             </div>
           </dl>
@@ -235,8 +250,24 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             </div>
           )}
 
+          {/* Subscription CTA */}
+          {isSubscription && hasBuyablePrice && isClaimed && (
+            <div className="mb-4">
+              <SubscriptionSection
+                listingId={listing.id}
+                priceCents={listing.price_cents!}
+                currency={listing.currency}
+                interval={subInterval}
+                contentDescription={subContentDesc}
+                shopName={listing.shop?.name ?? ''}
+                hasStripe={sellerHasStripe}
+                hasClabe={hasClabe}
+              />
+            </div>
+          )}
+
           {/* Physical / service buy button + make offer */}
-          {!isDigital && hasBuyablePrice && isClaimed && (
+          {!isDigital && !isSubscription && hasBuyablePrice && isClaimed && (
             <div className="mb-4 space-y-2">
               {/* MercadoPago — primary for MX (cards, OXXO, wallets, installments) */}
               {sellerHasMp && (

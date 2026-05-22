@@ -7,6 +7,7 @@ import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
+import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 
 // In Next.js App Router, req.text() reads the raw body before any parsing —
 // no need for bodyParser: false config (that was Pages Router only)
@@ -207,11 +208,23 @@ async function fulfillDigitalOrder({
   }
 
   const EXPIRY = 48 * 60 * 60 // seconds
-  const { data: signed } = await db.storage
-    .from('digital-files')
-    .createSignedUrl(digitalFile.path, EXPIRY, { download: digitalFile.name ?? 'download' })
 
-  if (!signed?.signedUrl) {
+  let signedUrl: string | null = null
+  if (isR2DigitalConfigured()) {
+    try {
+      signedUrl = await getR2DigitalSignedUrl(digitalFile.path, EXPIRY, digitalFile.name ?? 'download')
+    } catch (e) {
+      console.error('[r2-digital] fulfillDigitalOrder signed URL failed:', e)
+    }
+  } else {
+    // Supabase fallback for files uploaded before R2 migration
+    const { data: signed } = await db.storage
+      .from('digital-files')
+      .createSignedUrl(digitalFile.path, EXPIRY, { download: digitalFile.name ?? 'download' })
+    signedUrl = signed?.signedUrl ?? null
+  }
+
+  if (!signedUrl) {
     console.error('Failed to create signed URL for', digitalFile.path)
     return { downloadUrl: null, expiresAt: null }
   }
@@ -219,12 +232,12 @@ async function fulfillDigitalOrder({
   const expiresAt = new Date(Date.now() + EXPIRY * 1000).toISOString()
 
   await db.from('marketplace_orders').update({
-    digital_download_url: signed.signedUrl,
+    digital_download_url: signedUrl,
     digital_download_expires_at: expiresAt,
     status: 'fulfilled',
   }).eq('id', orderId)
 
-  return { downloadUrl: signed.signedUrl, expiresAt }
+  return { downloadUrl: signedUrl, expiresAt }
 }
 
 // ── account.updated — sync seller Stripe status ───────────────────────────────

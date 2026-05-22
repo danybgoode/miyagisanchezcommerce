@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { uploadDigitalToR2, isR2DigitalConfigured } from '@/lib/r2'
 
-const BUCKET = 'digital-files'
+const SUPABASE_BUCKET = 'digital-files' // fallback when R2 not configured
 const MAX_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 
 const ALLOWED_MIME = new Set([
@@ -83,23 +84,44 @@ export async function POST(req: NextRequest) {
 
   const bytes = await file.arrayBuffer()
 
-  // Create private bucket (idempotent) — NOT public
-  await db.storage.createBucket(BUCKET, { public: false }).catch(() => {})
+  let storagePath: string
 
-  const { error: uploadError } = await db.storage
-    .from(BUCKET)
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-
-  if (uploadError) {
-    console.error('Digital file upload error:', uploadError)
-    return NextResponse.json({ error: 'Error al subir el archivo. Inténtalo de nuevo.' }, { status: 500 })
+  if (isR2DigitalConfigured()) {
+    // ── R2 private bucket (preferred — zero egress) ───────────────────────────
+    try {
+      storagePath = await uploadDigitalToR2(bytes, path, file.type)
+    } catch (e) {
+      console.error('[r2-digital] upload failed, falling back to Supabase:', e)
+      // fall through to Supabase
+      await db.storage.createBucket(SUPABASE_BUCKET, { public: false }).catch(() => {})
+      const { error: uploadError } = await db.storage
+        .from(SUPABASE_BUCKET)
+        .upload(path, bytes, { contentType: file.type, upsert: false })
+      if (uploadError) {
+        console.error('Digital file upload error (Supabase fallback):', uploadError)
+        return NextResponse.json({ error: 'Error al subir el archivo. Inténtalo de nuevo.' }, { status: 500 })
+      }
+      storagePath = path
+    }
+  } else {
+    // ── Supabase fallback (when R2 not configured) ────────────────────────────
+    await db.storage.createBucket(SUPABASE_BUCKET, { public: false }).catch(() => {})
+    const { error: uploadError } = await db.storage
+      .from(SUPABASE_BUCKET)
+      .upload(path, bytes, { contentType: file.type, upsert: false })
+    if (uploadError) {
+      console.error('Digital file upload error:', uploadError)
+      return NextResponse.json({ error: 'Error al subir el archivo. Inténtalo de nuevo.' }, { status: 500 })
+    }
+    storagePath = path
   }
 
   return NextResponse.json({
-    path,                       // stored path for generating signed URLs later
+    path: storagePath,          // stored key for generating signed URLs later
     name: file.name,
     size: file.size,
     mime: file.type,
     label: getLabel(file.type), // human-readable format label
+    storage: isR2DigitalConfigured() ? 'r2' : 'supabase',
   })
 }
