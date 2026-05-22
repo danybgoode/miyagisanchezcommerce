@@ -28,6 +28,7 @@ import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing } from '@/lib/types'
 
 const CORS = {
@@ -452,12 +453,54 @@ async function getShopCalcom(listingId: string): Promise<{
   }
 }
 
+// ── Link-only scheduling fallback ─────────────────────────────────────────────
+
+async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: string; label: string; title: string } | null> {
+  const { data } = await db
+    .from('marketplace_listings')
+    .select('title, marketplace_shops!inner(metadata)')
+    .eq('id', listingId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!data) return null
+  const shop = data.marketplace_shops as unknown as { metadata: Record<string, unknown> | null }
+  const schedulingMeta = ((shop.metadata?.settings as Record<string, unknown> | undefined)?.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
+  const firstLink = schedulingMeta.links?.[0]
+  if (!firstLink?.url) return null
+  return { bookingUrl: firstLink.url, label: firstLink.label || 'Reservas en línea', title: data.title }
+}
+
 async function handleCheckAvailability(args: Record<string, unknown>) {
   const listingId = String(args.listing_id ?? '')
   if (!listingId) return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
 
   const cal = await getShopCalcom(listingId)
-  if (!cal) return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled. Use the booking_url from get_listing to book directly.' }] }
+  if (!cal) {
+    // Try link-only fallback — seller pasted a booking link without an API key
+    const linkSchedule = await getShopSchedulingLinks(listingId)
+    if (!linkSchedule) {
+      return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled. Use the booking_url from get_listing to book directly.' }] }
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: [
+          `## Agendamiento — ${linkSchedule.title}`,
+          '',
+          `This seller uses a **manual booking link** (${linkSchedule.label}). Real-time availability checking is not available, but you can book directly:`,
+          '',
+          `🔗 **${linkSchedule.bookingUrl}**`,
+          '',
+          'Open the link to see available times and complete your booking. The seller will receive a confirmation notification.',
+          '',
+          `> **Note:** If the buyer prefers AI-assisted booking with real-time availability, suggest the seller connect their Cal.com API key in their shop settings.`,
+        ].join('\n'),
+      }, {
+        type: 'text',
+        text: JSON.stringify({ listing_id: listingId, mode: 'link_only', booking_url: linkSchedule.bookingUrl }, null, 2),
+      }],
+    }
+  }
 
   const today    = new Date()
   const dateFrom = String(args.date_from ?? today.toISOString().slice(0, 10))
@@ -508,7 +551,27 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   }
 
   const cal = await getShopCalcom(listingId)
-  if (!cal) return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled.' }] }
+  if (!cal) {
+    // Try link-only fallback
+    const linkSchedule = await getShopSchedulingLinks(listingId)
+    if (!linkSchedule) {
+      return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled.' }] }
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: [
+          `## Booking Required — ${linkSchedule.title}`,
+          '',
+          `This seller manages their own booking via ${linkSchedule.label}. I cannot book on your behalf, but here's the direct link:`,
+          '',
+          `🔗 **${linkSchedule.bookingUrl}**`,
+          '',
+          `Share this link with the buyer so they can select their preferred time. The confirmation will be sent to their email.`,
+        ].join('\n'),
+      }],
+    }
+  }
 
   let booking
   try {
@@ -653,6 +716,15 @@ export async function GET(req: NextRequest) {
 
 // POST — JSON-RPC 2.0 dispatcher
 export async function POST(req: NextRequest) {
+  // ── Rate limiting ─────────────────────────────────────────────────────────
+  const rl = await checkRateLimit('mcp', getClientIp(req))
+  if (!rl.allowed) {
+    return NextResponse.json(
+      err(null, -32029, 'Rate limit exceeded — too many requests'),
+      { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
+
   const host    = req.headers.get('host') ?? 'miyagisanchez.com'
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`

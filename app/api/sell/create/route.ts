@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { tg } from '@/lib/telegram'
 
 function generateSlug(name: string): string {
   const base = name
@@ -188,6 +189,14 @@ export async function POST(req: NextRequest) {
     console.error('Listing creation error:', listingErr)
     return NextResponse.json({ error: 'Error al publicar el anuncio. Inténtalo de nuevo.' }, { status: 500 })
   }
+
+  // ── Telegram admin notification ──────────────────────────────────────────
+  const priceCents = body.listing.price_cents
+  const currency   = body.listing.currency ?? 'MXN'
+  const priceFmt   = priceCents
+    ? new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(priceCents / 100)
+    : 'Precio a consultar'
+  tg.newListing(titleClean, priceFmt, shopSlug, listing.id)
 
   return NextResponse.json({ shopSlug, listingId: listing.id }, { status: 201 })
 }

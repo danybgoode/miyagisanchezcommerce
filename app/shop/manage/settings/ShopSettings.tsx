@@ -58,6 +58,9 @@ export interface ShopSettingsData {
           auto_counter_pct?: number  // 0–100: counter-offer at this % when between thresholds
         }
       }
+      scheduling?: {
+        links?: Array<{ label: string; url: string }>
+      }
       ucp?: {
         webhook_url?:    string
         webhook_secret?: string
@@ -300,7 +303,7 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
   // MercadoPago settings
   const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
 
-  // Cal.com scheduling
+  // Cal.com scheduling (API-connect tier)
   const [calcomConnected, setCalcomConnected]           = useState(initial.calcom_connected ?? false)
   const [calcomUsername, setCalcomUsername]             = useState(initial.calcom_username ?? '')
   const [calcomEventTitle, setCalcomEventTitle]         = useState(initial.calcom_event_type_title ?? '')
@@ -310,6 +313,33 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
   const [calcomEventTypes, setCalcomEventTypes]         = useState<Array<{ id: number; slug: string; title: string }>>([])
   const [calcomPickEventTypeId, setCalcomPickEventTypeId] = useState<number | null>(null)
   const [calcomPickStep, setCalcomPickStep]             = useState(false)
+
+  // Scheduling links (link-drop tier — no API key required)
+  type SchedulingLink = { label: string; url: string }
+  const schedulingMeta = ((s.scheduling as Record<string, unknown> | undefined)?.links ?? []) as SchedulingLink[]
+  const [schedulingLinks, setSchedulingLinks]           = useState<SchedulingLink[]>(schedulingMeta)
+  const [newLinkUrl, setNewLinkUrl]                     = useState('')
+  const [newLinkLabel, setNewLinkLabel]                 = useState('')
+  const [showApiKeyForm, setShowApiKeyForm]             = useState(false)
+
+  function detectSchedulingService(url: string): string {
+    if (url.includes('cal.com'))             return 'Cal.com'
+    if (url.includes('calendly.com'))        return 'Calendly'
+    if (url.includes('acuityscheduling.com')) return 'Acuity'
+    if (url.includes('tidycal.com'))         return 'TidyCal'
+    if (url.includes('google.com/calendar')) return 'Google Calendar'
+    return 'Cita en línea'
+  }
+
+  function addSchedulingLink() {
+    const url = newLinkUrl.trim()
+    if (!url) return
+    if (!url.startsWith('http')) { showToast('URL inválida — debe comenzar con https://', 'error'); return }
+    const label = newLinkLabel.trim() || detectSchedulingService(url)
+    setSchedulingLinks(prev => [...prev, { label, url }])
+    setNewLinkUrl('')
+    setNewLinkLabel('')
+  }
 
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -445,6 +475,9 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
                 auto_decline_pct: declinePct,
                 auto_counter_pct: counterPct,
               },
+            },
+            scheduling: {
+              links: schedulingLinks,
             },
             theme: {
               banner_url: bannerUrl,
@@ -1106,126 +1139,247 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
         </div>
       </section>
 
-      {/* ══ Section 13: Cal.com — Agendamiento ══════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
+      {/* ══ Section 13: Agendamiento ═════════════════════════════════════════════ */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <div className="flex items-center gap-2 mb-1">
           <span className="text-xl">📅</span>
-          <div>
-            <h2 className="font-semibold text-sm">Agendamiento — Cal.com</h2>
-            <p className="text-xs text-[var(--color-muted)] mt-0.5">
-              Permite que compradores agenden visitas, citas o pruebas de manejo directamente desde tus anuncios.
-            </p>
-          </div>
+          <h2 className="font-semibold text-sm">Agendamiento</h2>
         </div>
+        <p className="text-xs text-[var(--color-muted)] mb-5">
+          Permite que compradores agenden visitas, pruebas de manejo o citas directamente desde tus anuncios.
+        </p>
 
-        {calcomConnected ? (
-          /* Connected state */
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <span className="text-xl">✓</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
-                <p className="text-xs text-green-600 mt-0.5 truncate">
-                  Evento: {calcomEventTitle} · <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Ver página de reservas ↗</a>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCalcomDisconnect}
-                className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
-              >
-                Desconectar
-              </button>
-            </div>
-            <p className="text-xs text-[var(--color-muted)]">
-              El botón &ldquo;Agendar&rdquo; aparecerá automáticamente en todos tus anuncios activos.
+        {/* ── Tier 1: Booking links (always shown) ───────────────────────────── */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+              🔗 Mis enlaces de reservas
             </p>
+            {schedulingLinks.length > 0 && (
+              <span className="text-xs text-green-700 font-medium bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                {schedulingLinks.length} enlace{schedulingLinks.length > 1 ? 's' : ''} guardado{schedulingLinks.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-        ) : calcomPickStep ? (
-          /* Event type picker */
-          <div className="space-y-3">
-            <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
-            <div className="space-y-2">
-              {calcomEventTypes.map(et => (
-                <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                  calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
-                }`}>
-                  <input
-                    type="radio"
-                    name="cal_event_type"
-                    checked={calcomPickEventTypeId === et.id}
-                    onChange={() => setCalcomPickEventTypeId(et.id)}
-                    className="accent-[var(--color-accent)]"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{et.title}</p>
-                    <p className="text-xs text-[var(--color-muted)]">/{et.slug}</p>
+
+          {schedulingLinks.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {schedulingLinks.map((link, i) => (
+                <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                  <span className="text-base">
+                    {link.url.includes('cal.com') ? '📅' : link.url.includes('calendly.com') ? '📆' : '🔗'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{link.label}</p>
+                    <p className="text-xs text-[var(--color-muted)] truncate">{link.url}</p>
                   </div>
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => setSchedulingLinks(prev => prev.filter((_, j) => j !== i))}
+                    className="text-xs text-red-500 hover:text-red-700 flex-shrink-0 px-1"
+                    aria-label="Eliminar enlace"
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
+          )}
+
+          {/* Add link form */}
+          <div className="space-y-2">
+            <input
+              type="url"
+              value={newLinkUrl}
+              onChange={e => setNewLinkUrl(e.target.value)}
+              placeholder="https://cal.com/tu-usuario/consulta  ó  https://calendly.com/tu-usuario"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSchedulingLink() } }}
+            />
             <div className="flex gap-2">
+              <input
+                type="text"
+                value={newLinkLabel}
+                onChange={e => setNewLinkLabel(e.target.value)}
+                placeholder="Etiqueta (opcional) — se detecta automáticamente"
+                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
               <button
                 type="button"
-                onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
-                className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
+                onClick={addSchedulingLink}
+                disabled={!newLinkUrl.trim()}
+                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
               >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={!calcomPickEventTypeId || calcomConnecting}
-                onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
-                className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
-              >
-                {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
+                + Agregar
               </button>
             </div>
           </div>
-        ) : (
-          /* Connect form */
-          <div className="space-y-3">
+
+          <p className="text-xs text-[var(--color-muted)] mt-2">
+            Funciona con Cal.com, Calendly, Acuity, TidyCal, Google Calendar y cualquier enlace de reservas. Los compradores serán dirigidos a tu página de agendamiento.
+          </p>
+
+          {schedulingLinks.length === 0 && !calcomConnected && (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+              <strong>¿No tienes una cuenta de agendamiento?</strong> Cal.com es gratuito, tarda 3 minutos en configurarse y te da una página profesional de reservas.{' '}
+              <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-amber-900">
+                Crear cuenta gratis en Cal.com ↗
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* ── Tier 2: Cal.com API (full agentic power) ───────────────────────── */}
+        <div className="border-t border-[var(--color-border)] pt-4">
+          <div className="flex items-start justify-between mb-2">
             <div>
-              <label className="block text-xs font-medium mb-1.5">
-                API Key de Cal.com
-                <a
-                  href="https://app.cal.com/settings/developer/api-keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-2 text-[var(--color-accent)] font-normal no-underline hover:underline"
-                >
-                  Obtener API key ↗
-                </a>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={calcomApiKey}
-                  onChange={e => setCalcomApiKey(e.target.value)}
-                  placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
-                  className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                ✨ Cal.com — Agentes de IA
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                {calcomConnected
+                  ? 'Los agentes de IA pueden verificar disponibilidad y agendar automáticamente.'
+                  : 'Conecta tu API key para que agentes de IA puedan agendar citas en tu nombre.'}
+              </p>
+            </div>
+            {!calcomConnected && !calcomPickStep && (
+              <button
+                type="button"
+                onClick={() => setShowApiKeyForm(v => !v)}
+                className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 ml-3"
+              >
+                {showApiKeyForm ? 'Ocultar' : 'Conectar API →'}
+              </button>
+            )}
+          </div>
+
+          {calcomConnected ? (
+            /* Connected state */
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <span className="text-lg">✓</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
+                  <p className="text-xs text-green-600 mt-0.5 truncate">
+                    Evento: {calcomEventTitle} ·{' '}
+                    <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      Ver página ↗
+                    </a>
+                  </p>
+                </div>
                 <button
                   type="button"
-                  disabled={!calcomApiKey.trim() || calcomConnecting}
-                  onClick={() => handleCalcomConnect()}
-                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                  onClick={handleCalcomDisconnect}
+                  className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
                 >
-                  {calcomConnecting ? 'Verificando…' : 'Conectar'}
+                  Desconectar
+                </button>
+              </div>
+              <p className="text-xs text-[var(--color-muted)]">
+                Los agentes de IA (Claude, ChatGPT, etc.) pueden verificar disponibilidad y agendar citas en tiempo real.
+              </p>
+            </div>
+          ) : calcomPickStep ? (
+            /* Event type picker */
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
+              <div className="space-y-2">
+                {calcomEventTypes.map(et => (
+                  <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="cal_event_type"
+                      checked={calcomPickEventTypeId === et.id}
+                      onChange={() => setCalcomPickEventTypeId(et.id)}
+                      className="accent-[var(--color-accent)]"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{et.title}</p>
+                      <p className="text-xs text-[var(--color-muted)]">/{et.slug}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
+                  className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!calcomPickEventTypeId || calcomConnecting}
+                  onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
+                  className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
                 </button>
               </div>
             </div>
-            <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
-              <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
-              <ol className="list-decimal list-inside space-y-0.5 ml-1">
-                <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
-                <li>Crea una nueva API key (nombre: &ldquo;Miyagi Sánchez&rdquo;)</li>
-                <li>Copia y pega la key aquí arriba</li>
-                <li>Cal.com es gratis — incluye agendamiento ilimitado</li>
-              </ol>
+          ) : showApiKeyForm ? (
+            /* API key form */
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1.5">
+                  API Key de Cal.com
+                  <a
+                    href="https://app.cal.com/settings/developer/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 text-[var(--color-accent)] font-normal no-underline hover:underline"
+                  >
+                    Obtener API key ↗
+                  </a>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={calcomApiKey}
+                    onChange={e => setCalcomApiKey(e.target.value)}
+                    placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
+                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  />
+                  <button
+                    type="button"
+                    disabled={!calcomApiKey.trim() || calcomConnecting}
+                    onClick={() => handleCalcomConnect()}
+                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                  >
+                    {calcomConnecting ? 'Verificando…' : 'Conectar'}
+                  </button>
+                </div>
+              </div>
+              <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
+                <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
+                <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                  <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
+                  <li>Crea una nueva API key (nombre: &ldquo;Miyagi Sánchez&rdquo;)</li>
+                  <li>Copia y pega la key aquí arriba</li>
+                  <li>Cal.com es gratis — incluye agendamiento ilimitado</li>
+                </ol>
+              </div>
+              {!schedulingLinks.length && (
+                <p className="text-xs text-[var(--color-muted)]">
+                  ¿Prefieres algo más sencillo? Cierra este formulario y pega tu enlace de reservas arriba.
+                </p>
+              )}
             </div>
-          </div>
-        )}
+          ) : (
+            /* Collapsed — show upgrade nudge only if they have links but no API */
+            schedulingLinks.length > 0 && (
+              <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                💡 <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
+                <button type="button" onClick={() => setShowApiKeyForm(true)} className="text-[var(--color-accent)] hover:underline">
+                  Conectar →
+                </button>
+              </p>
+            )
+          )}
+        </div>
       </section>
 
       {/* ── Save button ───────────────────────────────────────────────────────── */}

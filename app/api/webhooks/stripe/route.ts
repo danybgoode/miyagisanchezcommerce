@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase'
 import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail, cancelScheduledEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
+import { tg } from '@/lib/telegram'
 
 // In Next.js App Router, req.text() reads the raw body before any parsing —
 // no need for bodyParser: false config (that was Pages Router only)
@@ -110,6 +111,10 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     .single()
 
   if (!listing) return
+
+  // ── Telegram admin alert ──────────────────────────────────────────────────
+  const amountFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountTotal / 100)
+  tg.salePaid(amountFmt, listing.title, buyerEmail ?? 'comprador', 'stripe')
 
   const shop = listing.marketplace_shops as unknown as { name: string; clerk_user_id: string | null }
   const listingCurrency = listing.currency ?? currency

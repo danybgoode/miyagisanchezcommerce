@@ -18,6 +18,7 @@ interface ScrapeRun {
 
 interface RunResult {
   inserted?: number
+  collected?: number
   skipped?: number
   errors?: number
   error?: string
@@ -49,7 +50,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function ResultBanner({ result, loading }: { result: RunResult | null; loading: boolean }) {
+function ResultBanner({ result, loading, secret }: { result: RunResult | null; loading: boolean; secret: string }) {
   if (loading) return (
     <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 6, backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
       <Spinner color="#0369a1" />
@@ -67,9 +68,14 @@ function ResultBanner({ result, loading }: { result: RunResult | null; loading: 
       ) : (
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           {result.sellerNickname && <span style={{ color: '#166534' }}>Seller: <strong>{result.sellerNickname}</strong></span>}
-          <span style={{ color: '#166534' }}>✓ <strong>{result.inserted}</strong> inserted</span>
+          <span style={{ color: '#166534' }}>✓ <strong>{result.collected ?? result.inserted}</strong> collected</span>
           <span style={{ color: '#6b7280' }}>⟳ <strong>{result.skipped}</strong> skipped</span>
           {(result.errors ?? 0) > 0 && <span style={{ color: '#dc2626' }}>✗ <strong>{result.errors}</strong> errors</span>}
+          {result.runId && (
+            <a href={`/api/admin/runs/${result.runId}/csv?secret=${encodeURIComponent(secret)}`} style={{ color: '#166534', fontWeight: 600 }}>
+              Download CSV
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -133,7 +139,10 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
     }
   }, [secret])
 
-  useEffect(() => { void fetchRuns() }, [fetchRuns])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchRuns() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchRuns])
 
   async function runSerpApi(e: React.FormEvent) {
     e.preventDefault()
@@ -145,6 +154,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
         headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
         body: JSON.stringify({
           source: 'serpapi_google_local',
+          mode: 'collect_only',
           params: {
             query: serpForm.query,
             location: serpForm.location,
@@ -174,6 +184,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
         headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
         body: JSON.stringify({
           source: 'mercadolibre_public',
+          mode: 'collect_only',
           params: {
             query: mlForm.query,
             category: mlForm.category,
@@ -202,6 +213,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
         headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
         body: JSON.stringify({
           source: 'mercadolibre_seller',
+          mode: 'collect_only',
           params: {
             sellerUrl: mlSellerForm.sellerUrl,
             category: mlSellerForm.category,
@@ -265,7 +277,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
         {/* ── SerpAPI ─────────────────────────────── */}
         <div style={card}>
           <h2 style={sectionTitle}>🔍 SerpAPI — Google Local</h2>
-          <p style={sectionSub}>Scrape local businesses from Google Maps. Good for services (talleres, restaurantes, clínicas).</p>
+          <p style={sectionSub}>Collect local businesses from Google Maps and save a CSV for review in /supply. Good for services (talleres, restaurantes, clínicas).</p>
           <form onSubmit={(e) => { void runSerpApi(e) }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={field}>
@@ -293,10 +305,10 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             </div>
             <button type="submit" style={btn(serpLoading)} disabled={serpLoading}>
               {serpLoading && <Spinner />}
-              {serpLoading ? 'Scraping…' : 'Run Scrape'}
+              {serpLoading ? 'Collecting…' : 'Collect CSV Rows'}
             </button>
           </form>
-          <ResultBanner result={serpResult} loading={serpLoading} />
+          <ResultBanner result={serpResult} loading={serpLoading} secret={secret} />
         </div>
 
         {/* ── ML Keyword ──────────────────────────── */}
@@ -305,7 +317,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             <h2 style={{ ...sectionTitle, margin: 0 }}>🛒 MercadoLibre — Keyword Search</h2>
             <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, border: '1px solid #fca5a5' }}>Blocked in MX</span>
           </div>
-          <p style={sectionSub}>ML's PolicyAgent blocks /sites/MLM/search for non-certified developer apps. This will return a 403 with explanation. Use "Seller Targeting" below instead.</p>
+          <p style={sectionSub}>MercadoLibre PolicyAgent blocks /sites/MLM/search for non-certified developer apps. This remains disabled for collection; use Seller Targeting below instead.</p>
           <form onSubmit={(e) => { void runML(e) }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={field}>
@@ -330,10 +342,10 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             </div>
             <button type="submit" style={btn(mlLoading)} disabled={mlLoading}>
               {mlLoading && <Spinner />}
-              {mlLoading ? 'Scraping…' : 'Run Scrape'}
+              {mlLoading ? 'Checking…' : 'Check Availability'}
             </button>
           </form>
-          <ResultBanner result={mlResult} loading={mlLoading} />
+          <ResultBanner result={mlResult} loading={mlLoading} secret={secret} />
         </div>
 
         {/* ── ML Seller targeting ─────────────────── */}
@@ -343,8 +355,8 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             <span style={{ backgroundColor: '#f0fdf4', color: '#166534', fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20, border: '1px solid #86efac' }}>Works via Google</span>
           </div>
           <p style={sectionSub}>
-            Paste any ML seller page URL → imports all their listings via Google search + HTML parsing.
-            No ML API access needed. Typically captures 10–50 items per seller.
+            Paste any ML seller page URL → collects their listings via Google search + HTML parsing.
+            No ML API access needed. Download the CSV from Recent Runs and process it through /supply.
           </p>
           <form onSubmit={(e) => { void runMLSeller(e) }}>
             <div style={field}>
@@ -374,10 +386,10 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
             </div>
             <button type="submit" style={btn(mlSellerLoading)} disabled={mlSellerLoading}>
               {mlSellerLoading && <Spinner />}
-              {mlSellerLoading ? 'Importing seller…' : '🎯 Import Seller Listings'}
+              {mlSellerLoading ? 'Collecting seller…' : '🎯 Collect Seller Listings'}
             </button>
           </form>
-          <ResultBanner result={mlSellerResult} loading={mlSellerLoading} />
+          <ResultBanner result={mlSellerResult} loading={mlSellerLoading} secret={secret} />
         </div>
 
         {/* ── Runs history ───────────────────────── */}
@@ -393,7 +405,7 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    {['Source', 'Params', 'Status', '✓', '⟳', '✗', 'Started'].map(h => (
+                    {['Source', 'Params', 'Status', 'Rows', '⟳', '✗', 'CSV', 'Started'].map(h => (
                       <th key={h} style={{ textAlign: 'left', padding: '6px 10px', color: '#6b7280', fontWeight: 600 }}>{h}</th>
                     ))}
                   </tr>
@@ -417,6 +429,13 @@ export default function AdminScrapeClient({ secret }: { secret: string }) {
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: '#16a34a', fontWeight: 600 }}>{run.count_inserted ?? 0}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: '#6b7280' }}>{run.count_skipped ?? 0}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', color: run.count_errors > 0 ? '#dc2626' : '#6b7280' }}>{run.count_errors ?? 0}</td>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                        {run.status === 'completed' && (run.count_inserted ?? 0) > 0 ? (
+                          <a href={`/api/admin/runs/${run.id}/csv?secret=${encodeURIComponent(secret)}`} style={{ color: '#2563eb', fontWeight: 600 }}>Download</a>
+                        ) : (
+                          <span style={{ color: '#9ca3af' }}>-</span>
+                        )}
+                      </td>
                       <td style={{ padding: '8px 10px', color: '#9ca3af', whiteSpace: 'nowrap' }}>{timeAgo(run.started_at)}</td>
                     </tr>
                   ))}

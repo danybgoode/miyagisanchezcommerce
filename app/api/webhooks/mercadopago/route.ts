@@ -15,6 +15,7 @@ import { getMpPayment } from '@/lib/mercadopago'
 import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
+import { tg } from '@/lib/telegram'
 
 export async function POST(req: NextRequest) {
   // ── Parse notification ────────────────────────────────────────────────────
@@ -134,6 +135,10 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (listing) {
+    // ── Telegram admin alert ────────────────────────────────────────────────
+    const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
+    tg.salePaid(amtFmt, listing.title, buyerEmail ?? 'comprador', 'mercadopago')
+
     const shop = listing.marketplace_shops as unknown as { name: string; clerk_user_id: string | null }
     const listingUrl    = `https://miyagisanchez.com/l/${listing_id}`
     const amountFormatted = formatOfferAmount(amountCents, currency)

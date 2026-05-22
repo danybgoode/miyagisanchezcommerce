@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { db } from './supabase'
 import type { Listing, Shop, SearchParams } from './types'
 
@@ -59,39 +60,55 @@ export async function searchListings(params: SearchParams): Promise<{ listings: 
   return { listings: (data ?? []) as Listing[], total: count ?? 0, page }
 }
 
-export async function getListing(id: string): Promise<Listing | null> {
-  const { data } = await db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url,mp_enabled)')
-    .eq('id', id)
-    .eq('status', 'active')
-    .single()
+// ── Cached fetchers (60s / 120s TTL) ──────────────────────────────────────────
+// These use Next.js data cache so DB is hit at most once per TTL across all
+// concurrent requests, even though the listing page itself is dynamic (auth).
 
-  if (data) {
-    // increment view count fire-and-forget
-    db.from('marketplace_listings').update({ views: (data.views ?? 0) + 1 }).eq('id', id)
-  }
-  return data as Listing | null
-}
+export const getListing = unstable_cache(
+  async (id: string): Promise<Listing | null> => {
+    const { data } = await db
+      .from('marketplace_listings')
+      .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url,mp_enabled)')
+      .eq('id', id)
+      .eq('status', 'active')
+      .single()
 
-export async function getShop(slug: string): Promise<Shop | null> {
-  const { data } = await db
-    .from('marketplace_shops')
-    .select('*')
-    .eq('slug', slug)
-    .single()
-  return data as Shop | null
-}
+    if (data) {
+      // increment view count fire-and-forget (outside cache)
+      db.from('marketplace_listings').update({ views: (data.views ?? 0) + 1 }).eq('id', id)
+    }
+    return data as Listing | null
+  },
+  ['listing'],
+  { revalidate: 60, tags: ['listings'] },
+)
 
-export async function getShopListings(shopId: string): Promise<Listing[]> {
-  const { data } = await db
-    .from('marketplace_listings')
-    .select('*')
-    .eq('shop_id', shopId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-  return (data ?? []) as Listing[]
-}
+export const getShop = unstable_cache(
+  async (slug: string): Promise<Shop | null> => {
+    const { data } = await db
+      .from('marketplace_shops')
+      .select('*')
+      .eq('slug', slug)
+      .single()
+    return data as Shop | null
+  },
+  ['shop'],
+  { revalidate: 120, tags: ['shops'] },
+)
+
+export const getShopListings = unstable_cache(
+  async (shopId: string): Promise<Listing[]> => {
+    const { data } = await db
+      .from('marketplace_listings')
+      .select('*')
+      .eq('shop_id', shopId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+    return (data ?? []) as Listing[]
+  },
+  ['shop-listings'],
+  { revalidate: 60, tags: ['listings'] },
+)
 
 export async function getRecentListings(limit = 8): Promise<Listing[]> {
   const { data } = await db

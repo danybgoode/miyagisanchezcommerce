@@ -4,6 +4,8 @@ import { db } from '@/lib/supabase'
 import { validateOfferAmount, formatOfferAmount } from '@/lib/offers'
 import { sendOfferConfirmed, sendNewOfferToSeller, sendSellerOfferReminder, sendSellerExpiryWarning, getSellerEmail } from '@/lib/email'
 import { computeTrustScore, levelToMinScore, type TrustLevel } from '@/lib/ucp/identity'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { tg } from '@/lib/telegram'
 
 interface CreateOfferBody {
   listingId: string
@@ -46,6 +48,15 @@ export async function GET(req: NextRequest) {
 // ── POST — create a new offer ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // ── Rate limiting ─────────────────────────────────────────────────────────
+  const rl = await checkRateLimit('offers', getClientIp(req))
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Demasiadas ofertas. Espera un momento e inténtalo de nuevo.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
+
   let body: CreateOfferBody
   try {
     body = await req.json() as CreateOfferBody
@@ -211,6 +222,9 @@ export async function POST(req: NextRequest) {
     offerId: offer.id,
     expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
   }
+
+  // Telegram admin alert
+  tg.offerMade(emailCtx.offerAmount, emailCtx.askingPrice ?? '', emailCtx.listingTitle, buyerEmail)
 
   // Buyer confirmation
   sendOfferConfirmed(emailCtx).catch(e => console.error('[email] offer confirmed:', e))

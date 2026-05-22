@@ -11,6 +11,7 @@
  */
 
 import { db } from '../supabase'
+import type { ScrapeCollectedItem, ScrapeCollectResult } from '../adminScrapeExport'
 import type { ScrapeResult } from './serpapi'
 
 export interface MLScrapeParams {
@@ -70,7 +71,7 @@ async function fetchOgData(url: string): Promise<{
     // Extract and clean
     let title = rawTitle
     let priceCents: number | null = null
-    let currency: string | null = 'MXN'
+    const currency: string | null = 'MXN'
 
     if (rawTitle) {
       const priceMatch = rawTitle.match(/[-–]\s*\$\s*([\d,]+(?:\.\d+)?)/)
@@ -146,62 +147,14 @@ async function resolveSellerFromUrl(sellerUrl: string): Promise<{
  *  4. Insert listings into marketplace_listings
  */
 export async function scrapeMLSeller(params: MLSellerScrapeParams): Promise<ScrapeResult & { sellerNickname?: string }> {
-  const { sellerUrl, category, limit = 50 } = params
-
-  if (!process.env.SERPAPI_KEY) {
-    throw new Error('SERPAPI_KEY is not set — required for ML seller scraping')
+  const collected = await collectMLSeller(params)
+  const firstItem = collected.items[0]
+  if (!firstItem) {
+    return { inserted: 0, skipped: collected.skipped, errors: collected.errors, sellerNickname: collected.sellerNickname }
   }
-
-  // Step 1: Resolve seller
-  const { nickname, displayName, pageUrl: sellerPageUrl } = await resolveSellerFromUrl(sellerUrl)
-
-  // Step 2: Paginate Google search results for this seller's ML listings
-  // Google returns ~10 results per page; we paginate up to 5 pages
-  const collectedItems: { url: string; googleTitle: string }[] = []
-  const maxPages = Math.min(5, Math.ceil(limit / 10))
-
-  for (let page = 0; page < maxPages && collectedItems.length < limit; page++) {
-    const searchUrl = new URL('https://serpapi.com/search.json')
-    searchUrl.searchParams.set('engine', 'google')
-    // Search both auto and articulo subdomains for comprehensive coverage
-    searchUrl.searchParams.set('q', `(site:auto.mercadolibre.com.mx OR site:articulo.mercadolibre.com.mx) ${nickname}`)
-    searchUrl.searchParams.set('gl', 'mx')
-    searchUrl.searchParams.set('hl', 'es')
-    searchUrl.searchParams.set('num', '10')
-    // Note: SerpAPI `start=0` behaves differently from omitting `start` entirely.
-    // Setting start=0 returns only 1 result (the seller profile page).
-    // Only set `start` for pages beyond the first.
-    if (page > 0) searchUrl.searchParams.set('start', String(page * 10))
-    searchUrl.searchParams.set('api_key', process.env.SERPAPI_KEY)
-
-    const res = await fetch(searchUrl.toString(), {
-      signal: AbortSignal.timeout(15000),
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '')
-      throw new Error(`SerpAPI HTTP ${res.status}: ${errBody.slice(0, 200)}`)
-    }
-
-    const data = await res.json() as { organic_results?: SerpResult[]; error?: string }
-    if (data.error) throw new Error(`SerpAPI error: ${data.error}`)
-    const results = data.organic_results ?? []
-    if (results.length === 0) break
-
-    for (const r of results) {
-      if (!r.link) continue
-      // Confirm it's an ML item URL with a valid item ID
-      const hasItemId = /MLM[-_]?\d+/i.test(r.link)
-      if (!hasItemId) continue
-      collectedItems.push({ url: r.link, googleTitle: r.title ?? '' })
-    }
-  }
-
-  if (collectedItems.length === 0) {
-    return {
-      inserted: 0, skipped: 0, errors: 0, sellerNickname: displayName,
-    }
-  }
+  const sellerPageUrl = firstItem?.shop_source_url ?? params.sellerUrl
+  const displayName = firstItem?.shop_name ?? collected.sellerNickname ?? 'ML Seller'
+  const nickname = String(firstItem?.raw_data?.seller_nickname ?? collected.sellerNickname ?? displayName)
 
   // Ensure/create the shop record once
   let shopId: string
@@ -232,59 +185,130 @@ export async function scrapeMLSeller(params: MLSellerScrapeParams): Promise<Scra
     shopId = newShop.id
   }
 
-  // Step 3: Process items in parallel batches — fetch OG data + insert
-  let inserted = 0, skipped = 0, errors = 0
+  let inserted = 0, skipped = collected.skipped, errors = collected.errors
+
+  for (const item of collected.items) {
+    try {
+      if (!item.source_url || !item.listing_title) { skipped++; continue }
+
+      const { data: existing } = await db
+        .from('marketplace_listings')
+        .select('id')
+        .eq('source_url', item.source_url)
+        .maybeSingle()
+
+      if (existing) { skipped++; continue }
+
+      const { error: listErr } = await db
+        .from('marketplace_listings')
+        .insert({
+          shop_id: shopId,
+          title: item.listing_title.slice(0, 200),
+          price_cents: item.price_cents ?? null,
+          currency: item.currency ?? 'MXN',
+          listing_type: 'product',
+          category: item.category ?? null,
+          source: 'scraped',
+          source_platform: 'mercadolibre',
+          source_url: item.source_url,
+          images: item.image_url ? [{ url: item.image_url, alt: item.listing_title }] : [],
+          status: 'active',
+          metadata: { ml_item_id: item.source_id, seller_nickname: nickname },
+        })
+
+      if (listErr) { errors++; continue }
+      inserted++
+    } catch {
+      errors++
+    }
+  }
+
+  return { inserted, skipped, errors, sellerNickname: collected.sellerNickname }
+}
+
+export async function collectMLSeller(params: MLSellerScrapeParams): Promise<ScrapeCollectResult> {
+  const { sellerUrl, category, limit = 50 } = params
+
+  if (!process.env.SERPAPI_KEY) {
+    throw new Error('SERPAPI_KEY is not set - required for ML seller scraping')
+  }
+
+  const { nickname, displayName, pageUrl: sellerPageUrl } = await resolveSellerFromUrl(sellerUrl)
+  const collectedItems: { url: string; googleTitle: string }[] = []
+  const seenUrls = new Set<string>()
+  const maxPages = Math.min(5, Math.ceil(limit / 10))
+
+  for (let page = 0; page < maxPages && collectedItems.length < limit; page++) {
+    const searchUrl = new URL('https://serpapi.com/search.json')
+    searchUrl.searchParams.set('engine', 'google')
+    searchUrl.searchParams.set('q', `(site:auto.mercadolibre.com.mx OR site:articulo.mercadolibre.com.mx) ${nickname}`)
+    searchUrl.searchParams.set('gl', 'mx')
+    searchUrl.searchParams.set('hl', 'es')
+    searchUrl.searchParams.set('num', '10')
+    if (page > 0) searchUrl.searchParams.set('start', String(page * 10))
+    searchUrl.searchParams.set('api_key', process.env.SERPAPI_KEY)
+
+    const res = await fetch(searchUrl.toString(), {
+      signal: AbortSignal.timeout(15000),
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      throw new Error(`SerpAPI HTTP ${res.status}: ${errBody.slice(0, 200)}`)
+    }
+
+    const data = await res.json() as { organic_results?: SerpResult[]; error?: string }
+    if (data.error) throw new Error(`SerpAPI error: ${data.error}`)
+    const results = data.organic_results ?? []
+    if (results.length === 0) break
+
+    for (const r of results) {
+      if (!r.link) continue
+      if (!/MLM[-_]?\d+/i.test(r.link)) continue
+      if (seenUrls.has(r.link)) continue
+      seenUrls.add(r.link)
+      collectedItems.push({ url: r.link, googleTitle: r.title ?? '' })
+      if (collectedItems.length >= limit) break
+    }
+  }
+
+  let skipped = 0, errors = 0
+  const items: ScrapeCollectedItem[] = []
   const CONCURRENCY = 5
 
   for (let i = 0; i < collectedItems.length; i += CONCURRENCY) {
     const batch = collectedItems.slice(i, i + CONCURRENCY)
-
-    await Promise.all(batch.map(async ({ url: itemUrl, googleTitle }) => {
+    const batchItems = await Promise.all(batch.map(async ({ url: itemUrl, googleTitle }) => {
       try {
-        // Check if already imported
-        const { data: existing } = await db
-          .from('marketplace_listings')
-          .select('id')
-          .eq('source_url', itemUrl)
-          .maybeSingle()
-
-        if (existing) { skipped++; return }
-
-        // Extract item ID from URL
         const itemIdMatch = itemUrl.match(/MLM[-_]?(\d+)/i)
         const mlItemId = itemIdMatch ? `MLM${itemIdMatch[1]}` : null
-
-        // Fetch OG data from ML item page (title + image + price)
         const { title: ogTitle, image: ogImage, priceCents, currency } = await fetchOgData(itemUrl)
         const title = ogTitle ?? googleTitle
-        if (!title || title.length < 5) { skipped++; return }
+        if (!title || title.length < 5) { skipped++; return null }
 
-        const { error: listErr } = await db
-          .from('marketplace_listings')
-          .insert({
-            shop_id: shopId,
-            title: title.slice(0, 200),
-            price_cents: priceCents ?? null,
-            currency: currency ?? 'MXN',
-            listing_type: 'product',
-            category: category ?? null,
-            source: 'scraped',
-            source_platform: 'mercadolibre',
-            source_url: itemUrl,
-            images: ogImage ? [{ url: ogImage, alt: title }] : [],
-            status: 'active',
-            metadata: { ml_item_id: mlItemId, seller_nickname: nickname },
-          })
-
-        if (listErr) { errors++; return }
-        inserted++
+        return {
+          source_platform: 'mercadolibre',
+          source_url: itemUrl,
+          source_id: mlItemId,
+          shop_name: displayName || nickname,
+          shop_source_url: sellerPageUrl,
+          listing_title: title.slice(0, 200),
+          price_cents: priceCents,
+          currency: currency ?? 'MXN',
+          listing_type: 'product',
+          category: category ?? null,
+          image_url: ogImage,
+          raw_data: { google_title: googleTitle, seller_nickname: nickname },
+        } satisfies ScrapeCollectedItem
       } catch {
         errors++
+        return null
       }
     }))
+    items.push(...batchItems.filter(item => item !== null))
   }
 
-  return { inserted, skipped, errors, sellerNickname: displayName }
+  return { items, skipped, errors, sellerNickname: displayName }
 }
 
 /**

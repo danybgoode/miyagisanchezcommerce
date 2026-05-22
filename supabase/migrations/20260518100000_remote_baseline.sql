@@ -1,0 +1,3 @@
+-- Remote baseline placeholder.
+-- This migration exists in the linked Supabase project but was not present in
+-- this repo when the supply workflow was added.

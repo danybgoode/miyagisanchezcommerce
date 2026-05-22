@@ -171,6 +171,10 @@ export async function POST(req: NextRequest) {
   const localPickup    = !!(shipping.local_pickup)
   const hasWhatsapp    = !!(checkout.whatsapp_cta && (shopMeta.phone || shopMeta.whatsapp))
 
+  // Scheduling links (link-drop tier — no API key required)
+  const schedulingMeta = (settings.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
+  const schedulingLinks = schedulingMeta.links ?? []
+
   const shopPhone: string | null = (shopMeta.phone as string | null) ?? (shopMeta.whatsapp as string | null) ?? null
 
   // ── Escrow ────────────────────────────────────────────────────────────────
@@ -265,22 +269,36 @@ export async function POST(req: NextRequest) {
     ...(!hasWhatsapp && { reason_unavailable: 'El vendedor no tiene WhatsApp configurado.' }),
   }
 
-  // 6. Cal.com scheduling
+  // 6. Cal.com scheduling (API-connected) + link-drop fallback
   const calcomSettings = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
   const hasCalcom = !!(calcomSettings.connected && calcomSettings.booking_url)
+  const hasSchedulingLinks = schedulingLinks.length > 0
+  const hasSchedule = hasCalcom || hasSchedulingLinks
+  // Prefer API-connected booking URL; fall back to first manual link
+  const scheduleBookingUrl = calcomSettings.booking_url || schedulingLinks[0]?.url || undefined
   const scheduleLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo'
     : listing.category === 'inmuebles' ? '🏠 Agendar visita'
     : listing.listing_type === 'service' ? '🕐 Agendar cita'
     : '📅 Agendar'
+  const scheduleDescription = hasCalcom
+    ? (calcomSettings.event_type_title ?? 'Reserva una cita con el vendedor')
+    : hasSchedulingLinks
+    ? (schedulingLinks[0]?.label ?? 'Reserva una cita con el vendedor')
+    : 'Reserva una cita con el vendedor'
   const scheduleOption: PaymentOption = {
     method:            'schedule',
     label:             scheduleLabel,
-    description:       calcomSettings.event_type_title ?? 'Reserva una cita con el vendedor',
-    available:         hasCalcom,
+    description:       scheduleDescription,
+    available:         hasSchedule,
     instant:           false,
     escrow_compatible: false,
-    ...(hasCalcom && { booking_url: calcomSettings.booking_url, instructions: 'Elige tu horario. Cal.com enviará una confirmación por correo a ambas partes.' }),
-    ...(!hasCalcom && { reason_unavailable: 'El vendedor no tiene agendamiento habilitado.' }),
+    ...(hasSchedule && {
+      booking_url: scheduleBookingUrl,
+      instructions: hasCalcom
+        ? 'Elige tu horario. Cal.com enviará una confirmación por correo a ambas partes.'
+        : 'Haz clic en el enlace para ver los horarios disponibles y reservar.',
+    }),
+    ...(!hasSchedule && { reason_unavailable: 'El vendedor no tiene agendamiento habilitado.' }),
   }
 
   const allOptions = [mpOption, stripeOption, bankOption, cashOption, waOption, scheduleOption]

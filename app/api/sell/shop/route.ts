@@ -58,6 +58,9 @@ interface ShopUpdatePayload {
         auto_counter_pct?: number
       }
     }
+    scheduling?: {
+      links?: Array<{ label: string; url: string }>
+    }
   }
 }
 

@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import type { Metadata } from 'next'
 
+export const revalidate = 120   // re-render shop page at most every 2 minutes
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const shop = await getShop(slug)
