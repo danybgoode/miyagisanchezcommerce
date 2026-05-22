@@ -106,8 +106,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       : []
 
   // CLABE — seller has SPEI banking configured
-  const bankingSettings = shopSettings.banking as { clabe?: string } | undefined
-  const hasClabe = !!(bankingSettings?.clabe && bankingSettings.clabe.length === 18)
+  // Settings are stored under settings.checkout.bank_transfer (set in ShopSettings.tsx)
+  const checkoutSettings = shopSettings.checkout as {
+    bank_transfer?: { clabe?: string; bank_name?: string; account_holder?: string }
+  } | undefined
+  const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
   const shopHasCalcom = !!(calcomSettings?.connected && calcomSettings?.booking_url)
   const agendarLabel = listing.category === 'autos'
     ? '🚗 Agendar prueba de manejo'

@@ -52,8 +52,12 @@ export async function POST(req: NextRequest) {
     clerk_user_id: string | null
   }
   const shopSettings = ((shop.metadata?.settings ?? {}) as Record<string, unknown>)
-  const banking = (shopSettings.banking ?? {}) as Record<string, unknown>
-  const clabe = banking.clabe as string | undefined
+  // CLABE is stored under settings.checkout.bank_transfer (set in ShopSettings.tsx)
+  const checkout = (shopSettings.checkout ?? {}) as Record<string, unknown>
+  const bankTransfer = (checkout.bank_transfer ?? {}) as Record<string, unknown>
+  const clabe = (bankTransfer.clabe as string | undefined)?.trim() || undefined
+  const bankName = (bankTransfer.bank_name as string | undefined)?.trim() || undefined
+  const accountHolder = (bankTransfer.account_holder as string | undefined)?.trim() || undefined
 
   // ── Check for duplicate pending subscription ──────────────────────────────
   const { data: existing } = await db
@@ -123,8 +127,10 @@ export async function POST(req: NextRequest) {
     subscriptionId: sub.id,
     status: 'pending_confirmation',
     clabe: clabe ?? null,
+    bank_name: bankName ?? null,
+    account_holder: accountHolder ?? null,
     message: clabe
-      ? `Realiza tu transferencia SPEI a la CLABE ${clabe} y notifica al vendedor.`
+      ? `Realiza tu transferencia SPEI a la CLABE ${clabe}${bankName ? ` (${bankName})` : ''}${accountHolder ? ` · Beneficiario: ${accountHolder}` : ''} y notifica al vendedor.`
       : 'El vendedor te enviará la CLABE por mensaje directo.',
   }, { status: 201 })
 }

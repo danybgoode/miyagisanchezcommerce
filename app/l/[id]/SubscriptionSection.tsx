@@ -49,7 +49,7 @@ export default function SubscriptionSection({
   const [showSpei, setShowSpei] = useState(false)
   const [buyerName, setBuyerName] = useState('')
   const [buyerEmail, setBuyerEmail] = useState('')
-  const [speiResult, setSpeiResult] = useState<{ clabe: string | null; message: string } | null>(null)
+  const [speiResult, setSpeiResult] = useState<{ clabe: string | null; bank_name: string | null; account_holder: string | null; message: string } | null>(null)
 
   const selectedTier = tiers.find(t => t.id === selectedTierId) ?? tiers[0]
   const currency = 'MXN'
@@ -96,9 +96,9 @@ export default function SubscriptionSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ listingId, tierId: selectedTierId, buyerName, buyerEmail }),
       })
-      const data = await res.json() as { clabe?: string; message?: string; error?: string }
+      const data = await res.json() as { clabe?: string; bank_name?: string; account_holder?: string; message?: string; error?: string }
       if (!res.ok) { setError(data.error ?? 'No se pudo registrar la suscripción.'); return }
-      setSpeiResult({ clabe: data.clabe ?? null, message: data.message ?? '' })
+      setSpeiResult({ clabe: data.clabe ?? null, bank_name: data.bank_name ?? null, account_holder: data.account_holder ?? null, message: data.message ?? '' })
     } catch { setError('Sin conexión. Verifica tu internet.') }
     finally { setLoading(false) }
   }
@@ -112,10 +112,16 @@ export default function SubscriptionSection({
         </div>
         <p className="text-sm text-green-700">{speiResult.message}</p>
         {speiResult.clabe && (
-          <div className="bg-white border border-green-200 rounded-lg p-3">
-            <p className="text-xs text-green-600 font-medium mb-1">CLABE interbancaria del vendedor:</p>
+          <div className="bg-white border border-green-200 rounded-lg p-3 space-y-1.5">
+            <p className="text-xs text-green-600 font-medium">CLABE interbancaria del vendedor:</p>
             <p className="font-mono text-lg font-bold text-green-900 tracking-wider">{speiResult.clabe}</p>
-            <p className="text-xs text-green-600 mt-1">Monto: <strong>{selectedTier ? tierLabel(selectedTier) : ''}</strong></p>
+            {speiResult.bank_name && (
+              <p className="text-xs text-green-700">Banco: <strong>{speiResult.bank_name}</strong></p>
+            )}
+            {speiResult.account_holder && (
+              <p className="text-xs text-green-700">Beneficiario: <strong>{speiResult.account_holder}</strong></p>
+            )}
+            <p className="text-xs text-green-600">Monto: <strong>{selectedTier ? tierLabel(selectedTier) : ''}</strong></p>
           </div>
         )}
         <p className="text-xs text-green-600">El vendedor activará tu suscripción al confirmar el pago.</p>
