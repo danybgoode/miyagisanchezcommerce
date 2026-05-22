@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
+import ClaimButton from './ClaimButton'
 import type { Metadata } from 'next'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
@@ -169,14 +170,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           {/* Claim CTA for unowned shops */}
           {!shop.clerk_user_id && (
             <div className="mt-3">
-              <Link href={`/s/${slug}/claim`}
-                className="inline-block text-sm border rounded px-3 py-1 no-underline transition-colors"
-                style={{ color: accent, borderColor: accent }}
-                onMouseOver={e => { (e.currentTarget as HTMLElement).style.backgroundColor = accent; (e.currentTarget as HTMLElement).style.color = '#fff' }}
-                onMouseOut={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = accent }}
-              >
-                ¿Es tu tienda? Reclamar →
-              </Link>
+              <ClaimButton href={`/s/${slug}/claim`} accent={accent} />
             </div>
           )}
         </div>

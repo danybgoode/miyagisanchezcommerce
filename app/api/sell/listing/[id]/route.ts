@@ -21,6 +21,55 @@ async function resolveListingOwnership(listingId: string, userId: string) {
   return { listing: data, error: null }
 }
 
+// ── PUT — edit listing fields ─────────────────────────────────────────────────
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  const { id } = await params
+
+  let body: { title?: string; description?: string; price_cents?: number | null }
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
+
+  const { listing, error: ownerErr } = await resolveListingOwnership(id, userId)
+  if (!listing) return NextResponse.json({ error: ownerErr }, { status: 404 })
+
+  const updates: Record<string, unknown> = {}
+
+  if (body.title !== undefined) {
+    const t = body.title.trim()
+    if (t.length < 5) return NextResponse.json({ error: 'El título debe tener al menos 5 caracteres.', field: 'title' }, { status: 422 })
+    if (t.length > 100) return NextResponse.json({ error: 'El título no puede superar los 100 caracteres.', field: 'title' }, { status: 422 })
+    updates.title = t.slice(0, 100)
+  }
+  if (body.description !== undefined) {
+    updates.description = body.description.trim() || null
+  }
+  if (body.price_cents !== undefined) {
+    if (body.price_cents !== null && body.price_cents < 0) {
+      return NextResponse.json({ error: 'El precio no puede ser negativo.', field: 'price' }, { status: 422 })
+    }
+    updates.price_cents = body.price_cents
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
+  }
+
+  const { error } = await db
+    .from('marketplace_listings')
+    .update(updates)
+    .eq('id', id)
+
+  if (error) {
+    console.error('Listing edit error:', error)
+    return NextResponse.json({ error: 'Error al guardar los cambios.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ id, updated: true })
+}
+
 // ── PATCH — update listing status ─────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

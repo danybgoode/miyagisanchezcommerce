@@ -22,7 +22,7 @@ export type Listing = {
   price_cents: number | null
   currency: string
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'parts' | null
-  listing_type: 'product' | 'service' | 'rental' | 'digital'
+  listing_type: 'product' | 'service' | 'rental' | 'digital' | 'subscription'
   category: string | null
   state: string | null
   municipio: string | null
@@ -78,6 +78,10 @@ export const CATEGORIES = [
   { key: 'mascotas', label: 'Mascotas', icon: '🐾' },
   { key: 'herramientas', label: 'Herramientas', icon: '🔨' },
   { key: 'negocios', label: 'Negocios B2B', icon: '🏭' },
+  // Digital creator categories
+  { key: 'cursos', label: 'Cursos y talleres', icon: '🎓' },
+  { key: 'comunidad', label: 'Membresía / comunidad', icon: '👥' },
+  { key: 'creatividad', label: 'Arte y diseño', icon: '🎨' },
   { key: 'otros', label: 'Otros', icon: '📦' },
 ] as const
 
