@@ -276,7 +276,7 @@ async function handleAccountUpdated(account: Stripe.Account) {
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────
 
 async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Session) {
-  const { listing_id, shop_id, buyer_clerk_id } = session.metadata ?? {}
+  const { listing_id, shop_id, buyer_clerk_id, tier_id } = session.metadata ?? {}
   if (!listing_id || !shop_id) return
 
   const stripeSubscriptionId = session.subscription as string | null
@@ -317,6 +317,7 @@ async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Sessi
     status: 'active',
     current_period_start: periodStart,
     current_period_end:   periodEnd,
+    tier_id: tier_id || null,
   })
 
   tg.newSubscription(

@@ -130,3 +130,19 @@ export async function cancelSubscriptionImmediately(
 ): Promise<void> {
   await stripe.subscriptions.cancel(stripeSubscriptionId)
 }
+
+/**
+ * Creates a Stripe Customer Portal session so the buyer can manage
+ * their payment method, view invoices, and cancel.
+ * Returns the portal URL to redirect the buyer to.
+ */
+export async function createBillingPortalSession(
+  customerId: string,
+  returnUrl: string,
+): Promise<string> {
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl,
+  })
+  return session.url
+}

@@ -8,7 +8,7 @@
  * marketplace_shops.metadata.settings.mercadopago.access_token
  */
 
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
+import { MercadoPagoConfig, Preference, Payment, PreApproval, PreApprovalPlan } from 'mercadopago'
 
 // ── Client singleton ──────────────────────────────────────────────────────────
 
@@ -90,4 +90,91 @@ export async function createMpPreference(p: CreatePreferenceParams): Promise<MpP
 export async function getMpPayment(paymentId: string) {
   const payment = new Payment(getMpClient())
   return payment.get({ id: paymentId })
+}
+
+// ── Subscriptions (preapproval) ───────────────────────────────────────────────
+
+export interface MpPreapprovalPlanParams {
+  title: string
+  priceCents: number
+  currency: string
+  /** 1 = every 1 frequencyType */
+  frequency?: number
+  frequencyType?: 'months' | 'days'
+}
+
+/**
+ * Creates a reusable subscription plan template on MercadoPago.
+ * Store the returned planId in listing metadata for idempotency.
+ */
+export async function createMpPreapprovalPlan(
+  p: MpPreapprovalPlanParams,
+): Promise<{ planId: string }> {
+  const plan = new PreApprovalPlan(getMpClient())
+  const result = await plan.create({
+    body: {
+      reason: p.title.slice(0, 200),
+      auto_recurring: {
+        frequency: p.frequency ?? 1,
+        frequency_type: p.frequencyType ?? 'months',
+        transaction_amount: p.priceCents / 100,
+        currency_id: p.currency.toUpperCase(),
+      },
+    },
+  })
+  return { planId: result.id! }
+}
+
+export interface MpPreapprovalParams {
+  planId: string
+  title: string
+  priceCents: number
+  currency: string
+  frequency?: number
+  frequencyType?: 'months' | 'days'
+  buyerEmail?: string
+  listingId: string
+  shopId: string
+  tierId?: string
+  origin: string
+}
+
+/**
+ * Creates a buyer-specific subscription instance (preapproval).
+ * Redirecting the buyer to initPoint triggers the authorization flow.
+ */
+export async function createMpPreapproval(
+  p: MpPreapprovalParams,
+): Promise<{ preapprovalId: string; initPoint: string }> {
+  const preapproval = new PreApproval(getMpClient())
+  const result = await preapproval.create({
+    body: {
+      preapproval_plan_id: p.planId,
+      reason: p.title.slice(0, 200),
+      payer_email: p.buyerEmail,
+      auto_recurring: {
+        frequency: p.frequency ?? 1,
+        frequency_type: p.frequencyType ?? 'months',
+        transaction_amount: p.priceCents / 100,
+        currency_id: p.currency.toUpperCase(),
+      },
+      back_url: `${p.origin}/l/${p.listingId}?payment=mp_sub`,
+      external_reference: JSON.stringify({
+        listing_id: p.listingId,
+        shop_id: p.shopId,
+        tier_id: p.tierId ?? null,
+        type: 'subscription',
+      }),
+      status: 'pending',
+    },
+  })
+  return { preapprovalId: result.id!, initPoint: result.init_point! }
+}
+
+/**
+ * Fetches the current state of a preapproval (subscription) by ID.
+ */
+export async function getMpPreapproval(preapprovalId: string) {
+  const preapproval = new PreApproval(getMpClient())
+  return preapproval.get({ id: preapprovalId })
 }

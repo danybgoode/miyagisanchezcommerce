@@ -617,8 +617,7 @@ function StepListing({
   digitalFile, setDigitalFile,
   repuveStatus, setRepuveStatus,
   repuveFolio, setRepuveFolio,
-  subscriptionInterval, setSubscriptionInterval,
-  subscriptionContentDesc, setSubscriptionContentDesc,
+  subTiers, setSubTiers,
   errors,
   submitting,
   submitError,
@@ -639,8 +638,8 @@ function StepListing({
   digitalFile: DigitalFile | null; setDigitalFile: (f: DigitalFile | null) => void
   repuveStatus: RepuveStatus; setRepuveStatus: (v: RepuveStatus) => void
   repuveFolio: string; setRepuveFolio: (v: string) => void
-  subscriptionInterval: 'month' | 'year'; setSubscriptionInterval: (v: 'month' | 'year') => void
-  subscriptionContentDesc: string; setSubscriptionContentDesc: (v: string) => void
+  subTiers: { id: string; label: string; price_raw: string; interval: 'month' | 'year'; features_raw: string; is_highlighted: boolean }[]
+  setSubTiers: React.Dispatch<React.SetStateAction<{ id: string; label: string; price_raw: string; interval: 'month' | 'year'; features_raw: string; is_highlighted: boolean }[]>>
   errors: Record<string, string>
   submitting: boolean
   submitError: string | null
@@ -768,52 +767,110 @@ function StepListing({
         )}
       </div>
 
-      {/* Subscription settings */}
+      {/* Multi-tier subscription builder */}
       {listingType === 'subscription' && (
-        <div className="border border-[var(--color-border)] rounded-lg p-4 space-y-4 bg-[var(--color-background)]">
-          <p className="text-sm font-semibold text-[var(--color-text)]">⚙️ Configuración de suscripción</p>
-
-          {/* Billing interval */}
-          <div>
-            <Label required>Período de facturación</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { key: 'month', label: '📅 Mensual', hint: 'Se cobra cada mes' },
-                { key: 'year',  label: '🗓️ Anual',   hint: 'Se cobra una vez al año (ahorro)' },
-              ] as const).map(t => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setSubscriptionInterval(t.key)}
-                  title={t.hint}
-                  className={`border rounded py-2.5 text-sm transition-all ${
-                    subscriptionInterval === t.key
-                      ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
-                      : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <FieldError msg={errors.subscription_interval} />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-[var(--color-text)]">⚙️ Planes de suscripción</p>
+            {subTiers.length < 3 && (
+              <button
+                type="button"
+                onClick={() => setSubTiers(prev => [...prev, { id: Math.random().toString(36).slice(2), label: '', price_raw: '', interval: 'month', features_raw: '', is_highlighted: false }])}
+                className="text-xs text-[var(--color-accent)] border border-[var(--color-accent)] px-2.5 py-1 rounded hover:bg-green-50 transition-colors"
+              >
+                + Agregar plan
+              </button>
+            )}
           </div>
+          <FieldError msg={errors.subscription_tiers} />
 
-          {/* Content description */}
-          <div>
-            <Label>¿Qué incluye la suscripción? <span className="text-[var(--color-muted)] font-normal">(opcional)</span></Label>
-            <textarea
-              value={subscriptionContentDesc}
-              onChange={e => setSubscriptionContentDesc(e.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="Ej: Acceso a recetas semanales exclusivas, clases en vivo mensuales, descuentos de miembro..."
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
-            />
-            <div className="flex justify-end mt-0.5">
-              <CharCount current={subscriptionContentDesc.length} max={500} />
+          {subTiers.map((tier, idx) => (
+            <div key={tier.id} className={`border rounded-xl p-4 space-y-3 ${tier.is_highlighted ? 'border-[var(--color-accent)] bg-green-50/30' : 'border-[var(--color-border)] bg-[var(--color-background)]'}`}>
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Plan {idx + 1}</span>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tier.is_highlighted}
+                      onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_highlighted: e.target.checked } : { ...t, is_highlighted: false }))}
+                      className="w-3.5 h-3.5 accent-[var(--color-accent)]"
+                    />
+                    <span className="text-xs text-[var(--color-muted)]">Destacado</span>
+                  </label>
+                  {subTiers.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSubTiers(prev => prev.filter(t => t.id !== tier.id))}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      ✕ Quitar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Label + price row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Nombre del plan <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={tier.label}
+                    onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, label: e.target.value } : t))}
+                    placeholder="Ej: Básico, Pro, Premium"
+                    maxLength={40}
+                    className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Precio <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={tier.price_raw}
+                    onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, price_raw: e.target.value } : t))}
+                    placeholder="199"
+                    className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Interval */}
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: 'month', label: '📅 Mensual' },
+                  { key: 'year',  label: '🗓️ Anual' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, interval: opt.key } : t))}
+                    className={`border rounded py-2 text-xs transition-all ${
+                      tier.interval === opt.key
+                        ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
+                        : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Features */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text)] mb-1">¿Qué incluye? <span className="text-[var(--color-muted)] font-normal">(una por línea)</span></label>
+                <textarea
+                  value={tier.features_raw}
+                  onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, features_raw: e.target.value } : t))}
+                  rows={3}
+                  placeholder={'Recetas semanales exclusivas\nClases en vivo mensuales\nDescuentos de miembro'}
+                  className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-none"
+                />
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
@@ -911,8 +968,8 @@ function StepListing({
         </div>
       )}
 
-      {/* Price */}
-      <div>
+      {/* Price — hidden for subscription (price is per-tier in the builder above) */}
+      <div className={listingType === 'subscription' ? 'hidden' : ''}>
         <Label required={!priceOnRequest}>Precio</Label>
         <div className="flex gap-2 items-start">
           <div className="flex-1">
@@ -1174,8 +1231,24 @@ export default function SellWizard({
   const [digitalFile, setDigitalFile] = useState<DigitalFile | null>(null)
   const [repuveStatus, setRepuveStatus] = useState<RepuveStatus>('')
   const [repuveFolio, setRepuveFolio] = useState('')
-  const [subscriptionInterval, setSubscriptionInterval] = useState<'month' | 'year'>('month')
-  const [subscriptionContentDesc, setSubscriptionContentDesc] = useState('')
+  // Multi-tier subscription state (Phase B)
+  interface SubTier {
+    id: string
+    label: string
+    price_raw: string
+    interval: 'month' | 'year'
+    features_raw: string   // newline-separated list
+    is_highlighted: boolean
+  }
+  const makeDefaultTier = (): SubTier => ({
+    id: Math.random().toString(36).slice(2),
+    label: '',
+    price_raw: '',
+    interval: 'month',
+    features_raw: '',
+    is_highlighted: false,
+  })
+  const [subTiers, setSubTiers] = useState<SubTier[]>([makeDefaultTier()])
   const [listingErrors, setListingErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -1215,8 +1288,11 @@ export default function SellWizard({
     if (listingType === 'digital' && !digitalFile) {
       errs.digitalFile = 'Sube el archivo que los compradores recibirán al pagar.'
     }
-    if (listingType === 'subscription' && !priceOnRequest && !parsePriceCents(priceRaw)) {
-      errs.price = 'Las suscripciones requieren un precio.'
+    if (listingType === 'subscription') {
+      for (const t of subTiers) {
+        if (!t.label.trim()) { errs.subscription_tiers = 'Cada plan necesita un nombre.'; break }
+        if (!parsePriceCents(t.price_raw)) { errs.subscription_tiers = `El plan "${t.label || 'sin nombre'}" necesita un precio válido.`; break }
+      }
     }
     setListingErrors(errs)
     if (Object.keys(errs).length > 0) {
@@ -1249,10 +1325,14 @@ export default function SellWizard({
           images: readyPhotos,
           digital_file: digitalFile ?? undefined,
           repuve: repuveStatus ? { status: repuveStatus, folio: repuveFolio || undefined } : undefined,
-          subscription: listingType === 'subscription' ? {
-            interval: subscriptionInterval,
-            content_description: subscriptionContentDesc.trim() || undefined,
-          } : undefined,
+          subscription_tiers: listingType === 'subscription' ? subTiers.map(t => ({
+            id: t.id,
+            label: t.label.trim(),
+            price_cents: parsePriceCents(t.price_raw)!,
+            interval: t.interval,
+            features: t.features_raw.split('\n').map(s => s.trim()).filter(Boolean),
+            is_highlighted: t.is_highlighted,
+          })) : undefined,
         },
       }
 
@@ -1291,8 +1371,7 @@ export default function SellWizard({
     setCategory('')
     setListingType('product')
     setCondition('good')
-    setSubscriptionInterval('month')
-    setSubscriptionContentDesc('')
+    setSubTiers([{ id: Math.random().toString(36).slice(2), label: '', price_raw: '', interval: 'month', features_raw: '', is_highlighted: false }])
     setPriceRaw('')
     setPriceOnRequest(false)
     setDescription('')
@@ -1353,8 +1432,7 @@ export default function SellWizard({
             digitalFile={digitalFile} setDigitalFile={setDigitalFile}
             repuveStatus={repuveStatus} setRepuveStatus={setRepuveStatus}
             repuveFolio={repuveFolio} setRepuveFolio={setRepuveFolio}
-            subscriptionInterval={subscriptionInterval} setSubscriptionInterval={setSubscriptionInterval}
-            subscriptionContentDesc={subscriptionContentDesc} setSubscriptionContentDesc={setSubscriptionContentDesc}
+            subTiers={subTiers} setSubTiers={setSubTiers}
             errors={listingErrors}
             submitting={submitting}
             submitError={submitError}

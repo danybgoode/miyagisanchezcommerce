@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: { listingId: string }
+  let body: { listingId: string; tierId?: string }
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
@@ -39,8 +39,22 @@ export async function POST(req: NextRequest) {
   }
 
   const meta = (listing.metadata ?? {}) as Record<string, unknown>
-  const subMeta = (meta.subscription ?? {}) as Record<string, unknown>
-  const priceId = subMeta.stripe_price_id as string | undefined
+
+  // ── Resolve Stripe price ID from tier or single-plan metadata ─────────────
+  type StoredTier = { id: string; stripe_price_id?: string }
+  const tiers = meta.subscription_tiers as StoredTier[] | undefined
+  let priceId: string | undefined
+  let resolvedTierId: string | undefined
+
+  if (tiers && tiers.length > 0) {
+    const tier = body.tierId ? tiers.find(t => t.id === body.tierId) : tiers[0]
+    if (!tier) return NextResponse.json({ error: 'Plan no encontrado.' }, { status: 404 })
+    priceId = tier.stripe_price_id
+    resolvedTierId = tier.id
+  } else {
+    const subMeta = (meta.subscription ?? {}) as Record<string, unknown>
+    priceId = subMeta.stripe_price_id as string | undefined
+  }
 
   if (!priceId) {
     return NextResponse.json({ error: 'Este anuncio no tiene Stripe configurado aún.' }, { status: 422 })
@@ -62,6 +76,7 @@ export async function POST(req: NextRequest) {
       shop_id: listing.shop_id,
       listing_type: 'subscription',
       buyer_clerk_id: clerkUser?.id ?? '',
+      ...(resolvedTierId ? { tier_id: resolvedTierId } : {}),
     },
   })
 

@@ -84,15 +84,26 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
 
-  // Subscription listing
+  // Subscription listing — normalize Phase A (single) and Phase B (multi-tier) to tier array
   const isSubscription = (listing.listing_type as string) === 'subscription'
-  const subMeta = listing.metadata?.subscription as {
-    interval?: 'month' | 'year'
-    content_description?: string
-    stripe_price_id?: string
-  } | undefined
-  const subInterval = subMeta?.interval ?? 'month'
-  const subContentDesc = subMeta?.content_description ?? null
+  type StoredTier = { id: string; label: string; price_cents: number; interval: 'month' | 'year'; features: string[]; is_highlighted: boolean; stripe_price_id?: string; mp_preapproval_plan_id?: string }
+  const storedTiers = listing.metadata?.subscription_tiers as StoredTier[] | undefined
+  const subMeta     = listing.metadata?.subscription as { interval?: 'month' | 'year'; content_description?: string; stripe_price_id?: string } | undefined
+
+  // Build normalized tiers array for SubscriptionSection
+  const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
+    ? storedTiers
+    : subMeta
+      ? [{
+          id: 'default',
+          label: 'Suscripción',
+          price_cents: listing.price_cents ?? 0,
+          interval: subMeta.interval ?? 'month',
+          features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [],
+          is_highlighted: false,
+          stripe_price_id: subMeta.stripe_price_id,
+        }]
+      : []
 
   // CLABE — seller has SPEI banking configured
   const bankingSettings = shopSettings.banking as { clabe?: string } | undefined
@@ -226,7 +237,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <div className="flex gap-2">
               <dt className="text-[var(--color-muted)] w-24 shrink-0">Tipo</dt>
               <dd className="capitalize">
-                {isDigital ? '💻 Digital' : isSubscription ? `🔔 Suscripción / ${subInterval === 'year' ? 'año' : 'mes'}` : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
+                {isDigital ? '💻 Digital' : isSubscription ? `🔔 Suscripción${subTiers.length > 1 ? ` · ${subTiers.length} planes` : subTiers[0]?.interval === 'year' ? ' · anual' : ' · mensual'}` : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
               </dd>
             </div>
           </dl>
@@ -251,17 +262,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
 
           {/* Subscription CTA */}
-          {isSubscription && hasBuyablePrice && isClaimed && (
+          {isSubscription && subTiers.length > 0 && isClaimed && (
             <div className="mb-4">
               <SubscriptionSection
                 listingId={listing.id}
-                priceCents={listing.price_cents!}
-                currency={listing.currency}
-                interval={subInterval}
-                contentDescription={subContentDesc}
+                tiers={subTiers}
                 shopName={listing.shop?.name ?? ''}
                 hasStripe={sellerHasStripe}
                 hasClabe={hasClabe}
+                hasMp={sellerHasMp}
               />
             </div>
           )}

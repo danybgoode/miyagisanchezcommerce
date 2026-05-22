@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { getMpPayment } from '@/lib/mercadopago'
+import { getMpPayment, getMpPreapproval } from '@/lib/mercadopago'
 import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
@@ -28,7 +28,17 @@ export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const topic = (body.type ?? body.topic ?? searchParams.get('topic')) as string | undefined
   const dataId = (body.data as Record<string, unknown> | undefined)?.id
-  const paymentId = String(dataId ?? body.id ?? searchParams.get('id') ?? '')
+  const resourceId = String(dataId ?? body.id ?? searchParams.get('id') ?? '')
+
+  // ── Route preapproval (subscription) notifications ────────────────────────
+  if (topic === 'preapproval' && resourceId && resourceId !== 'undefined') {
+    await handleMpPreapproval(resourceId).catch(e =>
+      console.error('[mp webhook] preapproval handler error:', e),
+    )
+    return NextResponse.json({ received: true })
+  }
+
+  const paymentId = resourceId
 
   // Acknowledge non-payment topics immediately (merchant_order, etc.)
   if (topic !== 'payment' || !paymentId || paymentId === 'undefined') {
@@ -167,6 +177,43 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+// ── Preapproval (subscription) handler ───────────────────────────────────────
+
+async function handleMpPreapproval(preapprovalId: string) {
+  const pa = await getMpPreapproval(preapprovalId)
+  if (!pa) return
+
+  // Map MP status → our status
+  const statusMap: Record<string, string> = {
+    authorized: 'active',
+    paused:     'past_due',
+    cancelled:  'canceled',
+    pending:    'pending_authorization',
+  }
+  const newStatus = statusMap[pa.status ?? ''] ?? pa.status ?? 'unknown'
+
+  // Upsert by mp_preapproval_id
+  const { data: existing } = await db
+    .from('marketplace_subscriptions')
+    .select('id, status')
+    .eq('mp_preapproval_id', preapprovalId)
+    .maybeSingle()
+
+  if (existing) {
+    await db.from('marketplace_subscriptions')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+
+    // Alert on first activation
+    if (existing.status !== 'active' && newStatus === 'active') {
+      tg.alert(`✅ MP Suscripción activada\nPreapproval: ${preapprovalId}`)
+    }
+    if (newStatus === 'canceled') {
+      tg.alert(`❌ MP Suscripción cancelada\nPreapproval: ${preapprovalId}`)
+    }
+  }
 }
 
 // MP sometimes sends IPN as GET with query params — acknowledge those too

@@ -46,11 +46,20 @@ interface CreatePayload {
       status: 'sin_reporte' | 'con_reporte'
       folio?: string
     } | null
-    // Subscription-specific fields
+    // Subscription-specific fields — Phase A (single tier, backward compat)
     subscription?: {
       interval: 'month' | 'year'
       content_description?: string
     } | null
+    // Phase B: multi-tier (1–3 plans per listing)
+    subscription_tiers?: Array<{
+      id: string
+      label: string
+      price_cents: number
+      interval: 'month' | 'year'
+      features: string[]
+      is_highlighted: boolean
+    }> | null
   }
 }
 
@@ -158,13 +167,29 @@ export async function POST(req: NextRequest) {
 
   // ── Subscription validation ──────────────────────────────────────────────
   const isSubscription = body.listing.listing_type === 'subscription'
+  const hasMultiTier   = isSubscription && Array.isArray(body.listing.subscription_tiers) && body.listing.subscription_tiers!.length > 0
   if (isSubscription) {
-    if (!body.listing.price_cents || body.listing.price_cents <= 0) {
-      return NextResponse.json({ error: 'Las suscripciones deben tener un precio.', field: 'price' }, { status: 422 })
-    }
-    const interval = body.listing.subscription?.interval
-    if (!interval || !['month', 'year'].includes(interval)) {
-      return NextResponse.json({ error: 'Selecciona el período de facturación.', field: 'subscription_interval' }, { status: 422 })
+    if (hasMultiTier) {
+      const tiers = body.listing.subscription_tiers!
+      if (tiers.length > 3) {
+        return NextResponse.json({ error: 'Máximo 3 planes por suscripción.', field: 'subscription_tiers' }, { status: 422 })
+      }
+      for (const t of tiers) {
+        if (!t.price_cents || t.price_cents <= 0) {
+          return NextResponse.json({ error: `El plan "${t.label}" necesita un precio válido.`, field: 'subscription_tiers' }, { status: 422 })
+        }
+        if (!['month', 'year'].includes(t.interval)) {
+          return NextResponse.json({ error: `Intervalo inválido en el plan "${t.label}".`, field: 'subscription_tiers' }, { status: 422 })
+        }
+      }
+    } else {
+      if (!body.listing.price_cents || body.listing.price_cents <= 0) {
+        return NextResponse.json({ error: 'Las suscripciones deben tener un precio.', field: 'price' }, { status: 422 })
+      }
+      const interval = body.listing.subscription?.interval
+      if (!interval || !['month', 'year'].includes(interval)) {
+        return NextResponse.json({ error: 'Selecciona el período de facturación.', field: 'subscription_interval' }, { status: 422 })
+      }
     }
   }
 
@@ -172,13 +197,18 @@ export async function POST(req: NextRequest) {
   const locationDisplay = [body.listing.municipio?.trim(), body.listing.state?.trim()]
     .filter(Boolean).join(', ') || null
 
+  // For multi-tier subscriptions, price_cents = lowest tier price (for browse display)
+  const effectivePriceCents = hasMultiTier
+    ? Math.min(...body.listing.subscription_tiers!.map(t => t.price_cents))
+    : (body.listing.price_cents ?? null)
+
   const { data: listing, error: listingErr } = await db
     .from('marketplace_listings')
     .insert({
       shop_id: shopId,
       title: titleClean.slice(0, 100),
       description: body.listing.description?.trim() || null,
-      price_cents: body.listing.price_cents ?? null,
+      price_cents: effectivePriceCents,
       currency: body.listing.currency ?? 'MXN',
       condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
       listing_type: body.listing.listing_type ?? 'product',
@@ -199,11 +229,21 @@ export async function POST(req: NextRequest) {
             verified_at: new Date().toISOString(),
           }
         } : {}),
-        ...(isSubscription ? {
+        ...(isSubscription && !hasMultiTier ? {
           subscription: {
             interval: body.listing.subscription!.interval,
             content_description: body.listing.subscription?.content_description?.trim() || null,
           }
+        } : {}),
+        ...(isSubscription && hasMultiTier ? {
+          subscription_tiers: body.listing.subscription_tiers!.map(t => ({
+            id: t.id,
+            label: t.label.trim(),
+            price_cents: t.price_cents,
+            interval: t.interval,
+            features: t.features.filter(Boolean),
+            is_highlighted: t.is_highlighted,
+          })),
         } : {}),
       },
     })
@@ -215,10 +255,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error al publicar el anuncio. Inténtalo de nuevo.' }, { status: 500 })
   }
 
-  // ── If subscription: create Stripe Product + Price ───────────────────────
-  if (isSubscription && body.listing.price_cents && body.listing.price_cents > 0) {
+  // ── If subscription: create Stripe Product(s) + Price(s) ────────────────
+  if (isSubscription) {
     try {
-      // Look up seller's connected Stripe account (needed for transfer later)
       const { data: shopForStripe } = await db
         .from('marketplace_shops')
         .select('metadata')
@@ -226,29 +265,54 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
 
       const stripeSettings = getShopStripe(shopForStripe?.metadata as Record<string, unknown> | null)
+      const currency = body.listing.currency ?? 'MXN'
+      const description = body.listing.description?.trim() || null
 
-      const { productId, priceId } = await createSubscriptionPrice({
-        listingId: listing.id,
-        shopId,
-        title: titleClean,
-        description: body.listing.description?.trim() || null,
-        price_cents: body.listing.price_cents,
-        currency: body.listing.currency ?? 'MXN',
-        interval: (body.listing.subscription?.interval ?? 'month') as 'month' | 'year',
-      })
-
-      // Patch the listing metadata with the Stripe IDs
-      await db.from('marketplace_listings').update({
-        metadata: {
-          subscription: {
-            interval: body.listing.subscription!.interval,
-            content_description: body.listing.subscription?.content_description?.trim() || null,
-            stripe_product_id: productId,
-            stripe_price_id: priceId,
+      if (hasMultiTier) {
+        // Create one Stripe Price per tier, patch back into subscription_tiers
+        const tiersWithStripe = await Promise.all(
+          body.listing.subscription_tiers!.map(async t => {
+            const { productId, priceId } = await createSubscriptionPrice({
+              listingId: listing.id,
+              shopId,
+              title: `${titleClean} — ${t.label}`,
+              description,
+              price_cents: t.price_cents,
+              currency,
+              interval: t.interval,
+            })
+            return { ...t, stripe_product_id: productId, stripe_price_id: priceId }
+          }),
+        )
+        await db.from('marketplace_listings').update({
+          metadata: {
+            subscription_tiers: tiersWithStripe,
             stripe_account_id: stripeSettings.account_id ?? null,
           },
-        },
-      }).eq('id', listing.id)
+        }).eq('id', listing.id)
+      } else if (body.listing.price_cents && body.listing.price_cents > 0) {
+        // Single-tier (Phase A compat)
+        const { productId, priceId } = await createSubscriptionPrice({
+          listingId: listing.id,
+          shopId,
+          title: titleClean,
+          description,
+          price_cents: body.listing.price_cents,
+          currency,
+          interval: (body.listing.subscription?.interval ?? 'month') as 'month' | 'year',
+        })
+        await db.from('marketplace_listings').update({
+          metadata: {
+            subscription: {
+              interval: body.listing.subscription!.interval,
+              content_description: body.listing.subscription?.content_description?.trim() || null,
+              stripe_product_id: productId,
+              stripe_price_id: priceId,
+              stripe_account_id: stripeSettings.account_id ?? null,
+            },
+          },
+        }).eq('id', listing.id)
+      }
     } catch (e) {
       // Non-fatal: listing is published, Stripe IDs can be set up later
       console.error('[create] Stripe subscription price creation failed:', e)

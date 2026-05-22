@@ -55,6 +55,7 @@ export default function AccountSubscriptionsClient({
   const [canceling, setCanceling] = useState<string | null>(null)
   const [subs, setSubs] = useState(subscriptions)
   const [error, setError] = useState<string | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
 
   function getShop(sub: Subscription) {
     const s = sub.marketplace_shops
@@ -63,6 +64,20 @@ export default function AccountSubscriptionsClient({
   function getListing(sub: Subscription) {
     const l = sub.marketplace_listings
     return Array.isArray(l) ? l[0] : l
+  }
+
+  async function openBillingPortal() {
+    setPortalLoading(true)
+    try {
+      const res = await fetch('/api/stripe/billing-portal', { method: 'POST' })
+      const data = await res.json() as { url?: string; error?: string }
+      if (data.url) window.location.href = data.url
+      else setError(data.error ?? 'No se pudo abrir el portal.')
+    } catch {
+      setError('Sin conexión.')
+    } finally {
+      setPortalLoading(false)
+    }
   }
 
   async function handleCancel(id: string) {
@@ -92,9 +107,21 @@ export default function AccountSubscriptionsClient({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Mis suscripciones</h1>
-        <p className="text-[var(--color-muted)] text-sm mt-1">{subs.length} suscripciones</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--color-text)]">Mis suscripciones</h1>
+          <p className="text-[var(--color-muted)] text-sm mt-1">{subs.length} suscripciones</p>
+        </div>
+        {subs.some(s => s.payment_method === 'stripe' && (s.status === 'active' || s.status === 'trialing')) && (
+          <button
+            type="button"
+            onClick={openBillingPortal}
+            disabled={portalLoading}
+            className="shrink-0 text-sm border border-[var(--color-border)] px-4 py-2 rounded-lg hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-60"
+          >
+            {portalLoading ? 'Cargando…' : '⚙️ Gestionar pagos'}
+          </button>
+        )}
       </div>
 
       {error && (
