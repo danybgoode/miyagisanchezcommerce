@@ -342,6 +342,20 @@ export default function ManageDashboard({
             </Link>
             <span className="text-[var(--color-border)]">·</span>
             <Link
+              href="/shop/manage/subscriptions"
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
+            >
+              Suscripciones
+            </Link>
+            <span className="text-[var(--color-border)]">·</span>
+            <Link
+              href="/shop/manage/content"
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
+            >
+              Contenido
+            </Link>
+            <span className="text-[var(--color-border)]">·</span>
+            <Link
               href="/shop/manage/settings"
               className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
             >

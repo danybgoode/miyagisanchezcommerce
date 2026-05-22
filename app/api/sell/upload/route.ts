@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { uploadToR2, isR2Configured } from '@/lib/r2'
 
 const BUCKET = 'listing-images'
-const MAX_SIZE_BYTES = 8 * 1024 * 1024 // 8 MB
+const MAX_SIZE_BYTES = 8 * 1024 * 1024 // 8 MB (client compresses first, this is a hard cap)
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
 
 export async function POST(req: NextRequest) {
@@ -36,25 +37,34 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
-  // Build path: userId/timestamp-random.ext
   const ext = (file.name.split('.').pop() ?? 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-
+  const path = `listing-images/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const bytes = await file.arrayBuffer()
 
-  // Ensure bucket exists (idempotent)
+  // ── R2 (preferred) with Supabase fallback ──────────────────────────────────
+  if (isR2Configured()) {
+    try {
+      const url = await uploadToR2(bytes, path, file.type)
+      return NextResponse.json({ url })
+    } catch (e) {
+      console.error('[upload] R2 failed, falling back to Supabase:', e)
+      // Fall through to Supabase
+    }
+  }
+
+  // ── Supabase Storage fallback ──────────────────────────────────────────────
+  const supabasePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   await db.storage.createBucket(BUCKET, { public: true }).catch(() => {})
 
   const { error: uploadError } = await db.storage
     .from(BUCKET)
-    .upload(path, bytes, { contentType: file.type, upsert: false })
+    .upload(supabasePath, bytes, { contentType: file.type, upsert: false })
 
   if (uploadError) {
     console.error('Supabase Storage upload error:', uploadError)
     return NextResponse.json({ error: 'Error al subir la imagen. Inténtalo de nuevo.' }, { status: 500 })
   }
 
-  const { data: { publicUrl } } = db.storage.from(BUCKET).getPublicUrl(path)
-
+  const { data: { publicUrl } } = db.storage.from(BUCKET).getPublicUrl(supabasePath)
   return NextResponse.json({ url: publicUrl })
 }

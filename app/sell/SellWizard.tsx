@@ -20,7 +20,50 @@ interface UploadedPhoto {
   errorMsg?: string
 }
 
-type ListingType = 'product' | 'service' | 'rental' | 'digital'
+type ListingType = 'product' | 'service' | 'rental' | 'digital' | 'subscription'
+
+// ── Canvas image compression ──────────────────────────────────────────────────
+// Runs entirely client-side: resize to ≤1920px wide, convert to WebP at 0.82 quality.
+// Falls back to the original file if canvas is unavailable (SSR, old browser).
+
+async function compressImage(file: File): Promise<File> {
+  if (typeof window === 'undefined' || !window.createImageBitmap) return file
+  // Skip tiny files — no benefit compressing images already under 200KB
+  if (file.size < 200 * 1024 && file.type === 'image/webp') return file
+
+  try {
+    const bitmap = await createImageBitmap(file)
+    const MAX_DIM = 1920
+    let { width, height } = bitmap
+    if (width > MAX_DIM || height > MAX_DIM) {
+      const ratio = Math.min(MAX_DIM / width, MAX_DIM / height)
+      width  = Math.round(width  * ratio)
+      height = Math.round(height * ratio)
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width  = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+
+    const blob = await new Promise<Blob | null>(resolve =>
+      canvas.toBlob(resolve, 'image/webp', 0.82),
+    )
+    if (!blob) return file
+
+    const compressed = new File(
+      [blob],
+      file.name.replace(/\.[^.]+$/, '.webp'),
+      { type: 'image/webp' },
+    )
+    // Only use compressed if it's actually smaller
+    return compressed.size < file.size ? compressed : file
+  } catch {
+    return file
+  }
+}
 
 interface DigitalFile {
   path: string
@@ -122,8 +165,10 @@ function PhotoUploader({
   const MAX_PHOTOS = 10
 
   async function uploadFile(file: File, localId: string) {
+    // Compress before upload: resize to ≤1920px, convert to WebP
+    const compressed = await compressImage(file)
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', compressed)
     try {
       const res = await fetch('/api/sell/upload', { method: 'POST', body: fd })
       const data = await res.json() as { url?: string; error?: string }
@@ -572,6 +617,8 @@ function StepListing({
   digitalFile, setDigitalFile,
   repuveStatus, setRepuveStatus,
   repuveFolio, setRepuveFolio,
+  subscriptionInterval, setSubscriptionInterval,
+  subscriptionContentDesc, setSubscriptionContentDesc,
   errors,
   submitting,
   submitError,
@@ -592,6 +639,8 @@ function StepListing({
   digitalFile: DigitalFile | null; setDigitalFile: (f: DigitalFile | null) => void
   repuveStatus: RepuveStatus; setRepuveStatus: (v: RepuveStatus) => void
   repuveFolio: string; setRepuveFolio: (v: string) => void
+  subscriptionInterval: 'month' | 'year'; setSubscriptionInterval: (v: 'month' | 'year') => void
+  subscriptionContentDesc: string; setSubscriptionContentDesc: (v: string) => void
   errors: Record<string, string>
   submitting: boolean
   submitError: string | null
@@ -684,12 +733,13 @@ function StepListing({
       {/* Listing type */}
       <div>
         <Label>Tipo de anuncio</Label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {([
-            { key: 'product', label: '📦 Producto', hint: 'Artículo físico' },
-            { key: 'service', label: '🔧 Servicio', hint: 'Clases, reparaciones…' },
-            { key: 'rental', label: '🔑 Renta', hint: 'Alquiler por tiempo' },
-            { key: 'digital', label: '💻 Digital', hint: 'PDF, ZIP, MP3, video, plantillas…' },
+            { key: 'product',      label: '📦 Producto',     hint: 'Artículo físico' },
+            { key: 'service',      label: '🔧 Servicio',     hint: 'Clases, reparaciones…' },
+            { key: 'rental',       label: '🔑 Renta',        hint: 'Alquiler por tiempo' },
+            { key: 'digital',      label: '💻 Digital',      hint: 'PDF, ZIP, MP3, video, plantillas…' },
+            { key: 'subscription', label: '🔔 Suscripción',  hint: 'Contenido mensual / acceso recurrente' },
           ] as const).map(t => (
             <button
               key={t.key}
@@ -711,7 +761,61 @@ function StepListing({
             💡 Entrega automática al comprar — el comprador recibe su archivo al instante.
           </p>
         )}
+        {listingType === 'subscription' && (
+          <p className="text-xs text-[var(--color-muted)] mt-1.5">
+            🔔 Los suscriptores pagan mensual o anualmente y acceden a tu biblioteca de contenido exclusivo.
+          </p>
+        )}
       </div>
+
+      {/* Subscription settings */}
+      {listingType === 'subscription' && (
+        <div className="border border-[var(--color-border)] rounded-lg p-4 space-y-4 bg-[var(--color-background)]">
+          <p className="text-sm font-semibold text-[var(--color-text)]">⚙️ Configuración de suscripción</p>
+
+          {/* Billing interval */}
+          <div>
+            <Label required>Período de facturación</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: 'month', label: '📅 Mensual', hint: 'Se cobra cada mes' },
+                { key: 'year',  label: '🗓️ Anual',   hint: 'Se cobra una vez al año (ahorro)' },
+              ] as const).map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setSubscriptionInterval(t.key)}
+                  title={t.hint}
+                  className={`border rounded py-2.5 text-sm transition-all ${
+                    subscriptionInterval === t.key
+                      ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
+                      : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <FieldError msg={errors.subscription_interval} />
+          </div>
+
+          {/* Content description */}
+          <div>
+            <Label>¿Qué incluye la suscripción? <span className="text-[var(--color-muted)] font-normal">(opcional)</span></Label>
+            <textarea
+              value={subscriptionContentDesc}
+              onChange={e => setSubscriptionContentDesc(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="Ej: Acceso a recetas semanales exclusivas, clases en vivo mensuales, descuentos de miembro..."
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
+            />
+            <div className="flex justify-end mt-0.5">
+              <CharCount current={subscriptionContentDesc.length} max={500} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Digital file uploader */}
       {listingType === 'digital' && (
@@ -1070,6 +1174,8 @@ export default function SellWizard({
   const [digitalFile, setDigitalFile] = useState<DigitalFile | null>(null)
   const [repuveStatus, setRepuveStatus] = useState<RepuveStatus>('')
   const [repuveFolio, setRepuveFolio] = useState('')
+  const [subscriptionInterval, setSubscriptionInterval] = useState<'month' | 'year'>('month')
+  const [subscriptionContentDesc, setSubscriptionContentDesc] = useState('')
   const [listingErrors, setListingErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -1109,6 +1215,9 @@ export default function SellWizard({
     if (listingType === 'digital' && !digitalFile) {
       errs.digitalFile = 'Sube el archivo que los compradores recibirán al pagar.'
     }
+    if (listingType === 'subscription' && !priceOnRequest && !parsePriceCents(priceRaw)) {
+      errs.price = 'Las suscripciones requieren un precio.'
+    }
     setListingErrors(errs)
     if (Object.keys(errs).length > 0) {
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1140,6 +1249,10 @@ export default function SellWizard({
           images: readyPhotos,
           digital_file: digitalFile ?? undefined,
           repuve: repuveStatus ? { status: repuveStatus, folio: repuveFolio || undefined } : undefined,
+          subscription: listingType === 'subscription' ? {
+            interval: subscriptionInterval,
+            content_description: subscriptionContentDesc.trim() || undefined,
+          } : undefined,
         },
       }
 
@@ -1178,6 +1291,8 @@ export default function SellWizard({
     setCategory('')
     setListingType('product')
     setCondition('good')
+    setSubscriptionInterval('month')
+    setSubscriptionContentDesc('')
     setPriceRaw('')
     setPriceOnRequest(false)
     setDescription('')
@@ -1238,6 +1353,8 @@ export default function SellWizard({
             digitalFile={digitalFile} setDigitalFile={setDigitalFile}
             repuveStatus={repuveStatus} setRepuveStatus={setRepuveStatus}
             repuveFolio={repuveFolio} setRepuveFolio={setRepuveFolio}
+            subscriptionInterval={subscriptionInterval} setSubscriptionInterval={setSubscriptionInterval}
+            subscriptionContentDesc={subscriptionContentDesc} setSubscriptionContentDesc={setSubscriptionContentDesc}
             errors={listingErrors}
             submitting={submitting}
             submitError={submitError}

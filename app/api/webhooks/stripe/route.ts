@@ -6,6 +6,7 @@ import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail, c
 import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
+import { transferToSeller } from '@/lib/stripe-subscriptions'
 
 // In Next.js App Router, req.text() reads the raw body before any parsing —
 // no need for bodyParser: false config (that was Pages Router only)
@@ -25,8 +26,30 @@ export async function POST(req: NextRequest) {
 
   // ── Handle events ─────────────────────────────────────────────────────────
   switch (event.type) {
-    case 'checkout.session.completed':
-      await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session)
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session
+      if (session.mode === 'subscription') {
+        await handleSubscriptionCheckoutComplete(session)
+      } else {
+        await handleCheckoutComplete(session)
+      }
+      break
+    }
+
+    case 'customer.subscription.updated':
+      await handleSubscriptionUpdated(event.data.object as Stripe.Subscription)
+      break
+
+    case 'customer.subscription.deleted':
+      await handleSubscriptionDeleted(event.data.object as Stripe.Subscription)
+      break
+
+    case 'invoice.payment_succeeded':
+      await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice)
+      break
+
+    case 'invoice.payment_failed':
+      await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice)
       break
 
     case 'account.updated':
@@ -235,4 +258,157 @@ async function handleAccountUpdated(account: Stripe.Account) {
       },
     },
   }).eq('id', shop.id)
+}
+
+// ── Subscription: checkout.session.completed (mode=subscription) ──────────────
+
+async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Session) {
+  const { listing_id, shop_id, buyer_clerk_id } = session.metadata ?? {}
+  if (!listing_id || !shop_id) return
+
+  const stripeSubscriptionId = session.subscription as string | null
+  const buyerEmail = session.customer_details?.email ?? null
+  const buyerName  = session.customer_details?.name ?? null
+
+  if (!stripeSubscriptionId) {
+    console.error('[stripe sub] no subscription ID in session:', session.id)
+    return
+  }
+
+  // Fetch subscription from Stripe to get period dates
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  // `current_period_*` moved off top-level in newer Stripe API versions — cast to access
+  type SubWithPeriod = { current_period_start: number; current_period_end: number; cancel_at_period_end: boolean }
+  const _sub = stripeSub as unknown as SubWithPeriod
+
+  const periodStart = new Date(_sub.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_sub.current_period_end   * 1000).toISOString()
+
+  const { data: existing } = await db
+    .from('marketplace_subscriptions')
+    .select('id')
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+    .maybeSingle()
+
+  if (existing) return // idempotent
+
+  await db.from('marketplace_subscriptions').insert({
+    listing_id,
+    shop_id,
+    buyer_clerk_user_id: buyer_clerk_id || null,
+    buyer_email:  buyerEmail?.toLowerCase().trim() ?? '',
+    buyer_name:   buyerName ?? null,
+    stripe_subscription_id: stripeSubscriptionId,
+    stripe_customer_id: session.customer as string | null,
+    payment_method: 'stripe',
+    status: 'active',
+    current_period_start: periodStart,
+    current_period_end:   periodEnd,
+  })
+
+  tg.newSubscription(
+    `${(stripeSub.items.data[0]?.price.unit_amount ?? 0) / 100} ${stripeSub.currency.toUpperCase()}`,
+    'month',
+    listing_id,
+    buyerEmail ?? 'comprador',
+  )
+}
+
+// ── customer.subscription.updated ─────────────────────────────────────────────
+
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  type SubWithPeriod = { current_period_start: number; current_period_end: number }
+  const _s = subscription as unknown as SubWithPeriod
+  const periodStart = new Date(_s.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_s.current_period_end   * 1000).toISOString()
+
+  await db.from('marketplace_subscriptions')
+    .update({
+      status: subscription.status,
+      current_period_start: periodStart,
+      current_period_end:   periodEnd,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_subscription_id', subscription.id)
+}
+
+// ── customer.subscription.deleted ─────────────────────────────────────────────
+
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  await db.from('marketplace_subscriptions')
+    .update({ status: 'canceled', updated_at: new Date().toISOString() })
+    .eq('stripe_subscription_id', subscription.id)
+}
+
+// ── invoice.payment_succeeded ─────────────────────────────────────────────────
+
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  const stripeSubscriptionId = (invoice as unknown as Record<string, unknown>).subscription as string | undefined
+  if (!stripeSubscriptionId) return
+
+  // Update billing period on the subscription
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  type SubWithPeriod = { current_period_start: number; current_period_end: number }
+  const _sp = stripeSub as unknown as SubWithPeriod
+  const periodStart = new Date(_sp.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_sp.current_period_end   * 1000).toISOString()
+
+  await db.from('marketplace_subscriptions')
+    .update({
+      status: 'active',
+      current_period_start: periodStart,
+      current_period_end:   periodEnd,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+
+  // ── Transfer 97% to seller's connected account ──────────────────────────
+  const amountPaid  = invoice.amount_paid ?? 0
+  const currency    = invoice.currency ?? 'mxn'
+  const chargeId    = (invoice as unknown as Record<string, unknown>).charge as string | undefined
+
+  // Get the subscription to find the shop/listing
+  const { data: sub } = await db
+    .from('marketplace_subscriptions')
+    .select('listing_id, shop_id')
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+    .maybeSingle()
+
+  if (sub && chargeId) {
+    // Look up seller's connected Stripe account
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', sub.shop_id)
+      .maybeSingle()
+
+    const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
+    const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
+    const stripeSettings = (shopSettings.stripe ?? {}) as Record<string, unknown>
+    const connectedAccountId = stripeSettings.account_id as string | undefined
+
+    if (connectedAccountId && amountPaid > 0) {
+      await transferToSeller({
+        amountCents: amountPaid,
+        currency,
+        connectedAccountId,
+        sourceTransaction: chargeId,
+        metadata: { listing_id: sub.listing_id, shop_id: sub.shop_id, stripe_subscription_id: stripeSubscriptionId },
+      })
+    }
+  }
+}
+
+// ── invoice.payment_failed ────────────────────────────────────────────────────
+
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const stripeSubscriptionId = (invoice as unknown as Record<string, unknown>).subscription as string | undefined
+  if (!stripeSubscriptionId) return
+
+  await db.from('marketplace_subscriptions')
+    .update({ status: 'past_due', updated_at: new Date().toISOString() })
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+
+  tg.alert(`⚠️ Pago fallido en suscripción Stripe\nSubscription: ${stripeSubscriptionId}`)
 }

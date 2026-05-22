@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { tg } from '@/lib/telegram'
+import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
+import { getShopStripe } from '@/lib/stripe'
 
 function generateSlug(name: string): string {
   const base = name
@@ -43,6 +45,11 @@ interface CreatePayload {
     repuve?: {
       status: 'sin_reporte' | 'con_reporte'
       folio?: string
+    } | null
+    // Subscription-specific fields
+    subscription?: {
+      interval: 'month' | 'year'
+      content_description?: string
     } | null
   }
 }
@@ -149,6 +156,18 @@ export async function POST(req: NextRequest) {
     shopSlug = shop.slug
   }
 
+  // ── Subscription validation ──────────────────────────────────────────────
+  const isSubscription = body.listing.listing_type === 'subscription'
+  if (isSubscription) {
+    if (!body.listing.price_cents || body.listing.price_cents <= 0) {
+      return NextResponse.json({ error: 'Las suscripciones deben tener un precio.', field: 'price' }, { status: 422 })
+    }
+    const interval = body.listing.subscription?.interval
+    if (!interval || !['month', 'year'].includes(interval)) {
+      return NextResponse.json({ error: 'Selecciona el período de facturación.', field: 'subscription_interval' }, { status: 422 })
+    }
+  }
+
   // ── Create listing ───────────────────────────────────────────────────────
   const locationDisplay = [body.listing.municipio?.trim(), body.listing.state?.trim()]
     .filter(Boolean).join(', ') || null
@@ -180,6 +199,12 @@ export async function POST(req: NextRequest) {
             verified_at: new Date().toISOString(),
           }
         } : {}),
+        ...(isSubscription ? {
+          subscription: {
+            interval: body.listing.subscription!.interval,
+            content_description: body.listing.subscription?.content_description?.trim() || null,
+          }
+        } : {}),
       },
     })
     .select('id')
@@ -188,6 +213,46 @@ export async function POST(req: NextRequest) {
   if (listingErr || !listing) {
     console.error('Listing creation error:', listingErr)
     return NextResponse.json({ error: 'Error al publicar el anuncio. Inténtalo de nuevo.' }, { status: 500 })
+  }
+
+  // ── If subscription: create Stripe Product + Price ───────────────────────
+  if (isSubscription && body.listing.price_cents && body.listing.price_cents > 0) {
+    try {
+      // Look up seller's connected Stripe account (needed for transfer later)
+      const { data: shopForStripe } = await db
+        .from('marketplace_shops')
+        .select('metadata')
+        .eq('id', shopId)
+        .maybeSingle()
+
+      const stripeSettings = getShopStripe(shopForStripe?.metadata as Record<string, unknown> | null)
+
+      const { productId, priceId } = await createSubscriptionPrice({
+        listingId: listing.id,
+        shopId,
+        title: titleClean,
+        description: body.listing.description?.trim() || null,
+        price_cents: body.listing.price_cents,
+        currency: body.listing.currency ?? 'MXN',
+        interval: (body.listing.subscription?.interval ?? 'month') as 'month' | 'year',
+      })
+
+      // Patch the listing metadata with the Stripe IDs
+      await db.from('marketplace_listings').update({
+        metadata: {
+          subscription: {
+            interval: body.listing.subscription!.interval,
+            content_description: body.listing.subscription?.content_description?.trim() || null,
+            stripe_product_id: productId,
+            stripe_price_id: priceId,
+            stripe_account_id: stripeSettings.account_id ?? null,
+          },
+        },
+      }).eq('id', listing.id)
+    } catch (e) {
+      // Non-fatal: listing is published, Stripe IDs can be set up later
+      console.error('[create] Stripe subscription price creation failed:', e)
+    }
   }
 
   // ── Telegram admin notification ──────────────────────────────────────────
