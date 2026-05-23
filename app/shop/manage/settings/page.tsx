@@ -7,7 +7,13 @@ export const metadata = {
   title: 'Configuración de tienda — Miyagi Sánchez',
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>
+}) {
+  const params = await searchParams
+  const stripeError = params.stripe === 'error' ? (params.reason ?? 'Error desconocido al conectar Stripe.') : null
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
@@ -36,6 +42,7 @@ export default async function SettingsPage() {
 
   return (
     <ShopSettingsPanel
+      stripeError={stripeError}
       initial={{
         name: shop.name,
         description: shop.description ?? '',

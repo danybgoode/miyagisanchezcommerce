@@ -238,7 +238,7 @@ const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; des
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsData }) {
+export default function ShopSettingsPanel({ initial, stripeError }: { initial: ShopSettingsData; stripeError?: string | null }) {
   const parsedLoc = parseLocation(initial.location)
 
   // Profile fields
@@ -707,6 +707,12 @@ export default function ShopSettingsPanel({ initial }: { initial: ShopSettingsDa
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Acepta pagos con tarjeta directamente en tu tienda. Sin comisiones de plataforma — solo la tarifa estándar de Stripe.
         </p>
+
+        {stripeError && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+            <span className="font-semibold">Error al conectar Stripe:</span>{' '}{stripeError}
+          </div>
+        )}
 
         {initial.stripe?.charges_enabled ? (
           // ── Connected & active ─────────────────────────────────────────────

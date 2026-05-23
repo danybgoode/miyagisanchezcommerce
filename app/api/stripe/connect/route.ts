@@ -10,6 +10,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/sign-in', req.url))
   }
 
+  const errorRedirect = (reason: string) =>
+    NextResponse.redirect(
+      new URL(`/shop/manage/settings?stripe=error&reason=${encodeURIComponent(reason)}`, req.url),
+    )
+
   // Fetch shop
   const { data: shop } = await db
     .from('marketplace_shops')
@@ -33,32 +38,80 @@ export async function GET(req: NextRequest) {
   let accountId = stripeSettings.account_id
 
   if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express',
-      country: 'MX',
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_profile: {
-        mcc: '5999', // miscellaneous retail
-      },
-    })
-    accountId = account.id
-
-    // Persist the account ID immediately (before onboarding completes)
-    await db.from('marketplace_shops').update({
-      metadata: {
-        ...meta,
-        settings: {
-          ...settings,
-          stripe: { account_id: accountId, charges_enabled: false, onboarding_complete: false },
+    try {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'MX',
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
         },
-      },
-    }).eq('id', shop.id)
+        business_profile: {
+          mcc: '5999', // miscellaneous retail
+        },
+      })
+      accountId = account.id
+
+      // Persist the account ID immediately (before onboarding completes)
+      await db.from('marketplace_shops').update({
+        metadata: {
+          ...meta,
+          settings: {
+            ...settings,
+            stripe: { account_id: accountId, charges_enabled: false, onboarding_complete: false },
+          },
+        },
+      }).eq('id', shop.id)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[stripe/connect] accounts.create failed:', msg)
+      return errorRedirect(msg)
+    }
   }
 
-  // Generate onboarding link
-  const url = await createAccountLink(accountId, origin)
-  return NextResponse.redirect(url)
+  // ── Generate onboarding link ─────────────────────────────────────────────
+  // If accountId came from a stale/previous attempt and accountLinks.create fails,
+  // clear it and retry once with a fresh account.
+  try {
+    const url = await createAccountLink(accountId, origin)
+    return NextResponse.redirect(url)
+  } catch (linkErr) {
+    const linkMsg = linkErr instanceof Error ? linkErr.message : String(linkErr)
+    console.error('[stripe/connect] accountLinks.create failed for', accountId, ':', linkMsg)
+
+    // Stale account ID — clear it and try creating a brand-new account
+    if (stripeSettings.account_id) {
+      try {
+        const freshAccount = await stripe.accounts.create({
+          type: 'express',
+          country: 'MX',
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          business_profile: { mcc: '5999' },
+        })
+        const freshId = freshAccount.id
+
+        await db.from('marketplace_shops').update({
+          metadata: {
+            ...meta,
+            settings: {
+              ...settings,
+              stripe: { account_id: freshId, charges_enabled: false, onboarding_complete: false },
+            },
+          },
+        }).eq('id', shop.id)
+
+        const freshUrl = await createAccountLink(freshId, origin)
+        return NextResponse.redirect(freshUrl)
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        console.error('[stripe/connect] retry also failed:', retryMsg)
+        return errorRedirect(retryMsg)
+      }
+    }
+
+    return errorRedirect(linkMsg)
+  }
 }

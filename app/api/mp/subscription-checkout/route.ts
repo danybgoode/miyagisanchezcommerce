@@ -99,13 +99,24 @@ export async function POST(req: NextRequest) {
   // ── Get or create preapproval plan (idempotent) ───────────────────────────
   let planId = storedPlanId
   if (!planId) {
-    const { planId: newPlanId } = await createMpPreapprovalPlan({
-      title: `${listing.title}${tierLabel !== 'Suscripción' ? ` — ${tierLabel}` : ''}`,
-      priceCents: monthlyAmountCents,
-      currency,
-      frequency: 1,
-      frequencyType: 'months',
-    })
+    let newPlanId: string
+    try {
+      const result = await createMpPreapprovalPlan({
+        title: `${listing.title}${tierLabel !== 'Suscripción' ? ` — ${tierLabel}` : ''}`,
+        priceCents: monthlyAmountCents,
+        currency,
+        frequency: 1,
+        frequencyType: 'months',
+      })
+      newPlanId = result.planId
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[mp-sub] createMpPreapprovalPlan failed:', msg)
+      return NextResponse.json(
+        { error: 'No se pudo crear el plan de suscripción con MercadoPago. Verifica que el token tenga permisos de suscripciones.', detail: msg },
+        { status: 502 },
+      )
+    }
     planId = newPlanId
 
     // Persist plan ID in listing metadata so future buyers reuse it
@@ -125,19 +136,32 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Create buyer preapproval instance ─────────────────────────────────────
-  const { preapprovalId, initPoint } = await createMpPreapproval({
-    planId,
-    title: `${listing.title}${tierLabel !== 'Suscripción' ? ` — ${tierLabel}` : ''}`,
-    priceCents: monthlyAmountCents,
-    currency,
-    frequency: 1,
-    frequencyType: 'months',
-    buyerEmail,
-    listingId: listing.id,
-    shopId: listing.shop_id,
-    tierId,
-    origin,
-  })
+  let preapprovalId: string
+  let initPoint: string
+  try {
+    const result = await createMpPreapproval({
+      planId,
+      title: `${listing.title}${tierLabel !== 'Suscripción' ? ` — ${tierLabel}` : ''}`,
+      priceCents: monthlyAmountCents,
+      currency,
+      frequency: 1,
+      frequencyType: 'months',
+      buyerEmail,
+      listingId: listing.id,
+      shopId: listing.shop_id,
+      tierId,
+      origin,
+    })
+    preapprovalId = result.preapprovalId
+    initPoint = result.initPoint
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[mp-sub] createMpPreapproval failed:', msg)
+    return NextResponse.json(
+      { error: 'No se pudo iniciar la suscripción con MercadoPago.', detail: msg },
+      { status: 502 },
+    )
+  }
 
   // ── Store pending subscription record ─────────────────────────────────────
   // Insert subscription record — ignore conflict on mp_preapproval_id (idempotent)
