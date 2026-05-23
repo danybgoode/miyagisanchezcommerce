@@ -3,6 +3,9 @@ import * as Sentry from '@sentry/nextjs'
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
+  // Session tracking — required for crash-free sessions/users metrics
+  autoSessionTracking: true,
+
   // Replay captures sessions — 10% of sessions, 100% on error
   integrations: [
     Sentry.replayIntegration(),
