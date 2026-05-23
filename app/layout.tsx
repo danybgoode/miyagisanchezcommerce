@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import './globals.css'
+import SentryInit from './sentry-init'
 
 export const metadata: Metadata = {
   title: { default: 'Miyagi Sánchez — Marketplace', template: '%s | Miyagi Sánchez' },
@@ -12,6 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="es">
         <body>
+          <SentryInit />
           <header className="border-b border-[var(--color-border)] bg-white sticky top-0 z-50">
             <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
               <a href="/" className="font-bold text-[var(--color-text)] text-lg no-underline hover:text-[var(--color-accent)]">
