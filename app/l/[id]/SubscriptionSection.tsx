@@ -20,6 +20,7 @@ interface SubscriptionSectionProps {
   hasStripe: boolean   // seller has Stripe Connect active
   hasClabe: boolean    // seller has CLABE configured
   hasMp: boolean       // seller has MercadoPago enabled
+  isSignedIn: boolean  // buyer is authenticated
 }
 
 function formatPrice(cents: number, currency: string): string {
@@ -38,6 +39,7 @@ export default function SubscriptionSection({
   hasStripe,
   hasClabe,
   hasMp,
+  isSignedIn,
 }: SubscriptionSectionProps) {
   const [selectedTierId, setSelectedTierId] = useState(
     tiers.find(t => t.is_highlighted)?.id ?? tiers[0]?.id ?? '',
@@ -59,6 +61,10 @@ export default function SubscriptionSection({
   }
 
   async function handleStripeSubscribe() {
+    if (!isSignedIn) {
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`
+      return
+    }
     setLoading(true); setError(null)
     try {
       const res = await fetch('/api/stripe/subscription-checkout', {
@@ -74,6 +80,10 @@ export default function SubscriptionSection({
   }
 
   async function handleMpSubscribe() {
+    if (!isSignedIn) {
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`
+      return
+    }
     setLoading(true); setError(null)
     try {
       const res = await fetch('/api/mp/subscription-checkout', {

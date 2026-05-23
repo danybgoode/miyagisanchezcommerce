@@ -6,6 +6,15 @@ import { createSubscriptionCheckout } from '@/lib/stripe-subscriptions'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
+  // ── Auth required — subscriptions need buyer identity for lifecycle management ──
+  const user = await currentUser()
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Debes iniciar sesión para suscribirte.', code: 'AUTH_REQUIRED' },
+      { status: 401 },
+    )
+  }
+
   // ── Rate limit ────────────────────────────────────────────────────────────
   const rl = await checkRateLimit('checkout', getClientIp(req))
   if (!rl.allowed) {
@@ -60,9 +69,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Este anuncio no tiene Stripe configurado aún.' }, { status: 422 })
   }
 
-  // ── Optional: get current user email ─────────────────────────────────────
-  const clerkUser = await currentUser()
-  const buyerEmail = clerkUser?.emailAddresses?.[0]?.emailAddress
+  // ── Buyer info (already authenticated above) ─────────────────────────────
+  const buyerEmail = user.emailAddresses?.[0]?.emailAddress
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
 
@@ -75,7 +83,7 @@ export async function POST(req: NextRequest) {
       listing_id: listing.id,
       shop_id: listing.shop_id,
       listing_type: 'subscription',
-      buyer_clerk_id: clerkUser?.id ?? '',
+      buyer_clerk_id: user.id,
       ...(resolvedTierId ? { tier_id: resolvedTierId } : {}),
     },
   })

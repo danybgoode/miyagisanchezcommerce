@@ -11,6 +11,7 @@ interface ShopUpdatePayload {
   city?: string
   logo_url?: string | null
   mp_enabled?: boolean
+  stripe_enabled?: boolean
   ucp_webhook_url?: string | null
   ucp_webhook_secret?: string | null
   // metadata.settings fields
@@ -99,8 +100,16 @@ export async function PATCH(req: NextRequest) {
   const existingMeta = (shop.metadata ?? {}) as Record<string, unknown>
   const existingSettings = (existingMeta.settings ?? {}) as Record<string, unknown>
 
-  const mergedSettings = body.settings
-    ? deepMerge(existingSettings, body.settings as Record<string, unknown>)
+  let settingsOverride = body.settings ? (body.settings as Record<string, unknown>) : {}
+
+  // Merge stripe_enabled into metadata.settings.stripe
+  if (body.stripe_enabled !== undefined) {
+    const existingStripe = (existingSettings.stripe ?? {}) as Record<string, unknown>
+    settingsOverride = { ...settingsOverride, stripe: { ...existingStripe, enabled: body.stripe_enabled } }
+  }
+
+  const mergedSettings = Object.keys(settingsOverride).length > 0
+    ? deepMerge(existingSettings, settingsOverride)
     : existingSettings
 
   const updates: Record<string, unknown> = {

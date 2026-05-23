@@ -15,6 +15,15 @@ import { createMpPreapprovalPlan, createMpPreapproval } from '@/lib/mercadopago'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
+  // ── Auth required — subscriptions need buyer identity for lifecycle management ──
+  const clerkUser = await currentUser()
+  if (!clerkUser) {
+    return NextResponse.json(
+      { error: 'Debes iniciar sesión para suscribirte.', code: 'AUTH_REQUIRED' },
+      { status: 401 },
+    )
+  }
+
   // ── Rate limit ────────────────────────────────────────────────────────────
   const rl = await checkRateLimit('checkout', getClientIp(req))
   if (!rl.allowed) {
@@ -91,8 +100,7 @@ export async function POST(req: NextRequest) {
   const isAnnual = tiers?.find(t => t.id === tierId)?.interval === 'year'
   const monthlyAmountCents = isAnnual ? Math.round(tierPriceCents / 12) : tierPriceCents
 
-  const clerkUser = await currentUser()
-  const buyerEmail = clerkUser?.emailAddresses?.[0]?.emailAddress
+  const buyerEmail = clerkUser.emailAddresses?.[0]?.emailAddress
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
 
@@ -168,7 +176,7 @@ export async function POST(req: NextRequest) {
   const { error: insertErr } = await db.from('marketplace_subscriptions').insert({
     listing_id: listing.id,
     shop_id: listing.shop_id,
-    buyer_clerk_user_id: clerkUser?.id ?? null,
+    buyer_clerk_user_id: clerkUser.id,
     buyer_email: (buyerEmail ?? '').toLowerCase().trim(),
     payment_method: 'mercadopago',
     status: 'pending_authorization',

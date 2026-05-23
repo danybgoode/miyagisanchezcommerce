@@ -10,6 +10,7 @@ export interface ShopStripe {
   account_id?: string
   charges_enabled?: boolean
   onboarding_complete?: boolean
+  enabled?: boolean
 }
 
 export interface ShopSettingsData {
@@ -303,6 +304,9 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
   // MercadoPago settings
   const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
 
+  // Stripe enable/disable (defaults to enabled if account is connected)
+  const [stripeEnabled, setStripeEnabled] = useState(initial.stripe?.enabled !== false)
+
   // Cal.com scheduling (API-connect tier)
   const [calcomConnected, setCalcomConnected]           = useState(initial.calcom_connected ?? false)
   const [calcomUsername, setCalcomUsername]             = useState(initial.calcom_username ?? '')
@@ -450,6 +454,7 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
           city: city.trim(),
           logo_url: logoUrl,
           mp_enabled: mpEnabled,
+          stripe_enabled: stripeEnabled,
           ucp_webhook_url:    webhookUrl.trim() || null,
           ucp_webhook_secret: webhookSecret.trim() || null,
           settings: {
@@ -716,22 +721,32 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
 
         {initial.stripe?.charges_enabled ? (
           // ── Connected & active ─────────────────────────────────────────────
-          <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-green-800">Cuenta Stripe conectada</div>
+                <div className="text-xs text-green-700 mt-0.5">Tu cuenta está activa y lista para recibir pagos con tarjeta.</div>
+              </div>
+              <a
+                href="/api/stripe/connect/dashboard"
+                className="text-xs text-green-700 underline hover:text-green-900 flex-shrink-0"
+              >
+                Gestionar →
+              </a>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-green-800">Pagos activados</div>
-              <div className="text-xs text-green-700 mt-0.5">Tu cuenta Stripe está conectada y lista para recibir pagos.</div>
+            <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)]">
+              <ToggleSwitch
+                checked={stripeEnabled}
+                onChange={setStripeEnabled}
+                label="Aceptar pagos con tarjeta (Stripe)"
+                description="Muestra el botón de pago con tarjeta en tus anuncios."
+              />
             </div>
-            <a
-              href="/api/stripe/connect"
-              className="text-xs text-green-700 underline hover:text-green-900 flex-shrink-0"
-            >
-              Gestionar →
-            </a>
           </div>
         ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
           // ── Account created but onboarding incomplete ──────────────────────

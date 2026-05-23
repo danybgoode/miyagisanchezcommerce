@@ -71,7 +71,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // Stripe — check if seller has connected payments
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
-  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id)
+  // stripeSettings.enabled defaults to true when not set (opt-out toggle)
+  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
   // mp_enabled defaults true so existing shops without the column still show MP
   const sellerHasMp = (listing.shop as unknown as { mp_enabled?: boolean | null } | null)?.mp_enabled !== false
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
@@ -274,6 +275,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                 hasStripe={sellerHasStripe}
                 hasClabe={hasClabe}
                 hasMp={sellerHasMp}
+                isSignedIn={!!clerkUser}
               />
             </div>
           )}

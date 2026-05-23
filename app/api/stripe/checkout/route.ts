@@ -4,10 +4,9 @@ import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
+  // Auth is optional for one-time purchases — Stripe Checkout collects buyer email.
+  // Subscriptions (different route) require auth for lifecycle management.
   const { userId } = await auth()
-  if (!userId) {
-    return NextResponse.json({ error: 'Inicia sesión para comprar.' }, { status: 401 })
-  }
 
   let body: { listingId: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }

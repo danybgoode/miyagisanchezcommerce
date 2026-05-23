@@ -25,6 +25,7 @@ export interface ShopStripeSettings {
   charges_enabled?: boolean
   details_submitted?: boolean
   onboarding_complete?: boolean
+  enabled?: boolean
 }
 
 export function getShopStripe(metadata: Record<string, unknown> | null): ShopStripeSettings {
