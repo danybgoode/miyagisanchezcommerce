@@ -15,6 +15,9 @@ export default withSentryConfig(nextConfig, {
   // Sentry org/project set via SENTRY_ORG and SENTRY_PROJECT env vars
   silent: true,                  // suppress verbose build output
   sourcemaps: { disable: false },
-  disableLogger: true,
-  automaticVercelMonitors: true, // create Sentry monitors for Vercel cron jobs
+  // Updated from deprecated top-level options (disableLogger, automaticVercelMonitors)
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+    automaticVercelMonitors: true, // create Sentry monitors for Vercel cron jobs
+  },
 })
