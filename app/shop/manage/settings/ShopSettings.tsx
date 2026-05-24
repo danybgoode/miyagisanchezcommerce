@@ -2586,67 +2586,106 @@ export default function ShopSettingsPanel({
                       <div className="space-y-3 mb-3">
 
                         {/* Cloudflare auto-config — prominent when CF detected, accordion otherwise */}
-                        <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                        <div className={`border rounded-lg overflow-hidden ${detectedRegistrar === 'cloudflare' ? 'border-orange-300 bg-orange-50/30' : 'border-[var(--color-border)]'}`}>
                           <button
                             type="button"
                             onClick={() => setShowCfPanel(v => !v)}
                             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
                           >
                             <div className="flex items-center gap-2.5">
-                              <span className="text-base">☁️</span>
+                              <span className="text-lg">☁️</span>
                               <div>
                                 <p className="text-xs font-semibold">
                                   {detectedRegistrar === 'cloudflare'
-                                    ? '¡Detectamos Cloudflare! Configurar en un clic'
+                                    ? '¡Tu dominio está en Cloudflare! Configura en segundos'
                                     : 'Configurar automáticamente con Cloudflare'}
                                 </p>
                                 <p className="text-xs text-[var(--color-muted)]">
                                   {detectedRegistrar === 'cloudflare'
-                                    ? 'Solo necesitas tu API token — nosotros hacemos el resto'
+                                    ? 'Crea un token de API y nosotros hacemos el resto'
                                     : 'Si tu dominio usa Cloudflare, lo configuramos por ti'}
                                 </p>
                               </div>
                             </div>
-                            <span className="text-xs text-[var(--color-muted)] flex-shrink-0">{showCfPanel ? '▲' : '▼'}</span>
+                            <span className="text-xs text-[var(--color-muted)] flex-shrink-0 ml-3">{showCfPanel ? '▲' : '▼'}</span>
                           </button>
+
                           {showCfPanel && (
-                            <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border)] space-y-3 bg-[var(--color-surface-alt)]">
-                              <div className="text-xs text-[var(--color-muted)] space-y-1 leading-relaxed">
-                                <p>
-                                  Crea un token en{' '}
-                                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer"
-                                    className="text-[var(--color-accent)] underline">
-                                    Cloudflare → API Tokens
-                                  </a>
-                                  {' '}→ <strong>Edit zone DNS</strong>. El Zone ID se detecta automáticamente.
+                            <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border)] space-y-4 bg-[var(--color-surface-alt)]">
+
+                              {/* Step 1 — Get the token */}
+                              <div>
+                                <p className="text-xs font-semibold text-[var(--color-foreground)] mb-2">
+                                  Paso 1 — Crea el token en Cloudflare
                                 </p>
-                              </div>
-                              <div className="flex gap-2">
-                                <input
-                                  type="password"
-                                  value={cfTokenInput}
-                                  onChange={e => setCfTokenInput(e.target.value)}
-                                  onKeyDown={e => e.key === 'Enter' && cfTokenInput.trim() && !cfSaving && handleCfAutoConfig()}
-                                  placeholder="API Token  (ej. abc123…)"
-                                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleCfAutoConfig}
-                                  disabled={cfSaving || !cfTokenInput.trim()}
-                                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                                <a
+                                  href="https://dash.cloudflare.com/profile/api-tokens/create"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 bg-[#f6821f] text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-[#e07216] transition-colors no-underline mb-3"
                                 >
-                                  {cfSaving ? 'Configurando…' : 'Configurar DNS'}
-                                </button>
+                                  <span>☁️</span> Abrir Cloudflare → Crear token
+                                </a>
+                                <ol className="space-y-1.5">
+                                  {[
+                                    <>En la página de Cloudflare, clic en <strong>&ldquo;Use template&rdquo;</strong> junto a <strong>&ldquo;Edit zone DNS&rdquo;</strong></>,
+                                    <>En &ldquo;Zone Resources&rdquo; → selecciona <strong>Specific zone</strong> → elige <strong>{savedDomain || 'tu dominio'}</strong></>,
+                                    <>Clic en <strong>&ldquo;Continue to summary&rdquo;</strong> → <strong>&ldquo;Create Token&rdquo;</strong></>,
+                                    <>Copia el token generado (solo se muestra una vez) y pégalo abajo</>,
+                                  ].map((step, i) => (
+                                    <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
+                                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">{i + 1}</span>
+                                      <span className="leading-relaxed">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
                               </div>
-                              {cfError && <p className="text-xs text-red-600">⚠ {cfError}</p>}
-                              {cfSuccess && (
-                                <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                  ✓ Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
+
+                              {/* Step 2 — Paste and apply */}
+                              <div>
+                                <p className="text-xs font-semibold text-[var(--color-foreground)] mb-2">
+                                  Paso 2 — Pega el token y aplica
                                 </p>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="password"
+                                    value={cfTokenInput}
+                                    onChange={e => setCfTokenInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && cfTokenInput.trim() && !cfSaving && handleCfAutoConfig()}
+                                    placeholder="Pega tu API Token aquí"
+                                    autoComplete="off"
+                                    className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleCfAutoConfig}
+                                    disabled={cfSaving || !cfTokenInput.trim()}
+                                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                                  >
+                                    {cfSaving
+                                      ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Configurando…</span>
+                                      : 'Configurar DNS'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {cfError && (
+                                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                                  <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
+                                  <p className="text-xs text-red-700">{cfError}</p>
+                                </div>
                               )}
-                              <p className="text-xs text-[var(--color-muted)]">
-                                El token se usa una sola vez y no se almacena en nuestros servidores.
+                              {cfSuccess && (
+                                <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                                  <span className="text-green-600 flex-shrink-0">✓</span>
+                                  <p className="text-xs text-green-700">
+                                    Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
+                                  </p>
+                                </div>
+                              )}
+
+                              <p className="text-[10px] text-[var(--color-muted)]">
+                                🔒 El token se usa una sola vez para crear el registro y no se almacena en nuestros servidores.
                               </p>
                             </div>
                           )}
