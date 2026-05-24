@@ -126,15 +126,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Error al verificar el dominio.', detail: msg }, { status: 502 })
   }
 
-  // Also do a live DNS CNAME lookup for user-facing feedback
+  // Live DNS CNAME lookup — this is the only source of truth for "verified"
+  // Vercel's `verified` field just means "domain is registered on the project"
+  // — NOT that DNS is live. Only update DB when our own lookup confirms it.
   const cname_current = await checkCname(domain)
   const dns_ok = cname_current === 'cname.vercel-dns.com'
 
-  // Update DB if now verified
-  if (vercelStatus.verified && !shop.custom_domain_verified) {
+  if (dns_ok && !shop.custom_domain_verified) {
+    // DNS just went live — mark verified in DB
     await db
       .from('marketplace_shops')
       .update({ custom_domain_verified: true })
+      .eq('id', shop.id)
+  } else if (!dns_ok && shop.custom_domain_verified) {
+    // DNS was live but is no longer pointing to us (seller changed registrar etc.)
+    await db
+      .from('marketplace_shops')
+      .update({ custom_domain_verified: false })
       .eq('id', shop.id)
   }
 
