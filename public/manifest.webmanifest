@@ -1,0 +1,18 @@
+{
+  "name": "Miyagi Sánchez",
+  "short_name": "Miyagi",
+  "description": "Infraestructura de comercio. Comisión: 0%.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f9f9f7",
+  "theme_color": "#1d6f42",
+  "lang": "es-MX",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+  ],
+  "shortcuts": [
+    { "name": "Publicar", "short_name": "Publicar", "url": "/sell" },
+    { "name": "Explorar", "short_name": "Explorar", "url": "/l" }
+  ]
+}

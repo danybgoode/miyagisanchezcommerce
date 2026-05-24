@@ -1,10 +1,24 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
+import MobileTabBar from '@/app/components/MobileTabBar'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: { default: 'Miyagi Sánchez — Marketplace', template: '%s | Miyagi Sánchez' },
   description: 'Compra y vende sin comisiones. El marketplace hecho para ti.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Miyagi Sánchez',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#1d6f42',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -57,12 +71,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   Miyagi Sánchez
                 </a>
 
-                {/* Nav */}
-                <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Desktop nav — hidden on mobile (tab bar handles it) */}
+                <nav className="hidden md:flex" style={{ alignItems: 'center', gap: 12 }}>
                   <a
                     href="/l"
                     style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                    className="hidden sm:block hover:text-[var(--fg)]"
+                    className="hover:text-[var(--fg)]"
                   >
                     Explorar
                   </a>
@@ -70,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <a
                       href="/shop/manage"
                       style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                      className="hidden sm:block hover:text-[var(--fg)]"
+                      className="hover:text-[var(--fg)]"
                     >
                       Mi tienda
                     </a>
@@ -93,13 +107,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </a>
                   </Show>
                 </nav>
+
+                {/* Mobile header right — sign-in shortcut or user avatar */}
+                <div className="flex md:hidden" style={{ alignItems: 'center', gap: 8 }}>
+                  <Show when="signed-in">
+                    <UserButton />
+                  </Show>
+                  <Show when="signed-out">
+                    <a href="/sign-in" className="btn btn-primary btn-sm" style={{ fontSize: 12, padding: '6px 12px' }}>
+                      Entrar
+                    </a>
+                  </Show>
+                </div>
               </div>
             </header>
           </div>
 
           <main>{children}</main>
 
-          <footer style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
+          <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
               className="app-shell"
               style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
@@ -110,6 +136,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</a>
             </div>
           </footer>
+
+          {/* Floating glass tab bar — mobile only */}
+          <MobileTabBar />
         </body>
       </html>
     </ClerkProvider>

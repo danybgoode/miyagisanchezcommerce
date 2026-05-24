@@ -724,3 +724,30 @@ html, body {
   to   { transform: translateY(0);    opacity: 1; }
 }
 .toast-in { animation: toast-in 280ms var(--ease-spring-soft) forwards; }
+
+/* ============================================================================
+   MOBILE / PWA
+============================================================================ */
+
+/* Safe-area bottom padding — accounts for iOS home indicator */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* On mobile, push content above the floating tab bar */
+@media (max-width: 767px) {
+  main { padding-bottom: 96px; }
+}
+
+/* Horizontal chip rail — momentum scroll, no scrollbar */
+.chip-rail {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 2px;
+}
+.chip-rail::-webkit-scrollbar { display: none; }
+.chip-rail > * { scroll-snap-align: start; flex-shrink: 0; }

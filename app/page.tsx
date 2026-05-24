@@ -8,33 +8,30 @@ export default async function HomePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Search */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[var(--color-text)] mb-4">
-          ¿Qué estás buscando?
-        </h1>
+      <div className="mb-6">
+        <h1 className="t-h2 mb-4">¿Qué estás buscando?</h1>
         <form action="/l" method="GET" className="flex gap-2 max-w-xl">
           <input
             name="q"
             type="search"
             placeholder="Buscar productos, servicios..."
-            className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:border-[var(--color-accent)]"
+            className="input"
+            style={{ borderRadius: 'var(--r-pill)' }}
           />
-          <button
-            type="submit"
-            className="bg-[var(--color-accent)] text-white px-5 py-2 rounded text-sm font-medium hover:bg-[var(--color-accent-hover)]"
-          >
+          <button type="submit" className="btn btn-primary" style={{ flexShrink: 0 }}>
+            <i className="iconoir-search" style={{ fontSize: 16 }} />
             Buscar
           </button>
         </form>
       </div>
 
-      {/* Categories */}
-      <div className="flex flex-wrap gap-2 mb-10">
+      {/* Category chips — horizontal scroll on mobile */}
+      <div className="chip-rail mb-8">
         {CATEGORIES.map(cat => (
           <Link
             key={cat.key}
             href={`/l?category=${cat.key}`}
-            className="border border-[var(--color-border)] bg-white rounded px-4 py-2 text-sm flex items-center gap-2 no-underline text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            className="chip"
           >
             <span>{cat.icon}</span>
             <span>{cat.label}</span>
@@ -46,35 +43,37 @@ export default async function HomePage() {
       {recent.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-[var(--color-text)]">Publicaciones recientes</h2>
-            <Link href="/l" className="text-sm text-[var(--color-accent)]">Ver todo →</Link>
+            <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
+              Publicaciones recientes
+            </h2>
+            <Link href="/l" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
+              Ver todo →
+            </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {recent.map(listing => (
-              <Link
-                key={listing.id}
-                href={`/l/${listing.id}`}
-                className="no-underline group"
-              >
-                <div className="bg-white border border-[var(--color-border)] rounded overflow-hidden hover:border-[var(--color-accent)] transition-colors">
-                  {listing.images?.[0] ? (
-                    <img
-                      src={listing.images[0].url}
-                      alt={listing.images[0].alt ?? listing.title}
-                      className="w-full h-36 object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-36 bg-[var(--color-background)] flex items-center justify-center text-3xl">
-                      📦
-                    </div>
-                  )}
-                  <div className="p-2">
-                    <p className="text-xs text-[var(--color-text)] font-medium line-clamp-2 leading-snug">{listing.title}</p>
-                    <p className="text-sm font-bold text-[var(--color-accent)] mt-1">{formatPrice(listing)}</p>
-                    {listing.shop && (
-                      <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">{listing.shop.name}</p>
-                    )}
+              <Link key={listing.id} href={`/l/${listing.id}`} className="card-tile no-underline">
+                {listing.images?.[0] ? (
+                  <img
+                    src={listing.images[0].url}
+                    alt={listing.images[0].alt ?? listing.title}
+                    className="w-full h-36 object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-36 flex items-center justify-center" style={{ background: 'var(--bg-sunk)' }}>
+                    <i className="iconoir-package" style={{ fontSize: 36, color: 'var(--fg-subtle)' }} />
                   </div>
+                )}
+                <div className="p-2">
+                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {listing.title}
+                  </p>
+                  <p className="t-price" style={{ fontSize: 14, marginTop: 4 }}>{formatPrice(listing)}</p>
+                  {listing.shop && (
+                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {listing.shop.name}
+                    </p>
+                  )}
                 </div>
               </Link>
             ))}
@@ -83,10 +82,10 @@ export default async function HomePage() {
       )}
 
       {recent.length === 0 && (
-        <div className="text-center py-16 text-[var(--color-muted)]">
-          <p className="text-4xl mb-3">🏪</p>
-          <p className="font-medium text-[var(--color-text)] mb-1">El marketplace está tomando forma</p>
-          <p className="text-sm">Las primeras publicaciones aparecerán aquí pronto.</p>
+        <div className="text-center py-16" style={{ color: 'var(--fg-muted)' }}>
+          <i className="iconoir-shop" style={{ fontSize: 48, color: 'var(--fg-subtle)', display: 'block', marginBottom: 12 }} />
+          <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>El marketplace está tomando forma</p>
+          <p style={{ fontSize: 14 }}>Las primeras publicaciones aparecerán aquí pronto.</p>
         </div>
       )}
     </div>

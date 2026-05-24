@@ -39,58 +39,66 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
         initialState={params.state}
       />
 
-      {/* Result count + clear filters */}
+      {/* Result count */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-[var(--color-muted)]">
-          <span className="font-semibold text-[var(--color-text)]">{total}</span> resultados
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{total}</span> resultados
           {params.q && <> para <em>&ldquo;{params.q}&rdquo;</em></>}
         </p>
         {Object.values(params).some(Boolean) && (
-          <Link href="/l" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)]">
+          <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
+            className="hover:text-[var(--fg)]">
             × Limpiar filtros
           </Link>
         )}
       </div>
 
       {listings.length === 0 ? (
-        <div className="py-16 text-center text-[var(--color-muted)]">
-          <p className="text-3xl mb-2">🔍</p>
-          <p>Sin resultados. Intenta con otros términos.</p>
+        <div className="py-16 text-center" style={{ color: 'var(--fg-muted)' }}>
+          <i className="iconoir-search" style={{ fontSize: 40, display: 'block', marginBottom: 12, color: 'var(--fg-subtle)' }} />
+          <p style={{ fontWeight: 500, color: 'var(--fg)', marginBottom: 4 }}>Sin resultados</p>
+          <p style={{ fontSize: 13 }}>Intenta con otros términos o revisa los filtros.</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+          {/* 2-col on mobile, 3 on tablet, 3 on desktop */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {listings.map(listing => (
-              <Link key={listing.id} href={`/l/${listing.id}`} className="no-underline group">
-                <div className="bg-white border border-[var(--color-border)] rounded hover:border-[var(--color-accent)] transition-colors">
-                  {listing.images?.[0] ? (
-                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-44 object-cover rounded-t" />
-                  ) : (
-                    <div className="w-full h-44 bg-[var(--color-background)] flex items-center justify-center text-4xl rounded-t">📦</div>
-                  )}
-                  <div className="p-3">
-                    <p className="text-sm font-medium text-[var(--color-text)] line-clamp-2 leading-snug mb-1">{listing.title}</p>
-                    <p className="font-bold text-[var(--color-accent)]">{formatPrice(listing)}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {listing.condition && (
-                        <span className="text-xs bg-[var(--color-background)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
-                          {conditionLabel(listing.condition)}
-                        </span>
-                      )}
-                      {listing.location && (
-                        <span className="text-xs text-[var(--color-muted)] truncate">{listing.location}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-1.5">
-                      {listing.shop && (
-                        <p className="text-xs text-[var(--color-muted)] truncate">
-                          {listing.shop.verified ? '✓ ' : ''}{listing.shop.name}
-                        </p>
-                      )}
-                      <p className="text-xs text-[var(--color-muted)] shrink-0 ml-auto">
-                        {timeAgo(listing.created_at)}
+              <Link key={listing.id} href={`/l/${listing.id}`} className="card-tile no-underline">
+                {listing.images?.[0] ? (
+                  <img src={listing.images[0].url} alt={listing.title} className="w-full h-40 object-cover" />
+                ) : (
+                  <div className="w-full h-40 flex items-center justify-center" style={{ background: 'var(--bg-sunk)' }}>
+                    <i className="iconoir-package" style={{ fontSize: 40, color: 'var(--fg-subtle)' }} />
+                  </div>
+                )}
+                <div className="p-3">
+                  <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: 4 }}>
+                    {listing.title}
+                  </p>
+                  <p className="t-price" style={{ fontSize: 15 }}>{formatPrice(listing)}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                    {listing.condition && (
+                      <span className="badge badge-soft" style={{ fontSize: 10 }}>
+                        {conditionLabel(listing.condition)}
+                      </span>
+                    )}
+                    {listing.location && (
+                      <span style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
+                        {listing.location}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                    {listing.shop && (
+                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {listing.shop.verified && <span style={{ color: 'var(--accent)' }}>✓ </span>}
+                        {listing.shop.name}
                       </p>
-                    </div>
+                    )}
+                    <p style={{ fontSize: 11, color: 'var(--fg-subtle)', flexShrink: 0, marginLeft: 4 }}>
+                      {timeAgo(listing.created_at)}
+                    </p>
                   </div>
                 </div>
               </Link>
@@ -99,15 +107,29 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex gap-1 justify-center">
-              {page > 1 && <Link href={pageUrl(page - 1)} className="border border-[var(--color-border)] px-3 py-1.5 rounded text-sm no-underline text-[var(--color-muted)] hover:text-[var(--color-text)]">← Anterior</Link>}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {page > 1 && (
+                <Link href={pageUrl(page - 1)} className="btn btn-secondary btn-sm no-underline">
+                  ← Anterior
+                </Link>
+              )}
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const p = Math.max(1, page - 2) + i
                 return p <= totalPages ? (
-                  <Link key={p} href={pageUrl(p)} className={`border px-3 py-1.5 rounded text-sm no-underline ${p === page ? 'border-[var(--color-accent)] text-[var(--color-accent)] font-semibold' : 'border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>{p}</Link>
+                  <Link
+                    key={p}
+                    href={pageUrl(p)}
+                    className={p === page ? 'btn btn-primary btn-sm no-underline' : 'btn btn-secondary btn-sm no-underline'}
+                  >
+                    {p}
+                  </Link>
                 ) : null
               })}
-              {page < totalPages && <Link href={pageUrl(page + 1)} className="border border-[var(--color-border)] px-3 py-1.5 rounded text-sm no-underline text-[var(--color-muted)] hover:text-[var(--color-text)]">Siguiente →</Link>}
+              {page < totalPages && (
+                <Link href={pageUrl(page + 1)} className="btn btn-secondary btn-sm no-underline">
+                  Siguiente →
+                </Link>
+              )}
             </div>
           )}
         </>
