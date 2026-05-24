@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES } from '@/lib/types'
+import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,7 @@ export interface ShopSettingsData {
         show_phone?: boolean
         phone?: string
         whatsapp_cta?: boolean
+        show_email?: boolean
         bank_transfer?: {
           enabled: boolean
           clabe?: string
@@ -320,6 +321,29 @@ function SoonBadge() {
   )
 }
 
+function CopyPromptButton({ prompt }: { prompt: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(prompt)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 3000)
+      }}
+      title="Copia este prompt y pégalo en Claude, ChatGPT o tu IA favorita para obtener una opinión independiente"
+      className={`inline-flex items-center gap-1.5 text-xs border rounded-full px-3 py-1 transition-colors whitespace-nowrap ${
+        copied
+          ? 'border-green-300 text-green-700 bg-green-50'
+          : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
+      }`}
+    >
+      <span>🤖</span>
+      {copied ? '¡Copiado! Pégalo en tu IA' : 'Pregunta a tu IA'}
+    </button>
+  )
+}
+
 // ── Pickup Spot Manager ───────────────────────────────────────────────────────
 
 function PickupSpotManager({
@@ -536,15 +560,22 @@ export default function ShopSettingsPanel({
   const [description, setDescription] = useState(initial.description ?? '')
   const [city, setCity]               = useState(parsedLoc.city)
   const [state, setState]             = useState(parsedLoc.state)
+  const [isCityOther, setIsCityOther] = useState(() => {
+    const citiesForState = parsedLoc.state ? CITIES_BY_STATE[parsedLoc.state] : undefined
+    return citiesForState
+      ? parsedLoc.city !== '' && !citiesForState.includes(parsedLoc.city)
+      : false
+  })
 
   // Preset
   const [preset, setPreset] = useState(s.preset ?? 'basico')
 
   // Checkout settings
   const [escrowMode, setEscrowMode]   = useState<'off' | 'optional' | 'required'>(s.checkout?.escrow_mode ?? 'off')
-  const [showPhone, setShowPhone]     = useState(s.checkout?.show_phone ?? true)
+  const [showPhone, setShowPhone]     = useState(s.checkout?.show_phone === true && !!s.checkout?.phone)
   const [phoneNumber, setPhoneNumber] = useState(s.checkout?.phone ?? '')
-  const [whatsappCta, setWhatsappCta] = useState(s.checkout?.whatsapp_cta ?? true)
+  const [whatsappCta, setWhatsappCta] = useState(s.checkout?.whatsapp_cta === true && !!(s.theme?.social?.whatsapp))
+  const [showEmail, setShowEmail]     = useState(s.checkout?.show_email ?? false)
 
   // Shipping
   const [mercadoEnvios, setMercadoEnvios] = useState(s.shipping?.mercado_envios ?? false)
@@ -799,6 +830,7 @@ export default function ShopSettingsPanel({
               show_phone:     showPhone,
               phone:          showPhone ? phoneNumber.trim().replace(/\D/g, '') || undefined : undefined,
               whatsapp_cta:   whatsappCta,
+              show_email:     showEmail,
               bank_transfer: {
                 enabled:        bankTransferEnabled,
                 clabe:          clabe.trim() || undefined,
@@ -954,12 +986,15 @@ export default function ShopSettingsPanel({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Descripción
-                  <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
-                    {description.length}/500
-                  </span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">
+                    Descripción
+                    <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                      {description.length}/500
+                    </span>
+                  </label>
+                  <CopyPromptButton prompt={`Ayúdame a escribir una descripción de 2-3 oraciones para mi tienda en línea en México llamada "${name || 'mi tienda'}". La descripción debe aparecer en mi página pública y transmitir confianza a compradores mexicanos. Máximo 500 caracteres, en español. ${description ? `Mejora esta versión: "${description}"` : 'Mi tienda vende:'}`} />
+                </div>
                 <textarea
                   value={description}
                   onChange={e => { setDescription(e.target.value); mark(); setFieldErrors(p => ({ ...p, description: '' })) }}
@@ -973,29 +1008,63 @@ export default function ShopSettingsPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Ciudad</label>
-                  <input
-                    value={city}
-                    onChange={e => { setCity(e.target.value); mark() }}
-                    list="mx-cities"
-                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    placeholder="Ciudad de México"
-                    autoComplete="off"
-                  />
-                  <datalist id="mx-cities">
-                    {MAJOR_MEXICAN_CITIES.map(c => <option key={c} value={c} />)}
-                  </datalist>
-                </div>
-                <div>
                   <label className="block text-sm font-medium mb-1">Estado</label>
                   <select
                     value={state}
-                    onChange={e => { setState(e.target.value); mark() }}
+                    onChange={e => {
+                      const newState = e.target.value
+                      setState(newState)
+                      setCity('')
+                      setIsCityOther(false)
+                      mark()
+                    }}
                     className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
                   >
                     <option value="">Selecciona estado</option>
                     {MEXICAN_STATES.map(st => <option key={st} value={st}>{st}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ciudad / Municipio</label>
+                  {isCityOther ? (
+                    <div className="space-y-1.5">
+                      <input
+                        value={city}
+                        onChange={e => { setCity(e.target.value); mark() }}
+                        placeholder="Escribe tu ciudad"
+                        className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setCity(''); setIsCityOther(false); mark() }}
+                        className="text-xs text-[var(--color-accent)] hover:underline"
+                      >
+                        ← Seleccionar de la lista
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={city}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (v === '__other__') {
+                          setCity('')
+                          setIsCityOther(true)
+                        } else {
+                          setCity(v)
+                        }
+                        mark()
+                      }}
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                    >
+                      <option value="">{state ? 'Selecciona ciudad' : 'Primero elige estado'}</option>
+                      {(state ? CITIES_BY_STATE[state] ?? [] : MAJOR_MEXICAN_CITIES).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__other__">Mi ciudad no aparece en la lista…</option>
+                    </select>
+                  )}
                 </div>
               </div>
             </div>
@@ -1075,12 +1144,15 @@ export default function ShopSettingsPanel({
 
             {/* Slogan */}
             <div className="mb-5">
-              <label className="block text-sm font-medium mb-1">
-                Slogan
-                <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
-                  {tagline.length}/100
-                </span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium">
+                  Slogan
+                  <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                    {tagline.length}/100
+                  </span>
+                </label>
+                <CopyPromptButton prompt={`Dame 5 opciones de slogan corto (máx. 100 caracteres cada uno) para mi tienda "${name || 'mi tienda'}" en México. El slogan debe ser en español, memorable y reflejar lo que vendo. ${tagline ? `El slogan actual es: "${tagline}"` : ''}`} />
+              </div>
               <input
                 value={tagline}
                 onChange={e => { setTagline(e.target.value); mark() }}
@@ -1201,13 +1273,16 @@ export default function ShopSettingsPanel({
           <section id="proteccion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle>Compra Protegida</SectionTitle>
-              <button
-                type="button"
-                onClick={() => setShowEscrowExplainer(v => !v)}
-                className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 -mt-3"
-              >
-                {showEscrowExplainer ? 'Ocultar explicación' : '¿Qué es esto? →'}
-              </button>
+              <div className="flex items-center gap-2 -mt-3">
+                <CopyPromptButton prompt="¿Cómo funciona realmente un sistema de pago en custodia (escrow) en un marketplace? Quiero validar si es confiable antes de activarlo en mi tienda. Busca información en la documentación oficial de Stripe Connect: https://stripe.com/docs/connect — ¿Tiene Stripe algún mecanismo de retención de fondos? ¿Qué pasa si el comprador no confirma la recepción en 3 días? ¿Qué riesgos existen para el vendedor?" />
+                <button
+                  type="button"
+                  onClick={() => setShowEscrowExplainer(v => !v)}
+                  className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0"
+                >
+                  {showEscrowExplainer ? 'Ocultar' : '¿Qué es? →'}
+                </button>
+              </div>
             </div>
 
             {showEscrowExplainer && (
@@ -1261,6 +1336,17 @@ export default function ShopSettingsPanel({
                 </label>
               ))}
             </div>
+
+            {escrowMode === 'required' && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                <strong>Impacto para el comprador:</strong> El pago quedará retenido hasta que confirme haber recibido el producto. Algunos compradores pueden preferir tiendas sin esta restricción.
+              </div>
+            )}
+            {escrowMode === 'off' && (
+              <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800">
+                <strong>Impacto para el comprador:</strong> El pago va directo al vendedor al momento de pagar. El proceso es más rápido para el comprador.
+              </div>
+            )}
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════
@@ -1268,52 +1354,104 @@ export default function ShopSettingsPanel({
           ════════════════════════════════════════════════════════════════════ */}
           <section id="comunicacion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
             <SectionTitle>Comunicación</SectionTitle>
-            <p className="text-xs text-[var(--color-muted)] mb-3">
-              Cómo pueden contactarte los compradores desde tus anuncios.
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Agrega tu número o correo y activa qué canales quieres mostrar en tus anuncios.
             </p>
-            <div className="divide-y divide-[var(--color-border)]">
-              <div>
-                <ToggleSwitch
-                  checked={showPhone}
-                  onChange={v => { setShowPhone(v); mark() }}
-                  label="Mostrar teléfono en anuncios"
-                  description="Los compradores pueden llamarte o enviarte SMS."
-                />
-                {showPhone && (
-                  <div className="pb-3">
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={e => { setPhoneNumber(e.target.value); mark() }}
-                      placeholder="55 1234 5678"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                    <p className="text-xs text-[var(--color-muted)] mt-1">Incluye LADA · p. ej. 55 1234 5678 (CDMX) ó 33 1234 5678 (GDL)</p>
+
+            <div className="space-y-4">
+              {/* Phone */}
+              <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Teléfono</p>
+                    <p className="text-xs text-[var(--color-muted)]">Los compradores pueden llamarte o enviarte SMS.</p>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showPhone}
+                    disabled={!phoneNumber.trim()}
+                    onClick={() => { if (phoneNumber.trim()) { setShowPhone(v => !v); mark() } }}
+                    title={!phoneNumber.trim() ? 'Ingresa tu número primero' : undefined}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                      showPhone ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
+                    } ${!phoneNumber.trim() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${showPhone ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={e => {
+                    const v = e.target.value
+                    setPhoneNumber(v)
+                    if (!v.trim()) setShowPhone(false)
+                    mark()
+                  }}
+                  placeholder="55 1234 5678"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+                <p className="text-xs text-[var(--color-muted)]">Incluye LADA · p. ej. 55 1234 5678 (CDMX) ó 33 1234 5678 (GDL)</p>
+                {!phoneNumber.trim() && (
+                  <p className="text-xs text-amber-600">Ingresa tu número para poder activar esta opción.</p>
                 )}
               </div>
 
-              <div>
-                <ToggleSwitch
-                  checked={whatsappCta}
-                  onChange={v => { setWhatsappCta(v); mark() }}
-                  label="Botón de WhatsApp"
-                  description='Añade un botón "Escribir por WhatsApp" en cada anuncio.'
-                />
-                {whatsappCta && (
-                  <div className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[var(--color-muted)]">+52</span>
-                      <input
-                        type="tel"
-                        value={whatsappHandle}
-                        onChange={e => { setWhatsappHandle(e.target.value); mark() }}
-                        placeholder="55 1234 5678"
-                        className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                      />
-                    </div>
-                    <p className="text-xs text-[var(--color-muted)] mt-1">Solo dígitos, sin espacios ni guiones</p>
+              {/* WhatsApp */}
+              <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">WhatsApp</p>
+                    <p className="text-xs text-[var(--color-muted)]">Añade un botón &ldquo;Escribir por WhatsApp&rdquo; en cada anuncio.</p>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={whatsappCta}
+                    disabled={!whatsappHandle.trim()}
+                    onClick={() => { if (whatsappHandle.trim()) { setWhatsappCta(v => !v); mark() } }}
+                    title={!whatsappHandle.trim() ? 'Ingresa tu número de WhatsApp primero' : undefined}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                      whatsappCta ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
+                    } ${!whatsappHandle.trim() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${whatsappCta ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[var(--color-muted)] flex-shrink-0">+52</span>
+                  <input
+                    type="tel"
+                    value={whatsappHandle}
+                    onChange={e => {
+                      const v = e.target.value
+                      setWhatsappHandle(v)
+                      if (!v.trim()) setWhatsappCta(false)
+                      mark()
+                    }}
+                    placeholder="55 1234 5678"
+                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  />
+                </div>
+                <p className="text-xs text-[var(--color-muted)]">Solo dígitos, sin espacios ni guiones</p>
+                {!whatsappHandle.trim() && (
+                  <p className="text-xs text-amber-600">Ingresa tu número para poder activar esta opción.</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="border border-[var(--color-border)] rounded-lg p-3">
+                <ToggleSwitch
+                  checked={showEmail}
+                  onChange={v => { setShowEmail(v); mark() }}
+                  label="Mostrar correo electrónico"
+                  description="Los compradores pueden escribirte directamente al correo de tu cuenta."
+                />
+                {showEmail && (
+                  <p className="text-xs text-[var(--color-muted)] mt-1 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded px-3 py-2">
+                    Se usará el correo asociado a tu cuenta de Miyagi Sánchez.
+                  </p>
                 )}
               </div>
             </div>
@@ -1451,10 +1589,13 @@ export default function ShopSettingsPanel({
             {/* Tier 2: Cal.com API */}
             <div className="border-t border-[var(--color-border)] pt-4">
               <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                    ✨ Cal.com — Agentes de IA
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                      ✨ Cal.com — Agentes de IA
+                    </p>
+                    <CopyPromptButton prompt="¿Es seguro compartir mi API key de Cal.com con una plataforma de terceros? Verifica con la documentación oficial de Cal.com: https://cal.com/docs/enterprise-features/api/api-keys — ¿Qué acceso otorga una API key? ¿Puede la plataforma modificar mi calendario o crear citas sin mi permiso? ¿Cómo puedo revocar el acceso si es necesario?" />
+                  </div>
                   <p className="text-xs text-[var(--color-muted)] mt-0.5">
                     {calcomConnected
                       ? 'Los agentes de IA pueden verificar disponibilidad y agendar automáticamente.'
@@ -1592,7 +1733,12 @@ export default function ShopSettingsPanel({
               SECTION 8: Pagos en línea (Stripe Connect)
           ════════════════════════════════════════════════════════════════════ */}
           <section id="stripe" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-            <SectionTitle>Pagos con tarjeta (Stripe)</SectionTitle>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle>Pagos con tarjeta (Stripe)</SectionTitle>
+              <div className="-mt-3">
+                <CopyPromptButton prompt="¿Es seguro conectar mi cuenta bancaria a Stripe Express en un marketplace de terceros? Verifica revisando la documentación oficial de Stripe Connect: https://stripe.com/docs/connect/express-accounts — ¿Qué acceso le da al marketplace sobre mi cuenta? ¿Cómo funciona el modelo Express? ¿Puedo desconectarme en cualquier momento? ¿Stripe cobra comisiones adicionales?" />
+              </div>
+            </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Acepta pagos con tarjeta directamente en tu tienda. Sin comisiones de plataforma — solo la tarifa estándar de Stripe.
             </p>
@@ -1627,6 +1773,18 @@ export default function ShopSettingsPanel({
                     description="Muestra el botón de pago con tarjeta en tus anuncios."
                   />
                 </div>
+                {stripeEnabled ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 space-y-0.5">
+                    <p className="font-semibold">Lo que verán los compradores:</p>
+                    <p>✓ Botón &ldquo;Pagar con tarjeta&rdquo; visible en cada anuncio</p>
+                    <p>✓ Checkout seguro de Stripe — Visa, Mastercard, AMEX</p>
+                    <p>✓ El pago llega a tu cuenta Stripe directamente</p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                    El botón de pago con tarjeta estará <strong>oculto</strong> en tus anuncios mientras esté desactivado.
+                  </div>
+                )}
               </div>
             ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-4">
@@ -1676,7 +1834,12 @@ export default function ShopSettingsPanel({
               SECTION 9: MercadoPago
           ════════════════════════════════════════════════════════════════════ */}
           <section id="mercadopago" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-            <SectionTitle>Mercado Pago</SectionTitle>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle>Mercado Pago</SectionTitle>
+              <div className="-mt-3">
+                <CopyPromptButton prompt="¿Cómo funciona Mercado Pago Checkout Pro para vendedores en México? Verifica con la documentación oficial: https://www.mercadopago.com.mx/developers/es/docs — ¿Qué métodos de pago incluye? ¿Hay comisiones para el vendedor? ¿Cuándo recibe el dinero el vendedor? ¿Es confiable para un marketplace?" />
+              </div>
+            </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Permite a tus compradores pagar con tarjeta, OXXO, wallet y meses sin intereses a través de Mercado Pago.
             </p>
@@ -1688,12 +1851,19 @@ export default function ShopSettingsPanel({
                 description="Muestra el botón de Mercado Pago en tus anuncios físicos."
               />
             </div>
-            {!mpEnabled && (
+            {mpEnabled ? (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-0.5">
+                <p className="font-semibold">Lo que verán los compradores:</p>
+                <p>✓ Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
+                <p>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</p>
+                <p>✓ Checkout familiar — muchos compradores ya tienen cuenta</p>
+              </div>
+            ) : (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-                El botón de Mercado Pago estará oculto en tus anuncios mientras esté desactivado.
+                El botón de Mercado Pago estará <strong>oculto</strong> en tus anuncios mientras esté desactivado.
               </p>
             )}
-            <div className="mt-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+            <div className="mt-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
               <div className="flex items-start gap-2">
                 <span className="text-base mt-0.5">💡</span>
                 <p className="text-xs text-[var(--color-muted)] leading-relaxed">
@@ -1707,7 +1877,12 @@ export default function ShopSettingsPanel({
               SECTION 10: Transferencia bancaria (SPEI)
           ════════════════════════════════════════════════════════════════════ */}
           <section id="spei" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-            <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
+              <div className="-mt-3">
+                <CopyPromptButton prompt="¿Es seguro compartir mi CLABE interbancaria con compradores en línea en México? ¿Qué puede hacer alguien con mi CLABE? Verifica con información oficial del sistema SPEI del Banco de México: https://www.banxico.org.mx/sistemas-de-pago/spei.html — ¿Es reversible una transferencia SPEI? ¿Qué riesgos tiene este método de pago para el vendedor?" />
+              </div>
+            </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Permite que tus compradores paguen por transferencia bancaria. Tú confirmas el pago manualmente antes de entregar.
             </p>
@@ -1757,9 +1932,21 @@ export default function ShopSettingsPanel({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                  💡 El comprador verá estos datos al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
-                </p>
+                {clabe && clabe.length === 18 ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-1">
+                    <p className="font-semibold">Vista previa — lo que verá el comprador:</p>
+                    <div className="bg-white border border-blue-100 rounded px-3 py-2 space-y-0.5 font-mono">
+                      <p>CLABE: <span className="font-semibold">{clabe}</span></p>
+                      {bankName && <p>Banco: {bankName}</p>}
+                      {accountHolder && <p>Titular: {accountHolder}</p>}
+                    </div>
+                    <p className="font-normal">Confirma el pago en tu banco antes de entregar el producto.</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                    💡 El comprador verá la CLABE al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
+                  </p>
+                )}
               </div>
             )}
           </section>
@@ -1887,7 +2074,12 @@ export default function ShopSettingsPanel({
               SECTION 13: Conectar tu sistema (UCP Webhook)
           ════════════════════════════════════════════════════════════════════ */}
           <section id="webhook" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-            <SectionTitle>Conectar tu sistema</SectionTitle>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle>Conectar tu sistema</SectionTitle>
+              <div className="-mt-3">
+                <CopyPromptButton prompt="¿Qué es un webhook y para qué sirve en un sistema de e-commerce? Explícame en términos sencillos qué es HMAC-SHA256 y cómo sirve para verificar que las notificaciones son auténticas. ¿Qué herramientas sin código como Zapier o Make.com puedo usar para recibir estos datos sin saber programar? Referencia: https://en.wikipedia.org/wiki/HMAC y https://zapier.com/blog/what-are-webhooks/" />
+              </div>
+            </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Recibe una notificación automática cada vez que se complete una venta — directo a tu herramienta o sistema.
             </p>

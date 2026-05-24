@@ -87,6 +87,41 @@ export const CATEGORIES = [
 
 export type CategoryKey = typeof CATEGORIES[number]['key']
 
+export const CITIES_BY_STATE: Record<string, readonly string[]> = {
+  'Aguascalientes':   ['Aguascalientes', 'Calvillo', 'Jesús María', 'Pabellón de Arteaga', 'Rincón de Romos', 'San Francisco de los Romo', 'Tepezalá'],
+  'Baja California':  ['Tijuana', 'Mexicali', 'Ensenada', 'Tecate', 'Playas de Rosarito', 'San Quintín', 'Valle de Mexicali', 'Punta Banderas'],
+  'Baja California Sur': ['La Paz', 'San José del Cabo', 'Cabo San Lucas', 'Comondú', 'Loreto', 'Mulegé', 'Santa Rosalía', 'Ciudad Constitución'],
+  'Campeche':         ['Campeche', 'Ciudad del Carmen', 'Champotón', 'Escárcega', 'Calkiní', 'Hopelchén', 'Palizada', 'Candelaria'],
+  'Chiapas':          ['Tuxtla Gutiérrez', 'San Cristóbal de las Casas', 'Tapachula', 'Comitán', 'Ocosingo', 'Tonalá', 'Palenque', 'Villaflores', 'Arriaga', 'Pichucalco'],
+  'Chihuahua':        ['Ciudad Juárez', 'Chihuahua', 'Delicias', 'Cuauhtémoc', 'Hidalgo del Parral', 'Nuevo Casas Grandes', 'Ojinaga', 'Jiménez', 'Camargo', 'Guachochi'],
+  'Ciudad de México': ['Álvaro Obregón', 'Azcapotzalco', 'Benito Juárez', 'Coyoacán', 'Cuajimalpa', 'Cuauhtémoc', 'Gustavo A. Madero', 'Iztacalco', 'Iztapalapa', 'La Magdalena Contreras', 'Miguel Hidalgo', 'Milpa Alta', 'Tláhuac', 'Tlalpan', 'Venustiano Carranza', 'Xochimilco'],
+  'Coahuila':         ['Saltillo', 'Torreón', 'Monclova', 'Piedras Negras', 'Acuña', 'Frontera', 'San Pedro de las Colonias', 'Ramos Arizpe', 'Múzquiz', 'Sabinas'],
+  'Colima':           ['Colima', 'Manzanillo', 'Tecomán', 'Villa de Álvarez', 'Cuauhtémoc', 'Armería', 'Ixtlahuacán', 'Minatitlán'],
+  'Durango':          ['Durango', 'Gómez Palacio', 'Lerdo', 'Pueblo Nuevo', 'Vicente Guerrero', 'El Salto', 'Cuencamé', 'Santiago Papasquiaro', 'Tamazula'],
+  'Estado de México': ['Ecatepec', 'Toluca', 'Naucalpan', 'Nezahualcóyotl', 'Tlalnepantla', 'Chimalhuacán', 'Tultitlán', 'Nicolás Romero', 'Texcoco', 'Cuautitlán Izcalli', 'Metepec', 'Valle de Chalco', 'Ixtapaluca', 'Chalco', 'Atizapán de Zaragoza', 'Coacalco', 'Huixquilucan'],
+  'Guanajuato':       ['León', 'Irapuato', 'Celaya', 'Salamanca', 'Guanajuato', 'Silao', 'San Luis de la Paz', 'Dolores Hidalgo', 'Pénjamo', 'San Miguel de Allende', 'Acámbaro', 'Cortázar'],
+  'Guerrero':         ['Acapulco', 'Chilpancingo', 'Zihuatanejo', 'Iguala', 'Taxco', 'Chilapa', 'Coyuca de Catalán', 'Huitzuco', 'Teloloapan'],
+  'Hidalgo':          ['Pachuca', 'Tulancingo', 'Tula de Allende', 'Huejutla de Reyes', 'Ixmiquilpan', 'Actopan', 'Apan', 'Tizayuca', 'Tepeapulco'],
+  'Jalisco':          ['Guadalajara', 'Zapopan', 'San Pedro Tlaquepaque', 'Tonalá', 'Tlajomulco de Zúñiga', 'Puerto Vallarta', 'Lagos de Moreno', 'San Juan de los Lagos', 'Tepatitlán', 'Ocotlán', 'La Barca', 'Autlán', 'Ameca', 'Sayula', 'Zapotlanejo'],
+  'Michoacán':        ['Morelia', 'Uruapan', 'Zamora', 'Lázaro Cárdenas', 'Apatzingán', 'Zitácuaro', 'Pátzcuaro', 'Sahuayo', 'Jacona', 'La Piedad'],
+  'Morelos':          ['Cuernavaca', 'Jiutepec', 'Cuautla', 'Temixco', 'Yautepec', 'Emiliano Zapata', 'Jojutla', 'Zacatepec', 'Puente de Ixtla'],
+  'Nayarit':          ['Tepic', 'Bahía de Banderas', 'Ixtlán del Río', 'Acaponeta', 'Santiago Ixcuintla', 'Xalisco', 'Compostela', 'El Nayar', 'Tuxpan'],
+  'Nuevo León':       ['Monterrey', 'San Nicolás de los Garza', 'Guadalupe', 'San Pedro Garza García', 'Apodaca', 'Santa Catarina', 'Escobedo', 'Juárez', 'Linares', 'Montemorelos', 'Santiago', 'Cadereyta Jiménez'],
+  'Oaxaca':           ['Oaxaca', 'Salina Cruz', 'Juchitán de Zaragoza', 'Huatulco', 'Tuxtepec', 'Puerto Escondido', 'Matías Romero', 'Tehuantepec', 'Miahuatlán', 'Pochutla'],
+  'Puebla':           ['Puebla', 'Tehuacán', 'San Andrés Cholula', 'Atlixco', 'San Martín Texmelucan', 'Izúcar de Matamoros', 'Huauchinango', 'Chignahuapan', 'Teziutlán', 'Acatzingo'],
+  'Querétaro':        ['Querétaro', 'San Juan del Río', 'El Marqués', 'Tequisquiapan', 'Corregidora', 'Cadereyta de Montes', 'Jalpan de Serra', 'Amealco'],
+  'Quintana Roo':     ['Cancún', 'Playa del Carmen', 'Chetumal', 'Tulum', 'Cozumel', 'Bacalar', 'Isla Mujeres', 'Puerto Morelos', 'Felipe Carrillo Puerto'],
+  'San Luis Potosí':  ['San Luis Potosí', 'Ciudad Valles', 'Matehuala', 'Soledad de Graciano Sánchez', 'Rioverde', 'Tamazunchale', 'Xilitla', 'Tamuín', 'Cedral'],
+  'Sinaloa':          ['Culiacán', 'Mazatlán', 'Los Mochis', 'Guasave', 'Guamúchil', 'Navolato', 'El Fuerte', 'Escuinapa', 'Concordia'],
+  'Sonora':           ['Hermosillo', 'Ciudad Obregón', 'Nogales', 'Guaymas', 'Navojoa', 'San Luis Río Colorado', 'Caborca', 'Agua Prieta', 'Puerto Peñasco', 'Ures'],
+  'Tabasco':          ['Villahermosa', 'Cárdenas', 'Comalcalco', 'Huimanguillo', 'Macuspana', 'Paraíso', 'Balancán', 'Tenosique', 'Jonuta'],
+  'Tamaulipas':       ['Reynosa', 'Matamoros', 'Tampico', 'Nuevo Laredo', 'Ciudad Victoria', 'Altamira', 'Ciudad Madero', 'Mante', 'Río Bravo', 'Valle Hermoso'],
+  'Tlaxcala':         ['Tlaxcala', 'Apizaco', 'Chiautempan', 'Huamantla', 'Contla de Juan Cuamatzi', 'Calpulalpan', 'Nanacamilpa', 'Zacatelco'],
+  'Veracruz':         ['Veracruz', 'Xalapa', 'Coatzacoalcos', 'Córdoba', 'Orizaba', 'Minatitlán', 'Tuxpan', 'Poza Rica', 'Boca del Río', 'Acayucan', 'Papantla', 'San Andrés Tuxtla'],
+  'Yucatán':          ['Mérida', 'Valladolid', 'Tizimín', 'Progreso', 'Umán', 'Kanasín', 'Hunucmá', 'Motul', 'Izamal'],
+  'Zacatecas':        ['Zacatecas', 'Fresnillo', 'Guadalupe', 'Jerez', 'Calera', 'Loreto', 'Tlaltenango', 'Sombrerete', 'Juchipila'],
+}
+
 export const MAJOR_MEXICAN_CITIES = [
   // CDMX
   'Ciudad de México', 'Iztapalapa', 'Gustavo A. Madero', 'Álvaro Obregón', 'Tlalpan', 'Coyoacán',
