@@ -31,6 +31,7 @@ export interface ShopSettingsData {
   ucp_webhook_url?: string | null
   ucp_webhook_secret?: string | null
   // Federated commerce — own channel
+  slug?: string
   custom_domain?: string | null
   custom_domain_verified?: boolean
   calcom_connected?: boolean
@@ -231,6 +232,66 @@ const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; des
   { key: 'optional', label: 'Opcional',     desc: 'El comprador puede elegir activar la protección de pago.',        color: 'border-amber-300 bg-amber-50' },
   { key: 'required', label: 'Obligatorio',  desc: 'Todos los pagos pasan por Compra Protegida sin excepción.',       color: 'border-green-400 bg-green-50' },
 ]
+
+// ── Registrar DNS guides ─────────────────────────────────────────────────────
+
+const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string; steps: string[] }> = {
+  cloudflare: {
+    name: 'Cloudflare',
+    icon: '☁️',
+    url: 'https://dash.cloudflare.com',
+    steps: [
+      'Ve a dash.cloudflare.com → elige tu dominio',
+      'En la barra lateral clic en "DNS" → "Agregar registro"',
+      'Tipo: CNAME · Nombre: @ · Contenido: cname.vercel-dns.com',
+      'Proxy (nube naranja): desactivar → DNS only · Guardar',
+    ],
+  },
+  godaddy: {
+    name: 'GoDaddy',
+    icon: '🐐',
+    url: 'https://dcc.godaddy.com/manage',
+    steps: [
+      'Ve a dcc.godaddy.com → Mis dominios → "Administrar DNS"',
+      'Desplázate hasta "Registros CNAME" → clic en "Agregar"',
+      'Host: @ · Apunta a: cname.vercel-dns.com · TTL: 1 hora',
+      'Clic en "Guardar"',
+    ],
+  },
+  namecheap: {
+    name: 'Namecheap',
+    icon: '🌐',
+    url: 'https://ap.www.namecheap.com/domains/list',
+    steps: [
+      'Ve a namecheap.com → Domain List → "Manage" junto a tu dominio',
+      'Pestaña "Advanced DNS" → "Add New Record"',
+      'Tipo: CNAME Record · Host: @ · Value: cname.vercel-dns.com',
+      'TTL: Automático → "Save All Changes"',
+    ],
+  },
+  google: {
+    name: 'Google Domains / Squarespace',
+    icon: '🔠',
+    url: 'https://domains.google.com',
+    steps: [
+      'Ve a domains.google.com → tu dominio → "DNS"',
+      'En "Custom records" → "Manage custom records" → "Create new record"',
+      'Tipo: CNAME · Nombre: (vacío o @) · Datos: cname.vercel-dns.com',
+      'Clic en "Save"',
+    ],
+  },
+  squarespace: {
+    name: 'Squarespace',
+    icon: '🔲',
+    url: 'https://account.squarespace.com/domains',
+    steps: [
+      'Ve a account.squarespace.com/domains → tu dominio → "DNS settings"',
+      'Clic en "Add record" → Tipo: CNAME',
+      'Host: @ · Data: cname.vercel-dns.com',
+      'Clic en "Save"',
+    ],
+  },
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -633,6 +694,7 @@ export default function ShopSettingsPanel({
   // Own channel — custom domain
   // Source of truth: domainDnsOk = our own CNAME lookup confirmed live.
   // Vercel's `verified` field only means "registered on project" — never use it as "live".
+  const [shopSlug]                                  = useState(initial.slug ?? '')
   const [domainInput, setDomainInput]               = useState(initial.custom_domain ?? '')
   const [savedDomain, setSavedDomain]               = useState(initial.custom_domain ?? '')
   const [domainDnsOk, setDomainDnsOk]               = useState(initial.custom_domain_verified ?? false)
@@ -643,8 +705,8 @@ export default function ShopSettingsPanel({
   const [domainError, setDomainError]               = useState<string | null>(null)
   const [domainCopied, setDomainCopied]             = useState(false)
   const [domainLastChecked, setDomainLastChecked]   = useState<Date | null>(null)
+  const [detectedRegistrar, setDetectedRegistrar]   = useState<string | null>(null)
   const [cfTokenInput, setCfTokenInput]             = useState('')
-  const [cfZoneInput, setCfZoneInput]               = useState('')
   const [cfSaving, setCfSaving]                     = useState(false)
   const [cfError, setCfError]                       = useState<string | null>(null)
   const [cfSuccess, setCfSuccess]                   = useState(false)
@@ -684,20 +746,35 @@ export default function ShopSettingsPanel({
 
   async function handleDomainSave() {
     setDomainSaving(true); setDomainError(null)
+    const domainRaw = domainInput.trim()
     try {
       const res = await fetch('/api/sell/shop/domain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: domainInput.trim() }),
+        body: JSON.stringify({ domain: domainRaw }),
       })
       const data = await res.json() as { domain?: string; error?: string }
       if (!res.ok) { setDomainError(data.error ?? 'Error al guardar.'); return }
-      const domain = data.domain ?? domainInput.trim()
+      const domain = data.domain ?? domainRaw
       setSavedDomain(domain)
       setDomainDnsOk(false)   // never trust Vercel's `verified` — always confirm via DNS
       setDomainCnameCurrent(null)
       setDomainLastChecked(null)
+      setDetectedRegistrar(null)
+      setCfSuccess(false)
       startDomainPolling()    // start auto-checking in background
+
+      // Detect registrar in background (non-blocking)
+      fetch(`/api/sell/shop/domain/detect?domain=${encodeURIComponent(domain)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { registrar?: string } | null) => {
+          if (d?.registrar) {
+            setDetectedRegistrar(d.registrar)
+            // Auto-expand CF panel when Cloudflare is detected
+            if (d.registrar === 'cloudflare') setShowCfPanel(true)
+          }
+        })
+        .catch(() => { /* non-fatal */ })
     } catch { setDomainError('Sin conexión. Verifica tu internet.') }
     finally { setDomainSaving(false) }
   }
@@ -726,11 +803,11 @@ export default function ShopSettingsPanel({
       const res = await fetch('/api/sell/shop/domain/cloudflare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: savedDomain, cf_token: cfTokenInput.trim(), cf_zone_id: cfZoneInput.trim() }),
+        body: JSON.stringify({ cf_token: cfTokenInput.trim() }),
       })
       const data = await res.json() as { ok?: boolean; error?: string }
       if (!res.ok) { setCfError(data.error ?? 'Error al configurar.'); return }
-      setCfSuccess(true); setCfTokenInput(''); setCfZoneInput('')
+      setCfSuccess(true); setCfTokenInput('')
       startDomainPolling() // restart polling now that DNS should be set
     } catch { setCfError('Sin conexión.') }
     finally { setCfSaving(false) }
@@ -2407,7 +2484,7 @@ export default function ShopSettingsPanel({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium mb-2">
-                    {savedDomain ? 'Dominio conectado' : 'Ingresa tu dominio'}
+                    {savedDomain ? 'Dominio registrado' : 'Ingresa tu dominio'}
                   </p>
                   {!savedDomain ? (
                     <>
@@ -2438,16 +2515,30 @@ export default function ShopSettingsPanel({
                       </p>
                     </>
                   ) : (
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
-                      <span className="font-mono text-sm font-medium truncate">{savedDomain}</span>
-                      <button
-                        type="button"
-                        onClick={handleDomainRemove}
-                        disabled={domainRemoving}
-                        className="text-xs text-[var(--color-muted)] hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50 underline"
-                      >
-                        {domainRemoving ? 'Eliminando…' : 'Cambiar'}
-                      </button>
+                    <div>
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
+                        <span className="font-mono text-sm font-medium truncate">{savedDomain}</span>
+                        <button
+                          type="button"
+                          onClick={handleDomainRemove}
+                          disabled={domainRemoving}
+                          className="text-xs text-[var(--color-muted)] hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50 underline"
+                        >
+                          {domainRemoving ? 'Eliminando…' : 'Cambiar'}
+                        </button>
+                      </div>
+                      {/* Registrar badge — shown while DNS pending */}
+                      {detectedRegistrar && detectedRegistrar !== 'unknown' && !domainDnsOk && (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+                          <span>{REGISTRAR_GUIDES[detectedRegistrar]?.icon ?? '🌐'}</span>
+                          <span>
+                            Registrador detectado:{' '}
+                            <strong className="text-[var(--color-foreground)]">
+                              {REGISTRAR_GUIDES[detectedRegistrar]?.name ?? detectedRegistrar}
+                            </strong>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                   {domainError && <p className="mt-2 text-xs text-red-600">⚠ {domainError}</p>}
@@ -2462,17 +2553,17 @@ export default function ShopSettingsPanel({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium mb-1">
-                      {domainDnsOk ? 'DNS configurado' : 'Apunta tu dominio a Miyagi Sánchez'}
+                      {domainDnsOk ? 'DNS configurado ✓' : 'Apunta tu dominio a Miyagi Sánchez'}
                     </p>
                     <p className="text-xs text-[var(--color-muted)] mb-3">
                       {domainDnsOk
                         ? `${savedDomain} apunta correctamente a nuestros servidores.`
-                        : 'Agrega este registro en tu proveedor de DNS. Solo toma un minuto.'
+                        : 'Agrega este registro CNAME en el panel de DNS de tu dominio.'
                       }
                     </p>
 
-                    {/* DNS record card — terminal style, always visible until confirmed live */}
-                    <div className="rounded-lg border border-[var(--color-border)] overflow-hidden bg-[#1a1a1a] mb-3">
+                    {/* DNS record card — terminal style */}
+                    <div className="rounded-lg border border-[var(--color-border)] overflow-hidden bg-[#1a1a1a] mb-4">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
                         <span className="text-xs text-white/50 font-mono">Registro DNS — CNAME</span>
                         <button
@@ -2484,20 +2575,141 @@ export default function ShopSettingsPanel({
                         </button>
                       </div>
                       <div className="px-3 py-3 grid grid-cols-3 gap-3 text-xs font-mono">
-                        <div>
-                          <div className="text-white/30 mb-1">TIPO</div>
-                          <div className="text-amber-300">CNAME</div>
-                        </div>
-                        <div>
-                          <div className="text-white/30 mb-1">NOMBRE</div>
-                          <div className="text-white">@</div>
-                        </div>
-                        <div>
-                          <div className="text-white/30 mb-1">VALOR</div>
-                          <div className="text-green-300 break-all">cname.vercel-dns.com</div>
-                        </div>
+                        <div><div className="text-white/30 mb-1">TIPO</div><div className="text-amber-300">CNAME</div></div>
+                        <div><div className="text-white/30 mb-1">NOMBRE</div><div className="text-white">@</div></div>
+                        <div><div className="text-white/30 mb-1">VALOR</div><div className="text-green-300 break-all">cname.vercel-dns.com</div></div>
                       </div>
                     </div>
+
+                    {/* ── Context-aware DNS setup panels ────────────────────────── */}
+                    {!domainDnsOk && (
+                      <div className="space-y-3 mb-3">
+
+                        {/* Cloudflare auto-config — prominent when CF detected, accordion otherwise */}
+                        <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setShowCfPanel(v => !v)}
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-base">☁️</span>
+                              <div>
+                                <p className="text-xs font-semibold">
+                                  {detectedRegistrar === 'cloudflare'
+                                    ? '¡Detectamos Cloudflare! Configurar en un clic'
+                                    : 'Configurar automáticamente con Cloudflare'}
+                                </p>
+                                <p className="text-xs text-[var(--color-muted)]">
+                                  {detectedRegistrar === 'cloudflare'
+                                    ? 'Solo necesitas tu API token — nosotros hacemos el resto'
+                                    : 'Si tu dominio usa Cloudflare, lo configuramos por ti'}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs text-[var(--color-muted)] flex-shrink-0">{showCfPanel ? '▲' : '▼'}</span>
+                          </button>
+                          {showCfPanel && (
+                            <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border)] space-y-3 bg-[var(--color-surface-alt)]">
+                              <div className="text-xs text-[var(--color-muted)] space-y-1 leading-relaxed">
+                                <p>
+                                  Crea un token en{' '}
+                                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer"
+                                    className="text-[var(--color-accent)] underline">
+                                    Cloudflare → API Tokens
+                                  </a>
+                                  {' '}→ <strong>Edit zone DNS</strong>. El Zone ID se detecta automáticamente.
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="password"
+                                  value={cfTokenInput}
+                                  onChange={e => setCfTokenInput(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && cfTokenInput.trim() && !cfSaving && handleCfAutoConfig()}
+                                  placeholder="API Token  (ej. abc123…)"
+                                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleCfAutoConfig}
+                                  disabled={cfSaving || !cfTokenInput.trim()}
+                                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                                >
+                                  {cfSaving ? 'Configurando…' : 'Configurar DNS'}
+                                </button>
+                              </div>
+                              {cfError && <p className="text-xs text-red-600">⚠ {cfError}</p>}
+                              {cfSuccess && (
+                                <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                  ✓ Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
+                                </p>
+                              )}
+                              <p className="text-xs text-[var(--color-muted)]">
+                                El token se usa una sola vez y no se almacena en nuestros servidores.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Per-registrar step-by-step (for non-CF known registrars) */}
+                        {detectedRegistrar && detectedRegistrar !== 'cloudflare' && detectedRegistrar !== 'unknown' && REGISTRAR_GUIDES[detectedRegistrar] && (
+                          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                            <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--color-surface-alt)] border-b border-[var(--color-border)]">
+                              <span className="text-base">{REGISTRAR_GUIDES[detectedRegistrar].icon}</span>
+                              <div>
+                                <p className="text-xs font-semibold">
+                                  Instrucciones para {REGISTRAR_GUIDES[detectedRegistrar].name}
+                                </p>
+                                <p className="text-xs text-[var(--color-muted)]">
+                                  Detectamos que tu dominio está en {REGISTRAR_GUIDES[detectedRegistrar].name}
+                                </p>
+                              </div>
+                            </div>
+                            <ol className="px-4 py-3 space-y-2">
+                              {REGISTRAR_GUIDES[detectedRegistrar].steps.map((step, i) => (
+                                <li key={i} className="flex gap-2.5 text-xs text-[var(--color-muted)]">
+                                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">
+                                    {i + 1}
+                                  </span>
+                                  <span className="leading-relaxed">{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                            <div className="px-4 pb-3">
+                              <a
+                                href={REGISTRAR_GUIDES[detectedRegistrar].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:underline no-underline"
+                              >
+                                Abrir panel de {REGISTRAR_GUIDES[detectedRegistrar].name} →
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generic instructions when registrar unknown or undetected */}
+                        {(!detectedRegistrar || detectedRegistrar === 'unknown') && (
+                          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+                            <p className="text-xs font-semibold mb-2">Instrucciones generales:</p>
+                            <ol className="space-y-1.5">
+                              {[
+                                'Ve al panel de DNS de tu proveedor de dominio (GoDaddy, Namecheap, etc.)',
+                                'Crea un nuevo registro tipo CNAME',
+                                'Nombre / Host: @ (o deja vacío) · Valor / Apunta a: cname.vercel-dns.com',
+                                'Guarda los cambios — la propagación puede tomar hasta 24 horas',
+                              ].map((step, i) => (
+                                <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
+                                  <span className="flex-shrink-0 font-bold text-[var(--color-accent)]">{i + 1}.</span>
+                                  <span>{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Live status row */}
                     <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -2505,12 +2717,14 @@ export default function ShopSettingsPanel({
                         {domainChecking ? (
                           <>
                             <span className="inline-block w-3 h-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
-                            <span>Comprobando propagación…</span>
+                            <span>Comprobando propagación DNS…</span>
                           </>
                         ) : domainCnameCurrent && !domainDnsOk ? (
                           <>
                             <span className="text-amber-500">⚠</span>
-                            <span>CNAME actual: <span className="font-mono">{domainCnameCurrent}</span> — aún no apunta a nosotros</span>
+                            <span>
+                              CNAME actual: <span className="font-mono">{domainCnameCurrent}</span> — aún no apunta a nosotros
+                            </span>
                           </>
                         ) : domainLastChecked && !domainDnsOk ? (
                           <span>Última comprobación: {domainLastChecked.toLocaleTimeString()} — propagación pendiente</span>
@@ -2529,90 +2743,86 @@ export default function ShopSettingsPanel({
                         </button>
                       )}
                     </div>
-
-                    <p className="text-xs text-[var(--color-muted)] mt-2">
-                      La propagación puede tomar entre 5 minutos y 24 horas según tu proveedor de DNS.
-                    </p>
-
-                    {/* Cloudflare one-click */}
                     {!domainDnsOk && (
-                      <div className="mt-3 border border-[var(--color-border)] rounded-lg overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setShowCfPanel(v => !v)}
-                          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-sm">☁️</span>
-                            <div>
-                              <p className="text-xs font-semibold">Configurar automáticamente con Cloudflare</p>
-                              <p className="text-xs text-[var(--color-muted)]">Conecta tu cuenta y agregamos el CNAME en un clic</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-[var(--color-muted)] flex-shrink-0">{showCfPanel ? '▲' : '▼'}</span>
-                        </button>
-                        {showCfPanel && (
-                          <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border)] space-y-3 bg-[var(--color-surface-alt)]">
-                            <p className="text-xs text-[var(--color-muted)]">
-                              En{' '}
-                              <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer"
-                                className="text-[var(--color-accent)] underline">
-                                Cloudflare → API Tokens
-                              </a>{' '}
-                              crea un token con permiso <strong>Zone · DNS · Edit</strong>. El Zone ID está en el panel derecho de tu dominio.
-                            </p>
-                            <div className="space-y-2">
-                              <input type="password" value={cfTokenInput} onChange={e => setCfTokenInput(e.target.value)}
-                                placeholder="API Token de Cloudflare"
-                                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
-                              <input type="text" value={cfZoneInput} onChange={e => setCfZoneInput(e.target.value)}
-                                placeholder="Zone ID  (ej. 023e105f4ecef8ad9ca31a8372d0c353)"
-                                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
-                            </div>
-                            {cfError && <p className="text-xs text-red-600">⚠ {cfError}</p>}
-                            {cfSuccess && (
-                              <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
-                                ✓ Registro CNAME agregado. Comprobando propagación automáticamente…
-                              </p>
-                            )}
-                            <button type="button" onClick={handleCfAutoConfig}
-                              disabled={cfSaving || !cfTokenInput.trim() || !cfZoneInput.trim()}
-                              className="w-full bg-[var(--color-accent)] text-white py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
-                              {cfSaving ? 'Configurando…' : 'Agregar registro DNS automáticamente'}
-                            </button>
-                            <p className="text-xs text-[var(--color-muted)]">El token se usa una sola vez y no se almacena en nuestros servidores.</p>
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-xs text-[var(--color-muted)] mt-2">
+                        La propagación puede tomar entre 5 minutos y 24 horas según tu proveedor.
+                      </p>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* ══ STEP 3 — Live ════════════════════════════════════════════════ */}
+              {/* ══ STEP 3 — Live / dual channel display ═════════════════════════ */}
               {savedDomain && (
                 <div className={`flex gap-2 items-start transition-all ${!domainDnsOk ? 'opacity-40 pointer-events-none select-none' : ''}`}>
                   <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
                     {domainDnsOk ? '✓' : '3'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium mb-1">
-                      {domainDnsOk ? '¡Tu tienda está en vivo!' : 'Tu tienda estará lista'}
-                    </p>
                     {domainDnsOk ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-[var(--color-muted)]">
-                          Tus clientes ya pueden visitarte en tu propio dominio. SSL activo, infraestructura nuestra.
+                      <>
+                        <p className="text-sm font-semibold mb-3">🎉 ¡Tu tienda está activa en 2 canales!</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+
+                          {/* Canal propio */}
+                          <div className="border-2 border-[var(--color-accent)] rounded-xl p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,white)]">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="text-sm">🌐</span>
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
+                                Canal Propio
+                              </span>
+                            </div>
+                            <p className="font-mono text-sm font-semibold truncate mb-1">{savedDomain}</p>
+                            <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
+                              Tu dominio, tu marca. Sin miyagisanchez.com en la URL. SSL activo, infraestructura nuestra.
+                            </p>
+                            <a
+                              href={`https://${savedDomain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:underline no-underline"
+                            >
+                              Abrir tienda →
+                            </a>
+                          </div>
+
+                          {/* Canal marketplace */}
+                          <div className="border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="text-sm">🏪</span>
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)]">
+                                Miyagi Sánchez
+                              </span>
+                            </div>
+                            <p className="font-mono text-xs font-medium text-[var(--color-muted)] truncate mb-1">
+                              miyagisanchez.com/s/{shopSlug}
+                            </p>
+                            <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
+                              Visible en el marketplace para descubrimiento y SEO. Sin cambios.
+                            </p>
+                            {shopSlug && (
+                              <a
+                                href={`/s/${shopSlug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline hover:underline"
+                              >
+                                Ver en marketplace →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 leading-relaxed">
+                          💡 Los dos canales comparten el mismo inventario, checkout y panel de administración. Cada venta se etiqueta con su canal de origen para que puedas ver de dónde vienen tus clientes.
                         </p>
-                        <a href={`https://${savedDomain}`} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 self-start bg-[var(--color-accent)] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors no-underline">
-                          Abrir {savedDomain} →
-                        </a>
-                      </div>
+                      </>
                     ) : (
-                      <p className="text-xs text-[var(--color-muted)]">
-                        En cuanto propague el DNS, tu tienda estará disponible con SSL activado automáticamente.
-                      </p>
+                      <>
+                        <p className="text-sm font-medium mb-1">Tu tienda estará lista en cuanto propague el DNS</p>
+                        <p className="text-xs text-[var(--color-muted)]">
+                          SSL activado automáticamente. Verás aquí los links a tus dos canales.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
