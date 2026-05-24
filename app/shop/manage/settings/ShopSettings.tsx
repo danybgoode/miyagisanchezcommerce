@@ -30,6 +30,9 @@ export interface ShopSettingsData {
   mp_enabled: boolean
   ucp_webhook_url?: string | null
   ucp_webhook_secret?: string | null
+  // Federated commerce — own channel
+  custom_domain?: string | null
+  custom_domain_verified?: boolean
   calcom_connected?: boolean
   calcom_username?: string | null
   calcom_event_type_title?: string | null
@@ -197,6 +200,12 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'envios', label: 'Envíos' },
       { id: 'citas', label: 'Citas y Reservas' },
       { id: 'ofertas', label: 'Ofertas' },
+    ],
+  },
+  {
+    label: 'Canal propio',
+    items: [
+      { id: 'canal', label: 'Dominio propio' },
     ],
   },
   {
@@ -620,6 +629,84 @@ export default function ShopSettingsPanel({
   const [acceptPct, setAcceptPct]     = useState(neg.auto_accept_pct ?? 90)
   const [declinePct, setDeclinePct]   = useState(neg.auto_decline_pct ?? 50)
   const [counterPct, setCounterPct]   = useState(neg.auto_counter_pct ?? 75)
+
+  // Own channel — custom domain
+  const [domainInput, setDomainInput]               = useState(initial.custom_domain ?? '')
+  const [savedDomain, setSavedDomain]               = useState(initial.custom_domain ?? '')
+  const [domainVerified, setDomainVerified]         = useState(initial.custom_domain_verified ?? false)
+  const [domainCnameTarget, setDomainCnameTarget]   = useState('cname.vercel-dns.com')
+  const [domainCnameCurrent, setDomainCnameCurrent] = useState<string | null>(null)
+  const [domainDnsOk, setDomainDnsOk]               = useState(false)
+  const [domainSaving, setDomainSaving]             = useState(false)
+  const [domainChecking, setDomainChecking]         = useState(false)
+  const [domainRemoving, setDomainRemoving]         = useState(false)
+  const [domainError, setDomainError]               = useState<string | null>(null)
+  const [domainCopied, setDomainCopied]             = useState(false)
+  const [cfTokenInput, setCfTokenInput]             = useState('')
+  const [cfZoneInput, setCfZoneInput]               = useState('')
+  const [cfSaving, setCfSaving]                     = useState(false)
+  const [cfError, setCfError]                       = useState<string | null>(null)
+  const [cfSuccess, setCfSuccess]                   = useState(false)
+  const [showCfPanel, setShowCfPanel]               = useState(false)
+
+  async function handleDomainSave() {
+    setDomainSaving(true); setDomainError(null)
+    try {
+      const res = await fetch('/api/sell/shop/domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: domainInput.trim() }),
+      })
+      const data = await res.json() as { domain?: string; cname_target?: string; verified?: boolean; error?: string }
+      if (!res.ok) { setDomainError(data.error ?? 'Error al guardar.'); return }
+      setSavedDomain(data.domain ?? domainInput.trim())
+      setDomainCnameTarget(data.cname_target ?? 'cname.vercel-dns.com')
+      setDomainVerified(data.verified ?? false)
+    } catch { setDomainError('Sin conexión. Verifica tu internet.') }
+    finally { setDomainSaving(false) }
+  }
+
+  async function handleDomainVerify() {
+    setDomainChecking(true); setDomainError(null)
+    try {
+      const res = await fetch('/api/sell/shop/domain')
+      const data = await res.json() as { verified?: boolean; dns_ok?: boolean; cname_target?: string; cname_current?: string | null; error?: string }
+      if (!res.ok) { setDomainError(data.error ?? 'Error al verificar.'); return }
+      setDomainVerified(data.verified ?? false)
+      setDomainDnsOk(data.dns_ok ?? false)
+      setDomainCnameTarget(data.cname_target ?? 'cname.vercel-dns.com')
+      setDomainCnameCurrent(data.cname_current ?? null)
+    } catch { setDomainError('Sin conexión. Verifica tu internet.') }
+    finally { setDomainChecking(false) }
+  }
+
+  async function handleDomainRemove() {
+    if (!confirm(`¿Eliminar el dominio ${savedDomain}? Tu tienda solo estará disponible en miyagisanchez.com.`)) return
+    setDomainRemoving(true); setDomainError(null)
+    try {
+      const res = await fetch('/api/sell/shop/domain', { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json() as { error?: string }; setDomainError(d.error ?? 'Error.'); return }
+      setSavedDomain(''); setDomainInput(''); setDomainVerified(false); setDomainDnsOk(false); setDomainCnameCurrent(null)
+    } catch { setDomainError('Sin conexión. Verifica tu internet.') }
+    finally { setDomainRemoving(false) }
+  }
+
+  async function handleCfAutoConfig() {
+    setCfSaving(true); setCfError(null); setCfSuccess(false)
+    try {
+      const res = await fetch('/api/sell/shop/domain/cloudflare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: savedDomain, cf_token: cfTokenInput.trim(), cf_zone_id: cfZoneInput.trim() }),
+      })
+      const data = await res.json() as { ok?: boolean; error?: string }
+      if (!res.ok) { setCfError(data.error ?? 'Error al configurar.'); return }
+      setCfSuccess(true); setCfTokenInput(''); setCfZoneInput('')
+      // Trigger a verify check after a short delay
+      setTimeout(handleDomainVerify, 3000)
+    } catch { setCfError('Sin conexión.') }
+    finally { setCfSaving(false) }
+  }
 
   // UCP Webhook
   const [webhookUrl, setWebhookUrl]         = useState(initial.ucp_webhook_url ?? '')
@@ -2255,6 +2342,231 @@ export default function ShopSettingsPanel({
                 </div>
               )}
             </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION: Canal propio — custom domain
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="canal" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
+                  Canal Propio
+                </h2>
+                {domainVerified && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Activo</span>
+                )}
+                {savedDomain && !domainVerified && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Pendiente de DNS</span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Tu tienda en tu dominio — sin comisiones, sin marca ajena.
+              Tus clientes te visitan en <strong>tutienda.mx</strong> y nosotros
+              manejamos todo el comercio por atrás.{' '}
+              <a
+                href="https://www.cloudflare.com/products/registrar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-accent)] underline"
+              >
+                ¿No tienes dominio? Regístralo sin sobrecargo en Cloudflare →
+              </a>
+            </p>
+
+            {!savedDomain ? (
+              /* ── Step 1: Enter domain ── */
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={domainInput}
+                  onChange={e => setDomainInput(e.target.value)}
+                  placeholder="tutienda.mx"
+                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+                <button
+                  type="button"
+                  onClick={handleDomainSave}
+                  disabled={domainSaving || !domainInput.trim()}
+                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {domainSaving ? 'Guardando…' : 'Conectar dominio'}
+                </button>
+              </div>
+            ) : (
+              /* ── Step 2: DNS instructions + status ── */
+              <div className="space-y-4">
+                {/* Domain badge + remove */}
+                <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg">🌐</span>
+                    <span className="font-mono text-sm font-medium truncate">{savedDomain}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDomainRemove}
+                    disabled={domainRemoving}
+                    className="text-xs text-red-500 hover:text-red-700 transition-colors flex-shrink-0 disabled:opacity-50"
+                  >
+                    {domainRemoving ? 'Eliminando…' : 'Eliminar'}
+                  </button>
+                </div>
+
+                {/* CNAME instruction card */}
+                {!domainVerified && (
+                  <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+                    <div className="bg-[var(--color-surface-alt)] px-4 py-2.5 border-b border-[var(--color-border)]">
+                      <p className="text-xs font-semibold text-[var(--color-text)]">
+                        Agrega este registro CNAME en tu proveedor de DNS:
+                      </p>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-[var(--color-muted)] mb-1 font-medium">Tipo</p>
+                          <div className="font-mono text-xs bg-gray-50 border border-[var(--color-border)] rounded px-2.5 py-1.5">CNAME</div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--color-muted)] mb-1 font-medium">Nombre / Host</p>
+                          <div className="font-mono text-xs bg-gray-50 border border-[var(--color-border)] rounded px-2.5 py-1.5">@ (raíz)</div>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--color-muted)] mb-1 font-medium">Valor / Apunta a</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 font-mono text-xs bg-gray-50 border border-[var(--color-border)] rounded px-2.5 py-1.5 truncate">
+                            {domainCnameTarget}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { navigator.clipboard.writeText(domainCnameTarget); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 1500) }}
+                            className="text-xs px-2.5 py-1.5 border border-[var(--color-border)] rounded hover:bg-gray-100 transition-colors flex-shrink-0"
+                          >
+                            {domainCopied ? '✓ Copiado' : 'Copiar'}
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[var(--color-muted)]">
+                        Los cambios de DNS pueden tardar hasta 24 horas en propagarse.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* DNS live status */}
+                {domainCnameCurrent && (
+                  <div className={`text-xs rounded-lg px-3 py-2.5 flex items-start gap-2 ${domainDnsOk ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <span>{domainDnsOk ? '✓' : '⏳'}</span>
+                    <span>
+                      {domainDnsOk
+                        ? `DNS verificado — ${savedDomain} apunta a ${domainCnameCurrent}`
+                        : `DNS aún no propagado. Valor actual: ${domainCnameCurrent} (esperado: ${domainCnameTarget})`
+                      }
+                    </span>
+                  </div>
+                )}
+
+                {domainVerified && (
+                  <div className="text-xs rounded-lg px-3 py-2.5 flex items-center gap-2 bg-green-50 text-green-700">
+                    <span>✓</span>
+                    <span>
+                      Tu tienda está activa en{' '}
+                      <a href={`https://${savedDomain}`} target="_blank" rel="noopener noreferrer"
+                        className="underline font-medium">
+                        https://{savedDomain}
+                      </a>
+                    </span>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleDomainVerify}
+                    disabled={domainChecking}
+                    className="text-sm px-3 py-1.5 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
+                  >
+                    {domainChecking ? 'Verificando…' : '↻ Verificar DNS'}
+                  </button>
+                  {savedDomain && (
+                    <a
+                      href={`https://${savedDomain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm px-3 py-1.5 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-alt)] transition-colors no-underline"
+                    >
+                      Abrir tienda →
+                    </a>
+                  )}
+                </div>
+
+                {/* Cloudflare one-click panel */}
+                {!domainVerified && (
+                  <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowCfPanel(v => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">☁️</span>
+                        <div>
+                          <p className="text-sm font-medium">¿Usas Cloudflare DNS?</p>
+                          <p className="text-xs text-[var(--color-muted)]">Conecta tu cuenta y agregamos el registro automáticamente</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-[var(--color-muted)]">{showCfPanel ? '▲' : '▼'}</span>
+                    </button>
+                    {showCfPanel && (
+                      <div className="px-4 pb-4 pt-2 border-t border-[var(--color-border)] space-y-3">
+                        <p className="text-xs text-[var(--color-muted)]">
+                          Crea un API Token en{' '}
+                          <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer"
+                            className="text-[var(--color-accent)] underline">
+                            dash.cloudflare.com → API Tokens
+                          </a>{' '}
+                          con permiso <strong>Zone › DNS › Edit</strong> para tu dominio.
+                          Encuentra tu Zone ID en el panel derecho de tu dominio.
+                        </p>
+                        <div className="space-y-2">
+                          <input
+                            type="password"
+                            value={cfTokenInput}
+                            onChange={e => setCfTokenInput(e.target.value)}
+                            placeholder="API Token de Cloudflare"
+                            className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                          />
+                          <input
+                            type="text"
+                            value={cfZoneInput}
+                            onChange={e => setCfZoneInput(e.target.value)}
+                            placeholder="Zone ID (ej. 023e105f4ecef8ad9ca31a8372d0c353)"
+                            className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                          />
+                        </div>
+                        {cfError && <p className="text-xs text-red-600">⚠ {cfError}</p>}
+                        {cfSuccess && <p className="text-xs text-green-600">✓ Registro CNAME agregado en Cloudflare. Verificando en unos segundos…</p>}
+                        <button
+                          type="button"
+                          onClick={handleCfAutoConfig}
+                          disabled={cfSaving || !cfTokenInput.trim() || !cfZoneInput.trim()}
+                          className="w-full bg-[var(--color-accent)] text-white py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+                        >
+                          {cfSaving ? 'Configurando…' : 'Configurar DNS automáticamente'}
+                        </button>
+                        <p className="text-xs text-[var(--color-muted)]">
+                          El token se usa una sola vez y no se almacena.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {domainError && <p className="mt-3 text-xs text-red-600">⚠ {domainError}</p>}
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════

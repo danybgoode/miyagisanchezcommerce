@@ -59,6 +59,7 @@ npm run seed
 - `R2_*` — Cloudflare R2 (images bucket); `R2_DIGITAL_*` (private digital files bucket)
 - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — admin notifications (Daniel only)
 - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` — rate limiting
+- `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` — custom domain provisioning (own channel feature)
 
 **Key imports**:
 ```ts
@@ -68,4 +69,49 @@ import { stripe, getShopStripe } from '@/lib/stripe'
 import { tg } from '@/lib/telegram'           // admin notifications
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { uploadToR2, isR2Configured } from '@/lib/r2'
+import { detectChannel } from '@/lib/channel'  // federated commerce channel tagging
 ```
+
+---
+
+## Federated Commerce — Channels
+
+Miyagi Sánchez uses a **channels model**: each seller's products live in one place and are surfaced through multiple independent storefronts.
+
+| Channel | URL pattern | Purpose |
+|---|---|---|
+| Marketplace | `miyagisanchez.com/s/[slug]` | Discovery, cross-seller traffic, SEO |
+| Own domain | `theirshop.mx` (any domain) | Brand identity, direct traffic, white-label |
+| Embed widget | `<script>` tag on any site | Existing audiences on other platforms |
+| API / UCP | `/api/ucp/*` | Headless, programmatic, AI agents |
+
+### How custom domain routing works
+
+1. Seller enters their domain in `/shop/manage/settings` → "Canal Propio" section
+2. API route `POST /api/sell/shop/domain` saves to `marketplace_shops.custom_domain` and calls Vercel Domains API to provision SSL
+3. Seller adds `CNAME theirshop.mx → cname.vercel-dns.com` (or uses Cloudflare one-click flow)
+4. **Middleware** (`middleware.ts`) detects non-platform hostnames, looks up shop by `custom_domain`, and rewrites to `/s/[slug]` with header `x-miyagi-channel: custom`
+5. `/s/[slug]/page.tsx` reads the header → renders `<ChannelLayout>` (no platform chrome) instead of the standard root layout
+
+### New files
+
+```
+lib/vercel-domains.ts          — addDomainToProject / getDomainStatus / removeDomainFromProject
+lib/channel.ts                 — detectChannel(req) → 'marketplace' | 'custom_domain' | 'embed' | 'api'
+app/s/[slug]/ChannelLayout.tsx — white-label shell (branded nav + footer, no miyagisanchez chrome)
+app/api/sell/shop/domain/      — POST/GET/DELETE domain API route
+app/api/sell/shop/domain/cloudflare/ — Cloudflare DNS one-click automation
+supabase/migrations/20260524000000_custom_domain.sql
+```
+
+### DB columns added to marketplace_shops
+
+| Column | Type | Purpose |
+|---|---|---|
+| `custom_domain` | `VARCHAR(255) UNIQUE` | Tenant's custom domain (e.g. `myshop.mx`) |
+| `custom_domain_verified` | `BOOLEAN` | Vercel has verified DNS + SSL |
+| `custom_domain_vercel_ok` | `BOOLEAN` | Domain registered on Vercel project |
+
+### Channel tagging on sales
+
+All checkout routes (`/api/stripe/checkout`, `/api/stripe/subscription-checkout`, `/api/mp/checkout`) call `detectChannel(req)` and include a `channel` field in Stripe metadata / MP `external_reference`. This enables per-channel revenue analytics in future dashboard work.

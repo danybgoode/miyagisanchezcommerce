@@ -19,7 +19,7 @@ export default async function SettingsPage({
 
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id, name, description, location, logo_url, metadata, mp_enabled, ucp_webhook_url, ucp_webhook_secret, calcom_api_key')
+    .select('id, name, description, location, logo_url, metadata, mp_enabled, ucp_webhook_url, ucp_webhook_secret, calcom_api_key, custom_domain, custom_domain_verified')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -57,6 +57,8 @@ export default async function SettingsPage({
         calcom_booking_url: calcomSettings?.booking_url ?? null,
         stripe: stripeSettings,
         metadata: shop.metadata as NonNullable<typeof shop.metadata> | null,
+        custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain ?? null,
+        custom_domain_verified: (shop as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
       }}
     />
   )

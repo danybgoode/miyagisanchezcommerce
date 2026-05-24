@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
+import { detectChannel } from '@/lib/channel'
 
 export async function POST(req: NextRequest) {
   // Auth is optional for one-time purchases — Stripe Checkout collects buyer email.
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       shop_id: listing.shop_id,
       buyer_clerk_id: userId,
       listing_type: listing.listing_type,
+      channel: detectChannel(req),
     },
   })
 

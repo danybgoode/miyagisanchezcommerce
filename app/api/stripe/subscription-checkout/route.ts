@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { getShopStripe } from '@/lib/stripe'
 import { createSubscriptionCheckout } from '@/lib/stripe-subscriptions'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { detectChannel } from '@/lib/channel'
 
 export async function POST(req: NextRequest) {
   // ── Auth required — subscriptions need buyer identity for lifecycle management ──
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       shop_id: listing.shop_id,
       listing_type: 'subscription',
       buyer_clerk_id: user.id,
+      channel: detectChannel(req),
       ...(resolvedTierId ? { tier_id: resolvedTierId } : {}),
     },
   })

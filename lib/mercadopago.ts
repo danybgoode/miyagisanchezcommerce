@@ -36,6 +36,7 @@ export interface CreatePreferenceParams {
   listingType: string
   offerId?: string
   origin: string
+  channel?: string   // federated commerce channel tag
 }
 
 export interface MpPreference {
@@ -66,6 +67,7 @@ export async function createMpPreference(p: CreatePreferenceParams): Promise<MpP
         shop_id: p.shopId,
         listing_type: p.listingType,
         offer_id: p.offerId ?? null,
+        channel: p.channel ?? 'marketplace',
       }),
       notification_url: `${p.origin}/api/webhooks/mercadopago`,
       back_urls: {

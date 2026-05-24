@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import ClaimButton from './ClaimButton'
+import ChannelLayout from './ChannelLayout'
 import type { Metadata } from 'next'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
@@ -62,6 +64,11 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   if (!shop) notFound()
   const listings = await getShopListings(shop.id)
 
+  // Detect own-channel mode (request arrived via tenant's custom domain)
+  const reqHeaders = await headers()
+  const isChannel = reqHeaders.get('x-miyagi-channel') === 'custom'
+  const channelDomain = reqHeaders.get('x-miyagi-domain') ?? ''
+
   // Extract theme from metadata
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const theme = (settings.theme ?? {}) as {
@@ -74,7 +81,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const accent = theme.accent_color ?? 'var(--color-accent)'
   const hasBanner = !!theme.banner_url
 
-  return (
+  const pageContent = (
     <div style={{ '--shop-accent': accent } as React.CSSProperties}>
 
       {/* ── Banner + shop identity header ───────────────────────────────────── */}
@@ -209,4 +216,20 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
       </div>
     </div>
   )
+
+  // Own channel: wrap in white-label shell (no platform chrome)
+  if (isChannel) {
+    return (
+      <ChannelLayout
+        shopName={shop.name}
+        accentColor={accent}
+        logoUrl={shop.logo_url ?? null}
+        domain={channelDomain}
+      >
+        {pageContent}
+      </ChannelLayout>
+    )
+  }
+
+  return pageContent
 }

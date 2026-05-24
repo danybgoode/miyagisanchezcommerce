@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createMpPreference } from '@/lib/mercadopago'
+import { detectChannel } from '@/lib/channel'
 
 interface CheckoutBody {
   listingId: string
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
     listingType: listing.listing_type,
     offerId,
     origin,
+    channel: detectChannel(req),
   })
 
   return NextResponse.json({

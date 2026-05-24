@@ -11,6 +11,10 @@ export type Shop = {
   source_url: string | null
   metadata: Record<string, unknown> | null
   created_at: string
+  // Federated commerce — own channel
+  custom_domain: string | null
+  custom_domain_verified: boolean
+  custom_domain_vercel_ok: boolean
 }
 
 export type Listing = {
