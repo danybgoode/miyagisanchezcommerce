@@ -11,52 +11,103 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider>
       <html lang="es">
+        <head>
+          {/* Space Grotesk — display + body */}
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+          />
+          {/* Iconoir — v2 icon library */}
+          <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css"
+          />
+        </head>
         <body>
-          <header className="border-b border-[var(--color-border)] bg-white sticky top-0 z-50">
-            <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
-              <a href="/" className="font-bold text-[var(--color-text)] text-lg no-underline hover:text-[var(--color-accent)]">
-                Miyagi Sánchez
-              </a>
-              <nav className="flex items-center gap-4 text-sm">
-                <a href="/l" className="text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline hidden sm:block">
-                  Explorar
+          {/* Floating glass header */}
+          <div style={{ position: 'sticky', top: 0, zIndex: 50, padding: '12px 12px 0', background: 'transparent' }}>
+            <header
+              className="glass"
+              style={{
+                borderRadius: 'var(--r-lg)',
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 20px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 1152, margin: '0 auto', gap: 16 }}>
+                {/* Wordmark */}
+                <a
+                  href="/"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    textDecoration: 'none',
+                    color: 'var(--fg)',
+                    fontWeight: 700,
+                    fontSize: 16,
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1,
+                  }}
+                >
+                  Miyagi Sánchez
                 </a>
-                <Show when="signed-in">
+
+                {/* Nav */}
+                <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <a
-                    href="/shop/manage"
-                    className="text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline hidden sm:block"
+                    href="/l"
+                    style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                    className="hidden sm:block hover:text-[var(--fg)]"
                   >
-                    Mi tienda
+                    Explorar
                   </a>
-                  <a
-                    href="/sell"
-                    className="bg-[var(--color-accent)] !text-white px-3 py-1.5 rounded text-sm font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
-                  >
-                    + Publicar
-                  </a>
-                  <UserButton />
-                </Show>
-                <Show when="signed-out">
-                  <a
-                    href="/sell"
-                    className="bg-[var(--color-accent)] !text-white px-3 py-1.5 rounded text-sm font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
-                  >
-                    Publicar gratis
-                  </a>
-                  <a href="/sign-in" className="text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline text-sm">
-                    Iniciar sesión
-                  </a>
-                </Show>
-              </nav>
-            </div>
-          </header>
+                  <Show when="signed-in">
+                    <a
+                      href="/shop/manage"
+                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                      className="hidden sm:block hover:text-[var(--fg)]"
+                    >
+                      Mi tienda
+                    </a>
+                    <a href="/sell" className="btn btn-primary btn-sm">
+                      <i className="iconoir-plus" style={{ fontSize: 14 }} />
+                      Publicar
+                    </a>
+                    <UserButton />
+                  </Show>
+                  <Show when="signed-out">
+                    <a href="/sell" className="btn btn-primary btn-sm">
+                      Publicar gratis
+                    </a>
+                    <a
+                      href="/sign-in"
+                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                      className="hover:text-[var(--fg)]"
+                    >
+                      Iniciar sesión
+                    </a>
+                  </Show>
+                </nav>
+              </div>
+            </header>
+          </div>
+
           <main>{children}</main>
-          <footer className="border-t border-[var(--color-border)] mt-16">
-            <div className="max-w-6xl mx-auto px-4 py-6 text-xs text-[var(--color-muted)] flex flex-wrap gap-x-6 gap-y-2">
-              <span>© 2026 Miyagi Sánchez</span>
-              <a href="/l" className="hover:text-[var(--color-text)]">Anuncios</a>
-              <a href="/sell" className="hover:text-[var(--color-text)]">Vende gratis</a>
-              <a href="/sign-up" className="hover:text-[var(--color-text)]">Crear cuenta</a>
+
+          <footer style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
+            <div
+              className="app-shell"
+              style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
+            >
+              <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
+              <a href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</a>
+              <a href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</a>
+              <a href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</a>
             </div>
           </footer>
         </body>
