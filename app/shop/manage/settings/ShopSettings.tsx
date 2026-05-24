@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { MEXICAN_STATES } from '@/lib/types'
+import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES } from '@/lib/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,15 @@ export interface ShopStripe {
   charges_enabled?: boolean
   onboarding_complete?: boolean
   enabled?: boolean
+}
+
+export interface PickupSpot {
+  id: string
+  name: string
+  address: string
+  hours?: string
+  notes?: string
+  scheduling_url?: string
 }
 
 export interface ShopSettingsData {
@@ -33,10 +42,11 @@ export interface ShopSettingsData {
         escrow_mode?: 'off' | 'optional' | 'required'
         payment_methods?: string[]
         show_phone?: boolean
+        phone?: string
         whatsapp_cta?: boolean
         bank_transfer?: {
           enabled: boolean
-          clabe?: string        // 18-digit CLABE
+          clabe?: string
           bank_name?: string
           account_holder?: string
         }
@@ -45,6 +55,7 @@ export interface ShopSettingsData {
         mercado_envios?: boolean
         local_pickup?: boolean
         custom_rates?: boolean
+        pickup_spots?: PickupSpot[]
       }
       notifications?: {
         email_new_view?: boolean
@@ -54,16 +65,16 @@ export interface ShopSettingsData {
         min_buyer_trust_level?: 'unverified' | 'basic' | 'trusted' | 'verified' | 'elite'
         negotiation?: {
           enabled: boolean
-          auto_accept_pct?: number   // 0–100: auto-accept offers at or above this % of list price
-          auto_decline_pct?: number  // 0–100: auto-decline offers below this %
-          auto_counter_pct?: number  // 0–100: counter-offer at this % when between thresholds
+          auto_accept_pct?: number
+          auto_decline_pct?: number
+          auto_counter_pct?: number
         }
       }
       scheduling?: {
         links?: Array<{ label: string; url: string }>
       }
       ucp?: {
-        webhook_url?:    string
+        webhook_url?: string
         webhook_secret?: string
       }
       theme?: {
@@ -96,8 +107,8 @@ const PRESETS: Preset[] = [
   {
     key: 'basico',
     icon: '🛒',
-    label: 'Básico',
-    description: 'Ropa, electrónica, hogar, productos del día a día. Sin protección de pago.',
+    label: 'Tienda general',
+    description: 'Ropa, hogar, artículos del día a día. Sin retención de fondos.',
     settings: {
       checkout: { escrow_mode: 'off', show_phone: true, whatsapp_cta: true },
       shipping: { local_pickup: true, mercado_envios: false },
@@ -106,8 +117,8 @@ const PRESETS: Preset[] = [
   {
     key: 'protegido',
     icon: '🛡️',
-    label: 'Protegido',
-    description: 'Activar Compra Protegida como opción. El comprador elige si la usa.',
+    label: 'Con garantía',
+    description: 'El comprador activa la protección si lo desea. Recomendado para electrónica usada.',
     settings: {
       checkout: { escrow_mode: 'optional', show_phone: true, whatsapp_cta: true },
       shipping: { local_pickup: true, mercado_envios: true },
@@ -116,8 +127,8 @@ const PRESETS: Preset[] = [
   {
     key: 'alto_valor',
     icon: '💎',
-    label: 'Alto valor',
-    description: 'Electrónica cara, coleccionables, joyería. Compra Protegida obligatoria.',
+    label: 'Artículos de valor',
+    description: 'Joyería, coleccionables, electrónica cara. Compra Protegida siempre activa.',
     settings: {
       checkout: { escrow_mode: 'required', show_phone: false, whatsapp_cta: false },
       shipping: { local_pickup: false, mercado_envios: true },
@@ -146,7 +157,7 @@ const PRESETS: Preset[] = [
   {
     key: 'digital',
     icon: '💻',
-    label: 'Digital',
+    label: 'Digital / Cursos',
     description: 'Archivos, plantillas, cursos, licencias. Entrega automática.',
     settings: {
       checkout: { escrow_mode: 'off', show_phone: false, whatsapp_cta: false },
@@ -155,7 +166,63 @@ const PRESETS: Preset[] = [
   },
 ]
 
-// ── Helper: parse location string ────────────────────────────────────────────
+// ── Navigation groups ─────────────────────────────────────────────────────────
+
+interface NavItem { id: string; label: string; soon?: boolean }
+interface NavGroup { label: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Tienda',
+    items: [
+      { id: 'perfil', label: 'Perfil' },
+      { id: 'apariencia', label: 'Apariencia' },
+      { id: 'tipo', label: 'Tipo de tienda' },
+    ],
+  },
+  {
+    label: 'Pagos',
+    items: [
+      { id: 'proteccion', label: 'Compra Protegida' },
+      { id: 'stripe', label: 'Stripe' },
+      { id: 'mercadopago', label: 'MercadoPago' },
+      { id: 'spei', label: 'SPEI' },
+    ],
+  },
+  {
+    label: 'Ventas',
+    items: [
+      { id: 'comunicacion', label: 'Comunicación' },
+      { id: 'envios', label: 'Envíos' },
+      { id: 'citas', label: 'Citas y Reservas' },
+      { id: 'ofertas', label: 'Ofertas' },
+    ],
+  },
+  {
+    label: 'Integraciones',
+    items: [
+      { id: 'notificaciones', label: 'Notificaciones' },
+      { id: 'webhook', label: 'Conectar sistema' },
+    ],
+  },
+  {
+    label: 'Próximamente',
+    items: [
+      { id: 'pedidos', label: 'Gestión de pedidos', soon: true },
+      { id: 'politicas', label: 'Devoluciones', soon: true },
+    ],
+  },
+]
+
+// ── Escrow options ────────────────────────────────────────────────────────────
+
+const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; desc: string; color: string }[] = [
+  { key: 'off',      label: 'Desactivado',  desc: 'Sin Compra Protegida. El comprador paga directo al vendedor.',    color: 'border-gray-300 bg-gray-50' },
+  { key: 'optional', label: 'Opcional',     desc: 'El comprador puede elegir activar la protección de pago.',        color: 'border-amber-300 bg-amber-50' },
+  { key: 'required', label: 'Obligatorio',  desc: 'Todos los pagos pasan por Compra Protegida sin excepción.',       color: 'border-green-400 bg-green-50' },
+]
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseLocation(loc: string | null): { city: string; state: string } {
   if (!loc) return { city: '', state: '' }
@@ -164,10 +231,28 @@ function parseLocation(loc: string | null): { city: string; state: string } {
   return { city: '', state: parts[0] }
 }
 
+function detectSchedulingService(url: string): string {
+  if (url.includes('cal.com'))              return 'Cal.com'
+  if (url.includes('calendly.com'))         return 'Calendly'
+  if (url.includes('acuityscheduling.com')) return 'Acuity'
+  if (url.includes('tidycal.com'))          return 'TidyCal'
+  if (url.includes('google.com/calendar'))  return 'Google Calendar'
+  return 'Cita en línea'
+}
+
+function generateHex32(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)] mb-3">{children}</h2>
+  return (
+    <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)] mb-3">
+      {children}
+    </h2>
+  )
 }
 
 function ToggleSwitch({
@@ -209,8 +294,6 @@ function ToggleSwitch({
   )
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
-
 interface ToastState { message: string; type: 'success' | 'error' }
 
 function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
@@ -218,7 +301,7 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
     <div
       role="status"
       aria-live="polite"
-      className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
+      className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
         toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
       }`}
     >
@@ -229,59 +312,272 @@ function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void 
   )
 }
 
-// ── Escrow mode selector ──────────────────────────────────────────────────────
+function SoonBadge() {
+  return (
+    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+      Próximamente
+    </span>
+  )
+}
 
-const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; desc: string; color: string }[] = [
-  { key: 'off',      label: 'Desactivado',  desc: 'Sin Compra Protegida. El comprador paga directo.',       color: 'border-gray-300 bg-gray-50' },
-  { key: 'optional', label: 'Opcional',     desc: 'El comprador puede elegir activar protección de pago.',  color: 'border-amber-300 bg-amber-50' },
-  { key: 'required', label: 'Obligatorio',  desc: 'Todos los pagos pasan por Compra Protegida.',             color: 'border-green-400 bg-green-50' },
-]
+// ── Pickup Spot Manager ───────────────────────────────────────────────────────
+
+function PickupSpotManager({
+  spots,
+  onUpdate,
+  schedulingLinks,
+}: {
+  spots: PickupSpot[]
+  onUpdate: (spots: PickupSpot[]) => void
+  schedulingLinks: Array<{ label: string; url: string }>
+}) {
+  const emptyForm = { name: '', address: '', hours: '', notes: '', scheduling_url: '' }
+  const [showForm, setShowForm] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [form, setForm] = useState(emptyForm)
+
+  function resetForm() {
+    setForm(emptyForm)
+    setEditId(null)
+    setShowForm(false)
+  }
+
+  function handleSubmit() {
+    if (!form.name.trim() || !form.address.trim()) return
+    if (editId) {
+      onUpdate(spots.map(s => s.id === editId ? { ...form, id: editId } : s))
+    } else {
+      onUpdate([...spots, { ...form, id: Math.random().toString(36).slice(2) }])
+    }
+    resetForm()
+  }
+
+  function handleEdit(spot: PickupSpot) {
+    setForm({
+      name: spot.name,
+      address: spot.address,
+      hours: spot.hours ?? '',
+      notes: spot.notes ?? '',
+      scheduling_url: spot.scheduling_url ?? '',
+    })
+    setEditId(spot.id)
+    setShowForm(true)
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+          Puntos de entrega
+        </p>
+        {spots.length > 0 && (
+          <span className="text-xs text-[var(--color-accent)] font-medium">
+            {spots.length} punto{spots.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {spots.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {spots.map(spot => (
+            <div key={spot.id} className="flex items-start gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2.5">
+              <span className="text-base mt-0.5 flex-shrink-0">📍</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{spot.name}</p>
+                <p className="text-xs text-[var(--color-muted)]">{spot.address}</p>
+                {spot.hours && <p className="text-xs text-[var(--color-muted)] mt-0.5">🕐 {spot.hours}</p>}
+                {spot.notes && <p className="text-xs text-[var(--color-muted)] mt-0.5 italic">{spot.notes}</p>}
+                {spot.scheduling_url && (
+                  <p className="text-xs text-[var(--color-accent)] mt-0.5 truncate">📅 Cita en línea configurada</p>
+                )}
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleEdit(spot)}
+                  className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-2 py-1 border border-[var(--color-border)] rounded hover:bg-gray-50 transition-colors"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate(spots.filter(s => s.id !== spot.id))}
+                  className="text-xs text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm ? (
+        <div className="border border-[var(--color-accent)] rounded-lg p-3 space-y-2.5 bg-[var(--color-surface-alt)]">
+          <p className="text-xs font-semibold text-[var(--color-foreground)]">
+            {editId ? 'Editar punto' : 'Nuevo punto de entrega'}
+          </p>
+          <div>
+            <label className="block text-xs font-medium mb-1">
+              Nombre del punto <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Casa matriz, Bodega norte, Local 12…"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">
+              Dirección <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.address}
+              onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+              placeholder="Av. Insurgentes 1234, Col. Del Valle, CDMX"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium mb-1">Horario</label>
+              <input
+                value={form.hours}
+                onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
+                placeholder="Lun-Vie 9am-6pm"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Notas para el comprador</label>
+              <input
+                value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Tocar el timbre del 3er piso"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Enlace para agendar recogida (opcional)</label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={form.scheduling_url}
+                onChange={e => setForm(f => ({ ...f, scheduling_url: e.target.value }))}
+                placeholder="https://cal.com/tu-usuario/recogida"
+                className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              {schedulingLinks.length > 0 && (
+                <select
+                  onChange={e => { if (e.target.value) setForm(f => ({ ...f, scheduling_url: e.target.value })) }}
+                  className="border border-[var(--color-border)] rounded px-2 py-1.5 text-xs bg-white focus:outline-none"
+                  defaultValue=""
+                >
+                  <option value="">Mis enlaces ▾</option>
+                  {schedulingLinks.map(l => (
+                    <option key={l.url} value={l.url}>{l.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={resetForm}
+              className="flex-1 border border-[var(--color-border)] rounded py-1.5 text-sm hover:bg-gray-50 transition-colors">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={!form.name.trim() || !form.address.trim()}
+              onClick={handleSubmit}
+              className="flex-1 bg-[var(--color-accent)] text-white rounded py-1.5 text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors"
+            >
+              {editId ? 'Guardar cambios' : 'Agregar punto'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="w-full border-2 border-dashed border-[var(--color-border)] rounded-lg py-2.5 text-sm text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+        >
+          + Agregar punto de entrega
+        </button>
+      )}
+
+      <p className="text-xs text-[var(--color-muted)] mt-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 leading-relaxed">
+        💡 Los compradores verán estos puntos al finalizar su compra. Próximamente podrán elegir el punto y agendar hora de recogida directamente desde el anuncio.
+      </p>
+    </div>
+  )
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ShopSettingsPanel({ initial, stripeError }: { initial: ShopSettingsData; stripeError?: string | null }) {
+export default function ShopSettingsPanel({
+  initial,
+  stripeError,
+}: {
+  initial: ShopSettingsData
+  stripeError?: string | null
+}) {
   const parsedLoc = parseLocation(initial.location)
-
-  // Profile fields
-  const [name, setName] = useState(initial.name)
-  const [description, setDescription] = useState(initial.description ?? '')
-  const [city, setCity] = useState(parsedLoc.city)
-  const [state, setState] = useState(parsedLoc.state)
-
-  // Settings from metadata
   const s = initial.metadata?.settings ?? {}
+
+  // Dirty tracking
+  const [isDirty, setIsDirty] = useState(false)
+  const mark = useCallback(() => setIsDirty(true), [])
+
+  // Profile
+  const [name, setName]               = useState(initial.name)
+  const [description, setDescription] = useState(initial.description ?? '')
+  const [city, setCity]               = useState(parsedLoc.city)
+  const [state, setState]             = useState(parsedLoc.state)
+
+  // Preset
   const [preset, setPreset] = useState(s.preset ?? 'basico')
-  const [escrowMode, setEscrowMode] = useState<'off' | 'optional' | 'required'>(s.checkout?.escrow_mode ?? 'off')
-  const [showPhone, setShowPhone] = useState(s.checkout?.show_phone ?? true)
+
+  // Checkout settings
+  const [escrowMode, setEscrowMode]   = useState<'off' | 'optional' | 'required'>(s.checkout?.escrow_mode ?? 'off')
+  const [showPhone, setShowPhone]     = useState(s.checkout?.show_phone ?? true)
+  const [phoneNumber, setPhoneNumber] = useState(s.checkout?.phone ?? '')
   const [whatsappCta, setWhatsappCta] = useState(s.checkout?.whatsapp_cta ?? true)
+
+  // Shipping
   const [mercadoEnvios, setMercadoEnvios] = useState(s.shipping?.mercado_envios ?? false)
-  const [localPickup, setLocalPickup] = useState(s.shipping?.local_pickup ?? true)
-  const [emailView, setEmailView] = useState(s.notifications?.email_new_view ?? false)
+  const [localPickup, setLocalPickup]     = useState(s.shipping?.local_pickup ?? true)
+  const [pickupSpots, setPickupSpots]     = useState<PickupSpot[]>(s.shipping?.pickup_spots ?? [])
+
+  // Notifications
+  const [emailView, setEmailView]       = useState(s.notifications?.email_new_view ?? false)
   const [emailMessage, setEmailMessage] = useState(s.notifications?.email_new_message ?? true)
 
-  // Theme state
+  // Theme
   const t = s.theme ?? {}
-  const [logoUrl, setLogoUrl] = useState<string | null>(initial.logo_url ?? null)
-  const [bannerUrl, setBannerUrl] = useState<string | null>(t.banner_url ?? null)
+  const [logoUrl, setLogoUrl]         = useState<string | null>(initial.logo_url ?? null)
+  const [bannerUrl, setBannerUrl]     = useState<string | null>(t.banner_url ?? null)
   const [accentColor, setAccentColor] = useState(t.accent_color ?? '#1d6f42')
-  const [tagline, setTagline] = useState(t.tagline ?? '')
-  const [instagram, setInstagram] = useState(t.social?.instagram ?? '')
-  const [facebook, setFacebook] = useState(t.social?.facebook ?? '')
+  const [tagline, setTagline]         = useState(t.tagline ?? '')
+  const [instagram, setInstagram]     = useState(t.social?.instagram ?? '')
+  const [facebook, setFacebook]       = useState(t.social?.facebook ?? '')
   const [whatsappHandle, setWhatsappHandle] = useState(t.social?.whatsapp ?? '')
-  const [tiktok, setTiktok] = useState(t.social?.tiktok ?? '')
-  const [logoUploading, setLogoUploading] = useState(false)
+  const [tiktok, setTiktok]           = useState(t.social?.tiktok ?? '')
+  const [logoUploading, setLogoUploading]   = useState(false)
   const [bannerUploading, setBannerUploading] = useState(false)
-  const logoInputRef = useRef<HTMLInputElement>(null)
+  const logoInputRef   = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
   // Bank transfer (SPEI)
   const bt = s.checkout?.bank_transfer ?? {} as NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['checkout']>['bank_transfer'] & {}
   const [bankTransferEnabled, setBankTransferEnabled] = useState(bt?.enabled ?? false)
-  const [clabe, setClabe]                   = useState(bt?.clabe ?? '')
-  const [bankName, setBankName]             = useState(bt?.bank_name ?? '')
-  const [accountHolder, setAccountHolder]   = useState(bt?.account_holder ?? '')
+  const [clabe, setClabe]               = useState(bt?.clabe ?? '')
+  const [bankName, setBankName]         = useState(bt?.bank_name ?? '')
+  const [accountHolder, setAccountHolder] = useState(bt?.account_holder ?? '')
 
-  // #14 Trust gate
+  // Offers / trust gate
   type OffersSettings = NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['offers']>
   type NegotiationSettings = NonNullable<OffersSettings['negotiation']>
   const offersSettings = (s.offers ?? {}) as OffersSettings
@@ -289,50 +585,110 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
   const [minBuyerTrust, setMinBuyerTrust] = useState<'unverified'|'basic'|'trusted'|'verified'|'elite'>(
     offersSettings.min_buyer_trust_level ?? 'unverified'
   )
+  const [negoEnabled, setNegoEnabled] = useState(neg.enabled ?? false)
+  const [acceptPct, setAcceptPct]     = useState(neg.auto_accept_pct ?? 90)
+  const [declinePct, setDeclinePct]   = useState(neg.auto_decline_pct ?? 50)
+  const [counterPct, setCounterPct]   = useState(neg.auto_counter_pct ?? 75)
 
-  // #15 Negotiation rules
-  const [negoEnabled, setNegoEnabled]     = useState(neg.enabled ?? false)
-  const [acceptPct, setAcceptPct]         = useState(neg.auto_accept_pct ?? 90)
-  const [declinePct, setDeclinePct]       = useState(neg.auto_decline_pct ?? 50)
-  const [counterPct, setCounterPct]       = useState(neg.auto_counter_pct ?? 75)
+  // UCP Webhook
+  const [webhookUrl, setWebhookUrl]         = useState(initial.ucp_webhook_url ?? '')
+  const [webhookSecret, setWebhookSecret]   = useState(initial.ucp_webhook_secret ?? '')
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false)
+  const [webhookAdvanced, setWebhookAdvanced]     = useState(false)
+  const [showPayloadPreview, setShowPayloadPreview] = useState(false)
+  const [webhookCopied, setWebhookCopied]   = useState(false)
+  const [webhookUrlError, setWebhookUrlError] = useState('')
 
-  // #16 UCP Webhook
-  const [webhookUrl, setWebhookUrl]       = useState(initial.ucp_webhook_url ?? '')
-  const [webhookSecret, setWebhookSecret] = useState(initial.ucp_webhook_secret ?? '')
-  const [showSecret, setShowSecret]       = useState(false)
+  // Payment providers
+  const [mpEnabled, setMpEnabled]           = useState(initial.mp_enabled ?? true)
+  const [stripeEnabled, setStripeEnabled]   = useState(initial.stripe?.enabled !== false)
 
-  // MercadoPago settings
-  const [mpEnabled, setMpEnabled] = useState(initial.mp_enabled ?? true)
-
-  // Stripe enable/disable (defaults to enabled if account is connected)
-  const [stripeEnabled, setStripeEnabled] = useState(initial.stripe?.enabled !== false)
-
-  // Cal.com scheduling (API-connect tier)
-  const [calcomConnected, setCalcomConnected]           = useState(initial.calcom_connected ?? false)
-  const [calcomUsername, setCalcomUsername]             = useState(initial.calcom_username ?? '')
-  const [calcomEventTitle, setCalcomEventTitle]         = useState(initial.calcom_event_type_title ?? '')
-  const [calcomBookingUrl, setCalcomBookingUrl]         = useState(initial.calcom_booking_url ?? '')
-  const [calcomApiKey, setCalcomApiKey]                 = useState('')
-  const [calcomConnecting, setCalcomConnecting]         = useState(false)
-  const [calcomEventTypes, setCalcomEventTypes]         = useState<Array<{ id: number; slug: string; title: string }>>([])
+  // Cal.com scheduling
+  const [calcomConnected, setCalcomConnected]       = useState(initial.calcom_connected ?? false)
+  const [calcomUsername, setCalcomUsername]         = useState(initial.calcom_username ?? '')
+  const [calcomEventTitle, setCalcomEventTitle]     = useState(initial.calcom_event_type_title ?? '')
+  const [calcomBookingUrl, setCalcomBookingUrl]     = useState(initial.calcom_booking_url ?? '')
+  const [calcomApiKey, setCalcomApiKey]             = useState('')
+  const [calcomConnecting, setCalcomConnecting]     = useState(false)
+  const [calcomEventTypes, setCalcomEventTypes]     = useState<Array<{ id: number; slug: string; title: string }>>([])
   const [calcomPickEventTypeId, setCalcomPickEventTypeId] = useState<number | null>(null)
-  const [calcomPickStep, setCalcomPickStep]             = useState(false)
+  const [calcomPickStep, setCalcomPickStep]         = useState(false)
+  const [showApiKeyForm, setShowApiKeyForm]         = useState(false)
 
-  // Scheduling links (link-drop tier — no API key required)
+  // Booking links
   type SchedulingLink = { label: string; url: string }
   const schedulingMeta = ((s.scheduling as Record<string, unknown> | undefined)?.links ?? []) as SchedulingLink[]
-  const [schedulingLinks, setSchedulingLinks]           = useState<SchedulingLink[]>(schedulingMeta)
-  const [newLinkUrl, setNewLinkUrl]                     = useState('')
-  const [newLinkLabel, setNewLinkLabel]                 = useState('')
-  const [showApiKeyForm, setShowApiKeyForm]             = useState(false)
+  const [schedulingLinks, setSchedulingLinks] = useState<SchedulingLink[]>(schedulingMeta)
+  const [newLinkUrl, setNewLinkUrl]           = useState('')
+  const [newLinkLabel, setNewLinkLabel]       = useState('')
 
-  function detectSchedulingService(url: string): string {
-    if (url.includes('cal.com'))             return 'Cal.com'
-    if (url.includes('calendly.com'))        return 'Calendly'
-    if (url.includes('acuityscheduling.com')) return 'Acuity'
-    if (url.includes('tidycal.com'))         return 'TidyCal'
-    if (url.includes('google.com/calendar')) return 'Google Calendar'
-    return 'Cita en línea'
+  // UI
+  const [saving, setSaving]           = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [toast, setToast]             = useState<ToastState | null>(null)
+  const [activeSection, setActiveSection] = useState('perfil')
+  const [showEscrowExplainer, setShowEscrowExplainer] = useState(false)
+
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }, [])
+
+  // Scroll-based active section tracking
+  useEffect(() => {
+    const allItems = NAV_GROUPS.flatMap(g => g.items)
+    function handleScroll() {
+      const scrollY = window.scrollY + 100
+      let current = allItems[0]?.id ?? 'perfil'
+      for (const { id } of allItems) {
+        const el = document.getElementById(id)
+        if (el && el.offsetTop <= scrollY) current = id
+      }
+      setActiveSection(current)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  function scrollToSection(id: string) {
+    const el = document.getElementById(id)
+    if (!el) return
+    const y = el.getBoundingClientRect().top + window.scrollY - 72
+    window.scrollTo({ top: y, behavior: 'smooth' })
+    setActiveSection(id)
+  }
+
+  async function uploadImage(file: File, onDone: (url: string) => void, setUploading: (v: boolean) => void) {
+    if (file.size > 8 * 1024 * 1024) { showToast('La imagen es demasiado grande (máx. 8 MB).', 'error'); return }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res  = await fetch('/api/sell/upload', { method: 'POST', body: fd })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) { showToast(data.error ?? 'Error al subir imagen.', 'error'); return }
+      onDone(data.url)
+      mark()
+    } catch {
+      showToast('Sin conexión al subir imagen.', 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function applyPreset(key: string) {
+    const p = PRESETS.find(x => x.key === key)
+    if (!p) return
+    setPreset(key)
+    const c  = p.settings.checkout ?? {}
+    const sh = p.settings.shipping ?? {}
+    if (c.escrow_mode)              setEscrowMode(c.escrow_mode)
+    if (c.show_phone !== undefined) setShowPhone(c.show_phone)
+    if (c.whatsapp_cta !== undefined) setWhatsappCta(c.whatsapp_cta)
+    if (sh.mercado_envios !== undefined) setMercadoEnvios(sh.mercado_envios)
+    if (sh.local_pickup  !== undefined) setLocalPickup(sh.local_pickup)
+    mark()
   }
 
   function addSchedulingLink() {
@@ -343,46 +699,7 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
     setSchedulingLinks(prev => [...prev, { label, url }])
     setNewLinkUrl('')
     setNewLinkLabel('')
-  }
-
-  const [saving, setSaving] = useState(false)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [toast, setToast] = useState<ToastState | null>(null)
-
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }, [])
-
-  async function uploadImage(file: File, onDone: (url: string) => void, setUploading: (v: boolean) => void) {
-    if (file.size > 8 * 1024 * 1024) { showToast('La imagen es demasiado grande (máx. 8 MB).', 'error'); return }
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/sell/upload', { method: 'POST', body: fd })
-      const data = await res.json() as { url?: string; error?: string }
-      if (!res.ok || !data.url) { showToast(data.error ?? 'Error al subir imagen.', 'error'); return }
-      onDone(data.url)
-    } catch {
-      showToast('Sin conexión al subir imagen.', 'error')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  // Apply preset defaults
-  function applyPreset(key: string) {
-    const p = PRESETS.find(x => x.key === key)
-    if (!p) return
-    setPreset(key)
-    const c = p.settings.checkout ?? {}
-    const sh = p.settings.shipping ?? {}
-    if (c.escrow_mode) setEscrowMode(c.escrow_mode)
-    if (c.show_phone !== undefined) setShowPhone(c.show_phone)
-    if (c.whatsapp_cta !== undefined) setWhatsappCta(c.whatsapp_cta)
-    if (sh.mercado_envios !== undefined) setMercadoEnvios(sh.mercado_envios)
-    if (sh.local_pickup !== undefined) setLocalPickup(sh.local_pickup)
+    mark()
   }
 
   async function handleCalcomConnect(eventTypeId?: number) {
@@ -392,14 +709,19 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
       const body: Record<string, unknown> = {}
       if (calcomApiKey.trim()) body.api_key = calcomApiKey.trim()
       if (eventTypeId) body.event_type_id = eventTypeId
-      const res = await fetch('/api/sell/shop/calcom', {
+      const res  = await fetch('/api/sell/shop/calcom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       const data = await res.json() as {
-        step?: string; user?: { username: string }; eventTypes?: Array<{ id: number; slug: string; title: string }>
-        username?: string; eventType?: { id: number; title: string }; bookingUrl?: string; error?: string
+        step?: string
+        user?: { username: string }
+        eventTypes?: Array<{ id: number; slug: string; title: string }>
+        username?: string
+        eventType?: { id: number; title: string }
+        bookingUrl?: string
+        error?: string
       }
       if (!res.ok) { showToast(data.error ?? 'Error al conectar.', 'error'); return }
 
@@ -437,10 +759,23 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
 
   async function handleSave() {
     const errors: Record<string, string> = {}
-    if (name.trim().length < 2) errors.name = 'El nombre debe tener al menos 2 caracteres.'
-    if (description.length > 500) errors.description = 'Máximo 500 caracteres.'
-    if (Object.keys(errors).length > 0) { setFieldErrors(errors); return }
+    if (name.trim().length < 2)     errors.name = 'El nombre debe tener al menos 2 caracteres.'
+    if (description.length > 500)   errors.description = 'Máximo 500 caracteres.'
+    if (webhookUrl.trim() && !webhookUrl.trim().startsWith('https://')) {
+      errors.webhook = 'La URL del webhook debe usar HTTPS.'
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      if (errors.webhook) scrollToSection('webhook')
+      return
+    }
     setFieldErrors({})
+
+    let secretToSave = webhookSecret.trim()
+    if (webhookUrl.trim() && !secretToSave) {
+      secretToSave = generateHex32()
+      setWebhookSecret(secretToSave)
+    }
 
     setSaving(true)
     try {
@@ -448,51 +783,54 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-          state: state.trim(),
-          city: city.trim(),
-          logo_url: logoUrl,
-          mp_enabled: mpEnabled,
-          stripe_enabled: stripeEnabled,
-          ucp_webhook_url:    webhookUrl.trim() || null,
-          ucp_webhook_secret: webhookSecret.trim() || null,
+          name:              name.trim(),
+          description:       description.trim(),
+          state:             state.trim(),
+          city:              city.trim(),
+          logo_url:          logoUrl,
+          mp_enabled:        mpEnabled,
+          stripe_enabled:    stripeEnabled,
+          ucp_webhook_url:   webhookUrl.trim() || null,
+          ucp_webhook_secret: secretToSave || null,
           settings: {
             preset,
             checkout: {
-              escrow_mode: escrowMode,
-              show_phone: showPhone,
-              whatsapp_cta: whatsappCta,
+              escrow_mode:    escrowMode,
+              show_phone:     showPhone,
+              phone:          showPhone ? phoneNumber.trim().replace(/\D/g, '') || undefined : undefined,
+              whatsapp_cta:   whatsappCta,
               bank_transfer: {
-                enabled: bankTransferEnabled,
-                clabe: clabe.trim() || undefined,
-                bank_name: bankName.trim() || undefined,
+                enabled:        bankTransferEnabled,
+                clabe:          clabe.trim() || undefined,
+                bank_name:      bankName.trim() || undefined,
                 account_holder: accountHolder.trim() || undefined,
               },
             },
-            shipping: { mercado_envios: mercadoEnvios, local_pickup: localPickup },
-            notifications: { email_new_view: emailView, email_new_message: emailMessage },
+            shipping: {
+              mercado_envios: mercadoEnvios,
+              local_pickup:   localPickup,
+              pickup_spots:   pickupSpots.length > 0 ? pickupSpots : undefined,
+            },
+            notifications:  { email_new_view: emailView, email_new_message: emailMessage },
             offers: {
               min_buyer_trust_level: minBuyerTrust,
               negotiation: {
-                enabled: negoEnabled,
-                auto_accept_pct: acceptPct,
+                enabled:          negoEnabled,
+                auto_accept_pct:  acceptPct,
                 auto_decline_pct: declinePct,
                 auto_counter_pct: counterPct,
               },
             },
-            scheduling: {
-              links: schedulingLinks,
-            },
+            scheduling:   { links: schedulingLinks },
             theme: {
-              banner_url: bannerUrl,
+              banner_url:   bannerUrl,
               accent_color: accentColor,
-              tagline: tagline.trim() || null,
+              tagline:      tagline.trim() || null,
               social: {
                 instagram: instagram.trim().replace(/^@/, '') || undefined,
-                facebook: facebook.trim() || undefined,
-                whatsapp: whatsappHandle.trim().replace(/\D/g, '') || undefined,
-                tiktok: tiktok.trim().replace(/^@/, '') || undefined,
+                facebook:  facebook.trim() || undefined,
+                whatsapp:  whatsappHandle.trim().replace(/\D/g, '') || undefined,
+                tiktok:    tiktok.trim().replace(/^@/, '') || undefined,
               },
             },
           },
@@ -504,6 +842,7 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
         else showToast(data.error ?? 'Error al guardar.', 'error')
       } else {
         showToast('Cambios guardados correctamente.', 'success')
+        setIsDirty(false)
       }
     } catch {
       showToast('Sin conexión. Inténtalo de nuevo.', 'error')
@@ -512,911 +851,1318 @@ export default function ShopSettingsPanel({ initial, stripeError }: { initial: S
     }
   }
 
+  // ── Active preset summary ─────────────────────────────────────────────────
+
+  const activePreset = PRESETS.find(p => p.key === preset)
+
+  const ESCROW_LABEL = { off: 'Desactivada', optional: 'Opcional', required: 'Obligatoria' }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="px-4 py-8">
 
-      {/* ── Breadcrumb ───────────────────────────────────────────────────────── */}
-      <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
-        <Link href="/shop/manage" className="hover:text-[var(--color-foreground)] no-underline">Mi tienda</Link>
-        <span>›</span>
-        <span>Configuración</span>
-      </nav>
-
-      <h1 className="text-2xl font-bold mb-8">Configuración de tienda</h1>
-
-      {/* ══ Section 1: Perfil ═══════════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Perfil de tienda</SectionTitle>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Nombre de tienda <span className="text-red-500">*</span>
-            </label>
-            <input
-              value={name}
-              onChange={e => { setName(e.target.value); setFieldErrors(p => ({ ...p, name: '' })) }}
-              maxLength={80}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              placeholder="Mi tienda"
-            />
-            {fieldErrors.name && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.name}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Descripción
-              <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
-                {description.length}/500
-              </span>
-            </label>
-            <textarea
-              value={description}
-              onChange={e => { setDescription(e.target.value); setFieldErrors(p => ({ ...p, description: '' })) }}
-              maxLength={500}
-              rows={3}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
-              placeholder="Cuéntanos sobre tu tienda…"
-            />
-            {fieldErrors.description && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.description}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Ciudad</label>
-              <input
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                placeholder="Ciudad de México"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Estado</label>
-              <select
-                value={state}
-                onChange={e => setState(e.target.value)}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
-              >
-                <option value="">Selecciona estado</option>
-                {MEXICAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ Section 2: Perfil de negocio ════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Perfil de negocio</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Elige el perfil que mejor describe tu tienda. Ajusta los valores individualmente si lo necesitas.
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {PRESETS.map(p => (
+      {/* ── Mobile top nav ──────────────────────────────────────────────────── */}
+      <div className="lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6">
+        <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {NAV_GROUPS.flatMap(g => g.items).map(item => (
             <button
-              key={p.key}
+              key={item.id}
               type="button"
-              onClick={() => applyPreset(p.key)}
-              title={p.description}
-              className={`text-left p-3 rounded-lg border-2 transition-all ${
-                preset === p.key
-                  ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
-                  : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
-              }`}
+              onClick={() => scrollToSection(item.id)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                activeSection === item.id
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:bg-gray-200'
+              } ${item.soon ? 'opacity-50' : ''}`}
             >
-              <div className="text-xl mb-1">{p.icon}</div>
-              <div className="text-sm font-semibold">{p.label}</div>
-              <div className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug line-clamp-2">{p.description}</div>
-              {preset === p.key && (
-                <div className="text-[10px] text-[var(--color-accent)] font-semibold mt-1 uppercase tracking-wide">Activo</div>
-              )}
+              {item.label}
             </button>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* ══ Section 3: Compra Protegida ══════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Compra Protegida</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          El dinero queda retenido hasta que el comprador confirma la recepción. Powered by Stripe.
-        </p>
-        <div className="space-y-2">
-          {ESCROW_OPTIONS.map(opt => (
-            <label
-              key={opt.key}
-              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                escrowMode === opt.key
-                  ? `border-[var(--color-accent)] ${opt.color}`
-                  : 'border-[var(--color-border)] hover:border-gray-400'
-              }`}
-            >
-              <input
-                type="radio"
-                name="escrow_mode"
-                value={opt.key}
-                checked={escrowMode === opt.key}
-                onChange={() => setEscrowMode(opt.key)}
-                className="accent-[var(--color-accent)]"
-              />
-              <div>
-                <div className="text-sm font-semibold">{opt.label}</div>
-                <div className="text-xs text-[var(--color-muted)]">{opt.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-      </section>
+      <div className="max-w-5xl mx-auto flex gap-8">
 
-      {/* ══ Section 4: Comunicación ══════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Comunicación</SectionTitle>
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={showPhone}
-            onChange={setShowPhone}
-            label="Mostrar teléfono en anuncios"
-            description="Los compradores pueden llamarte o enviarte SMS."
-          />
-          <ToggleSwitch
-            checked={whatsappCta}
-            onChange={setWhatsappCta}
-            label="Botón de WhatsApp"
-            description="Añade un CTA de WhatsApp en cada anuncio."
-          />
-        </div>
-      </section>
-
-      {/* ══ Section 5: Envíos ════════════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Envíos</SectionTitle>
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={localPickup}
-            onChange={setLocalPickup}
-            label="Entrega en mano / recoger en tienda"
-            description="El comprador puede pasar por el producto."
-          />
-          <ToggleSwitch
-            checked={mercadoEnvios}
-            onChange={setMercadoEnvios}
-            label="Mercado Envíos"
-            description="Genera etiquetas de envío directamente desde tu tienda. (Próximamente)"
-            disabled
-          />
-        </div>
-      </section>
-
-      {/* ══ Section 6: Notificaciones ════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
-        <SectionTitle>Notificaciones por correo</SectionTitle>
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={emailMessage}
-            onChange={setEmailMessage}
-            label="Nuevo mensaje de un comprador"
-          />
-          <ToggleSwitch
-            checked={emailView}
-            onChange={setEmailView}
-            label="Mi anuncio recibió visitas"
-            description="Resumen diario cuando tus anuncios tienen nuevas vistas."
-          />
-        </div>
-      </section>
-
-      {/* ══ Section 7: Pagos en línea (Stripe Connect) ══════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Pagos en línea</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Acepta pagos con tarjeta directamente en tu tienda. Sin comisiones de plataforma — solo la tarifa estándar de Stripe.
-        </p>
-
-        {stripeError && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
-            <span className="font-semibold">Error al conectar Stripe:</span>{' '}{stripeError}
-          </div>
-        )}
-
-        {initial.stripe?.charges_enabled ? (
-          // ── Connected & active ─────────────────────────────────────────────
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-green-800">Cuenta Stripe conectada</div>
-                <div className="text-xs text-green-700 mt-0.5">Tu cuenta está activa y lista para recibir pagos con tarjeta.</div>
-              </div>
-              <a
-                href="/api/stripe/connect/dashboard"
-                className="text-xs text-green-700 underline hover:text-green-900 flex-shrink-0"
-              >
-                Gestionar →
-              </a>
-            </div>
-            <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)]">
-              <ToggleSwitch
-                checked={stripeEnabled}
-                onChange={setStripeEnabled}
-                label="Aceptar pagos con tarjeta (Stripe)"
-                description="Muestra el botón de pago con tarjeta en tus anuncios."
-              />
-            </div>
-          </div>
-        ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
-          // ── Account created but onboarding incomplete ──────────────────────
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-4">
-            <div className="flex items-start gap-3 mb-3">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <div className="text-sm font-semibold text-amber-800">Configuración pendiente</div>
-                <div className="text-xs text-amber-700 mt-0.5">
-                  Completa la configuración de tu cuenta Stripe para empezar a cobrar.
-                </div>
-              </div>
-            </div>
-            <a
-              href="/api/stripe/connect/refresh"
-              className="flex items-center justify-center gap-2 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-amber-700 transition-colors"
-            >
-              Completar configuración →
-            </a>
-          </div>
-        ) : (
-          // ── Not connected ──────────────────────────────────────────────────
-          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-4">
-            <div className="flex items-start gap-3 mb-4">
-              <span className="text-2xl">💳</span>
-              <div>
-                <div className="text-sm font-semibold">Acepta tarjetas en tu tienda</div>
-                <ul className="text-xs text-[var(--color-muted)] mt-1.5 space-y-0.5">
-                  <li>✓ Visa, Mastercard, AMEX</li>
-                  <li>✓ 0% comisión de plataforma</li>
-                  <li>✓ Pagos directos a tu cuenta bancaria</li>
-                  <li>✓ Configuración en 2 minutos</li>
-                </ul>
-              </div>
-            </div>
-            <a
-              href="/api/stripe/connect"
-              className="flex items-center justify-center gap-2 w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
-              </svg>
-              Conectar Stripe
-            </a>
-            <p className="text-[10px] text-center text-[var(--color-muted)] mt-2">
-              Serás redirigido a Stripe para crear o conectar tu cuenta.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* ══ Section 8: Transferencia bancaria (SPEI) ════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Permite que tus compradores paguen por transferencia bancaria. Tú confirmas el pago manualmente antes de entregar.
-        </p>
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={bankTransferEnabled}
-            onChange={setBankTransferEnabled}
-            label="Aceptar transferencias bancarias"
-            description="Aparecerá como opción de pago en tus anuncios."
-          />
-        </div>
-
-        {bankTransferEnabled && (
-          <div className="mt-4 space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                CLABE interbancaria <span className="text-red-500">*</span>
-              </label>
-              <input
-                value={clabe}
-                onChange={e => setClabe(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                maxLength={18}
-                placeholder="18 dígitos"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              />
-              {clabe && clabe.length !== 18 && (
-                <p className="text-amber-600 text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Banco</label>
-                <input
-                  value={bankName}
-                  onChange={e => setBankName(e.target.value)}
-                  placeholder="BBVA, Banorte, HSBC…"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Titular de la cuenta</label>
-                <input
-                  value={accountHolder}
-                  onChange={e => setAccountHolder(e.target.value)}
-                  placeholder="Nombre completo"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-              💡 El comprador verá estos datos al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar el artículo.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* ══ Section 9: MercadoPago ═══════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Mercado Pago</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Permite a tus compradores pagar con tarjeta, OXXO, wallet y meses sin intereses a través de Mercado Pago.
-        </p>
-
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={mpEnabled}
-            onChange={setMpEnabled}
-            label="Activar Mercado Pago"
-            description="Muestra el botón de Mercado Pago en tus anuncios físicos."
-          />
-        </div>
-
-        {!mpEnabled && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-            El botón de Mercado Pago estará oculto en tus anuncios mientras esté desactivado.
-          </p>
-        )}
-
-        <div className="mt-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
-          <div className="flex items-start gap-2">
-            <span className="text-base mt-0.5">💡</span>
-            <p className="text-xs text-[var(--color-muted)] leading-relaxed">
-              <strong>Próximamente:</strong> conecta tu propia cuenta de Mercado Pago para recibir pagos directamente, sin intermediarios. Los fondos llegarán a tu cuenta el mismo día.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ Section 10: Ofertas y confianza ════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Ofertas — nivel mínimo de comprador</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Elige el nivel de reputación mínimo que debe tener un comprador para enviarte una oferta. Los compradores por debajo del nivel serán rechazados automáticamente.
-        </p>
-        <div className="space-y-2">
-          {([
-            { value: 'unverified', label: '⚠️ Sin verificar', desc: 'Cualquier persona puede hacer una oferta.' },
-            { value: 'basic',      label: '📧 Básico',        desc: 'Solo compradores con correo verificado.' },
-            { value: 'trusted',    label: '🤝 Confiable',     desc: 'Correo + teléfono o al menos 1 compra previa.' },
-            { value: 'verified',   label: '✓ Verificado',     desc: 'Historial sólido de compras y cuenta establecida.' },
-            { value: 'elite',      label: '⭐ Elite',         desc: 'Solo los compradores más confiables de la plataforma.' },
-          ] as const).map(opt => (
-            <label
-              key={opt.value}
-              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                minBuyerTrust === opt.value
-                  ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
-                  : 'border-[var(--color-border)] hover:border-gray-400'
-              }`}
-            >
-              <input type="radio" name="min_buyer_trust" value={opt.value}
-                checked={minBuyerTrust === opt.value} onChange={() => setMinBuyerTrust(opt.value)}
-                className="accent-[var(--color-accent)]" />
-              <div>
-                <div className="text-sm font-semibold">{opt.label}</div>
-                <div className="text-xs text-[var(--color-muted)]">{opt.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-      </section>
-
-      {/* ══ Section 11: Negociación automática (A2A) ════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Negociación automática</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Define reglas automáticas para aceptar, rechazar o contraofertear sin tener que revisar cada oferta manualmente. Ideal para catálogos grandes o tiendas de alto volumen.
-        </p>
-        <div className="divide-y divide-[var(--color-border)]">
-          <ToggleSwitch
-            checked={negoEnabled}
-            onChange={setNegoEnabled}
-            label="Activar negociación automática"
-            description="Las ofertas dentro de tus rangos se responden al instante."
-          />
-        </div>
-
-        {negoEnabled && (
-          <div className="mt-4 space-y-4">
-            {[
-              { label: 'Aceptar automáticamente si la oferta es ≥', value: acceptPct, set: setAcceptPct, color: 'green', hint: `Ofertas a ${ acceptPct }% o más del precio de lista se aceptan al instante.` },
-              { label: 'Contraofertear al', value: counterPct, set: setCounterPct, color: 'amber', hint: `Si la oferta está entre ${ declinePct }% y ${ acceptPct }%, se contraoferta al ${ counterPct }% del precio.` },
-              { label: 'Rechazar automáticamente si la oferta es <', value: declinePct, set: setDeclinePct, color: 'red', hint: `Ofertas por debajo del ${ declinePct }% se rechazan automáticamente.` },
-            ].map(row => (
-              <div key={row.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium">{row.label}</label>
-                  <span className={`text-sm font-bold tabular-nums ${
-                    row.color === 'green' ? 'text-green-700' : row.color === 'amber' ? 'text-amber-700' : 'text-red-700'
-                  }`}>{row.value}%</span>
-                </div>
-                <input
-                  type="range" min={0} max={100} step={5}
-                  value={row.value}
-                  onChange={e => row.set(parseInt(e.target.value))}
-                  className="w-full accent-[var(--color-accent)]"
-                />
-                <p className="text-xs text-[var(--color-muted)] mt-0.5">{row.hint}</p>
-              </div>
-            ))}
-
-            {declinePct >= acceptPct && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                ⚠ El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
-              </p>
-            )}
-            {counterPct > acceptPct && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                ⚠ El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ══ Section 12: UCP Webhook de órdenes ══════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <SectionTitle>Webhook de órdenes (UCP)</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-4">
-          Recibe notificaciones en tiempo real en tu sistema cuando se completa una venta. El payload incluye datos del comprador, la orden, el anuncio y el nivel de confianza del comprador.
-        </p>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">URL del webhook</label>
-            <input
-              value={webhookUrl}
-              onChange={e => setWebhookUrl(e.target.value)}
-              type="url"
-              placeholder="https://tu-sistema.com/webhooks/ordenes"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Clave secreta (HMAC-SHA256)
-              <span className="ml-1 text-xs font-normal text-[var(--color-muted)]">— para verificar autenticidad</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                value={webhookSecret}
-                onChange={e => setWebhookSecret(e.target.value)}
-                type={showSecret ? 'text' : 'password'}
-                placeholder="Genera o pega tu clave secreta"
-                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              />
-              <button type="button" onClick={() => setShowSecret(s => !s)}
-                className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50 transition-colors">
-                {showSecret ? 'Ocultar' : 'Ver'}
-              </button>
-              <button type="button"
-                onClick={() => setWebhookSecret(Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,'0')).join(''))}
-                className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50 transition-colors">
-                Generar
-              </button>
-            </div>
-          </div>
-          {webhookUrl && (
-            <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-              💡 Verifica la firma en el header <code className="font-mono">X-UCP-Signature</code> usando HMAC-SHA256 con tu clave secreta y el cuerpo del request.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* ══ Section 13: Apariencia ═══════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
-        <SectionTitle>Apariencia</SectionTitle>
-        <p className="text-xs text-[var(--color-muted)] mb-5">
-          Personaliza el aspecto de tu tienda pública: banner, logo, color y redes sociales.
-        </p>
-
-        {/* Banner */}
-        <div className="mb-5">
-          <label className="block text-sm font-medium mb-2">Banner de tienda</label>
-          <div
-            className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-            onClick={() => bannerInputRef.current?.click()}
-            style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
-          >
-            {bannerUploading ? (
-              <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>
-            ) : bannerUrl ? (
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded">Cambiar banner</span>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div className="text-2xl mb-1">🖼️</div>
-                <div className="text-xs text-[var(--color-muted)]">Haz clic para subir banner</div>
-                <div className="text-xs text-[var(--color-muted)]">Recomendado: 1200 × 300 px · máx. 8 MB</div>
-              </div>
-            )}
-          </div>
-          {bannerUrl && (
-            <button type="button" onClick={() => setBannerUrl(null)} className="text-xs text-red-600 hover:underline mt-1">
-              Eliminar banner
-            </button>
-          )}
-          <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f, setBannerUrl, setBannerUploading); e.target.value = '' }} />
-        </div>
-
-        {/* Logo */}
-        <div className="mb-5">
-          <label className="block text-sm font-medium mb-2">Logo de tienda</label>
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors flex-shrink-0"
-              onClick={() => logoInputRef.current?.click()}
-              style={logoUrl ? { backgroundImage: `url(${logoUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
-            >
-              {logoUploading ? (
-                <span className="text-[10px] text-[var(--color-muted)] animate-pulse text-center px-1">…</span>
-              ) : !logoUrl && (
-                <span className="text-2xl">🏪</span>
-              )}
-            </div>
-            <div>
-              <button type="button" onClick={() => logoInputRef.current?.click()}
-                className="text-sm text-[var(--color-accent)] hover:underline block">
-                {logoUrl ? 'Cambiar logo' : 'Subir logo'}
-              </button>
-              {logoUrl && (
-                <button type="button" onClick={() => setLogoUrl(null)} className="text-xs text-red-600 hover:underline mt-1 block">
-                  Eliminar logo
-                </button>
-              )}
-              <p className="text-xs text-[var(--color-muted)] mt-1">Cuadrado · máx. 8 MB</p>
-            </div>
-          </div>
-          <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f, setLogoUrl, setLogoUploading); e.target.value = '' }} />
-        </div>
-
-        {/* Slogan */}
-        <div className="mb-5">
-          <label className="block text-sm font-medium mb-1">
-            Slogan
-            <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
-              {tagline.length}/100
-            </span>
-          </label>
-          <input
-            value={tagline}
-            onChange={e => setTagline(e.target.value)}
-            maxLength={100}
-            placeholder="El mejor lugar para encontrar piezas de colección"
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-          />
-        </div>
-
-        {/* Color de marca */}
-        <div className="mb-5">
-          <label className="block text-sm font-medium mb-2">Color de marca</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={accentColor}
-              onChange={e => setAccentColor(e.target.value)}
-              className="w-10 h-10 rounded cursor-pointer border border-[var(--color-border)] p-0.5 bg-white"
-            />
-            <div>
-              <div className="text-sm font-mono">{accentColor}</div>
-              <div className="text-xs text-[var(--color-muted)]">Se aplica en tu tienda pública</div>
-            </div>
-            <div
-              className="ml-auto px-4 py-1.5 rounded text-white text-xs font-medium"
-              style={{ backgroundColor: accentColor }}
-            >
-              Vista previa
-            </div>
-          </div>
-        </div>
-
-        {/* Redes sociales */}
-        <div>
-          <label className="block text-sm font-medium mb-3">Redes sociales</label>
-          <div className="space-y-2">
-            {[
-              { icon: '📸', label: 'Instagram', value: instagram, set: setInstagram, placeholder: '@tutienda', prefix: 'instagram.com/' },
-              { icon: '👥', label: 'Facebook', value: facebook, set: setFacebook, placeholder: 'https://facebook.com/tutienda', prefix: '' },
-              { icon: '💬', label: 'WhatsApp', value: whatsappHandle, set: setWhatsappHandle, placeholder: '52 55 1234 5678', prefix: '+' },
-              { icon: '🎵', label: 'TikTok', value: tiktok, set: setTiktok, placeholder: '@tutienda', prefix: 'tiktok.com/@' },
-            ].map(net => (
-              <div key={net.label} className="flex items-center gap-2">
-                <span className="text-lg w-7 flex-shrink-0 text-center">{net.icon}</span>
-                <span className="text-xs text-[var(--color-muted)] w-20 flex-shrink-0">{net.label}</span>
-                <input
-                  value={net.value}
-                  onChange={e => net.set(e.target.value)}
-                  placeholder={net.placeholder}
-                  className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ Section 13: Agendamiento ═════════════════════════════════════════════ */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">📅</span>
-          <h2 className="font-semibold text-sm">Agendamiento</h2>
-        </div>
-        <p className="text-xs text-[var(--color-muted)] mb-5">
-          Permite que compradores agenden visitas, pruebas de manejo o citas directamente desde tus anuncios.
-        </p>
-
-        {/* ── Tier 1: Booking links (always shown) ───────────────────────────── */}
-        <div className="mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-              🔗 Mis enlaces de reservas
-            </p>
-            {schedulingLinks.length > 0 && (
-              <span className="text-xs text-green-700 font-medium bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
-                {schedulingLinks.length} enlace{schedulingLinks.length > 1 ? 's' : ''} guardado{schedulingLinks.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {schedulingLinks.length > 0 && (
-            <div className="space-y-1.5 mb-3">
-              {schedulingLinks.map((link, i) => (
-                <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                  <span className="text-base">
-                    {link.url.includes('cal.com') ? '📅' : link.url.includes('calendly.com') ? '📆' : '🔗'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{link.label}</p>
-                    <p className="text-xs text-[var(--color-muted)] truncate">{link.url}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSchedulingLinks(prev => prev.filter((_, j) => j !== i))}
-                    className="text-xs text-red-500 hover:text-red-700 flex-shrink-0 px-1"
-                    aria-label="Eliminar enlace"
-                  >
-                    ×
-                  </button>
+        {/* ── Desktop sidebar ───────────────────────────────────────────────── */}
+        <aside className="w-52 flex-shrink-0 hidden lg:block">
+          <div className="sticky top-6">
+            <nav className="space-y-4">
+              {NAV_GROUPS.map(group => (
+                <div key={group.label}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)] px-2 mb-1">
+                    {group.label}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {group.items.map(item => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => scrollToSection(item.id)}
+                          className={`w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors ${
+                            activeSection === item.id
+                              ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,white)] text-[var(--color-accent)] font-semibold'
+                              : 'text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-gray-100'
+                          } ${item.soon ? 'opacity-50' : ''}`}
+                        >
+                          {item.label}
+                          {item.soon && (
+                            <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-600 px-1 py-0.5 rounded">
+                              pronto
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
-            </div>
-          )}
+            </nav>
+          </div>
+        </aside>
 
-          {/* Add link form */}
-          <div className="space-y-2">
-            <input
-              type="url"
-              value={newLinkUrl}
-              onChange={e => setNewLinkUrl(e.target.value)}
-              placeholder="https://cal.com/tu-usuario/consulta  ó  https://calendly.com/tu-usuario"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSchedulingLink() } }}
-            />
-            <div className="flex gap-2">
+        {/* ── Main content ──────────────────────────────────────────────────── */}
+        <main className="flex-1 min-w-0">
+
+          {/* Breadcrumb */}
+          <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
+            <Link href="/shop/manage" className="hover:text-[var(--color-foreground)] no-underline">Mi tienda</Link>
+            <span>›</span>
+            <span>Configuración</span>
+          </nav>
+          <h1 className="text-2xl font-bold mb-8">Configuración de tienda</h1>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 1: Perfil de tienda
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="perfil" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Perfil de tienda</SectionTitle>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Nombre de tienda <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={name}
+                  onChange={e => { setName(e.target.value); mark(); setFieldErrors(p => ({ ...p, name: '' })) }}
+                  maxLength={80}
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  placeholder="Mi tienda"
+                />
+                {fieldErrors.name && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Descripción
+                  <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                    {description.length}/500
+                  </span>
+                </label>
+                <textarea
+                  value={description}
+                  onChange={e => { setDescription(e.target.value); mark(); setFieldErrors(p => ({ ...p, description: '' })) }}
+                  maxLength={500}
+                  rows={3}
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
+                  placeholder="Cuéntanos sobre tu tienda…"
+                />
+                {fieldErrors.description && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.description}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ciudad</label>
+                  <input
+                    value={city}
+                    onChange={e => { setCity(e.target.value); mark() }}
+                    list="mx-cities"
+                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    placeholder="Ciudad de México"
+                    autoComplete="off"
+                  />
+                  <datalist id="mx-cities">
+                    {MAJOR_MEXICAN_CITIES.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Estado</label>
+                  <select
+                    value={state}
+                    onChange={e => { setState(e.target.value); mark() }}
+                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                  >
+                    <option value="">Selecciona estado</option>
+                    {MEXICAN_STATES.map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 2: Apariencia
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="apariencia" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Apariencia</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-5">
+              Personaliza el aspecto de tu tienda pública: banner, logo, color y redes sociales.
+            </p>
+
+            {/* Banner */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-2">Banner de tienda</label>
+              <div
+                className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+                onClick={() => bannerInputRef.current?.click()}
+                style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
+              >
+                {bannerUploading ? (
+                  <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>
+                ) : bannerUrl ? (
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded">Cambiar banner</span>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🖼️</div>
+                    <div className="text-xs text-[var(--color-muted)]">Haz clic para subir banner</div>
+                    <div className="text-xs text-[var(--color-muted)]">Recomendado: 1200 × 300 px · máx. 8 MB</div>
+                  </div>
+                )}
+              </div>
+              {bannerUrl && (
+                <button type="button" onClick={() => { setBannerUrl(null); mark() }} className="text-xs text-red-600 hover:underline mt-1">
+                  Eliminar banner
+                </button>
+              )}
+              <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f, setBannerUrl, setBannerUploading); e.target.value = '' }} />
+            </div>
+
+            {/* Logo */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-2">Logo de tienda</label>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-16 h-16 rounded-full overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors flex-shrink-0"
+                  onClick={() => logoInputRef.current?.click()}
+                  style={logoUrl ? { backgroundImage: `url(${logoUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
+                >
+                  {logoUploading ? (
+                    <span className="text-[10px] text-[var(--color-muted)] animate-pulse text-center px-1">…</span>
+                  ) : !logoUrl && (
+                    <span className="text-2xl">🏪</span>
+                  )}
+                </div>
+                <div>
+                  <button type="button" onClick={() => logoInputRef.current?.click()}
+                    className="text-sm text-[var(--color-accent)] hover:underline block">
+                    {logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                  </button>
+                  {logoUrl && (
+                    <button type="button" onClick={() => { setLogoUrl(null); mark() }} className="text-xs text-red-600 hover:underline mt-1 block">
+                      Eliminar logo
+                    </button>
+                  )}
+                  <p className="text-xs text-[var(--color-muted)] mt-1">Cuadrado · máx. 8 MB</p>
+                </div>
+              </div>
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f, setLogoUrl, setLogoUploading); e.target.value = '' }} />
+            </div>
+
+            {/* Slogan */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-1">
+                Slogan
+                <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                  {tagline.length}/100
+                </span>
+              </label>
               <input
-                type="text"
-                value={newLinkLabel}
-                onChange={e => setNewLinkLabel(e.target.value)}
-                placeholder="Etiqueta (opcional) — se detecta automáticamente"
-                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                value={tagline}
+                onChange={e => { setTagline(e.target.value); mark() }}
+                maxLength={100}
+                placeholder="El mejor lugar para encontrar piezas de colección"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
-              <button
-                type="button"
-                onClick={addSchedulingLink}
-                disabled={!newLinkUrl.trim()}
-                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
-              >
-                + Agregar
-              </button>
             </div>
-          </div>
 
-          <p className="text-xs text-[var(--color-muted)] mt-2">
-            Funciona con Cal.com, Calendly, Acuity, TidyCal, Google Calendar y cualquier enlace de reservas. Los compradores serán dirigidos a tu página de agendamiento.
-          </p>
-
-          {schedulingLinks.length === 0 && !calcomConnected && (
-            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
-              <strong>¿No tienes una cuenta de agendamiento?</strong> Cal.com es gratuito, tarda 3 minutos en configurarse y te da una página profesional de reservas.{' '}
-              <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-amber-900">
-                Crear cuenta gratis en Cal.com ↗
-              </a>
+            {/* Color de marca */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-2">Color de marca</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={e => { setAccentColor(e.target.value); mark() }}
+                  className="w-10 h-10 rounded cursor-pointer border border-[var(--color-border)] p-0.5 bg-white"
+                />
+                <div>
+                  <div className="text-sm font-mono">{accentColor}</div>
+                  <div className="text-xs text-[var(--color-muted)]">Se aplica en tu tienda pública</div>
+                </div>
+                <div
+                  className="ml-auto px-4 py-1.5 rounded text-white text-xs font-medium"
+                  style={{ backgroundColor: accentColor }}
+                >
+                  Vista previa
+                </div>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* ── Tier 2: Cal.com API (full agentic power) ───────────────────────── */}
-        <div className="border-t border-[var(--color-border)] pt-4">
-          <div className="flex items-start justify-between mb-2">
+            {/* Redes sociales */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                ✨ Cal.com — Agentes de IA
-              </p>
-              <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                {calcomConnected
-                  ? 'Los agentes de IA pueden verificar disponibilidad y agendar automáticamente.'
-                  : 'Conecta tu API key para que agentes de IA puedan agendar citas en tu nombre.'}
-              </p>
+              <label className="block text-sm font-medium mb-3">Redes sociales</label>
+              <div className="space-y-2">
+                {[
+                  { icon: '📸', label: 'Instagram', value: instagram,      set: setInstagram,      placeholder: '@tutienda' },
+                  { icon: '👥', label: 'Facebook',  value: facebook,       set: setFacebook,       placeholder: 'https://facebook.com/tutienda' },
+                  { icon: '💬', label: 'WhatsApp',  value: whatsappHandle, set: setWhatsappHandle, placeholder: '52 55 1234 5678' },
+                  { icon: '🎵', label: 'TikTok',    value: tiktok,         set: setTiktok,         placeholder: '@tutienda' },
+                ].map(net => (
+                  <div key={net.label} className="flex items-center gap-2">
+                    <span className="text-lg w-7 flex-shrink-0 text-center">{net.icon}</span>
+                    <span className="text-xs text-[var(--color-muted)] w-20 flex-shrink-0">{net.label}</span>
+                    <input
+                      value={net.value}
+                      onChange={e => { net.set(e.target.value); mark() }}
+                      placeholder={net.placeholder}
+                      className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-            {!calcomConnected && !calcomPickStep && (
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 3: Tipo de tienda
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="tipo" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Tipo de tienda</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Pre-configura el comportamiento de checkout y envíos según lo que vendes. Puedes ajustar cada opción individualmente más adelante.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {PRESETS.map(p => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => applyPreset(p.key)}
+                  title={p.description}
+                  className={`text-left p-3 rounded-lg border-2 transition-all ${
+                    preset === p.key
+                      ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="text-xl mb-1">{p.icon}</div>
+                  <div className="text-sm font-semibold">{p.label}</div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug line-clamp-2">{p.description}</div>
+                  {preset === p.key && (
+                    <div className="text-[10px] text-[var(--color-accent)] font-semibold mt-1 uppercase tracking-wide">Activo</div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Active preset summary */}
+            {activePreset && (
+              <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+                <p className="text-xs text-[var(--color-muted)] mb-2 font-medium">Configuración aplicada:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    escrowMode === 'off' ? 'bg-gray-100 text-gray-600' :
+                    escrowMode === 'optional' ? 'bg-amber-100 text-amber-700' :
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    Compra Protegida: {ESCROW_LABEL[escrowMode]}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${localPickup ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    Entrega en mano: {localPickup ? 'Sí' : 'No'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${mercadoEnvios ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    Mercado Envíos: {mercadoEnvios ? 'Sí' : 'No'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${showPhone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    Teléfono visible: {showPhone ? 'Sí' : 'No'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 4: Compra Protegida
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="proteccion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <div className="flex items-center justify-between mb-3">
+              <SectionTitle>Compra Protegida</SectionTitle>
               <button
                 type="button"
-                onClick={() => setShowApiKeyForm(v => !v)}
-                className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 ml-3"
+                onClick={() => setShowEscrowExplainer(v => !v)}
+                className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 -mt-3"
               >
-                {showApiKeyForm ? 'Ocultar' : 'Conectar API →'}
+                {showEscrowExplainer ? 'Ocultar explicación' : '¿Qué es esto? →'}
               </button>
-            )}
-          </div>
+            </div>
 
-          {calcomConnected ? (
-            /* Connected state */
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <span className="text-lg">✓</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
-                  <p className="text-xs text-green-600 mt-0.5 truncate">
-                    Evento: {calcomEventTitle} ·{' '}
-                    <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                      Ver página ↗
-                    </a>
+            {showEscrowExplainer && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs font-semibold text-blue-800 mb-3">¿Cómo funciona Compra Protegida?</p>
+                <div className="flex items-start gap-1 flex-wrap sm:flex-nowrap">
+                  {[
+                    { icon: '💳', title: 'Comprador paga',    desc: 'El monto se cobra de forma segura' },
+                    { icon: '🔒', title: 'Fondos retenidos',  desc: 'El dinero queda en custodia temporal' },
+                    { icon: '📦', title: 'Recibes el pago',   desc: 'Entrega el producto al comprador' },
+                    { icon: '✅', title: 'Confirma recepción', desc: 'Los fondos se liberan al vendedor' },
+                  ].map((step, i, arr) => (
+                    <div key={step.title} className="flex items-center gap-1">
+                      <div className="text-center min-w-[72px]">
+                        <div className="text-xl mb-1">{step.icon}</div>
+                        <div className="text-[11px] font-semibold text-blue-800 leading-tight">{step.title}</div>
+                        <div className="text-[10px] text-blue-600 leading-tight mt-0.5">{step.desc}</div>
+                      </div>
+                      {i < arr.length - 1 && <span className="text-blue-400 font-bold hidden sm:block mx-1">→</span>}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-blue-700 mt-3 pt-2 border-t border-blue-200">
+                  💡 Si el comprador no confirma la recepción en <strong>3 días hábiles</strong>, los fondos se liberan automáticamente. Powered by Stripe.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {ESCROW_OPTIONS.map(opt => (
+                <label
+                  key={opt.key}
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    escrowMode === opt.key
+                      ? `border-[var(--color-accent)] ${opt.color}`
+                      : 'border-[var(--color-border)] hover:border-gray-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="escrow_mode"
+                    value={opt.key}
+                    checked={escrowMode === opt.key}
+                    onChange={() => { setEscrowMode(opt.key); mark() }}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold">{opt.label}</div>
+                    <div className="text-xs text-[var(--color-muted)]">{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 5: Comunicación
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="comunicacion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Comunicación</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-3">
+              Cómo pueden contactarte los compradores desde tus anuncios.
+            </p>
+            <div className="divide-y divide-[var(--color-border)]">
+              <div>
+                <ToggleSwitch
+                  checked={showPhone}
+                  onChange={v => { setShowPhone(v); mark() }}
+                  label="Mostrar teléfono en anuncios"
+                  description="Los compradores pueden llamarte o enviarte SMS."
+                />
+                {showPhone && (
+                  <div className="pb-3">
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={e => { setPhoneNumber(e.target.value); mark() }}
+                      placeholder="55 1234 5678"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                    <p className="text-xs text-[var(--color-muted)] mt-1">Incluye LADA · p. ej. 55 1234 5678 (CDMX) ó 33 1234 5678 (GDL)</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <ToggleSwitch
+                  checked={whatsappCta}
+                  onChange={v => { setWhatsappCta(v); mark() }}
+                  label="Botón de WhatsApp"
+                  description='Añade un botón "Escribir por WhatsApp" en cada anuncio.'
+                />
+                {whatsappCta && (
+                  <div className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[var(--color-muted)]">+52</span>
+                      <input
+                        type="tel"
+                        value={whatsappHandle}
+                        onChange={e => { setWhatsappHandle(e.target.value); mark() }}
+                        placeholder="55 1234 5678"
+                        className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                      />
+                    </div>
+                    <p className="text-xs text-[var(--color-muted)] mt-1">Solo dígitos, sin espacios ni guiones</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 6: Envíos y Entregas
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="envios" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Envíos y Entregas</SectionTitle>
+            <div className="divide-y divide-[var(--color-border)]">
+              <div>
+                <ToggleSwitch
+                  checked={localPickup}
+                  onChange={v => { setLocalPickup(v); mark() }}
+                  label="Entrega en mano / recoger en tienda"
+                  description="El comprador puede pasar por el producto. Configura tus puntos de entrega abajo."
+                />
+                {localPickup && (
+                  <PickupSpotManager
+                    spots={pickupSpots}
+                    onUpdate={spots => { setPickupSpots(spots); mark() }}
+                    schedulingLinks={schedulingLinks}
+                  />
+                )}
+              </div>
+              <ToggleSwitch
+                checked={mercadoEnvios}
+                onChange={v => { setMercadoEnvios(v); mark() }}
+                label="Mercado Envíos"
+                description="Genera etiquetas de envío directamente desde tu tienda. (Próximamente)"
+                disabled
+              />
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 7: Citas y Reservas
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="citas" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl">📅</span>
+              <h2 className="font-semibold text-sm">Citas y Reservas</h2>
+            </div>
+            <p className="text-xs text-[var(--color-muted)] mb-2">
+              Para servicios, rentas, creadores y cualquier negocio que trabaje por cita.
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-5">
+              {['Consultas', 'Pruebas de manejo', 'Visitas a propiedades', 'Sesiones de fotos', 'Encuentros con fans', 'Clases', 'Rentas por hora'].map(tag => (
+                <span key={tag} className="text-[11px] bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)] px-2 py-0.5 rounded-full">
+                  {tag}
+                </span>
+              ))}
+            </div>
+
+            {/* Tier 1: booking links */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                  🔗 Mis enlaces de reservas
+                </p>
+                {schedulingLinks.length > 0 && (
+                  <span className="text-xs text-green-700 font-medium bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                    {schedulingLinks.length} enlace{schedulingLinks.length > 1 ? 's' : ''} guardado{schedulingLinks.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              {schedulingLinks.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  {schedulingLinks.map((link, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                      <span className="text-base">
+                        {link.url.includes('cal.com') ? '📅' : link.url.includes('calendly.com') ? '📆' : '🔗'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{link.label}</p>
+                        <p className="text-xs text-[var(--color-muted)] truncate">{link.url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSchedulingLinks(prev => prev.filter((_, j) => j !== i)); mark() }}
+                        className="text-xs text-red-500 hover:text-red-700 flex-shrink-0 px-1"
+                        aria-label="Eliminar enlace"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={newLinkUrl}
+                  onChange={e => setNewLinkUrl(e.target.value)}
+                  placeholder="https://cal.com/tu-usuario/consulta  ó  https://calendly.com/tu-usuario"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSchedulingLink() } }}
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newLinkLabel}
+                    onChange={e => setNewLinkLabel(e.target.value)}
+                    placeholder="Etiqueta (opcional) — se detecta automáticamente"
+                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={addSchedulingLink}
+                    disabled={!newLinkUrl.trim()}
+                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-[var(--color-muted)] mt-2">
+                Funciona con Cal.com, Calendly, Acuity, TidyCal, Google Calendar y cualquier enlace de reservas.
+              </p>
+
+              {schedulingLinks.length === 0 && !calcomConnected && (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+                  <strong>¿No tienes cuenta de agendamiento?</strong> Cal.com es gratuito, tarda 3 minutos y te da una página profesional.{' '}
+                  <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-amber-900">
+                    Crear cuenta gratis ↗
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Tier 2: Cal.com API */}
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                    ✨ Cal.com — Agentes de IA
+                  </p>
+                  <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                    {calcomConnected
+                      ? 'Los agentes de IA pueden verificar disponibilidad y agendar automáticamente.'
+                      : 'Conecta tu API key para que agentes de IA agenden citas en tu nombre.'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCalcomDisconnect}
-                  className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
-                >
-                  Desconectar
-                </button>
+                {!calcomConnected && !calcomPickStep && (
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyForm(v => !v)}
+                    className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 ml-3"
+                  >
+                    {showApiKeyForm ? 'Ocultar' : 'Conectar API →'}
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-[var(--color-muted)]">
-                Los agentes de IA (Claude, ChatGPT, etc.) pueden verificar disponibilidad y agendar citas en tiempo real.
-              </p>
+
+              {calcomConnected ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <span className="text-lg">✓</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
+                      <p className="text-xs text-green-600 mt-0.5 truncate">
+                        Evento: {calcomEventTitle} ·{' '}
+                        <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                          Ver página ↗
+                        </a>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCalcomDisconnect}
+                      className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
+                    >
+                      Desconectar
+                    </button>
+                  </div>
+                </div>
+              ) : calcomPickStep ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
+                  <div className="space-y-2">
+                    {calcomEventTypes.map(et => (
+                      <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="cal_event_type"
+                          checked={calcomPickEventTypeId === et.id}
+                          onChange={() => setCalcomPickEventTypeId(et.id)}
+                          className="accent-[var(--color-accent)]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">{et.title}</p>
+                          <p className="text-xs text-[var(--color-muted)]">/{et.slug}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
+                      className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!calcomPickEventTypeId || calcomConnecting}
+                      onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
+                      className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
+                    </button>
+                  </div>
+                </div>
+              ) : showApiKeyForm ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">
+                      API Key de Cal.com
+                      <a
+                        href="https://app.cal.com/settings/developer/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-[var(--color-accent)] font-normal no-underline hover:underline"
+                      >
+                        Obtener API key ↗
+                      </a>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={calcomApiKey}
+                        onChange={e => setCalcomApiKey(e.target.value)}
+                        placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
+                        className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                      />
+                      <button
+                        type="button"
+                        disabled={!calcomApiKey.trim() || calcomConnecting}
+                        onClick={() => handleCalcomConnect()}
+                        className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                      >
+                        {calcomConnecting ? 'Verificando…' : 'Conectar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
+                    <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
+                    <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                      <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
+                      <li>Crea una nueva API key (nombre: &ldquo;Miyagi Sánchez&rdquo;)</li>
+                      <li>Copia y pega la key aquí arriba</li>
+                    </ol>
+                  </div>
+                </div>
+              ) : (
+                schedulingLinks.length > 0 && (
+                  <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                    💡 <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
+                    <button type="button" onClick={() => setShowApiKeyForm(true)} className="text-[var(--color-accent)] hover:underline">
+                      Conectar →
+                    </button>
+                  </p>
+                )
+              )}
             </div>
-          ) : calcomPickStep ? (
-            /* Event type picker */
-            <div className="space-y-3">
-              <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
-              <div className="space-y-2">
-                {calcomEventTypes.map(et => (
-                  <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                    calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
-                  }`}>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 8: Pagos en línea (Stripe Connect)
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="stripe" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Pagos con tarjeta (Stripe)</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Acepta pagos con tarjeta directamente en tu tienda. Sin comisiones de plataforma — solo la tarifa estándar de Stripe.
+            </p>
+
+            {stripeError && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+                <span className="font-semibold">Error al conectar Stripe:</span>{' '}{stripeError}
+              </div>
+            )}
+
+            {initial.stripe?.charges_enabled ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-green-800">Cuenta Stripe conectada</div>
+                    <div className="text-xs text-green-700 mt-0.5">Tu cuenta está activa y lista para recibir pagos con tarjeta.</div>
+                  </div>
+                  <a href="/api/stripe/connect/dashboard" className="text-xs text-green-700 underline hover:text-green-900 flex-shrink-0">
+                    Gestionar →
+                  </a>
+                </div>
+                <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)]">
+                  <ToggleSwitch
+                    checked={stripeEnabled}
+                    onChange={v => { setStripeEnabled(v); mark() }}
+                    label="Aceptar pagos con tarjeta (Stripe)"
+                    description="Muestra el botón de pago con tarjeta en tus anuncios."
+                  />
+                </div>
+              </div>
+            ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <div className="text-sm font-semibold text-amber-800">Configuración pendiente</div>
+                    <div className="text-xs text-amber-700 mt-0.5">
+                      Completa la configuración de tu cuenta Stripe para empezar a cobrar.
+                    </div>
+                  </div>
+                </div>
+                <a href="/api/stripe/connect/refresh"
+                  className="flex items-center justify-center gap-2 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-amber-700 transition-colors">
+                  Completar configuración →
+                </a>
+              </div>
+            ) : (
+              <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <span className="text-2xl">💳</span>
+                  <div>
+                    <div className="text-sm font-semibold">Acepta tarjetas en tu tienda</div>
+                    <ul className="text-xs text-[var(--color-muted)] mt-1.5 space-y-0.5">
+                      <li>✓ Visa, Mastercard, AMEX</li>
+                      <li>✓ 0% comisión de plataforma</li>
+                      <li>✓ Pagos directos a tu cuenta bancaria</li>
+                      <li>✓ Configuración en 2 minutos</li>
+                    </ul>
+                  </div>
+                </div>
+                <a href="/api/stripe/connect"
+                  className="flex items-center justify-center gap-2 w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-[var(--color-accent-hover)] transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                  </svg>
+                  Conectar Stripe
+                </a>
+                <p className="text-[10px] text-center text-[var(--color-muted)] mt-2">
+                  Serás redirigido a Stripe para crear o conectar tu cuenta.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 9: MercadoPago
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="mercadopago" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Mercado Pago</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Permite a tus compradores pagar con tarjeta, OXXO, wallet y meses sin intereses a través de Mercado Pago.
+            </p>
+            <div className="divide-y divide-[var(--color-border)]">
+              <ToggleSwitch
+                checked={mpEnabled}
+                onChange={v => { setMpEnabled(v); mark() }}
+                label="Activar Mercado Pago"
+                description="Muestra el botón de Mercado Pago en tus anuncios físicos."
+              />
+            </div>
+            {!mpEnabled && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                El botón de Mercado Pago estará oculto en tus anuncios mientras esté desactivado.
+              </p>
+            )}
+            <div className="mt-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+              <div className="flex items-start gap-2">
+                <span className="text-base mt-0.5">💡</span>
+                <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+                  <strong>Próximamente:</strong> conecta tu propia cuenta de Mercado Pago para recibir pagos directamente, sin intermediarios.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 10: Transferencia bancaria (SPEI)
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="spei" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Permite que tus compradores paguen por transferencia bancaria. Tú confirmas el pago manualmente antes de entregar.
+            </p>
+            <div className="divide-y divide-[var(--color-border)]">
+              <ToggleSwitch
+                checked={bankTransferEnabled}
+                onChange={v => { setBankTransferEnabled(v); mark() }}
+                label="Aceptar transferencias bancarias"
+                description="Aparecerá como opción de pago en tus anuncios."
+              />
+            </div>
+
+            {bankTransferEnabled && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    CLABE interbancaria <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={clabe}
+                    onChange={e => { setClabe(e.target.value.replace(/\D/g, '').slice(0, 18)); mark() }}
+                    maxLength={18}
+                    placeholder="18 dígitos"
+                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  />
+                  {clabe && clabe.length !== 18 && (
+                    <p className="text-amber-600 text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Banco</label>
                     <input
-                      type="radio"
-                      name="cal_event_type"
-                      checked={calcomPickEventTypeId === et.id}
-                      onChange={() => setCalcomPickEventTypeId(et.id)}
-                      className="accent-[var(--color-accent)]"
+                      value={bankName}
+                      onChange={e => { setBankName(e.target.value); mark() }}
+                      placeholder="BBVA, Banorte, HSBC…"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Titular de la cuenta</label>
+                    <input
+                      value={accountHolder}
+                      onChange={e => { setAccountHolder(e.target.value); mark() }}
+                      placeholder="Nombre completo"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                  💡 El comprador verá estos datos al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 11: Ofertas y Negociación
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="ofertas" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Ofertas y Negociación</SectionTitle>
+
+            {/* Trust gate */}
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1">
+                Nivel mínimo de comprador
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">
+                Los compradores por debajo del nivel elegido no podrán enviarte una oferta.
+              </p>
+              <div className="space-y-2">
+                {([
+                  { value: 'unverified', label: '⚠️ Sin verificar', desc: 'Cualquier persona puede hacer una oferta.' },
+                  { value: 'basic',      label: '📧 Básico',        desc: 'Solo compradores con correo verificado.' },
+                  { value: 'trusted',    label: '🤝 Confiable',     desc: 'Correo + teléfono o al menos 1 compra previa.' },
+                  { value: 'verified',   label: '✓ Verificado',     desc: 'Historial sólido de compras y cuenta establecida.' },
+                  { value: 'elite',      label: '⭐ Elite',         desc: 'Solo los compradores más confiables de la plataforma.' },
+                ] as const).map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                      minBuyerTrust === opt.value
+                        ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
+                        : 'border-[var(--color-border)] hover:border-gray-400'
+                    }`}
+                  >
+                    <input type="radio" name="min_buyer_trust" value={opt.value}
+                      checked={minBuyerTrust === opt.value}
+                      onChange={() => { setMinBuyerTrust(opt.value); mark() }}
+                      className="accent-[var(--color-accent)]" />
                     <div>
-                      <p className="text-sm font-medium">{et.title}</p>
-                      <p className="text-xs text-[var(--color-muted)]">/{et.slug}</p>
+                      <div className="text-sm font-semibold">{opt.label}</div>
+                      <div className="text-xs text-[var(--color-muted)]">{opt.desc}</div>
                     </div>
                   </label>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
-                  className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={!calcomPickEventTypeId || calcomConnecting}
-                  onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
-                  className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
-                >
-                  {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
-                </button>
-              </div>
             </div>
-          ) : showApiKeyForm ? (
-            /* API key form */
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium mb-1.5">
-                  API Key de Cal.com
-                  <a
-                    href="https://app.cal.com/settings/developer/api-keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2 text-[var(--color-accent)] font-normal no-underline hover:underline"
-                  >
-                    Obtener API key ↗
-                  </a>
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={calcomApiKey}
-                    onChange={e => setCalcomApiKey(e.target.value)}
-                    placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
-                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                  />
-                  <button
-                    type="button"
-                    disabled={!calcomApiKey.trim() || calcomConnecting}
-                    onClick={() => handleCalcomConnect()}
-                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
-                  >
-                    {calcomConnecting ? 'Verificando…' : 'Conectar'}
-                  </button>
+
+            {/* Negotiation rules */}
+            <div className="pt-5 border-t border-[var(--color-border)]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1">
+                Negociación automática
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">
+                Responde ofertas automáticamente sin revisar cada una. Ideal para catálogos grandes.
+              </p>
+              <div className="divide-y divide-[var(--color-border)]">
+                <ToggleSwitch
+                  checked={negoEnabled}
+                  onChange={v => { setNegoEnabled(v); mark() }}
+                  label="Activar negociación automática"
+                  description="Las ofertas dentro de tus rangos se responden al instante."
+                />
+              </div>
+
+              {negoEnabled && (
+                <div className="mt-4 space-y-4">
+                  {[
+                    { label: 'Aceptar automáticamente si la oferta es ≥', value: acceptPct, set: setAcceptPct, color: 'green', hint: `Ofertas a ${acceptPct}% o más del precio de lista se aceptan al instante.` },
+                    { label: 'Contraofertear al', value: counterPct, set: setCounterPct, color: 'amber', hint: `Si la oferta está entre ${declinePct}% y ${acceptPct}%, se contraoferta al ${counterPct}% del precio.` },
+                    { label: 'Rechazar automáticamente si la oferta es <', value: declinePct, set: setDeclinePct, color: 'red', hint: `Ofertas por debajo del ${declinePct}% se rechazan automáticamente.` },
+                  ].map(row => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm font-medium">{row.label}</label>
+                        <span className={`text-sm font-bold tabular-nums ${
+                          row.color === 'green' ? 'text-green-700' : row.color === 'amber' ? 'text-amber-700' : 'text-red-700'
+                        }`}>{row.value}%</span>
+                      </div>
+                      <input
+                        type="range" min={0} max={100} step={5}
+                        value={row.value}
+                        onChange={e => { row.set(parseInt(e.target.value)); mark() }}
+                        className="w-full accent-[var(--color-accent)]"
+                      />
+                      <p className="text-xs text-[var(--color-muted)] mt-0.5">{row.hint}</p>
+                    </div>
+                  ))}
+
+                  {declinePct >= acceptPct && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      ⚠ El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
+                    </p>
+                  )}
+                  {counterPct > acceptPct && (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      ⚠ El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
+                    </p>
+                  )}
                 </div>
-              </div>
-              <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
-                <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
-                <ol className="list-decimal list-inside space-y-0.5 ml-1">
-                  <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
-                  <li>Crea una nueva API key (nombre: &ldquo;Miyagi Sánchez&rdquo;)</li>
-                  <li>Copia y pega la key aquí arriba</li>
-                  <li>Cal.com es gratis — incluye agendamiento ilimitado</li>
-                </ol>
-              </div>
-              {!schedulingLinks.length && (
-                <p className="text-xs text-[var(--color-muted)]">
-                  ¿Prefieres algo más sencillo? Cierra este formulario y pega tu enlace de reservas arriba.
-                </p>
               )}
             </div>
-          ) : (
-            /* Collapsed — show upgrade nudge only if they have links but no API */
-            schedulingLinks.length > 0 && (
-              <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                💡 <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
-                <button type="button" onClick={() => setShowApiKeyForm(true)} className="text-[var(--color-accent)] hover:underline">
-                  Conectar →
-                </button>
-              </p>
-            )
-          )}
-        </div>
-      </section>
+          </section>
 
-      {/* ── Save button ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <Link href="/shop/manage" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
-          ← Volver al panel
-        </Link>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 12: Notificaciones
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="notificaciones" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Notificaciones por correo</SectionTitle>
+            <div className="divide-y divide-[var(--color-border)]">
+              <ToggleSwitch
+                checked={emailMessage}
+                onChange={v => { setEmailMessage(v); mark() }}
+                label="Nuevo mensaje de un comprador"
+              />
+              <ToggleSwitch
+                checked={emailView}
+                onChange={v => { setEmailView(v); mark() }}
+                label="Mi anuncio recibió visitas"
+                description="Resumen diario cuando tus anuncios tienen nuevas vistas."
+              />
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 13: Conectar tu sistema (UCP Webhook)
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="webhook" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Conectar tu sistema</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Recibe una notificación automática cada vez que se complete una venta — directo a tu herramienta o sistema.
+            </p>
+
+            {/* Explainer cuando no hay URL */}
+            {!webhookUrl && (
+              <div className="mb-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl p-4">
+                <p className="text-xs font-semibold mb-2">¿Para qué sirve esto?</p>
+                <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
+                  Cuando alguien compra en tu tienda, enviamos los datos del pedido (comprador, artículo, monto, dirección) a la URL que configures. Es como una llamada automática de &ldquo;llegó un pedido&rdquo; a tu sistema.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {['Zapier', 'Make.com', 'n8n', 'CRM propio', 'ERP', 'Sistema de inventarios'].map(tool => (
+                    <span key={tool} className="text-xs bg-white border border-[var(--color-border)] text-[var(--color-muted)] px-2.5 py-1 rounded-full">
+                      {tool}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--color-muted)] mt-3">
+                  Si no tienes un sistema técnico, <strong>no necesitas esto</strong>. Puedes gestionar pedidos directamente desde tu panel.
+                </p>
+              </div>
+            )}
+
+            {/* URL input */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">URL de notificación</label>
+                <input
+                  value={webhookUrl}
+                  onChange={e => {
+                    const v = e.target.value
+                    setWebhookUrl(v)
+                    mark()
+                    if (v && !v.startsWith('https://')) {
+                      setWebhookUrlError('La URL debe comenzar con https://')
+                    } else {
+                      setWebhookUrlError('')
+                    }
+                  }}
+                  type="url"
+                  placeholder="https://tu-sistema.com/pedidos"
+                  className={`w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
+                    webhookUrlError || fieldErrors.webhook ? 'border-red-400' : 'border-[var(--color-border)]'
+                  }`}
+                />
+                {(webhookUrlError || fieldErrors.webhook) && (
+                  <p className="text-red-600 text-xs mt-1">⚠ {webhookUrlError || fieldErrors.webhook}</p>
+                )}
+              </div>
+
+              {/* Secret display */}
+              {webhookUrl && !webhookUrlError && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-medium">Clave de seguridad</label>
+                    {!webhookSecret && (
+                      <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        Se genera al guardar
+                      </span>
+                    )}
+                  </div>
+
+                  {webhookSecret ? (
+                    <div className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                      <code className="flex-1 text-xs font-mono text-[var(--color-muted)] truncate">
+                        {showWebhookSecret ? webhookSecret : '•'.repeat(Math.min(webhookSecret.length, 32))}
+                      </code>
+                      <button type="button"
+                        onClick={() => setShowWebhookSecret(v => !v)}
+                        className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] flex-shrink-0 px-1.5">
+                        {showWebhookSecret ? 'Ocultar' : 'Ver'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(webhookSecret)
+                          setWebhookCopied(true)
+                          setTimeout(() => setWebhookCopied(false), 2000)
+                        }}
+                        className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
+                      >
+                        {webhookCopied ? '✓ Copiado' : 'Copiar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setWebhookSecret(generateHex32()); mark() }}
+                        className="text-xs text-[var(--color-muted)] border border-[var(--color-border)] rounded px-2 py-0.5 hover:bg-gray-100 flex-shrink-0"
+                      >
+                        Regenerar
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                      🔐 Cuando guardes los cambios, se generará una clave secreta automáticamente. Úsala para verificar que las notificaciones vienen de Miyagi Sánchez.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Modo avanzado */}
+              {webhookUrl && !webhookUrlError && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setWebhookAdvanced(v => !v)}
+                    className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] flex items-center gap-1"
+                  >
+                    <span>{webhookAdvanced ? '▾' : '▸'}</span>
+                    Modo avanzado — HMAC-SHA256
+                  </button>
+
+                  {webhookAdvanced && (
+                    <div className="mt-3 space-y-3 pl-3 border-l-2 border-[var(--color-border)]">
+                      <p className="text-xs text-[var(--color-muted)]">
+                        Verifica la firma en el header <code className="font-mono bg-gray-100 px-1 rounded">X-UCP-Signature</code> usando HMAC-SHA256 con tu clave secreta y el cuerpo del request.
+                      </p>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Clave personalizada (opcional)</label>
+                        <div className="flex gap-2">
+                          <input
+                            value={webhookSecret}
+                            onChange={e => { setWebhookSecret(e.target.value); mark() }}
+                            type={showWebhookSecret ? 'text' : 'password'}
+                            placeholder="Ingresa tu propia clave o usa la generada"
+                            className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                          />
+                          <button type="button" onClick={() => setShowWebhookSecret(v => !v)}
+                            className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50">
+                            {showWebhookSecret ? 'Ocultar' : 'Ver'}
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPayloadPreview(v => !v)}
+                        className="text-xs text-[var(--color-accent)] hover:underline"
+                      >
+                        {showPayloadPreview ? '▾' : '▸'} ¿Qué datos recibes? — Ver ejemplo de payload
+                      </button>
+                      {showPayloadPreview && (
+                        <div className="relative">
+                          <pre className="text-[10px] bg-gray-900 text-green-400 rounded-lg p-3 overflow-x-auto leading-relaxed">{`{
+  "event": "order.completed",
+  "order_id": "ord_abc123",
+  "created_at": "2025-05-23T12:00:00Z",
+  "listing": {
+    "id": "lst_xyz",
+    "title": "iPhone 14 Pro Max",
+    "price_mxn": 18500
+  },
+  "buyer": {
+    "email": "comprador@ejemplo.com",
+    "trust_level": "verified",
+    "trust_score": 82
+  },
+  "payment": {
+    "method": "stripe",
+    "status": "paid"
+  }
+}`}</pre>
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText('{"event":"order.completed","order_id":"ord_abc123"}')}
+                            className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 14: Gestión de pedidos (scaffold)
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5 opacity-60">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
+                Gestión de pedidos
+              </h2>
+              <SoonBadge />
+            </div>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Configura tiempos de procesamiento, ventanas de despacho y cómo manejas la confirmación de pedidos. Estas opciones se mostrarán a los compradores antes de pagar.
+            </p>
+            <div className="space-y-2 pointer-events-none select-none">
+              {[
+                { label: 'Tiempo de procesamiento', desc: '1 día · 2-3 días · 1 semana · Personalizado' },
+                { label: 'Confirmación automática de pedidos', desc: 'Acepta pedidos al instante sin revisión manual' },
+                { label: 'Ventana de despacho', desc: 'Días disponibles para coordinar la entrega con el comprador' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-[var(--color-muted)]">{item.desc}</p>
+                  </div>
+                  <div className="w-16 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 15: Política de devoluciones (scaffold)
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="politicas" className="border border-[var(--color-border)] rounded-xl p-5 mb-8 opacity-60">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
+                Política de devoluciones
+              </h2>
+              <SoonBadge />
+            </div>
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Define claramente qué pasa cuando un comprador quiere devolver un artículo. Se mostrará en el pie de cada anuncio y al finalizar una compra.
+            </p>
+            <div className="grid grid-cols-2 gap-2 pointer-events-none select-none">
+              {['Sin devoluciones', '7 días', '30 días', 'Personalizado'].map(opt => (
+                <div key={opt} className="p-3 rounded-lg border-2 border-[var(--color-border)] bg-gray-50">
+                  <p className="text-sm font-medium text-[var(--color-muted)]">{opt}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Save button ───────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between mb-24">
+            <Link href="/shop/manage" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
+              ← Volver al panel
+            </Link>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+          </div>
+
+        </main>
       </div>
+
+      {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
+      {isDirty && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
+              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              Tienes cambios sin guardar
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
     </div>

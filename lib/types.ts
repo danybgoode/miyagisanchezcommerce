@@ -87,6 +87,75 @@ export const CATEGORIES = [
 
 export type CategoryKey = typeof CATEGORIES[number]['key']
 
+export const MAJOR_MEXICAN_CITIES = [
+  // CDMX
+  'Ciudad de México', 'Iztapalapa', 'Gustavo A. Madero', 'Álvaro Obregón', 'Tlalpan', 'Coyoacán',
+  // Estado de México
+  'Ecatepec', 'Toluca', 'Naucalpan', 'Nezahualcóyotl', 'Tlalnepantla', 'Chimalhuacán',
+  'Tultitlán', 'Nicolás Romero', 'Texcoco',
+  // Jalisco
+  'Guadalajara', 'Zapopan', 'San Pedro Tlaquepaque', 'Tonalá', 'Tlajomulco de Zúñiga', 'Puerto Vallarta',
+  // Nuevo León
+  'Monterrey', 'San Nicolás de los Garza', 'Guadalupe', 'San Pedro Garza García', 'Apodaca',
+  'Santa Catarina', 'Escobedo',
+  // Puebla
+  'Puebla', 'Tehuacán', 'San Andrés Cholula',
+  // Guanajuato
+  'León', 'Irapuato', 'Celaya', 'Salamanca', 'Guanajuato',
+  // Chihuahua
+  'Ciudad Juárez', 'Chihuahua', 'Delicias', 'Cuauhtémoc',
+  // Veracruz
+  'Veracruz', 'Xalapa', 'Coatzacoalcos', 'Minatitlán', 'Córdoba', 'Orizaba',
+  // Tamaulipas
+  'Reynosa', 'Matamoros', 'Tampico', 'Nuevo Laredo', 'Ciudad Victoria',
+  // Baja California
+  'Tijuana', 'Mexicali', 'Ensenada', 'Tecate',
+  // Sonora
+  'Hermosillo', 'Ciudad Obregón', 'Nogales', 'Guaymas',
+  // Coahuila
+  'Saltillo', 'Torreón', 'Monclova', 'Piedras Negras',
+  // Sinaloa
+  'Culiacán', 'Mazatlán', 'Los Mochis',
+  // Quintana Roo
+  'Cancún', 'Playa del Carmen', 'Chetumal', 'Tulum', 'Cozumel',
+  // Michoacán
+  'Morelia', 'Uruapan', 'Zamora',
+  // Oaxaca
+  'Oaxaca', 'Salina Cruz',
+  // Guerrero
+  'Acapulco', 'Chilpancingo', 'Zihuatanejo',
+  // Yucatán
+  'Mérida', 'Valladolid',
+  // Hidalgo
+  'Pachuca', 'Tula',
+  // Querétaro
+  'Querétaro', 'San Juan del Río',
+  // Tabasco
+  'Villahermosa', 'Cárdenas',
+  // Morelos
+  'Cuernavaca', 'Jiutepec', 'Cuautla',
+  // Aguascalientes
+  'Aguascalientes',
+  // Durango
+  'Durango', 'Gómez Palacio',
+  // Zacatecas
+  'Zacatecas', 'Fresnillo',
+  // San Luis Potosí
+  'San Luis Potosí', 'Ciudad Valles',
+  // Chiapas
+  'Tuxtla Gutiérrez', 'San Cristóbal de las Casas', 'Tapachula',
+  // Nayarit
+  'Tepic', 'Bahía de Banderas',
+  // Baja California Sur
+  'La Paz', 'Los Cabos', 'Cabo San Lucas', 'San José del Cabo',
+  // Tlaxcala
+  'Tlaxcala',
+  // Colima
+  'Colima', 'Manzanillo',
+  // Campeche
+  'Campeche', 'Ciudad del Carmen',
+] as const
+
 export const MEXICAN_STATES = [
   'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche',
   'Chiapas', 'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima', 'Durango',
