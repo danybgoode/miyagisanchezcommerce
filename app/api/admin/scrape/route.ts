@@ -4,6 +4,8 @@ import { collectSerpApiLocal, scrapeSerpApiLocal } from '@/lib/scrapers/serpapi'
 import { collectMLSeller, scrapeMercadoLibre, scrapeMLSeller } from '@/lib/scrapers/mercadolibre'
 import { saveScrapeRunItems, type ScrapeCollectResult } from '@/lib/adminScrapeExport'
 
+export const dynamic = 'force-dynamic'
+
 function checkSecret(req: NextRequest): boolean {
   const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
   return secret === process.env.ADMIN_SECRET
