@@ -9,10 +9,37 @@
   "theme_color": "#1d6f42",
   "lang": "es-MX",
   "icons": [
-    { "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/monogram.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Publicar", "short_name": "Publicar", "url": "/sell" },
-    { "name": "Explorar", "short_name": "Explorar", "url": "/l" }
-  ]
+    {
+      "name": "Publicar anuncio",
+      "short_name": "Publicar",
+      "description": "Publica un nuevo artículo en segundos",
+      "url": "/sell",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Explorar anuncios",
+      "short_name": "Explorar",
+      "description": "Busca en el marketplace",
+      "url": "/l",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
+  "categories": ["shopping", "business"],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+  
+  <defs>
+    <radialGradient id="msGrad" cx="35%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#2a8a55"></stop>
+      <stop offset="1" stop-color="#0f3c25"></stop>
+    </radialGradient>
+  </defs>
+  <circle cx="48" cy="48" r="46" fill="url(#msGrad)"></circle>
+  <circle cx="48" cy="48" r="46" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"></circle>
+  <text x="48" y="63" text-anchor="middle" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-weight="700" font-size="42" letter-spacing="-2" fill="#f9f9f7">MS</text>
+</svg>

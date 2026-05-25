@@ -3,14 +3,43 @@ import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import './globals.css'
 
+const BASE_URL = 'https://miyagisanchez.com'
+
 export const metadata: Metadata = {
-  title: { default: 'Miyagi Sánchez — Marketplace', template: '%s | Miyagi Sánchez' },
-  description: 'Compra y vende sin comisiones. El marketplace hecho para ti.',
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: 'Miyagi Sánchez — Infraestructura de comercio',
+    template: '%s | Miyagi Sánchez',
+  },
+  description:
+    'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
+  keywords: ['marketplace', 'vender online', 'sin comisiones', 'México', 'comprar y vender'],
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Miyagi Sánchez',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'es_MX',
+    url: BASE_URL,
+    siteName: 'Miyagi Sánchez',
+    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    description:
+      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    description:
+      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic.',
+    site: '@miyagisanchez',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
   },
 }
 
@@ -59,16 +88,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 8,
                     textDecoration: 'none',
-                    color: 'var(--fg)',
-                    fontWeight: 700,
-                    fontSize: 16,
-                    letterSpacing: '-0.01em',
                     lineHeight: 1,
+                    gap: 0,
                   }}
                 >
-                  Miyagi Sánchez
+                  <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>Miyagi</span>
+                  <span style={{ color: 'var(--accent)', fontSize: 9, margin: '0 3px', lineHeight: 1, position: 'relative', top: 1 }}>●</span>
+                  <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>Sánchez</span>
                 </a>
 
                 {/* Desktop nav — hidden on mobile (tab bar handles it) */}
