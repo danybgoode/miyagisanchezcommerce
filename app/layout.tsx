@@ -160,10 +160,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     />
                   </a>
 
-                  {/* Search bar */}
+                  {/* Search bar — hidden in PWA standalone (search is in bottom tab bar) */}
                   <form
                     action="/l"
                     method="GET"
+                    className="pwa-search-hide"
                     style={{ flex: 1, minWidth: 0 }}
                   >
                     <div style={{ position: 'relative' }}>
@@ -199,6 +200,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       />
                     </div>
                   </form>
+
+                  {/* Fills the space left by hidden search bar in PWA mode */}
+                  <div className="pwa-spacer" />
 
                   {/* Sell icon */}
                   <a

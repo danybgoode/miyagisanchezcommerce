@@ -10,16 +10,21 @@
   "lang": "es-MX",
   "icons": [
     {
+      "src": "/api/icon?size=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/api/icon?size=512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    },
-    {
-      "src": "/monogram.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -28,14 +33,14 @@
       "short_name": "Publicar",
       "description": "Publica un nuevo artículo en segundos",
       "url": "/sell",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/api/icon?size=192", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Explorar anuncios",
       "short_name": "Explorar",
       "description": "Busca en el marketplace",
       "url": "/l",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/api/icon?size=192", "sizes": "192x192", "type": "image/png" }]
     }
   ],
   "categories": ["shopping", "business"],
