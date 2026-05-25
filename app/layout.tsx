@@ -122,10 +122,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               className="glass"
               style={{
                 borderRadius: 'var(--r-lg)',
-                minHeight: 48,
+                minHeight: 56,
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 16px',
+                padding: '0 18px',
               }}
             >
               <div
@@ -144,36 +144,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="flex md:hidden"
                   style={{ alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}
                 >
-                  {/* Compact wordmark */}
+                  {/* MS monogram favicon — compact, saves space for search */}
                   <a
                     href="/"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      textDecoration: 'none',
-                      flexShrink: 0,
-                      gap: 0,
-                      lineHeight: 1,
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}
+                    aria-label="Miyagi Sánchez — inicio"
                   >
-                    <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)' }}>
-                      Miyagi
-                    </span>
-                    <span
-                      style={{
-                        color: 'var(--accent)',
-                        fontSize: 7,
-                        margin: '0 2px',
-                        position: 'relative',
-                        top: 0,
-                        lineHeight: 1,
-                      }}
-                    >
-                      ●
-                    </span>
-                    <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)' }}>
-                      Sánchez
-                    </span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/favicon.svg"
+                      alt="MS"
+                      width={30}
+                      height={30}
+                      style={{ borderRadius: 7, display: 'block' }}
+                    />
                   </a>
 
                   {/* Search bar */}
@@ -202,7 +186,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         placeholder="¿Qué estás buscando?"
                         style={{
                           width: '100%',
-                          height: 34,
+                          height: 38,
                           background: 'var(--bg-sunk)',
                           border: '1px solid var(--border)',
                           borderRadius: 'var(--r-pill)',

@@ -6,27 +6,9 @@ export default async function HomePage() {
   const recent = await getRecentListings(8)
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Search */}
-      <div className="mb-6">
-        <h1 className="t-h2 mb-4">¿Qué estás buscando?</h1>
-        <form action="/l" method="GET" className="flex gap-2 max-w-xl">
-          <input
-            name="q"
-            type="search"
-            placeholder="Buscar productos, servicios..."
-            className="input"
-            style={{ borderRadius: 'var(--r-pill)' }}
-          />
-          <button type="submit" className="btn btn-primary" style={{ flexShrink: 0 }}>
-            <i className="iconoir-search" style={{ fontSize: 16 }} />
-            Buscar
-          </button>
-        </form>
-      </div>
-
+    <div className="max-w-6xl mx-auto px-4 py-4">
       {/* Category chips — horizontal scroll on mobile */}
-      <div className="chip-rail mb-8">
+      <div className="chip-rail mb-6">
         {CATEGORIES.map(cat => (
           <Link
             key={cat.key}
