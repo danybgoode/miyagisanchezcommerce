@@ -45,7 +45,7 @@ export default function MobileTabBar() {
 
   return (
     <nav
-      className="md:hidden"
+      className="pwa-only"
       style={{
         position: 'fixed',
         bottom: 'max(18px, env(safe-area-inset-bottom))',

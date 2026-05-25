@@ -1,9 +1,34 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
+import AIAgentButton from '@/app/components/AIAgentButton'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
+
+// iOS splash screens — pixel dimensions for every modern iPhone viewport
+const SPLASH_SCREENS = [
+  // iPhone SE 1st gen
+  { dw: 320, dh: 568, dpr: 2, pw: 640,  ph: 1136 },
+  // iPhone 8 / 7 / 6s / 6
+  { dw: 375, dh: 667, dpr: 2, pw: 750,  ph: 1334 },
+  // iPhone 8 Plus / 7 Plus / 6s Plus
+  { dw: 414, dh: 736, dpr: 3, pw: 1242, ph: 2208 },
+  // iPhone X / XS / 11 Pro / 12 mini / 13 mini
+  { dw: 375, dh: 812, dpr: 3, pw: 1125, ph: 2436 },
+  // iPhone XR / 11
+  { dw: 414, dh: 896, dpr: 2, pw: 828,  ph: 1792 },
+  // iPhone XS Max / 11 Pro Max
+  { dw: 414, dh: 896, dpr: 3, pw: 1242, ph: 2688 },
+  // iPhone 12 / 12 Pro / 13 / 13 Pro / 14
+  { dw: 390, dh: 844, dpr: 3, pw: 1170, ph: 2532 },
+  // iPhone 12 Pro Max / 13 Pro Max / 14 Plus
+  { dw: 428, dh: 926, dpr: 3, pw: 1284, ph: 2778 },
+  // iPhone 14 Pro / 15 / 15 Pro
+  { dw: 393, dh: 852, dpr: 3, pw: 1179, ph: 2556 },
+  // iPhone 14 Pro Max / 15 Plus / 15 Pro Max
+  { dw: 430, dh: 932, dpr: 3, pw: 1290, ph: 2796 },
+] as const
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -67,85 +92,225 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css"
           />
+
+          {/* iOS PWA: explicit apple-touch-icon for Safari (stable URL beats Next.js hashed path) */}
+          <link rel="apple-touch-icon" href="/apple-icon.png" />
+
+          {/* iOS PWA: splash screens for every iPhone viewport.
+              Apple fetches these once at Add-to-Home-Screen time.
+              The /api/splash route renders them via ImageResponse. */}
+          {SPLASH_SCREENS.map(({ dw, dh, dpr, pw, ph }) => (
+            <link
+              key={`${pw}x${ph}`}
+              rel="apple-touch-startup-image"
+              media={`screen and (device-width: ${dw}px) and (device-height: ${dh}px) and (-webkit-device-pixel-ratio: ${dpr}) and (orientation: portrait)`}
+              href={`/api/splash?w=${pw}&h=${ph}`}
+            />
+          ))}
         </head>
         <body>
-          {/* Floating glass header */}
-          <div style={{ position: 'sticky', top: 0, zIndex: 50, padding: '12px 12px 0', background: 'transparent' }}>
+          {/* ── Sticky header ── */}
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+              padding: '8px 8px 0',
+            }}
+          >
             <header
               className="glass"
               style={{
                 borderRadius: 'var(--r-lg)',
-                height: 48,
+                minHeight: 48,
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 20px',
+                padding: '0 16px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 1152, margin: '0 auto', gap: 16 }}>
-                {/* Wordmark */}
-                <a
-                  href="/"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    textDecoration: 'none',
-                    lineHeight: 1,
-                    gap: 0,
-                  }}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  width: '100%',
+                  maxWidth: 1152,
+                  margin: '0 auto',
+                  gap: 12,
+                }}
+              >
+
+                {/* ── MOBILE LAYOUT: logo + search + actions ── */}
+                <div
+                  className="flex md:hidden"
+                  style={{ alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}
                 >
-                  <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>Miyagi</span>
-                  <span style={{ color: 'var(--accent)', fontSize: 9, margin: '0 3px', lineHeight: 1, position: 'relative', top: 1 }}>●</span>
-                  <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>Sánchez</span>
-                </a>
-
-                {/* Desktop nav — hidden on mobile (tab bar handles it) */}
-                <nav className="hidden md:flex" style={{ alignItems: 'center', gap: 12 }}>
+                  {/* Compact wordmark */}
                   <a
-                    href="/l"
-                    style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                    className="hover:text-[var(--fg)]"
+                    href="/"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      textDecoration: 'none',
+                      flexShrink: 0,
+                      gap: 0,
+                      lineHeight: 1,
+                    }}
                   >
-                    Explorar
+                    <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)' }}>
+                      Miyagi
+                    </span>
+                    <span
+                      style={{
+                        color: 'var(--accent)',
+                        fontSize: 7,
+                        margin: '0 2px',
+                        position: 'relative',
+                        top: 0,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ●
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)' }}>
+                      Sánchez
+                    </span>
                   </a>
-                  <Show when="signed-in">
-                    <a
-                      href="/shop/manage"
-                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                      className="hover:text-[var(--fg)]"
-                    >
-                      Mi tienda
-                    </a>
-                    <a href="/sell" className="btn btn-primary btn-sm">
-                      <i className="iconoir-plus" style={{ fontSize: 14 }} />
-                      Publicar
-                    </a>
-                    <UserButton />
-                  </Show>
-                  <Show when="signed-out">
-                    <a href="/sell" className="btn btn-primary btn-sm">
-                      Publicar gratis
-                    </a>
-                    <a
-                      href="/sign-in"
-                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                      className="hover:text-[var(--fg)]"
-                    >
-                      Iniciar sesión
-                    </a>
-                  </Show>
-                </nav>
 
-                {/* Mobile header right — sign-in shortcut or user avatar */}
-                <div className="flex md:hidden" style={{ alignItems: 'center', gap: 8 }}>
-                  <Show when="signed-in">
-                    <UserButton />
-                  </Show>
-                  <Show when="signed-out">
-                    <a href="/sign-in" className="btn btn-primary btn-sm" style={{ fontSize: 12, padding: '6px 12px' }}>
-                      Entrar
-                    </a>
-                  </Show>
+                  {/* Search bar */}
+                  <form
+                    action="/l"
+                    method="GET"
+                    style={{ flex: 1, minWidth: 0 }}
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <i
+                        className="iconoir-search"
+                        style={{
+                          position: 'absolute',
+                          left: 9,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontSize: 14,
+                          color: 'var(--fg-subtle)',
+                          pointerEvents: 'none',
+                          lineHeight: 1,
+                        }}
+                      />
+                      <input
+                        name="q"
+                        type="search"
+                        placeholder="¿Qué estás buscando?"
+                        style={{
+                          width: '100%',
+                          height: 34,
+                          background: 'var(--bg-sunk)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--r-pill)',
+                          padding: '0 10px 0 28px',
+                          fontSize: 13,
+                          fontFamily: 'var(--font-sans)',
+                          color: 'var(--fg)',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                  </form>
+
+                  {/* Sell icon */}
+                  <a
+                    href="/sell"
+                    className="icon-btn accent"
+                    title="Publicar anuncio"
+                  >
+                    <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                  </a>
+
+                  {/* AI Agent button (client component) */}
+                  <AIAgentButton />
                 </div>
+
+                {/* ── DESKTOP LAYOUT: full wordmark + nav ── */}
+                <div
+                  className="hidden md:flex"
+                  style={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 16 }}
+                >
+                  {/* Wordmark */}
+                  <a
+                    href="/"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      textDecoration: 'none',
+                      lineHeight: 1,
+                      gap: 0,
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>
+                      Miyagi
+                    </span>
+                    <span
+                      style={{
+                        color: 'var(--accent)',
+                        fontSize: 9,
+                        margin: '0 3px',
+                        lineHeight: 1,
+                        position: 'relative',
+                        top: 1,
+                      }}
+                    >
+                      ●
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>
+                      Sánchez
+                    </span>
+                  </a>
+
+                  {/* Desktop nav */}
+                  <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <a
+                      href="/l"
+                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                      className="hover:text-[var(--fg)]"
+                    >
+                      Explorar
+                    </a>
+                    <a
+                      href="/agent"
+                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                      className="hover:text-[var(--fg)]"
+                      title="AI Agent briefing"
+                    >
+                      <i className="iconoir-sparks" style={{ fontSize: 15, verticalAlign: 'middle' }} />
+                    </a>
+                    <Show when="signed-in">
+                      <a
+                        href="/shop/manage"
+                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                        className="hover:text-[var(--fg)]"
+                      >
+                        Mi tienda
+                      </a>
+                      <a href="/sell" className="btn btn-primary btn-sm">
+                        <i className="iconoir-plus" style={{ fontSize: 14 }} />
+                        Publicar
+                      </a>
+                      <UserButton />
+                    </Show>
+                    <Show when="signed-out">
+                      <a href="/sell" className="btn btn-primary btn-sm">
+                        Publicar gratis
+                      </a>
+                      <a
+                        href="/sign-in"
+                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                        className="hover:text-[var(--fg)]"
+                      >
+                        Iniciar sesión
+                      </a>
+                    </Show>
+                  </nav>
+                </div>
+
               </div>
             </header>
           </div>
@@ -161,10 +326,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</a>
               <a href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</a>
               <a href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</a>
+              <a href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
+                <i className="iconoir-sparks" style={{ fontSize: 11 }} /> Agent API
+              </a>
             </div>
           </footer>
 
-          {/* Floating glass tab bar — mobile only */}
+          {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
           <MobileTabBar />
         </body>
       </html>

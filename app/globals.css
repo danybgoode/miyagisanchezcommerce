@@ -734,10 +734,69 @@ html, body {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 }
 
-/* On mobile, push content above the floating tab bar */
-@media (max-width: 767px) {
-  main { padding-bottom: 96px; }
+/* PWA-only elements: invisible in browser, shown only in installed standalone mode.
+   Using !important because Tailwind display utilities also use !important. */
+.pwa-only { display: none !important; }
+@media (display-mode: standalone) and (max-width: 767px) {
+  .pwa-only { display: flex !important; }
 }
+
+/* Push main content above the tab bar — only needed in PWA standalone on mobile */
+@media (display-mode: standalone) and (max-width: 767px) {
+  main { padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)); }
+}
+
+/* ── Bottom sheet ── */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 24, 0.45);
+  z-index: 200;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: fade-in 180ms var(--ease-standard) forwards;
+}
+.sheet-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  z-index: 201;
+  padding: 12px 20px;
+  padding-bottom: max(28px, env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-4);
+  animation: slide-up 300ms var(--ease-spring-soft) forwards;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Mobile icon button (header actions) ── */
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
+}
+.icon-btn:hover { color: var(--fg); background: var(--bg-sunk); }
+.icon-btn.accent { color: var(--accent); }
+.icon-btn.accent:hover { background: var(--accent-soft); }
 
 /* Horizontal chip rail — momentum scroll, no scrollbar */
 .chip-rail {
