@@ -1,25 +1,13 @@
 import Link from 'next/link'
 import { getRecentListings, formatPrice } from '@/lib/listings'
-import { CATEGORIES } from '@/lib/types'
+import CategoryChips from '@/app/components/CategoryChips'
 
 export default async function HomePage() {
   const recent = await getRecentListings(8)
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
-      {/* Category chips — horizontal scroll on mobile */}
-      <div className="chip-rail mb-6">
-        {CATEGORIES.map(cat => (
-          <Link
-            key={cat.key}
-            href={`/l?category=${cat.key}`}
-            className="chip"
-          >
-            <span>{cat.icon}</span>
-            <span>{cat.label}</span>
-          </Link>
-        ))}
-      </div>
+      <CategoryChips className="mb-6" />
 
       {/* Recent listings */}
       {recent.length > 0 && (

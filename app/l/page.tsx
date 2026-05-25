@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { searchListings, formatPrice, conditionLabel } from '@/lib/listings'
 import type { SearchParams } from '@/lib/types'
 import SearchBar from './SearchBar'
+import CategoryChips from '@/app/components/CategoryChips'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -32,6 +33,8 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
+      <CategoryChips activeCategory={params.category} className="mb-5" />
+
       <SearchBar
         params={params}
         initialQ={params.q}
