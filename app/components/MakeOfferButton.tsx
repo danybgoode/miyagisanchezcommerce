@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   OFFER_ANCHORS,
   anchorAmount,
   validateOfferAmount,
   formatOfferAmount,
   timeUntil,
-  timeAgo,
   type Offer,
 } from '@/lib/offers'
 
@@ -19,74 +19,76 @@ interface MakeOfferButtonProps {
     currency: string
     imageUrl?: string | null
   }
-  /** Pre-fill from Clerk if buyer is logged in */
   buyerInfo?: { name: string; email: string }
+  isSignedIn: boolean
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Quality bar ───────────────────────────────────────────────────────────────
 
 function QualityBar({ offerCents, askingCents }: { offerCents: number; askingCents: number }) {
   if (offerCents <= 0 || offerCents >= askingCents) return null
   const pct = Math.round((offerCents / askingCents) * 100)
-  const barWidth = Math.max(0, Math.min(100, ((pct - 30) / 70) * 100)) // 30–100% maps to 0–100%
-  const color = pct >= 85 ? '#16a34a' : pct >= 70 ? '#d97706' : '#dc2626'
+  const barWidth = Math.max(0, Math.min(100, ((pct - 30) / 70) * 100))
+  const color = pct >= 85 ? 'var(--success)' : pct >= 70 ? 'var(--warning)' : 'var(--danger)'
   const label = pct >= 85 ? 'Oferta razonable' : pct >= 70 ? 'Algo por debajo' : 'Oferta baja'
-
   return (
     <div className="mt-1.5">
-      <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-200" style={{ width: `${barWidth}%`, backgroundColor: color }} />
+      <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 4, width: `${barWidth}%`, background: color, transition: 'width 200ms' }} />
       </div>
-      <div className="flex justify-between text-[11px] mt-0.5" style={{ color }}>
+      <div className="flex justify-between" style={{ fontSize: 11, marginTop: 3, color }}>
         <span>{label}</span>
-        <span className="font-mono">{pct}% del precio</span>
+        <span style={{ fontFamily: 'var(--font-mono)' }}>{pct}% del precio</span>
       </div>
     </div>
   )
 }
 
-// ── Offer status views (when buyer already has an active offer) ───────────────
+// ── Active offer status card ──────────────────────────────────────────────────
 
 function ActiveOfferCard({
-  offer,
-  listing,
-  onWithdraw,
-  onAcceptCounter,
-  onDeclineCounter,
+  offer, listing, conversationId, onWithdraw, onAcceptCounter, onDeclineCounter,
 }: {
   offer: Offer
   listing: MakeOfferButtonProps['listing']
+  conversationId?: string
   onWithdraw: () => void
   onAcceptCounter: () => void
   onDeclineCounter: () => void
 }) {
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
-
   const wrap = useCallback((fn: () => void) => async () => {
     setBusy(true)
     try { fn() } finally { setBusy(false) }
   }, [])
 
+  const viewThread = conversationId
+    ? <button type="button" onClick={() => router.push(`/messages/${conversationId}`)} className="text-xs underline mt-2 block" style={{ color: 'var(--accent)' }}>Ver conversación →</button>
+    : null
+
   if (offer.status === 'pending') {
     return (
-      <div className="w-full border border-amber-200 bg-amber-50 rounded-xl p-4">
+      <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--warning)', background: 'var(--warning-soft)' }}>
         <div className="flex items-start gap-3">
-          <span className="text-xl mt-0.5">⏳</span>
+          <span style={{ fontSize: 20, marginTop: 2 }}>⏳</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-amber-800">Oferta enviada</div>
-            <div className="text-sm text-amber-700 mt-0.5">
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)' }}>Oferta enviada</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
               Tu oferta de <strong>{formatOfferAmount(offer.offer_amount_cents, listing.currency)}</strong> espera respuesta del vendedor.
             </div>
             {offer.expires_at && (
-              <div className="text-xs text-amber-600 mt-1">Expira en {timeUntil(offer.expires_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>Expira en {timeUntil(offer.expires_at)}</div>
             )}
           </div>
         </div>
+        {viewThread}
         <button
           type="button"
           onClick={wrap(onWithdraw)}
           disabled={busy}
-          className="mt-3 text-xs text-amber-700 underline hover:text-amber-900 disabled:opacity-50"
+          style={{ fontSize: 11, color: 'var(--warning)', marginTop: 8, textDecoration: 'underline' }}
+          className="disabled:opacity-50"
         >
           Retirar oferta
         </button>
@@ -97,40 +99,39 @@ function ActiveOfferCard({
   if (offer.status === 'countered' && offer.counter_amount_cents) {
     const counterExpired = offer.counter_expires_at ? new Date(offer.counter_expires_at) < new Date() : false
     return (
-      <div className="w-full border border-blue-200 bg-blue-50 rounded-xl p-4">
+      <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--info)', background: 'var(--info-soft)' }}>
         <div className="flex items-start gap-3 mb-3">
-          <span className="text-xl mt-0.5">↩</span>
+          <span style={{ fontSize: 20, marginTop: 2 }}>↩</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-blue-800">El vendedor contraoferta</div>
-            <div className="text-2xl font-bold text-blue-700 mt-1">
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info)' }}>El vendedor contraoferta</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--info)', marginTop: 4 }}>
               {formatOfferAmount(offer.counter_amount_cents, listing.currency)}
             </div>
-            <div className="text-xs text-blue-600 mt-0.5">
-              Tu oferta original: {formatOfferAmount(offer.offer_amount_cents, listing.currency)}
-              {' · '}Precio lista: {formatOfferAmount(listing.price_cents, listing.currency)}
+            <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
+              Tu oferta: {formatOfferAmount(offer.offer_amount_cents, listing.currency)}
+              {' · '}Precio: {formatOfferAmount(listing.price_cents, listing.currency)}
             </div>
             {offer.counter_message && (
-              <blockquote className="mt-2 text-sm text-blue-700 border-l-2 border-blue-300 pl-3 italic">
+              <blockquote style={{ fontSize: 13, color: 'var(--info)', borderLeft: '2px solid var(--info)', paddingLeft: 10, marginTop: 8, fontStyle: 'italic' }}>
                 &ldquo;{offer.counter_message}&rdquo;
               </blockquote>
             )}
             {offer.counter_expires_at && !counterExpired && (
-              <div className="text-xs text-red-600 mt-1.5 font-medium">
+              <div style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, marginTop: 6 }}>
                 ⏰ Expira en {timeUntil(offer.counter_expires_at)}
               </div>
             )}
-            {counterExpired && (
-              <div className="text-xs text-gray-500 mt-1.5">Esta contraoferta ha expirado.</div>
-            )}
           </div>
         </div>
+        {viewThread}
         {!counterExpired && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-3">
             <button
               type="button"
               onClick={wrap(onAcceptCounter)}
               disabled={busy}
-              className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+              className="flex-1 font-semibold py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
+              style={{ background: 'var(--accent)', color: '#fff' }}
             >
               {busy ? '…' : '✓ Aceptar trato'}
             </button>
@@ -138,7 +139,8 @@ function ActiveOfferCard({
               type="button"
               onClick={wrap(onDeclineCounter)}
               disabled={busy}
-              className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="flex-1 font-medium py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
+              style={{ border: '1px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}
             >
               Rechazar
             </button>
@@ -150,20 +152,21 @@ function ActiveOfferCard({
 
   if (offer.status === 'accepted') {
     return (
-      <div className="w-full border border-green-200 bg-green-50 rounded-xl p-4">
+      <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--success)', background: 'var(--success-soft)' }}>
         <div className="flex items-start gap-3">
-          <span className="text-xl mt-0.5">✅</span>
+          <span style={{ fontSize: 20, marginTop: 2 }}>✅</span>
           <div>
-            <div className="text-sm font-semibold text-green-800">¡Oferta aceptada!</div>
-            <div className="text-sm text-green-700 mt-0.5">
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>¡Oferta aceptada!</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
               Revisa tu correo para completar el pago de{' '}
               <strong>{formatOfferAmount(offer.offer_amount_cents, listing.currency)}</strong>.
             </div>
             {offer.checkout_expires_at && (
-              <div className="text-xs text-red-600 mt-1">⏰ Expira en {timeUntil(offer.checkout_expires_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>⏰ Expira en {timeUntil(offer.checkout_expires_at)}</div>
             )}
           </div>
         </div>
+        {viewThread}
       </div>
     )
   }
@@ -175,44 +178,45 @@ function ActiveOfferCard({
 
 type ModalStep = 'idle' | 'form' | 'submitting' | 'success' | 'error'
 
-export default function MakeOfferButton({ listing, buyerInfo }: MakeOfferButtonProps) {
+export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: MakeOfferButtonProps) {
+  const pathname = usePathname()
+  const router = useRouter()
   const [step, setStep] = useState<ModalStep>('idle')
   const [activeOffer, setActiveOffer] = useState<Offer | null>(null)
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [loadingOffer, setLoadingOffer] = useState(true)
 
-  // Form state
-  const [selectedAnchor, setSelectedAnchor] = useState<number | null>(15) // default -15%
+  const [selectedAnchor, setSelectedAnchor] = useState<number | null>(15)
   const [amountInput, setAmountInput] = useState('')
-  const [message, setMessage] = useState('')
-  const [buyerName, setBuyerName] = useState(buyerInfo?.name ?? '')
-  const [buyerEmail, setBuyerEmail] = useState(buyerInfo?.email ?? '')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [errorMsg, setErrorMsg] = useState('')
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const modalRef = useRef<HTMLDivElement>(null)
-
   const offerCents = Math.round(parseFloat(amountInput.replace(/,/g, '')) * 100) || 0
 
-  // ── Load active offer on mount ────────────────────────────────────────────
+  // Load active offer on mount (only if signed in)
   useEffect(() => {
+    if (!isSignedIn) { setLoadingOffer(false); return }
     async function load() {
-      setLoadingOffer(true)
       try {
-        const email = buyerInfo?.email ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('offer_email') : null)
-        const params = new URLSearchParams({ listingId: listing.id })
-        if (email) params.set('email', email)
-        const res = await fetch(`/api/offers?${params}`)
-        const data = await res.json() as { offer: Offer | null }
+        const res = await fetch(`/api/offers?listingId=${listing.id}`)
+        const data = await res.json() as { offer: Offer | null; conversationId?: string }
         setActiveOffer(data.offer)
+        if (data.conversationId) setActiveConversationId(data.conversationId)
       } finally {
         setLoadingOffer(false)
       }
     }
     load()
-  }, [listing.id, buyerInfo?.email])
+  }, [listing.id, isSignedIn])
 
-  // ── Pre-fill when anchor is selected ─────────────────────────────────────
+  useEffect(() => {
+    if (step !== 'form') return
+    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') setStep('idle') }
+    document.addEventListener('keydown', handle)
+    return () => document.removeEventListener('keydown', handle)
+  }, [step])
+
   function selectAnchor(pct: number) {
     setSelectedAnchor(pct)
     const cents = anchorAmount(listing.price_cents, pct)
@@ -220,49 +224,18 @@ export default function MakeOfferButton({ listing, buyerInfo }: MakeOfferButtonP
     setFieldErrors(p => ({ ...p, amount: '' }))
   }
 
-  function handleAmountChange(raw: string) {
-    setSelectedAnchor(null)
-    setAmountInput(raw)
-    setFieldErrors(p => ({ ...p, amount: '' }))
-  }
-
-  // ── Open modal ────────────────────────────────────────────────────────────
   function openModal() {
-    // Pre-fill default anchor
     selectAnchor(15)
-    setMessage('')
-    setBuyerName(buyerInfo?.name ?? '')
-    setBuyerEmail(buyerInfo?.email ?? '')
     setFieldErrors({})
     setErrorMsg('')
     setStep('form')
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
-  // ── Close modal ───────────────────────────────────────────────────────────
-  function closeModal() {
-    setStep('idle')
-  }
-
-  // Close on Escape
-  useEffect(() => {
-    if (step !== 'form') return
-    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal() }
-    document.addEventListener('keydown', handle)
-    return () => document.removeEventListener('keydown', handle)
-  }, [step])
-
-  // ── Submit offer ──────────────────────────────────────────────────────────
   async function handleSubmit() {
     const errors: Record<string, string> = {}
-    if (!buyerName.trim()) errors.buyerName = 'Ingresa tu nombre.'
-    if (!buyerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
-      errors.buyerEmail = 'Ingresa un correo válido.'
-    }
-
     const validation = validateOfferAmount(offerCents, listing.price_cents)
     if (!validation.ok) errors.amount = validation.message ?? 'Monto inválido.'
-
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return }
 
     setStep('submitting')
@@ -272,13 +245,10 @@ export default function MakeOfferButton({ listing, buyerInfo }: MakeOfferButtonP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           listingId: listing.id,
-          buyerName: buyerName.trim(),
-          buyerEmail: buyerEmail.trim().toLowerCase(),
           offerAmountCents: offerCents,
-          message: message.trim() || undefined,
         }),
       })
-      const data = await res.json() as { offerId?: string; error?: string; field?: string }
+      const data = await res.json() as { offerId?: string; conversationId?: string; error?: string; field?: string }
 
       if (!res.ok) {
         if (data.field) {
@@ -291,77 +261,72 @@ export default function MakeOfferButton({ listing, buyerInfo }: MakeOfferButtonP
         return
       }
 
-      // Persist email for future lookups (anonymous buyers)
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('offer_email', buyerEmail.trim().toLowerCase())
+      // Redirect to conversation thread
+      if (data.conversationId) {
+        router.push(`/messages/${data.conversationId}`)
+      } else {
+        setStep('success')
       }
-
-      // Refresh active offer state
-      const checkRes = await fetch(`/api/offers?listingId=${listing.id}&email=${encodeURIComponent(buyerEmail.trim())}`)
-      const checkData = await checkRes.json() as { offer: Offer | null }
-      setActiveOffer(checkData.offer)
-      setStep('success')
     } catch {
       setErrorMsg('Sin conexión. Inténtalo de nuevo.')
       setStep('error')
     }
   }
 
-  // ── Buyer actions ─────────────────────────────────────────────────────────
   async function handleWithdraw() {
     if (!activeOffer) return
-    const email = buyerInfo?.email ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('offer_email') : '') ?? ''
     const res = await fetch(`/api/offers/${activeOffer.id}/buyer-respond`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'withdraw', buyerEmail: email }),
+      body: JSON.stringify({ action: 'withdraw' }),
     })
     if (res.ok) setActiveOffer(null)
   }
 
   async function handleAcceptCounter() {
     if (!activeOffer) return
-    const email = buyerInfo?.email ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('offer_email') : '') ?? ''
-    const res = await fetch(`/api/offers/${activeOffer.id}/buyer-respond`, {
+    await fetch(`/api/offers/${activeOffer.id}/buyer-respond`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'accept-counter', buyerEmail: email }),
+      body: JSON.stringify({ action: 'accept-counter' }),
     })
-    if (res.ok) {
-      const refreshed = await fetch(`/api/offers?listingId=${listing.id}&email=${encodeURIComponent(email)}`)
-      const data = await refreshed.json() as { offer: Offer | null }
-      setActiveOffer(data.offer)
-    }
+    if (activeConversationId) router.push(`/messages/${activeConversationId}`)
   }
 
   async function handleDeclineCounter() {
     if (!activeOffer) return
-    const email = buyerInfo?.email ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('offer_email') : '') ?? ''
-    const res = await fetch(`/api/offers/${activeOffer.id}/buyer-respond`, {
+    await fetch(`/api/offers/${activeOffer.id}/buyer-respond`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'withdraw', buyerEmail: email }),
+      body: JSON.stringify({ action: 'withdraw' }),
     })
-    if (res.ok) setActiveOffer(null)
+    setActiveOffer(null)
   }
 
-  // ── Validation state ──────────────────────────────────────────────────────
   const amountValidation = offerCents > 0 ? validateOfferAmount(offerCents, listing.price_cents) : null
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  if (loadingOffer) {
+  // Not signed in — auth prompt
+  if (!isSignedIn) {
     return (
-      <div className="h-10 bg-gray-100 animate-pulse rounded-lg" />
+      <a
+        href={`/sign-in?redirect_url=${encodeURIComponent(pathname)}`}
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+        style={{ border: '2px solid var(--fg)', color: 'var(--fg)', background: 'transparent' }}
+      >
+        <i className="iconoir-log-in" style={{ fontSize: 16 }} />
+        Inicia sesión para hacer oferta
+      </a>
     )
   }
 
-  // Active offer state — show status card
+  if (loadingOffer) return <div style={{ height: 44, background: 'var(--bg-sunk)', borderRadius: 12, animation: 'pulse 2s infinite' }} />
+
   if (activeOffer && ['pending', 'countered', 'accepted'].includes(activeOffer.status)) {
     return (
       <ActiveOfferCard
         offer={activeOffer}
         listing={listing}
+        conversationId={activeConversationId ?? undefined}
         onWithdraw={handleWithdraw}
         onAcceptCounter={handleAcceptCounter}
         onDeclineCounter={handleDeclineCounter}
@@ -371,246 +336,168 @@ export default function MakeOfferButton({ listing, buyerInfo }: MakeOfferButtonP
 
   return (
     <>
-      {/* ── Trigger button ──────────────────────────────────────────────────── */}
       <button
         type="button"
         onClick={openModal}
-        className="flex items-center justify-center gap-2 w-full border-2 border-[var(--color-accent)] text-[var(--color-accent)] font-semibold py-2.5 rounded-lg text-sm hover:bg-[color-mix(in_srgb,var(--color-accent)_8%,white)] transition-colors"
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm transition-colors"
+        style={{ border: '2px solid var(--fg)', color: 'var(--fg)', background: 'transparent' }}
       >
-        <span>💬</span>
+        <i className="iconoir-message-text" style={{ fontSize: 16 }} />
         Hacer oferta
       </button>
 
-      {/* ── Modal ───────────────────────────────────────────────────────────── */}
       {step !== 'idle' && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setStep('idle') }}
         >
           <div
-            ref={modalRef}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Hacer oferta"
+            className="w-full max-w-md overflow-y-auto"
+            style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--r-xl)', boxShadow: 'var(--shadow-4)', maxHeight: '90vh' }}
+            role="dialog" aria-modal="true" aria-label="Hacer oferta"
           >
-
-            {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <h2 className="font-bold text-lg">Hacer oferta</h2>
+            {/* Header */}
+            <div className="flex items-center justify-between" style={{ padding: '20px 20px 12px' }}>
+              <h2 style={{ fontWeight: 700, fontSize: 18 }}>Hacer oferta</h2>
               <button
                 type="button"
-                onClick={closeModal}
-                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors text-lg"
+                onClick={() => setStep('idle')}
+                style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-sunk)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)' }}
                 aria-label="Cerrar"
               >
-                ×
+                <i className="iconoir-xmark" style={{ fontSize: 16 }} />
               </button>
             </div>
 
-            {/* ── Listing context bar ──────────────────────────────────────── */}
-            <div className="flex items-center gap-3 mx-5 mb-4 p-3 bg-[var(--color-surface-alt)] rounded-xl border border-[var(--color-border)]">
+            {/* Listing context */}
+            <div className="flex items-center gap-3" style={{ margin: '0 20px 16px', padding: '12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
               {listing.imageUrl ? (
-                <img src={listing.imageUrl} alt={listing.title} className="w-12 h-12 object-cover rounded-lg flex-shrink-0" />
+                <img src={listing.imageUrl} alt={listing.title} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
               ) : (
-                <div className="w-12 h-12 bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-xl">📦</div>
+                <div style={{ width: 48, height: 48, background: 'var(--bg-sunk)', borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="iconoir-package" style={{ fontSize: 24, color: 'var(--fg-subtle)' }} />
+                </div>
               )}
               <div className="min-w-0">
-                <div className="text-sm font-medium text-[var(--color-text)] truncate">{listing.title}</div>
-                <div className="text-sm text-[var(--color-muted)]">
-                  Precio: <span className="font-semibold text-[var(--color-accent)]">{formatOfferAmount(listing.price_cents, listing.currency)}</span>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.title}</div>
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+                  Precio: <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{formatOfferAmount(listing.price_cents, listing.currency)}</span>
                 </div>
               </div>
             </div>
 
-            {/* ── Success state ────────────────────────────────────────────── */}
+            {/* Success */}
             {step === 'success' && (
-              <div className="px-5 pb-6 text-center">
-                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+              <div style={{ padding: '0 20px 24px', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--success-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <i className="iconoir-check-circle" style={{ fontSize: 28, color: 'var(--success)' }} />
                 </div>
-                <h3 className="font-bold text-lg mb-2">¡Oferta enviada!</h3>
-                <p className="text-sm text-[var(--color-muted)] mb-2">
-                  El vendedor tiene 48 horas para responder. Te avisaremos por correo.
-                </p>
-                <p className="text-xs text-[var(--color-muted)] mb-5">
-                  Oferta: <strong>{amountInput && formatOfferAmount(offerCents, listing.currency)}</strong>
-                </p>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="bg-[var(--color-accent)] text-white font-semibold py-2.5 px-8 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition-colors"
-                >
-                  Entendido
-                </button>
+                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>¡Oferta enviada!</h3>
+                <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 20 }}>El vendedor tiene 48 horas para responder. Te avisaremos por correo.</p>
+                <button type="button" onClick={() => setStep('idle')} className="btn btn-primary" style={{ padding: '10px 32px' }}>Entendido</button>
               </div>
             )}
 
-            {/* ── Error state ──────────────────────────────────────────────── */}
+            {/* Error */}
             {step === 'error' && (
-              <div className="px-5 pb-6 text-center">
-                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 text-3xl">⚠️</div>
-                <h3 className="font-bold text-lg mb-2">Algo salió mal</h3>
-                <p className="text-sm text-red-600 mb-5">{errorMsg}</p>
-                <button type="button" onClick={() => setStep('form')} className="text-sm text-[var(--color-accent)] underline">
-                  Intentar de nuevo
-                </button>
+              <div style={{ padding: '0 20px 24px', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <i className="iconoir-warning-triangle" style={{ fontSize: 28, color: 'var(--danger)' }} />
+                </div>
+                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Algo salió mal</h3>
+                <p style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 20 }}>{errorMsg}</p>
+                <button type="button" onClick={() => setStep('form')} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>Intentar de nuevo</button>
               </div>
             )}
 
-            {/* ── Form ─────────────────────────────────────────────────────── */}
+            {/* Form */}
             {(step === 'form' || step === 'submitting') && (
-              <div className="px-5 pb-5">
-
+              <div style={{ padding: '0 20px 20px' }}>
                 {/* Anchor quick-select */}
-                <div className="mb-4">
-                  <p className="text-xs font-medium text-[var(--color-muted)] mb-2 uppercase tracking-wide">Selección rápida</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {OFFER_ANCHORS.map(({ pct, label }) => {
-                      const cents = anchorAmount(listing.price_cents, pct)
-                      const isSelected = selectedAnchor === pct
-                      return (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => selectAnchor(pct)}
-                          className={`flex flex-col items-center py-3 px-2 rounded-xl border-2 transition-all ${
-                            isSelected
-                              ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_10%,white)]'
-                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
-                          }`}
-                        >
-                          <span className={`text-sm font-bold ${isSelected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}`}>
-                            {label}
-                          </span>
-                          <span className={`text-xs font-semibold mt-0.5 ${isSelected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}`}>
-                            {formatOfferAmount(cents, listing.currency)}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-muted)] mt-0.5">
-                            ahorras {formatOfferAmount(listing.price_cents - cents, listing.currency)}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Selección rápida</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+                  {OFFER_ANCHORS.map(({ pct, label }) => {
+                    const cents = anchorAmount(listing.price_cents, pct)
+                    const sel = selectedAnchor === pct
+                    return (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => selectAnchor(pct)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          padding: '12px 8px', borderRadius: 'var(--r-md)',
+                          border: sel ? '2px solid var(--accent)' : '1.5px solid var(--border)',
+                          background: sel ? 'var(--accent-soft)' : 'var(--bg-elevated)',
+                          cursor: 'pointer', transition: 'all 150ms',
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700, color: sel ? 'var(--accent)' : 'var(--fg)' }}>{label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, marginTop: 2, color: sel ? 'var(--accent)' : 'var(--fg)' }}>{formatOfferAmount(cents, listing.currency)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--fg-muted)', marginTop: 2 }}>ahorras {formatOfferAmount(listing.price_cents - cents, listing.currency)}</span>
+                      </button>
+                    )
+                  })}
                 </div>
 
                 {/* Custom amount */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1.5">
-                    O ingresa tu oferta
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)] font-medium">$</span>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>O ingresa tu oferta</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--fg-muted)', fontWeight: 500 }}>$</span>
                     <input
                       ref={inputRef}
                       type="number"
                       inputMode="numeric"
                       value={amountInput}
-                      onChange={e => handleAmountChange(e.target.value)}
+                      onChange={e => { setSelectedAnchor(null); setAmountInput(e.target.value); setFieldErrors(p => ({ ...p, amount: '' })) }}
                       placeholder={(listing.price_cents * 0.85 / 100).toFixed(0)}
                       min={1}
-                      step={1}
-                      className="w-full border border-[var(--color-border)] rounded-lg pl-7 pr-14 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{
+                        width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)',
+                        paddingLeft: 28, paddingRight: 52, paddingTop: 10, paddingBottom: 10,
+                        fontSize: 14, fontFamily: 'var(--font-sans)', color: 'var(--fg)',
+                        background: 'var(--bg-elevated)', outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                      className="focus:ring-2 focus:ring-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">
-                      {listing.currency}
-                    </span>
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-muted)' }}>{listing.currency}</span>
                   </div>
-
-                  {/* Quality bar */}
-                  {offerCents > 0 && offerCents < listing.price_cents && (
-                    <QualityBar offerCents={offerCents} askingCents={listing.price_cents} />
-                  )}
-
-                  {/* Validation warnings */}
-                  {fieldErrors.amount && (
-                    <p className="text-red-600 text-xs mt-1.5">⚠ {fieldErrors.amount}</p>
-                  )}
-                  {!fieldErrors.amount && amountValidation?.level === 'warn' && (
-                    <p className="text-amber-600 text-xs mt-1.5">⚠ {amountValidation.message}</p>
-                  )}
-                  {!fieldErrors.amount && amountValidation?.level === 'block' && offerCents > 0 && (
-                    <p className="text-red-600 text-xs mt-1.5">⚠ {amountValidation.message}</p>
-                  )}
+                  {offerCents > 0 && offerCents < listing.price_cents && <QualityBar offerCents={offerCents} askingCents={listing.price_cents} />}
+                  {fieldErrors.amount && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>⚠ {fieldErrors.amount}</p>}
+                  {!fieldErrors.amount && amountValidation?.level === 'warn' && <p style={{ color: 'var(--warning)', fontSize: 11, marginTop: 4 }}>⚠ {amountValidation.message}</p>}
+                  {!fieldErrors.amount && amountValidation?.level === 'block' && offerCents > 0 && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>⚠ {amountValidation.message}</p>}
                 </div>
 
-                {/* Optional message */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1.5">
-                    Mensaje al vendedor
-                    <span className="ml-1.5 text-xs font-normal text-[var(--color-muted)]">Opcional</span>
-                  </label>
-                  <textarea
-                    value={message}
-                    onChange={e => setMessage(e.target.value)}
-                    maxLength={500}
-                    rows={2}
-                    placeholder="Ej: &quot;¿Incluye cargador? ¿Aceptas meetup en Polanco?&quot;"
-                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
-                  />
-                </div>
-
-                {/* Buyer identity (hidden if pre-filled and non-empty) */}
-                <div className={`space-y-3 mb-4 ${buyerInfo?.email ? 'hidden' : ''}`}>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Tu nombre</label>
-                    <input
-                      type="text"
-                      value={buyerName}
-                      onChange={e => { setBuyerName(e.target.value); setFieldErrors(p => ({ ...p, buyerName: '' })) }}
-                      placeholder="Ana García"
-                      className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                    {fieldErrors.buyerName && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.buyerName}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Tu correo electrónico</label>
-                    <input
-                      type="email"
-                      value={buyerEmail}
-                      onChange={e => { setBuyerEmail(e.target.value); setFieldErrors(p => ({ ...p, buyerEmail: '' })) }}
-                      placeholder="ana@gmail.com"
-                      className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                    {fieldErrors.buyerEmail && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.buyerEmail}</p>}
-                    <p className="text-xs text-[var(--color-muted)] mt-1">Te avisaremos cuando el vendedor responda.</p>
-                  </div>
-                </div>
-                {buyerInfo?.email && (
-                  <div className="mb-4 flex items-center gap-2 text-xs text-[var(--color-muted)]">
-                    <span className="text-green-600">✓</span>
-                    Respuesta al correo: <strong>{buyerInfo.email}</strong>
-                  </div>
-                )}
-
-                {/* Terms + expiry notice */}
-                <div className="flex items-start gap-2 mb-4 p-3 bg-[var(--color-surface-alt)] rounded-lg border border-[var(--color-border)]">
-                  <span className="text-sm mt-0.5">⏰</span>
-                  <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+                {/* Expiry notice */}
+                <div className="flex items-start gap-2" style={{ padding: '10px 12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', marginBottom: 16 }}>
+                  <i className="iconoir-clock" style={{ fontSize: 14, color: 'var(--fg-muted)', marginTop: 2, flexShrink: 0 }} />
+                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
                     Tu oferta expira en <strong>48 horas</strong> si el vendedor no responde.
-                    Si aceptan, recibirás un enlace de pago por correo.
+                    Si aceptan, recibirás un enlace de pago.
                   </p>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={step === 'submitting' || (amountValidation?.level === 'block' && offerCents > 0)}
-                  className="w-full bg-[var(--color-accent)] text-white font-semibold py-3 rounded-xl text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="w-full font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  style={{ background: 'var(--accent)', color: '#fff', padding: '13px 0', fontSize: 14 }}
                 >
                   {step === 'submitting' ? (
-                    <><span className="animate-spin">⟳</span> Enviando oferta…</>
+                    <><span className="animate-spin inline-block">⟳</span> Enviando oferta…</>
                   ) : (
-                    <>💬 Enviar oferta — {offerCents > 0 ? formatOfferAmount(offerCents, listing.currency) : '…'}</>
+                    <>
+                      <i className="iconoir-message-text" style={{ fontSize: 16 }} />
+                      Enviar oferta — {offerCents > 0 ? formatOfferAmount(offerCents, listing.currency) : '…'}
+                    </>
                   )}
                 </button>
-
-                <p className="text-center text-[10px] text-[var(--color-muted)] mt-2">
-                  Sin comisiones · El vendedor responde en menos de 24h
+                <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--fg-subtle)', marginTop: 8 }}>
+                  Sin comisiones · El vendedor responde en menos de 24 h
                 </p>
               </div>
             )}

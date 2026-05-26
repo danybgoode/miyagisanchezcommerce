@@ -614,9 +614,11 @@ function PickupSpotManager({
 export default function ShopSettingsPanel({
   initial,
   stripeError,
+  activeSection: focusSection,
 }: {
   initial: ShopSettingsData
   stripeError?: string | null
+  activeSection?: string
 }) {
   const parsedLoc = parseLocation(initial.location)
   const s = initial.metadata?.settings ?? {}
@@ -1081,10 +1083,18 @@ export default function ShopSettingsPanel({
 
   const ESCROW_LABEL = { off: 'Desactivada', optional: 'Opcional', required: 'Obligatoria' }
 
+  // ── When rendered from a section page, auto-scroll to that section ──────────
+  useEffect(() => {
+    if (focusSection) {
+      const el = document.getElementById(focusSection)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [focusSection])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="px-4 py-8">
+    <div className={focusSection ? '' : 'px-4 py-8'}>
 
       {/* ── Mobile top nav ──────────────────────────────────────────────────── */}
       <div className="lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6">

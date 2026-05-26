@@ -1,8 +1,11 @@
 import Link from 'next/link'
+import { currentUser } from '@clerk/nextjs/server'
 import { searchListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { db } from '@/lib/supabase'
 import type { SearchParams } from '@/lib/types'
 import SearchBar from './SearchBar'
 import CategoryChips from '@/app/components/CategoryChips'
+import FavoriteButton from '@/app/components/FavoriteButton'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -21,8 +24,21 @@ function timeAgo(dateStr: string): string {
 }
 
 export default async function ListingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams
+  const [params, user] = await Promise.all([searchParams, currentUser()])
   const { listings, total, page } = await searchListings(params)
+
+  // Fetch user's favorited listing IDs for quick heart rendering
+  let favoritedIds = new Set<string>()
+  if (user && listings.length > 0) {
+    const listingIds = listings.map(l => l.id)
+    const { data: favs } = await db
+      .from('marketplace_favorites')
+      .select('listing_id')
+      .eq('clerk_user_id', user.id)
+      .in('listing_id', listingIds)
+    favoritedIds = new Set((favs ?? []).map(f => f.listing_id))
+  }
+  const isSignedIn = !!user
   const totalPages = Math.ceil(total / 24)
 
   function pageUrl(p: number) {
@@ -67,7 +83,8 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           {/* 2-col on mobile, 3 on tablet, 3 on desktop */}
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {listings.map(listing => (
-              <Link key={listing.id} href={`/l/${listing.id}`} className="card-tile no-underline">
+              <div key={listing.id} style={{ position: 'relative' }}>
+                <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
                 {listing.images?.[0] ? (
                   <img src={listing.images[0].url} alt={listing.title} className="w-full h-40 object-cover" />
                 ) : (
@@ -104,7 +121,17 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                     </p>
                   </div>
                 </div>
-              </Link>
+                </Link>
+                {/* Favorite button — absolute overlay top-right of image */}
+                <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>
+                  <FavoriteButton
+                    listingId={listing.id}
+                    initialFavorited={favoritedIds.has(listing.id)}
+                    isSignedIn={isSignedIn}
+                    size="sm"
+                  />
+                </div>
+              </div>
             ))}
           </div>
 

@@ -48,6 +48,21 @@ export async function PATCH(
 
   const scheduledIds = (offer.scheduled_reminder_ids ?? {}) as Record<string, string>
 
+  async function emitConvEvent(eventType: string, actor: string, metadata: Record<string, unknown>, incSellerUnread = false) {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id, seller_unread')
+      .eq('offer_id', id)
+      .maybeSingle()
+    if (!conv) return
+    await Promise.all([
+      db.from('marketplace_conversation_events').insert({ conversation_id: conv.id, event_type: eventType, actor, metadata }),
+      incSellerUnread
+        ? db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString(), seller_unread: (conv.seller_unread ?? 0) + 1 }).eq('id', conv.id)
+        : db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', conv.id),
+    ])
+  }
+
   const listing = offer.marketplace_listings as unknown as {
     id: string; title: string; price_cents: number; currency: string
     listing_type: string; images: Array<{ url: string }> | null
@@ -64,6 +79,7 @@ export async function PATCH(
       cancelScheduledEmail(emailId).catch(() => {})
     }
     await db.from('marketplace_offers').update({ status: 'withdrawn' }).eq('id', id)
+    emitConvEvent('offer_withdrawn', 'buyer', {}, true).catch(e => console.error('[conv] withdraw event:', e))
     return NextResponse.json({ status: 'withdrawn' })
   }
 
@@ -140,6 +156,7 @@ export async function PATCH(
 
     const listingUrl = `${origin}/l/${listing.id}`
 
+    emitConvEvent('offer_accepted', 'system', { amount_cents: acceptedCents, currency: listing.currency }, true).catch(e => console.error('[conv] accept-counter event:', e))
     // Buyer: accepted — with payment link
     sendOfferAccepted({
       listingTitle: listing.title, listingId: listing.id, listingUrl,

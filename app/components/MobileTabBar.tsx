@@ -5,6 +5,21 @@ import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useState, useEffect, useRef, Suspense } from 'react'
 
+// Badge dot for unread counts
+function UnreadDot({ show }: { show: boolean }) {
+  if (!show) return null
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute', top: 4, right: 6,
+        width: 8, height: 8, borderRadius: '50%',
+        background: 'var(--danger)', border: '1.5px solid var(--glass-fill-liquid)',
+      }}
+    />
+  )
+}
+
 // ── Apple motion spec ────────────────────────────────────────────────────────
 // SPRING  : entrance — slight overshoot, settles naturally (response ~0.38, damping ~0.72)
 // EASE_OUT: exit — clean deceleration, never bounces out
@@ -32,15 +47,16 @@ function ActivePill({ active }: { active: boolean }) {
 
 // ── Single tab item ──────────────────────────────────────────────────────────
 function TabItem({
-  href, icon, label, active, exitDelay, enterDelay, collapsed,
+  href, icon, label, active, exitDelay, enterDelay, collapsed, hasUnread,
 }: {
   href: string
   icon: string
   label: string
   active: boolean
-  exitDelay: number   // ms — delay when tab bar hides (left→right cascade)
-  enterDelay: number  // ms — delay when tab bar appears (right→left cascade)
-  collapsed: boolean  // true while search mode is open
+  exitDelay: number
+  enterDelay: number
+  collapsed: boolean
+  hasUnread?: boolean
 }) {
   return (
     <Link
@@ -58,9 +74,9 @@ function TabItem({
         fontFamily: 'var(--font-sans)',
         fontSize: 10,
         fontWeight: active ? 600 : 500,
-        padding: '4px 8px',
+        padding: '4px 6px',
         borderRadius: 12,
-        minWidth: 48,
+        minWidth: 44,
         height: 48,
         // Staggered collapse / expand
         opacity: collapsed ? 0 : 1,
@@ -73,7 +89,10 @@ function TabItem({
       }}
     >
       <ActivePill active={active} />
-      <i className={icon} style={{ fontSize: 22, position: 'relative', zIndex: 1 }} />
+      <div style={{ position: 'relative' }}>
+        <i className={icon} style={{ fontSize: 22, position: 'relative', zIndex: 1 }} />
+        <UnreadDot show={!!hasUnread} />
+      </div>
       <span style={{ position: 'relative', zIndex: 1 }}>{label}</span>
     </Link>
   )
@@ -123,7 +142,9 @@ function TabBarInner() {
     return pathname.startsWith(href)
   }
 
-  const profileHref = isSignedIn ? '/account' : '/sign-in'
+  const profileHref  = isSignedIn ? '/account' : '/sign-in'
+  const messagesHref = isSignedIn ? '/messages' : '/sign-in'
+  const favHref      = isSignedIn ? '/account/favorites' : '/l'
 
   return (
     <div
@@ -179,14 +200,14 @@ function TabBarInner() {
           <TabItem
             href="/" icon="iconoir-home-simple" label="Inicio"
             active={isActive('/')}
-            exitDelay={0} enterDelay={90} collapsed={searchOpen}
+            exitDelay={0} enterDelay={105} collapsed={searchOpen}
           />
 
-          {/* Tab 1 — Favoritos */}
+          {/* Tab 1 — Mensajes */}
           <TabItem
-            href="/l" icon="iconoir-heart" label="Favoritos"
-            active={pathname === '/l'}
-            exitDelay={30} enterDelay={60} collapsed={searchOpen}
+            href={messagesHref} icon="iconoir-chat-bubble" label="Mensajes"
+            active={pathname.startsWith('/messages')}
+            exitDelay={20} enterDelay={70} collapsed={searchOpen}
           />
 
           {/* Center + publish — own spring timing */}
@@ -215,13 +236,20 @@ function TabBarInner() {
             <i className="iconoir-plus" style={{ fontSize: 20 }} />
           </Link>
 
+          {/* Tab 2 — Favoritos */}
+          <TabItem
+            href={favHref} icon="iconoir-heart" label="Favoritos"
+            active={pathname.startsWith('/account/favorites')}
+            exitDelay={70} enterDelay={20} collapsed={searchOpen}
+          />
+
           {/* Tab 3 — Perfil (exits last, enters first) */}
           <TabItem
             href={profileHref}
             icon="iconoir-user"
             label={isSignedIn ? 'Perfil' : 'Entrar'}
-            active={isActive('/account') || isActive('/sign-in')}
-            exitDelay={90} enterDelay={0} collapsed={searchOpen}
+            active={(isActive('/account') && !pathname.startsWith('/account/favorites')) || isActive('/sign-in')}
+            exitDelay={105} enterDelay={0} collapsed={searchOpen}
           />
         </nav>
 

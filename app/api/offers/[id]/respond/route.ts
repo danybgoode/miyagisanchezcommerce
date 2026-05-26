@@ -73,10 +73,27 @@ export async function PATCH(
     return NextResponse.json({ error: 'Esta oferta no puede ser rechazada.' }, { status: 409 })
   }
 
+  // ── Conversation event helper ─────────────────────────────────────────────
+  async function emitConvEvent(eventType: string, actor: string, metadata: Record<string, unknown>, incBuyerUnread = false) {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id, buyer_unread')
+      .eq('offer_id', id)
+      .maybeSingle()
+    if (!conv) return
+    await Promise.all([
+      db.from('marketplace_conversation_events').insert({ conversation_id: conv.id, event_type: eventType, actor, metadata }),
+      incBuyerUnread
+        ? db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString(), buyer_unread: (conv.buyer_unread ?? 0) + 1 }).eq('id', conv.id)
+        : db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', conv.id),
+    ])
+  }
+
   // ── Handle: Decline ───────────────────────────────────────────────────────
   if (action === 'decline') {
     cancelSellerReminders()
     await db.from('marketplace_offers').update({ status: 'declined' }).eq('id', id)
+    emitConvEvent('offer_declined', 'system', {}, true).catch(e => console.error('[conv] decline event:', e))
     sendOfferDeclined({
       listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
       askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
@@ -143,6 +160,7 @@ export async function PATCH(
       })
       .catch(e => console.error('[reminders] buyer counter expiry:', e))
 
+    emitConvEvent('offer_countered', 'seller', { counter_amount_cents: counterAmountCents, currency: listing.currency, message: counterMessage ?? null }, true).catch(e => console.error('[conv] counter event:', e))
     return NextResponse.json({ status: 'countered' })
   }
 
@@ -211,6 +229,7 @@ export async function PATCH(
       checkout_expires_at: checkoutExpires,
     }).eq('id', id)
 
+    emitConvEvent('offer_accepted', 'system', { amount_cents: offer.offer_amount_cents, currency: listing.currency }, true).catch(e => console.error('[conv] accept event:', e))
     sendOfferAccepted({
       listingTitle: listing.title, listingId: listing.id,
       listingUrl: `${origin}/l/${listing.id}`,

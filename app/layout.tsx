@@ -272,6 +272,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </a>
                     <Show when="signed-in">
                       <a
+                        href="/messages"
+                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                        className="hover:text-[var(--fg)]"
+                        title="Mensajes"
+                      >
+                        <i className="iconoir-chat-bubble" style={{ fontSize: 15, verticalAlign: 'middle' }} />
+                      </a>
+                      <a
+                        href="/account/favorites"
+                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                        className="hover:text-[var(--fg)]"
+                        title="Favoritos"
+                      >
+                        <i className="iconoir-heart" style={{ fontSize: 15, verticalAlign: 'middle' }} />
+                      </a>
+                      <a
                         href="/shop/manage"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"

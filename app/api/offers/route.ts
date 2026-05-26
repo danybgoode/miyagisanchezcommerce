@@ -9,8 +9,8 @@ import { tg } from '@/lib/telegram'
 
 interface CreateOfferBody {
   listingId: string
-  buyerName: string
-  buyerEmail: string
+  buyerName?: string
+  buyerEmail?: string
   offerAmountCents: number
   message?: string
 }
@@ -24,25 +24,32 @@ export async function GET(req: NextRequest) {
 
   if (!listingId) return NextResponse.json({ offer: null })
 
-  // Prefer Clerk user lookup; fall back to email param
   const user = await currentUser()
-  let query = db.from('marketplace_offers').select('*').eq('listing_id', listingId)
+  if (!user) return NextResponse.json({ offer: null })
 
-  if (user) {
-    query = query.eq('buyer_clerk_user_id', user.id)
-  } else if (email) {
-    query = query.ilike('buyer_email', email)
-  } else {
-    return NextResponse.json({ offer: null })
-  }
-
-  const { data } = await query
+  const { data } = await db
+    .from('marketplace_offers')
+    .select('*')
+    .eq('listing_id', listingId)
+    .eq('buyer_clerk_user_id', user.id)
     .in('status', ['pending', 'countered', 'accepted', 'paid'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  return NextResponse.json({ offer: data ?? null })
+  // Also look up the conversation for this buyer+listing
+  let conversationId: string | null = null
+  if (user) {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id')
+      .eq('listing_id', listingId)
+      .eq('buyer_clerk_user_id', user.id)
+      .maybeSingle()
+    conversationId = conv?.id ?? null
+  }
+
+  return NextResponse.json({ offer: data ?? null, conversationId })
 }
 
 // ── POST — create a new offer ─────────────────────────────────────────────────
@@ -64,17 +71,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
   }
 
-  const { listingId, buyerName, buyerEmail, offerAmountCents, message } = body
+  const { listingId, offerAmountCents, message } = body
+
+  // ── Require authenticated buyer for offers ────────────────────────────────
+  const clerkUser = await currentUser()
+  if (!clerkUser) {
+    return NextResponse.json({ error: 'Necesitas una cuenta para hacer ofertas.', requiresAuth: true }, { status: 401 })
+  }
+  const buyerClerkId = clerkUser.id
+  const buyerEmail   = clerkUser.emailAddresses[0]?.emailAddress ?? ''
+  const buyerName    = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || 'Comprador'
 
   // ── Input validation ──────────────────────────────────────────────────────
   if (!listingId || typeof listingId !== 'string') {
     return NextResponse.json({ error: 'Anuncio no especificado.' }, { status: 400 })
-  }
-  if (!buyerName || buyerName.trim().length < 2) {
-    return NextResponse.json({ error: 'Nombre inválido.', field: 'buyerName' }, { status: 422 })
-  }
-  if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
-    return NextResponse.json({ error: 'Correo inválido.', field: 'buyerEmail' }, { status: 422 })
   }
   if (!Number.isInteger(offerAmountCents) || offerAmountCents <= 0) {
     return NextResponse.json({ error: 'Monto inválido.', field: 'amount' }, { status: 422 })
@@ -105,10 +115,6 @@ export async function POST(req: NextRequest) {
   if (!validation.ok) {
     return NextResponse.json({ error: validation.message, field: 'amount' }, { status: 422 })
   }
-
-  // ── Clerk user (optional) ─────────────────────────────────────────────────
-  const clerkUser = await currentUser()
-  const buyerClerkId = clerkUser?.id ?? null
 
   // ── Trust gate — check min_buyer_trust_level ──────────────────────────────
   const shopMeta = (listing.marketplace_shops as unknown as { metadata: Record<string, unknown> | null }).metadata
@@ -166,6 +172,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo enviar la oferta.' }, { status: 500 })
   }
 
+  // ── Create conversation + opening event ───────────────────────────────────
+  const shopRow = listing.marketplace_shops as unknown as { id: string; clerk_user_id: string | null }
+  let conversationId: string | null = null
+
+  if (shopRow.clerk_user_id) {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .upsert({
+        listing_id: listingId,
+        shop_id: shopRow.id,
+        buyer_clerk_user_id: buyerClerkId,
+        seller_clerk_user_id: shopRow.clerk_user_id,
+        offer_id: offer.id,
+        seller_unread: 1,
+        last_event_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'buyer_clerk_user_id,listing_id' })
+      .select('id')
+      .single()
+
+    if (conv) {
+      conversationId = conv.id
+      await db.from('marketplace_conversation_events').insert({
+        conversation_id: conv.id,
+        event_type: 'offer_sent',
+        actor: 'buyer',
+        metadata: { offer_id: offer.id, amount_cents: offerAmountCents, currency: listing.currency },
+      })
+    }
+  }
+
   // ── A2A auto-negotiation ──────────────────────────────────────────────────
   const negoSettings = (offerSettings.negotiation ?? {}) as {
     enabled?: boolean
@@ -207,7 +244,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Fire emails (non-fatal) ───────────────────────────────────────────────
-  const shop = listing.marketplace_shops as unknown as { id: string; clerk_user_id: string | null }
   const emailCtx = {
     listingTitle: listing.title,
     listingId,
@@ -230,8 +266,8 @@ export async function POST(req: NextRequest) {
   sendOfferConfirmed(emailCtx).catch(e => console.error('[email] offer confirmed:', e))
 
   // Seller alert + schedule reminders (look up email via Clerk)
-  if (shop.clerk_user_id) {
-    getSellerEmail(shop.clerk_user_id).then(async sellerEmail => {
+  if (shopRow.clerk_user_id) {
+    getSellerEmail(shopRow.clerk_user_id).then(async sellerEmail => {
       if (!sellerEmail) return
 
       // Immediate: new offer notification
@@ -265,7 +301,11 @@ export async function POST(req: NextRequest) {
     }).catch(e => console.error('[email] seller alert + reminders:', e))
   }
 
-  const responsePayload: Record<string, unknown> = { offerId: offer.id, status: autoStatus }
+  const responsePayload: Record<string, unknown> = {
+    offerId: offer.id,
+    status: autoStatus,
+    conversationId,
+  }
   if (autoStatus === 'countered' && counterAmountCents !== null) {
     responsePayload.counter_amount_cents = counterAmountCents
     responsePayload.counter_amount = formatOfferAmount(counterAmountCents, listing.currency)

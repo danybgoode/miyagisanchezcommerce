@@ -857,3 +857,7 @@ html, body {
 }
 .chip-rail::-webkit-scrollbar { display: none; }
 .chip-rail > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* ── Utilities ────────────────────────────────────────────────────────────── */
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }

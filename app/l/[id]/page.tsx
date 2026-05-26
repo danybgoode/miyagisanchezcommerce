@@ -6,7 +6,9 @@ import { getShopStripe } from '@/lib/stripe'
 import BuyButton from '@/app/components/BuyButton'
 import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
+import FavoriteButton from '@/app/components/FavoriteButton'
 import SubscriptionSection from './SubscriptionSection'
+import { db } from '@/lib/supabase'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -32,20 +34,8 @@ function timeAgo(dateStr: string): string {
   return `Hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? 's' : ''}`
 }
 
-function formatPhone(raw: string): string {
-  // Strip non-digits, then format MX number for display
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
-  if (digits.length === 12 && digits.startsWith('52')) {
-    const local = digits.slice(2)
-    return `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
-  }
-  return raw
-}
-
 function whatsappUrl(raw: string, title: string): string {
   const digits = raw.replace(/\D/g, '')
-  // Ensure country code
   const full = digits.startsWith('52') ? digits : `52${digits}`
   const text = encodeURIComponent(`Hola, vi tu anuncio "${title}" en miyagisanchez.com y me interesa. ¿Sigue disponible?`)
   return `https://wa.me/${full}?text=${text}`
@@ -56,324 +46,206 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
 
-  // Extract contact info — phone can be on listing metadata (SerpAPI) or shop metadata
+  const isSignedIn = !!clerkUser
   const listingPhone = listing.metadata?.phone as string | null | undefined
   const shopPhone = listing.shop?.metadata?.phone as string | null | undefined
   const phone = listingPhone || shopPhone || null
 
   const shopWebsite = listing.shop?.metadata?.website as string | null | undefined
   const isClaimed = !!(listing.shop?.clerk_user_id && !listing.shop.clerk_user_id.startsWith('pending:'))
-
-  // Digital goods
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
   const isDigital = listing.listing_type === 'digital'
-
-  // Stripe — check if seller has connected payments
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
-  // stripeSettings.enabled defaults to true when not set (opt-out toggle)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  // mp_enabled defaults true so existing shops without the column still show MP
   const sellerHasMp = (listing.shop as unknown as { mp_enabled?: boolean | null } | null)?.mp_enabled !== false
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
-
-  // REPUVE — vehicle history verification (autos only)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status
-
-  // Cal.com — scheduling
   const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
-
-  // Subscription listing — normalize Phase A (single) and Phase B (multi-tier) to tier array
   const isSubscription = (listing.listing_type as string) === 'subscription'
   type StoredTier = { id: string; label: string; price_cents: number; interval: 'month' | 'year'; features: string[]; is_highlighted: boolean; stripe_price_id?: string; mp_preapproval_plan_id?: string }
   const storedTiers = listing.metadata?.subscription_tiers as StoredTier[] | undefined
-  const subMeta     = listing.metadata?.subscription as { interval?: 'month' | 'year'; content_description?: string; stripe_price_id?: string } | undefined
-
-  // Build normalized tiers array for SubscriptionSection
+  const subMeta = listing.metadata?.subscription as { interval?: 'month' | 'year'; content_description?: string; stripe_price_id?: string } | undefined
   const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
     ? storedTiers
-    : subMeta
-      ? [{
-          id: 'default',
-          label: 'Suscripción',
-          price_cents: listing.price_cents ?? 0,
-          interval: subMeta.interval ?? 'month',
-          features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [],
-          is_highlighted: false,
-          stripe_price_id: subMeta.stripe_price_id,
-        }]
-      : []
-
-  // CLABE — seller has SPEI banking configured
-  // Settings are stored under settings.checkout.bank_transfer (set in ShopSettings.tsx)
-  const checkoutSettings = shopSettings.checkout as {
-    bank_transfer?: { clabe?: string; bank_name?: string; account_holder?: string }
-  } | undefined
+    : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
+  const checkoutSettings = shopSettings.checkout as { bank_transfer?: { clabe?: string; bank_name?: string; account_holder?: string } } | undefined
   const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
   const shopHasCalcom = !!(calcomSettings?.connected && calcomSettings?.booking_url)
-  const agendarLabel = listing.category === 'autos'
-    ? '🚗 Agendar prueba de manejo'
-    : listing.category === 'inmuebles'
-    ? '🏠 Agendar visita'
-    : listing.listing_type === 'service'
-    ? '🕐 Agendar cita'
-    : listing.listing_type === 'rental'
-    ? '📅 Ver disponibilidad'
-    : '📅 Agendar'
+  const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
+
+  // Check if favorited
+  let isFavorited = false
+  if (clerkUser) {
+    const { data: fav } = await db.from('marketplace_favorites').select('id').eq('clerk_user_id', clerkUser.id).eq('listing_id', id).maybeSingle()
+    isFavorited = !!fav
+  }
+
+  const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && isClaimed
+  const images = listing.images ?? []
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <nav className="text-sm text-[var(--color-muted)] mb-4">
-        <Link href="/" className="hover:text-[var(--color-text)]">Inicio</Link>
-        {' › '}
-        <Link href="/l" className="hover:text-[var(--color-text)]">Anuncios</Link>
-        {listing.category && (
-          <>
-            {' › '}
-            <Link href={`/l?category=${listing.category}`} className="hover:text-[var(--color-text)] capitalize">
-              {listing.category}
-            </Link>
-          </>
-        )}
-        {' › '}
-        <span className="text-[var(--color-text)]">{listing.title}</span>
-      </nav>
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 120 }}>
 
-      <div className="grid md:grid-cols-5 gap-8">
-        {/* Images */}
-        <div className="md:col-span-3">
-          {listing.images?.[0] ? (
-            <img src={listing.images[0].url} alt={listing.title} className="w-full rounded-lg border border-[var(--color-border)]" />
-          ) : (
-            <div className="w-full aspect-video rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-sunk)', border: '1px solid var(--border)' }}>
-              <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
-            </div>
-          )}
-          {listing.images.length > 1 && (
-            <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-              {listing.images.slice(1).map((img, i) => (
-                <img key={i} src={img.url} alt={img.alt ?? ''} className="w-16 h-16 object-cover rounded-md border border-[var(--color-border)] shrink-0" />
+      {/* ── Image gallery ────────────────────────────────────────────────────── */}
+      <div style={{ position: 'relative' }}>
+        {images.length === 0 ? (
+          <div style={{ width: '100%', aspectRatio: '4/3', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
+          </div>
+        ) : images.length === 1 ? (
+          <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div>
+            {/* Main image */}
+            <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+            {/* Thumbnail strip */}
+            <div style={{ display: 'flex', gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }} className="hide-scrollbar">
+              {images.slice(1).map((img, i) => (
+                <img key={i} src={img.url} alt="" style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, flexShrink: 0, opacity: 0.85 }} />
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Description */}
-          {listing.description && (
-            <div className="mt-6 border-t border-[var(--color-border)] pt-5">
-              <h2 className="font-semibold mb-3 text-[var(--color-text)]">Descripción</h2>
-              <p className="text-sm text-[var(--color-text)] whitespace-pre-line leading-relaxed">{listing.description}</p>
-            </div>
-          )}
+        {/* Favorite button overlay */}
+        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+          <FavoriteButton listingId={listing.id} initialFavorited={isFavorited} isSignedIn={isSignedIn} />
+        </div>
 
-          {/* Source link */}
-          {listing.source_url && (
-            <div className="mt-5 border-t border-[var(--color-border)] pt-4">
-              <a
-                href={listing.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted)] hover:text-[var(--color-accent)] no-underline transition-colors"
-              >
-                <span>Ver anuncio original</span>
-                <span className="text-xs">↗</span>
-                {listing.source_platform && (
-                  <span className="text-xs bg-[var(--color-background)] border border-[var(--color-border)] px-1.5 py-0.5 rounded capitalize">
-                    {listing.source_platform.replace('_', ' ')}
-                  </span>
-                )}
-              </a>
-            </div>
+        {/* Views badge */}
+        <div style={{ position: 'absolute', bottom: images.length > 1 ? 76 : 12, left: 12, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <i className="iconoir-eye" style={{ fontSize: 12, color: '#fff' }} />
+          <span style={{ fontSize: 11, color: '#fff', fontWeight: 500 }}>{listing.views}</span>
+        </div>
+      </div>
+
+      {/* ── Content ──────────────────────────────────────────────────────────── */}
+      <div style={{ padding: '16px 16px 0' }}>
+
+        {/* Breadcrumbs */}
+        <nav style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+          <Link href="/" style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Inicio</Link>
+          <span>›</span>
+          <Link href="/l" style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+          {listing.category && (<><span>›</span><Link href={`/l?category=${listing.category}`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)] capitalize">{listing.category}</Link></>)}
+        </nav>
+
+        {/* Title + meta */}
+        <h1 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}>{listing.title}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {listing.condition && (
+            <span style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
+              {conditionLabel(listing.condition)}
+            </span>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{timeAgo(listing.created_at)}</span>
+          {listing.location && (
+            <span style={{ fontSize: 12, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <i className="iconoir-map-pin" style={{ fontSize: 11 }} />{listing.location}
+            </span>
           )}
         </div>
 
-        {/* Details sidebar */}
-        <div className="md:col-span-2">
-          <h1 className="t-h3" style={{ marginBottom: 6 }}>{listing.title}</h1>
-          <p className="t-price" style={{ fontSize: 'var(--t-2xl)', marginBottom: 4 }}>{formatPrice(listing)}</p>
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 16 }}>{timeAgo(listing.created_at)} · {listing.views} vistas</p>
+        {/* Price */}
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{formatPrice(listing)}</p>
+          {listing.currency && listing.currency !== 'MXN' && (
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{listing.currency}</p>
+          )}
+        </div>
 
-          {/* Digital goods badge */}
-          {isDigital && digitalFile && (
-            <div className="flex items-center gap-2 mb-4" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
-              <i className="iconoir-pc-mouse" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Producto digital</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {digitalFile.label} · {digitalFile.name}
-                  {digitalFile.size && ` · ${(digitalFile.size / 1024 / 1024).toFixed(1)} MB`}
-                </div>
+        {/* ── Badges ──────────────────────────────────────────────────────────── */}
+        {isDigital && digitalFile && (
+          <div className="flex items-center gap-2" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
+            <i className="iconoir-pc-mouse" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
+            <div className="flex-1 min-w-0">
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Producto digital — entrega automática</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {digitalFile.label} · {digitalFile.name}
+                {digitalFile.size && ` · ${(digitalFile.size / 1024 / 1024).toFixed(1)} MB`}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* REPUVE badge */}
-          {showRepuve && (
-            <div
-              className="flex items-center gap-2 mb-4"
-              style={{
-                background: repuve!.status === 'sin_reporte' ? 'var(--success-soft)' : 'var(--danger-soft)',
-                borderRadius: 'var(--r-md)',
-                padding: '10px 12px',
-              }}
-            >
-              <i
-                className={repuve!.status === 'sin_reporte' ? 'iconoir-check-circle' : 'iconoir-warning-triangle'}
-                style={{ fontSize: 18, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }}
-              />
+        {showRepuve && (
+          <div className="flex items-center gap-2" style={{ background: repuve!.status === 'sin_reporte' ? 'var(--success-soft)' : 'var(--danger-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
+            <i className={repuve!.status === 'sin_reporte' ? 'iconoir-check-circle' : 'iconoir-warning-triangle'} style={{ fontSize: 18, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }} />
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)' }}>
+                {repuve!.status === 'sin_reporte' ? 'Sin reporte REPUVE' : 'Con reporte REPUVE'}
+              </span>
+              {repuve!.folio && <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)', opacity: 0.7 }}>Folio: {repuve!.folio}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* ── Subscription CTA (inline, not sticky) ───────────────────────────── */}
+        {isSubscription && subTiers.length > 0 && isClaimed && (
+          <div style={{ marginBottom: 20 }}>
+            <SubscriptionSection
+              listingId={listing.id}
+              tiers={subTiers}
+              shopName={listing.shop?.name ?? ''}
+              hasStripe={sellerHasStripe}
+              hasClabe={hasClabe}
+              hasMp={sellerHasMp}
+              isSignedIn={isSignedIn}
+            />
+          </div>
+        )}
+
+        {/* ── Digital buy (inline, not sticky) ────────────────────────────────── */}
+        {isDigital && hasBuyablePrice && (
+          <div style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 20 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+              <i className="iconoir-download-circle-solid" style={{ fontSize: 22, color: 'var(--agent)' }} />
               <div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)' }}>
-                  {repuve!.status === 'sin_reporte' ? 'Sin reporte REPUVE' : 'Con reporte REPUVE'}
-                </span>
-                {repuve!.folio && (
-                  <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)', opacity: 0.7 }}>
-                    Folio: {repuve!.folio}
-                  </span>
-                )}
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Entrega automática al instante</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Recibirás el archivo al completar el pago.</div>
               </div>
             </div>
-          )}
+            <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
+          </div>
+        )}
 
-          <dl className="space-y-2 text-sm mb-5">
-            {listing.condition && (
-              <div className="flex gap-2">
-                <dt className="text-[var(--color-muted)] w-24 shrink-0">Condición</dt>
-                <dd className="font-medium">{conditionLabel(listing.condition)}</dd>
-              </div>
-            )}
-            {listing.location && (
-              <div className="flex gap-2">
-                <dt className="text-[var(--color-muted)] w-24 shrink-0">Ubicación</dt>
-                <dd>{listing.location}</dd>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <dt className="text-[var(--color-muted)] w-24 shrink-0">Tipo</dt>
-              <dd className="capitalize">
-                {isDigital ? '💻 Digital' : isSubscription ? `🔔 Suscripción${subTiers.length > 1 ? ` · ${subTiers.length} planes` : subTiers[0]?.interval === 'year' ? ' · anual' : ' · mensual'}` : listing.listing_type === 'service' ? 'Servicio' : listing.listing_type === 'rental' ? 'Renta' : 'Producto'}
-              </dd>
-            </div>
-          </dl>
-
-          {/* ── Buy / Download CTA ───────────────────── */}
-          {isDigital && hasBuyablePrice && (
-            <div className="mb-4" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-              <div className="flex items-center gap-2 mb-3">
-                <i className="iconoir-download-circle-solid" style={{ fontSize: 22, color: 'var(--agent)', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Entrega automática al instante</div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Recibirás el archivo al completar el pago.</div>
-                </div>
-              </div>
-              <BuyButton
-                listingId={listing.id}
-                price={formatPrice(listing)}
-                isDigital
-                sellerHasStripe={sellerHasStripe}
-              />
-            </div>
-          )}
-
-          {/* Subscription CTA */}
-          {isSubscription && subTiers.length > 0 && isClaimed && (
-            <div className="mb-4">
-              <SubscriptionSection
-                listingId={listing.id}
-                tiers={subTiers}
-                shopName={listing.shop?.name ?? ''}
-                hasStripe={sellerHasStripe}
-                hasClabe={hasClabe}
-                hasMp={sellerHasMp}
-                isSignedIn={!!clerkUser}
-              />
-            </div>
-          )}
-
-          {/* Physical / service buy button + make offer */}
-          {!isDigital && !isSubscription && hasBuyablePrice && isClaimed && (
-            <div className="mb-4 space-y-2">
-              {/* MercadoPago — primary for MX (cards, OXXO, wallets, installments) */}
-              {sellerHasMp && (
-                <MercadoPagoButton
-                  listingId={listing.id}
-                  price={formatPrice(listing)}
-                  buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress}
-                />
-              )}
-              {/* Stripe — international cards fallback */}
-              {sellerHasStripe && (
-                <BuyButton
-                  listingId={listing.id}
-                  price={formatPrice(listing)}
-                  isDigital={false}
-                  sellerHasStripe={sellerHasStripe}
-                />
-              )}
-              <MakeOfferButton
-                listing={{
-                  id: listing.id,
-                  title: listing.title,
-                  price_cents: listing.price_cents!,
-                  currency: listing.currency,
-                  imageUrl: listing.images?.[0]?.url ?? null,
-                }}
-                buyerInfo={clerkUser ? {
-                  name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '),
-                  email: clerkUser.emailAddresses[0]?.emailAddress ?? '',
-                } : undefined}
-              />
-            </div>
-          )}
-
-          {/* ── Contact block ─────────────────────────── */}
-          <div className="card-panel mb-4">
-            {/* Seller */}
-            {listing.shop && (
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>Vendedor</p>
-                <Link
-                  href={`/s/${listing.shop.slug}`}
-                  style={{ fontWeight: 600, fontSize: 14, textDecoration: 'none', color: 'var(--fg)' }}
-                  className="hover:text-[var(--accent)]"
-                >
-                  {listing.shop.verified && (
-                    <span style={{ color: 'var(--accent)', marginRight: 4 }}>✓</span>
+        {/* ── Seller card ──────────────────────────────────────────────────────── */}
+        {listing.shop && (
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
+            <Link href={`/s/${listing.shop.slug}`} className="no-underline block">
+              <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
+                {/* Avatar placeholder */}
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {listing.shop.logo_url ? (
+                    <img src={listing.shop.logo_url as unknown as string} alt={listing.shop.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <i className="iconoir-shop" style={{ fontSize: 20, color: 'var(--accent)' }} />
                   )}
-                  {listing.shop.name}
-                </Link>
-                {listing.shop.location && (
-                  <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
-                    <i className="iconoir-map-pin" style={{ fontSize: 12, verticalAlign: 'middle', marginRight: 2 }} />
-                    {listing.shop.location}
-                  </p>
-                )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>
+                      {listing.shop.verified && <span style={{ color: 'var(--accent)', marginRight: 3 }}>✓</span>}
+                      {listing.shop.name}
+                    </span>
+                  </div>
+                  {listing.shop.location && (
+                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 1 }}>
+                      <i className="iconoir-map-pin" style={{ fontSize: 11, verticalAlign: 'middle', marginRight: 2 }} />
+                      {listing.shop.location}
+                    </p>
+                  )}
+                </div>
+                <i className="iconoir-arrow-right" style={{ fontSize: 16, color: 'var(--fg-subtle)', flexShrink: 0 }} />
               </div>
-            )}
+            </Link>
 
-            {/* Cal.com — Agendar */}
-            {shopHasCalcom && (
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <a
-                  href={calcomSettings!.booking_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-dark btn-lg no-underline"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  <i className="iconoir-calendar" style={{ fontSize: 16 }} />
-                  {agendarLabel.replace(/^[^\s]+\s/, '')}
-                  <i className="iconoir-arrow-up-right" style={{ fontSize: 13, opacity: 0.6 }} />
-                </a>
-                <p style={{ fontSize: 11, textAlign: 'center', color: 'var(--fg-muted)', marginTop: 6 }}>
-                  {calcomSettings!.event_type_title ?? 'Elige tu horario disponible'}
-                </p>
-              </div>
-            )}
-
-            {/* WhatsApp CTA */}
+            {/* WhatsApp */}
             {phone && (
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
                 <a
                   href={whatsappUrl(phone, listing.title)}
                   target="_blank"
@@ -381,74 +253,102 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   className="btn btn-lg no-underline"
                   style={{ width: '100%', justifyContent: 'center', background: '#25D366', color: '#fff', borderRadius: 'var(--r-pill)' }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                   </svg>
                   Contactar por WhatsApp
                 </a>
-                <p style={{ fontSize: 11, textAlign: 'center', color: 'var(--fg-muted)', marginTop: 6 }}>{formatPhone(phone)}</p>
               </div>
             )}
 
-            {/* Website link */}
-            {shopWebsite && (
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-                <a
-                  href={shopWebsite.startsWith('http') ? shopWebsite : `https://${shopWebsite}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  <i className="iconoir-internet" style={{ fontSize: 14 }} />
-                  Sitio web
+            {/* Cal.com */}
+            {shopHasCalcom && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
+                <a href={calcomSettings!.booking_url} target="_blank" rel="noopener noreferrer" className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
+                  <i className="iconoir-calendar" style={{ fontSize: 16 }} />
+                  {agendarLabel.replace(/^[^\s]+\s/, '')}
                   <i className="iconoir-arrow-up-right" style={{ fontSize: 12, opacity: 0.6 }} />
                 </a>
               </div>
             )}
 
-            {/* Ver perfil del vendedor */}
-            {isClaimed && !phone && (
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                <Link
-                  href={`/s/${listing.shop!.slug}`}
-                  className="btn btn-primary btn-lg no-underline"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  Ver perfil del vendedor
-                  <i className="iconoir-arrow-right" style={{ fontSize: 14 }} />
-                </Link>
-              </div>
-            )}
-
             {/* Claim nudge */}
-            {listing.shop && !isClaimed && (
-              <div style={{ padding: '10px 16px', background: 'var(--bg-sunk)' }}>
-                <Link
-                  href={`/s/${listing.shop.slug}/claim`}
-                  style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
-                >
+            {!isClaimed && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', background: 'var(--bg-sunk)' }}>
+                <Link href={`/s/${listing.shop.slug}/claim`} style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
                   ¿Es tuya esta tienda? Reclamar gratis →
                 </Link>
               </div>
             )}
           </div>
+        )}
 
-          {listing.tags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-              {listing.tags.map(tag => (
-                <Link
-                  key={tag}
-                  href={`/l?q=${encodeURIComponent(tag)}`}
-                  className="chip no-underline"
-                  style={{ fontSize: 12, padding: '4px 12px' }}
-                >
-                  {tag}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* ── Description ──────────────────────────────────────────────────────── */}
+        {listing.description && (
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
+            <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
+          </div>
+        )}
+
+        {/* ── Source link ──────────────────────────────────────────────────────── */}
+        {listing.source_url && (
+          <div style={{ marginBottom: 20 }}>
+            <a href={listing.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              Ver anuncio original
+              <i className="iconoir-arrow-up-right" style={{ fontSize: 12 }} />
+              {listing.source_platform && <span style={{ fontSize: 11, background: 'var(--bg-sunk)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: 4, textTransform: 'capitalize' }}>{listing.source_platform.replace('_', ' ')}</span>}
+            </a>
+          </div>
+        )}
+
+        {/* Tags */}
+        {listing.tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+            {listing.tags.map(tag => (
+              <Link key={tag} href={`/l?q=${encodeURIComponent(tag)}`} className="chip no-underline" style={{ fontSize: 12, padding: '4px 12px' }}>{tag}</Link>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* ── Sticky CTA bar (buy now + make offer) ───────────────────────────────
+          Only shown for physical/service products. Digital + subscriptions render
+          their CTAs inline above because they have extra context (tiers, file info). */}
+      {showBuyButtons && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 80,
+            background: 'var(--bg-elevated)',
+            borderTop: '1px solid var(--border)',
+            padding: '12px 16px',
+            paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+            backdropFilter: 'blur(20px)',
+          }}
+          className="max-w-[640px] mx-auto"
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <MakeOfferButton
+              listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
+              buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
+              isSignedIn={isSignedIn}
+            />
+            {sellerHasMp ? (
+              <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
+            ) : sellerHasStripe ? (
+              <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital={false} sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+                Contacta al vendedor para pagar
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

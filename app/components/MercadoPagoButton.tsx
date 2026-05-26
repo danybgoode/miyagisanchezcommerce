@@ -1,17 +1,33 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface MercadoPagoButtonProps {
   listingId: string
   price: string
   buyerEmail?: string
   offerId?: string
+  isSignedIn: boolean
 }
 
-export default function MercadoPagoButton({ listingId, price, buyerEmail, offerId }: MercadoPagoButtonProps) {
+export default function MercadoPagoButton({ listingId, price, buyerEmail, offerId, isSignedIn }: MercadoPagoButtonProps) {
+  const pathname = usePathname()
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
+
+  if (!isSignedIn) {
+    return (
+      <a
+        href={`/sign-in?redirect_url=${encodeURIComponent(pathname)}`}
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+        style={{ background: '#009EE3', color: '#fff' }}
+      >
+        <i className="iconoir-log-in" style={{ fontSize: 16 }} />
+        Inicia sesión para pagar con Mercado Pago
+      </a>
+    )
+  }
 
   async function handlePay() {
     setLoading(true)
@@ -41,15 +57,14 @@ export default function MercadoPagoButton({ listingId, price, buyerEmail, offerI
         type="button"
         onClick={handlePay}
         disabled={loading}
-        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-lg text-sm disabled:opacity-60 transition-colors"
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm disabled:opacity-60 transition-colors"
         style={{ background: '#009EE3', color: '#fff' }}
       >
         {loading ? (
-          <span className="animate-spin">⟳</span>
+          <span className="animate-spin inline-block">⟳</span>
         ) : (
           <>
-            {/* MercadoPago wordmark SVG — inline so no external request */}
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <circle cx="16" cy="16" r="16" fill="#fff" fillOpacity=".2"/>
               <text x="16" y="21" textAnchor="middle" fontSize="14" fontWeight="700" fill="#fff">MP</text>
             </svg>
@@ -57,10 +72,8 @@ export default function MercadoPagoButton({ listingId, price, buyerEmail, offerI
           </>
         )}
       </button>
-      {error && (
-        <p className="text-red-600 text-xs mt-2 text-center">⚠ {error}</p>
-      )}
-      <p className="text-xs text-center text-[var(--color-muted)] mt-1.5">
+      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center">⚠ {error}</p>}
+      <p className="text-xs text-center text-[var(--fg-muted)] mt-1.5">
         Tarjeta · OXXO · Wallet · Meses sin intereses
       </p>
     </div>
