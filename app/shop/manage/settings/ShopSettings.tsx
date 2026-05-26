@@ -182,7 +182,7 @@ const PRESETS: Preset[] = [
 
 // ── Navigation groups ─────────────────────────────────────────────────────────
 
-interface NavItem { id: string; label: string; soon?: boolean }
+interface NavItem { id: string; label: string; soon?: boolean; href?: string }
 interface NavGroup { label: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -210,6 +210,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'envios', label: 'Envíos' },
       { id: 'citas', label: 'Citas y Reservas' },
       { id: 'ofertas', label: 'Ofertas' },
+      { id: 'pedidos', label: 'Pedidos', href: '/shop/manage/orders' },
     ],
   },
   {
@@ -228,7 +229,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Próximamente',
     items: [
-      { id: 'pedidos', label: 'Gestión de pedidos', soon: true },
       { id: 'politicas', label: 'Devoluciones', soon: true },
     ],
   },
@@ -1157,18 +1157,28 @@ export default function ShopSettingsPanel({
       <div className={`lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6${focusSectionIds.length > 0 ? ' hidden' : ''}`}>
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {NAV_GROUPS.flatMap(g => g.items).map(item => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => scrollToSection(item.id)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                activeSection === item.id
-                  ? 'bg-[var(--color-accent)] text-white'
-                  : 'bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:bg-gray-200'
-              } ${item.soon ? 'opacity-50' : ''}`}
-            >
-              {item.label}
-            </button>
+            item.href ? (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:bg-gray-200 transition-colors no-underline"
+              >
+                {item.label} →
+              </Link>
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => scrollToSection(item.id)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  activeSection === item.id
+                    ? 'bg-[var(--color-accent)] text-white'
+                    : 'bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:bg-gray-200'
+                } ${item.soon ? 'opacity-50' : ''}`}
+              >
+                {item.label}
+              </button>
+            )
           ))}
         </div>
       </div>
@@ -1187,22 +1197,32 @@ export default function ShopSettingsPanel({
                   <ul className="space-y-0.5">
                     {group.items.map(item => (
                       <li key={item.id}>
-                        <button
-                          type="button"
-                          onClick={() => scrollToSection(item.id)}
-                          className={`w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors ${
-                            activeSection === item.id
-                              ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,white)] text-[var(--color-accent)] font-semibold'
-                              : 'text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-gray-100'
-                          } ${item.soon ? 'opacity-50' : ''}`}
-                        >
-                          {item.label}
-                          {item.soon && (
-                            <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-600 px-1 py-0.5 rounded">
-                              pronto
-                            </span>
-                          )}
-                        </button>
+                        {item.href ? (
+                          <Link
+                            href={item.href}
+                            className={`flex items-center w-full text-sm px-2 py-1.5 rounded-md transition-colors no-underline text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-gray-100`}
+                          >
+                            {item.label}
+                            <span className="ml-auto text-xs opacity-40">→</span>
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => scrollToSection(item.id)}
+                            className={`w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors ${
+                              activeSection === item.id
+                                ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,white)] text-[var(--color-accent)] font-semibold'
+                                : 'text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-gray-100'
+                            } ${item.soon ? 'opacity-50' : ''}`}
+                          >
+                            {item.label}
+                            {item.soon && (
+                              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-600 px-1 py-0.5 rounded">
+                                pronto
+                              </span>
+                            )}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -3034,24 +3054,31 @@ export default function ShopSettingsPanel({
           {/* ════════════════════════════════════════════════════════════════════
               SECTION 14: Gestión de pedidos (scaffold)
           ════════════════════════════════════════════════════════════════════ */}
-          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl">📬</span>
-              <h2 className="font-semibold text-sm">Gestión de pedidos</h2>
+          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5 opacity-60">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
+                Configuración de pedidos
+              </h2>
+              <SoonBadge />
             </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Revisa tus pedidos activos, genera etiquetas de envío con Envia.com o marca envíos manuales, y comunica el estado a tus compradores.
+              Configura tiempos de procesamiento, ventanas de despacho y confirmación automática. Estas opciones se mostrarán a los compradores antes de pagar.
             </p>
-            <Link
-              href="/shop/manage/orders"
-              className="flex items-center justify-between w-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3 hover:border-[var(--color-accent)] transition-colors group no-underline"
-            >
-              <div>
-                <p className="text-sm font-semibold text-[var(--color-foreground)]">Ver bandeja de pedidos</p>
-                <p className="text-xs text-[var(--color-muted)] mt-0.5">Pedidos por enviar, en camino y entregados</p>
-              </div>
-              <span className="text-[var(--color-muted)] group-hover:text-[var(--color-accent)] text-lg transition-colors">→</span>
-            </Link>
+            <div className="space-y-2 pointer-events-none select-none">
+              {[
+                { label: 'Tiempo de procesamiento', desc: '1 día · 2-3 días · 1 semana · Personalizado' },
+                { label: 'Confirmación automática', desc: 'Acepta pedidos al instante sin revisión manual' },
+                { label: 'Ventana de despacho', desc: 'Días disponibles para coordinar la entrega con el comprador' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-[var(--color-muted)]">{item.desc}</p>
+                  </div>
+                  <div className="w-16 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                </div>
+              ))}
+            </div>
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════
