@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .select('marketplace_listings ( title )')
     .eq('id', id)
     .maybeSingle()
-  const listing = (conv?.marketplace_listings as { title?: string } | null)
+  const listing = (conv?.marketplace_listings as unknown as { title?: string } | null)
   return { title: listing?.title ? `${listing.title} — Mensajes` : 'Conversación — Miyagi Sánchez' }
 }
 
@@ -21,14 +21,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const user = await currentUser()
   if (!user) redirect(`/sign-in?redirect_url=/messages/${id}`)
 
+  // ── Fetch conversation (no offers embed — offers table has no currency column) ──
   const { data: conv } = await db
     .from('marketplace_conversations')
     .select(`
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
-      buyer_unread, seller_unread,
+      buyer_unread, seller_unread, offer_id,
       marketplace_listings ( id, title, price_cents, currency, images, status, condition, location ),
-      marketplace_shops ( id, name, slug, logo_url ),
-      marketplace_offers ( id, status, offer_amount_cents, counter_amount_cents, counter_message, expires_at, counter_expires_at, checkout_expires_at, currency )
+      marketplace_shops ( id, name, slug, logo_url )
     `)
     .eq('id', id)
     .maybeSingle()
@@ -39,15 +39,42 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const isSeller = conv.seller_clerk_user_id === user.id
   if (!isBuyer && !isSeller) notFound()
 
-  const { data: events } = await db
-    .from('marketplace_conversation_events')
-    .select('id, event_type, actor, metadata, created_at')
-    .eq('conversation_id', id)
-    .order('created_at', { ascending: true })
+  // ── Derive currency from listing (offers table has no currency column) ──────
+  const listingRaw = conv.marketplace_listings as unknown as Array<{ currency: string }> | { currency: string } | null
+  const listingCurrency: string = Array.isArray(listingRaw)
+    ? (listingRaw[0]?.currency ?? 'MXN')
+    : (listingRaw?.currency ?? 'MXN')
 
-  // Mark as read
+  // ── Fetch offer + events in parallel ─────────────────────────────────────────
+  const offerId = (conv as unknown as { offer_id: string | null }).offer_id
+
+  const [eventsResult, offerResult] = await Promise.all([
+    db.from('marketplace_conversation_events')
+      .select('id, event_type, actor, metadata, created_at')
+      .eq('conversation_id', id)
+      .order('created_at', { ascending: true }),
+    offerId
+      ? db.from('marketplace_offers')
+          .select('id, status, offer_amount_cents, counter_amount_cents, counter_message, expires_at, counter_expires_at, checkout_expires_at')
+          .eq('id', offerId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  // Attach currency (from listing) to the offer object for the client
+  const offerWithCurrency = offerResult.data
+    ? { ...offerResult.data, currency: listingCurrency }
+    : null
+
+  // Mark as read (fire-and-forget, non-blocking)
   const unreadField = isBuyer ? 'buyer_unread' : 'seller_unread'
-  await db.from('marketplace_conversations').update({ [unreadField]: 0 }).eq('id', id)
+  db.from('marketplace_conversations').update({ [unreadField]: 0 }).eq('id', id).then(() => {})
+
+  type ConvParam = Parameters<typeof ConversationClient>[0]['initialConversation']
+  const initialConversation: ConvParam = {
+    ...(conv as unknown as ConvParam),
+    marketplace_offers: offerWithCurrency as ConvParam['marketplace_offers'],
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 72px)' }}>
@@ -61,8 +88,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
       <ConversationClient
         conversationId={id}
-        initialConversation={conv as unknown as Parameters<typeof ConversationClient>[0]['initialConversation']}
-        initialEvents={(events ?? []) as Parameters<typeof ConversationClient>[0]['initialEvents']}
+        initialConversation={initialConversation}
+        initialEvents={(eventsResult.data ?? []) as Parameters<typeof ConversationClient>[0]['initialEvents']}
         role={isBuyer ? 'buyer' : 'seller'}
         currentUserId={user.id}
       />
