@@ -903,7 +903,8 @@ export default function ShopSettingsPanel({
   // Returns policy
   type ReturnsPolicySettings = NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['returns_policy']
   const returnsPolicySettings = (s.returns_policy ?? {}) as NonNullable<ReturnsPolicySettings>
-  const [returnsWindow, setReturnsWindow]             = useState(returnsPolicySettings.window ?? 'none')
+  // '' = not yet configured by seller (no pill on PDP); 'none' = explicitly "no returns"
+  const [returnsWindow, setReturnsWindow]             = useState(returnsPolicySettings.window ?? '')
   const [returnsConditions, setReturnsConditions]     = useState(returnsPolicySettings.conditions ?? 'original')
   const [returnsShippingBy, setReturnsShippingBy]     = useState<'buyer' | 'seller'>(returnsPolicySettings.shipping_paid_by ?? 'buyer')
   const [returnsNote, setReturnsNote]                 = useState(returnsPolicySettings.custom_note ?? '')
@@ -1124,12 +1125,15 @@ export default function ShopSettingsPanel({
               dispatch_window_days: dispatchWindowDays,
               auto_confirm_days:   autoConfirmDays,
             },
-            returns_policy: {
-              window:           returnsWindow,
-              conditions:       returnsConditions,
-              shipping_paid_by: returnsShippingBy,
-              custom_note:      returnsNote.trim() || null,
-            },
+            // Only persist returns_policy if seller has explicitly chosen a window
+            ...(returnsWindow ? {
+              returns_policy: {
+                window:           returnsWindow,
+                conditions:       returnsConditions,
+                shipping_paid_by: returnsShippingBy,
+                custom_note:      returnsNote.trim() || null,
+              },
+            } : {}),
             theme: {
               banner_url:   bannerUrl,
               accent_color: accentColor,
@@ -3200,13 +3204,16 @@ export default function ShopSettingsPanel({
             {/* Return window */}
             <div className="mb-5">
               <p className="text-sm font-medium mb-1">Ventana de devolución</p>
-              <p className="text-xs text-[var(--color-muted)] mb-3">¿En cuántos días puede pedir una devolución el comprador?</p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">
+                Las ventanas de 14–30 días generan más confianza y menos disputas.
+                {' '}<strong className="font-semibold text-[var(--color-text)]">Independientemente de tu política</strong>, los compradores siempre pueden abrir un caso si el artículo no es como se describió.
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { key: 'none',    label: 'Sin devoluciones',  desc: 'No aceptas devoluciones por ningún motivo' },
-                  { key: '7d',      label: '7 días',            desc: 'Política estándar para artículos usados' },
-                  { key: '14d',     label: '14 días',           desc: 'Recomendado para ropa, electrónica y hogar' },
-                  { key: '30d',     label: '30 días',           desc: 'Política amplia — genera más confianza' },
+                  { key: '14d', label: '14 días', desc: 'Recomendado · genera confianza, reduce disputas' },
+                  { key: '30d', label: '30 días',  desc: 'Política amplia — ideal para artículos nuevos' },
+                  { key: '7d',  label: '7 días',   desc: 'Mínimo recomendado para artículos de segunda mano' },
+                  { key: 'none', label: 'Sin devoluciones', desc: 'Solo aceptas casos de artículo no conforme' },
                 ].map(opt => (
                   <button
                     key={opt.key}
@@ -3214,19 +3221,30 @@ export default function ShopSettingsPanel({
                     onClick={() => { setReturnsWindow(opt.key); mark() }}
                     className={`text-left p-3 rounded-lg border-2 transition-colors ${
                       returnsWindow === opt.key
-                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                        ? opt.key === 'none'
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                         : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
                     }`}
                   >
-                    <p className={`text-sm font-semibold ${returnsWindow === opt.key ? 'text-[var(--color-accent)]' : ''}`}>{opt.label}</p>
+                    <p className={`text-sm font-semibold ${
+                      returnsWindow === opt.key
+                        ? opt.key === 'none' ? 'text-amber-700' : 'text-[var(--color-accent)]'
+                        : ''
+                    }`}>{opt.label}</p>
                     <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
                   </button>
                 ))}
               </div>
+              {!returnsWindow && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                  Sin configurar — los compradores no verán ninguna política en tus anuncios.
+                </p>
+              )}
             </div>
 
-            {/* Conditions + shipping — only when returns are enabled */}
-            {returnsWindow !== 'none' && (
+            {/* Conditions + shipping — only when seller has chosen a positive return window */}
+            {returnsWindow && returnsWindow !== 'none' && (
               <>
                 <div className="border-t border-[var(--color-border)] pt-4 mb-4">
                   <p className="text-sm font-medium mb-1">Condición aceptada</p>
@@ -3298,10 +3316,21 @@ export default function ShopSettingsPanel({
             <div className="mt-4 p-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg">
               <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide mb-1">Vista previa en el anuncio</p>
               <p className="text-xs text-[var(--color-text)] leading-relaxed">
-                {returnsWindow === 'none'
-                  ? '⚠ Sin devoluciones — todas las ventas son finales.'
-                  : `↩ Devoluciones en ${returnsWindow === '7d' ? '7 días' : returnsWindow === '14d' ? '14 días' : '30 días'} · condición ${returnsConditions === 'original' ? 'original' : 'sin daños'} · flete por cuenta del ${returnsShippingBy === 'buyer' ? 'comprador' : 'vendedor'}.`}
-                {returnsNote.trim() && ` ${returnsNote.trim()}`}
+                {!returnsWindow
+                  ? <span className="text-[var(--color-muted)] italic">Sin configurar — no aparecerá ninguna política.</span>
+                  : returnsWindow === 'none'
+                    ? '— Sin política de devoluciones publicada.'
+                    : <>
+                        <span style={{ background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                          ↩ Devoluciones: {returnsWindow === '7d' ? '7 días' : returnsWindow === '14d' ? '14 días' : '30 días'}
+                        </span>
+                        {' · condición '}
+                        {returnsConditions === 'original' ? 'original' : 'sin daños'}
+                        {' · flete por '}
+                        {returnsShippingBy === 'buyer' ? 'el comprador' : 'el vendedor'}
+                        {returnsNote.trim() && `. ${returnsNote.trim()}`}
+                      </>
+                }
               </p>
             </div>
           </section>

@@ -68,8 +68,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const returnsPolicySettings = shopSettings.returns_policy as { window?: string; conditions?: string; shipping_paid_by?: string; custom_note?: string } | undefined
   const PROCESSING_LABELS: Record<string, string> = { '1d': '1 día hábil', '1-3d': '1–3 días hábiles', '3-5d': '3–5 días hábiles', '1-2w': '1–2 semanas' }
   const processingLabel = ordersSettings?.processing_time ? PROCESSING_LABELS[ordersSettings.processing_time] ?? ordersSettings.processing_time : null
-  const returnsLabel = returnsPolicySettings?.window === 'none' ? 'Sin devoluciones'
-    : returnsPolicySettings?.window === '7d' ? '7 días'
+  // Only show a positive return window as a trust signal — "no returns" is never surfaced
+  // on the PDP (it's the implicit default and negative framing; disputes still apply via
+  // platform protection regardless of seller policy).
+  const returnsLabel = returnsPolicySettings?.window === '7d'  ? '7 días'
     : returnsPolicySettings?.window === '14d' ? '14 días'
     : returnsPolicySettings?.window === '30d' ? '30 días'
     : null
@@ -208,9 +210,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               </span>
             )}
             {returnsLabel && (
-              <span style={{ fontSize: 12, background: returnsPolicySettings?.window === 'none' ? 'var(--warning-soft)' : 'var(--bg-sunk)', color: returnsPolicySettings?.window === 'none' ? 'var(--warning)' : 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 <i className="iconoir-undo" style={{ fontSize: 11 }} />
-                {returnsLabel === 'Sin devoluciones' ? 'Sin devoluciones' : `Devoluciones: ${returnsLabel}`}
+                Devoluciones: {returnsLabel}
               </span>
             )}
           </div>

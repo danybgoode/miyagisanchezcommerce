@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 
 // ── PATCH — update shop profile + settings ───────────────────────────────────
@@ -144,6 +145,10 @@ export async function PATCH(req: NextRequest) {
     console.error('Shop update error:', error)
     return NextResponse.json({ error: 'Error al guardar cambios.' }, { status: 500 })
   }
+
+  // Bust listing + shop page caches so PDP/storefront reflect new settings immediately
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
 
   return NextResponse.json({ ok: true })
 }

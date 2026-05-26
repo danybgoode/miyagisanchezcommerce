@@ -147,7 +147,9 @@ export default async function SettingsIndexPage() {
     clabe_ok: !!checkoutSettings?.bank_transfer?.clabe,
     calcom_ok: !!calcomSettings?.connected,
     custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain,
-    orders_ok: !!ordersSettings?.processing_time,
+    orders_ok:  !!ordersSettings?.processing_time,
+    // 'none' = explicitly configured but not a positive trust signal → still mark done
+    // '' / undefined = not yet configured → not done
     returns_ok: !!(returnsPolicySettings?.window),
   }
 
