@@ -1,35 +1,26 @@
-const BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+import Medusa from '@medusajs/js-sdk'
 
-async function storeFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}/store${path}`, {
-    headers: { 'x-publishable-api-key': '' },
-    next: { revalidate: 60 },
+const BASE_URL = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+// Singleton Medusa JS SDK client.
+// Use this for ALL commerce data: products, cart, orders, customers, fulfillment.
+// Never use db (Supabase) for commerce concerns.
+export const medusa = new Medusa({
+  baseUrl: BASE_URL,
+  publishableKey: PUBLISHABLE_KEY,
+})
+
+// Helper: authenticated Store API call using a Clerk JWT.
+// Pass the token from Clerk's getToken() or currentUser().
+export function authedMedusa(clerkJwt: string) {
+  return new Medusa({
+    baseUrl: BASE_URL,
+    publishableKey: PUBLISHABLE_KEY,
+    apiKey: clerkJwt,
   })
-  if (!res.ok) throw new Error(`Medusa ${path} → ${res.status}`)
-  return res.json()
 }
 
-export type StoreProduct = {
-  id: string
-  title: string
-  description: string | null
-  thumbnail: string | null
-  status: string
-  metadata: Record<string, unknown> | null
-  variants: Array<{
-    id: string
-    title: string
-    sku: string | null
-    calculated_price?: { calculated_amount: number; currency_code: string } | null
-    prices: Array<{ amount: number; currency_code: string }>
-  }>
-}
-
-export const store = {
-  products: {
-    list: (params = '') =>
-      storeFetch<{ products: StoreProduct[]; count: number }>(`/products?${params}`),
-    get: (id: string) =>
-      storeFetch<{ product: StoreProduct }>(`/products/${id}`),
-  },
-}
+// Seeded IDs — set once on first Medusa setup, stable across environments.
+export const MXN_REGION_ID = process.env.MEDUSA_MXN_REGION_ID ?? ''
+export const DEFAULT_SALES_CHANNEL_ID = process.env.MEDUSA_SALES_CHANNEL_ID ?? ''

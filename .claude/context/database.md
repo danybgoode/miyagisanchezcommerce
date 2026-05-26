@@ -1,223 +1,120 @@
 # Database
 
-## Client
+## Two databases — know which one to use
+
+**Medusa Postgres** (`apps/backend`) — commerce data: products, vendors, carts, orders, payments, fulfillment, returns, subscriptions. Access via Medusa Store API or Admin API. Never query this directly from the frontend.
+
+**Supabase** (`apps/miyagisanchez`) — non-commerce marketplace data that Medusa has no concept of. The tables below are ALL that should be in Supabase.
+
+---
+
+## Supabase client
 
 ```ts
 import { db } from '@/lib/supabase'
 // db = Supabase service-role client — bypasses RLS, safe for server-only code
 // NEVER expose in client components or return to browser
-```
-
-## Core tables
-
-### `marketplace_shops`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | PK |
-| `clerk_user_id` | TEXT | Clerk user ID; `pending:xxx` = unclaimed |
-| `slug` | TEXT | URL slug (`/s/[slug]`) |
-| `name`, `description`, `location` | TEXT | |
-| `logo_url` | TEXT | R2 or Supabase Storage URL |
-| `mp_enabled` | BOOLEAN | Show MercadoPago buttons (default true) |
-| `metadata` | JSONB | See shape below |
-| `calcom_api_key` | TEXT | Cal.com API key (encrypted) |
-| `ucp_webhook_url` | TEXT | Seller's order webhook URL |
-| `ucp_webhook_secret` | TEXT | HMAC secret for webhook signing |
-
-**`metadata` JSONB shape**:
-```ts
-{
-  settings: {
-    stripe: {
-      account_id: string          // Stripe Connect Express account
-      charges_enabled: boolean    // true once onboarding complete
-      onboarding_complete: boolean
-      enabled: boolean            // seller toggle (default true)
-    }
-    checkout: {
-      escrow_mode: 'off' | 'optional' | 'required'
-      show_phone: boolean
-      whatsapp_cta: boolean
-      bank_transfer: {
-        enabled: boolean
-        clabe: string             // 18-digit CLABE (SPEI)
-        bank_name: string
-        account_holder: string
-      }
-    }
-    shipping: { mercado_envios: boolean, local_pickup: boolean }
-    notifications: { email_new_view: boolean, email_new_message: boolean }
-    offers: {
-      min_buyer_trust_level: 'unverified'|'basic'|'trusted'|'verified'|'elite'
-      negotiation: { enabled: boolean, auto_accept_pct: number, auto_decline_pct: number }
-    }
-    theme: { banner_url, accent_color, tagline, social: { instagram, facebook, whatsapp, tiktok } }
-    calcom: { connected: boolean, username, booking_url, event_type_title }
-    scheduling: { links: Array<{ label, url }> }
-  }
-}
-```
-
-**Get Stripe settings**:
-```ts
-import { getShopStripe } from '@/lib/stripe'
-const stripeSettings = getShopStripe(shop.metadata)
-// → { account_id?, charges_enabled?, onboarding_complete?, enabled? }
+// NEVER use for products, orders, payments, or fulfillment — those go through Medusa
 ```
 
 ---
 
-### `marketplace_listings`
+## Supabase tables (non-commerce only)
+
+### `marketplace_conversations`
+
+One conversation per (buyer, vendor) pair. The persistent thread for offers, order tracking, and agent access.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | PK |
-| `shop_id` | UUID | FK → marketplace_shops |
-| `title`, `description` | TEXT | |
-| `price_cents` | INT | All prices in cents (MXN default) |
-| `currency` | TEXT | Default 'MXN' |
-| `listing_type` | TEXT | `'product'|'digital'|'subscription'|'service'|'rental'` |
-| `category` | TEXT | `'general'|'autos'|'inmuebles'|…` |
-| `status` | TEXT | `'active'|'draft'|'sold'|'expired'` |
-| `images` | JSONB | `Array<{ url: string, alt?: string }>` |
-| `tags` | TEXT[] | |
-| `views` | INT | Incremented on page load |
-| `metadata` | JSONB | See shapes below |
-
-**`metadata` JSONB shapes by listing_type**:
-```ts
-// listing_type === 'digital'
-{
-  digital_file: { key: string, name: string, size: number, label: string }
-}
-
-// listing_type === 'subscription' (Phase B multi-tier)
-{
-  subscription_tiers: Array<{
-    id: string            // uuid
-    label: string         // "Plan Básico"
-    price_cents: number
-    interval: 'month' | 'year'
-    features: string[]
-    is_highlighted: boolean
-    stripe_price_id?: string     // set when Stripe Price is created
-    mp_preapproval_plan_id?: string  // set when MP plan is created
-  }>
-}
-
-// listing_type === 'subscription' (Phase A single-tier legacy)
-{
-  subscription: {
-    interval: 'month' | 'year'
-    content_description: string
-    stripe_price_id?: string
-    mp_preapproval_plan_id?: string
-  }
-}
-
-// listing_type === 'service' / 'rental' / 'product'
-{
-  phone?: string
-  repuve?: { status: string, folio: string, verified_at: string }  // autos only
-  brand?, year?, km?, transmission?, fuel?  // autos metadata
-  rooms?, bathrooms?, area?, land_area?     // inmuebles metadata
-}
-```
-
----
-
-### `marketplace_subscriptions`
-
-Buyer subscription records — created on checkout, updated by webhooks.
-
-| Column | Type | Notes |
-|---|---|---|
-| `listing_id` | UUID | FK |
-| `shop_id` | UUID | FK |
 | `buyer_clerk_user_id` | TEXT | Clerk user ID |
-| `buyer_email` | TEXT | lowercased |
-| `payment_method` | TEXT | `'stripe'|'spei'|'mercadopago'` |
-| `status` | TEXT | `'active'|'canceled'|'past_due'|'pending_confirmation'|'trialing'|'pending_authorization'` |
-| `stripe_subscription_id` | TEXT | Unique |
-| `stripe_customer_id` | TEXT | |
-| `mp_preapproval_id` | TEXT | |
-| `tier_id` | TEXT | Tier ID from listing metadata |
-| `metadata` | JSONB | Extra data (SPEI notes, tier info) |
+| `vendor_id` | TEXT | Medusa vendor ID |
+| `product_id` | TEXT | Medusa product ID |
+| `offer_id` | UUID | FK → marketplace_offers (active offer) |
+| `created_at` | TIMESTAMPTZ | |
 
----
+### `marketplace_conversation_events`
 
-### `marketplace_subscription_content`
-
-Gated content posts by sellers.
+Immutable event log for a conversation. `event_type` mirrors offer state machine + lifecycle.
 
 | Column | Type | Notes |
 |---|---|---|
-| `shop_id` | UUID | FK |
-| `listing_id` | UUID | null = visible to all shop subscribers |
-| `title` | TEXT | |
-| `body` | TEXT | Markdown |
-| `file_url` | TEXT | R2 URL or presigned URL |
-| `file_type` | TEXT | `'image'|'video'|'document'|'audio'` |
-| `is_published` | BOOLEAN | |
+| `conversation_id` | UUID | FK |
+| `actor` | TEXT | `'buyer'|'seller'|'system'` |
+| `event_type` | TEXT | `'message'|'offer'|'counter'|'accept'|'decline'|'order_placed'|'shipped'|...` |
+| `metadata` | JSONB | Type-specific payload (amounts, tracking numbers, etc.) |
 
----
+### `marketplace_offers`
 
-### Other tables
+Offer/negotiation state machine.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | PK |
+| `product_id` | TEXT | Medusa product ID |
+| `vendor_id` | TEXT | Medusa vendor ID |
+| `buyer_clerk_user_id` | TEXT | |
+| `amount_cents` | INT | Offered amount |
+| `currency` | TEXT | Default 'MXN' |
+| `status` | TEXT | `'pending'|'accepted'|'declined'|'countered'|'expired'` |
+| `counter_amount_cents` | INT | If seller countered |
+| `expires_at` | TIMESTAMPTZ | 72h default |
+
+### `marketplace_favorites`
+
+Buyer saved items. `price_cents_at_save` enables price-drop alerts.
+
+| Column | Type | Notes |
+|---|---|---|
+| `buyer_clerk_user_id` | TEXT | |
+| `product_id` | TEXT | Medusa product ID |
+| `price_cents_at_save` | INT | |
+
+### `supply_batches` + `supply_items`
+
+Bulk import staging. Keeps scraped/CSV data isolated until admin review + Medusa publish.
 
 | Table | Purpose |
 |---|---|
-| `marketplace_offers` | Make-an-offer flow; status: `pending\|accepted\|declined\|countered\|expired` |
-| `marketplace_scrape_runs` | Admin scraper job tracking |
-| `marketplace_scrape_run_items` | Individual scraped items per run |
-| `supply_batches` + `supply_items` | Bulk import pipeline |
-| `ucp_buyer_identities` | OmniReputation / trust score storage |
+| `supply_batches` | One batch per import run |
+| `supply_items` | Individual rows, normalized and validated |
+
+After review, supply items are published as Medusa products via `POST /api/supply/import` → calls Medusa Admin API to create products.
+
+### `marketplace_scrape_runs` + `marketplace_scrape_run_items`
+
+Admin scraper job tracking. Raw scraper output stored here before supply review.
+
+### `ucp_buyer_identities`
+
+OmniReputation trust scores. Keyed by buyer identifier (email, Clerk ID, or phone hash).
 
 ---
 
-## Query patterns
+## Query patterns (Supabase only)
 
 ```ts
-// Basic fetch with join
-const { data: listing } = await db
-  .from('marketplace_listings')
-  .select('*, shop:marketplace_shops!inner(id, name, metadata, clerk_user_id)')
-  .eq('id', listingId)
-  .eq('status', 'active')
-  .maybeSingle()  // ← prefer over .single() to avoid throwing on not-found
+// Basic fetch
+const { data } = await db
+  .from('marketplace_conversations')
+  .select('*, events:marketplace_conversation_events(*)')
+  .eq('buyer_clerk_user_id', userId)
+  .order('created_at', { ascending: false })
 
-// Update with metadata merge (don't overwrite — spread existing meta)
-const { data: shop } = await db.from('marketplace_shops').select('metadata').eq('id', shopId).single()
-const existingMeta = (shop.metadata ?? {}) as Record<string, unknown>
-await db.from('marketplace_shops').update({
-  metadata: { ...existingMeta, settings: { ...(existingMeta.settings as object), stripe: { ... } } }
-}).eq('id', shopId)
-
-// JSONB field filter
-await db.from('marketplace_listings')
+// Prefer .maybeSingle() over .single() to avoid throwing on not-found
+const { data } = await db
+  .from('marketplace_offers')
   .select('*')
-  .eq('metadata->>payment_method', 'stripe')  // string comparison
-  .gte('metadata->>price', '5000')             // numeric needs .gte on text
-
-// ISR-cached query (use unstable_cache for listings read by buyers)
-import { unstable_cache } from 'next/cache'
-const cached = unstable_cache(async (id) => { ... }, ['listing', id], { revalidate: 60, tags: [`listing:${id}`] })
+  .eq('id', offerId)
+  .maybeSingle()
 ```
 
 ---
 
 ## Migrations
 
-All migrations live in `supabase/migrations/`. Naming convention:
-```
-20260522300000_subscriptions.sql
-YYYYMMDDHHMMSS_description.sql
-```
+Supabase migrations live in `supabase/migrations/`. Only add migrations for tables in the non-commerce list above. Never add migrations for products, orders, payments, or any concern Medusa handles.
 
-Run locally: `npx supabase db push` (or apply manually in Supabase dashboard SQL editor).  
+Naming: `YYYYMMDDHHMMSS_description.sql`  
 Never modify existing migration files — add new ones.
-
-Latest migrations:
-- `20260522300000_subscriptions.sql` — marketplace_subscriptions + marketplace_subscription_content
-- `20260522500000_subscriptions_phase_b.sql` — tier_id, mp columns, indexes
-- `20260523000000_subscription_listing_type.sql` — subscription listing_type constraint

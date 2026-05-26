@@ -1,83 +1,73 @@
 import { unstable_cache } from 'next/cache'
-import { db } from './supabase'
 import type { Listing, Shop, SearchParams } from './types'
 
-const PAGE_SIZE = 24
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
-export async function searchListings(params: SearchParams): Promise<{ listings: Listing[]; total: number; page: number }> {
-  const page = Math.max(1, parseInt(params.page ?? '1'))
-  const offset = (page - 1) * PAGE_SIZE
-
-  // Determine sort order
-  const sort = params.sort ?? 'reciente'
-  const orderMap: Record<string, { column: string; ascending: boolean }> = {
-    reciente:    { column: 'created_at', ascending: false },
-    precio_asc:  { column: 'price_cents', ascending: true },
-    precio_desc: { column: 'price_cents', ascending: false },
-    popular:     { column: 'views', ascending: false },
-  }
-  const { column: orderCol, ascending: orderAsc } = orderMap[sort] ?? orderMap.reciente
-
-  let query = db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location)', { count: 'exact' })
-    .eq('status', 'active')
-    .order(orderCol, { ascending: orderAsc })
-    .range(offset, offset + PAGE_SIZE - 1)
-
-  if (params.q) {
-    query = query.textSearch('search_vector', params.q, { type: 'websearch', config: 'spanish' })
-  }
-  if (params.category) query = query.eq('category', params.category)
-  if (params.state) query = query.eq('state', params.state)
-  if (params.municipio) query = query.ilike('municipio', `%${params.municipio}%`)
-  if (params.condition) query = query.eq('condition', params.condition)
-  if (params.min_price) query = query.gte('price_cents', parseInt(params.min_price) * 100)
-  if (params.max_price) query = query.lte('price_cents', parseInt(params.max_price) * 100)
-  if (params.location) query = query.ilike('location', `%${params.location}%`)
-
-  // Autos-specific metadata filters
-  if (params.brand) query = query.ilike('metadata->>brand', `%${params.brand}%`)
-  if (params.year_from) query = query.gte('metadata->>year', params.year_from)
-  if (params.year_to) query = query.lte('metadata->>year', params.year_to)
-  if (params.km_from) query = query.gte('metadata->>km', params.km_from)
-  if (params.km_to) query = query.lte('metadata->>km', params.km_to)
-  if (params.transmission) query = query.eq('metadata->>transmission', params.transmission)
-  if (params.fuel) query = query.eq('metadata->>fuel', params.fuel)
-
-  // Inmuebles-specific metadata filters
-  if (params.rooms_min) query = query.gte('metadata->>rooms', params.rooms_min)
-  if (params.rooms_max) query = query.lte('metadata->>rooms', params.rooms_max)
-  if (params.surface_min) query = query.gte('metadata->>surface', params.surface_min)
-  if (params.surface_max) query = query.lte('metadata->>surface', params.surface_max)
-  if (params.property_type) {
-    const types = params.property_type.split(',').filter(Boolean)
-    if (types.length > 0) query = query.in('metadata->>property_type', types)
-  }
-
-  const { data, count, error } = await query
-  if (error) throw new Error(error.message)
-  return { listings: (data ?? []) as Listing[], total: count ?? 0, page }
+function medusaFetch(path: string, options?: RequestInit) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    ...options,
+    headers: {
+      'x-publishable-api-key': PUB_KEY,
+      'Content-Type': 'application/json',
+      ...(options?.headers ?? {}),
+    },
+  })
 }
 
-// ── Cached fetchers (60s / 120s TTL) ──────────────────────────────────────────
-// These use Next.js data cache so DB is hit at most once per TTL across all
-// concurrent requests, even though the listing page itself is dynamic (auth).
+// Build query string from SearchParams, forwarding all supported filter keys.
+function buildQuery(params: SearchParams & { limit?: number | string }): string {
+  const allowed = [
+    'q', 'category', 'state', 'municipio', 'condition', 'min_price', 'max_price',
+    'location', 'sort', 'page', 'limit',
+    'brand', 'year_from', 'year_to', 'km_from', 'km_to', 'transmission', 'fuel',
+    'rooms_min', 'rooms_max', 'surface_min', 'surface_max', 'property_type',
+  ]
+  const sp = new URLSearchParams()
+  for (const key of allowed) {
+    const val = (params as Record<string, string | number | undefined>)[key]
+    if (val != null && val !== '') sp.set(key, String(val))
+  }
+  return sp.toString() ? `?${sp.toString()}` : ''
+}
+
+export async function searchListings(
+  params: SearchParams,
+): Promise<{ listings: Listing[]; total: number; page: number }> {
+  const page = Math.max(1, parseInt(params.page ?? '1'))
+  const qs = buildQuery({ ...params, page: String(page), limit: 24 })
+
+  const res = await medusaFetch(`/store/listings${qs}`, {
+    next: { revalidate: 30, tags: ['listings'] },
+  } as RequestInit)
+
+  if (!res.ok) {
+    console.error('[listings] searchListings failed', res.status, await res.text())
+    return { listings: [], total: 0, page }
+  }
+
+  const data = await res.json()
+  return { listings: data.listings ?? [], total: data.total ?? 0, page: data.page ?? page }
+}
 
 export const getListing = unstable_cache(
   async (id: string): Promise<Listing | null> => {
-    const { data } = await db
-      .from('marketplace_listings')
-      .select('*, shop:marketplace_shops(id,slug,name,verified,location,description,logo_url,clerk_user_id,metadata,source_url,mp_enabled)')
-      .eq('id', id)
-      .eq('status', 'active')
-      .single()
+    const res = await medusaFetch(`/store/listings/${id}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const listing = data.listing ?? null
 
-    if (data) {
-      // increment view count fire-and-forget (outside cache)
-      db.from('marketplace_listings').update({ views: (data.views ?? 0) + 1 }).eq('id', id)
+    // Increment view count fire-and-forget via a PATCH on the seller product metadata
+    // (async, does not block rendering)
+    if (listing) {
+      const newViews = (listing.metadata?.views as number ?? 0) + 1
+      medusaFetch(`/store/listings/${id}/view`, {
+        method: 'POST',
+        body: JSON.stringify({ views: newViews }),
+      }).catch(() => {})
     }
-    return data as Listing | null
+
+    return listing
   },
   ['listing'],
   { revalidate: 60, tags: ['listings'] },
@@ -85,50 +75,100 @@ export const getListing = unstable_cache(
 
 export const getShop = unstable_cache(
   async (slug: string): Promise<Shop | null> => {
-    const { data } = await db
-      .from('marketplace_shops')
-      .select('*')
-      .eq('slug', slug)
-      .single()
-    return data as Shop | null
+    const res = await medusaFetch(`/store/sellers/${slug}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.seller ?? null
   },
   ['shop'],
   { revalidate: 120, tags: ['shops'] },
 )
 
 export const getShopListings = unstable_cache(
-  async (shopId: string): Promise<Listing[]> => {
-    const { data } = await db
-      .from('marketplace_listings')
-      .select('*')
-      .eq('shop_id', shopId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-    return (data ?? []) as Listing[]
+  async (sellerSlug: string): Promise<Listing[]> => {
+    const res = await medusaFetch(`/store/sellers/${sellerSlug}/products`, {
+      next: { revalidate: 60, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return []
+    const data = await res.json()
+
+    // Map seller products to Listing shape
+    const seller = data.seller
+    return (data.products ?? []).map((p: any) => {
+      const meta = (p.metadata ?? {}) as Record<string, unknown>
+      const variant = p.variants?.[0]
+      const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
+      const priceObj = mxnPrice ?? variant?.prices?.[0]
+      return {
+        id: p.id,
+        shop_id: seller?.id ?? '',
+        medusa_product_id: p.id,
+        title: p.title,
+        description: p.description ?? null,
+        price_cents: priceObj?.amount ?? null,
+        currency: (priceObj?.currency_code ?? 'mxn').toUpperCase(),
+        condition: (meta.condition as string) ?? null,
+        listing_type: p.type?.value ?? 'product',
+        category: p.categories?.[0]?.handle ?? null,
+        state: (meta.state as string) ?? null,
+        municipio: (meta.municipio as string) ?? null,
+        location: (meta.location as string) ?? null,
+        metadata: meta,
+        images: (p.images ?? []).map((img: any) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
+        tags: (p.tags ?? []).map((t: any) => t.value),
+        status: p.status === 'published' ? 'active' : p.status,
+        source_platform: (meta.source_platform as string) ?? null,
+        source_url: (meta.source_url as string) ?? null,
+        views: (meta.views as number) ?? 0,
+        created_at: p.created_at,
+        shop: seller ? {
+          id: seller.id,
+          slug: seller.slug,
+          name: seller.name,
+          description: seller.description ?? null,
+          location: seller.location ?? null,
+          logo_url: seller.logo_url ?? null,
+          clerk_user_id: seller.clerk_user_id ?? null,
+          verified: seller.verified ?? false,
+          source: seller.source ?? null,
+          source_url: seller.source_url ?? null,
+          metadata: seller.metadata ?? null,
+          created_at: seller.created_at ?? p.created_at,
+          custom_domain: null,
+          custom_domain_verified: false,
+          custom_domain_vercel_ok: false,
+        } : null,
+      } as Listing
+    })
   },
   ['shop-listings'],
   { revalidate: 60, tags: ['listings'] },
 )
 
 export async function getRecentListings(limit = 8): Promise<Listing[]> {
-  const { data } = await db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified)')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  return (data ?? []) as Listing[]
+  const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
+    next: { revalidate: 60, tags: ['listings'] },
+  } as RequestInit)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.listings ?? []
 }
 
 export function formatPrice(listing: Listing): string {
   if (listing.price_cents == null) return 'Precio a consultar'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: listing.currency ?? 'USD' })
-    .format(listing.price_cents / 100)
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: listing.currency ?? 'MXN',
+  }).format(listing.price_cents / 100)
 }
 
 export function conditionLabel(condition: Listing['condition']): string {
   const map: Record<string, string> = {
-    new: 'Nuevo', like_new: 'Como nuevo', good: 'Buen estado', fair: 'Aceptable', parts: 'Para piezas',
+    new: 'Nuevo',
+    like_new: 'Como nuevo',
+    good: 'Buen estado',
+    fair: 'Aceptable',
+    parts: 'Para piezas',
   }
   return condition ? (map[condition] ?? condition) : ''
 }

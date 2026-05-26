@@ -1,5 +1,13 @@
 # Payments
 
+## ⚠️ All payment logic lives in the Medusa backend
+
+Payment providers (Stripe Connect, MercadoPago, SPEI) are configured as Medusa payment provider modules in `apps/backend`. The frontend does NOT contain payment logic — it calls Medusa's cart/checkout flow which handles provider selection, routing, and webhooks internally.
+
+**Do not add Stripe or MercadoPago API calls to the Next.js frontend.** If a payment concern arises, add it to `apps/backend/src/modules/` as a Medusa module or extend an existing payment provider.
+
+---
+
 ## Auth heuristic — critical
 
 | Flow | Auth required? | Why |

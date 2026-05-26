@@ -2,19 +2,90 @@
 
 ## What is this?
 
-**miyagisanchez.com** — a multi-seller marketplace for Mexico. Sellers create shops, list products (physical, digital, subscription, service, rental), and get paid via Stripe Connect, MercadoPago, or SPEI bank transfer. All UI is bilingual ES/EN. Stack: Next.js 16 App Router · React 19 · Supabase · Clerk · Tailwind CSS v4.
+**miyagisanchez.com** — a multi-seller P2P marketplace for Mexico. The mission: make ecommerce best practices (trust, escrow, offer negotiation, AI-native shopping) available to everyone for free, at the highest quality level.
 
-**Workflow**: Daniel commits directly to `main` → auto-deploys to Vercel. No PR process. Revert with `git revert HEAD` if something breaks.
+**Architecture**: Medusa v2 headless commerce backend + Next.js 16 App Router frontend. Fully UCP and MCP compatible — AI agents can browse, negotiate, and buy natively without a browser.
+
+**Monorepo**:
+```
+medusa-bonsai/
+├── apps/backend/          ← Medusa v2 (the commerce engine — products, orders, payments, fulfillment)
+└── apps/miyagisanchez/    ← Next.js 16 (UI layer + UCP/MCP endpoints + non-commerce APIs)
+```
+
+**Workflow**: Daniel commits directly to `main` → auto-deploys to Vercel. Revert with `git revert HEAD` if something breaks.
 
 ---
 
-## ⚠️ Three critical rules
+## ⚠️ Five rules that cannot be violated
 
-**1. Bilingual — mandatory.** Every user-visible string needs a key in BOTH `locales/en.json` AND `locales/es.json`. Never hardcode English text in `.tsx`. See [conventions.md](.claude/context/conventions.md#bilingual).
+### 1. Medusa owns all commerce. Never build it from scratch.
 
-**2. This Next.js has breaking changes.** Version 16 / React 19. `params` and `searchParams` are Promises — always `await` them. `cookies()` and `headers()` are async. Read `node_modules/next/dist/docs/` before writing unfamiliar code.
+If a feature touches products, orders, payments, fulfillment, or returns → **it goes in `apps/backend` as a Medusa module/plugin, and the frontend calls the Medusa Store API**. Do not create Supabase tables or custom Next.js API routes for these concerns.
 
-**3. Subscriptions require login; one-time purchases don't.** Auth heuristic: guests can buy normal products (Stripe Checkout collects email). Subscriptions must check `currentUser()` and return 401 if null — buyer identity is needed for lifecycle management.
+| Concern | Where it lives |
+|---|---|
+| Products / listings / variants | Medusa Products API |
+| Shops / sellers / vendors | `@medusajs/marketplace` plugin |
+| Cart + checkout | Medusa Cart → Order flow |
+| Orders, order lifecycle | Medusa Orders API |
+| Payments (Stripe Connect, MercadoPago, SPEI) | Medusa payment providers in `apps/backend` |
+| Shipping / fulfillment | Medusa Fulfillment module + Envia.com provider |
+| Returns / refunds | Medusa Returns module |
+| Subscriptions | Custom Medusa module at `apps/backend/src/modules/subscriptions/` |
+| Inventory | Medusa Inventory module |
+| Regions / currencies (MXN, USD) | Medusa Regions |
+
+**Frontend reads commerce data via**: `import { medusa } from '@/lib/medusa'` → calls `MEDUSA_STORE_URL/store/*`. Never `db.from()` for anything in the table above.
+
+### 2. Supabase is ONLY for non-commerce marketplace data.
+
+Supabase holds things Medusa has no concept of:
+
+| Concern | Supabase table |
+|---|---|
+| Buyer–seller conversations | `marketplace_conversations` + `marketplace_conversation_events` |
+| Offer / negotiation state | `marketplace_offers` |
+| Favorites / saved items | `marketplace_favorites` |
+| Supply import staging | `supply_batches` + `supply_items` |
+| Scraper runs + items | `marketplace_scrape_runs` + `marketplace_scrape_run_items` |
+| UCP buyer identity / trust scores | `ucp_buyer_identities` |
+
+**Rule of thumb**: "Does Medusa have a module for this?" → Yes: Medusa. No: Supabase.
+
+### 3. UCP and MCP are first-class citizens. Every commerce feature must be agent-accessible.
+
+This marketplace is a **UCP-native implementation** (https://ucp.dev). UCP is the open standard (backed by Google, Shopify, Stripe, Amazon, Visa, Mastercard) for agentic commerce — REST + OAuth 2.0 + MCP + A2A.
+
+When building any commerce feature:
+- Products must be discoverable via `GET /api/ucp/catalog` (backed by Medusa)
+- Checkout options must be available via `POST /api/ucp/checkout-session`
+- All actions must be reachable via the MCP server at `POST /api/ucp/mcp` (JSON-RPC 2.0)
+- The capability manifest at `GET /api/ucp/manifest` must stay accurate
+- When Medusa replaces a Supabase data source, update the UCP routes to read from Medusa
+
+See [ucp.md](.claude/context/ucp.md) for full UCP/MCP architecture.
+
+### 4. Clerk is the auth layer. Never replace it.
+
+Clerk handles all frontend auth. A custom Medusa auth provider at `apps/backend/src/modules/auth-clerk/` validates Clerk JWTs so Medusa can identify customers. Do not remove Clerk, do not build custom auth pages.
+
+### 5. Bilingual — mandatory. Every string needs both locales.
+
+Every user-visible string needs a key in BOTH `locales/en.json` AND `locales/es.json`. Never hardcode English text in `.tsx`. See [conventions.md](.claude/context/conventions.md#bilingual).
+
+---
+
+## Next.js 16 breaking changes (always apply)
+
+`params` and `searchParams` are Promises — always `await` them. `cookies()` and `headers()` are async.
+
+```ts
+// ✅ Correct
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+}
+```
 
 ---
 
@@ -22,61 +93,72 @@
 
 | I'm working on… | Read these docs |
 |---|---|
-| New payment flow (checkout, webhook, refund) | [payments.md](.claude/context/payments.md) |
+| Medusa backend, plugins, modules, workflows | [medusa.md](.claude/context/medusa.md) |
+| Payment flows (checkout, webhook, refund) | [payments.md](.claude/context/payments.md) |
 | Subscription feature (tiers, content, buyer portal) | [payments.md](.claude/context/payments.md#subscriptions) |
 | Seller portal (`/sell`, `/shop/manage/*`) | [seller.md](.claude/context/seller.md) |
-| New DB table or query | [database.md](.claude/context/database.md) |
+| Non-commerce DB (conversations, offers, supply) | [database.md](.claude/context/database.md) |
+| UCP / MCP / AI agent commerce APIs | [ucp.md](.claude/context/ucp.md) |
 | API route, auth, error handling, rate limiting | [conventions.md](.claude/context/conventions.md) |
 | UI component, i18n, Tailwind patterns | [conventions.md](.claude/context/conventions.md) |
 | File upload (images, digital goods) | [conventions.md](.claude/context/conventions.md#storage) |
 | New page / routing / layout | [architecture.md](.claude/context/architecture.md) |
 | Admin features, scrapers, supply import | [architecture.md](.claude/context/architecture.md#admin) |
-| UCP / AI agent commerce APIs | [architecture.md](.claude/context/architecture.md#ucp) |
 
 ---
 
 ## Quick-reference
 
 ```bash
-# Dev (port 3001, Turbopack)
-npm run dev
+# Dev — run both services
+cd apps/backend && npx medusa dev           # Medusa backend on :9000
+cd apps/miyagisanchez && npm run dev        # Next.js frontend on :3001 (Turbopack)
 
-# Type-check
+# Type-check (frontend)
 npx tsc --noEmit
 
-# Build
-npm run build
+# Medusa DB migrate
+cd apps/backend && npx medusa db:migrate
 
-# Seed DB
-npm run seed
+# Build frontend
+npm run build
 ```
 
-**Key env vars** (check `.env.local`):
-- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — always use service role for server-side
+**Key env vars**:
+
+Frontend (`apps/miyagisanchez/.env.local`):
+- `MEDUSA_STORE_URL` — Medusa backend URL (`http://localhost:9000` in dev)
+- `MEDUSA_PUBLISHABLE_KEY` — Medusa publishable API key (required for all Store API calls)
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`
+- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — conversations/offers/supply only
+- `R2_*` — Cloudflare R2 (images bucket); `R2_DIGITAL_*` (private digital files bucket)
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — admin notifications
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` — rate limiting
+- `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` — custom domain provisioning
+
+Backend (`apps/backend/.env`):
+- `DATABASE_URL` — Medusa Postgres DB
 - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`
 - `MP_ACCESS_TOKEN` — MercadoPago
-- `R2_*` — Cloudflare R2 (images bucket); `R2_DIGITAL_*` (private digital files bucket)
-- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — admin notifications (Daniel only)
-- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` — rate limiting
-- `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` — custom domain provisioning (own channel feature)
+- `CLERK_SECRET_KEY` — Clerk auth provider validates JWTs against this
+- `STORE_CORS` / `ADMIN_CORS` / `AUTH_CORS`
 
-**Key imports**:
+**Key frontend imports**:
 ```ts
-import { db } from '@/lib/supabase'          // Supabase client
+import { medusa } from '@/lib/medusa'          // Medusa Store API — ALL commerce data
+import { db } from '@/lib/supabase'            // Supabase — ONLY conversations, offers, supply
 import { currentUser, auth } from '@clerk/nextjs/server'
-import { stripe, getShopStripe } from '@/lib/stripe'
-import { tg } from '@/lib/telegram'           // admin notifications
+import { tg } from '@/lib/telegram'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { uploadToR2, isR2Configured } from '@/lib/r2'
-import { detectChannel } from '@/lib/channel'  // federated commerce channel tagging
+import { detectChannel } from '@/lib/channel'
 ```
 
 ---
 
 ## Federated Commerce — Channels
 
-Miyagi Sánchez uses a **channels model**: each seller's products live in one place and are surfaced through multiple independent storefronts.
+Every seller's products live in Medusa and surface through multiple independent storefronts.
 
 | Channel | URL pattern | Purpose |
 |---|---|---|
@@ -85,33 +167,12 @@ Miyagi Sánchez uses a **channels model**: each seller's products live in one pl
 | Embed widget | `<script>` tag on any site | Existing audiences on other platforms |
 | API / UCP | `/api/ucp/*` | Headless, programmatic, AI agents |
 
-### How custom domain routing works
+Custom domain routing: Middleware detects non-platform hostnames → looks up vendor in Medusa by `custom_domain` metadata → rewrites to `/s/[slug]` with `x-miyagi-channel: custom` header.
 
-1. Seller enters their domain in `/shop/manage/settings` → "Canal Propio" section
-2. API route `POST /api/sell/shop/domain` saves to `marketplace_shops.custom_domain` and calls Vercel Domains API to provision SSL
-3. Seller adds `CNAME theirshop.mx → cname.vercel-dns.com` (or uses Cloudflare one-click flow)
-4. **Middleware** (`middleware.ts`) detects non-platform hostnames, looks up shop by `custom_domain`, and rewrites to `/s/[slug]` with header `x-miyagi-channel: custom`
-5. `/s/[slug]/page.tsx` reads the header → renders `<ChannelLayout>` (no platform chrome) instead of the standard root layout
-
-### New files
-
+Key files:
 ```
 lib/vercel-domains.ts          — addDomainToProject / getDomainStatus / removeDomainFromProject
 lib/channel.ts                 — detectChannel(req) → 'marketplace' | 'custom_domain' | 'embed' | 'api'
-app/s/[slug]/ChannelLayout.tsx — white-label shell (branded nav + footer, no miyagisanchez chrome)
+app/s/[slug]/ChannelLayout.tsx — white-label shell (branded nav, no platform chrome)
 app/api/sell/shop/domain/      — POST/GET/DELETE domain API route
-app/api/sell/shop/domain/cloudflare/ — Cloudflare DNS one-click automation
-supabase/migrations/20260524000000_custom_domain.sql
 ```
-
-### DB columns added to marketplace_shops
-
-| Column | Type | Purpose |
-|---|---|---|
-| `custom_domain` | `VARCHAR(255) UNIQUE` | Tenant's custom domain (e.g. `myshop.mx`) |
-| `custom_domain_verified` | `BOOLEAN` | Vercel has verified DNS + SSL |
-| `custom_domain_vercel_ok` | `BOOLEAN` | Domain registered on Vercel project |
-
-### Channel tagging on sales
-
-All checkout routes (`/api/stripe/checkout`, `/api/stripe/subscription-checkout`, `/api/mp/checkout`) call `detectChannel(req)` and include a `channel` field in Stripe metadata / MP `external_reference`. This enables per-channel revenue analytics in future dashboard work.

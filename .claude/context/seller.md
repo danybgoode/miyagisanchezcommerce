@@ -1,5 +1,11 @@
 # Seller portal
 
+## ⚠️ Product and order data comes from Medusa
+
+The seller portal UI reads and writes through the Medusa Store/Admin API. Products are Medusa products. Orders are Medusa orders. The seller is a Medusa vendor (marketplace plugin). Do not read/write `marketplace_listings` or `marketplace_orders` Supabase tables for any seller portal feature.
+
+---
+
 ## /sell — listing creation (SellWizard)
 
 File: `app/sell/SellWizard.tsx` — client component, multi-step wizard.
