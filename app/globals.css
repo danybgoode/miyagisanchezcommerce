@@ -148,6 +148,7 @@
   --glass-fill:        color-mix(in oklch, var(--papel-0) 62%, transparent);
   --glass-fill-warm:   color-mix(in oklch, var(--papel-50) 72%, transparent);
   --glass-fill-deep:   color-mix(in oklch, var(--papel-900) 8%, transparent);
+  --glass-fill-liquid: rgba(249, 249, 247, 0.80); /* iOS 26 tab bar — richer opacity */
   --glass-tint-accent: color-mix(in oklch, var(--selva-500) 16%, transparent);
   --glass-tint-energy: color-mix(in oklch, var(--jamaica-500) 14%, transparent);
   --glass-tint-agent:  color-mix(in oklch, var(--anil-500) 18%, transparent);
@@ -284,8 +285,9 @@
   --accent:        var(--selva-400);
   --accent-hover:  var(--selva-300);
   --accent-soft:   rgba(78, 146, 112, 0.12);
-  --glass-fill:      rgba(28, 28, 23, 0.55);
-  --glass-fill-warm: rgba(36, 36, 30, 0.6);
+  --glass-fill:        rgba(28, 28, 23, 0.55);
+  --glass-fill-warm:   rgba(36, 36, 30, 0.6);
+  --glass-fill-liquid: rgba(22, 22, 18, 0.78);
   --glass-stroke:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     inset 0 -1px 0 rgba(0, 0, 0, 0.4),
@@ -440,7 +442,7 @@ html, body {
 }
 
 .glass-liquid {
-  background: rgba(249, 249, 247, 0.80);
+  background: var(--glass-fill-liquid);
   -webkit-backdrop-filter: blur(32px) saturate(200%) brightness(1.05);
   backdrop-filter: blur(32px) saturate(200%) brightness(1.05);
   box-shadow:
@@ -820,6 +822,28 @@ html, body {
 .icon-btn:hover { color: var(--fg); background: var(--bg-sunk); }
 .icon-btn.accent { color: var(--accent); }
 .icon-btn.accent:hover { background: var(--accent-soft); }
+
+/* ── Tab bar press micro-feedback ──
+   Pure transform — never layout — guaranteed 60fps on iPhone.
+   Spring release is implicit: when :active ends the existing
+   transition springs the element back to scale(1). */
+.tab-press {
+  transition: transform 80ms ease-in, color 150ms var(--ease-standard);
+}
+.tab-press:active { transform: scale(0.88) !important; }
+
+.tab-press-center {
+  transition:
+    transform 80ms ease-in,
+    box-shadow 200ms var(--ease-standard),
+    opacity 200ms var(--ease-standard);
+}
+.tab-press-center:active { transform: scale(0.86) !important; }
+
+.search-circle-btn {
+  transition: transform 80ms ease-in;
+}
+.search-circle-btn:active { transform: scale(0.90) !important; }
 
 /* Horizontal chip rail — momentum scroll, no scrollbar */
 .chip-rail {
