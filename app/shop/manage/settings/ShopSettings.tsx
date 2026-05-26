@@ -61,6 +61,15 @@ export interface ShopSettingsData {
         local_pickup?: boolean
         custom_rates?: boolean
         pickup_spots?: PickupSpot[]
+        origin_address?: {
+          name?: string
+          street?: string
+          number?: string
+          colonia?: string
+          city?: string
+          state?: string
+          postal_code?: string
+        }
       }
       notifications?: {
         email_new_view?: boolean
@@ -673,6 +682,16 @@ export default function ShopSettingsPanel({
   const [localPickup, setLocalPickup]     = useState(s.shipping?.local_pickup ?? true)
   const [pickupSpots, setPickupSpots]     = useState<PickupSpot[]>(s.shipping?.pickup_spots ?? [])
 
+  // Origin address (for Envia.com label generation)
+  const oa = s.shipping?.origin_address ?? {}
+  const [originName, setOriginName]             = useState(oa.name ?? '')
+  const [originStreet, setOriginStreet]         = useState(oa.street ?? '')
+  const [originNumber, setOriginNumber]         = useState(oa.number ?? '')
+  const [originColonia, setOriginColonia]       = useState(oa.colonia ?? '')
+  const [originCity, setOriginCity]             = useState(oa.city ?? '')
+  const [originState, setOriginState]           = useState(oa.state ?? '')
+  const [originPostalCode, setOriginPostalCode] = useState(oa.postal_code ?? '')
+
   // Notifications
   const [emailView, setEmailView]       = useState(s.notifications?.email_new_view ?? false)
   const [emailMessage, setEmailMessage] = useState(s.notifications?.email_new_message ?? true)
@@ -1055,6 +1074,15 @@ export default function ShopSettingsPanel({
               mercado_envios: mercadoEnvios,
               local_pickup:   localPickup,
               pickup_spots:   pickupSpots.length > 0 ? pickupSpots : undefined,
+              origin_address: {
+                name:        originName.trim()        || undefined,
+                street:      originStreet.trim()      || undefined,
+                number:      originNumber.trim()      || undefined,
+                colonia:     originColonia.trim()     || undefined,
+                city:        originCity.trim()        || undefined,
+                state:       originState.trim()       || undefined,
+                postal_code: originPostalCode.trim()  || undefined,
+              },
             },
             notifications:  { email_new_view: emailView, email_new_message: emailMessage },
             offers: {
@@ -1716,6 +1744,99 @@ export default function ShopSettingsPanel({
                 description="Genera etiquetas de envío directamente desde tu tienda. (Próximamente)"
                 disabled
               />
+
+              {/* ── Origin address (Envia.com) ──────────────────────────────── */}
+              <div className="pt-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+                    📦 Dirección de origen
+                  </p>
+                  <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">
+                    Envia.com
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--color-muted)] mb-3">
+                  Desde aquí se calcularán tarifas y se generarán etiquetas con DHL, FedEx, Estafeta, UPS y más. Todos los campos son necesarios.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Nombre del remitente</label>
+                    <input
+                      type="text"
+                      value={originName}
+                      onChange={e => { setOriginName(e.target.value); mark() }}
+                      placeholder="Tu nombre o razón social"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Calle</label>
+                    <input
+                      type="text"
+                      value={originStreet}
+                      onChange={e => { setOriginStreet(e.target.value); mark() }}
+                      placeholder="Av. Insurgentes"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Número exterior</label>
+                    <input
+                      type="text"
+                      value={originNumber}
+                      onChange={e => { setOriginNumber(e.target.value); mark() }}
+                      placeholder="123"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Colonia</label>
+                    <input
+                      type="text"
+                      value={originColonia}
+                      onChange={e => { setOriginColonia(e.target.value); mark() }}
+                      placeholder="Roma Norte"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Ciudad</label>
+                    <input
+                      type="text"
+                      value={originCity}
+                      onChange={e => { setOriginCity(e.target.value); mark() }}
+                      placeholder="Ciudad de México"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Estado</label>
+                    <input
+                      type="text"
+                      value={originState}
+                      onChange={e => { setOriginState(e.target.value); mark() }}
+                      placeholder="Ciudad de México"
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Código postal</label>
+                    <input
+                      type="text"
+                      value={originPostalCode}
+                      onChange={e => { setOriginPostalCode(e.target.value.replace(/\D/g, '').slice(0, 5)); mark() }}
+                      placeholder="06600"
+                      maxLength={5}
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                </div>
+                {(!originStreet || !originCity || !originPostalCode) && (
+                  <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+                    <strong>Completa tu dirección de origen</strong> para poder generar etiquetas y cotizar envíos con Envia.com cuando recibas un pedido.
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
@@ -2913,31 +3034,24 @@ export default function ShopSettingsPanel({
           {/* ════════════════════════════════════════════════════════════════════
               SECTION 14: Gestión de pedidos (scaffold)
           ════════════════════════════════════════════════════════════════════ */}
-          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5 opacity-60">
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
-                Gestión de pedidos
-              </h2>
-              <SoonBadge />
+          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xl">📬</span>
+              <h2 className="font-semibold text-sm">Gestión de pedidos</h2>
             </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Configura tiempos de procesamiento, ventanas de despacho y cómo manejas la confirmación de pedidos. Estas opciones se mostrarán a los compradores antes de pagar.
+              Revisa tus pedidos activos, genera etiquetas de envío con Envia.com o marca envíos manuales, y comunica el estado a tus compradores.
             </p>
-            <div className="space-y-2 pointer-events-none select-none">
-              {[
-                { label: 'Tiempo de procesamiento', desc: '1 día · 2-3 días · 1 semana · Personalizado' },
-                { label: 'Confirmación automática de pedidos', desc: 'Acepta pedidos al instante sin revisión manual' },
-                { label: 'Ventana de despacho', desc: 'Días disponibles para coordinar la entrega con el comprador' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-[var(--color-muted)]">{item.desc}</p>
-                  </div>
-                  <div className="w-16 h-7 rounded-full bg-gray-200 flex-shrink-0" />
-                </div>
-              ))}
-            </div>
+            <Link
+              href="/shop/manage/orders"
+              className="flex items-center justify-between w-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3 hover:border-[var(--color-accent)] transition-colors group no-underline"
+            >
+              <div>
+                <p className="text-sm font-semibold text-[var(--color-foreground)]">Ver bandeja de pedidos</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">Pedidos por enviar, en camino y entregados</p>
+              </div>
+              <span className="text-[var(--color-muted)] group-hover:text-[var(--color-accent)] text-lg transition-colors">→</span>
+            </Link>
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════

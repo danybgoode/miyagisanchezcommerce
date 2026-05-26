@@ -229,10 +229,12 @@ export default function ManageDashboard({
   shop,
   initialListings,
   pendingOffersCount = 0,
+  pendingOrdersCount = 0,
 }: {
   shop: Shop
   initialListings: ManagedListing[]
   pendingOffersCount?: number
+  pendingOrdersCount?: number
 }) {
   const [listings, setListings] = useState(initialListings)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
@@ -327,6 +329,18 @@ export default function ManageDashboard({
               target="_blank"
             >
               Ver tienda pública ↗
+            </Link>
+            <span className="text-[var(--color-border)]">·</span>
+            <Link
+              href="/shop/manage/orders"
+              className="relative text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline inline-flex items-center gap-1"
+            >
+              Pedidos
+              {pendingOrdersCount > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                  {pendingOrdersCount}
+                </span>
+              )}
             </Link>
             <span className="text-[var(--color-border)]">·</span>
             <Link

@@ -1,0 +1,671 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import Link from 'next/link'
+import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Shipment {
+  id: string
+  carrier: string
+  tracking_number: string | null
+  label_url: string | null
+  status: string
+  estimated_delivery_date: string | null
+  weight_grams: number | null
+  envia_shipment_id: string | null
+  created_at: string
+}
+
+interface EnviaRate {
+  rateId: string
+  carrier: string
+  service: string
+  totalPrice: number
+  currency: string
+  deliveryEstimate: number | null
+}
+
+interface OrderDetailProps {
+  order: {
+    id: string
+    status: string
+    amount_cents: number
+    currency: string
+    shipping_method: string
+    shipping_cost_cents: number
+    shipping_address: Record<string, string> | null
+    buyer_name: string | null
+    buyer_email: string | null
+    created_at: string
+    updated_at: string
+    marketplace_listings:
+      | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
+      | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
+    marketplace_shops:
+      | { id: string; name: string; slug: string; clerk_user_id: string | null; metadata: Record<string, unknown> | null }
+      | { id: string; name: string; slug: string; clerk_user_id: string | null; metadata: Record<string, unknown> | null }[]
+    marketplace_shipments: Shipment[] | null
+  }
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ORDER_STEPS = [
+  { key: 'paid',       label: 'Pagado' },
+  { key: 'processing', label: 'Preparando' },
+  { key: 'shipped',    label: 'Enviado' },
+  { key: 'in_transit', label: 'En camino' },
+  { key: 'delivered',  label: 'Entregado' },
+]
+
+const STATUS_META: Record<string, { label: string; badge: string }> = {
+  paid:       { label: 'Nuevo',      badge: 'bg-amber-100 text-amber-700' },
+  processing: { label: 'Procesando', badge: 'bg-blue-100 text-blue-700' },
+  shipped:    { label: 'Enviado',    badge: 'bg-indigo-100 text-indigo-700' },
+  in_transit: { label: 'En camino',  badge: 'bg-purple-100 text-purple-700' },
+  delivered:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
+  completed:  { label: 'Completado', badge: 'bg-gray-100 text-gray-500' },
+  refunded:   { label: 'Reembolso',  badge: 'bg-red-100 text-red-600' },
+  fulfilled:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatPrice(cents: number, currency: string) {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('es-MX', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Mexico_City',
+  })
+}
+
+function formatAddress(addr: Record<string, string> | null): string {
+  if (!addr) return '—'
+  const parts = [
+    addr.line1 ?? addr.street,
+    addr.line2 ?? addr.colonia,
+    addr.city,
+    addr.state,
+    addr.postal_code ?? addr.postalCode,
+    addr.country,
+  ].filter(Boolean)
+  return parts.join(', ')
+}
+
+// ── Status stepper ────────────────────────────────────────────────────────────
+
+function StatusStepper({ status }: { status: string }) {
+  const stepKeys = ORDER_STEPS.map(s => s.key)
+  const currentIdx = stepKeys.indexOf(status)
+
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {ORDER_STEPS.map((step, i) => {
+        const done    = i < currentIdx
+        const current = i === currentIdx
+        const future  = i > currentIdx
+        return (
+          <div key={step.key} className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                done    ? 'bg-[var(--color-accent)] text-white' :
+                current ? 'bg-[var(--color-accent)] text-white ring-4 ring-[var(--color-accent)]/20' :
+                          'bg-[var(--color-border)] text-[var(--color-muted)]'
+              }`}>
+                {done ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ) : (
+                  i + 1
+                )}
+              </div>
+              <span className={`mt-1 text-[10px] font-medium text-center leading-tight ${
+                current ? 'text-[var(--color-accent)]' :
+                done    ? 'text-[var(--color-text)]' :
+                          'text-[var(--color-muted)]'
+              }`}>
+                {step.label}
+              </span>
+            </div>
+            {i < ORDER_STEPS.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1 mb-4 transition-colors ${
+                i < currentIdx ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'
+              }`} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
+  return (
+    <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
+      type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+    }`}>
+      <span>{type === 'success' ? '✓' : '⚠'}</span>
+      <span>{message}</span>
+      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100">×</button>
+    </div>
+  )
+}
+
+// ── Shipping section ──────────────────────────────────────────────────────────
+
+function ShippingSection({
+  orderId,
+  shippingAddress,
+  existingShipment,
+  onShipped,
+}: {
+  orderId: string
+  shippingAddress: Record<string, string> | null
+  existingShipment: Shipment | null
+  onShipped: (shipment: Partial<Shipment>) => void
+}) {
+  const [mode, setMode] = useState<'choose' | 'envia' | 'manual'>('choose')
+
+  // Envia state
+  const [weightGrams, setWeightGrams] = useState('500')
+  const [lengthCm, setLengthCm]       = useState('20')
+  const [widthCm, setWidthCm]         = useState('15')
+  const [heightCm, setHeightCm]       = useState('10')
+  const [rates, setRates]             = useState<EnviaRate[] | null>(null)
+  const [selectedRate, setSelectedRate] = useState<EnviaRate | null>(null)
+  const [quotingRates, setQuotingRates] = useState(false)
+  const [quoteError, setQuoteError]   = useState<string | null>(null)
+  const [creatingLabel, setCreatingLabel] = useState(false)
+  const [labelError, setLabelError]   = useState<string | null>(null)
+
+  // Manual state
+  const [manualCarrier, setManualCarrier] = useState('dhl')
+  const [manualTracking, setManualTracking] = useState('')
+  const [manualCarrierLabel, setManualCarrierLabel] = useState('')
+  const [sendingManual, setSendingManual] = useState(false)
+  const [manualError, setManualError] = useState<string | null>(null)
+
+  const hasAddress = !!(shippingAddress?.postal_code || shippingAddress?.postalCode)
+
+  async function getQuote() {
+    setQuotingRates(true); setQuoteError(null); setRates(null)
+    try {
+      const params = new URLSearchParams({
+        weightGrams, lengthCm, widthCm, heightCm,
+      })
+      const res = await fetch(`/api/orders/${orderId}/ship?${params}`)
+      const data = await res.json() as { rates?: EnviaRate[]; error?: string; code?: string }
+      if (!res.ok) {
+        setQuoteError(data.error ?? 'Error al cotizar.')
+        if (data.code === 'MISSING_ORIGIN_ADDRESS') {
+          setQuoteError('Configura tu dirección de origen en Ajustes de tienda antes de continuar.')
+        }
+        return
+      }
+      setRates(data.rates ?? [])
+      if (!data.rates?.length) setQuoteError('No hay tarifas disponibles para esta ruta. Intenta con envío manual.')
+    } catch {
+      setQuoteError('Sin conexión. Verifica tu internet.')
+    } finally {
+      setQuotingRates(false)
+    }
+  }
+
+  async function createLabel() {
+    if (!selectedRate) return
+    setCreatingLabel(true); setLabelError(null)
+    try {
+      const res = await fetch(`/api/orders/${orderId}/ship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rateId: selectedRate.rateId,
+          weightGrams: parseInt(weightGrams),
+          dimensions: { lengthCm: parseInt(lengthCm), widthCm: parseInt(widthCm), heightCm: parseInt(heightCm) },
+        }),
+      })
+      const data = await res.json() as { trackingNumber?: string; labelUrl?: string; carrier?: string; estimatedDeliveryDate?: string; error?: string }
+      if (!res.ok) { setLabelError(data.error ?? 'Error al generar la etiqueta.'); return }
+      onShipped({
+        carrier: data.carrier ?? selectedRate.carrier,
+        tracking_number: data.trackingNumber ?? null,
+        label_url: data.labelUrl ?? null,
+        estimated_delivery_date: data.estimatedDeliveryDate ?? null,
+        status: 'label_created',
+      })
+    } catch {
+      setLabelError('Sin conexión. Verifica tu internet.')
+    } finally {
+      setCreatingLabel(false)
+    }
+  }
+
+  async function sendManual() {
+    setSendingManual(true); setManualError(null)
+    try {
+      const res = await fetch(`/api/orders/${orderId}/ship-manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          carrier: manualCarrier,
+          trackingNumber: manualTracking.trim() || undefined,
+          carrierLabel: manualCarrier === 'otro' ? manualCarrierLabel : undefined,
+        }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) { setManualError(data.error ?? 'Error al registrar envío.'); return }
+      onShipped({
+        carrier: manualCarrier,
+        tracking_number: manualTracking.trim() || null,
+        label_url: null,
+        status: 'label_created',
+      })
+    } catch {
+      setManualError('Sin conexión. Verifica tu internet.')
+    } finally {
+      setSendingManual(false)
+    }
+  }
+
+  // Already shipped
+  if (existingShipment) {
+    const trackUrl = existingShipment.tracking_number
+      ? carrierTrackingUrl(existingShipment.carrier, existingShipment.tracking_number)
+      : null
+
+    return (
+      <section className="border border-[var(--color-border)] rounded-xl p-5">
+        <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Envío</h2>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-lg">🚚</div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">{carrierLabel(existingShipment.carrier)}</p>
+            {existingShipment.tracking_number && (
+              <p className="text-xs text-[var(--color-muted)] mt-0.5 font-mono">{existingShipment.tracking_number}</p>
+            )}
+            {existingShipment.estimated_delivery_date && (
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                Entrega estimada: {new Date(existingShipment.estimated_delivery_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+              </p>
+            )}
+            <div className="flex gap-2 mt-2.5 flex-wrap">
+              {existingShipment.label_url && (
+                <a href={existingShipment.label_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white no-underline hover:bg-[var(--color-accent-hover)]">
+                  🖨 Imprimir guía
+                </a>
+              )}
+              {trackUrl && (
+                <a href={trackUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text)] no-underline hover:bg-[var(--color-surface-alt)]">
+                  📍 Rastrear paquete
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+      <div className="px-5 pt-5 pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface-alt)]">
+        <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">Enviar pedido</h2>
+        <p className="text-xs text-[var(--color-muted)] mt-1">
+          El comprador recibirá un correo con los datos de seguimiento cuando confirmes el envío.
+        </p>
+      </div>
+
+      <div className="p-5">
+        {/* Address missing warning */}
+        {!hasAddress && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
+            <span className="text-amber-500 text-sm mt-0.5">⚠</span>
+            <p className="text-xs text-amber-800">
+              Este pedido no tiene dirección de envío registrada. Coordina la entrega directamente con el comprador.
+            </p>
+          </div>
+        )}
+
+        {/* Mode chooser */}
+        {mode === 'choose' && (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setMode('envia')}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
+            >
+              <span className="text-2xl">📦</span>
+              <div>
+                <p className="font-semibold text-sm">Envia.com</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">Cotiza y genera guía con DHL, FedEx, Estafeta…</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('manual')}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
+            >
+              <span className="text-2xl">✏️</span>
+              <div>
+                <p className="font-semibold text-sm">Envío manual</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">Ingresa tu guía propia o de mensajería local</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Envia flow */}
+        {mode === 'envia' && !rates && (
+          <div>
+            <button type="button" onClick={() => setMode('choose')}
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] mb-4 flex items-center gap-1">
+              ← Volver
+            </button>
+            <h3 className="font-semibold text-sm mb-3">Datos del paquete</h3>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Peso (gramos)</label>
+                <input type="number" value={weightGrams} onChange={e => setWeightGrams(e.target.value)} min="1"
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Largo (cm)</label>
+                <input type="number" value={lengthCm} onChange={e => setLengthCm(e.target.value)} min="1"
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Ancho (cm)</label>
+                <input type="number" value={widthCm} onChange={e => setWidthCm(e.target.value)} min="1"
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Alto (cm)</label>
+                <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} min="1"
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </div>
+            </div>
+            {quoteError && <p className="text-red-600 text-xs mb-3">⚠ {quoteError}</p>}
+            <button type="button" onClick={getQuote} disabled={quotingRates}
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              {quotingRates ? 'Cotizando…' : 'Ver tarifas disponibles →'}
+            </button>
+          </div>
+        )}
+
+        {/* Rate picker */}
+        {mode === 'envia' && rates && (
+          <div>
+            <button type="button" onClick={() => { setRates(null); setSelectedRate(null) }}
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] mb-4 flex items-center gap-1">
+              ← Cambiar medidas
+            </button>
+            <h3 className="font-semibold text-sm mb-3">Elige un servicio</h3>
+            <div className="space-y-2 mb-4">
+              {rates.map(rate => (
+                <button
+                  key={rate.rateId}
+                  type="button"
+                  onClick={() => setSelectedRate(rate)}
+                  className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${
+                    selectedRate?.rateId === rate.rateId
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">{carrierLabel(rate.carrier)} <span className="font-normal text-[var(--color-muted)]">· {rate.service}</span></p>
+                    {rate.deliveryEstimate && (
+                      <p className="text-xs text-[var(--color-muted)] mt-0.5">{rate.deliveryEstimate} día{rate.deliveryEstimate > 1 ? 's' : ''} hábil{rate.deliveryEstimate > 1 ? 'es' : ''}</p>
+                    )}
+                  </div>
+                  <span className="font-bold text-sm text-[var(--color-accent)]">
+                    {new Intl.NumberFormat('es-MX', { style: 'currency', currency: rate.currency, maximumFractionDigits: 0 }).format(rate.totalPrice)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {labelError && <p className="text-red-600 text-xs mb-3">⚠ {labelError}</p>}
+            <button type="button" onClick={createLabel} disabled={!selectedRate || creatingLabel}
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              {creatingLabel ? 'Generando guía…' : '📦 Generar guía y confirmar envío'}
+            </button>
+          </div>
+        )}
+
+        {/* Manual flow */}
+        {mode === 'manual' && (
+          <div>
+            <button type="button" onClick={() => setMode('choose')}
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] mb-4 flex items-center gap-1">
+              ← Volver
+            </button>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Paquetería</label>
+                <select value={manualCarrier} onChange={e => setManualCarrier(e.target.value)}
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white">
+                  {Object.entries(CARRIER_LABELS).filter(([k]) => k !== 'manual').map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                  <option value="otro">Otra / Mensajero local</option>
+                </select>
+              </div>
+              {manualCarrier === 'otro' && (
+                <div>
+                  <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Nombre de la paquetería</label>
+                  <input type="text" value={manualCarrierLabel} onChange={e => setManualCarrierLabel(e.target.value)}
+                    placeholder="Ej: Mensajero propio"
+                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">
+                  Número de guía <span className="font-normal">(opcional)</span>
+                </label>
+                <input type="text" value={manualTracking} onChange={e => setManualTracking(e.target.value)}
+                  placeholder="Ej: 123456789012"
+                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </div>
+            </div>
+            {manualError && <p className="text-red-600 text-xs mb-3">⚠ {manualError}</p>}
+            <button type="button" onClick={sendManual} disabled={sendingManual}
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              {sendingManual ? 'Guardando…' : '✓ Confirmar envío'}
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function OrderDetail({ order }: OrderDetailProps) {
+  const [currentStatus, setCurrentStatus] = useState(order.status)
+  const [currentShipment, setCurrentShipment] = useState<Shipment | null>(
+    order.marketplace_shipments?.[0] ?? null,
+  )
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+
+  const listing = Array.isArray(order.marketplace_listings)
+    ? order.marketplace_listings[0]
+    : order.marketplace_listings
+  const shop = Array.isArray(order.marketplace_shops)
+    ? order.marketplace_shops[0]
+    : order.marketplace_shops
+
+  const thumb  = listing?.images?.[0]?.url ?? null
+  const meta   = STATUS_META[currentStatus] ?? STATUS_META.paid
+
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }, [])
+
+  async function updateStatus(newStatus: string) {
+    setUpdatingStatus(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const data = await res.json() as { status?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al actualizar.', 'error'); return }
+      setCurrentStatus(data.status ?? newStatus)
+      showToast('Estado actualizado.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
+  function handleShipped(shipment: Partial<Shipment>) {
+    setCurrentShipment(shipment as Shipment)
+    setCurrentStatus('shipped')
+    showToast('¡Envío confirmado! El comprador recibió una notificación.', 'success')
+  }
+
+  const canShip = ['paid', 'processing'].includes(currentStatus) && listing?.listing_type === 'product'
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8">
+
+      {/* Breadcrumb */}
+      <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
+        <Link href="/shop/manage" className="hover:text-[var(--color-text)] no-underline">Mi tienda</Link>
+        <span>›</span>
+        <Link href="/shop/manage/orders" className="hover:text-[var(--color-text)] no-underline">Pedidos</Link>
+        <span>›</span>
+        <span className="font-mono text-[10px]">{order.id.slice(0, 8)}…</span>
+      </nav>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold">Pedido</h1>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
+          </div>
+          <p className="text-xs text-[var(--color-muted)] font-mono">{order.id}</p>
+          <p className="text-xs text-[var(--color-muted)] mt-0.5">{formatDate(order.created_at)}</p>
+        </div>
+        <Link href="/shop/manage/orders"
+          className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline flex-shrink-0">
+          ← Pedidos
+        </Link>
+      </div>
+
+      {/* Status stepper */}
+      {!['refunded', 'fulfilled'].includes(currentStatus) && (
+        <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+          <StatusStepper status={currentStatus} />
+        </div>
+      )}
+
+      {/* Product + amount */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <div className="flex items-start gap-4">
+          <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
+            {thumb
+              ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+            }
+          </div>
+          <div className="flex-1">
+            <Link href={`/l/${listing?.id}`}
+              className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
+              {listing?.title}
+            </Link>
+            <p className="text-xs text-[var(--color-muted)] mt-0.5 capitalize">{listing?.listing_type}</p>
+            <p className="text-xl font-bold mt-2">{formatPrice(order.amount_cents, order.currency)}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Buyer info */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Comprador</h2>
+        <div className="space-y-1.5 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">Nombre</span>
+            <span className="font-medium">{order.buyer_name ?? '—'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">Correo</span>
+            <a href={`mailto:${order.buyer_email}`}
+              className="text-[var(--color-accent)] text-sm no-underline hover:underline">
+              {order.buyer_email ?? '—'}
+            </a>
+          </div>
+          {order.shipping_address && Object.keys(order.shipping_address).length > 0 && (
+            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-[var(--color-border)]">
+              <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs mt-0.5">Dirección</span>
+              <span className="text-sm leading-snug">{formatAddress(order.shipping_address)}</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Shipping section — only for physical products */}
+      {listing?.listing_type === 'product' && (
+        <div className="mb-5">
+          <ShippingSection
+            orderId={order.id}
+            shippingAddress={order.shipping_address}
+            existingShipment={currentShipment}
+            onShipped={handleShipped}
+          />
+        </div>
+      )}
+
+      {/* Quick status actions */}
+      {currentStatus === 'paid' && (
+        <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-5">
+          <p className="text-sm font-medium text-blue-800 mb-3">¿Ya preparaste el pedido?</p>
+          <button type="button" onClick={() => updateStatus('processing')} disabled={updatingStatus}
+            className="text-sm font-semibold text-blue-700 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+            {updatingStatus ? 'Actualizando…' : '✓ Marcar como "En preparación"'}
+          </button>
+        </div>
+      )}
+
+      {['shipped', 'in_transit'].includes(currentStatus) && (
+        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
+          <p className="text-sm font-medium mb-3">¿El comprador ya lo recibió?</p>
+          <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
+            className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+            {updatingStatus ? 'Actualizando…' : '✓ Marcar como entregado'}
+          </button>
+        </div>
+      )}
+
+      {/* AI tip */}
+      {canShip && (
+        <div className="flex items-start gap-2.5 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3">
+          <span className="text-base mt-0.5 flex-shrink-0">✦</span>
+          <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+            <strong className="text-[var(--color-text)]">Tip:</strong> Incluye una nota de agradecimiento dentro del paquete.
+            Los compradores que reciben una nota califican con 5 estrellas un 40% más seguido.
+          </p>
+        </div>
+      )}
+
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+    </div>
+  )
+}

@@ -532,9 +532,106 @@ export async function sendOrderConfirmedToBuyer(ctx: {
           expiryStr ? notice(`El enlace expira el ${expiryStr}.`) : '',
         ].join('')
       : [
-          p('Tu pago fue procesado. El vendedor se pondrá en contacto para coordinar la entrega.'),
-          cta('Ver anuncio', ctx.listingUrl),
+          p('Tu pago fue procesado. El vendedor está preparando tu pedido. Te avisaremos cuando se envíe.'),
+          cta('Ver estado del pedido', `${SITE}/account/orders`),
         ].join(''),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ORDER / SHIPPING EMAILS
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── Seller: new physical order alert ─────────────────────────────────────────
+
+export async function sendNewOrderToSeller(ctx: {
+  sellerEmail: string
+  listingTitle: string
+  listingUrl: string
+  amountPaid: string
+  buyerName: string | null
+  buyerEmail: string | null
+  shippingAddress: Record<string, string> | null
+  orderId: string
+  orderUrl: string
+}): Promise<void> {
+  const subject = `📦 Nuevo pedido — ${ctx.listingTitle}`
+  const addrStr = ctx.shippingAddress
+    ? [ctx.shippingAddress.line1, ctx.shippingAddress.line2, ctx.shippingAddress.city, ctx.shippingAddress.state, ctx.shippingAddress.postal_code]
+        .filter(Boolean).join(', ')
+    : null
+
+  const body = [
+    h1('Recibiste un pedido'),
+    table([['Producto', `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`]]),
+    amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
+    table([
+      ...(ctx.buyerName  ? [['Comprador', ctx.buyerName]  as [string, string]] : []),
+      ...(ctx.buyerEmail ? [['Correo',    ctx.buyerEmail] as [string, string]] : []),
+      ...(addrStr ? [['Dirección',  addrStr]              as [string, string]] : []),
+    ]),
+    notice('Envía en menos de 3 días hábiles para mantener una buena reputación. Los compradores que esperan más de 72 h cancelan con más frecuencia.', 'warn'),
+    cta('Gestionar pedido', ctx.orderUrl),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
+}
+
+// ── Buyer: order shipped notification ─────────────────────────────────────────
+
+export async function sendOrderShipped(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  orderUrl: string
+  carrier: string
+  trackingNumber: string | null
+  estimatedDelivery: string | null
+  shopName: string
+}): Promise<void> {
+  const subject = `🚚 Tu pedido está en camino — ${ctx.listingTitle}`
+  const greeting = ctx.buyerName ? `¡${ctx.buyerName}, tu pedido ya viene!` : '¡Tu pedido está en camino!'
+  const deliveryStr = ctx.estimatedDelivery
+    ? new Date(ctx.estimatedDelivery).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', timeZone: 'America/Mexico_City' })
+    : null
+
+  const body = [
+    h1(greeting),
+    table([
+      ['Producto', esc(ctx.listingTitle)],
+      ['Vendedor', ctx.shopName],
+      ['Paquetería', ctx.carrier],
+      ...(ctx.trackingNumber ? [['Número de guía', `<span style="font-family:monospace">${esc(ctx.trackingNumber)}</span>`] as [string, string]] : []),
+      ...(deliveryStr ? [['Entrega estimada', deliveryStr] as [string, string]] : []),
+    ]),
+    p('Recibirás tu paquete pronto. Puedes rastrear el estado de tu envío en tu historial de compras.'),
+    cta('Ver estado del pedido', ctx.orderUrl),
+    notice('Si no recibes tu paquete en la fecha estimada, contacta al vendedor desde tu historial de compras.'),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ── Buyer: order delivered — request review ───────────────────────────────────
+
+export async function sendOrderDelivered(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  orderUrl: string
+  shopName: string
+}): Promise<void> {
+  const subject = `¡Tu pedido fue entregado! — ${ctx.listingTitle}`
+  const greeting = ctx.buyerName ? `¡${ctx.buyerName}, esperamos que lo disfrutes!` : '¡Tu pedido fue entregado!'
+
+  const body = [
+    h1(greeting),
+    table([
+      ['Producto', esc(ctx.listingTitle)],
+      ['Vendedor', ctx.shopName],
+    ]),
+    p('Tu pedido fue marcado como entregado. Si tienes algún problema con tu compra, contáctanos desde el detalle del pedido.'),
+    cta('Ver pedido', ctx.orderUrl),
+    notice('¿Todo bien? Confirmar la entrega le ayuda al vendedor a recibir su pago completo.'),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
 }

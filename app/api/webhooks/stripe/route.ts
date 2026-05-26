@@ -68,13 +68,33 @@ export async function POST(req: NextRequest) {
 // ── checkout.session.completed ────────────────────────────────────────────────
 
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
-  const { listing_id, shop_id, listing_type, offer_id } = session.metadata ?? {}
+  const { listing_id, shop_id, listing_type, offer_id, buyer_clerk_id, is_physical } = session.metadata ?? {}
   if (!listing_id || !shop_id) return
 
   const amountTotal = session.amount_total ?? 0
   const currency = (session.currency ?? 'mxn').toUpperCase()
   const buyerEmail = session.customer_details?.email ?? null
   const buyerName = session.customer_details?.name ?? null
+  const isPhysical = is_physical === 'true' || listing_type === 'product'
+
+  // Extract shipping address from Stripe session (present for physical products)
+  const stripeShipping = (session as unknown as Record<string, unknown>).shipping_details as
+    { name?: string; address?: Record<string, string | null> } | null | undefined
+  const shippingAddress: Record<string, string> | null = stripeShipping?.address
+    ? {
+        name:        stripeShipping.name ?? buyerName ?? '',
+        line1:       stripeShipping.address.line1 ?? '',
+        line2:       stripeShipping.address.line2 ?? '',
+        city:        stripeShipping.address.city ?? '',
+        state:       stripeShipping.address.state ?? '',
+        postal_code: stripeShipping.address.postal_code ?? '',
+        country:     stripeShipping.address.country ?? 'MX',
+      }
+    : null
+
+  // Physical products start in 'processing' so seller can acknowledge.
+  // Digital products go straight to 'paid' (webhook will fulfill them).
+  const initialStatus = isPhysical ? 'processing' : 'paid'
 
   // ── Record the order in Supabase ─────────────────────────────────────────
   const { data: order } = await db
@@ -86,9 +106,12 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       stripe_payment_intent_id: session.payment_intent as string | null,
       buyer_email: buyerEmail,
       buyer_name: buyerName,
+      buyer_clerk_user_id: buyer_clerk_id || null,
       amount_cents: amountTotal,
       currency,
-      status: 'paid',
+      status: initialStatus,
+      shipping_address: shippingAddress ?? {},
+      shipping_method: isPhysical ? 'pending' : 'none',
       metadata: offer_id ? { offer_id } : {},
     })
     .select('id')
@@ -173,18 +196,32 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 
   // ── Seller email ──────────────────────────────────────────────────────────
   if (shop.clerk_user_id) {
-    getSellerEmail(shop.clerk_user_id).then(sellerEmail => {
-      if (sellerEmail) {
-        return sendSaleCompletedToSeller({
+    getSellerEmail(shop.clerk_user_id).then(async sellerEmail => {
+      if (!sellerEmail) return
+      if (isPhysical && order) {
+        // Physical order → send richer email with buyer address + order link
+        const { sendNewOrderToSeller } = await import('@/lib/email')
+        return sendNewOrderToSeller({
           sellerEmail,
           listingTitle: listing.title,
           listingUrl,
           amountPaid: amountFormatted,
           buyerName,
           buyerEmail,
-          isDigital,
+          shippingAddress: shippingAddress ?? null,
+          orderId: order.id,
+          orderUrl: `${listingUrl.replace(/\/l\/.*/, '')}/shop/manage/orders/${order.id}`,
         })
       }
+      return sendSaleCompletedToSeller({
+        sellerEmail,
+        listingTitle: listing.title,
+        listingUrl,
+        amountPaid: amountFormatted,
+        buyerName,
+        buyerEmail,
+        isDigital,
+      })
     }).catch(e => console.error('[email] sale completed seller:', e))
   }
 }

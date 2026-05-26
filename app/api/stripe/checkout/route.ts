@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
   const thumb = (listing.images as Array<{ url: string }> | null)?.[0]?.url
 
+  // Physical products need a shipping address collected at checkout
+  const isPhysical = listing.listing_type === 'product'
+
   // ── Create Stripe Checkout Session ────────────────────────────────────────
   // Zero commission: full amount transferred to seller, platform_fee = 0
   const session = await stripe.checkout.sessions.create({
@@ -67,6 +70,12 @@ export async function POST(req: NextRequest) {
       transfer_data: { destination: stripeSettings.account_id },
       application_fee_amount: 0,
     },
+    // Collect shipping address for physical products
+    ...(isPhysical ? {
+      shipping_address_collection: {
+        allowed_countries: ['MX'],
+      },
+    } : {}),
     // Collect buyer email for digital delivery
     customer_email: undefined, // Stripe shows email field automatically
     success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -74,9 +83,10 @@ export async function POST(req: NextRequest) {
     metadata: {
       listing_id: listing.id,
       shop_id: listing.shop_id,
-      buyer_clerk_id: userId,
+      buyer_clerk_id: userId ?? '',
       listing_type: listing.listing_type,
       channel: detectChannel(req),
+      is_physical: isPhysical ? 'true' : 'false',
     },
   })
 

@@ -24,8 +24,8 @@ export default async function ManagePage() {
   // No shop yet — send them through the onboarding wizard
   if (!shop) redirect('/sell')
 
-  // ── Fetch listings + pending offers count in parallel ──────────────────────
-  const [{ data: listings }, { count: pendingOffersCount }] = await Promise.all([
+  // ── Fetch listings + pending offers + pending orders in parallel ───────────
+  const [{ data: listings }, { count: pendingOffersCount }, { count: pendingOrdersCount }] = await Promise.all([
     db
       .from('marketplace_listings')
       .select('id, title, price_cents, currency, category, listing_type, condition, status, views, images, created_at')
@@ -37,6 +37,11 @@ export default async function ManagePage() {
       .select('id', { count: 'exact', head: true })
       .eq('shop_id', shop.id)
       .eq('status', 'pending'),
+    db
+      .from('marketplace_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', shop.id)
+      .in('status', ['paid', 'processing']),
   ])
 
   return (
@@ -44,6 +49,7 @@ export default async function ManagePage() {
       shop={shop}
       initialListings={listings ?? []}
       pendingOffersCount={pendingOffersCount ?? 0}
+      pendingOrdersCount={pendingOrdersCount ?? 0}
     />
   )
 }
