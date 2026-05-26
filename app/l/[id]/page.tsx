@@ -86,44 +86,76 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && isClaimed
   const images = listing.images ?? []
 
-  return (
-    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 120 }}>
+  // Reusable CTA buttons block (rendered both inline on desktop and in sticky bar on mobile)
+  const ctaButtons = showBuyButtons ? (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <MakeOfferButton
+        listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
+        buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
+        isSignedIn={isSignedIn}
+      />
+      {sellerHasMp ? (
+        <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
+      ) : sellerHasStripe ? (
+        <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital={false} sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+          Contacta al vendedor para pagar
+        </div>
+      )}
+    </div>
+  ) : null
 
-      {/* ── Image gallery ────────────────────────────────────────────────────── */}
-      <div style={{ position: 'relative' }}>
-        {images.length === 0 ? (
-          <div style={{ width: '100%', aspectRatio: '4/3', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
-          </div>
-        ) : images.length === 1 ? (
-          <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
-        ) : (
-          <div>
-            {/* Main image */}
-            <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
-            {/* Thumbnail strip */}
-            <div style={{ display: 'flex', gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }} className="hide-scrollbar">
-              {images.slice(1).map((img, i) => (
-                <img key={i} src={img.url} alt="" style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, flexShrink: 0, opacity: 0.85 }} />
-              ))}
+  return (
+    /* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid */
+    <div
+      className="max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12"
+    >
+      {/* ── Desktop 2-col grid ──────────────────────────────────────────────── */}
+      <div className="md:grid md:gap-10 md:[grid-template-columns:46%_1fr]">
+
+      {/* ═══════════════════ LEFT COLUMN: Gallery (sticky on desktop) ════════ */}
+      <div className="md:col-start-1 md:row-start-1">
+        {/* Sticky wrapper — desktop only */}
+        <div className="md:sticky md:top-[72px]">
+          {/* ── Image gallery ───────────────────────────────────────────── */}
+          <div style={{ position: 'relative' }}>
+            {images.length === 0 ? (
+              <div style={{ width: '100%', aspectRatio: '4/3', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
+              </div>
+            ) : images.length === 1 ? (
+              <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', borderRadius: 'var(--r-lg)' }} className="md:rounded-xl" />
+            ) : (
+              <div>
+                <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} className="md:rounded-xl" />
+                <div style={{ display: 'flex', gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }} className="hide-scrollbar md:rounded-b-xl">
+                  {images.slice(1).map((img, i) => (
+                    <img key={i} src={img.url} alt="" style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, flexShrink: 0, opacity: 0.85 }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Favorite button overlay */}
+            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+              <FavoriteButton listingId={listing.id} initialFavorited={isFavorited} isSignedIn={isSignedIn} />
+            </div>
+
+            {/* Views badge */}
+            <div style={{ position: 'absolute', bottom: images.length > 1 ? 76 : 12, left: 12, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="iconoir-eye" style={{ fontSize: 12, color: '#fff' }} />
+              <span style={{ fontSize: 11, color: '#fff', fontWeight: 500 }}>{listing.views}</span>
             </div>
           </div>
-        )}
-
-        {/* Favorite button overlay */}
-        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
-          <FavoriteButton listingId={listing.id} initialFavorited={isFavorited} isSignedIn={isSignedIn} />
-        </div>
-
-        {/* Views badge */}
-        <div style={{ position: 'absolute', bottom: images.length > 1 ? 76 : 12, left: 12, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <i className="iconoir-eye" style={{ fontSize: 12, color: '#fff' }} />
-          <span style={{ fontSize: 11, color: '#fff', fontWeight: 500 }}>{listing.views}</span>
         </div>
       </div>
 
+      {/* ═══════════════════ RIGHT COLUMN: Content ═══════════════════════════ */}
+      <div className="md:col-start-2 md:row-start-1">
+
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <div style={{ padding: '16px 16px 0' }}>
+      <div style={{ padding: '16px 16px 0' }} className="md:pt-0 md:px-0">
 
         {/* Breadcrumbs */}
         <nav style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -183,6 +215,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Desktop inline CTAs (buy now + make offer) ─────────────────────── */}
+        {showBuyButtons && (
+          <div className="hidden md:block" style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
+            {ctaButtons}
+          </div>
+        )}
+
         {/* ── Subscription CTA (inline, not sticky) ───────────────────────────── */}
         {isSubscription && subTiers.length > 0 && isClaimed && (
           <div style={{ marginBottom: 20 }}>
@@ -217,7 +256,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
             <Link href={`/s/${listing.shop.slug}`} className="no-underline block">
               <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
-                {/* Avatar placeholder */}
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {listing.shop.logo_url ? (
                     <img src={listing.shop.logo_url as unknown as string} alt={listing.shop.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
@@ -311,12 +349,17 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </div>
+      </div>{/* end right column */}
 
-      {/* ── Sticky CTA bar (buy now + make offer) ───────────────────────────────
+      </div>{/* end 2-col grid */}
+
+      {/* ── Sticky CTA bar — mobile only ────────────────────────────────────────
+          Hidden on desktop (md+); desktop shows CTAs inline above seller card.
           Only shown for physical/service products. Digital + subscriptions render
-          their CTAs inline above because they have extra context (tiers, file info). */}
+          their CTAs inline because they have extra context (tiers, file info). */}
       {showBuyButtons && (
         <div
+          className="md:hidden"
           style={{
             position: 'fixed',
             bottom: 0,
@@ -329,24 +372,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
             backdropFilter: 'blur(20px)',
           }}
-          className="max-w-[640px] mx-auto"
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MakeOfferButton
-              listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
-              buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
-              isSignedIn={isSignedIn}
-            />
-            {sellerHasMp ? (
-              <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
-            ) : sellerHasStripe ? (
-              <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital={false} sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-                Contacta al vendedor para pagar
-              </div>
-            )}
-          </div>
+          {ctaButtons}
         </div>
       )}
     </div>

@@ -108,6 +108,25 @@ function TabBarInner() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery]           = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [hasUnread, setHasUnread]   = useState(false)
+
+  // Poll unread count every 20s (lightweight: only fetches a count)
+  useEffect(() => {
+    if (!isSignedIn) { setHasUnread(false); return }
+    let cancelled = false
+
+    async function checkUnread() {
+      try {
+        const res = await fetch('/api/conversations/unread')
+        const data = await res.json() as { unread: number }
+        if (!cancelled) setHasUnread(data.unread > 0)
+      } catch { /* silent */ }
+    }
+
+    checkUnread()
+    const id = setInterval(checkUnread, 20_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [isSignedIn])
 
   // Sync search state from URL (?q= on /l page)
   const urlQuery = pathname === '/l' ? (searchParams.get('q') ?? '') : ''
@@ -208,6 +227,7 @@ function TabBarInner() {
             href={messagesHref} icon="iconoir-chat-bubble" label="Mensajes"
             active={pathname.startsWith('/messages')}
             exitDelay={20} enterDelay={70} collapsed={searchOpen}
+            hasUnread={hasUnread && !pathname.startsWith('/messages')}
           />
 
           {/* Center + publish — own spring timing */}

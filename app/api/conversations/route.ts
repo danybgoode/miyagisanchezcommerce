@@ -16,7 +16,7 @@ export async function GET() {
       buyer_clerk_user_id, seller_clerk_user_id,
       marketplace_listings ( id, title, price_cents, currency, images, status ),
       marketplace_shops ( id, name, slug ),
-      marketplace_offers ( id, status, offer_amount_cents, counter_amount_cents, currency )
+      marketplace_offers ( id, status, offer_amount_cents, counter_amount_cents )
     `)
     .or(`buyer_clerk_user_id.eq.${user.id},seller_clerk_user_id.eq.${user.id}`)
     .in('status', ['active', 'completed'])

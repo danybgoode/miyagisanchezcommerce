@@ -452,6 +452,14 @@ export default function ConversationClient({ conversationId, initialConversation
     }
   }, [conversationId])
 
+  // Poll every 5 s while tab is visible (real-time updates without WebSockets)
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 5000)
+    return () => clearInterval(id)
+  }, [refresh])
+
   // Group events by day for date separators
   const grouped: Array<{ date: string; events: ConvEvent[] }> = []
   for (const ev of events) {

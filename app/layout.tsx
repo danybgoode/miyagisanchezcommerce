@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
+import DesktopUnreadBadge from '@/app/components/DesktopUnreadBadge'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -273,11 +274,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <Show when="signed-in">
                       <a
                         href="/messages"
-                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                        style={{ position: 'relative', fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"
                         title="Mensajes"
                       >
                         <i className="iconoir-chat-bubble" style={{ fontSize: 15, verticalAlign: 'middle' }} />
+                        <DesktopUnreadBadge />
                       </a>
                       <a
                         href="/account/favorites"

@@ -1096,8 +1096,15 @@ export default function ShopSettingsPanel({
   return (
     <div className={focusSection ? '' : 'px-4 py-8'}>
 
-      {/* ── Mobile top nav ──────────────────────────────────────────────────── */}
-      <div className="lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6">
+      {/* When a specific section is focused, hide everything else via CSS */}
+      {focusSection && (
+        <style dangerouslySetInnerHTML={{ __html:
+          `#shop-settings-sections section:not(#${focusSection}) { display: none !important; }`
+        }} />
+      )}
+
+      {/* ── Mobile top nav — hidden in focus mode ───────────────────────────── */}
+      <div className={`lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6${focusSection ? ' hidden' : ''}`}>
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {NAV_GROUPS.flatMap(g => g.items).map(item => (
             <button
@@ -1118,8 +1125,8 @@ export default function ShopSettingsPanel({
 
       <div className="max-w-5xl mx-auto flex gap-8">
 
-        {/* ── Desktop sidebar ───────────────────────────────────────────────── */}
-        <aside className="w-52 flex-shrink-0 hidden lg:block">
+        {/* ── Desktop sidebar — hidden in focus mode ────────────────────────── */}
+        <aside className={`w-52 flex-shrink-0 hidden${focusSection ? '' : ' lg:block'}`}>
           <div className="sticky top-6">
             <nav className="space-y-4">
               {NAV_GROUPS.map(group => (
@@ -1156,7 +1163,7 @@ export default function ShopSettingsPanel({
         </aside>
 
         {/* ── Main content ──────────────────────────────────────────────────── */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0" id="shop-settings-sections">
 
           {/* Breadcrumb */}
           <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">

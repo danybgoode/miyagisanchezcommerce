@@ -27,6 +27,7 @@ interface OfferInboxProps {
   shopId: string
   shopSlug: string
   initialOffers: InboxOffer[]
+  convByOfferId?: Record<string, string>
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -173,9 +174,11 @@ function CounterModal({
 function OfferCard({
   offer,
   onRespond,
+  conversationId,
 }: {
   offer: InboxOffer
   onRespond: (offerId: string, action: 'accept' | 'decline' | 'counter-open') => void
+  conversationId?: string
 }) {
   const listing = offer.marketplace_listings
   const thumb = listing.images?.[0]?.url ?? null
@@ -281,6 +284,20 @@ function OfferCard({
         )}
       </div>
 
+      {/* Conversation link */}
+      {conversationId && (
+        <div className="px-4 pb-3">
+          <Link
+            href={`/messages/${conversationId}`}
+            className="no-underline inline-flex items-center gap-1.5 text-xs font-medium"
+            style={{ color: 'var(--accent)' }}
+          >
+            <i className="iconoir-chat-bubble" style={{ fontSize: 13 }} />
+            Ver conversación →
+          </Link>
+        </div>
+      )}
+
       {/* Action row — only for actionable offers */}
       {isPending && (
         <div className="border-t border-amber-200 grid grid-cols-3 divide-x divide-amber-200">
@@ -308,7 +325,7 @@ function OfferCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function OfferInbox({ shopId, shopSlug, initialOffers }: OfferInboxProps) {
+export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
   const [offers, setOffers] = useState<InboxOffer[]>(initialOffers)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [counterOffer, setCounterOffer] = useState<InboxOffer | null>(null)
@@ -464,6 +481,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers }: OfferInb
               key={offer.id}
               offer={offer}
               onRespond={busyId ? () => {} : handleRespond}
+              conversationId={convByOfferId[offer.id]}
             />
           ))}
         </div>

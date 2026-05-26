@@ -38,14 +38,27 @@ export default async function OffersPage() {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  // Supabase returns joined rows as arrays in its TS types but the !inner join
-  // always resolves to a single object at runtime. Cast to our tighter type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Fetch conversation IDs for each offer so we can deep-link to the chat
+  const offerIds = (offers ?? []).map(o => o.id)
+  let convByOfferId: Record<string, string> = {}
+  if (offerIds.length > 0) {
+    const { data: convs } = await db
+      .from('marketplace_conversations')
+      .select('id, offer_id')
+      .in('offer_id', offerIds)
+    convByOfferId = Object.fromEntries(
+      (convs ?? [])
+        .filter(c => c.offer_id)
+        .map(c => [c.offer_id as string, c.id])
+    )
+  }
+
   return (
     <OfferInbox
       shopId={shop.id}
       shopSlug={shop.slug}
       initialOffers={(offers ?? []) as unknown as Parameters<typeof OfferInbox>[0]['initialOffers']}
+      convByOfferId={convByOfferId}
     />
   )
 }
