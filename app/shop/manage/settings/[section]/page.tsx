@@ -15,6 +15,8 @@ const SECTION_TITLES: Record<string, string> = {
   diseno:         'Diseño y marca',
   agentes:        'Agentes e integraciones',
   canal:          'Canal propio',
+  pedidos:        'Gestión de pedidos',
+  politicas:      'Política de devoluciones',
 }
 
 const VALID_SECTIONS = new Set(Object.keys(SECTION_TITLES))

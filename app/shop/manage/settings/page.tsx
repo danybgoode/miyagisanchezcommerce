@@ -80,6 +80,24 @@ const SECTIONS = [
     color: 'var(--accent)',
     bg: 'var(--accent-soft)',
   },
+  {
+    key: 'pedidos',
+    icon: 'iconoir-box',
+    title: 'Gestión de pedidos',
+    desc: 'Tiempos de procesamiento, confirmación y ventanas de despacho.',
+    color: 'var(--fg-muted)',
+    bg: 'var(--bg-sunk)',
+    soon: true,
+  },
+  {
+    key: 'politicas',
+    icon: 'iconoir-undo',
+    title: 'Devoluciones',
+    desc: 'Define tu política de devoluciones. Se muestra en cada anuncio.',
+    color: 'var(--fg-muted)',
+    bg: 'var(--bg-sunk)',
+    soon: true,
+  },
 ] as const
 
 // ── Completion helpers (rough check per section) ──────────────────────────────
@@ -140,34 +158,37 @@ export default async function SettingsIndexPage() {
         </Link>
         <h1 style={{ fontWeight: 700, fontSize: 24 }}>Configuración</h1>
         <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginTop: 4 }}>
-          {done.size} de {SECTIONS.length} secciones configuradas
+          {done.size} de {SECTIONS.filter(s => !('soon' in s && s.soon)).length} secciones configuradas
         </p>
         {/* Progress bar */}
         <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, marginTop: 10, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 4, width: `${(done.size / SECTIONS.length) * 100}%`, transition: 'width 600ms' }} />
+          <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 4, width: `${(done.size / SECTIONS.filter(s => !('soon' in s && s.soon)).length) * 100}%`, transition: 'width 600ms' }} />
         </div>
       </div>
 
       {/* Section grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 10 }} className="sm:grid-cols-2">
-        {SECTIONS.map(section => (
+        {SECTIONS.map(section => {
+          const isSoon = 'soon' in section && section.soon
+          return (
           <Link
             key={section.key}
             href={`/shop/manage/settings/${section.key}`}
             className="no-underline"
+            style={{ opacity: isSoon ? 0.65 : 1 }}
           >
             <div
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 14,
                 padding: '16px', background: 'var(--bg-elevated)',
-                border: `1.5px solid ${done.has(section.key) ? 'var(--border)' : 'var(--border)'}`,
+                border: '1.5px solid var(--border)',
                 borderRadius: 'var(--r-lg)',
                 boxShadow: 'var(--shadow-1)',
                 transition: 'box-shadow 150ms',
                 position: 'relative',
                 overflow: 'hidden',
               }}
-              className="hover:shadow-[var(--shadow-2)]"
+              className={isSoon ? '' : 'hover:shadow-[var(--shadow-2)]'}
             >
               <div style={{ width: 40, height: 40, borderRadius: 'var(--r-md)', background: section.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <i className={section.icon} style={{ fontSize: 20, color: section.color }} />
@@ -175,16 +196,19 @@ export default async function SettingsIndexPage() {
               <div className="flex-1 min-w-0">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg)' }}>{section.title}</p>
-                  {done.has(section.key) && (
+                  {isSoon ? (
+                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning)', background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 'var(--r-pill)', padding: '2px 7px', flexShrink: 0 }}>Próximamente</span>
+                  ) : done.has(section.key) ? (
                     <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }}>✓</span>
-                  )}
+                  ) : null}
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2, lineHeight: 1.4 }}>{section.desc}</p>
               </div>
               <i className="iconoir-arrow-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', alignSelf: 'center', flexShrink: 0 }} />
             </div>
           </Link>
-        ))}
+          )
+        })}
       </div>
 
       {/* Agent CTA */}

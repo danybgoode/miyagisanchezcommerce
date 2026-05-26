@@ -240,6 +240,8 @@ const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
   diseno:         ['apariencia', 'tipo'],
   agentes:        ['webhook'],
   canal:          ['canal'],
+  pedidos:        ['pedidos'],
+  politicas:      ['politicas'],
 }
 
 // ── Escrow options ────────────────────────────────────────────────────────────
