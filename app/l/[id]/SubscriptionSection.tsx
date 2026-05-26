@@ -21,6 +21,8 @@ interface SubscriptionSectionProps {
   hasClabe: boolean    // seller has CLABE configured
   hasMp: boolean       // seller has MercadoPago enabled
   isSignedIn: boolean  // buyer is authenticated
+  buyerDisplayName?: string  // pre-filled from Clerk (authenticated users)
+  buyerUserEmail?: string    // pre-filled from Clerk (authenticated users)
 }
 
 function formatPrice(cents: number, currency: string): string {
@@ -40,6 +42,8 @@ export default function SubscriptionSection({
   hasClabe,
   hasMp,
   isSignedIn,
+  buyerDisplayName,
+  buyerUserEmail,
 }: SubscriptionSectionProps) {
   const [selectedTierId, setSelectedTierId] = useState(
     tiers.find(t => t.is_highlighted)?.id ?? tiers[0]?.id ?? '',
@@ -47,10 +51,10 @@ export default function SubscriptionSection({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // SPEI form state
+  // SPEI form state — pre-filled for authenticated users
   const [showSpei, setShowSpei] = useState(false)
-  const [buyerName, setBuyerName] = useState('')
-  const [buyerEmail, setBuyerEmail] = useState('')
+  const [buyerName, setBuyerName] = useState(buyerDisplayName ?? '')
+  const [buyerEmail, setBuyerEmail] = useState(buyerUserEmail ?? '')
   const [speiResult, setSpeiResult] = useState<{ clabe: string | null; bank_name: string | null; account_holder: string | null; message: string } | null>(null)
 
   const selectedTier = tiers.find(t => t.id === selectedTierId) ?? tiers[0]
@@ -254,12 +258,21 @@ export default function SubscriptionSection({
         ) : (
           <form onSubmit={handleSpeiSubscribe} className="space-y-3">
             <p className="text-sm font-medium text-[var(--color-text)]">Registra tu suscripción SPEI</p>
-            <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
-              placeholder="Tu nombre completo" required minLength={2}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
-            <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
-              placeholder="Tu correo electrónico" required
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+            {isSignedIn && buyerDisplayName && buyerUserEmail ? (
+              <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--color-muted)] space-y-0.5">
+                <p className="font-medium text-[var(--color-text)]">{buyerDisplayName}</p>
+                <p>{buyerUserEmail}</p>
+              </div>
+            ) : (
+              <>
+                <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
+                  placeholder="Tu nombre completo" required minLength={2}
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
+                  placeholder="Tu correo electrónico" required
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+              </>
+            )}
             <div className="flex gap-2">
               <button type="button" onClick={() => { setShowSpei(false); setError(null) }}
                 className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--color-background)] transition-colors">

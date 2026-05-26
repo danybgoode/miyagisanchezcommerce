@@ -35,6 +35,7 @@ interface Props {
   initialEvents: ConvEvent[]
   role: 'buyer' | 'seller'
   currentUserId: string
+  currentUserEmail?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -150,9 +151,9 @@ function renderSystemText(type: string, meta: Record<string, unknown>, currency:
 // ── Offer action bar ──────────────────────────────────────────────────────────
 
 function OfferActionBar({
-  offer, role, conversationId, onRefresh,
+  offer, role, conversationId, onRefresh, currentUserEmail,
 }: {
-  offer: ConvOffer; role: 'buyer' | 'seller'; conversationId: string; onRefresh: () => void
+  offer: ConvOffer; role: 'buyer' | 'seller'; conversationId: string; onRefresh: () => void; currentUserEmail?: string
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -162,7 +163,7 @@ function OfferActionBar({
       await fetch(`/api/offers/${offer.id}/respond`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, counterAmount: counterCents, counterMessage: msg }),
+        body: JSON.stringify({ action, counterAmountCents: counterCents, counterMessage: msg }),
       })
       onRefresh()
     } finally {
@@ -176,7 +177,7 @@ function OfferActionBar({
       await fetch(`/api/offers/${offer.id}/buyer-respond`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, buyerEmail: currentUserEmail }),
       })
       onRefresh()
     } finally {
@@ -426,11 +427,17 @@ function StampChooser({ role, conversationId, onStampSent }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ConversationClient({ conversationId, initialConversation, initialEvents, role }: Props) {
+export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, currentUserEmail }: Props) {
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Pull-to-refresh state
+  const [pullY, setPullY] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const touchStartY = useRef(0)
+  const PULL_THRESHOLD = 64
 
   const listing = conv.marketplace_listings
   const shop    = conv.marketplace_shops
@@ -451,6 +458,36 @@ export default function ConversationClient({ conversationId, initialConversation
       // silent
     }
   }, [conversationId])
+
+  // Pull-to-refresh gesture handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY
+    } else {
+      touchStartY.current = 0
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartY.current) return
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (dy > 0) {
+      e.preventDefault()
+      setPullY(Math.min(dy * 0.4, PULL_THRESHOLD + 20))
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(async () => {
+    if (pullY >= PULL_THRESHOLD) {
+      setIsRefreshing(true)
+      setPullY(0)
+      await refresh()
+      setIsRefreshing(false)
+    } else {
+      setPullY(0)
+    }
+    touchStartY.current = 0
+  }, [pullY, refresh])
 
   // Poll every 5 s while tab is visible (real-time updates without WebSockets)
   useEffect(() => {
@@ -516,7 +553,31 @@ export default function ConversationClient({ conversationId, initialConversation
       </div>
 
       {/* Events scroll area */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column' }}>
+      <div
+        ref={scrollRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ flex: 1, overflowY: 'auto', padding: '8px 0', display: 'flex', flexDirection: 'column', touchAction: pullY > 0 ? 'none' : 'auto' }}
+      >
+        {/* Pull-to-refresh indicator */}
+        {(pullY > 0 || isRefreshing) && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: isRefreshing ? 40 : pullY,
+            transition: isRefreshing ? 'none' : 'height 60ms',
+            overflow: 'hidden', flexShrink: 0,
+          }}>
+            <div style={{
+              fontSize: 20,
+              transform: `rotate(${isRefreshing ? 0 : Math.min((pullY / PULL_THRESHOLD) * 180, 180)}deg)`,
+              transition: isRefreshing ? 'none' : 'transform 100ms',
+              animation: isRefreshing ? 'spin 600ms linear infinite' : 'none',
+            }}>
+              ↻
+            </div>
+          </div>
+        )}
         {events.length === 0 && (
           <div style={{ textAlign: 'center', padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>
             No hay eventos aún.
@@ -542,7 +603,7 @@ export default function ConversationClient({ conversationId, initialConversation
       {!isClosed && (
         <div style={{ flexShrink: 0 }}>
           {showActionBar && (
-            <OfferActionBar offer={offer} role={role} conversationId={conversationId} onRefresh={refresh} />
+            <OfferActionBar offer={offer} role={role} conversationId={conversationId} onRefresh={refresh} currentUserEmail={currentUserEmail} />
           )}
           {/* Stamp input bar */}
           <div style={{ padding: '10px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>

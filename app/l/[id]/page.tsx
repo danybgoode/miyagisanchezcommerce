@@ -233,6 +233,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               hasClabe={hasClabe}
               hasMp={sellerHasMp}
               isSignedIn={isSignedIn}
+              buyerDisplayName={clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') : undefined}
+              buyerUserEmail={clerkUser?.emailAddresses[0]?.emailAddress}
             />
           </div>
         )}

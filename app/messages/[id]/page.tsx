@@ -92,6 +92,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         initialEvents={(eventsResult.data ?? []) as Parameters<typeof ConversationClient>[0]['initialEvents']}
         role={isBuyer ? 'buyer' : 'seller'}
         currentUserId={user.id}
+        currentUserEmail={user.emailAddresses[0]?.emailAddress ?? ''}
       />
     </div>
   )

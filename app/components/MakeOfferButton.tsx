@@ -184,7 +184,6 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
   const [step, setStep] = useState<ModalStep>('idle')
   const [activeOffer, setActiveOffer] = useState<Offer | null>(null)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
-  const [loadingOffer, setLoadingOffer] = useState(true)
 
   const [selectedAnchor, setSelectedAnchor] = useState<number | null>(15)
   const [amountInput, setAmountInput] = useState('')
@@ -196,15 +195,15 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
 
   // Load active offer on mount (only if signed in)
   useEffect(() => {
-    if (!isSignedIn) { setLoadingOffer(false); return }
+    if (!isSignedIn) return
     async function load() {
       try {
         const res = await fetch(`/api/offers?listingId=${listing.id}`)
         const data = await res.json() as { offer: Offer | null; conversationId?: string }
         setActiveOffer(data.offer)
         if (data.conversationId) setActiveConversationId(data.conversationId)
-      } finally {
-        setLoadingOffer(false)
+      } catch {
+        // silent
       }
     }
     load()
@@ -318,8 +317,6 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
       </a>
     )
   }
-
-  if (loadingOffer) return <div style={{ height: 44, background: 'var(--bg-sunk)', borderRadius: 12, animation: 'pulse 2s infinite' }} />
 
   if (activeOffer && ['pending', 'countered', 'accepted'].includes(activeOffer.status)) {
     return (

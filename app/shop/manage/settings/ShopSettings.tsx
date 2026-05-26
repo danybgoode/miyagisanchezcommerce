@@ -225,6 +225,23 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
+// ── URL slug → section IDs mapping ────────────────────────────────────────────
+// The settings index links to /shop/manage/settings/[slug] (e.g. "pagos").
+// ShopSettings renders sections with their own IDs (e.g. "proteccion", "stripe").
+// This map converts the URL slug to the section IDs that should be visible.
+
+const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
+  perfil:         ['perfil'],
+  pagos:          ['proteccion', 'stripe', 'mercadopago', 'spei'],
+  envios:         ['comunicacion', 'envios'],
+  negociacion:    ['ofertas'],
+  citas:          ['citas'],
+  notificaciones: ['notificaciones'],
+  diseno:         ['apariencia', 'tipo'],
+  agentes:        ['webhook'],
+  canal:          ['canal'],
+}
+
 // ── Escrow options ────────────────────────────────────────────────────────────
 
 const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; desc: string; color: string }[] = [
@@ -1083,28 +1100,31 @@ export default function ShopSettingsPanel({
 
   const ESCROW_LABEL = { off: 'Desactivada', optional: 'Opcional', required: 'Obligatoria' }
 
-  // ── When rendered from a section page, auto-scroll to that section ──────────
+  // ── When rendered from a section page, auto-scroll to first visible section ──
+  const focusSectionIds = focusSection ? (SLUG_TO_SECTION_IDS[focusSection] ?? [focusSection]) : []
+
   useEffect(() => {
-    if (focusSection) {
-      const el = document.getElementById(focusSection)
+    if (focusSectionIds.length > 0) {
+      const el = document.getElementById(focusSectionIds[0])
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className={focusSection ? '' : 'px-4 py-8'}>
+    <div className={focusSectionIds.length > 0 ? '' : 'px-4 py-8'}>
 
       {/* When a specific section is focused, hide everything else via CSS */}
-      {focusSection && (
+      {focusSectionIds.length > 0 && (
         <style dangerouslySetInnerHTML={{ __html:
-          `#shop-settings-sections section:not(#${focusSection}) { display: none !important; }`
+          `#shop-settings-sections section${focusSectionIds.map(id => `:not(#${id})`).join('')} { display: none !important; }`
         }} />
       )}
 
       {/* ── Mobile top nav — hidden in focus mode ───────────────────────────── */}
-      <div className={`lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6${focusSection ? ' hidden' : ''}`}>
+      <div className={`lg:hidden sticky top-0 z-40 bg-[var(--color-background)] border-b border-[var(--color-border)] -mx-4 px-4 py-2 mb-6${focusSectionIds.length > 0 ? ' hidden' : ''}`}>
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {NAV_GROUPS.flatMap(g => g.items).map(item => (
             <button
@@ -1126,7 +1146,7 @@ export default function ShopSettingsPanel({
       <div className="max-w-5xl mx-auto flex gap-8">
 
         {/* ── Desktop sidebar — hidden in focus mode ────────────────────────── */}
-        <aside className={`w-52 flex-shrink-0 hidden${focusSection ? '' : ' lg:block'}`}>
+        <aside className={`w-52 flex-shrink-0 hidden${focusSectionIds.length > 0 ? '' : ' lg:block'}`}>
           <div className="sticky top-6">
             <nav className="space-y-4">
               {NAV_GROUPS.map(group => (
