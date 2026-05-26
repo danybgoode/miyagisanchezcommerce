@@ -492,6 +492,22 @@ function ShippingSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const RETURN_REASON_LABELS: Record<string, string> = {
+  not_as_described: 'No coincide con la descripción',
+  damaged:          'Artículo dañado',
+  wrong_item:       'Artículo incorrecto',
+  changed_mind:     'Cambié de opinión',
+  other:            'Otro motivo',
+}
+
+const RETURN_STATUS_META: Record<string, { label: string; badge: string }> = {
+  pending:        { label: 'Pendiente',         badge: 'bg-amber-100 text-amber-700' },
+  accepted:       { label: 'Aceptada',           badge: 'bg-green-100 text-green-700' },
+  partial_refund: { label: 'Reembolso parcial',  badge: 'bg-blue-100 text-blue-700' },
+  declined:       { label: 'Rechazada',          badge: 'bg-red-100 text-red-600' },
+  refunded:       { label: 'Reembolsado',        badge: 'bg-green-100 text-green-700' },
+}
+
 export default function OrderDetail({ order }: OrderDetailProps) {
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [currentShipment, setCurrentShipment] = useState<Shipment | null>(
@@ -499,6 +515,16 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   )
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+
+  // Return request state
+  const [returnRequest, setReturnRequest] = useState<{
+    id: string; status: string; reason: string; description: string | null; seller_note: string | null; refund_amount_cents: number | null
+  } | null>(null)
+  const [returnLoaded, setReturnLoaded] = useState(false)
+  const [showReturnPanel, setShowReturnPanel] = useState(false)
+  const [returnSellerNote, setReturnSellerNote] = useState('')
+  const [partialRefundCents, setPartialRefundCents] = useState('')
+  const [processingReturn, setProcessingReturn] = useState(false)
 
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
@@ -538,6 +564,46 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     setCurrentShipment(shipment as Shipment)
     setCurrentStatus('shipped')
     showToast('¡Envío confirmado! El comprador recibió una notificación.', 'success')
+  }
+
+  async function loadReturnRequest() {
+    if (returnLoaded) return
+    setReturnLoaded(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/return-request`)
+      const data = await res.json() as { requests?: Array<{ id: string; status: string; reason: string; description: string | null; seller_note: string | null; refund_amount_cents: number | null }> }
+      if (res.ok && data.requests?.length) {
+        setReturnRequest(data.requests[0])
+        setShowReturnPanel(true)
+      }
+    } catch { /* silent */ }
+  }
+
+  async function handleReturnAction(action: 'accept' | 'partial_refund' | 'decline') {
+    if (!returnRequest) return
+    setProcessingReturn(true)
+    try {
+      const refundCents = action === 'partial_refund'
+        ? Math.round(parseFloat(partialRefundCents.replace(/[^0-9.]/g, '')) * 100)
+        : undefined
+      const res = await fetch(`/api/orders/${order.id}/return-request/${returnRequest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, seller_note: returnSellerNote.trim() || undefined, refund_amount_cents: refundCents }),
+      })
+      const data = await res.json() as { status?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al procesar.', 'error'); return }
+      setReturnRequest(r => r ? { ...r, status: data.status ?? action, seller_note: returnSellerNote.trim() || null } : null)
+      if (data.status === 'refunded' || action === 'accept') setCurrentStatus('refunded')
+      showToast(
+        action === 'decline' ? 'Solicitud rechazada.' : 'Reembolso procesado. El comprador fue notificado.',
+        'success',
+      )
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setProcessingReturn(false)
+    }
   }
 
   const canShip = ['paid', 'processing'].includes(currentStatus) && listing?.listing_type === 'product'
@@ -652,6 +718,112 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             {updatingStatus ? 'Actualizando…' : '✓ Marcar como entregado'}
           </button>
         </div>
+      )}
+
+      {/* Return request — load nudge */}
+      {!returnLoaded && ['delivered', 'completed', 'refunded'].includes(currentStatus) && (
+        <button
+          type="button"
+          onClick={loadReturnRequest}
+          className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] border-dashed rounded-xl px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
+        >
+          <span>↩</span>
+          <span>Ver solicitudes de devolución</span>
+        </button>
+      )}
+
+      {/* Return request panel */}
+      {showReturnPanel && returnRequest && (
+        <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">Solicitud de devolución</h2>
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${RETURN_STATUS_META[returnRequest.status]?.badge ?? 'bg-gray-100 text-gray-600'}`}>
+              {RETURN_STATUS_META[returnRequest.status]?.label ?? returnRequest.status}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 text-sm mb-4">
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-[var(--color-muted)] w-24 flex-shrink-0 mt-0.5">Motivo</span>
+              <span className="font-medium">{RETURN_REASON_LABELS[returnRequest.reason] ?? returnRequest.reason}</span>
+            </div>
+            {returnRequest.description && (
+              <div className="flex items-start gap-2">
+                <span className="text-xs text-[var(--color-muted)] w-24 flex-shrink-0 mt-0.5">Descripción</span>
+                <span className="text-sm italic text-[var(--color-muted)]">&ldquo;{returnRequest.description}&rdquo;</span>
+              </div>
+            )}
+          </div>
+
+          {/* Pending — action panel */}
+          {returnRequest.status === 'pending' && (
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <p className="text-xs font-medium text-[var(--color-muted)] mb-3">Responde a esta solicitud</p>
+              <div className="mb-3">
+                <label className="text-xs text-[var(--color-muted)] block mb-1">Nota para el comprador <span className="font-normal">(opcional)</span></label>
+                <textarea
+                  value={returnSellerNote}
+                  onChange={e => setReturnSellerNote(e.target.value)}
+                  rows={2}
+                  placeholder="Ej. Puedes enviar el artículo a la dirección que te indiqué por correo."
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="text-xs text-[var(--color-muted)] block mb-1">Reembolso parcial — monto (MXN)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={order.amount_cents / 100}
+                  step="0.01"
+                  value={partialRefundCents}
+                  onChange={e => setPartialRefundCents(e.target.value)}
+                  placeholder={`Máx. $${(order.amount_cents / 100).toFixed(0)}`}
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleReturnAction('accept')}
+                  disabled={processingReturn}
+                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-green-400 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                >
+                  ✓ Reembolso total
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReturnAction('partial_refund')}
+                  disabled={processingReturn || !partialRefundCents}
+                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                >
+                  ~ Parcial
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReturnAction('decline')}
+                  disabled={processingReturn}
+                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                >
+                  ✕ Rechazar
+                </button>
+              </div>
+
+              {processingReturn && (
+                <p className="text-xs text-center text-[var(--color-muted)] mt-2">Procesando…</p>
+              )}
+            </div>
+          )}
+
+          {/* Resolved */}
+          {returnRequest.status !== 'pending' && returnRequest.seller_note && (
+            <div className="border-t border-[var(--color-border)] pt-3 mt-2">
+              <p className="text-xs text-[var(--color-muted)]">Tu nota: <em>{returnRequest.seller_note}</em></p>
+            </div>
+          )}
+        </section>
       )}
 
       {/* AI tip */}

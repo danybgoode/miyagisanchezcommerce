@@ -139,10 +139,33 @@ function Toast({ message, type, onDismiss }: { message: string; type: 'success' 
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+const RETURN_REASON_LABELS: Record<string, string> = {
+  not_as_described: 'No coincide con la descripción',
+  damaged:          'Artículo dañado',
+  wrong_item:       'Artículo incorrecto',
+  changed_mind:     'Cambié de opinión',
+  other:            'Otro motivo',
+}
+
+const RETURN_STATUS_META: Record<string, { label: string; color: string }> = {
+  pending:        { label: 'En revisión',        color: 'bg-amber-100 text-amber-700' },
+  accepted:       { label: 'Aceptada',            color: 'bg-green-100 text-green-700' },
+  partial_refund: { label: 'Reembolso parcial',   color: 'bg-blue-100 text-blue-700' },
+  declined:       { label: 'Rechazada',           color: 'bg-red-100 text-red-600' },
+  refunded:       { label: 'Reembolsado',         color: 'bg-green-100 text-green-700' },
+}
+
 export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [confirming, setConfirming] = useState(false)
+
+  // Return request state
+  const [showReturnForm, setShowReturnForm] = useState(false)
+  const [returnReason, setReturnReason] = useState('not_as_described')
+  const [returnDesc, setReturnDesc] = useState('')
+  const [submittingReturn, setSubmittingReturn] = useState(false)
+  const [returnRequest, setReturnRequest] = useState<{ id: string; status: string; reason: string; description?: string | null; seller_note?: string | null } | null>(null)
 
   const listing  = Array.isArray(order.marketplace_listings) ? order.marketplace_listings[0] : order.marketplace_listings
   const shop     = Array.isArray(order.marketplace_shops)    ? order.marketplace_shops[0]    : order.marketplace_shops
@@ -179,6 +202,41 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   }
 
   const canConfirm = currentStatus === 'delivered'
+
+  async function loadReturnRequest() {
+    try {
+      const res = await fetch(`/api/orders/${order.id}/return-request`)
+      const data = await res.json() as { requests?: Array<{ id: string; status: string; reason: string; description?: string | null; seller_note?: string | null }> }
+      if (res.ok && data.requests?.length) setReturnRequest(data.requests[0])
+    } catch { /* silent */ }
+  }
+
+  // Load existing return on mount if order is delivered/completed
+  useState(() => {
+    if (['delivered', 'completed', 'refunded'].includes(order.status)) loadReturnRequest()
+  })
+
+  async function submitReturn() {
+    setSubmittingReturn(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/return-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: returnReason, description: returnDesc.trim() || undefined }),
+      })
+      const data = await res.json() as { requestId?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al enviar.', 'error'); return }
+      setReturnRequest({ id: data.requestId!, status: 'pending', reason: returnReason, description: returnDesc.trim() || null })
+      setShowReturnForm(false)
+      showToast('Solicitud enviada. El vendedor responderá en 3 días hábiles.', 'success')
+    } catch {
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      setSubmittingReturn(false)
+    }
+  }
+
+  const canRequestReturn = ['delivered', 'completed'].includes(currentStatus) && !returnRequest
 
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
@@ -281,6 +339,98 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           >
             {confirming ? 'Confirmando…' : '✓ Sí, lo recibí — todo bien'}
           </button>
+        </section>
+      )}
+
+      {/* Return request — existing */}
+      {returnRequest && (
+        <section className={`border rounded-xl p-4 mb-5 ${RETURN_STATUS_META[returnRequest.status]?.color.includes('green') ? 'border-green-200 bg-green-50/50' : returnRequest.status === 'declined' ? 'border-red-200 bg-red-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-sm">Solicitud de devolución</h2>
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${RETURN_STATUS_META[returnRequest.status]?.color}`}>
+              {RETURN_STATUS_META[returnRequest.status]?.label ?? returnRequest.status}
+            </span>
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mb-1">
+            <strong>Motivo:</strong> {RETURN_REASON_LABELS[returnRequest.reason] ?? returnRequest.reason}
+          </p>
+          {returnRequest.description && (
+            <p className="text-xs text-[var(--color-muted)] mb-1 italic">&ldquo;{returnRequest.description}&rdquo;</p>
+          )}
+          {returnRequest.seller_note && (
+            <div className="mt-2 pt-2 border-t border-current/20">
+              <p className="text-xs font-medium mb-0.5">Respuesta del vendedor:</p>
+              <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{returnRequest.seller_note}&rdquo;</p>
+            </div>
+          )}
+          {returnRequest.status === 'pending' && (
+            <p className="text-xs text-[var(--color-muted)] mt-2">El vendedor tiene 3 días hábiles para responder.</p>
+          )}
+        </section>
+      )}
+
+      {/* Return request — open form */}
+      {canRequestReturn && !showReturnForm && (
+        <button
+          type="button"
+          onClick={() => setShowReturnForm(true)}
+          className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
+        >
+          <span>↩</span>
+          <span>¿Hay un problema con tu pedido? Solicitar devolución</span>
+        </button>
+      )}
+
+      {canRequestReturn && showReturnForm && (
+        <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
+          <h2 className="font-semibold text-sm mb-3">Solicitar devolución</h2>
+          <div className="mb-3">
+            <label className="text-xs font-medium text-[var(--color-muted)] block mb-1.5">¿Cuál es el motivo?</label>
+            <div className="space-y-1.5">
+              {Object.entries(RETURN_REASON_LABELS).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="returnReason"
+                    value={key}
+                    checked={returnReason === key}
+                    onChange={() => setReturnReason(key)}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="text-xs font-medium text-[var(--color-muted)] block mb-1.5">
+              Descripción <span className="font-normal">(opcional)</span>
+            </label>
+            <textarea
+              value={returnDesc}
+              onChange={e => setReturnDesc(e.target.value)}
+              rows={2}
+              placeholder="Describe el problema con más detalle…"
+              className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={submitReturn}
+              disabled={submittingReturn}
+              className="flex-1 bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {submittingReturn ? 'Enviando…' : 'Enviar solicitud'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowReturnForm(false)}
+              className="px-4 py-2.5 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
         </section>
       )}
 

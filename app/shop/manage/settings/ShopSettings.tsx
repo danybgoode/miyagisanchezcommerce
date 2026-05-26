@@ -87,6 +87,18 @@ export interface ShopSettingsData {
       scheduling?: {
         links?: Array<{ label: string; url: string }>
       }
+      orders?: {
+        processing_time?: string
+        auto_accept?: boolean
+        dispatch_window_days?: number
+        auto_confirm_days?: number
+      }
+      returns_policy?: {
+        window?: string
+        conditions?: string
+        shipping_paid_by?: 'buyer' | 'seller'
+        custom_note?: string | null
+      }
       ucp?: {
         webhook_url?: string
         webhook_secret?: string
@@ -211,6 +223,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'citas', label: 'Citas y Reservas' },
       { id: 'ofertas', label: 'Ofertas' },
       { id: 'pedidos', label: 'Pedidos', href: '/shop/manage/orders' },
+      { id: 'politicas', label: 'Devoluciones' },
     ],
   },
   {
@@ -224,12 +237,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'notificaciones', label: 'Notificaciones' },
       { id: 'webhook', label: 'Conectar sistema' },
-    ],
-  },
-  {
-    label: 'Próximamente',
-    items: [
-      { id: 'politicas', label: 'Devoluciones', soon: true },
     ],
   },
 ]
@@ -885,6 +892,22 @@ export default function ShopSettingsPanel({
   const [newLinkUrl, setNewLinkUrl]           = useState('')
   const [newLinkLabel, setNewLinkLabel]       = useState('')
 
+  // Order management
+  type OrdersSettings = NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['orders']
+  const ordersSettings = (s.orders ?? {}) as NonNullable<OrdersSettings>
+  const [processingTime, setProcessingTime]           = useState(ordersSettings.processing_time ?? '1-3d')
+  const [autoAccept, setAutoAccept]                   = useState(ordersSettings.auto_accept ?? true)
+  const [dispatchWindowDays, setDispatchWindowDays]   = useState(ordersSettings.dispatch_window_days ?? 3)
+  const [autoConfirmDays, setAutoConfirmDays]         = useState(ordersSettings.auto_confirm_days ?? 7)
+
+  // Returns policy
+  type ReturnsPolicySettings = NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['returns_policy']
+  const returnsPolicySettings = (s.returns_policy ?? {}) as NonNullable<ReturnsPolicySettings>
+  const [returnsWindow, setReturnsWindow]             = useState(returnsPolicySettings.window ?? 'none')
+  const [returnsConditions, setReturnsConditions]     = useState(returnsPolicySettings.conditions ?? 'original')
+  const [returnsShippingBy, setReturnsShippingBy]     = useState<'buyer' | 'seller'>(returnsPolicySettings.shipping_paid_by ?? 'buyer')
+  const [returnsNote, setReturnsNote]                 = useState(returnsPolicySettings.custom_note ?? '')
+
   // UI
   const [saving, setSaving]           = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -1095,6 +1118,18 @@ export default function ShopSettingsPanel({
               },
             },
             scheduling:   { links: schedulingLinks },
+            orders: {
+              processing_time:     processingTime,
+              auto_accept:         autoAccept,
+              dispatch_window_days: dispatchWindowDays,
+              auto_confirm_days:   autoConfirmDays,
+            },
+            returns_policy: {
+              window:           returnsWindow,
+              conditions:       returnsConditions,
+              shipping_paid_by: returnsShippingBy,
+              custom_note:      returnsNote.trim() || null,
+            },
             theme: {
               banner_url:   bannerUrl,
               accent_color: accentColor,
@@ -3052,54 +3087,222 @@ export default function ShopSettingsPanel({
 
 
           {/* ════════════════════════════════════════════════════════════════════
-              SECTION 14: Gestión de pedidos (scaffold)
+              SECTION 14: Gestión de pedidos
           ════════════════════════════════════════════════════════════════════ */}
-          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5 opacity-60">
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
-                Configuración de pedidos
-              </h2>
-              <SoonBadge />
-            </div>
-            <p className="text-xs text-[var(--color-muted)] mb-4">
-              Configura tiempos de procesamiento, ventanas de despacho y confirmación automática. Estas opciones se mostrarán a los compradores antes de pagar.
+          <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Gestión de pedidos</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-5">
+              Estas preferencias se muestran a los compradores en el anuncio y al finalizar su compra.
             </p>
-            <div className="space-y-2 pointer-events-none select-none">
-              {[
-                { label: 'Tiempo de procesamiento', desc: '1 día · 2-3 días · 1 semana · Personalizado' },
-                { label: 'Confirmación automática', desc: 'Acepta pedidos al instante sin revisión manual' },
-                { label: 'Ventana de despacho', desc: 'Días disponibles para coordinar la entrega con el comprador' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-[var(--color-muted)]">{item.desc}</p>
-                  </div>
-                  <div className="w-16 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+
+            {/* Processing time */}
+            <div className="mb-5">
+              <p className="text-sm font-medium mb-1">Tiempo de procesamiento</p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">¿Cuánto tardas en preparar y enviar un pedido?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: '1d',   label: '1 día hábil',      desc: 'Ideal para artículos listos para enviar' },
+                  { key: '1-3d', label: '1–3 días hábiles', desc: 'Estándar para la mayoría de tiendas' },
+                  { key: '3-5d', label: '3–5 días hábiles', desc: 'Para artículos hechos a mano o stock bajo' },
+                  { key: '1-2w', label: '1–2 semanas',      desc: 'Artículos por encargo o personalizados' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => { setProcessingTime(opt.key); mark() }}
+                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                      processingTime === opt.key
+                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${processingTime === opt.key ? 'text-[var(--color-accent)]' : ''}`}>{opt.label}</p>
+                    <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Auto-accept */}
+            <div className="border-t border-[var(--color-border)] pt-4 mb-4">
+              <ToggleSwitch
+                checked={autoAccept}
+                onChange={v => { setAutoAccept(v); mark() }}
+                label="Confirmación automática"
+                description="Acepta pedidos al instante sin revisión manual. Desactívalo si necesitas aprobar cada pedido antes de procesar el pago."
+              />
+            </div>
+
+            {/* Dispatch window */}
+            <div className="border-t border-[var(--color-border)] pt-4 mb-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Ventana de despacho</p>
+                  <p className="text-xs text-[var(--color-muted)] mt-0.5">Días disponibles para preparar el envío tras recibir el pedido</p>
                 </div>
-              ))}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { setDispatchWindowDays(Math.max(1, dispatchWindowDays - 1)); mark() }}
+                    className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                  >−</button>
+                  <span className="w-10 text-center text-sm font-semibold tabular-nums">{dispatchWindowDays}d</span>
+                  <button
+                    type="button"
+                    onClick={() => { setDispatchWindowDays(Math.min(14, dispatchWindowDays + 1)); mark() }}
+                    className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                  >+</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-confirm delivery */}
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Confirmación automática de entrega</p>
+                  <p className="text-xs text-[var(--color-muted)] mt-0.5">Si el comprador no confirma la entrega, el pedido se cierra automáticamente</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { setAutoConfirmDays(Math.max(3, autoConfirmDays - 1)); mark() }}
+                    className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                  >−</button>
+                  <span className="w-16 text-center text-sm font-semibold tabular-nums">{autoConfirmDays} días</span>
+                  <button
+                    type="button"
+                    onClick={() => { setAutoConfirmDays(Math.min(30, autoConfirmDays + 1)); mark() }}
+                    className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                  >+</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Inbox link */}
+            <div className="mt-5 pt-4 border-t border-[var(--color-border)] flex items-center justify-between">
+              <p className="text-xs text-[var(--color-muted)]">Ver y gestionar tus pedidos activos</p>
+              <a href="/shop/manage/orders" className="text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline flex items-center gap-1">
+                Ir a pedidos →
+              </a>
             </div>
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════
-              SECTION 15: Política de devoluciones (scaffold)
+              SECTION 15: Política de devoluciones
           ════════════════════════════════════════════════════════════════════ */}
-          <section id="politicas" className="border border-[var(--color-border)] rounded-xl p-5 mb-8 opacity-60">
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
-                Política de devoluciones
-              </h2>
-              <SoonBadge />
-            </div>
-            <p className="text-xs text-[var(--color-muted)] mb-4">
-              Define claramente qué pasa cuando un comprador quiere devolver un artículo. Se mostrará en el pie de cada anuncio y al finalizar una compra.
+          <section id="politicas" className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
+            <SectionTitle>Política de devoluciones</SectionTitle>
+            <p className="text-xs text-[var(--color-muted)] mb-5">
+              Define claramente qué pasa cuando un comprador quiere devolver un artículo. Se mostrará en cada anuncio y durante el checkout.
             </p>
-            <div className="grid grid-cols-2 gap-2 pointer-events-none select-none">
-              {['Sin devoluciones', '7 días', '30 días', 'Personalizado'].map(opt => (
-                <div key={opt} className="p-3 rounded-lg border-2 border-[var(--color-border)] bg-gray-50">
-                  <p className="text-sm font-medium text-[var(--color-muted)]">{opt}</p>
+
+            {/* Return window */}
+            <div className="mb-5">
+              <p className="text-sm font-medium mb-1">Ventana de devolución</p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">¿En cuántos días puede pedir una devolución el comprador?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: 'none',    label: 'Sin devoluciones',  desc: 'No aceptas devoluciones por ningún motivo' },
+                  { key: '7d',      label: '7 días',            desc: 'Política estándar para artículos usados' },
+                  { key: '14d',     label: '14 días',           desc: 'Recomendado para ropa, electrónica y hogar' },
+                  { key: '30d',     label: '30 días',           desc: 'Política amplia — genera más confianza' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => { setReturnsWindow(opt.key); mark() }}
+                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                      returnsWindow === opt.key
+                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${returnsWindow === opt.key ? 'text-[var(--color-accent)]' : ''}`}>{opt.label}</p>
+                    <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Conditions + shipping — only when returns are enabled */}
+            {returnsWindow !== 'none' && (
+              <>
+                <div className="border-t border-[var(--color-border)] pt-4 mb-4">
+                  <p className="text-sm font-medium mb-1">Condición aceptada</p>
+                  <p className="text-xs text-[var(--color-muted)] mb-3">¿En qué estado debe estar el artículo para aceptar la devolución?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { key: 'original',  label: 'Estado original', desc: 'Sin uso, sin daños, con empaque original' },
+                      { key: 'undamaged', label: 'Sin daños',       desc: 'Puede tener uso normal, pero sin roturas' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => { setReturnsConditions(opt.key); mark() }}
+                        className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                          returnsConditions === opt.key
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold ${returnsConditions === opt.key ? 'text-[var(--color-accent)]' : ''}`}>{opt.label}</p>
+                        <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                <div className="border-t border-[var(--color-border)] pt-4 mb-4">
+                  <p className="text-sm font-medium mb-1">Flete de devolución</p>
+                  <p className="text-xs text-[var(--color-muted)] mb-3">¿Quién paga el envío de regreso?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { key: 'buyer',  label: 'El comprador', desc: 'El comprador paga el envío de regreso' },
+                      { key: 'seller', label: 'Yo lo pago',   desc: 'Cubres el costo — genera más confianza' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => { setReturnsShippingBy(opt.key as 'buyer' | 'seller'); mark() }}
+                        className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                          returnsShippingBy === opt.key
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold ${returnsShippingBy === opt.key ? 'text-[var(--color-accent)]' : ''}`}>{opt.label}</p>
+                        <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Custom note */}
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <p className="text-sm font-medium mb-1">Nota adicional <span className="font-normal text-[var(--color-muted)]">(opcional)</span></p>
+              <p className="text-xs text-[var(--color-muted)] mb-2">Texto libre que aparecerá junto a tu política. Máx. 200 caracteres.</p>
+              <textarea
+                value={returnsNote}
+                onChange={e => { if (e.target.value.length <= 200) { setReturnsNote(e.target.value); mark() } }}
+                placeholder="Ej. Contáctame por WhatsApp para iniciar una devolución."
+                rows={2}
+                className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-white"
+              />
+              <p className="text-xs text-[var(--color-muted)] text-right mt-0.5">{returnsNote.length}/200</p>
+            </div>
+
+            {/* Policy preview */}
+            <div className="mt-4 p-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg">
+              <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide mb-1">Vista previa en el anuncio</p>
+              <p className="text-xs text-[var(--color-text)] leading-relaxed">
+                {returnsWindow === 'none'
+                  ? '⚠ Sin devoluciones — todas las ventas son finales.'
+                  : `↩ Devoluciones en ${returnsWindow === '7d' ? '7 días' : returnsWindow === '14d' ? '14 días' : '30 días'} · condición ${returnsConditions === 'original' ? 'original' : 'sin daños'} · flete por cuenta del ${returnsShippingBy === 'buyer' ? 'comprador' : 'vendedor'}.`}
+                {returnsNote.trim() && ` ${returnsNote.trim()}`}
+              </p>
             </div>
           </section>
 

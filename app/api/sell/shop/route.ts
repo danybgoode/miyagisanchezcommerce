@@ -62,6 +62,18 @@ interface ShopUpdatePayload {
     scheduling?: {
       links?: Array<{ label: string; url: string }>
     }
+    orders?: {
+      processing_time?: string
+      auto_accept?: boolean
+      dispatch_window_days?: number
+      auto_confirm_days?: number
+    }
+    returns_policy?: {
+      window?: string
+      conditions?: string
+      shipping_paid_by?: 'buyer' | 'seller'
+      custom_note?: string | null
+    }
   }
 }
 

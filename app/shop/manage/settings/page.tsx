@@ -85,18 +85,16 @@ const SECTIONS = [
     icon: 'iconoir-box',
     title: 'Gestión de pedidos',
     desc: 'Tiempos de procesamiento, confirmación y ventanas de despacho.',
-    color: 'var(--fg-muted)',
+    color: 'var(--fg)',
     bg: 'var(--bg-sunk)',
-    soon: true,
   },
   {
     key: 'politicas',
     icon: 'iconoir-undo',
     title: 'Devoluciones',
     desc: 'Define tu política de devoluciones. Se muestra en cada anuncio.',
-    color: 'var(--fg-muted)',
+    color: 'var(--fg)',
     bg: 'var(--bg-sunk)',
-    soon: true,
   },
 ] as const
 
@@ -106,12 +104,15 @@ function completedSections(shop: {
   name: string; description: string | null; logo_url: string | null
   mp_enabled: boolean | null; stripe_ok: boolean; clabe_ok: boolean
   calcom_ok: boolean; custom_domain: string | null
+  orders_ok: boolean; returns_ok: boolean
 }): Set<string> {
   const done = new Set<string>()
   if (shop.name && shop.description) done.add('perfil')
   if (shop.stripe_ok || shop.mp_enabled || shop.clabe_ok) done.add('pagos')
   if (shop.calcom_ok) done.add('citas')
   if (shop.custom_domain) done.add('canal')
+  if (shop.orders_ok) done.add('pedidos')
+  if (shop.returns_ok) done.add('politicas')
   return done
 }
 
@@ -134,6 +135,8 @@ export default async function SettingsIndexPage() {
   const stripeSettings = settings.stripe as { charges_enabled?: boolean } | undefined
   const calcomSettings = settings.calcom as { connected?: boolean } | undefined
   const checkoutSettings = settings.checkout as { bank_transfer?: { clabe?: string } } | undefined
+  const ordersSettings = settings.orders as { processing_time?: string } | undefined
+  const returnsPolicySettings = settings.returns_policy as { window?: string } | undefined
 
   const shopComputed = {
     name: shop.name,
@@ -144,6 +147,8 @@ export default async function SettingsIndexPage() {
     clabe_ok: !!checkoutSettings?.bank_transfer?.clabe,
     calcom_ok: !!calcomSettings?.connected,
     custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain,
+    orders_ok: !!ordersSettings?.processing_time,
+    returns_ok: !!(returnsPolicySettings?.window),
   }
 
   const done = completedSections(shopComputed)

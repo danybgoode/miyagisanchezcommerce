@@ -64,6 +64,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const showRepuve = listing.category === 'autos' && !!repuve?.status
   const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
+  const ordersSettings = shopSettings.orders as { processing_time?: string } | undefined
+  const returnsPolicySettings = shopSettings.returns_policy as { window?: string; conditions?: string; shipping_paid_by?: string; custom_note?: string } | undefined
+  const PROCESSING_LABELS: Record<string, string> = { '1d': '1 día hábil', '1-3d': '1–3 días hábiles', '3-5d': '3–5 días hábiles', '1-2w': '1–2 semanas' }
+  const processingLabel = ordersSettings?.processing_time ? PROCESSING_LABELS[ordersSettings.processing_time] ?? ordersSettings.processing_time : null
+  const returnsLabel = returnsPolicySettings?.window === 'none' ? 'Sin devoluciones'
+    : returnsPolicySettings?.window === '7d' ? '7 días'
+    : returnsPolicySettings?.window === '14d' ? '14 días'
+    : returnsPolicySettings?.window === '30d' ? '30 días'
+    : null
   const isSubscription = (listing.listing_type as string) === 'subscription'
   type StoredTier = { id: string; label: string; price_cents: number; interval: 'month' | 'year'; features: string[]; is_highlighted: boolean; stripe_price_id?: string; mp_preapproval_plan_id?: string }
   const storedTiers = listing.metadata?.subscription_tiers as StoredTier[] | undefined
@@ -182,12 +191,30 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         </div>
 
         {/* Price */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: (processingLabel || returnsLabel) ? 10 : 16 }}>
           <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{formatPrice(listing)}</p>
           {listing.currency && listing.currency !== 'MXN' && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{listing.currency}</p>
           )}
         </div>
+
+        {/* Order info pills */}
+        {(processingLabel || returnsLabel) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {processingLabel && (
+              <span style={{ fontSize: 12, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <i className="iconoir-box" style={{ fontSize: 11 }} />
+                Lista en {processingLabel}
+              </span>
+            )}
+            {returnsLabel && (
+              <span style={{ fontSize: 12, background: returnsPolicySettings?.window === 'none' ? 'var(--warning-soft)' : 'var(--bg-sunk)', color: returnsPolicySettings?.window === 'none' ? 'var(--warning)' : 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <i className="iconoir-undo" style={{ fontSize: 11 }} />
+                {returnsLabel === 'Sin devoluciones' ? 'Sin devoluciones' : `Devoluciones: ${returnsLabel}`}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── Badges ──────────────────────────────────────────────────────────── */}
         {isDigital && digitalFile && (

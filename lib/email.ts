@@ -635,3 +635,127 @@ export async function sendOrderDelivered(ctx: {
   ].join('')
   await send(ctx.buyerEmail, subject, body)
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// RETURN REQUEST EMAILS
+
+const REASON_LABELS: Record<string, string> = {
+  not_as_described: 'No coincide con la descripción',
+  damaged:          'Artículo dañado',
+  wrong_item:       'Artículo incorrecto',
+  changed_mind:     'Cambié de opinión',
+  other:            'Otro motivo',
+}
+
+// ── Seller: new return request ────────────────────────────────────────────────
+
+export async function sendReturnRequestToSeller(ctx: {
+  sellerEmail: string
+  shopName: string
+  buyerName: string | null
+  buyerEmail: string
+  listingTitle: string
+  reason: string
+  description: string | null
+  orderUrl: string
+}): Promise<void> {
+  const subject = `↩ Solicitud de devolución — ${ctx.listingTitle}`
+
+  const body = [
+    h1('Un comprador solicitó una devolución'),
+    table([
+      ['Producto',  esc(ctx.listingTitle)],
+      ['Motivo',    esc(REASON_LABELS[ctx.reason] ?? ctx.reason)],
+      ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
+      ...(ctx.buyerEmail ? [['Correo',    esc(ctx.buyerEmail)] as [string, string]] : []),
+    ]),
+    ctx.description ? quote(ctx.description) : '',
+    notice('Tienes 3 días hábiles para responder. Si no hay respuesta, el comprador puede escalar el caso.', 'warn'),
+    cta('Gestionar solicitud', ctx.orderUrl),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
+}
+
+// ── Buyer: return request received ───────────────────────────────────────────
+
+export async function sendReturnRequestConfirmedToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  shopName: string
+  orderUrl: string
+}): Promise<void> {
+  const subject = `Tu solicitud de devolución fue enviada — ${ctx.listingTitle}`
+  const greeting = ctx.buyerName ? `${ctx.buyerName}, recibimos tu solicitud.` : 'Recibimos tu solicitud de devolución.'
+
+  const body = [
+    h1(greeting),
+    table([
+      ['Producto', esc(ctx.listingTitle)],
+      ['Tienda',   esc(ctx.shopName)],
+    ]),
+    p('El vendedor tiene 3 días hábiles para responder. Te notificaremos cuando tome una decisión.'),
+    cta('Ver estado de la solicitud', ctx.orderUrl),
+    notice('Si no recibes respuesta en 3 días hábiles, contáctanos y lo resolveremos juntos.'),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ── Buyer: return request accepted ───────────────────────────────────────────
+
+export async function sendReturnAcceptedToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  shopName: string
+  refundAmount: string
+  isPartial: boolean
+  sellerNote: string | null
+  orderUrl: string
+}): Promise<void> {
+  const subject = ctx.isPartial
+    ? `Reembolso parcial procesado — ${ctx.listingTitle}`
+    : `✓ Devolución aceptada — ${ctx.listingTitle}`
+  const greeting = ctx.isPartial
+    ? 'El vendedor aprobó un reembolso parcial.'
+    : '¡Tu devolución fue aceptada!'
+
+  const body = [
+    h1(greeting),
+    table([
+      ['Producto',  esc(ctx.listingTitle)],
+      ['Vendedor',  esc(ctx.shopName)],
+      ['Reembolso', esc(ctx.refundAmount)],
+    ]),
+    ctx.sellerNote ? [p('Nota del vendedor:'), quote(ctx.sellerNote)].join('') : '',
+    p('El reembolso aparecerá en tu cuenta en 5–10 días hábiles dependiendo de tu banco.'),
+    cta('Ver detalle del pedido', ctx.orderUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ── Buyer: return request declined ───────────────────────────────────────────
+
+export async function sendReturnDeclinedToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  shopName: string
+  sellerNote: string | null
+  orderUrl: string
+}): Promise<void> {
+  const subject = `Tu solicitud de devolución fue rechazada — ${ctx.listingTitle}`
+
+  const body = [
+    h1('El vendedor rechazó tu solicitud de devolución.'),
+    table([
+      ['Producto', esc(ctx.listingTitle)],
+      ['Vendedor', esc(ctx.shopName)],
+    ]),
+    ctx.sellerNote ? [p('Motivo del vendedor:'), quote(ctx.sellerNote)].join('') : '',
+    p('Si crees que esta decisión es incorrecta, puedes contactar al vendedor directamente para llegar a un acuerdo.'),
+    cta('Ver detalle del pedido', ctx.orderUrl),
+    notice('¿No quedó resuelto? Contáctanos y revisaremos el caso.', 'warn'),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
