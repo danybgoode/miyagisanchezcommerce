@@ -102,12 +102,9 @@ function TabBarInner() {
     }
   }, [urlQuery, pathname])
 
-  // Focus input after spring animation has had a moment to start
-  useEffect(() => {
-    if (!searchOpen) return
-    const t = setTimeout(() => inputRef.current?.focus(), 90)
-    return () => clearTimeout(t)
-  }, [searchOpen])
+  // NOTE: focus() is called synchronously in the search circle's onClick handler.
+  // iOS only opens the keyboard when focus() is triggered inside the original
+  // user gesture. A setTimeout() breaks the gesture chain → no keyboard.
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -230,7 +227,14 @@ function TabBarInner() {
 
         {/* ── Detached search circle ── */}
         <button
-          onClick={() => setSearchOpen(true)}
+          onClick={() => {
+            setSearchOpen(true)
+            // Synchronous focus within the user gesture — the only way iOS
+            // will surface the keyboard. The input lives in the DOM at all
+            // times (just hidden via opacity/pointerEvents) so focus() works
+            // even before the open animation begins.
+            inputRef.current?.focus()
+          }}
           className="glass-liquid search-circle-btn"
           aria-label="Buscar"
           style={{
@@ -285,6 +289,7 @@ function TabBarInner() {
           {/* 🏠 home — springs in first */}
           <Link
             href="/"
+            tabIndex={-1}
             onClick={() => { setSearchOpen(false); setQuery('') }}
             aria-label="Volver al inicio"
             style={{
@@ -329,6 +334,8 @@ function TabBarInner() {
             <input
               ref={inputRef}
               type="search"
+              enterKeyHint="search"
+              tabIndex={searchOpen ? 0 : -1}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="¿Qué estás buscando?"
@@ -337,7 +344,8 @@ function TabBarInner() {
                 border: 'none',
                 background: 'transparent',
                 outline: 'none',
-                fontSize: 14,
+                // 16px minimum — anything smaller triggers iOS auto-zoom on focus
+                fontSize: 16,
                 fontFamily: 'var(--font-sans)',
                 color: 'var(--fg)',
                 minWidth: 0,
@@ -348,6 +356,7 @@ function TabBarInner() {
           {/* ✕ close — springs in last, pops with overshoot */}
           <button
             type="button"
+            tabIndex={-1}
             onClick={closeSearch}
             aria-label="Cerrar búsqueda"
             style={{
