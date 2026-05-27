@@ -4,10 +4,30 @@
 
 `apps/backend` is the Medusa v2 commerce engine. It owns all commerce concerns: products, vendors, cart, orders, payments, fulfillment, returns, subscriptions. The Next.js frontend is a pure consumer of its Store API.
 
-**Medusa v2 version**: 2.15.2  
+**Medusa v2 version**: 2.15.3  
 **Store API base**: `MEDUSA_STORE_URL/store` (default `http://localhost:9000/store`)  
 **Admin API base**: `MEDUSA_STORE_URL/admin` (internal use only)  
 **Dev command**: `cd apps/backend && npx medusa dev`
+
+---
+
+## Deployment (production)
+
+| Service | URL | Notes |
+|---|---|---|
+| Medusa API (Render) | `https://miyagi-medusa-api.onrender.com` | Service ID: `srv-d8bh3b9kh4rs739fpe5g` |
+| Database (Neon) | `DATABASE_URL` env var | Postgres, all migrations applied |
+| Frontend (Vercel) | `https://miyagisanchez.com` | Auto-deploy from `main` |
+| Backend repo | `https://github.com/danybgoode/medusa-bonsai-backend` | Separate repo, push triggers Render deploy |
+
+**Seeded production data**:
+- Publishable key: `pk_bac9...` (set in `MEDUSA_PUBLISHABLE_KEY` on Vercel)
+- MXN region: `reg_01KSK1HZAWN5ZCSPZ74ER97HD9`
+- Sales channel: `sc_01KSK1J0V81P4EPY9G0JAPX353`
+
+**Stripe webhooks**:
+- Frontend (`/api/webhooks/stripe`): handles `invoice.*`, `customer.subscription.*`, `payment_intent.*`
+- Medusa backend (`/hooks/payment/pp_stripe-connect_stripe-connect`): handles `payment_intent.succeeded`, `charge.refunded`, `checkout.session.completed`
 
 ---
 
@@ -16,11 +36,20 @@
 ```
 apps/backend/src/
 ├── modules/
+│   ├── seller/            ← Custom multi-vendor seller module (NOT @medusajs/marketplace)
 │   ├── auth-clerk/        ← Custom Clerk JWT auth provider
 │   ├── subscriptions/     ← Custom subscription module (not native in Medusa v2)
-│   └── envia/             ← Envia.com fulfillment provider
+│   ├── payment-stripe-connect/ ← Stripe Connect Express payment provider
+│   └── payment-mercadopago/    ← MercadoPago Checkout Pro provider
 ├── api/
-│   ├── store/             ← Custom store API extensions (beyond built-in Store API)
+│   ├── store/             ← Custom store API extensions
+│   │   ├── _utils/
+│   │   │   ├── clerk-auth.ts   ← extractClerkUserId(), resolveSeller() — use these, never inline JWT decode
+│   │   │   └── listing.ts      ← toListingShape(), toSellerShape() — canonical listing normalisation
+│   │   ├── listings/      ← GET /store/listings, /store/listings/:id
+│   │   ├── sellers/       ← GET /store/sellers/:slug, /store/sellers/:slug/products
+│   │   ├── customers/     ← customer sync, order history
+│   │   └── ...
 │   └── admin/             ← Custom admin API extensions
 ├── workflows/             ← Medusa workflows (saga-style multi-step operations)
 ├── links/                 ← Module links (foreign keys between Medusa modules)
@@ -35,13 +64,15 @@ medusa-config.ts           ← DB, CORS, plugins, modules config
 
 | Plugin / Module | Purpose |
 |---|---|
-| `@medusajs/marketplace` | Multi-vendor: sellers become vendors with isolated products/orders |
-| `@medusajs/payment-stripe` | Stripe Connect Express for seller payouts |
-| MercadoPago provider (custom) | MP Checkout Pro + Preapproval (subscriptions) |
-| SPEI provider (custom) | Manual bank transfer via CLABE |
-| Envia.com fulfillment (custom) | Mexican shipping carrier integration |
-| Clerk auth provider (custom) | Validates Clerk JWTs for customer identification |
-| Subscriptions module (custom) | Recurring billing, tiers, content gating |
+| Custom `seller` module | Multi-vendor: sellers own products, have slugs, metadata |
+| `@medusajs/payment-stripe` | Base Stripe; extended by custom Stripe Connect provider |
+| Custom `payment-stripe-connect` | Stripe Connect Express for seller payouts |
+| Custom `payment-mercadopago` | MP Checkout Pro + Preapproval (subscriptions) |
+| Custom Envia.com fulfillment | Mexican shipping carrier integration |
+| Custom `auth-clerk` module | Validates Clerk JWTs for customer identification |
+| Custom `subscriptions` module | Recurring billing, tiers, content gating |
+
+**Note**: This project uses a **custom seller module** at `src/modules/seller/`, NOT `@medusajs/marketplace`. The seller model is `model.define()` + `MedusaService()` with a Medusa link to Products.
 
 ---
 
@@ -49,7 +80,7 @@ medusa-config.ts           ← DB, CORS, plugins, modules config
 
 | Marketplace concept | Medusa entity |
 |---|---|
-| Seller shop | Vendor (marketplace plugin) |
+| Seller shop | Custom Seller model (seller module) |
 | Listing (product/digital/service/rental) | Product + ProductType + metadata |
 | Subscription listing | Product with subscription metadata + custom Subscriptions module |
 | Price | ProductVariant + Price (with region MXN) |
@@ -58,6 +89,28 @@ medusa-config.ts           ← DB, CORS, plugins, modules config
 | Shipping | Fulfillment via Envia.com provider |
 | Return / refund request | Return (Medusa Returns module) |
 | Payment | PaymentCollection → PaymentSession → Payment |
+
+---
+
+## Custom listing shape
+
+All `/store/listings` endpoints return the `ListingShape` type (from `src/api/store/_utils/listing.ts`), NOT raw Medusa Product objects. This shape is also the `Listing` type in `lib/types.ts` on the frontend:
+
+```ts
+{
+  id, shop_id, medusa_product_id, title, description,
+  price_cents, currency, condition, listing_type, category,
+  state, municipio, location, metadata, images, tags,
+  status, views, created_at,
+  shop: { id, slug, name, description, location, logo_url, clerk_user_id, verified, metadata, ... }
+}
+```
+
+Key endpoints:
+- `GET /store/listings` — full catalog with filters: `q`, `category`, `condition`, `state`, `location`, `min_price`, `max_price`, `sort`, `seller_slug`, `listing_type`, and autos/inmuebles-specific filters
+- `GET /store/listings/:id` — single listing
+- `GET /store/sellers/:slug` — seller profile
+- `GET /store/sellers/:slug/products` — raw Medusa products for a seller
 
 ---
 
@@ -71,10 +124,11 @@ medusa-config.ts           ← DB, CORS, plugins, modules config
 5. On first validated call, Medusa creates/syncs a Customer record keyed to the Clerk user ID
 6. Medusa returns its own short-lived JWT for subsequent Store API calls
 
-**Frontend helper** (in `lib/medusa.ts`):
+**Shared auth utils** (always use these, never inline JWT decode):
 ```ts
-// Authenticated Store API call
-await medusa.store.order.list({}, { Authorization: `Bearer ${clerkToken}` })
+// src/api/store/_utils/clerk-auth.ts
+extractClerkUserId(req)           // → string | null  (from Authorization: Bearer header)
+resolveSeller(req)                // → { sellerId, sellerName } | null
 ```
 
 ---
@@ -84,9 +138,10 @@ await medusa.store.order.list({}, { Authorization: `Bearer ${clerkToken}` })
 ```ts
 import { medusa } from '@/lib/medusa'
 
-// Products (listings)
-const { products } = await medusa.store.product.list({ limit: 20, region_id: MXN_REGION_ID })
-const { product } = await medusa.store.product.retrieve(productId)
+// Listings (use /store/listings, NOT /store/products — it returns the enriched shape)
+const res = await fetch(`${MEDUSA_STORE_URL}/store/listings?limit=20`, {
+  headers: { 'x-publishable-api-key': MEDUSA_PUBLISHABLE_KEY }
+})
 
 // Cart + checkout
 const { cart } = await medusa.store.cart.create({ region_id: MXN_REGION_ID })
@@ -95,9 +150,6 @@ await medusa.store.cart.complete(cartId)  // → creates Order
 
 // Orders (authenticated)
 const { orders } = await medusa.store.order.list({}, { Authorization: `Bearer ${token}` })
-
-// Vendor (shop) storefront
-const { products } = await medusa.store.product.list({ vendor_id: vendorId })
 ```
 
 ---
@@ -129,29 +181,35 @@ export default ModuleProvider(Modules.PAYMENT, {
 
 ---
 
-## Adding a new fulfillment provider
-
-```ts
-// apps/backend/src/modules/envia/index.ts
-import { ModuleProvider, Modules } from '@medusajs/framework/utils'
-export default ModuleProvider(Modules.FULFILLMENT, {
-  services: [EnviaFulfillmentService],  // extends AbstractFulfillmentProviderService
-})
-```
-
----
-
 ## Webhooks
 
-Stripe and MercadoPago webhooks are handled **inside Medusa** (the payment providers fire internal events). The frontend does NOT have webhook routes for payments — those are in `apps/backend/src/subscribers/`.
+Two separate Stripe webhook endpoints:
+- **Frontend** `POST /api/webhooks/stripe` — subscription lifecycle, invoice events
+- **Medusa backend** `POST /hooks/payment/pp_stripe-connect_stripe-connect` — payment intents, refunds, checkout sessions
 
-The frontend only has:
-- `POST /api/webhooks/envia` — shipping status updates from Envia.com (forwards to Medusa fulfillment)
+MercadoPago webhooks: `POST /api/webhooks/mercadopago` (frontend) and Medusa's built-in MP provider handler.
 
 ---
 
 ## Medusa Admin Dashboard
 
-Available at `http://localhost:9000/app` in dev, `your-backend-url/app` in prod. Ships for free with Medusa. Sellers access a scoped vendor view (marketplace plugin); Daniel accesses the full admin.
+**Current status: disabled in production** (Render free plan memory constraints).
 
-Do not build custom admin UIs for order management, product management, or fulfillment — use the Medusa dashboard.
+**Why it's disabled**: `medusa-config.ts` has `admin: { disable: process.env.NODE_ENV === 'production' }`. The admin bundle requires ~512MB RAM at build time and adds overhead at runtime — the free Render plan (0.1 CPU / 512MB) can't support it reliably.
+
+**How to access the admin**:
+
+Option A — Local (free, works today):
+```bash
+cd apps/backend
+# .env already points at production Neon DB
+npx medusa dev   # admin available at http://localhost:9000/app
+```
+This gives you full admin access (orders, products, sellers, inventory) against the live production database.
+
+Option B — Re-enable on Render (upgrade required):
+1. Upgrade Render to Hobby plan ($7/mo) or Standard ($25/mo)
+2. In `medusa-config.ts`, change to `admin: { disable: false }` or remove the condition
+3. Push to backend repo → Render rebuilds + serves admin at `https://miyagi-medusa-api.onrender.com/app`
+
+**Recommendation**: Use Option A for now. As the marketplace grows and Render gets upgraded, switch to Option B. The admin is the right tool for marketplace management — do not build custom UIs for order/product/seller management.

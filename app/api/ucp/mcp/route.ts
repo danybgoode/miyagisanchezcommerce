@@ -24,12 +24,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing } from '@/lib/types'
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+const MEDUSA_HEADERS = { 'x-publishable-api-key': PUB_KEY }
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -199,38 +202,31 @@ const TOOLS = [
 async function handleSearchListings(args: Record<string, unknown>, baseUrl: string) {
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
 
-  let query = db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled)')
-    .eq('status', 'active')
-    .limit(limit)
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  if (args.q)            params.set('q', String(args.q))
+  if (args.category)     params.set('category', String(args.category))
+  if (args.listing_type) params.set('listing_type', String(args.listing_type))
+  if (args.state)        params.set('state', String(args.state))
+  if (args.location)     params.set('location', String(args.location))
+  if (args.condition)    params.set('condition', String(args.condition))
+  if (args.min_price)    params.set('min_price', String(args.min_price))
+  if (args.max_price)    params.set('max_price', String(args.max_price))
+  if (args.brand)        params.set('brand', String(args.brand))
+  if (args.year_from)    params.set('year_from', String(args.year_from))
+  if (args.year_to)      params.set('year_to', String(args.year_to))
+  if (args.sort)         params.set('sort', String(args.sort))
 
-  if (args.q)           query = query.textSearch('search_vector', String(args.q), { type: 'websearch', config: 'spanish' })
-  if (args.category)    query = query.eq('category', String(args.category))
-  if (args.listing_type) query = query.eq('listing_type', String(args.listing_type))
-  if (args.state)       query = query.eq('state', String(args.state))
-  if (args.location)    query = query.ilike('location', `%${args.location}%`)
-  if (args.condition)   query = query.eq('condition', String(args.condition))
-  if (args.min_price)   query = query.gte('price_cents', Math.round(Number(args.min_price) * 100))
-  if (args.max_price)   query = query.lte('price_cents', Math.round(Number(args.max_price) * 100))
-  if (args.brand)       query = query.ilike('metadata->>brand', `%${args.brand}%`)
-  if (args.year_from)   query = query.gte('metadata->>year', String(args.year_from))
-  if (args.year_to)     query = query.lte('metadata->>year', String(args.year_to))
-
-  const sort = String(args.sort ?? 'reciente')
-  const orderMap: Record<string, { column: string; ascending: boolean }> = {
-    reciente:    { column: 'created_at', ascending: false },
-    precio_asc:  { column: 'price_cents', ascending: true },
-    precio_desc: { column: 'price_cents', ascending: false },
-    popular:     { column: 'views', ascending: false },
+  let data: { listings?: Listing[] }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Search failed: ${res.status}` }] }
+    data = await res.json() as { listings?: Listing[] }
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
   }
-  const { column, ascending } = orderMap[sort] ?? orderMap.reciente
-  query = query.order(column, { ascending })
 
-  const { data, error } = await query
-  if (error) return { isError: true, content: [{ type: 'text', text: `Search failed: ${error.message}` }] }
-
-  const items = ((data ?? []) as Listing[]).map(l => toUcpListing(l, baseUrl))
+  const items = (data.listings ?? []).map((l: Listing) => toUcpListing(l, baseUrl))
   if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
 
   const summary = items.map(item => {
@@ -249,16 +245,20 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
 
 async function handleGetListing(args: Record<string, unknown>, baseUrl: string) {
   const id = String(args.id ?? '')
-  const { data, error } = await db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled)')
-    .eq('id', id)
-    .eq('status', 'active')
-    .single()
 
-  if (error || !data) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
+  let listing: Listing | null = null
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
+    const data = await res.json() as { listing?: Listing }
+    listing = data.listing ?? null
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
 
-  const item = toUcpListing(data as Listing, baseUrl)
+  if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
+
+  const item = toUcpListing(listing, baseUrl)
   const details = [
     `# ${item.title}`,
     `**Precio:** ${item.price?.formatted ?? 'A consultar'}`,
@@ -377,10 +377,14 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string) {
     return { isError: true, content: [{ type: 'text', text: 'Missing required fields: listing_id, offer_amount, buyer_name, buyer_email' }] }
   }
 
-  const { data: listing } = await db
-    .from('marketplace_listings')
-    .select('id, title, price_cents, listing_type, status')
-    .eq('id', listingId).eq('status', 'active').single()
+  let listing: { id: string; title: string; price_cents: number | null; listing_type: string } | null = null
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    if (res.ok) {
+      const d = await res.json() as { listing?: Listing }
+      if (d.listing?.status === 'active') listing = d.listing
+    }
+  } catch { /* listing stays null */ }
 
   if (!listing) return { isError: true, content: [{ type: 'text', text: 'Listing not found or no longer active.' }] }
   if (listing.listing_type === 'digital') return { isError: true, content: [{ type: 'text', text: 'Digital products do not accept offers. Use create_checkout instead.' }] }
@@ -405,69 +409,86 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   const slug  = String(args.shop_slug ?? '')
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
 
-  const { data: shop } = await db.from('marketplace_shops').select('*').eq('slug', slug).single()
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
+  let seller: Record<string, unknown> | null = null
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/sellers/${slug}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
+    const d = await res.json() as { seller?: Record<string, unknown> }
+    seller = d.seller ?? null
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
 
-  const { data: listingsData } = await db
-    .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled)')
-    .eq('shop_id', shop.id).eq('status', 'active').order('created_at', { ascending: false }).limit(limit)
+  if (!seller) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
 
-  const listings = ((listingsData ?? []) as Listing[]).map(l => toUcpListing(l, baseUrl))
-  const isClaimed = !!(shop.clerk_user_id && !String(shop.clerk_user_id).startsWith('pending:'))
+  let listings: ReturnType<typeof toUcpListing>[] = []
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
+    if (res.ok) {
+      const d = await res.json() as { listings?: Listing[] }
+      listings = (d.listings ?? []).map(l => toUcpListing(l, baseUrl))
+    }
+  } catch { /* listings stays empty */ }
+
+  const isClaimed = !!(seller.clerk_user_id && !String(seller.clerk_user_id).startsWith('pending:'))
 
   const profile = [
-    `# ${shop.name}${shop.verified ? ' ✓ verificado' : ''}`,
-    shop.description ? `\n${shop.description}\n` : '',
-    `**Ubicación:** ${shop.location ?? 'No especificada'}`,
+    `# ${seller.name}${seller.verified ? ' ✓ verificado' : ''}`,
+    seller.description ? `\n${seller.description}\n` : '',
+    `**Ubicación:** ${seller.location ?? 'No especificada'}`,
     `**Tienda reclamada:** ${isClaimed ? 'Sí' : 'No'}`,
-    `**URL:** ${baseUrl}/s/${shop.slug}`,
+    `**URL:** ${baseUrl}/s/${seller.slug}`,
     `\n**${listings.length} anuncios activos:**`,
     ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (ID: \`${item.id}\`)`),
   ].filter(s => s !== '').join('\n')
 
-  return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop, listings }, null, 2) }] }
+  return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop: seller, listings }, null, 2) }] }
 }
 
 async function getShopCalcom(listingId: string): Promise<{
   apiKey: string; eventTypeId: number; bookingUrl: string; listing: { title: string; category: string | null }
 } | null> {
-  const { data } = await db
-    .from('marketplace_listings')
-    .select('title, category, marketplace_shops!inner(calcom_api_key, metadata)')
-    .eq('id', listingId)
-    .eq('status', 'active')
-    .maybeSingle()
-  if (!data) return null
-  const shop = data.marketplace_shops as unknown as { calcom_api_key: string | null; metadata: Record<string, unknown> | null }
-  if (!shop.calcom_api_key) return null
-  const calcomSettings = (shop.metadata?.settings as Record<string, unknown> | undefined)?.calcom as {
-    event_type_id?: number; booking_url?: string; connected?: boolean
-  } | undefined
-  if (!calcomSettings?.connected || !calcomSettings.event_type_id) return null
-  return {
-    apiKey: shop.calcom_api_key,
-    eventTypeId: calcomSettings.event_type_id,
-    bookingUrl: calcomSettings.booking_url ?? '',
-    listing: { title: data.title, category: data.category },
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) return null
+    const data = await res.json() as { listing?: Listing }
+    const listing = data.listing
+    if (!listing?.shop) return null
+    const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
+    const calcomApiKey = (shopMeta.calcom_api_key as string | null) ?? null
+    if (!calcomApiKey) return null
+    const calcomSettings = ((shopMeta.settings as Record<string, unknown> | undefined)?.calcom) as {
+      event_type_id?: number; booking_url?: string; connected?: boolean
+    } | undefined
+    if (!calcomSettings?.connected || !calcomSettings.event_type_id) return null
+    return {
+      apiKey: calcomApiKey,
+      eventTypeId: calcomSettings.event_type_id,
+      bookingUrl: calcomSettings.booking_url ?? '',
+      listing: { title: listing.title, category: listing.category },
+    }
+  } catch {
+    return null
   }
 }
 
 // ── Link-only scheduling fallback ─────────────────────────────────────────────
 
 async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: string; label: string; title: string } | null> {
-  const { data } = await db
-    .from('marketplace_listings')
-    .select('title, marketplace_shops!inner(metadata)')
-    .eq('id', listingId)
-    .eq('status', 'active')
-    .maybeSingle()
-  if (!data) return null
-  const shop = data.marketplace_shops as unknown as { metadata: Record<string, unknown> | null }
-  const schedulingMeta = ((shop.metadata?.settings as Record<string, unknown> | undefined)?.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
-  const firstLink = schedulingMeta.links?.[0]
-  if (!firstLink?.url) return null
-  return { bookingUrl: firstLink.url, label: firstLink.label || 'Reservas en línea', title: data.title }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) return null
+    const data = await res.json() as { listing?: Listing }
+    const listing = data.listing
+    if (!listing?.shop) return null
+    const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
+    const schedulingMeta = ((shopMeta.settings as Record<string, unknown> | undefined)?.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
+    const firstLink = schedulingMeta.links?.[0]
+    if (!firstLink?.url) return null
+    return { bookingUrl: firstLink.url, label: firstLink.label || 'Reservas en línea', title: listing.title }
+  } catch {
+    return null
+  }
 }
 
 async function handleCheckAvailability(args: Record<string, unknown>) {

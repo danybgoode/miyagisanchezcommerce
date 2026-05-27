@@ -50,6 +50,9 @@ The MCP server at `/api/ucp/mcp` is stateless HTTP JSON-RPC 2.0 (no SSE, works w
 | `create_checkout` | Generate a single payment URL (MP or Stripe) — returns redirect URL |
 | `make_offer` | Submit a price offer → returns `offer_id` for tracking |
 | `get_shop` | Seller profile + their active listings |
+| `check_availability` | Cal.com real-time slot availability for a listing |
+| `book_appointment` | Book an appointment slot — test drive, visit, or meeting |
+| `get_buyer_trust` | OmniReputation score (0–100) for a buyer by email or Clerk ID |
 
 **Claude Desktop config**:
 ```json
@@ -65,20 +68,25 @@ The MCP server at `/api/ucp/mcp` is stateless HTTP JSON-RPC 2.0 (no SSE, works w
 
 ---
 
-## Data sources (current → target)
+## Data sources — what reads from where
 
-UCP routes currently read from Supabase. As the Medusa migration progresses, they switch to Medusa:
+Migration is complete. UCP/MCP routes read from Medusa for all catalog/shop data:
 
-| UCP concern | Current source | Target source |
+| UCP concern | Data source | How |
 |---|---|---|
-| Product catalog | Supabase `marketplace_listings` | Medusa Store API `/store/products` |
-| Shop/vendor info | Supabase `marketplace_shops` | Medusa marketplace vendor API |
-| Payment options | Custom logic | Medusa payment providers + custom logic |
-| Order tracking | Supabase `marketplace_orders` | Medusa Orders API |
-| Offer state | Supabase `marketplace_offers` | Supabase (stays — not a Medusa concern) |
-| Trust/identity | Supabase `ucp_buyer_identities` | Supabase (stays) |
+| Product catalog (`search_listings`, `get_listing`) | **Medusa** | `GET /store/listings` or `/store/listings/:id` |
+| Shop/seller profile (`get_shop`) | **Medusa** | `GET /store/sellers/:slug` |
+| Seller's listings (`get_shop`) | **Medusa** | `GET /store/listings?seller_slug=:slug` |
+| Payment options (`get_checkout_options`) | Internal `/api/ucp/checkout-session` | Calls Medusa payment providers |
+| Offer state (`make_offer`) | Supabase `marketplace_offers` | Listing validation via Medusa, offer write to Supabase |
+| Buyer trust (`get_buyer_trust`) | Supabase `ucp_buyer_identities` + Clerk | Stays on Supabase |
+| Conversations | Supabase `marketplace_conversations` | Stays on Supabase |
+| Favorites | Supabase `marketplace_favorites` | Stays on Supabase |
+| Cal.com scheduling (`check_availability`, `book_appointment`) | Medusa listing → `shop.metadata.calcom_api_key` | Via listing endpoint |
 
-**When updating a UCP route to use Medusa**: import `medusa` from `@/lib/medusa`, call the Store API, and pass through the same UCP response shape. The `toUcpListing()` mapper in `lib/ucp/schema.ts` will need updating to accept Medusa product shape.
+**Rule**: If it's catalog/product/seller data → Medusa. If it's marketplace social layer (offers, messages, trust) → Supabase.
+
+The `toUcpListing(listing, baseUrl)` function in `lib/ucp/schema.ts` converts a `Listing` (from Medusa `/store/listings`) into a `UcpListing`. No separate mapper needed.
 
 ---
 
@@ -92,7 +100,7 @@ UcpCatalogResponse  // paginated list with cursor
 UcpCheckoutSession  // all payment options ranked + escrow info + listing snapshot
 ```
 
-The `toUcpListing(product, baseUrl)` mapper must always return a valid `UcpListing`. When switching from Supabase `Listing` type to Medusa `StoreProduct` type, update this mapper.
+The `toUcpListing(listing, baseUrl)` mapper accepts the `Listing` type from `lib/types.ts` (identical shape to what `GET /store/listings` returns) and always produces a valid `UcpListing`.
 
 ---
 

@@ -10,7 +10,10 @@
 | Styling | Tailwind CSS v4 | No config file — uses CSS variables via `--color-*` |
 | Non-commerce DB | Supabase (Postgres) | Conversations, offers, supply, UCP identity |
 | Auth | Clerk v7 | `@clerk/nextjs` — bridged to Medusa via custom auth provider |
-| Hosting | Vercel | Auto-deploys from `main`; frontend on port 3001 in dev |
+| Frontend hosting | Vercel | Auto-deploys from `main`; frontend on port 3001 in dev |
+| Backend hosting | Render (free plan) | `https://miyagi-medusa-api.onrender.com` — deploys from `github.com/danybgoode/medusa-bonsai-backend` |
+| Commerce DB | Neon Postgres | Medusa migrations applied; MXN region + sales channel seeded |
+| Rate limiting | Upstash Redis | `UPSTASH_REDIS_REST_URL` + token |
 
 **Read [medusa.md](medusa.md) before touching any commerce-related code.**
 
