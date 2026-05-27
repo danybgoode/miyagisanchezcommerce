@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
 import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 
@@ -94,38 +94,56 @@ export async function POST(req: NextRequest) {
   let sellerId: string | null = null
   let sellerName: string | null = null
   {
-    // Try to get existing seller
-    let sellerRes = await medusaFetch('/store/sellers/me', clerkJwt)
-    if (sellerRes.status === 404 && body.createShop) {
-      // Create seller
-      const shopName = body.createShop.name?.trim() ?? ''
-      if (shopName.length < 2) return NextResponse.json({ error: 'El nombre de la tienda debe tener al menos 2 caracteres.', field: 'shopName' }, { status: 422 })
+    const sellerRes = await medusaFetch('/store/sellers/me', clerkJwt)
 
-      const location = [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
+    if (sellerRes.ok) {
+      // Seller already exists — use it
+      const sellerData = await sellerRes.json()
+      shopSlug = sellerData.seller.slug
+      sellerId = sellerData.seller.id ?? null
+      sellerName = sellerData.seller.name ?? null
+    } else if (sellerRes.status === 404) {
+      // No Medusa seller yet — create one.
+      // Use explicit shop name from form (new users) or fall back to Clerk name
+      // (legacy Supabase users who skipped the shop creation step).
+      let shopName = body.createShop?.name?.trim() ?? ''
+      if (!shopName) {
+        const clerkUser = await currentUser()
+        shopName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ')
+          || clerkUser?.emailAddresses[0]?.emailAddress?.split('@')[0]
+          || 'Mi tienda'
+      }
+      if (shopName.length < 2) {
+        return NextResponse.json({ error: 'El nombre de la tienda debe tener al menos 2 caracteres.', field: 'shopName' }, { status: 422 })
+      }
+
+      const location = body.createShop
+        ? [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
+        : null
 
       const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
         method: 'POST',
         body: JSON.stringify({
           name: shopName,
-          description: body.createShop.description?.trim() || null,
+          description: body.createShop?.description?.trim() || null,
           location,
         }),
       })
       const createData = await createRes.json()
       if (!createRes.ok || !createData.seller) {
-        console.error('[sell/create] seller creation failed:', createData)
+        console.error('[sell/create] seller creation failed:', createRes.status, createData)
         return NextResponse.json({ error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }, { status: 500 })
       }
       shopSlug = createData.seller.slug
       sellerId = createData.seller.id ?? null
       sellerName = createData.seller.name ?? null
-    } else if (sellerRes.ok) {
-      const sellerData = await sellerRes.json()
-      shopSlug = sellerData.seller.slug
-      sellerId = sellerData.seller.id ?? null
-      sellerName = sellerData.seller.name ?? null
     } else {
-      return NextResponse.json({ error: 'No encontramos tu tienda. Asegúrate de haber completado el onboarding.', field: 'shop' }, { status: 422 })
+      // Unexpected error from backend — surface it for easier debugging
+      const errBody = await sellerRes.json().catch(() => ({})) as { message?: string }
+      console.error('[sell/create] sellers/me failed:', sellerRes.status, errBody)
+      return NextResponse.json({
+        error: errBody.message ?? `Error ${sellerRes.status} al verificar tu tienda. Inténtalo de nuevo.`,
+      }, { status: 500 })
     }
   }
 
