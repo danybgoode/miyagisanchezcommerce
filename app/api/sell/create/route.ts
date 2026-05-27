@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
 import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
+import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -93,15 +94,17 @@ export async function POST(req: NextRequest) {
   let shopSlug: string
   let sellerId: string | null = null
   let sellerName: string | null = null
+  let sellerForMirror: MedusaSellerForMirror | null = null
   {
     const sellerRes = await medusaFetch('/store/sellers/me', clerkJwt)
 
     if (sellerRes.ok) {
       // Seller already exists — use it
       const sellerData = await sellerRes.json()
-      shopSlug = sellerData.seller.slug
-      sellerId = sellerData.seller.id ?? null
-      sellerName = sellerData.seller.name ?? null
+      sellerForMirror = sellerData.seller
+      shopSlug = sellerForMirror!.slug
+      sellerId = sellerForMirror!.id ?? null
+      sellerName = sellerForMirror!.name ?? null
     } else if (sellerRes.status === 404) {
       // No Medusa seller yet — create one.
       // Use explicit shop name from form (new users) or fall back to Clerk name
@@ -134,9 +137,10 @@ export async function POST(req: NextRequest) {
         console.error('[sell/create] seller creation failed:', createRes.status, createData)
         return NextResponse.json({ error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }, { status: 500 })
       }
-      shopSlug = createData.seller.slug
-      sellerId = createData.seller.id ?? null
-      sellerName = createData.seller.name ?? null
+      sellerForMirror = createData.seller
+      shopSlug = sellerForMirror!.slug
+      sellerId = sellerForMirror!.id ?? null
+      sellerName = sellerForMirror!.name ?? null
     } else {
       // Unexpected error from backend — surface it for easier debugging
       const errBody = await sellerRes.json().catch(() => ({})) as { message?: string }
@@ -242,6 +246,36 @@ export async function POST(req: NextRequest) {
   }
 
   const listingId = productData.product_id
+
+  // ── Backwards-compatible Supabase mirror ────────────────────────────────
+  // Medusa now owns sellers/products, but several seller-console features still
+  // use Supabase UUID foreign keys. Keep a mirror row so /shop/manage/settings,
+  // offers, subscriptions, and order records can find the newly provisioned shop.
+  try {
+    if (sellerForMirror) {
+      const shopMirror = await ensureSupabaseShopMirror(sellerForMirror, userId)
+      if (shopMirror?.id) {
+        await syncSupabaseListingMirror(shopMirror.id, {
+          id: listingId,
+          title: titleClean,
+          description: body.listing.description?.trim() || null,
+          price_cents: effectivePriceCents,
+          currency: body.listing.currency ?? 'MXN',
+          condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
+          listing_type: body.listing.listing_type ?? 'product',
+          category: body.listing.category,
+          state: body.listing.state || null,
+          municipio: body.listing.municipio || null,
+          location: [body.listing.municipio?.trim(), body.listing.state?.trim()].filter(Boolean).join(', ') || null,
+          images: body.listing.images ?? [],
+          status: 'active',
+          metadata,
+        })
+      }
+    }
+  } catch (e) {
+    console.error('[sell/create] Supabase mirror sync failed (non-fatal):', e)
+  }
 
   // ── Register subscription plans in Medusa (non-fatal) ────────────────────
   if (isSubscription && sellerId && clerkJwt) {

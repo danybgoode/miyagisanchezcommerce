@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { db } from '@/lib/supabase'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -75,6 +76,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status: 500 })
   }
 
+  await db
+    .from('marketplace_listings')
+    .update({
+      ...(body.title !== undefined && { title: body.title.trim() }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('medusa_product_id', id)
+
   return NextResponse.json({ id, updated: true })
 }
 
@@ -109,6 +120,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   if (!res.ok) return NextResponse.json({ error: 'Error al actualizar el anuncio.' }, { status: 500 })
 
+  await db
+    .from('marketplace_listings')
+    .update({ status: body.status, updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', id)
+
   return NextResponse.json({ id, status: body.status })
 }
 
@@ -128,6 +144,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para eliminar este anuncio.' }, { status: 403 })
   if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   if (!res.ok) return NextResponse.json({ error: 'Error al eliminar el anuncio.' }, { status: 500 })
+
+  await db
+    .from('marketplace_listings')
+    .update({ status: 'deleted', updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', id)
 
   return NextResponse.json({ id, deleted: true })
 }
