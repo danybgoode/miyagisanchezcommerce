@@ -7,6 +7,7 @@ import BuyButton from '@/app/components/BuyButton'
 import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
+import AddToCartButton from '@/app/components/AddToCartButton'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import type { Metadata } from 'next'
@@ -97,9 +98,26 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && isClaimed
   const images = listing.images ?? []
 
+  // Cart item data for AddToCartButton — variantId resolved lazily at checkout time
+  const cartItem = showBuyButtons && listing.shop ? {
+    productId: listing.id,
+    variantId: null,
+    sellerId: listing.shop.id,
+    sellerSlug: listing.shop.slug,
+    sellerName: listing.shop.name,
+    title: listing.title,
+    price_cents: listing.price_cents!,
+    currency: listing.currency,
+    imageUrl: listing.images?.[0]?.url ?? null,
+    listing_type: listing.listing_type,
+    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp },
+  } : null
+
   // Reusable CTA buttons block (rendered both inline on desktop and in sticky bar on mobile)
-  const ctaButtons = showBuyButtons ? (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+  const ctaButtons = showBuyButtons && cartItem ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <AddToCartButton item={cartItem} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
       <MakeOfferButton
         listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
         buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
@@ -114,6 +132,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           Contacta al vendedor para pagar
         </div>
       )}
+      </div>
     </div>
   ) : null
 

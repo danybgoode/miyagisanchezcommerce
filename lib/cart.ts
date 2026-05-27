@@ -1,9 +1,11 @@
 /**
  * Medusa cart helpers for the checkout flow.
  *
- * Usage from buy buttons:
- *   const { redirect_url } = await startCheckout({ listingId, provider: 'stripe', buyerEmail })
- *   window.location.href = redirect_url
+ * Single-item (BuyButton/MercadoPagoButton):
+ *   const { redirect_url } = await startCheckout({ productId, provider, buyerEmail })
+ *
+ * Multi-item (CartDrawer — items from same seller):
+ *   const { redirect_url } = await startCheckout({ items: [...], sellerId, provider, buyerEmail })
  */
 
 const MEDUSA_BASE = process.env.NEXT_PUBLIC_MEDUSA_STORE_URL
@@ -28,10 +30,13 @@ function medusaFetch(path: string, options?: RequestInit) {
 export type CheckoutProvider = 'stripe' | 'mercadopago'
 
 export interface StartCheckoutParams {
-  /** Medusa product ID (prod_xxx) */
-  productId: string
-  /** Variant ID — use the first/default variant if known */
-  variantId?: string
+  /** Single-item shorthand — still works for BuyButton / MercadoPagoButton */
+  productId?: string
+  variantId?: string | null
+  /** Multi-item bundle (CartDrawer — all items must be same seller) */
+  items?: Array<{ productId: string; variantId?: string | null }>
+  /** Pass seller ID to skip the expensive server-side scan */
+  sellerId?: string
   provider: CheckoutProvider
   buyerEmail?: string
   buyerFirstName?: string
@@ -51,12 +56,26 @@ export interface StartCheckoutResult {
 }
 
 /**
- * Creates a Medusa cart, adds the item, and initiates the external
+ * Creates a Medusa cart, adds all items, and initiates the external
  * payment checkout session (Stripe Connect / MercadoPago).
  * Returns the redirect URL — caller navigates there.
  */
 export async function startCheckout(params: StartCheckoutParams): Promise<StartCheckoutResult> {
-  const { productId, variantId, provider, buyerEmail, buyerFirstName, buyerLastName, offerAmountCents, offerId, clerkJwt } = params
+  const {
+    productId, variantId, items, sellerId,
+    provider, buyerEmail, buyerFirstName, buyerLastName,
+    offerAmountCents, offerId, clerkJwt,
+  } = params
+
+  // Normalise to array — single-item path is the same as multi-item with one entry
+  const lineItems: Array<{ productId: string; variantId?: string | null }> =
+    items && items.length > 0
+      ? items
+      : productId
+        ? [{ productId, variantId }]
+        : []
+
+  if (lineItems.length === 0) throw new Error('No items to checkout')
 
   const authHeaders: Record<string, string> = clerkJwt
     ? { Authorization: `Bearer ${clerkJwt}` }
@@ -79,20 +98,10 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
         const { customer_id } = await syncRes.json()
         medusaCustomerId = customer_id ?? null
       }
-    } catch { /* non-fatal — checkout continues without customer link */ }
+    } catch { /* non-fatal */ }
   }
 
-  // 2. Resolve the variant ID if not provided
-  let resolvedVariantId = variantId
-  if (!resolvedVariantId) {
-    const productRes = await medusaFetch(`/store/products/${productId}?fields=variants.id`)
-    if (!productRes.ok) throw new Error('Product not found')
-    const { product } = await productRes.json()
-    resolvedVariantId = product?.variants?.[0]?.id
-    if (!resolvedVariantId) throw new Error('Product has no variants')
-  }
-
-  // 3. Create cart in the MXN region (link to Medusa customer if available)
+  // 2. Create cart in the MXN region
   const cartRes = await medusaFetch('/store/carts', {
     method: 'POST',
     headers: authHeaders,
@@ -104,36 +113,49 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   })
   if (!cartRes.ok) {
     const err = await cartRes.json().catch(() => ({}))
-    throw new Error(err.message ?? 'Failed to create cart')
+    throw new Error((err as any).message ?? 'Failed to create cart')
   }
   const { cart } = await cartRes.json()
   const cartId = cart.id
 
-  // 4. Add the line item
-  const itemRes = await medusaFetch(`/store/carts/${cartId}/line-items`, {
-    method: 'POST',
-    headers: authHeaders,
-    body: JSON.stringify({ variant_id: resolvedVariantId, quantity: 1 }),
-  })
-  if (!itemRes.ok) {
-    const err = await itemRes.json().catch(() => ({}))
-    throw new Error(err.message ?? 'Failed to add item to cart')
+  // 3. Add each item (resolve variant ID on-the-fly if missing)
+  for (const lineItem of lineItems) {
+    let resolvedVariantId = lineItem.variantId ?? null
+
+    if (!resolvedVariantId) {
+      const productRes = await medusaFetch(`/store/products/${lineItem.productId}?fields=variants.id`)
+      if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
+      const { product } = await productRes.json()
+      resolvedVariantId = product?.variants?.[0]?.id ?? null
+      if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
+    }
+
+    const itemRes = await medusaFetch(`/store/carts/${cartId}/line-items`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ variant_id: resolvedVariantId, quantity: 1 }),
+    })
+    if (!itemRes.ok) {
+      const err = await itemRes.json().catch(() => ({}))
+      throw new Error((err as any).message ?? 'Failed to add item to cart')
+    }
   }
 
-  // 5. Call start-checkout to create the external payment session + get redirect URL
+  // 4. Call start-checkout to create the external payment session + get redirect URL
   const checkoutRes = await medusaFetch(`/store/carts/${cartId}/start-checkout`, {
     method: 'POST',
     headers: authHeaders,
     body: JSON.stringify({
       provider,
       buyer_email: buyerEmail,
+      ...(sellerId ? { seller_id: sellerId } : {}),
       ...(offerAmountCents ? { offer_amount_cents: offerAmountCents } : {}),
       ...(offerId ? { offer_id: offerId } : {}),
     }),
   })
   if (!checkoutRes.ok) {
     const err = await checkoutRes.json().catch(() => ({}))
-    throw new Error(err.message ?? 'Failed to start checkout')
+    throw new Error((err as any).message ?? 'Failed to start checkout')
   }
 
   return checkoutRes.json()

@@ -3,6 +3,9 @@ import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
 import DesktopUnreadBadge from '@/app/components/DesktopUnreadBadge'
+import { CartProvider } from '@/app/components/CartContext'
+import CartDrawer from '@/app/components/CartDrawer'
+import CartButton from '@/app/components/CartButton'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -110,6 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ))}
         </head>
         <body>
+          <CartProvider>
           {/* ── Sticky header ── */}
           <div
             style={{
@@ -214,6 +218,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
                   </a>
 
+                  {/* Cart */}
+                  <CartButton />
+
                   {/* AI Agent button (client component) */}
                   <AIAgentButton />
                 </div>
@@ -289,6 +296,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       >
                         <i className="iconoir-heart" style={{ fontSize: 15, verticalAlign: 'middle' }} />
                       </a>
+                      <CartButton />
                       <a
                         href="/shop/manage"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
@@ -340,6 +348,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
           <MobileTabBar />
+          <CartDrawer />
+          </CartProvider>
         </body>
       </html>
     </ClerkProvider>
