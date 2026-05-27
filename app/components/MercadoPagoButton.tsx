@@ -2,19 +2,33 @@
 
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useAuth, useUser } from '@clerk/nextjs'
+import { startCheckout } from '@/lib/cart'
 
 interface MercadoPagoButtonProps {
   listingId: string
   price: string
   buyerEmail?: string
+  /** Accepted offer override in centavos (optional) */
+  offerAmountCents?: number
+  /** Supabase offer ID for webhook reconciliation (optional) */
   offerId?: string
   isSignedIn: boolean
 }
 
-export default function MercadoPagoButton({ listingId, price, buyerEmail, offerId, isSignedIn }: MercadoPagoButtonProps) {
+export default function MercadoPagoButton({
+  listingId,
+  price,
+  buyerEmail,
+  offerAmountCents,
+  offerId,
+  isSignedIn,
+}: MercadoPagoButtonProps) {
   const pathname = usePathname()
+  const { getToken } = useAuth()
+  const { user } = useUser()
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   if (!isSignedIn) {
     return (
@@ -33,19 +47,21 @@ export default function MercadoPagoButton({ listingId, price, buyerEmail, offerI
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/mp/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId, buyerEmail, offerId }),
+      const clerkJwt = (await getToken()) ?? undefined
+      const { redirect_url } = await startCheckout({
+        productId: listingId,
+        provider: 'mercadopago',
+        buyerEmail: buyerEmail ?? user?.primaryEmailAddress?.emailAddress,
+        buyerFirstName: user?.firstName ?? undefined,
+        buyerLastName: user?.lastName ?? undefined,
+        offerAmountCents,
+        offerId,
+        clerkJwt,
       })
-      const data = await res.json() as { checkoutUrl?: string; error?: string }
-      if (!res.ok || !data.checkoutUrl) {
-        setError(data.error ?? 'No se pudo iniciar el pago.')
-        return
-      }
-      window.location.href = data.checkoutUrl
-    } catch {
-      setError('Sin conexión. Inténtalo de nuevo.')
+      window.location.href = redirect_url
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo iniciar el pago.'
+      setError(msg)
     } finally {
       setLoading(false)
     }

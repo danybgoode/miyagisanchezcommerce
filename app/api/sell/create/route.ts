@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
+import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -105,6 +106,8 @@ export async function POST(req: NextRequest) {
 
   // ── Ensure seller exists (create on first publish) ──────────────────────
   let shopSlug: string
+  let sellerId: string | null = null
+  let sellerName: string | null = null
   {
     // Try to get existing seller
     let sellerRes = await medusaFetch('/store/sellers/me', medusaToken)
@@ -129,9 +132,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }, { status: 500 })
       }
       shopSlug = createData.seller.slug
+      sellerId = createData.seller.id ?? null
+      sellerName = createData.seller.name ?? null
     } else if (sellerRes.ok) {
       const sellerData = await sellerRes.json()
       shopSlug = sellerData.seller.slug
+      sellerId = sellerData.seller.id ?? null
+      sellerName = sellerData.seller.name ?? null
     } else {
       return NextResponse.json({ error: 'No encontramos tu tienda. Asegúrate de haber completado el onboarding.', field: 'shop' }, { status: 422 })
     }
@@ -142,14 +149,68 @@ export async function POST(req: NextRequest) {
     ? Math.min(...(body.listing.subscription_tiers ?? []).map(t => t.price_cents))
     : (body.listing.price_cents ?? null)
 
+  // For subscription tiers: create Stripe Prices now so we have stripe_price_id in metadata
+  type TierWithStripe = {
+    id: string; label: string; price_cents: number
+    interval: 'month' | 'year'; features: string[]; is_highlighted: boolean
+    stripe_price_id?: string
+  }
+  let tiersWithPriceIds: TierWithStripe[] = []
+  if (isSubscription && hasMultiTier && sellerId) {
+    tiersWithPriceIds = await Promise.all(
+      (body.listing.subscription_tiers ?? []).map(async (t) => {
+        try {
+          const { priceId } = await createSubscriptionPrice({
+            listingId: 'pending', // Will be backfilled after product creation
+            shopId: sellerId!,
+            title: `${body.listing.title?.trim()} — ${t.label.trim()}`,
+            description: null,
+            price_cents: t.price_cents,
+            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            interval: t.interval,
+          })
+          return { ...t, label: t.label.trim(), features: t.features.filter(Boolean), stripe_price_id: priceId }
+        } catch (e) {
+          console.error('[sell/create] Stripe price creation failed for tier:', t.label, e)
+          return { ...t, label: t.label.trim(), features: t.features.filter(Boolean) }
+        }
+      })
+    )
+  }
+
+  // Single-tier subscription: create one Stripe Price
+  let singleTierStripePriceId: string | null = null
+  if (isSubscription && !hasMultiTier && body.listing.price_cents && sellerId) {
+    try {
+      const { priceId } = await createSubscriptionPrice({
+        listingId: 'pending',
+        shopId: sellerId,
+        title: body.listing.title?.trim() ?? 'Suscripción',
+        description: null,
+        price_cents: body.listing.price_cents,
+        currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+        interval: body.listing.subscription?.interval ?? 'month',
+      })
+      singleTierStripePriceId = priceId
+    } catch (e) {
+      console.error('[sell/create] Stripe price creation failed:', e)
+    }
+  }
+
   const metadata: Record<string, unknown> = {
     ...(body.listing.condition ? { condition: body.listing.condition } : {}),
     ...(body.listing.state ? { state: body.listing.state } : {}),
     ...(body.listing.municipio ? { municipio: body.listing.municipio } : {}),
     ...(body.listing.digital_file ? { digital_file: body.listing.digital_file } : {}),
     ...(body.listing.repuve?.status ? { repuve: { status: body.listing.repuve.status, folio: body.listing.repuve.folio?.trim().toUpperCase() || null, verified_at: new Date().toISOString() } } : {}),
-    ...(isSubscription && !hasMultiTier ? { subscription: { interval: body.listing.subscription!.interval, content_description: body.listing.subscription?.content_description?.trim() || null } } : {}),
-    ...(isSubscription && hasMultiTier ? { subscription_tiers: (body.listing.subscription_tiers ?? []).map(t => ({ ...t, label: t.label.trim(), features: t.features.filter(Boolean) })) } : {}),
+    ...(isSubscription && !hasMultiTier ? {
+      subscription: {
+        interval: body.listing.subscription!.interval,
+        content_description: body.listing.subscription?.content_description?.trim() || null,
+        stripe_price_id: singleTierStripePriceId,
+      }
+    } : {}),
+    ...(isSubscription && hasMultiTier ? { subscription_tiers: tiersWithPriceIds } : {}),
   }
 
   // ── Create product in Medusa ──────────────────────────────────────────────
@@ -178,6 +239,45 @@ export async function POST(req: NextRequest) {
   }
 
   const listingId = productData.product_id
+
+  // ── Register subscription plans in Medusa (non-fatal) ────────────────────
+  if (isSubscription && sellerId && clerkJwt) {
+    const plansToCreate: Array<{
+      label: string; price_cents: number; interval: string
+      stripe_price_id?: string; description?: string
+    }> = hasMultiTier
+      ? tiersWithPriceIds.map(t => ({
+          label: t.label,
+          price_cents: t.price_cents,
+          interval: t.interval,
+          stripe_price_id: t.stripe_price_id,
+        }))
+      : [{
+          label: sellerName ? `Suscripción — ${sellerName}` : 'Suscripción',
+          price_cents: body.listing.price_cents ?? 0,
+          interval: body.listing.subscription?.interval ?? 'month',
+          stripe_price_id: singleTierStripePriceId ?? undefined,
+        }]
+
+    // Create plans via Medusa backend (fire-and-forget, non-fatal)
+    Promise.all(
+      plansToCreate.map(plan =>
+        medusaFetch('/store/sellers/me/subscription-plans', medusaToken, {
+          method: 'POST',
+          body: JSON.stringify({
+            product_id: listingId,
+            label: plan.label,
+            description: plan.description ?? null,
+            price_cents: plan.price_cents,
+            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            interval: plan.interval,
+            stripe_price_id: plan.stripe_price_id ?? null,
+            metadata: { listing_id: listingId },
+          }),
+        }).catch(e => console.error('[sell/create] subscription plan creation failed:', e))
+      )
+    ).catch(() => {})
+  }
 
   // ── Telegram notification ────────────────────────────────────────────────
   const priceCents = body.listing.price_cents

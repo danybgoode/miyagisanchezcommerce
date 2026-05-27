@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useAuth, useUser } from '@clerk/nextjs'
+import { startCheckout } from '@/lib/cart'
 
 interface BuyButtonProps {
   listingId: string
@@ -9,10 +11,26 @@ interface BuyButtonProps {
   isDigital?: boolean
   sellerHasStripe: boolean
   isSignedIn: boolean
+  buyerEmail?: string
+  /** Accepted offer override in centavos (optional) */
+  offerAmountCents?: number
+  /** Supabase offer ID for webhook reconciliation (optional) */
+  offerId?: string
 }
 
-export default function BuyButton({ listingId, price, isDigital, sellerHasStripe, isSignedIn }: BuyButtonProps) {
+export default function BuyButton({
+  listingId,
+  price,
+  isDigital,
+  sellerHasStripe,
+  isSignedIn,
+  buyerEmail,
+  offerAmountCents,
+  offerId,
+}: BuyButtonProps) {
   const pathname = usePathname()
+  const { getToken } = useAuth()
+  const { user } = useUser()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,19 +59,26 @@ export default function BuyButton({ listingId, price, isDigital, sellerHasStripe
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId }),
+      const clerkJwt = (await getToken()) ?? undefined
+      const { redirect_url } = await startCheckout({
+        productId: listingId,
+        provider: 'stripe',
+        buyerEmail: buyerEmail ?? user?.primaryEmailAddress?.emailAddress,
+        buyerFirstName: user?.firstName ?? undefined,
+        buyerLastName: user?.lastName ?? undefined,
+        offerAmountCents,
+        offerId,
+        clerkJwt,
       })
-      const data = await res.json() as { url?: string; error?: string }
-      if (!res.ok || !data.url) {
-        setError(data.error ?? 'No se pudo iniciar el pago.')
-        return
+      window.location.href = redirect_url
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo iniciar el pago.'
+      // Surface seller-not-connected error in friendlier Spanish
+      if (msg.includes('SELLER_NOT_CONNECTED') || msg.includes('activado los pagos')) {
+        setError('Este vendedor aún no ha activado pagos en línea. Contáctalo directamente.')
+      } else {
+        setError(msg)
       }
-      window.location.href = data.url
-    } catch {
-      setError('Sin conexión. Inténtalo de nuevo.')
     } finally {
       setLoading(false)
     }

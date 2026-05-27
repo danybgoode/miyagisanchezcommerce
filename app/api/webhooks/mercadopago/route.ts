@@ -17,6 +17,68 @@ import { formatOfferAmount } from '@/lib/offers'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+/** Patch the MP payment session with the real payment ID, then complete the Medusa cart. Returns order ID. */
+async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<string | null> {
+  try {
+    // Step 1: authorize the session with the real MP payment ID
+    const authRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/mp-authorize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+      },
+      body: JSON.stringify({ mp_payment_id: mpPaymentId }),
+    })
+    if (!authRes.ok) {
+      const body = await authRes.json().catch(() => ({}))
+      console.error('[mp webhook] mp-authorize failed:', cartId, body)
+      return null
+    }
+
+    // Step 2: complete the cart (authorizePayment will see status: approved now)
+    const completeRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+      },
+    })
+    if (!completeRes.ok) {
+      const body = await completeRes.json().catch(() => ({}))
+      console.error('[mp webhook] cart complete failed:', cartId, body)
+      return null
+    }
+    const data = await completeRes.json().catch(() => ({}))
+    const orderId = data?.order?.id ?? null
+    console.log('[mp webhook] Medusa cart completed:', cartId, '→ order:', orderId)
+    return orderId
+  } catch (e) {
+    console.error('[mp webhook] completeMedusaCartWithMp error:', cartId, e)
+    return null
+  }
+}
+
+/** Fetch listing info from Medusa for email context */
+async function getMedusaListing(productId: string): Promise<{ title: string; seller_name: string; seller_clerk_id?: string } | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${productId}`, {
+      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY },
+    })
+    if (!res.ok) return null
+    const { listing } = await res.json()
+    return {
+      title: listing?.title ?? listing?.name ?? 'Producto',
+      seller_name: listing?.seller?.name ?? listing?.shop?.name ?? '',
+      seller_clerk_id: listing?.seller?.clerk_user_id ?? listing?.shop?.clerk_user_id ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: NextRequest) {
   // ── Parse notification ────────────────────────────────────────────────────
   let body: Record<string, unknown> = {}
@@ -60,7 +122,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true })
   }
 
-  // ── Parse external_reference ──────────────────────────────────────────────
+  const amountCents = Math.round((payment.transaction_amount ?? 0) * 100)
+  const currency    = (payment.currency_id ?? 'MXN').toUpperCase()
+  const buyerEmail  = payment.payer?.email ?? null
+  const buyerName   = [payment.payer?.first_name, payment.payer?.last_name]
+    .filter(Boolean).join(' ').trim() || null
+
+  // ── New Medusa-backed flow (cart_id in payment.metadata) ─────────────────
+  const mpMeta = (payment.metadata ?? {}) as Record<string, string>
+  if (mpMeta.cart_id) {
+    await handleMedusaMpPayment({
+      paymentId,
+      cartId: mpMeta.cart_id,
+      productId: mpMeta.product_id ?? '',
+      sellerId: mpMeta.seller_id ?? '',
+      offerId: mpMeta.offer_id,
+      amountCents,
+      currency,
+      buyerEmail,
+      buyerName,
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  // ── Legacy Supabase flow (external_reference has JSON) ───────────────────
   let ref: Record<string, string> = {}
   try {
     ref = JSON.parse(payment.external_reference ?? '{}') as Record<string, string>
@@ -71,12 +156,6 @@ export async function POST(req: NextRequest) {
     console.warn('[mp webhook] missing listing/shop in external_reference for payment:', paymentId)
     return NextResponse.json({ received: true })
   }
-
-  const amountCents = Math.round((payment.transaction_amount ?? 0) * 100)
-  const currency    = (payment.currency_id ?? 'MXN').toUpperCase()
-  const buyerEmail  = payment.payer?.email ?? null
-  const buyerName   = [payment.payer?.first_name, payment.payer?.last_name]
-    .filter(Boolean).join(' ').trim() || null
 
   // ── Idempotency — skip if already recorded ────────────────────────────────
   const { data: existing } = await db
@@ -177,6 +256,122 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+// ── New Medusa flow MP payment handler ────────────────────────────────────────
+
+async function handleMedusaMpPayment({
+  paymentId,
+  cartId,
+  productId,
+  sellerId,
+  offerId,
+  amountCents,
+  currency,
+  buyerEmail,
+  buyerName,
+}: {
+  paymentId: string
+  cartId: string
+  productId: string
+  sellerId: string
+  offerId?: string
+  amountCents: number
+  currency: string
+  buyerEmail: string | null
+  buyerName: string | null
+}) {
+  // 1. Complete the Medusa cart (mp-authorize + complete)
+  const medusaOrderId = await completeMedusaCartWithMp(cartId, paymentId)
+
+  // 2. Record in Supabase so the existing order UIs can find it
+  if (medusaOrderId) {
+    const { error: insertErr } = await db.from('marketplace_orders').insert({
+      shop_id: sellerId ?? '',
+      listing_id: productId ?? '',
+      mp_payment_id: paymentId,
+      buyer_email: buyerEmail,
+      buyer_name: buyerName,
+      amount_cents: amountCents,
+      currency,
+      status: 'paid',
+      shipping_method: 'pending',
+      metadata: {
+        medusa_order_id: medusaOrderId,
+        medusa_cart_id: cartId,
+        ...(offerId ? { offer_id: offerId } : {}),
+      },
+    })
+    if (insertErr) console.error('[mp webhook] Supabase order insert failed:', insertErr)
+  }
+
+  // 3. Fire UCP webhook
+  deliverOrderWebhook(medusaOrderId ?? cartId, 'order.created').catch(e => console.error('[ucp-webhook] medusa mp:', e))
+
+  // 3. Mark winning offer as paid + cancel payment-expiry reminder
+  if (offerId) {
+    const { data: paidOffer } = await db
+      .from('marketplace_offers')
+      .select('scheduled_reminder_ids')
+      .eq('id', offerId)
+      .single()
+
+    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offerId)
+
+    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
+    if (paidReminders.buyer_payment_expiry) {
+      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
+    }
+
+    // Auto-decline competing offers
+    await db.from('marketplace_offers')
+      .update({ status: 'declined' })
+      .eq('listing_id', productId)
+      .in('status', ['pending', 'countered', 'accepted'])
+      .neq('id', offerId)
+  }
+
+  // 4. Telegram admin alert
+  const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
+  tg.salePaid(amtFmt, productId || 'Producto', buyerEmail ?? 'comprador', 'mercadopago')
+
+  // 5. Emails (best-effort via Medusa listing fetch)
+  if (productId && buyerEmail) {
+    const listingInfo = await getMedusaListing(productId)
+    if (listingInfo) {
+      const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+      const listingUrl = `${SITE_URL}/l/${productId}`
+      const amountFormatted = formatOfferAmount(amountCents, currency)
+
+      sendOrderConfirmedToBuyer({
+        buyerEmail,
+        buyerName,
+        listingTitle: listingInfo.title,
+        listingUrl,
+        amountPaid: amountFormatted,
+        shopName: listingInfo.seller_name,
+        isDigital: false,
+      }).catch(e => console.error('[mp email] medusa buyer:', e))
+
+      if (listingInfo.seller_clerk_id) {
+        getSellerEmail(listingInfo.seller_clerk_id)
+          .then(sellerEmail => {
+            if (sellerEmail) {
+              return sendSaleCompletedToSeller({
+                sellerEmail,
+                listingTitle: listingInfo.title,
+                listingUrl,
+                amountPaid: amountFormatted,
+                buyerName,
+                buyerEmail,
+                isDigital: false,
+              })
+            }
+          })
+          .catch(e => console.error('[mp email] medusa seller:', e))
+      }
+    }
+  }
 }
 
 // ── Preapproval (subscription) handler ───────────────────────────────────────

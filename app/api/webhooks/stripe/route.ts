@@ -9,6 +9,52 @@ import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+/** Complete a Medusa cart → creates the Medusa order. Returns the order ID. */
+async function completeMedusaCart(cartId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+      },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      console.error('[stripe webhook] completeMedusaCart failed:', cartId, body)
+      return null
+    }
+    const data = await res.json().catch(() => ({}))
+    const orderId = data?.order?.id ?? null
+    console.log('[stripe webhook] Medusa cart completed:', cartId, '→ order:', orderId)
+    return orderId
+  } catch (e) {
+    console.error('[stripe webhook] completeMedusaCart error:', cartId, e)
+    return null
+  }
+}
+
+/** Fetch listing info from Medusa for email context */
+async function getMedusaListing(productId: string): Promise<{ title: string; seller_name: string; seller_clerk_id?: string } | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${productId}`, {
+      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY },
+    })
+    if (!res.ok) return null
+    const { listing } = await res.json()
+    return {
+      title: listing?.title ?? listing?.name ?? 'Producto',
+      seller_name: listing?.seller?.name ?? listing?.shop?.name ?? '',
+      seller_clerk_id: listing?.seller?.clerk_user_id ?? listing?.shop?.clerk_user_id ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 // In Next.js App Router, req.text() reads the raw body before any parsing —
 // no need for bodyParser: false config (that was Pages Router only)
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? ''
@@ -68,7 +114,16 @@ export async function POST(req: NextRequest) {
 // ── checkout.session.completed ────────────────────────────────────────────────
 
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
-  const { listing_id, shop_id, listing_type, offer_id, buyer_clerk_id, is_physical } = session.metadata ?? {}
+  const meta = session.metadata ?? {}
+
+  // ── New Medusa-backed flow (cart_id present in metadata) ──────────────────
+  if (meta.cart_id) {
+    await handleMedusaCheckoutComplete(session)
+    return
+  }
+
+  // ── Legacy Supabase flow ──────────────────────────────────────────────────
+  const { listing_id, shop_id, listing_type, offer_id, buyer_clerk_id, is_physical } = meta
   if (!listing_id || !shop_id) return
 
   const amountTotal = session.amount_total ?? 0
@@ -226,6 +281,108 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   }
 }
 
+// ── New Medusa flow: checkout.session.completed ───────────────────────────────
+
+async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
+  const { cart_id, product_id, seller_id, offer_id } = session.metadata ?? {}
+  if (!cart_id) return
+
+  const amountTotal = session.amount_total ?? 0
+  const currency = (session.currency ?? 'mxn').toUpperCase()
+  const buyerEmail = session.customer_details?.email ?? null
+  const buyerName = session.customer_details?.name ?? null
+
+  // 1. Complete the Medusa cart → creates Medusa order
+  const medusaOrderId = await completeMedusaCart(cart_id)
+
+  // 2. Record in Supabase so existing seller/buyer order UIs can find it
+  if (medusaOrderId) {
+    const { error: insertErr } = await db.from('marketplace_orders').insert({
+      shop_id: seller_id ?? '',        // Medusa seller ID — used as shop_id for queries
+      listing_id: product_id ?? '',    // Medusa product ID
+      stripe_session_id: session.id,
+      buyer_email: buyerEmail,
+      buyer_name: buyerName,
+      amount_cents: amountTotal,
+      currency,
+      status: 'paid',
+      shipping_method: 'pending',
+      metadata: {
+        medusa_order_id: medusaOrderId,
+        medusa_cart_id: cart_id,
+        ...(offer_id ? { offer_id } : {}),
+      },
+    })
+    if (insertErr) console.error('[stripe webhook] Supabase order insert failed:', insertErr)
+  }
+
+  // 3. Fire UCP webhook (non-fatal)
+  deliverOrderWebhook(medusaOrderId ?? cart_id, 'order.created').catch(e => console.error('[ucp-webhook] medusa stripe:', e))
+
+  // 3. Mark winning offer as paid + cancel payment-expiry reminder
+  if (offer_id) {
+    const { data: paidOffer } = await db
+      .from('marketplace_offers')
+      .select('scheduled_reminder_ids')
+      .eq('id', offer_id)
+      .single()
+
+    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offer_id)
+
+    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
+    if (paidReminders.buyer_payment_expiry) {
+      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
+    }
+
+    // Auto-decline competing offers
+    await db.from('marketplace_offers')
+      .update({ status: 'declined' })
+      .eq('listing_id', product_id ?? '')
+      .in('status', ['pending', 'countered', 'accepted'])
+      .neq('id', offer_id)
+  }
+
+  // 4. Telegram admin alert
+  const amountFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency }).format(amountTotal / 100)
+  tg.salePaid(amountFmt, product_id ?? 'Producto', buyerEmail ?? 'comprador', 'stripe')
+
+  // 5. Fetch Medusa listing for email context (best-effort)
+  if (product_id && buyerEmail) {
+    const listingInfo = await getMedusaListing(product_id)
+    if (listingInfo) {
+      const listingUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/l/${product_id}`
+      const amountFormatted = formatOfferAmount(amountTotal, currency)
+
+      sendOrderConfirmedToBuyer({
+        buyerEmail,
+        buyerName,
+        listingTitle: listingInfo.title,
+        listingUrl,
+        amountPaid: amountFormatted,
+        shopName: listingInfo.seller_name,
+        isDigital: false,
+        digitalDownloadUrl: null,
+        digitalExpiresAt: null,
+      }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
+
+      if (listingInfo.seller_clerk_id) {
+        getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
+          if (!sellerEmail) return
+          return sendSaleCompletedToSeller({
+            sellerEmail,
+            listingTitle: listingInfo.title,
+            listingUrl,
+            amountPaid: amountFormatted,
+            buyerName,
+            buyerEmail,
+            isDigital: false,
+          })
+        }).catch(e => console.error('[email] medusa sale completed seller:', e))
+      }
+    }
+  }
+}
+
 // ── Digital fulfillment — signs storage URL and marks order fulfilled ─────────
 // Returns the download URL + expiry so the caller can include it in emails.
 
@@ -282,6 +439,25 @@ async function fulfillDigitalOrder({
 async function handleAccountUpdated(account: Stripe.Account) {
   if (!account.id) return
 
+  // Sync Medusa seller metadata (new system)
+  try {
+    await fetch(`${MEDUSA_BASE}/store/sellers/stripe-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+      },
+      body: JSON.stringify({
+        stripe_account_id: account.id,
+        charges_enabled: account.charges_enabled,
+        details_submitted: account.details_submitted,
+      }),
+    })
+  } catch (e) {
+    console.error('[stripe webhook] Medusa seller stripe-sync failed:', e)
+  }
+
+  // Also sync legacy Supabase shops table (backwards compat during migration)
   const { data: shop } = await db
     .from('marketplace_shops')
     .select('id, metadata')
@@ -356,6 +532,47 @@ async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Sessi
     current_period_end:   periodEnd,
     tier_id: tier_id || null,
   })
+
+  // ── Also record in Medusa subscriptions module (best-effort) ─────────────
+  // Look up the Medusa SubscriptionPlan by stripe_price_id
+  try {
+    const stripePriceId = stripeSub.items.data[0]?.price?.id
+    if (stripePriceId) {
+      // Find matching Medusa plan via the subscription-plans listing endpoint
+      const planLookupRes = await fetch(
+        `${MEDUSA_BASE}/store/sellers/subscription-plans/by-stripe-price?stripe_price_id=${encodeURIComponent(stripePriceId)}`,
+        { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } }
+      )
+      if (planLookupRes.ok) {
+        const { plan } = await planLookupRes.json() as { plan?: { id: string; seller_id: string } }
+        if (plan?.id) {
+          await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-publishable-api-key': MEDUSA_PUB_KEY,
+              'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
+            },
+            body: JSON.stringify({
+              plan_id: plan.id,
+              seller_id: plan.seller_id,
+              buyer_email: buyerEmail?.toLowerCase().trim() ?? '',
+              clerk_user_id: buyer_clerk_id ?? null,
+              status: 'active',
+              payment_method: 'stripe',
+              stripe_subscription_id: stripeSubscriptionId,
+              stripe_customer_id: session.customer as string | null,
+              current_period_start: periodStart,
+              current_period_end: periodEnd,
+              metadata: { listing_id, shop_id, tier_id: tier_id ?? null },
+            }),
+          }).catch(e => console.error('[stripe sub] Medusa subscription record failed:', e))
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[stripe sub] Medusa subscription sync error:', e)
+  }
 
   tg.newSubscription(
     `${(stripeSub.items.data[0]?.price.unit_amount ?? 0) / 100} ${stripeSub.currency.toUpperCase()}`,
