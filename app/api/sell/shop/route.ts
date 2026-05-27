@@ -3,6 +3,20 @@ import { auth } from '@clerk/nextjs/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+async function getMedusaToken(clerkJwt: string): Promise<string | null> {
+  const res = await fetch(`${MEDUSA_BASE}/auth/store/clerk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
+    body: JSON.stringify({ token: clerkJwt }),
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  return data.token ?? null
+}
+
 // ── PATCH — update shop profile + settings ───────────────────────────────────
 
 interface ShopUpdatePayload {
@@ -79,7 +93,7 @@ interface ShopUpdatePayload {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   let body: ShopUpdatePayload
@@ -144,6 +158,40 @@ export async function PATCH(req: NextRequest) {
   if (error) {
     console.error('Shop update error:', error)
     return NextResponse.json({ error: 'Error al guardar cambios.' }, { status: 500 })
+  }
+
+  // ── Sync profile fields to Medusa seller record (non-fatal) ─────────────────
+  try {
+    const clerkJwt = await getToken()
+    const medusaToken = clerkJwt ? await getMedusaToken(clerkJwt) : null
+    if (medusaToken) {
+      const medusaPayload: Record<string, unknown> = {}
+      if (body.name !== undefined) medusaPayload.name = body.name.trim()
+      if (body.description !== undefined) medusaPayload.description = body.description.trim() || null
+      if (location !== undefined) medusaPayload.location = location
+      if (body.logo_url !== undefined) medusaPayload.logo_url = body.logo_url
+      // Store the full settings blob in Medusa seller metadata so the MCP/UCP
+      // layer can read payment methods, escrow mode, and scheduling config.
+      if (body.settings || body.mp_enabled !== undefined) {
+        medusaPayload.metadata = {
+          settings: mergedSettings,
+          ...(body.mp_enabled !== undefined && { mp_enabled: body.mp_enabled }),
+        }
+      }
+      if (Object.keys(medusaPayload).length > 0) {
+        await fetch(`${MEDUSA_BASE}/store/sellers/me`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-publishable-api-key': PUB_KEY,
+            Authorization: `Bearer ${medusaToken}`,
+          },
+          body: JSON.stringify(medusaPayload),
+        })
+      }
+    }
+  } catch (e) {
+    console.error('[shop/settings] Medusa seller sync failed (non-fatal):', e)
   }
 
   // Bust listing + shop page caches so PDP/storefront reflect new settings immediately
