@@ -10,11 +10,30 @@
  *   dimensions? { lengthCm, widthCm, heightCm }
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { currentUser } from '@clerk/nextjs/server'
+import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
-import { sendOrderShipped, getSellerEmail } from '@/lib/email'
+import { sendOrderShipped } from '@/lib/email'
 import { tg } from '@/lib/telegram'
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+// Fetch seller + order context for Medusa-backed orders
+async function getMedusaOrderContext(orderId: string, clerkJwt: string) {
+  const [orderRes, sellerRes] = await Promise.all([
+    fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${orderId}`, {
+      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
+    }),
+    fetch(`${MEDUSA_BASE}/store/sellers/me`, {
+      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
+    }),
+  ])
+  if (!orderRes.ok) return null
+  const { order } = await orderRes.json() as { order: Record<string, unknown> }
+  const seller = sellerRes.ok ? ((await sellerRes.json()) as { seller?: Record<string, unknown> }).seller : null
+  return { order, seller }
+}
 
 // ── POST /api/orders/[id]/ship ────────────────────────────────────────────────
 
@@ -38,34 +57,73 @@ export async function POST(
   if (!body.rateId) return NextResponse.json({ error: 'rateId requerido.' }, { status: 400 })
   if (!body.weightGrams) return NextResponse.json({ error: 'weightGrams requerido.' }, { status: 400 })
 
-  // ── Fetch order + verify seller owns it ──────────────────────────────────
-  const { data: order } = await db
-    .from('marketplace_orders')
-    .select(`
-      id, status, shipping_address, buyer_name, buyer_email,
-      marketplace_shops!inner(id, clerk_user_id, name, metadata),
-      marketplace_listings!inner(id, title)
-    `)
-    .eq('id', id)
-    .maybeSingle()
+  let orderStatus: string
+  let shippingAddress: Record<string, string>
+  let buyerName: string | null
+  let buyerEmail: string | null
+  let listingTitle: string
+  let shopName: string
+  let originRaw: Record<string, string> | undefined
+  let supabaseOrderId: string | null = null
 
-  if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+  if (id.startsWith('order_')) {
+    // ── Medusa order ────────────────────────────────────────────────────────
+    const { getToken } = await auth()
+    const clerkJwt = await getToken()
+    if (!clerkJwt) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  const shop    = order.marketplace_shops as unknown as { id: string; clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
-  const listing = order.marketplace_listings as unknown as { id: string; title: string }
+    const ctx = await getMedusaOrderContext(id, clerkJwt)
+    if (!ctx) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
 
-  if (shop.clerk_user_id !== user.id) {
-    return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    const { order, seller } = ctx
+    const listings = order.marketplace_listings as Record<string, unknown> | null
+    orderStatus  = (order.status as string) ?? 'paid'
+    shippingAddress = (order.shipping_address as Record<string, string>) ?? {}
+    buyerName    = (order.buyer_name as string | null) ?? null
+    buyerEmail   = (order.buyer_email as string | null) ?? null
+    listingTitle = (listings?.title as string) ?? 'Producto'
+    shopName     = ((order.marketplace_shops as Record<string, unknown>)?.name as string) ?? 'Mi tienda'
+
+    const sellerMeta    = ((seller?.metadata ?? {}) as Record<string, unknown>)
+    const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
+    originRaw    = sellerSettings.origin_address as Record<string, string> | undefined
+  } else {
+    // ── Legacy Supabase order ───────────────────────────────────────────────
+    const { data: order } = await db
+      .from('marketplace_orders')
+      .select(`
+        id, status, shipping_address, buyer_name, buyer_email,
+        marketplace_shops!inner(id, clerk_user_id, name, metadata),
+        marketplace_listings!inner(id, title)
+      `)
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+
+    const shop    = order.marketplace_shops as unknown as { id: string; clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
+    const listing = order.marketplace_listings as unknown as { id: string; title: string }
+
+    if (shop.clerk_user_id !== user.id) {
+      return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    }
+
+    orderStatus     = order.status
+    shippingAddress = (order.shipping_address ?? {}) as Record<string, string>
+    buyerName       = order.buyer_name ?? null
+    buyerEmail      = order.buyer_email ?? null
+    listingTitle    = listing.title
+    shopName        = shop.name
+    supabaseOrderId = id
+
+    const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
+    const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
+    originRaw = shopSettings.origin_address as Record<string, string> | undefined
   }
 
-  if (!['paid', 'processing'].includes(order.status)) {
-    return NextResponse.json({ error: `No se puede enviar un pedido en estado "${order.status}".` }, { status: 422 })
+  if (!['paid', 'processing'].includes(orderStatus)) {
+    return NextResponse.json({ error: `No se puede enviar un pedido en estado "${orderStatus}".` }, { status: 422 })
   }
-
-  // ── Get origin address from shop settings ─────────────────────────────────
-  const shopMeta = (shop.metadata ?? {}) as Record<string, unknown>
-  const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
-  const originRaw = shopSettings.origin_address as Record<string, string> | undefined
 
   if (!originRaw?.postal_code) {
     return NextResponse.json({
@@ -74,9 +132,7 @@ export async function POST(
     }, { status: 422 })
   }
 
-  // ── Parse shipping address (collected at Stripe checkout) ─────────────────
-  const destRaw = (order.shipping_address ?? {}) as Record<string, string>
-  if (!destRaw.postal_code && !destRaw.postalCode) {
+  if (!shippingAddress.postal_code && !shippingAddress.postalCode) {
     return NextResponse.json({
       error: 'Este pedido no tiene dirección de entrega registrada.',
       code: 'MISSING_SHIPPING_ADDRESS',
@@ -84,7 +140,7 @@ export async function POST(
   }
 
   const origin: EnviaAddress = {
-    name:       originRaw.name ?? shop.name,
+    name:       originRaw.name ?? shopName,
     street:     originRaw.street ?? '',
     number:     originRaw.number,
     district:   originRaw.colonia,
@@ -92,86 +148,90 @@ export async function POST(
     state:      originRaw.state ?? '',
     postalCode: originRaw.postal_code,
   }
-
   const destination: EnviaAddress = {
-    name:       order.buyer_name ?? destRaw.name ?? 'Comprador',
-    street:     destRaw.street ?? destRaw.line1 ?? '',
-    district:   destRaw.colonia ?? destRaw.line2,
-    city:       destRaw.city ?? '',
-    state:      destRaw.state ?? '',
-    postalCode: destRaw.postal_code ?? destRaw.postalCode ?? '',
-    email:      order.buyer_email ?? undefined,
+    name:       buyerName ?? shippingAddress.name ?? 'Comprador',
+    street:     shippingAddress.street ?? shippingAddress.line1 ?? '',
+    district:   shippingAddress.colonia ?? shippingAddress.line2,
+    city:       shippingAddress.city ?? '',
+    state:      shippingAddress.state ?? '',
+    postalCode: shippingAddress.postal_code ?? shippingAddress.postalCode ?? '',
+    email:      buyerEmail ?? undefined,
   }
 
   const weightKg = body.weightGrams / 1000
   const pkg = {
-    content:    listing.title.slice(0, 80),
+    content:    listingTitle.slice(0, 80),
     weight:     Math.max(0.1, weightKg),
     dimensions: body.dimensions
       ? { length: body.dimensions.lengthCm, width: body.dimensions.widthCm, height: body.dimensions.heightCm }
       : { length: 20, width: 15, height: 10 },
   }
 
-  // ── Create shipment via Envia ──────────────────────────────────────────────
   let shipment
   try {
-    shipment = await createShipment({
-      origin,
-      destination,
-      packages: [pkg],
-      rateId: body.rateId,
-      reference: id,
-    })
+    shipment = await createShipment({ origin, destination, packages: [pkg], rateId: body.rateId!, reference: id })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[envia] createShipment failed:', msg)
     return NextResponse.json({ error: `Error al generar etiqueta: ${msg}` }, { status: 502 })
   }
 
-  // ── Record shipment in DB ─────────────────────────────────────────────────
-  const { data: shipmentRow } = await db
-    .from('marketplace_shipments')
-    .insert({
-      order_id:               id,
-      carrier:                shipment.carrier || 'envia',
-      tracking_number:        shipment.trackingNumber,
-      label_url:              shipment.labelUrl,
-      envia_shipment_id:      shipment.enviaShipmentId,
-      envia_rate_id:          body.rateId,
-      status:                 'label_created',
-      estimated_delivery_date: shipment.estimatedDeliveryDate ?? null,
-      weight_grams:           body.weightGrams,
-      metadata:               { raw: shipment.raw },
-    })
-    .select('id')
-    .single()
+  // Record shipment in Supabase (for legacy orders; for Medusa orders we store in Medusa via PATCH)
+  let shipmentRowId: string | undefined
+  if (supabaseOrderId) {
+    const { data: shipmentRow } = await db
+      .from('marketplace_shipments')
+      .insert({
+        order_id:               supabaseOrderId,
+        carrier:                shipment.carrier || 'envia',
+        tracking_number:        shipment.trackingNumber,
+        label_url:              shipment.labelUrl,
+        envia_shipment_id:      shipment.enviaShipmentId,
+        envia_rate_id:          body.rateId,
+        status:                 'label_created',
+        estimated_delivery_date: shipment.estimatedDeliveryDate ?? null,
+        weight_grams:           body.weightGrams,
+        metadata:               { raw: shipment.raw },
+      })
+      .select('id')
+      .single()
+    shipmentRowId = shipmentRow?.id
+    await db.from('marketplace_orders').update({ status: 'shipped', updated_at: new Date().toISOString() }).eq('id', supabaseOrderId)
+  } else {
+    // Medusa order — update status via backend
+    const { getToken } = await auth()
+    const clerkJwt = await getToken()
+    if (clerkJwt) {
+      await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-publishable-api-key': MEDUSA_PUB_KEY,
+          Authorization: `Bearer ${clerkJwt}`,
+        },
+        body: JSON.stringify({ status: 'shipped', carrier: shipment.carrier, tracking_number: shipment.trackingNumber }),
+      }).catch(e => console.error('[envia] Medusa shipped update failed:', e))
+    }
+  }
 
-  // ── Update order status → shipped ─────────────────────────────────────────
-  await db
-    .from('marketplace_orders')
-    .update({ status: 'shipped', updated_at: new Date().toISOString() })
-    .eq('id', id)
-
-  // ── Email buyer ───────────────────────────────────────────────────────────
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
-  if (order.buyer_email) {
+  if (buyerEmail) {
     sendOrderShipped({
-      buyerEmail:       order.buyer_email,
-      buyerName:        order.buyer_name ?? null,
-      listingTitle:     listing.title,
-      orderUrl:         `${siteUrl}/account/orders/${id}`,
-      carrier:          shipment.carrier,
-      trackingNumber:   shipment.trackingNumber,
+      buyerEmail,
+      buyerName,
+      listingTitle,
+      orderUrl: `${siteUrl}/account/orders/${id}`,
+      carrier: shipment.carrier,
+      trackingNumber: shipment.trackingNumber,
       estimatedDelivery: shipment.estimatedDeliveryDate,
-      shopName:         shop.name,
+      shopName,
     }).catch(e => console.error('[email] orderShipped:', e))
   }
 
-  // ── Telegram ──────────────────────────────────────────────────────────────
-  tg.alert(`📦 Pedido enviado — ${listing.title}\nGuía: ${shipment.trackingNumber ?? 'sin guía'}\nComprador: ${order.buyer_email}`)
+  tg.alert(`📦 Pedido enviado — ${listingTitle}\nGuía: ${shipment.trackingNumber ?? 'sin guía'}\nComprador: ${buyerEmail}`)
 
   return NextResponse.json({
-    shipmentId: shipmentRow?.id,
+    shipmentId: shipmentRowId,
     trackingNumber: shipment.trackingNumber,
     labelUrl: shipment.labelUrl,
     carrier: shipment.carrier,
@@ -195,57 +255,81 @@ export async function GET(
   const widthCm     = Number(sp.get('widthCm')  ?? '15')
   const heightCm    = Number(sp.get('heightCm') ?? '10')
 
-  // ── Fetch order ───────────────────────────────────────────────────────────
-  const { data: order } = await db
-    .from('marketplace_orders')
-    .select('id, shipping_address, buyer_name, marketplace_shops!inner(id, clerk_user_id, name, metadata), marketplace_listings!inner(title)')
-    .eq('id', id)
-    .maybeSingle()
+  let shippingAddress: Record<string, string>
+  let buyerName: string | null
+  let listingTitle: string
+  let originRaw: Record<string, string> | undefined
+  let shopName: string
 
-  if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+  if (id.startsWith('order_')) {
+    const { getToken } = await auth()
+    const clerkJwt = await getToken()
+    if (!clerkJwt) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  const shop = order.marketplace_shops as unknown as { clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
-  if (shop.clerk_user_id !== user.id) {
-    return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    const ctx = await getMedusaOrderContext(id, clerkJwt)
+    if (!ctx) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+
+    const { order, seller } = ctx
+    const listings = order.marketplace_listings as Record<string, unknown> | null
+    shippingAddress = (order.shipping_address as Record<string, string>) ?? {}
+    buyerName       = (order.buyer_name as string | null) ?? null
+    listingTitle    = (listings?.title as string) ?? 'Producto'
+    shopName        = ((order.marketplace_shops as Record<string, unknown>)?.name as string) ?? 'Mi tienda'
+
+    const sellerMeta     = ((seller?.metadata ?? {}) as Record<string, unknown>)
+    const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
+    originRaw = sellerSettings.origin_address as Record<string, string> | undefined
+  } else {
+    const { data: order } = await db
+      .from('marketplace_orders')
+      .select('id, shipping_address, buyer_name, marketplace_shops!inner(id, clerk_user_id, name, metadata), marketplace_listings!inner(title)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+
+    const shop = order.marketplace_shops as unknown as { clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
+    if (shop.clerk_user_id !== user.id) {
+      return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    }
+
+    shippingAddress = (order.shipping_address ?? {}) as Record<string, string>
+    buyerName       = order.buyer_name ?? null
+    shopName        = shop.name
+    listingTitle    = (order.marketplace_listings as unknown as { title: string }).title
+
+    const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
+    const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
+    originRaw = shopSettings.origin_address as Record<string, string> | undefined
   }
-
-  const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
-  const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
-  const originRaw    = shopSettings.origin_address as Record<string, string> | undefined
-  const destRaw      = (order.shipping_address ?? {}) as Record<string, string>
-  const listing      = order.marketplace_listings as unknown as { title: string }
 
   if (!originRaw?.postal_code) {
     return NextResponse.json({ error: 'Configura la dirección de origen en Ajustes.', code: 'MISSING_ORIGIN_ADDRESS' }, { status: 422 })
   }
-  if (!destRaw.postal_code && !destRaw.postalCode) {
+  if (!shippingAddress.postal_code && !shippingAddress.postalCode) {
     return NextResponse.json({ error: 'El pedido no tiene dirección de entrega.', code: 'MISSING_SHIPPING_ADDRESS' }, { status: 422 })
   }
 
   const origin: EnviaAddress = {
-    name: originRaw.name ?? shop.name,
+    name: originRaw.name ?? shopName,
     street: originRaw.street ?? '',
     city: originRaw.city ?? '',
     state: originRaw.state ?? '',
     postalCode: originRaw.postal_code,
   }
   const destination: EnviaAddress = {
-    name: order.buyer_name ?? 'Comprador',
-    street: destRaw.street ?? destRaw.line1 ?? '',
-    city: destRaw.city ?? '',
-    state: destRaw.state ?? '',
-    postalCode: destRaw.postal_code ?? destRaw.postalCode ?? '',
+    name: buyerName ?? shippingAddress.name ?? 'Comprador',
+    street: shippingAddress.street ?? shippingAddress.line1 ?? '',
+    city: shippingAddress.city ?? '',
+    state: shippingAddress.state ?? '',
+    postalCode: shippingAddress.postal_code ?? shippingAddress.postalCode ?? '',
   }
 
   try {
     const rates = await quoteShipments({
       origin,
       destination,
-      packages: [{
-        content: listing.title.slice(0, 80),
-        weight: Math.max(0.1, weightGrams / 1000),
-        dimensions: { length: lengthCm, width: widthCm, height: heightCm },
-      }],
+      packages: [{ content: listingTitle.slice(0, 80), weight: Math.max(0.1, weightGrams / 1000), dimensions: { length: lengthCm, width: widthCm, height: heightCm } }],
     })
     return NextResponse.json({ rates })
   } catch (err) {

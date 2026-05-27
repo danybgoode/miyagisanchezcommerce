@@ -143,6 +143,33 @@ export async function PATCH(
     return NextResponse.json({ error: 'status requerido.' }, { status: 400 })
   }
 
+  const newStatus = body.status!
+
+  // ── Medusa-backed order (ID starts with "order_") ─────────────────────────
+  if (id.startsWith('order_')) {
+    const { getToken } = await auth()
+    const clerkJwt = await getToken()
+    const PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+    const medusaRes = await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': PUB_KEY,
+        ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
+      },
+      body: JSON.stringify({ status: newStatus, carrier: body.carrier, tracking_number: body.tracking_number }),
+    })
+
+    if (!medusaRes.ok) {
+      const err = await medusaRes.json().catch(() => ({})) as { message?: string }
+      return NextResponse.json({ error: err.message ?? 'Error al actualizar.' }, { status: medusaRes.status })
+    }
+
+    return NextResponse.json({ status: newStatus })
+  }
+
+  // ── Legacy Supabase order ─────────────────────────────────────────────────
   const { data: order } = await db
     .from('marketplace_orders')
     .select('id, status, buyer_email, buyer_name, buyer_clerk_user_id, shop_id, listing_id, metadata')
@@ -158,11 +185,9 @@ export async function PATCH(
   const isBuyer =
     order.buyer_clerk_user_id === user.id ||
     order.buyer_email?.toLowerCase() === buyerEmail.toLowerCase()
-  // Sellers are identified by their Medusa seller ID matching shop_id
   const isSeller = !isBuyer
 
   const currentStatus = order.status
-  const newStatus = body.status!
   const allowed = isSeller
     ? (SELLER_ALLOWED_TRANSITIONS[currentStatus] ?? [])
     : (BUYER_ALLOWED_TRANSITIONS[currentStatus] ?? [])
@@ -173,37 +198,22 @@ export async function PATCH(
     }, { status: 422 })
   }
 
-  // ── Medusa-backed order: update fulfillment status via backend ────────────
   if (medusaOrderId && isSeller) {
     try {
       const { getToken } = await auth()
       const clerkJwt = await getToken()
-      const medusaRes = await fetch(
-        `${MEDUSA_BASE}/store/sellers/me/orders/${medusaOrderId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-publishable-api-key': process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? '',
-            ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
-          },
-          body: JSON.stringify({
-            status: newStatus,
-            carrier: body.carrier,
-            tracking_number: body.tracking_number,
-          }),
-        }
-      )
-      if (!medusaRes.ok) {
-        const errBody = await medusaRes.json().catch(() => ({})) as { message?: string }
-        console.error('[orders PATCH] Medusa status update failed:', errBody)
-      }
-    } catch (e) {
-      console.error('[orders PATCH] Medusa update error:', e)
-    }
+      await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${medusaOrderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-publishable-api-key': process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? '',
+          ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
+        },
+        body: JSON.stringify({ status: newStatus, carrier: body.carrier, tracking_number: body.tracking_number }),
+      }).catch(e => console.error('[orders PATCH] Medusa update error:', e))
+    } catch { /* non-fatal */ }
   }
 
-  // Always update Supabase status (source of truth for the UI)
   const { error } = await db
     .from('marketplace_orders')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -214,13 +224,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Error al actualizar el estado.' }, { status: 500 })
   }
 
-  // ── Side effects ──────────────────────────────────────────────────────────
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
   const orderUrl = `${siteUrl}/account/orders/${id}`
 
   if (newStatus === 'delivered' || newStatus === 'completed') {
     if (order.buyer_email) {
-      // Try to get listing title from Medusa
       let listingTitle = 'tu pedido'
       try {
         const listingRes = await fetch(
