@@ -6,25 +6,13 @@ import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
-// Exchange a Clerk JWT for a Medusa store session token.
-async function getMedusaToken(clerkJwt: string): Promise<string | null> {
-  const res = await fetch(`${MEDUSA_BASE}/auth/store/clerk`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
-    body: JSON.stringify({ token: clerkJwt }),
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  return data.token ?? null
-}
-
-function medusaFetch(path: string, token: string, options?: RequestInit) {
+function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       'x-publishable-api-key': PUB_KEY,
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${clerkJwt}`,
       ...(options?.headers ?? {}),
     },
   })
@@ -97,12 +85,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Get Medusa auth token ─────────────────────────────────────────────────
+  // ── Auth — pass Clerk JWT directly (backend uses extractClerkUserId) ──────
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
-
-  const medusaToken = await getMedusaToken(clerkJwt)
-  if (!medusaToken) return NextResponse.json({ error: 'No se pudo autenticar con el servidor. Inténtalo de nuevo.' }, { status: 401 })
 
   // ── Ensure seller exists (create on first publish) ──────────────────────
   let shopSlug: string
@@ -110,7 +95,7 @@ export async function POST(req: NextRequest) {
   let sellerName: string | null = null
   {
     // Try to get existing seller
-    let sellerRes = await medusaFetch('/store/sellers/me', medusaToken)
+    let sellerRes = await medusaFetch('/store/sellers/me', clerkJwt)
     if (sellerRes.status === 404 && body.createShop) {
       // Create seller
       const shopName = body.createShop.name?.trim() ?? ''
@@ -118,7 +103,7 @@ export async function POST(req: NextRequest) {
 
       const location = [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
 
-      const createRes = await medusaFetch('/store/sellers/me', medusaToken, {
+      const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
         method: 'POST',
         body: JSON.stringify({
           name: shopName,
@@ -214,7 +199,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Create product in Medusa ──────────────────────────────────────────────
-  const productRes = await medusaFetch('/store/sellers/me/products', medusaToken, {
+  const productRes = await medusaFetch('/store/sellers/me/products', clerkJwt, {
     method: 'POST',
     body: JSON.stringify({
       title: titleClean,
@@ -262,7 +247,7 @@ export async function POST(req: NextRequest) {
     // Create plans via Medusa backend (fire-and-forget, non-fatal)
     Promise.all(
       plansToCreate.map(plan =>
-        medusaFetch('/store/sellers/me/subscription-plans', medusaToken, {
+        medusaFetch('/store/sellers/me/subscription-plans', clerkJwt, {
           method: 'POST',
           body: JSON.stringify({
             product_id: listingId,

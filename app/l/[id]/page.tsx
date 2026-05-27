@@ -53,7 +53,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const phone = listingPhone || shopPhone || null
 
   const shopWebsite = listing.shop?.metadata?.website as string | null | undefined
-  const isClaimed = !!(listing.shop?.clerk_user_id && !listing.shop.clerk_user_id.startsWith('pending:'))
+  // Medusa-backed sellers always have an id; legacy "pending:" shops are unclaimed scraped entries
+  const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
   const isDigital = listing.listing_type === 'digital'
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
