@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { useAuth, useUser } from '@clerk/nextjs'
-import { startCheckout, type CheckoutProvider } from '@/lib/cart'
+import { usePathname, useRouter } from 'next/navigation'
+import type { CheckoutProvider } from '@/lib/cart'
 import { formatOfferAmount } from '@/lib/offers'
 
 interface OfferCheckoutButtonProps {
@@ -28,10 +27,8 @@ export default function OfferCheckoutButton({
   variant = 'primary',
 }: OfferCheckoutButtonProps) {
   const pathname = usePathname()
-  const { getToken } = useAuth()
-  const { user } = useUser()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   if (!isSignedIn) {
     return (
@@ -48,26 +45,7 @@ export default function OfferCheckoutButton({
 
   async function checkout() {
     setLoading(true)
-    setError(null)
-    try {
-      const clerkJwt = (await getToken()) ?? undefined
-      const { redirect_url } = await startCheckout({
-        productId: listingId,
-        provider,
-        buyerEmail: user?.primaryEmailAddress?.emailAddress,
-        buyerFirstName: user?.firstName ?? undefined,
-        buyerLastName: user?.lastName ?? undefined,
-        offerAmountCents: amountCents,
-        offerId,
-        clerkJwt,
-      })
-      window.location.href = redirect_url
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'No se pudo iniciar el pago.'
-      setError(msg.includes('SELLER_NOT_CONNECTED') ? 'El vendedor aún no ha activado pagos en línea.' : msg)
-    } finally {
-      setLoading(false)
-    }
+    router.push(`/checkout?listingId=${encodeURIComponent(listingId)}&offerId=${encodeURIComponent(offerId)}&provider=${provider}`)
   }
 
   return (
@@ -89,7 +67,6 @@ export default function OfferCheckoutButton({
           <>{label} — {formatOfferAmount(amountCents, currency)}</>
         )}
       </button>
-      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center">⚠ {error}</p>}
     </div>
   )
 }

@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useAuth, useUser } from '@clerk/nextjs'
 import { useCart, type CartItem } from './CartContext'
-import { startCheckout } from '@/lib/cart'
 
 const SPRING   = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 const EASE_OUT = 'cubic-bezier(0.2, 0, 0, 1)'
@@ -20,41 +18,13 @@ function formatPrice(cents: number, currency: string) {
 // ── Seller group ──────────────────────────────────────────────────────────────
 
 function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] }) {
-  const { removeItem, clearSeller, closeCart } = useCart()
-  const { getToken } = useAuth()
-  const { user } = useUser()
-  const [loading, setLoading] = useState<'stripe' | 'mp' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { removeItem, closeCart } = useCart()
 
   const seller = items[0]
   const subtotal = items.reduce((s, i) => s + i.price_cents, 0)
   const currency = items[0].currency
   const hasStripe = items.every(i => i.paymentMethods.stripe)
   const hasMp = items.every(i => i.paymentMethods.mp)
-
-  async function checkout(provider: 'stripe' | 'mercadopago') {
-    setLoading(provider === 'stripe' ? 'stripe' : 'mp')
-    setError(null)
-    try {
-      const clerkJwt = (await getToken()) ?? undefined
-      const { redirect_url } = await startCheckout({
-        items: items.map(i => ({ productId: i.productId, variantId: i.variantId })),
-        sellerId,
-        provider,
-        buyerEmail: user?.primaryEmailAddress?.emailAddress,
-        buyerFirstName: user?.firstName ?? undefined,
-        buyerLastName: user?.lastName ?? undefined,
-        clerkJwt,
-      })
-      clearSeller(sellerId)
-      closeCart()
-      window.location.href = redirect_url
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'No se pudo iniciar el pago.'
-      setError(msg.includes('SELLER_NOT_CONNECTED') ? 'El vendedor aún no ha activado pagos.' : msg)
-      setLoading(null)
-    }
-  }
 
   return (
     <div style={{ padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
@@ -153,51 +123,22 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
 
         {/* Checkout CTAs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {hasMp && (
-            <button
-              type="button"
-              onClick={() => checkout('mercadopago')}
-              disabled={!!loading}
+          {(hasMp || hasStripe) && (
+            <Link
+              href={`/checkout/bundle?sellerId=${sellerId}`}
+              onClick={closeCart}
               style={{
                 width: '100%', padding: '11px 16px', borderRadius: 12,
-                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                background: loading === 'mp' ? 'var(--bg-sunk)' : '#009ee3',
+                border: 'none',
+                background: '#009ee3',
                 color: '#fff', fontFamily: 'var(--font-sans)',
                 fontSize: 14, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                opacity: loading && loading !== 'mp' ? 0.5 : 1,
-                transition: 'opacity 150ms ease, background 150ms ease',
+                textDecoration: 'none',
               }}
             >
-              {loading === 'mp' ? (
-                <><span style={{ display: 'inline-block', animation: 'spin 0.7s linear infinite' }}>⟳</span> Iniciando…</>
-              ) : (
-                <>Pagar con MercadoPago</>
-              )}
-            </button>
-          )}
-          {hasStripe && (
-            <button
-              type="button"
-              onClick={() => checkout('stripe')}
-              disabled={!!loading}
-              style={{
-                width: '100%', padding: '11px 16px', borderRadius: 12,
-                border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                background: loading === 'stripe' ? 'var(--bg-sunk)' : 'var(--fg)',
-                color: 'var(--fg-inverse)', fontFamily: 'var(--font-sans)',
-                fontSize: 14, fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                opacity: loading && loading !== 'stripe' ? 0.5 : 1,
-                transition: 'opacity 150ms ease, background 150ms ease',
-              }}
-            >
-              {loading === 'stripe' ? (
-                <><span style={{ display: 'inline-block', animation: 'spin 0.7s linear infinite' }}>⟳</span> Iniciando…</>
-              ) : (
-                <>Pagar con Stripe</>
-              )}
-            </button>
+              Revisar paquete
+            </Link>
           )}
           {!hasStripe && !hasMp && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' }}>
@@ -206,11 +147,6 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
           )}
         </div>
 
-        {error && (
-          <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 8, textAlign: 'center' }}>
-            ⚠ {error}
-          </p>
-        )}
       </div>
     </div>
   )

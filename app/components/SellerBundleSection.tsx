@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCart, type CartItem } from './CartContext'
 
 function formatPrice(cents: number, currency: string) {
@@ -18,9 +19,11 @@ export default function SellerBundleSection({
   sellerName: string
   items: CartItem[]
 }) {
-  const { addItem, removeItem, openCart, items: cartItems } = useCart()
+  const router = useRouter()
+  const { addItem, removeItem, items: cartItems } = useCart()
   const selected = items.filter(item => cartItems.some(cartItem => cartItem.productId === item.productId))
   const subtotal = selected.reduce((sum, item) => sum + item.price_cents, 0)
+  const checkoutSellerId = selected[0]?.sellerId ?? items[0]?.sellerId
   if (items.length < 2) return null
 
   return (
@@ -32,7 +35,7 @@ export default function SellerBundleSection({
         </div>
         <button
           type="button"
-          onClick={openCart}
+          onClick={() => router.push(`/checkout/bundle?sellerId=${checkoutSellerId}`)}
           disabled={selected.length === 0}
           className="font-semibold rounded-xl text-sm disabled:opacity-50"
           style={{ padding: '10px 14px', background: 'var(--accent)', color: '#fff', border: 'none', flexShrink: 0 }}
@@ -87,7 +90,7 @@ export default function SellerBundleSection({
             <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{selected.length} {selected.length === 1 ? 'artículo' : 'artículos'} en paquete</p>
             <p style={{ fontSize: 17, fontWeight: 800 }}>{formatPrice(subtotal, selected[0].currency)}</p>
           </div>
-          <button type="button" onClick={openCart} className="font-semibold rounded-xl text-sm" style={{ padding: '10px 14px', background: 'var(--fg)', color: 'var(--fg-inverse)', border: 'none' }}>
+          <button type="button" onClick={() => router.push(`/checkout/bundle?sellerId=${checkoutSellerId}`)} className="font-semibold rounded-xl text-sm" style={{ padding: '10px 14px', background: 'var(--fg)', color: 'var(--fg-inverse)', border: 'none' }}>
             Comprar paquete
           </button>
         </div>

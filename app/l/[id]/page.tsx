@@ -4,7 +4,6 @@ import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
 import { getShopStripe } from '@/lib/stripe'
 import BuyButton from '@/app/components/BuyButton'
-import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
@@ -232,18 +231,28 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           agreedDealCents && activeDeal ? (
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} provider="mercadopago" isSignedIn={isSignedIn} />
           ) : (
-            <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
+            isSignedIn ? (
+              <Link href={`/checkout?listingId=${listing.id}&provider=mercadopago`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: '#009EE3', color: '#fff' }}>
+                Comprar ahora — {formatPrice(listing)}
+              </Link>
+            ) : (
+              <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}&provider=mercadopago`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: '#009EE3', color: '#fff' }}>
+                Inicia sesión para comprar
+              </Link>
+            )
           )
         ) : sellerHasStripe ? (
-          <BuyButton
-            listingId={listing.id}
-            price={effectivePrice}
-            isDigital={false}
-            sellerHasStripe={sellerHasStripe}
-            isSignedIn={isSignedIn}
-            offerAmountCents={agreedDealCents ?? undefined}
-            offerId={activeDeal?.status === 'accepted_unpaid' ? activeDeal.offerId : undefined}
-          />
+          agreedDealCents && activeDeal ? (
+            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} provider="stripe" isSignedIn={isSignedIn} />
+          ) : isSignedIn ? (
+            <Link href={`/checkout?listingId=${listing.id}&provider=stripe`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+              Comprar ahora — {effectivePrice}
+            </Link>
+          ) : (
+            <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}&provider=stripe`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+              Inicia sesión para comprar
+            </Link>
+          )
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
             Contacta al vendedor para pagar
