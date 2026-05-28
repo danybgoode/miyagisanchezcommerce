@@ -14,6 +14,7 @@ export const STAMPS = {
   // ── Buyer: price & payment ────────────────────────────────────────────────
   buyer_lower_price:       { role: 'buyer', text: '¿Aceptas un poco menos?' },
   buyer_bundle_discount:   { role: 'buyer', text: '¿Descuento si compro más de uno?' },
+  buyer_price_question:    { role: 'buyer', text: '¿Cuál es el precio?' },
   buyer_ready_to_pay:      { role: 'buyer', text: 'Listo para pagar ahora' },
 
   // ── Buyer: delivery ───────────────────────────────────────────────────────

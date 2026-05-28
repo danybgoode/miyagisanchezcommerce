@@ -5,33 +5,16 @@ import { db } from '@/lib/supabase'
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
-async function getMedusaToken(clerkJwt: string): Promise<string | null> {
-  const res = await fetch(`${MEDUSA_BASE}/auth/store/clerk`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
-    body: JSON.stringify({ token: clerkJwt }),
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  return data.token ?? null
-}
-
-function medusaFetch(path: string, token: string, options?: RequestInit) {
+function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       'x-publishable-api-key': PUB_KEY,
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${clerkJwt}`,
       ...(options?.headers ?? {}),
     },
   })
-}
-
-async function resolveToken(getToken: () => Promise<string | null>) {
-  const clerkJwt = await getToken()
-  if (!clerkJwt) return null
-  return getMedusaToken(clerkJwt)
 }
 
 // ── PUT — edit listing fields ─────────────────────────────────────────────────
@@ -57,10 +40,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
 
-  const token = await resolveToken(getToken)
-  if (!token) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+  const clerkJwt = await getToken()
+  if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, token, {
+  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
     method: 'PATCH',
     body: JSON.stringify({
       ...(body.title !== undefined && { title: body.title.trim() }),
@@ -105,13 +88,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Estado inválido. Usa "active" o "paused".' }, { status: 422 })
   }
 
-  const token = await resolveToken(getToken)
-  if (!token) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+  const clerkJwt = await getToken()
+  if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
   // Map frontend status → Medusa product status
   const medusaStatus = body.status === 'active' ? 'published' : 'draft'
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, token, {
+  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
     method: 'PATCH',
     body: JSON.stringify({ status: medusaStatus }),
   })
@@ -136,10 +119,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params
 
-  const token = await resolveToken(getToken)
-  if (!token) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+  const clerkJwt = await getToken()
+  if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, token, { method: 'DELETE' })
+  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, { method: 'DELETE' })
 
   if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para eliminar este anuncio.' }, { status: 403 })
   if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })

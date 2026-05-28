@@ -13,12 +13,23 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   if (!userId) redirect('/sign-in')
 
   // Fetch listing + verify ownership
-  const { data, error } = await db
+  let { data, error } = await db
     .from('marketplace_listings')
-    .select('id, title, description, price_cents, currency, listing_type, images, status, metadata, marketplace_shops!inner(clerk_user_id, slug)')
-    .eq('id', id)
+    .select('id, medusa_product_id, title, description, price_cents, currency, listing_type, images, status, metadata, marketplace_shops!inner(clerk_user_id, slug)')
+    .eq('medusa_product_id', id)
     .neq('status', 'deleted')
-    .single()
+    .maybeSingle()
+
+  if (!data && !error && /^[0-9a-f-]{36}$/i.test(id)) {
+    const fallback = await db
+      .from('marketplace_listings')
+      .select('id, medusa_product_id, title, description, price_cents, currency, listing_type, images, status, metadata, marketplace_shops!inner(clerk_user_id, slug)')
+      .eq('id', id)
+      .neq('status', 'deleted')
+      .maybeSingle()
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error || !data) notFound()
 
@@ -28,6 +39,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
 
   const listing = data as {
     id: string
+    medusa_product_id: string | null
     title: string
     description: string | null
     price_cents: number | null
@@ -65,7 +77,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           </span>
           <span className="text-xs text-[var(--color-muted)]">·</span>
           <Link
-            href={`/l/${listing.id}`}
+            href={`/l/${listing.medusa_product_id ?? listing.id}`}
             target="_blank"
             className="text-xs text-[var(--color-accent)] hover:underline"
           >
@@ -81,7 +93,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
       )}
 
       <EditForm
-        id={listing.id}
+        id={listing.medusa_product_id ?? listing.id}
         initial={{
           title: listing.title,
           description: listing.description ?? '',

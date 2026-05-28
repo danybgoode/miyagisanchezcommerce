@@ -8,6 +8,7 @@ import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import AddToCartButton from '@/app/components/AddToCartButton'
+import AskSellerButton from '@/app/components/AskSellerButton'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import type { Metadata } from 'next'
@@ -286,6 +287,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                     {hasDirectContact ? 'Usa las opciones de contacto de la tienda para confirmar precio, pago y entrega.' : 'La tienda no publicó un precio para compra en línea.'}
                   </p>
                 </div>
+              </div>
+            )}
+            {!hasBuyablePrice && isClaimed && (
+              <div style={{ marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
+                <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
               </div>
             )}
             {paymentMethods.length > 0 && (

@@ -15,22 +15,44 @@ interface CreateOfferBody {
   message?: string
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f-]{36}$/i.test(value)
+}
+
+async function resolveListingMirrorId(listingId: string): Promise<string | null> {
+  const { data: byMedusa } = await db
+    .from('marketplace_listings')
+    .select('id')
+    .eq('medusa_product_id', listingId)
+    .maybeSingle()
+  if (byMedusa?.id) return byMedusa.id
+
+  if (!isUuid(listingId)) return null
+  const { data: byId } = await db
+    .from('marketplace_listings')
+    .select('id')
+    .eq('id', listingId)
+    .maybeSingle()
+  return byId?.id ?? null
+}
+
 // ── GET — fetch active offer for a buyer+listing ──────────────────────────────
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listingId = searchParams.get('listingId')
-  const email = searchParams.get('email')?.toLowerCase()
 
   if (!listingId) return NextResponse.json({ offer: null })
 
   const user = await currentUser()
   if (!user) return NextResponse.json({ offer: null })
+  const mirrorListingId = await resolveListingMirrorId(listingId)
+  if (!mirrorListingId) return NextResponse.json({ offer: null })
 
   const { data } = await db
     .from('marketplace_offers')
     .select('*')
-    .eq('listing_id', listingId)
+    .eq('listing_id', mirrorListingId)
     .eq('buyer_clerk_user_id', user.id)
     .in('status', ['pending', 'countered', 'accepted', 'paid'])
     .order('created_at', { ascending: false })
@@ -43,7 +65,7 @@ export async function GET(req: NextRequest) {
     const { data: conv } = await db
       .from('marketplace_conversations')
       .select('id')
-      .eq('listing_id', listingId)
+      .eq('listing_id', mirrorListingId)
       .eq('buyer_clerk_user_id', user.id)
       .maybeSingle()
     conversationId = conv?.id ?? null
@@ -91,15 +113,25 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Fetch listing ─────────────────────────────────────────────────────────
-  const { data: listing } = await db
+  let { data: listing } = await db
     .from('marketplace_listings')
     .select('id, title, price_cents, currency, listing_type, status, images, marketplace_shops!inner(id, name, metadata, clerk_user_id)')
-    .eq('id', listingId)
+    .eq('medusa_product_id', listingId)
     .maybeSingle()
+
+  if (!listing && isUuid(listingId)) {
+    const fallback = await db
+      .from('marketplace_listings')
+      .select('id, title, price_cents, currency, listing_type, status, images, marketplace_shops!inner(id, name, metadata, clerk_user_id)')
+      .eq('id', listingId)
+      .maybeSingle()
+    listing = fallback.data
+  }
 
   if (!listing) {
     return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   }
+  const mirrorListingId = listing.id
   if (listing.status !== 'active') {
     return NextResponse.json({ error: 'Este anuncio ya no está disponible.' }, { status: 409 })
   }
@@ -140,7 +172,7 @@ export async function POST(req: NextRequest) {
   const { data: existing } = await db
     .from('marketplace_offers')
     .select('id, status')
-    .eq('listing_id', listingId)
+    .eq('listing_id', mirrorListingId)
     .ilike('buyer_email', buyerEmail)
     .in('status', ['pending', 'countered'])
     .maybeSingle()
@@ -156,7 +188,7 @@ export async function POST(req: NextRequest) {
   const { data: offer, error: insertError } = await db
     .from('marketplace_offers')
     .insert({
-      listing_id: listingId,
+      listing_id: mirrorListingId,
       shop_id: (listing.marketplace_shops as unknown as { id: string }).id,
       buyer_clerk_user_id: buyerClerkId,
       buyer_email: buyerEmail.toLowerCase().trim(),
@@ -180,7 +212,7 @@ export async function POST(req: NextRequest) {
     const { data: conv } = await db
       .from('marketplace_conversations')
       .upsert({
-        listing_id: listingId,
+        listing_id: mirrorListingId,
         shop_id: shopRow.id,
         buyer_clerk_user_id: buyerClerkId,
         seller_clerk_user_id: shopRow.clerk_user_id,
