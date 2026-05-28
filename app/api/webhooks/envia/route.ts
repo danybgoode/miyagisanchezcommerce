@@ -5,7 +5,7 @@
  * Set the webhook URL in the Envia dashboard → Developer → Webhooks.
  *
  * Signature verification: Envia sends an HMAC-SHA256 signature in the
- * `X-Envia-Signature` header using ENVIA_WEBHOOK_SECRET.
+ * `X-Webhook-Signature` header using ENVIA_WEBHOOK_SECRET.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
@@ -32,21 +32,70 @@ const ENVIA_TO_SHIPMENT_STATUS: Record<string, string> = {
   cancelled:        'cancelled',
 }
 
+function safeCompare(left: string, right: string) {
+  const leftBuffer = Buffer.from(left)
+  const rightBuffer = Buffer.from(right)
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
+}
+
+function verifySignature(req: NextRequest, rawBody: string, secret: string) {
+  const signature = req.headers.get('x-webhook-signature') ?? ''
+  const timestamp = req.headers.get('x-webhook-timestamp') ?? ''
+  const event = req.headers.get('x-webhook-event') ?? ''
+
+  if (signature && timestamp && event) {
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(`${timestamp}.${event}.${rawBody}`)
+      .digest('hex')
+    return signature
+      .split(',')
+      .some(part => safeCompare(part.trim(), `v1=${expected}`))
+  }
+
+  const legacySignature = req.headers.get('x-envia-signature') ?? ''
+  if (legacySignature) {
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
+    return safeCompare(legacySignature, expected)
+  }
+
+  return false
+}
+
+function stringValue(value: unknown) {
+  if (value == null) return undefined
+  return String(value)
+}
+
+function normalizedStatus(status: string) {
+  return status.trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
+
+  const authToken = process.env.ENVIA_WEBHOOK_AUTH_TOKEN
+  let hasValidAuthorization = false
+  if (authToken) {
+    const authorization = req.headers.get('authorization') ?? ''
+    if (!safeCompare(authorization, `Bearer ${authToken}`)) {
+      console.error('[envia-webhook] invalid authorization')
+      return NextResponse.json({ error: 'Invalid authorization' }, { status: 401 })
+    }
+    hasValidAuthorization = true
+  }
 
   // ── Signature verification ────────────────────────────────────────────────
   const secret = process.env.ENVIA_WEBHOOK_SECRET
   if (secret) {
-    const signature = req.headers.get('x-envia-signature') ?? ''
-    const expected  = crypto
-      .createHmac('sha256', secret)
-      .update(rawBody)
-      .digest('hex')
-
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    const hasSignatureHeaders = !!req.headers.get('x-webhook-signature')
+    if (hasSignatureHeaders && !verifySignature(req, rawBody, secret)) {
       console.error('[envia-webhook] invalid signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+    if (!hasSignatureHeaders && !hasValidAuthorization) {
+      console.error('[envia-webhook] missing signature')
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
     }
   }
 
@@ -57,28 +106,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const enviaShipmentId = payload.shipmentId as string | undefined
-  const enviaStatus     = payload.status     as string | undefined
-  const trackingNumber  = payload.trackingNumber as string | undefined
+  const eventData = (payload.data && typeof payload.data === 'object'
+    ? payload.data
+    : payload) as Record<string, unknown>
 
-  if (!enviaShipmentId || !enviaStatus) {
+  const enviaShipmentId = stringValue(eventData.shipment_id ?? eventData.shipmentId)
+  const enviaStatus     = stringValue(eventData.status)
+  const normalizedEnviaStatus = enviaStatus ? normalizedStatus(enviaStatus) : undefined
+  const trackingNumber  = stringValue(eventData.tracking_number ?? eventData.trackingNumber)
+
+  if ((!enviaShipmentId && !trackingNumber) || !normalizedEnviaStatus) {
     return NextResponse.json({ received: true }) // unknown event shape — ignore
   }
 
   // ── Lookup shipment in our DB ─────────────────────────────────────────────
-  const { data: shipment } = await db
+  let shipmentQuery = db
     .from('marketplace_shipments')
     .select('id, order_id, status')
-    .eq('envia_shipment_id', enviaShipmentId)
+
+  shipmentQuery = enviaShipmentId
+    ? shipmentQuery.eq('envia_shipment_id', enviaShipmentId)
+    : shipmentQuery.eq('tracking_number', trackingNumber)
+
+  const { data: shipment } = await shipmentQuery
     .maybeSingle()
 
   if (!shipment) {
-    console.warn('[envia-webhook] unknown shipment:', enviaShipmentId)
+    console.warn('[envia-webhook] unknown shipment:', enviaShipmentId ?? trackingNumber)
     return NextResponse.json({ received: true })
   }
 
-  const newShipmentStatus = ENVIA_TO_SHIPMENT_STATUS[enviaStatus] ?? enviaStatus
-  const newOrderStatus    = ENVIA_TO_ORDER_STATUS[enviaStatus]
+  const newShipmentStatus = ENVIA_TO_SHIPMENT_STATUS[normalizedEnviaStatus] ?? normalizedEnviaStatus
+  const newOrderStatus    = ENVIA_TO_ORDER_STATUS[normalizedEnviaStatus]
 
   // ── Update shipment record ────────────────────────────────────────────────
   await db
@@ -119,6 +178,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  console.log(`[envia-webhook] ${enviaShipmentId} → ${newShipmentStatus}`)
+  console.log(`[envia-webhook] ${enviaShipmentId ?? trackingNumber} -> ${newShipmentStatus}`)
   return NextResponse.json({ received: true })
 }
