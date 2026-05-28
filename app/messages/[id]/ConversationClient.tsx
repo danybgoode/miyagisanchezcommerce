@@ -10,7 +10,7 @@ import type { CheckoutProvider } from '@/lib/cart'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ConvListing {
-  id: string; title: string; price_cents: number | null; currency: string
+  id: string; medusa_product_id?: string | null; title: string; price_cents: number | null; currency: string
   images: Array<{ url: string }> | null; status: string; condition: string | null; location: string | null
   listing_type?: string | null
 }
@@ -300,7 +300,7 @@ function OfferActionBar({
         )}
         {listing && checkoutProvider ? (
           <OfferCheckoutButton
-            listingId={listing.id}
+            listingId={listing.medusa_product_id ?? listing.id}
             offerId={offer.id}
             amountCents={agreedCents}
             currency={offer.currency}
