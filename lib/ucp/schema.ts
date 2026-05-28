@@ -125,6 +125,7 @@ function formatPrice(cents: number, currency: string): string {
 
 export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.com'): UcpListing {
   const shop = listing.shop
+  const publicListingId = listing.medusa_product_id ?? listing.id
 
   // ── Payment methods ─────────────────────────────────────────────────────────
   const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
@@ -167,7 +168,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     '@type': listing.listing_type === 'service' ? 'Service' : 'Product',
     name: listing.title,
     description: listing.description,
-    url: `${baseUrl}/l/${listing.id}`,
+    url: `${baseUrl}/l/${publicListingId}`,
     image: listing.images?.[0]?.url,
     offers: hasPrice ? {
       '@type': 'Offer',
@@ -184,8 +185,8 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
   }
 
   return {
-    id: listing.id,
-    url: `${baseUrl}/l/${listing.id}`,
+    id: publicListingId,
+    url: `${baseUrl}/l/${publicListingId}`,
     title: listing.title,
     description: listing.description,
     price: hasPrice ? {
