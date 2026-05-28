@@ -47,13 +47,38 @@ export default function CheckoutPayButton({
     setLoading(true)
     setError(null)
     try {
+      const buyerEmail = user?.primaryEmailAddress?.emailAddress
+
+      if (listingId && (!items || items.length === 0)) {
+        const endpoint = provider === 'stripe' ? '/api/stripe/checkout' : '/api/mp/checkout'
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            listingId,
+            buyerEmail,
+            offerId,
+          }),
+        })
+        const data = await res.json().catch(() => ({})) as { checkoutUrl?: string; url?: string; error?: string; code?: string }
+        const checkoutUrl = data.checkoutUrl ?? data.url
+        if (!res.ok || !checkoutUrl) {
+          const err = new Error(data.error ?? 'No se pudo iniciar el pago.')
+          ;(err as Error & { code?: string }).code = data.code
+          throw err
+        }
+        onStarted?.()
+        window.location.href = checkoutUrl
+        return
+      }
+
       const clerkJwt = (await getToken()) ?? undefined
       const { redirect_url } = await startCheckout({
         productId: listingId,
         items: items?.map(item => ({ productId: item.productId, variantId: item.variantId })),
         sellerId,
         provider,
-        buyerEmail: user?.primaryEmailAddress?.emailAddress,
+        buyerEmail,
         buyerFirstName: user?.firstName ?? undefined,
         buyerLastName: user?.lastName ?? undefined,
         offerAmountCents,

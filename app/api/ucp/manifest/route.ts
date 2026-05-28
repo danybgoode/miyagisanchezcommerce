@@ -94,8 +94,8 @@ export async function GET(req: NextRequest) {
         make_offer: {
           method: 'POST',
           url: `${base}/api/offers`,
-          description: 'Submit a price offer on a listing. Seller will be notified by email and has 72 hours to accept, counter, or decline.',
-          auth: 'none',
+          description: 'Submit a price offer on a listing. Requires an authenticated Miyagi buyer session. Seller will be notified and has 48 hours to accept, counter, or decline.',
+          auth: 'clerk_session_or_authorization_header',
           body: {
             listing_id:        'string',
             offer_amount_cents: 'number — offer in centavos (e.g. 150000 = $1,500 MXN)',

@@ -129,7 +129,7 @@ const TOOLS = [
   },
   {
     name: 'make_offer',
-    description: "Submit a price offer on a listing. The seller is notified by email and has 72 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
+    description: "Submit a price offer on a listing. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'offer_amount', 'buyer_name', 'buyer_email'],
@@ -137,7 +137,7 @@ const TOOLS = [
         listing_id:    { type: 'string', description: 'Listing UUID' },
         offer_amount:  { type: 'number', description: 'Your offer in MXN pesos (e.g. 1500 = $1,500)' },
         buyer_name:    { type: 'string', description: 'Your name' },
-        buyer_email:   { type: 'string', description: 'Your email — seller responses arrive here' },
+        buyer_email:   { type: 'string', description: 'Buyer email for account matching and receipts; do not expose it as seller contact info' },
         message:       { type: 'string', description: 'Optional message to the seller' },
       },
     },
@@ -367,7 +367,7 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   }
 }
 
-async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string) {
+async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, authHeader?: string | null) {
   const listingId  = String(args.listing_id ?? '')
   const amount     = Number(args.offer_amount)
   const buyerName  = String(args.buyer_name ?? '')
@@ -396,11 +396,17 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string) {
 
   const res = await fetch(`${baseUrl}/api/offers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authHeader ? { Authorization: authHeader } : {}),
+    },
     body: JSON.stringify({ listingId, offerAmountCents: offerCents, buyerName, buyerEmail, message: args.message }),
   })
-  const data = await res.json() as { offerId?: string; id?: string; error?: string }
+  const data = await res.json() as { offerId?: string; id?: string; error?: string; requiresAuth?: boolean }
   const offerId = data.offerId ?? data.id
+  if (res.status === 401 || data.requiresAuth) {
+    return { isError: true, content: [{ type: 'text', text: 'Offer requires an authenticated Miyagi buyer session. Sign in at miyagisanchez.com, then retry from the authenticated client.' }] }
+  }
   if (!res.ok || !offerId) return { isError: true, content: [{ type: 'text', text: `Offer failed: ${data.error ?? 'Unknown error'}` }] }
 
   return { content: [{ type: 'text', text: `✅ Offer submitted!\n\n**Offer ID:** \`${offerId}\`\n**Amount:** $${amount.toLocaleString('es-MX')} MXN\n**Listing:** ${listing.title}\n\nSeller has 48h to respond. If accepted → call create_checkout with offer_id="${offerId}"` }] }
@@ -670,7 +676,7 @@ async function handleGetBuyerTrust(args: Record<string, unknown>) {
 
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
-async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string) {
+async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
     return {
@@ -698,7 +704,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
       case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
       case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
-      case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl)).content }
+      case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl, authHeader)).content }
       case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
@@ -763,12 +769,13 @@ export async function POST(req: NextRequest) {
 
   // Support batch requests
   if (Array.isArray(body)) {
-    const results = await Promise.all(body.map(r => dispatchOne(r, baseUrl)))
+    const authHeader = req.headers.get('authorization')
+    const results = await Promise.all(body.map(r => dispatchOne(r, baseUrl, authHeader)))
     const responses = results.filter((r): r is JsonRpcResponse => r !== null)
     return NextResponse.json(responses, { headers: CORS })
   }
 
-  const response = await dispatchOne(body, baseUrl)
+  const response = await dispatchOne(body, baseUrl, req.headers.get('authorization'))
   if (response === null) {
     // Notification — no response per JSON-RPC spec
     return new Response(null, { status: 204, headers: CORS })
@@ -776,7 +783,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(response, { headers: CORS })
 }
 
-async function dispatchOne(req: JsonRpcRequest, baseUrl: string): Promise<JsonRpcResponse | null> {
+async function dispatchOne(req: JsonRpcRequest, baseUrl: string, authHeader?: string | null): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null
 
   if (req.jsonrpc !== '2.0' || !req.method) {
@@ -787,7 +794,7 @@ async function dispatchOne(req: JsonRpcRequest, baseUrl: string): Promise<JsonRp
   const isNotification = req.id === undefined
 
   try {
-    const result = await handleMcpMethod(req.method, req.params, baseUrl)
+    const result = await handleMcpMethod(req.method, req.params, baseUrl, authHeader)
     if (result === null) {
       if (isNotification) return null
       return err(id, -32601, `Method not found: ${req.method}`)

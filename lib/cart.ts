@@ -82,10 +82,9 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     : {}
 
   // 1. Sync buyer as a Medusa customer (find-or-create)
-  let medusaCustomerId: string | null = null
   if (buyerEmail && clerkJwt) {
     try {
-      const syncRes = await medusaFetch('/store/customers/sync', {
+      await medusaFetch('/store/customers/sync', {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
@@ -94,20 +93,16 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
           last_name: buyerLastName ?? '',
         }),
       })
-      if (syncRes.ok) {
-        const { customer_id } = await syncRes.json()
-        medusaCustomerId = customer_id ?? null
-      }
     } catch { /* non-fatal */ }
   }
 
-  // 2. Create cart in the MXN region
+  // 2. Create cart in the MXN region. Medusa v2 Store cart creation does not
+  // accept customer_id; authenticated carts are associated by token/email.
   const cartRes = await medusaFetch('/store/carts', {
     method: 'POST',
     headers: authHeaders,
     body: JSON.stringify({
       region_id: MXN_REGION_ID,
-      ...(medusaCustomerId ? { customer_id: medusaCustomerId } : {}),
       ...(buyerEmail ? { email: buyerEmail } : {}),
     }),
   })
