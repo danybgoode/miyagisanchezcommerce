@@ -289,6 +289,7 @@ export async function POST(req: NextRequest) {
     currency: listing.currency,
     offerId: offer.id,
     expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+    conversationUrl: conversationId ? `https://miyagisanchez.com/messages/${conversationId}` : null,
   }
 
   // Telegram admin alert

@@ -1,16 +1,19 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, formatPrice, conditionLabel } from '@/lib/listings'
+import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
 import { getShopStripe } from '@/lib/stripe'
 import BuyButton from '@/app/components/BuyButton'
 import MercadoPagoButton from '@/app/components/MercadoPagoButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
-import AddToCartButton from '@/app/components/AddToCartButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
+import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
+import SellerBundleSection from '@/app/components/SellerBundleSection'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
+import { getActiveDealForBuyer } from '@/lib/active-deal'
+import { formatOfferAmount } from '@/lib/offers'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -43,13 +46,21 @@ function whatsappUrl(raw: string, title: string): string {
   return `https://wa.me/${full}?text=${text}`
 }
 
+function formatCents(cents: number, currency: string): string {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(cents / 100)
+}
+
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
 
   const isSignedIn = !!clerkUser
-  const shopWebsite = listing.shop?.metadata?.website as string | null | undefined
+  const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id
   // Medusa-backed sellers always have an id; legacy "pending:" shops are unclaimed scraped entries
   const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
@@ -139,11 +150,17 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     isFavorited = !!fav
   }
 
-  const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && isClaimed
+  const activeDeal = await getActiveDealForBuyer(id, clerkUser?.id)
+  const agreedDealCents = activeDeal?.status === 'accepted_unpaid' && activeDeal.dealPriceCents ? activeDeal.dealPriceCents : null
+  const activeDealCurrency = activeDeal?.currency ?? listing.currency
+  const effectivePrice = agreedDealCents
+    ? formatOfferAmount(agreedDealCents, activeDealCurrency)
+    : formatPrice(listing)
+  const showBuyerActions = isClaimed && !isOwnListing
+  const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && showBuyerActions
   const images = listing.images ?? []
 
-  // Cart item data for AddToCartButton — variantId resolved lazily at checkout time
-  const cartItem = showBuyButtons && listing.shop ? {
+  const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
     variantId: null,
     sellerId: listing.shop.id,
@@ -157,27 +174,101 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp },
   } : null
 
+  const bundleListings = showBuyButtons && listing.shop?.slug
+    ? (await getShopListings(listing.shop.slug))
+        .filter(item =>
+          item.id !== listing.id &&
+          item.status === 'active' &&
+          item.listing_type === 'product' &&
+          !!item.price_cents &&
+          item.price_cents > 0
+        )
+        .slice(0, 5)
+    : []
+  const bundleItems = currentBundleItem ? [
+    currentBundleItem,
+    ...bundleListings.map(item => ({
+      productId: item.id,
+      variantId: null,
+      sellerId: listing.shop!.id,
+      sellerSlug: listing.shop!.slug,
+      sellerName: listing.shop!.name,
+      title: item.title,
+      price_cents: item.price_cents!,
+      currency: item.currency,
+      imageUrl: item.images?.[0]?.url ?? null,
+      listing_type: item.listing_type,
+      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp },
+    })),
+  ] : []
+
   // Reusable CTA buttons block (rendered both inline on desktop and in sticky bar on mobile)
-  const ctaButtons = showBuyButtons && cartItem ? (
+  const ctaButtons = showBuyerActions ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <AddToCartButton item={cartItem} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <MakeOfferButton
-        listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
-        buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
-        isSignedIn={isSignedIn}
-      />
-      {sellerHasMp ? (
-        <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
-      ) : sellerHasStripe ? (
-        <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital={false} sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-          Contacta al vendedor para pagar
+      {activeDeal?.status === 'accepted_unpaid' && agreedDealCents && (
+        <div style={{ padding: 12, background: 'var(--success-soft)', border: '1.5px solid var(--success)', borderRadius: 'var(--r-lg)' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}>Tu precio acordado</p>
+          <p style={{ fontSize: 22, fontWeight: 800 }}>{formatOfferAmount(agreedDealCents, activeDeal.currency)}</p>
+          {listing.price_cents && (
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
+          )}
         </div>
       )}
-      </div>
+      {activeDeal?.status === 'pending' && (
+        <div style={{ padding: 12, background: 'var(--warning-soft)', border: '1.5px solid var(--warning)', borderRadius: 'var(--r-lg)' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}>Tu oferta está pendiente</p>
+          {activeDeal.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Oferta enviada: {formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+        </div>
+      )}
+      {activeDeal?.status === 'countered' && (
+        <div style={{ padding: 12, background: 'var(--info-soft)', border: '1.5px solid var(--info)', borderRadius: 'var(--r-lg)' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}>El vendedor hizo una contraoferta</p>
+          {activeDeal.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+          {activeDeal.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
+        </div>
+      )}
+      {showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
+        sellerHasMp ? (
+          agreedDealCents && activeDeal ? (
+            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} provider="mercadopago" isSignedIn={isSignedIn} />
+          ) : (
+            <MercadoPagoButton listingId={listing.id} price={formatPrice(listing)} buyerEmail={clerkUser?.emailAddresses[0]?.emailAddress} isSignedIn={isSignedIn} />
+          )
+        ) : sellerHasStripe ? (
+          <BuyButton
+            listingId={listing.id}
+            price={effectivePrice}
+            isDigital={false}
+            sellerHasStripe={sellerHasStripe}
+            isSignedIn={isSignedIn}
+            offerAmountCents={agreedDealCents ?? undefined}
+            offerId={activeDeal?.status === 'accepted_unpaid' ? activeDeal.offerId : undefined}
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+            Contacta al vendedor para pagar
+          </div>
+        )
+      )}
+      {hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
+        <MakeOfferButton
+          listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
+          buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
+          isSignedIn={isSignedIn}
+        />
+      )}
+      {activeDeal?.status === 'accepted_unpaid' && activeDeal.conversationId && (
+        <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
+          <i className="iconoir-message-text" style={{ fontSize: 16 }} />
+          Ver conversación
+        </Link>
+      )}
+      <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
     </div>
+  ) : isOwnListing ? (
+    <Link href={`/sell/edit/${listing.id}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
+      Editar anuncio
+    </Link>
   ) : null
 
   return (
@@ -257,7 +348,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
         {/* Price */}
         <div style={{ marginBottom: (processingLabel || returnsLabel) ? 10 : 16 }}>
-          <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{formatPrice(listing)}</p>
+          {agreedDealCents && (
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 3 }}>Tu precio acordado</p>
+          )}
+          <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{effectivePrice}</p>
+          {agreedDealCents && listing.price_cents && (
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>
+              Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span>
+            </p>
+          )}
           {listing.currency && listing.currency !== 'MXN' && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{listing.currency}</p>
           )}
@@ -497,6 +596,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               </div>
             )}
           </div>
+        )}
+
+        {bundleItems.length > 1 && listing.shop && (
+          <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} />
         )}
 
         {/* ── Description ──────────────────────────────────────────────────────── */}

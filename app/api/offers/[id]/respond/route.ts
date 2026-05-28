@@ -54,6 +54,16 @@ export async function PATCH(
     return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
   }
 
+  const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
+  async function getConversationUrl() {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id')
+      .eq('offer_id', id)
+      .maybeSingle()
+    return conv?.id ? `${origin}/messages/${conv.id}` : null
+  }
+
   // ── Cancel any pending seller reminder emails ────────────────────────────────
   // Do this before any state change so ghost reminders never fire.
   const scheduledIds = (offer.scheduled_reminder_ids ?? {}) as Record<string, string>
@@ -130,6 +140,7 @@ export async function PATCH(
       counter_expires_at: counterExpiresAt,
     }).eq('id', id)
 
+    const conversationUrl = await getConversationUrl()
     sendOfferCountered({
       listingTitle: listing.title, listingId: listing.id,
       listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
@@ -143,6 +154,7 @@ export async function PATCH(
       counterPct: Math.round((counterAmountCents / listing.price_cents) * 100),
       counterMessage: counterMessage ?? null,
       counterExpiresAt,
+      conversationUrl,
     }).catch(e => console.error('[email] offer countered:', e))
 
     // Schedule buyer counter-expiry reminder at counterExpiresAt − 4h
@@ -152,6 +164,7 @@ export async function PATCH(
       listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
       counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
       expiresAt: counterExpiresAt,
+      conversationUrl,
     }, new Date(new Date(counterExpiresAt).getTime() - 4 * 3600 * 1000))
       .then(async counterExpiryId => {
         if (!counterExpiryId) return
@@ -171,8 +184,6 @@ export async function PATCH(
     const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
     const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
       { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
-
-    const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
 
     // Try to create Stripe checkout session
     let checkoutSessionId: string | null = null
@@ -230,6 +241,7 @@ export async function PATCH(
     }).eq('id', id)
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: offer.offer_amount_cents, currency: listing.currency }, true).catch(e => console.error('[conv] accept event:', e))
+    const conversationUrl = await getConversationUrl()
     sendOfferAccepted({
       listingTitle: listing.title, listingId: listing.id,
       listingUrl: `${origin}/l/${listing.id}`,
@@ -239,10 +251,9 @@ export async function PATCH(
       buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
       currency: listing.currency, offerId: id,
       expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      checkoutUrl: checkoutSessionId
-        ? `${origin}/l/${listing.id}`  // listing page has active offer status with pay button
-        : null,
+      checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
       checkoutExpiresAt: checkoutExpires,
+      conversationUrl,
     }).catch(e => console.error('[email] offer accepted:', e))
 
     // Schedule buyer payment-expiry reminder at checkoutExpires − 4h (Stripe flow only)
@@ -250,7 +261,7 @@ export async function PATCH(
       sendBuyerPaymentExpiryWarning({
         buyerEmail: offer.buyer_email,
         listingTitle: listing.title,
-        checkoutUrl: `${origin}/l/${listing.id}`,
+        checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
         agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
         expiresAt: checkoutExpires,
       }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))

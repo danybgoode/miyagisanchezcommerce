@@ -151,6 +151,7 @@ function ActiveOfferCard({
   }
 
   if (offer.status === 'accepted') {
+    const agreedCents = offer.counter_amount_cents ?? offer.offer_amount_cents
     return (
       <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--success)', background: 'var(--success-soft)' }}>
         <div className="flex items-start gap-3">
@@ -158,8 +159,8 @@ function ActiveOfferCard({
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>¡Oferta aceptada!</div>
             <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-              Revisa tu correo para completar el pago de{' '}
-              <strong>{formatOfferAmount(offer.offer_amount_cents, listing.currency)}</strong>.
+              Ya puedes completar la compra al precio acordado:{' '}
+              <strong>{formatOfferAmount(agreedCents, listing.currency)}</strong>.
             </div>
             {offer.checkout_expires_at && (
               <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>⏰ Expira en {timeUntil(offer.checkout_expires_at)}</div>

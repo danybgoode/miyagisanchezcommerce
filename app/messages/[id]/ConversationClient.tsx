@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
 import { formatOfferAmount, timeUntil } from '@/lib/offers'
+import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
+import type { CheckoutProvider } from '@/lib/cart'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ interface Conversation {
   marketplace_listings: ConvListing | null
   marketplace_shops: ConvShop | null
   marketplace_offers: ConvOffer | null
+  checkout_provider?: CheckoutProvider | null
 }
 
 interface Props {
@@ -151,9 +154,14 @@ function renderSystemText(type: string, meta: Record<string, unknown>, currency:
 // ── Offer action bar ──────────────────────────────────────────────────────────
 
 function OfferActionBar({
-  offer, role, conversationId, onRefresh, currentUserEmail,
+  offer, role, listing, checkoutProvider, isSignedIn, onRefresh,
 }: {
-  offer: ConvOffer; role: 'buyer' | 'seller'; conversationId: string; onRefresh: () => void; currentUserEmail?: string
+  offer: ConvOffer
+  role: 'buyer' | 'seller'
+  listing: ConvListing | null
+  checkoutProvider?: CheckoutProvider | null
+  isSignedIn: boolean
+  onRefresh: () => void
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -177,7 +185,7 @@ function OfferActionBar({
       await fetch(`/api/offers/${offer.id}/buyer-respond`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, buyerEmail: currentUserEmail }),
+        body: JSON.stringify({ action }),
       })
       onRefresh()
     } finally {
@@ -240,13 +248,28 @@ function OfferActionBar({
   }
 
   if (role === 'buyer' && offer.status === 'accepted') {
+    const agreedCents = offer.counter_amount_cents ?? offer.offer_amount_cents
     return (
       <div style={{ padding: '12px 16px', background: 'var(--success-soft)', borderTop: '1.5px solid var(--success)' }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)', marginBottom: 6 }}>¡Oferta aceptada! Completa tu pago para asegurar el artículo.</p>
+        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>¡Trato listo! Compra al precio acordado.</p>
+        <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg)', marginBottom: 8 }}>{fmt(agreedCents, offer.currency)}</p>
         {offer.checkout_expires_at && (
           <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}>⏰ Expira en {timeUntil(offer.checkout_expires_at)}</p>
         )}
-        <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Revisa tu correo electrónico para el enlace de pago.</p>
+        {listing && checkoutProvider ? (
+          <OfferCheckoutButton
+            listingId={listing.id}
+            offerId={offer.id}
+            amountCents={agreedCents}
+            currency={offer.currency}
+            provider={checkoutProvider}
+            isSignedIn={isSignedIn}
+            label="Comprar ahora"
+            variant="accent"
+          />
+        ) : (
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>El vendedor aún no tiene pagos en línea activos. Escríbele para coordinar.</p>
+        )}
       </div>
     )
   }
@@ -427,7 +450,7 @@ function StampChooser({ role, conversationId, onStampSent }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, currentUserEmail }: Props) {
+export default function ConversationClient({ conversationId, initialConversation, initialEvents, role }: Props) {
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -603,7 +626,14 @@ export default function ConversationClient({ conversationId, initialConversation
       {!isClosed && (
         <div style={{ flexShrink: 0 }}>
           {showActionBar && (
-            <OfferActionBar offer={offer} role={role} conversationId={conversationId} onRefresh={refresh} currentUserEmail={currentUserEmail} />
+            <OfferActionBar
+              offer={offer}
+              role={role}
+              listing={listing}
+              checkoutProvider={conv.checkout_provider}
+              isSignedIn
+              onRefresh={refresh}
+            />
           )}
           {/* Stamp input bar */}
           <div style={{ padding: '10px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>

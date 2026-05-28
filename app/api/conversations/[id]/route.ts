@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { getShopStripe } from '@/lib/stripe'
 
 // ── GET — full conversation thread ────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ export async function GET(
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id,
       marketplace_listings ( id, title, price_cents, currency, images, status, condition, location ),
-      marketplace_shops ( id, name, slug, logo_url )
+      marketplace_shops ( id, name, slug, logo_url, metadata, mp_enabled )
     `)
     .eq('id', id)
     .maybeSingle()
@@ -56,6 +57,15 @@ export async function GET(
     ? { ...offerResult.data, currency: listingCurrency }
     : null
 
+  const shopRaw = conv.marketplace_shops as unknown as {
+    metadata?: Record<string, unknown> | null
+    mp_enabled?: boolean | null
+  } | null
+  const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
+  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
+  const sellerHasMp = (shopRaw?.mp_enabled ?? (shopRaw?.metadata?.mp_enabled as boolean | undefined)) !== false
+  const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
+
   // Mark unread as read for this user (fire-and-forget)
   const unreadField = isBuyer ? 'buyer_unread' : 'seller_unread'
   if ((isBuyer && conv.buyer_unread > 0) || (isSeller && conv.seller_unread > 0)) {
@@ -63,7 +73,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    conversation: { ...conv, marketplace_offers: offerWithCurrency },
+    conversation: { ...conv, marketplace_offers: offerWithCurrency, checkout_provider: checkoutProvider },
     events: eventsResult.data ?? [],
     role: isBuyer ? 'buyer' : 'seller',
   })

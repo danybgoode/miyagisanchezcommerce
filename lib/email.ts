@@ -192,6 +192,7 @@ export interface OfferEmailCtx {
   currency: string
   offerId: string
   expiresAt: string  // ISO
+  conversationUrl?: string | null
 }
 
 // ── 1. Buyer: confirmation of offer submitted ─────────────────────────────────
@@ -205,7 +206,7 @@ export async function sendOfferConfirmed(ctx: OfferEmailCtx): Promise<void> {
     ]),
     amount(ctx.offerAmount, `Tu oferta · ${ctx.offerPct}% del precio`),
     p('El vendedor tiene <strong>48 horas</strong> para responder. Recibirás un correo cuando lo haga.'),
-    cta('Ver anuncio', ctx.listingUrl),
+    cta('Ver conversación', ctx.conversationUrl ?? ctx.listingUrl),
     notice('Si el vendedor no responde en 48 horas, tu oferta expirará automáticamente y podrás intentarlo de nuevo.'),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
@@ -224,11 +225,10 @@ export async function sendNewOfferToSeller(ctx: OfferEmailCtx & { sellerEmail: s
     ctx.buyerMessage ? quote(ctx.buyerMessage) : '',
     table([
       ['Comprador', ctx.buyerName],
-      ['Correo',    ctx.buyerEmail],
       ['Expira',    new Date(ctx.expiresAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium', timeStyle: 'short' })],
     ]),
     notice('Los compradores que esperan más de 2 horas compran en otro lugar. <strong>Responde rápido.</strong>', 'warn'),
-    cta('Ver y responder', `${SITE}/shop/manage/offers`),
+    cta('Ver y responder', ctx.conversationUrl ?? `${SITE}/shop/manage/offers`),
   ].join('')
   await send(ctx.sellerEmail, subject, body)
 }
@@ -251,14 +251,14 @@ export async function sendOfferAccepted(ctx: OfferEmailCtx & {
     amount(ctx.offerAmount, `Precio acordado (${100 - ctx.offerPct}% de descuento)`, true),
     ctx.checkoutUrl
       ? [
-          p('Completa el pago para confirmar la compra. El vendedor recibirá el pago directamente.'),
-          cta('Completar pago', ctx.checkoutUrl),
-          expiryStr ? notice(`El enlace de pago expira el <strong>${expiryStr}</strong>. Después de esa fecha el trato queda cancelado.`, 'warn') : '',
+          p('Completa el pago desde la conversación para confirmar la compra. El vendedor recibirá el pago directamente.'),
+          cta('Comprar ahora', ctx.checkoutUrl),
+          expiryStr ? notice(`El trato expira el <strong>${expiryStr}</strong>. Después de esa fecha queda cancelado.`, 'warn') : '',
         ].join('')
       : [
           p('El vendedor se pondrá en contacto para coordinar el pago y la entrega.'),
           ctx.sellerPhone ? p(`WhatsApp del vendedor: <strong>${ctx.sellerPhone}</strong>`) : '',
-          cta('Ver anuncio', ctx.listingUrl),
+          cta('Ver conversación', ctx.conversationUrl ?? ctx.listingUrl),
         ].join(''),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
@@ -301,7 +301,7 @@ export async function sendOfferCountered(ctx: OfferEmailCtx & {
     ]),
     ctx.counterMessage ? quote(ctx.counterMessage) : '',
     notice(`Tienes hasta el <strong>${expiryStr}</strong> para aceptar o rechazar.`, 'warn'),
-    cta('Ver contraoferta', ctx.listingUrl),
+    cta('Ver contraoferta', ctx.conversationUrl ?? ctx.listingUrl),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
 }
@@ -314,6 +314,7 @@ export async function sendCounterAccepted(ctx: {
   counterAmount: string
   buyerName: string
   buyerEmail: string
+  conversationUrl?: string | null
 }): Promise<void> {
   const subject = `✓ Contraoferta aceptada — ${ctx.listingTitle}`
   const body = [
@@ -322,10 +323,9 @@ export async function sendCounterAccepted(ctx: {
     amount(ctx.counterAmount, 'Precio acordado', true),
     table([
       ['Comprador', ctx.buyerName],
-      ['Correo',    ctx.buyerEmail],
     ]),
-    p('Se envió un enlace de pago al comprador. Te notificaremos cuando complete el pago.'),
-    cta('Ver panel', `${SITE}/shop/manage/offers`),
+    p('El comprador ya puede completar el pago desde la conversación. Te notificaremos cuando lo haga.'),
+    cta('Ver conversación', ctx.conversationUrl ?? `${SITE}/shop/manage/offers`),
   ].join('')
   await send(ctx.sellerEmail, subject, body)
 }
@@ -430,6 +430,7 @@ export async function sendBuyerCounterExpiryWarning(ctx: {
   listingUrl: string
   counterAmount: string
   expiresAt: string
+  conversationUrl?: string | null
 }, scheduledAt?: Date): Promise<string | null> {
   const subject = `La contraoferta expira en 4 horas — ${ctx.listingTitle}`
   const expiryStr = new Date(ctx.expiresAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium', timeStyle: 'short' })
@@ -441,7 +442,7 @@ export async function sendBuyerCounterExpiryWarning(ctx: {
       ['Expira',       expiryStr],
     ]),
     notice('Si no respondes antes de esa hora, perderás la oportunidad de comprar al precio acordado.', 'warn'),
-    cta('Ver contraoferta', ctx.listingUrl),
+    cta('Ver contraoferta', ctx.conversationUrl ?? ctx.listingUrl),
   ].join('')
   return send(ctx.buyerEmail, subject, body, scheduledAt)
 }
@@ -489,7 +490,6 @@ export async function sendSaleCompletedToSeller(ctx: {
     amount(ctx.amountPaid, 'Monto recibido', true),
     table([
       ...(ctx.buyerName  ? [['Comprador', ctx.buyerName]  as [string, string]] : []),
-      ...(ctx.buyerEmail ? [['Correo',    ctx.buyerEmail] as [string, string]] : []),
     ]),
     ctx.isDigital
       ? p('El archivo fue enviado al comprador automáticamente.')
@@ -568,7 +568,6 @@ export async function sendNewOrderToSeller(ctx: {
     amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
     table([
       ...(ctx.buyerName  ? [['Comprador', ctx.buyerName]  as [string, string]] : []),
-      ...(ctx.buyerEmail ? [['Correo',    ctx.buyerEmail] as [string, string]] : []),
       ...(addrStr ? [['Dirección',  addrStr]              as [string, string]] : []),
     ]),
     notice('Envía en menos de 3 días hábiles para mantener una buena reputación. Los compradores que esperan más de 72 h cancelan con más frecuencia.', 'warn'),
@@ -667,7 +666,6 @@ export async function sendReturnRequestToSeller(ctx: {
       ['Producto',  esc(ctx.listingTitle)],
       ['Motivo',    esc(REASON_LABELS[ctx.reason] ?? ctx.reason)],
       ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
-      ...(ctx.buyerEmail ? [['Correo',    esc(ctx.buyerEmail)] as [string, string]] : []),
     ]),
     ctx.description ? quote(ctx.description) : '',
     notice('Tienes 3 días hábiles para responder. Si no hay respuesta, el comprador puede escalar el caso.', 'warn'),

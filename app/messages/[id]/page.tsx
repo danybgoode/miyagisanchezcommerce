@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import ConversationClient from './ConversationClient'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { getShopStripe } from '@/lib/stripe'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -28,7 +29,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id,
       marketplace_listings ( id, title, price_cents, currency, images, status, condition, location ),
-      marketplace_shops ( id, name, slug, logo_url )
+      marketplace_shops ( id, name, slug, logo_url, metadata, mp_enabled )
     `)
     .eq('id', id)
     .maybeSingle()
@@ -66,6 +67,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     ? { ...offerResult.data, currency: listingCurrency }
     : null
 
+  const shopRaw = conv.marketplace_shops as unknown as {
+    metadata?: Record<string, unknown> | null
+    mp_enabled?: boolean | null
+  } | null
+  const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
+  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
+  const sellerHasMp = (shopRaw?.mp_enabled ?? (shopRaw?.metadata?.mp_enabled as boolean | undefined)) !== false
+  const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
+
   // Mark as read (fire-and-forget, non-blocking)
   const unreadField = isBuyer ? 'buyer_unread' : 'seller_unread'
   db.from('marketplace_conversations').update({ [unreadField]: 0 }).eq('id', id).then(() => {})
@@ -74,6 +84,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const initialConversation: ConvParam = {
     ...(conv as unknown as ConvParam),
     marketplace_offers: offerWithCurrency as ConvParam['marketplace_offers'],
+    checkout_provider: checkoutProvider,
   }
 
   return (

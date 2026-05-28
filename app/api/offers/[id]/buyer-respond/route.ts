@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { canAcceptCounter, canWithdraw, formatOfferAmount } from '@/lib/offers'
 import { stripe } from '@/lib/stripe'
-import { sendOfferAccepted, sendCounterAccepted, sendOfferWithdrawn, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
+import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 
 interface BuyerRespondBody {
   action: 'accept-counter' | 'withdraw'
-  buyerEmail: string
+  buyerEmail?: string
 }
 
 export async function PATCH(
@@ -14,6 +15,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const user = await currentUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 })
 
   let body: BuyerRespondBody
   try {
@@ -22,11 +25,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
   }
 
-  const { action, buyerEmail } = body
-
-  if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
-    return NextResponse.json({ error: 'Correo inválido.' }, { status: 400 })
-  }
+  const { action } = body
 
   // ── Fetch offer ───────────────────────────────────────────────────────────
   const { data: offer } = await db
@@ -39,14 +38,24 @@ export async function PATCH(
       )
     `)
     .eq('id', id)
-    .ilike('buyer_email', buyerEmail)
+    .eq('buyer_clerk_user_id', user.id)
     .single()
 
   if (!offer) {
-    return NextResponse.json({ error: 'Oferta no encontrada o correo incorrecto.' }, { status: 404 })
+    return NextResponse.json({ error: 'Oferta no encontrada.' }, { status: 404 })
   }
 
   const scheduledIds = (offer.scheduled_reminder_ids ?? {}) as Record<string, string>
+  const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
+
+  async function getConversationUrl() {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id')
+      .eq('offer_id', id)
+      .maybeSingle()
+    return conv?.id ? `${origin}/messages/${conv.id}` : null
+  }
 
   async function emitConvEvent(eventType: string, actor: string, metadata: Record<string, unknown>, incSellerUnread = false) {
     const { data: conv } = await db
@@ -93,8 +102,6 @@ export async function PATCH(
     const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
     const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
       { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
-
-    const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
 
     let checkoutSessionId: string | null = null
     let checkoutExpires: string | null = null
@@ -155,6 +162,7 @@ export async function PATCH(
     }).eq('id', id)
 
     const listingUrl = `${origin}/l/${listing.id}`
+    const conversationUrl = await getConversationUrl()
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: acceptedCents, currency: listing.currency }, true).catch(e => console.error('[conv] accept-counter event:', e))
     // Buyer: accepted — with payment link
@@ -166,8 +174,9 @@ export async function PATCH(
       buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
       currency: listing.currency, offerId: id,
       expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      checkoutUrl: checkoutSessionId ? listingUrl : null,
+      checkoutUrl: conversationUrl ?? listingUrl,
       checkoutExpiresAt: checkoutExpires,
+      conversationUrl,
     }).catch(e => console.error('[email] counter-accept buyer:', e))
 
     // Seller: counter was accepted — notify them
@@ -178,6 +187,7 @@ export async function PATCH(
             sellerEmail, listingTitle: listing.title, listingUrl,
             counterAmount: formatOfferAmount(acceptedCents, listing.currency),
             buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
+            conversationUrl,
           })
         }
       }).catch(e => console.error('[email] counter-accept seller:', e))
@@ -188,7 +198,7 @@ export async function PATCH(
       sendBuyerPaymentExpiryWarning({
         buyerEmail: offer.buyer_email,
         listingTitle: listing.title,
-        checkoutUrl: listingUrl,
+        checkoutUrl: conversationUrl ?? listingUrl,
         agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
         expiresAt: checkoutExpires,
       }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))
