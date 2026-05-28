@@ -152,7 +152,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
                   return (
                     <tr key={i}>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-[var(--color-text)] truncate max-w-[160px]">{sub.buyer_name ?? sub.buyer_email}</p>
+                        <p className="font-medium text-[var(--color-text)] truncate max-w-[160px]">{sub.buyer_name ?? 'Comprador'}</p>
                         <p className="text-xs text-[var(--color-muted)] truncate">{sub.listing_title}</p>
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">

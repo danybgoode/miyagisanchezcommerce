@@ -671,13 +671,6 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">Nombre</span>
             <span className="font-medium">{order.buyer_name ?? '—'}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">Correo</span>
-            <a href={`mailto:${order.buyer_email}`}
-              className="text-[var(--color-accent)] text-sm no-underline hover:underline">
-              {order.buyer_email ?? '—'}
-            </a>
-          </div>
           {order.shipping_address && Object.keys(order.shipping_address).length > 0 && (
             <div className="flex items-start gap-2 mt-2 pt-2 border-t border-[var(--color-border)]">
               <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs mt-0.5">Dirección</span>

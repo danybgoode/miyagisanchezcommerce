@@ -75,8 +75,8 @@ export default function SubscriptionsClient({
       <div key={sub.id} className="border border-[var(--color-border)] rounded-lg p-4 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-medium text-sm truncate">{sub.buyer_name ?? sub.buyer_email}</p>
-            <p className="text-xs text-[var(--color-muted)] truncate">{sub.buyer_email}</p>
+            <p className="font-medium text-sm truncate">{sub.buyer_name ?? 'Comprador'}</p>
+            <p className="text-xs text-[var(--color-muted)] truncate">Suscripción {sub.id.slice(0, 8)}</p>
           </div>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${st.color}`}>
             {st.label}

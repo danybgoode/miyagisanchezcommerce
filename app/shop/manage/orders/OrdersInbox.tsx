@@ -122,7 +122,7 @@ function OrderCard({ order }: { order: Order }) {
             <span className="font-semibold text-[var(--color-text)]">
               {formatPrice(order.amount_cents, order.currency)}
             </span>
-            <span>{order.buyer_name ?? order.buyer_email ?? 'Comprador'}</span>
+            <span>{order.buyer_name ?? 'Comprador'}</span>
             <span>{relativeDate(order.created_at)}</span>
           </div>
 
