@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const shop = Array.isArray(shops) ? shops[0] : shops
   const stripeSettings = getShopStripe(shop?.metadata ?? null)
 
-  if (!stripeSettings.account_id || !stripeSettings.charges_enabled) {
+  if (stripeSettings.enabled === false || !stripeSettings.account_id || !stripeSettings.charges_enabled) {
     return NextResponse.json({
       error: 'Este vendedor aún no ha activado los pagos. Contacta al vendedor directamente.',
       code: 'SELLER_NOT_CONNECTED',

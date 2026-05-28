@@ -162,20 +162,23 @@ export async function POST(req: NextRequest) {
 
   // ── Shop signals ──────────────────────────────────────────────────────────
   const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
-  const hasMp          = shop?.mp_enabled !== false
-  const hasStripe      = !!(stripeSettings.charges_enabled && stripeSettings.account_id)
+  const hasMp          = ((shopMeta.mp_enabled as boolean | undefined) ?? shop?.mp_enabled) !== false
+  const hasStripe      = !!(stripeSettings.enabled !== false && stripeSettings.charges_enabled && stripeSettings.account_id)
 
   const bankTransfer   = (checkout.bank_transfer ?? {}) as Record<string, unknown>
   const hasBankTransfer = !!(bankTransfer.enabled && bankTransfer.clabe)
 
   const localPickup    = !!(shipping.local_pickup)
-  const hasWhatsapp    = !!(checkout.whatsapp_cta && (shopMeta.phone || shopMeta.whatsapp))
+  const theme = (settings.theme ?? {}) as Record<string, unknown>
+  const social = (theme.social ?? {}) as Record<string, unknown>
+  const shopPhone = checkout.show_phone ? ((checkout.phone as string | null | undefined) ?? null) : null
+  const whatsappPhone = ((social.whatsapp as string | null | undefined) ?? (checkout.phone as string | null | undefined) ?? null)
+  const hasWhatsapp    = !!(checkout.whatsapp_cta && whatsappPhone)
+  const hasPickupContact = localPickup && (!!shopPhone || !!(checkout.whatsapp_cta && whatsappPhone))
 
   // Scheduling links (link-drop tier — no API key required)
   const schedulingMeta = (settings.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
   const schedulingLinks = schedulingMeta.links ?? []
-
-  const shopPhone: string | null = (shopMeta.phone as string | null) ?? (shopMeta.whatsapp as string | null) ?? null
 
   // ── Escrow ────────────────────────────────────────────────────────────────
   const escrowMode = (checkout.escrow_mode as 'off' | 'optional' | 'required' | undefined) ?? 'off'
@@ -243,9 +246,9 @@ export async function POST(req: NextRequest) {
     available: localPickup && !isDigital && isClaimed,
     instant:   false,
     escrow_compatible: false,
-    ...(localPickup && shopPhone && {
+    ...(hasPickupContact && {
       instructions: 'Contacta al vendedor para coordinar lugar y hora de entrega.',
-      contact_url:  checkout.whatsapp_cta ? whatsappLink(shopPhone, listing.title) : `tel:${shopPhone}`,
+      contact_url:  checkout.whatsapp_cta && whatsappPhone ? whatsappLink(whatsappPhone, listing.title) : `tel:${shopPhone}`,
     }),
     ...(localPickup && !shopPhone && {
       instructions: 'Escríbele al vendedor para coordinar la entrega.',
@@ -262,9 +265,9 @@ export async function POST(req: NextRequest) {
     available: hasWhatsapp && !isDigital && isClaimed,
     instant:   false,
     escrow_compatible: false,
-    ...(hasWhatsapp && shopPhone && {
+    ...(hasWhatsapp && whatsappPhone && {
       instructions: 'Escríbele al vendedor por WhatsApp para acordar el pago.',
-      contact_url:  whatsappLink(shopPhone, listing.title),
+      contact_url:  whatsappLink(whatsappPhone, listing.title),
     }),
     ...(!hasWhatsapp && { reason_unavailable: 'El vendedor no tiene WhatsApp configurado.' }),
   }

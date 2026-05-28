@@ -123,17 +123,15 @@ function formatPrice(cents: number, currency: string): string {
 
 // ── Main transformer ───────────────────────────────────────────────────────────
 
-type ShopWithMp = Shop & { mp_enabled?: boolean | null }
-
 export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.com'): UcpListing {
-  const shop = listing.shop as ShopWithMp | undefined
+  const shop = listing.shop
 
   // ── Payment methods ─────────────────────────────────────────────────────────
   const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
   const stripeSettings = (shopMeta.settings as Record<string, unknown> | undefined)?.stripe as
-    { charges_enabled?: boolean; account_id?: string } | undefined
-  const hasMp = shop?.mp_enabled !== false
-  const hasStripe = !!(stripeSettings?.charges_enabled && stripeSettings.account_id)
+    { enabled?: boolean; charges_enabled?: boolean; account_id?: string } | undefined
+  const hasMp = (shopMeta.mp_enabled as boolean | undefined) !== false
+  const hasStripe = !!(stripeSettings?.enabled !== false && stripeSettings?.charges_enabled && stripeSettings.account_id)
 
   // ── Escrow ──────────────────────────────────────────────────────────────────
   const escrowMode = ((shopMeta.settings as Record<string, unknown> | undefined)

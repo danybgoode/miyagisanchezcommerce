@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import {
   getCalUser,
   getCalEventTypes,
@@ -18,7 +19,7 @@ import {
 // ── POST — connect ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   let body: { api_key?: string; event_type_id?: number }
@@ -96,6 +97,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error al guardar la conexión.' }, { status: 500 })
   }
 
+  try {
+    await syncMedusaSellerProfile(await getToken(), {
+      metadata: { settings: { ...existingSettings, calcom: calcomSettings } },
+    })
+  } catch (e) {
+    console.error('[calcom] Medusa seller sync failed (non-fatal):', e)
+  }
+
   return NextResponse.json({
     step:     'connected',
     username: calUser.username,
@@ -111,7 +120,7 @@ export async function POST(req: NextRequest) {
 // ── DELETE — disconnect ────────────────────────────────────────────────────────
 
 export async function DELETE(_req: NextRequest) {
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   const { data: shop } = await db
@@ -135,6 +144,14 @@ export async function DELETE(_req: NextRequest) {
       metadata: { ...existingMeta, settings: settingsWithout },
     })
     .eq('id', shop.id)
+
+  try {
+    await syncMedusaSellerProfile(await getToken(), {
+      metadata: { settings: settingsWithout },
+    })
+  } catch (e) {
+    console.error('[calcom] Medusa seller sync failed (non-fatal):', e)
+  }
 
   return NextResponse.json({ ok: true })
 }

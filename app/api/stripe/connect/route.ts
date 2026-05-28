@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { stripe, createAccountLink, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
+import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 
 // GET — initiate Stripe Connect onboarding for the current seller
 export async function GET(req: NextRequest) {
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) {
     return NextResponse.redirect(new URL('/sign-in', req.url))
   }
@@ -53,15 +54,23 @@ export async function GET(req: NextRequest) {
       accountId = account.id
 
       // Persist the account ID immediately (before onboarding completes)
+      const nextSettings = {
+        ...settings,
+        stripe: { ...stripeSettings, account_id: accountId, charges_enabled: false, onboarding_complete: false },
+      }
+
       await db.from('marketplace_shops').update({
         metadata: {
           ...meta,
-          settings: {
-            ...settings,
-            stripe: { account_id: accountId, charges_enabled: false, onboarding_complete: false },
-          },
+          settings: nextSettings,
         },
       }).eq('id', shop.id)
+
+      try {
+        await syncMedusaSellerProfile(await getToken(), { metadata: { settings: nextSettings } })
+      } catch (e) {
+        console.error('[stripe/connect] Medusa seller sync failed (non-fatal):', e)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[stripe/connect] accounts.create failed:', msg)
@@ -93,15 +102,23 @@ export async function GET(req: NextRequest) {
         })
         const freshId = freshAccount.id
 
+        const nextSettings = {
+          ...settings,
+          stripe: { ...stripeSettings, account_id: freshId, charges_enabled: false, onboarding_complete: false },
+        }
+
         await db.from('marketplace_shops').update({
           metadata: {
             ...meta,
-            settings: {
-              ...settings,
-              stripe: { account_id: freshId, charges_enabled: false, onboarding_complete: false },
-            },
+            settings: nextSettings,
           },
         }).eq('id', shop.id)
+
+        try {
+          await syncMedusaSellerProfile(await getToken(), { metadata: { settings: nextSettings } })
+        } catch (e) {
+          console.error('[stripe/connect] Medusa seller sync failed (non-fatal):', e)
+        }
 
         const freshUrl = await createAccountLink(freshId, origin)
         return NextResponse.redirect(freshUrl)

@@ -48,10 +48,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   if (!listing) notFound()
 
   const isSignedIn = !!clerkUser
-  const listingPhone = listing.metadata?.phone as string | null | undefined
-  const shopPhone = listing.shop?.metadata?.phone as string | null | undefined
-  const phone = listingPhone || shopPhone || null
-
   const shopWebsite = listing.shop?.metadata?.website as string | null | undefined
   // Medusa-backed sellers always have an id; legacy "pending:" shops are unclaimed scraped entries
   const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
@@ -60,7 +56,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = (listing.shop as unknown as { mp_enabled?: boolean | null } | null)?.mp_enabled !== false
+  const sellerHasMp = (shopMeta?.mp_enabled as boolean | undefined) !== false
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status
@@ -68,6 +64,31 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
   const ordersSettings = shopSettings.orders as { processing_time?: string } | undefined
   const returnsPolicySettings = shopSettings.returns_policy as { window?: string; conditions?: string; shipping_paid_by?: string; custom_note?: string } | undefined
+  const checkoutSettings = shopSettings.checkout as {
+    show_phone?: boolean
+    phone?: string | null
+    whatsapp_cta?: boolean
+    show_email?: boolean
+    contact_email?: string | null
+    bank_transfer?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null }
+  } | undefined
+  const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null } } | undefined
+  const shippingSettings = shopSettings.shipping as {
+    local_pickup?: boolean
+    pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
+  } | undefined
+  const schedulingSettings = shopSettings.scheduling as { links?: Array<{ label?: string; url?: string }> } | undefined
+  const visiblePhone = checkoutSettings?.show_phone && checkoutSettings.phone ? checkoutSettings.phone : null
+  const whatsappPhone = checkoutSettings?.whatsapp_cta
+    ? (themeSettings?.social?.whatsapp || checkoutSettings?.phone || null)
+    : null
+  const contactEmail = checkoutSettings?.show_email ? checkoutSettings.contact_email ?? null : null
+  const schedulingLinks = (schedulingSettings?.links ?? []).filter((link): link is { label?: string; url: string } => !!link.url)
+  const bookingUrl = calcomSettings?.connected && calcomSettings.booking_url
+    ? calcomSettings.booking_url
+    : schedulingLinks[0]?.url ?? null
+  const bookingText = calcomSettings?.event_type_title ?? schedulingLinks[0]?.label ?? null
+  const pickupSpots = shippingSettings?.local_pickup ? (shippingSettings.pickup_spots ?? []) : []
   const PROCESSING_LABELS: Record<string, string> = { '1d': '1 día hábil', '1-3d': '1–3 días hábiles', '3-5d': '3–5 días hábiles', '1-2w': '1–2 semanas' }
   const processingLabel = ordersSettings?.processing_time ? PROCESSING_LABELS[ordersSettings.processing_time] ?? ordersSettings.processing_time : null
   // Only show a positive return window as a trust signal — "no returns" is never surfaced
@@ -84,9 +105,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
     ? storedTiers
     : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
-  const checkoutSettings = shopSettings.checkout as { bank_transfer?: { clabe?: string; bank_name?: string; account_holder?: string } } | undefined
   const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
-  const shopHasCalcom = !!(calcomSettings?.connected && calcomSettings?.booking_url)
+  const shopHasScheduling = !!bookingUrl
   const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
 
   // Check if favorited
@@ -332,32 +352,63 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               </div>
             </Link>
 
-            {/* WhatsApp */}
-            {phone && (
+            {/* Contact */}
+            {(whatsappPhone || visiblePhone || contactEmail) && (
               <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
-                <a
-                  href={whatsappUrl(phone, listing.title)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-lg no-underline"
-                  style={{ width: '100%', justifyContent: 'center', background: '#25D366', color: '#fff', borderRadius: 'var(--r-pill)' }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
-                  Contactar por WhatsApp
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {whatsappPhone && (
+                    <a
+                      href={whatsappUrl(whatsappPhone, listing.title)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-lg no-underline"
+                      style={{ width: '100%', justifyContent: 'center', background: '#25D366', color: '#fff', borderRadius: 'var(--r-pill)' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      Contactar por WhatsApp
+                    </a>
+                  )}
+                  {visiblePhone && (
+                    <a href={`tel:${visiblePhone}`} className="btn btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
+                      <i className="iconoir-phone" style={{ fontSize: 16 }} />
+                      Llamar al vendedor
+                    </a>
+                  )}
+                  {contactEmail && (
+                    <a href={`mailto:${contactEmail}?subject=${encodeURIComponent(`Consulta por ${listing.title}`)}`} className="btn btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
+                      <i className="iconoir-mail" style={{ fontSize: 16 }} />
+                      Enviar correo
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Scheduling */}
+            {shopHasScheduling && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
+                <a href={bookingUrl!} target="_blank" rel="noopener noreferrer" className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
+                  <i className="iconoir-calendar" style={{ fontSize: 16 }} />
+                  {bookingText ?? agendarLabel.replace(/^[^\s]+\s/, '')}
+                  <i className="iconoir-arrow-up-right" style={{ fontSize: 12, opacity: 0.6 }} />
                 </a>
               </div>
             )}
 
-            {/* Cal.com */}
-            {shopHasCalcom && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
-                <a href={calcomSettings!.booking_url} target="_blank" rel="noopener noreferrer" className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
-                  <i className="iconoir-calendar" style={{ fontSize: 16 }} />
-                  {agendarLabel.replace(/^[^\s]+\s/, '')}
-                  <i className="iconoir-arrow-up-right" style={{ fontSize: 12, opacity: 0.6 }} />
-                </a>
+            {pickupSpots.length > 0 && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Recoger en tienda</p>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {pickupSpots.slice(0, 3).map((spot, index) => (
+                    <div key={`${spot.name ?? 'punto'}-${index}`} style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                      <strong style={{ color: 'var(--fg)' }}>{spot.name ?? `Punto ${index + 1}`}</strong>
+                      {spot.address && <span> · {spot.address}</span>}
+                      {spot.instructions && <p style={{ marginTop: 2 }}>{spot.instructions}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -377,6 +428,21 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           <div style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
+          </div>
+        )}
+
+        {returnsLabel && (
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Política de devoluciones</h2>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+              Acepta devoluciones durante {returnsLabel.toLowerCase()}
+              {returnsPolicySettings?.conditions === 'unopened' ? ' si el producto sigue cerrado' : ''}
+              {returnsPolicySettings?.conditions === 'original' ? ' si se entrega en su estado original' : ''}
+              {returnsPolicySettings?.shipping_paid_by === 'seller' ? '. El vendedor cubre el envío de devolución.' : '. El comprador cubre el envío de devolución.'}
+            </p>
+            {returnsPolicySettings?.custom_note && (
+              <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.5, marginTop: 6 }}>{returnsPolicySettings.custom_note}</p>
+            )}
           </div>
         )}
 

@@ -77,6 +77,31 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     tagline?: string | null
     social?: Social
   }
+  const checkout = (settings.checkout ?? {}) as {
+    show_phone?: boolean
+    phone?: string | null
+    whatsapp_cta?: boolean
+    show_email?: boolean
+    contact_email?: string | null
+  }
+  const shipping = (settings.shipping ?? {}) as {
+    local_pickup?: boolean
+    pickup_spots?: Array<{ name?: string; address?: string }>
+  }
+  const scheduling = (settings.scheduling ?? {}) as { links?: Array<{ label?: string; url?: string }> }
+  const calcom = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
+  const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
+  const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
+  const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
+  const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
+  const hasPickup = !!shipping.local_pickup
+  const hasScheduling = !!(calcom.connected && calcom.booking_url) || !!scheduling.links?.some(link => link.url)
+  const returnsLabel = returnsPolicy?.window === '7d' ? '7 días'
+    : returnsPolicy?.window === '14d' ? '14 días'
+    : returnsPolicy?.window === '30d' ? '30 días'
+    : null
+  const visibleWhatsapp = checkout.whatsapp_cta ? (theme.social?.whatsapp ?? checkout.phone ?? null) : null
+  const visiblePhone = checkout.show_phone ? checkout.phone ?? null : null
 
   const accent = theme.accent_color ?? 'var(--color-accent)'
   const hasBanner = !!theme.banner_url
@@ -138,39 +163,49 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           </div>
 
           {/* Description + social on its own row */}
-          {(shop.description || theme.social) && (
+          {(shop.description || theme.social || visiblePhone || checkout.show_email) && (
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               {shop.description && (
                 <p className="text-sm text-[var(--color-muted)] max-w-xl">{shop.description}</p>
               )}
-              {theme.social && Object.values(theme.social).some(Boolean) && (
+              {(theme.social && Object.values(theme.social).some(Boolean)) || visiblePhone || checkout.show_email ? (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {theme.social.instagram && (
+                  {theme.social?.instagram && (
                     <a href={`https://instagram.com/${theme.social.instagram}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:border-[var(--color-text)] transition-colors no-underline">
                       <span>📸</span><span>@{theme.social.instagram}</span>
                     </a>
                   )}
-                  {theme.social.tiktok && (
+                  {theme.social?.tiktok && (
                     <a href={`https://tiktok.com/@${theme.social.tiktok}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:border-[var(--color-text)] transition-colors no-underline">
                       <span>🎵</span><span>@{theme.social.tiktok}</span>
                     </a>
                   )}
-                  {theme.social.whatsapp && (
-                    <a href={`https://wa.me/${theme.social.whatsapp}`} target="_blank" rel="noopener noreferrer"
+                  {visibleWhatsapp && (
+                    <a href={`https://wa.me/${visibleWhatsapp}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors no-underline">
                       <span>💬</span><span>WhatsApp</span>
                     </a>
                   )}
-                  {theme.social.facebook && (
+                  {visiblePhone && (
+                    <a href={`tel:${visiblePhone}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
+                      <span>☎</span><span>Teléfono</span>
+                    </a>
+                  )}
+                  {checkout.show_email && checkout.contact_email && (
+                    <a href={`mailto:${checkout.contact_email}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
+                      <span>✉</span><span>Email</span>
+                    </a>
+                  )}
+                  {theme.social?.facebook && (
                     <a href={theme.social.facebook} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
                       <span>👥</span><span>Facebook</span>
                     </a>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -185,6 +220,15 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">
+        {(mpEnabled || sellerHasStripe || hasPickup || hasScheduling || returnsLabel) && (
+          <div className="flex flex-wrap gap-2 mb-5">
+            {mpEnabled && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
+            {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Tarjeta</span>}
+            {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Pickup{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
+            {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? 'Agenda disponible'}</span>}
+            {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700">Devoluciones {returnsLabel}</span>}
+          </div>
+        )}
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
             <div className="text-4xl mb-3">📦</div>

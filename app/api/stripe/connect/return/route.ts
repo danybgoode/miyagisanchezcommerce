@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
+import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 
 // GET — Stripe redirects here after seller completes onboarding
 export async function GET(req: NextRequest) {
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) return NextResponse.redirect(new URL('/sign-in', req.url))
 
   const accountId = req.nextUrl.searchParams.get('account_id')
@@ -38,22 +39,29 @@ export async function GET(req: NextRequest) {
   const meta = (shop.metadata ?? {}) as Record<string, unknown>
   const settings = (meta.settings ?? {}) as Record<string, unknown>
   const existing = getShopStripe(shop.metadata as Record<string, unknown> | null)
+  const nextSettings = {
+    ...settings,
+    stripe: {
+      ...existing,
+      account_id: accountId ?? existing.account_id,
+      charges_enabled: chargesEnabled,
+      details_submitted: detailsSubmitted,
+      onboarding_complete: chargesEnabled && detailsSubmitted,
+    },
+  }
 
   await db.from('marketplace_shops').update({
     metadata: {
       ...meta,
-      settings: {
-        ...settings,
-        stripe: {
-          ...existing,
-          account_id: accountId ?? existing.account_id,
-          charges_enabled: chargesEnabled,
-          details_submitted: detailsSubmitted,
-          onboarding_complete: chargesEnabled && detailsSubmitted,
-        },
-      },
+      settings: nextSettings,
     },
   }).eq('id', shop.id)
+
+  try {
+    await syncMedusaSellerProfile(await getToken(), { metadata: { settings: nextSettings } })
+  } catch (e) {
+    console.error('[stripe/connect/return] Medusa seller sync failed (non-fatal):', e)
+  }
 
   const status = chargesEnabled ? 'connected' : 'pending'
   return NextResponse.redirect(new URL(`/shop/manage/settings?stripe=${status}`, req.url))

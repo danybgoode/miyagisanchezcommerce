@@ -92,14 +92,14 @@ export async function PATCH(
     const acceptedCents = offer.counter_amount_cents!
     const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
     const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
-      { account_id?: string; charges_enabled?: boolean } | undefined
+      { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
 
     const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
 
     let checkoutSessionId: string | null = null
     let checkoutExpires: string | null = null
 
-    if (stripeSettings?.charges_enabled && stripeSettings?.account_id) {
+    if (stripeSettings?.enabled !== false && stripeSettings?.charges_enabled && stripeSettings?.account_id) {
       try {
         const expiresAt = Math.floor(Date.now() / 1000) + 24 * 3600
         const session = await stripe.checkout.sessions.create({

@@ -48,6 +48,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Este anuncio no es una suscripción.' }, { status: 422 })
   }
 
+  const shops = listing.marketplace_shops as unknown as { metadata: Record<string, unknown> | null } | { metadata: Record<string, unknown> | null }[]
+  const shop = Array.isArray(shops) ? shops[0] : shops
+  const stripeSettings = getShopStripe(shop?.metadata ?? null)
+  if (stripeSettings.enabled === false || !stripeSettings.charges_enabled || !stripeSettings.account_id) {
+    return NextResponse.json({ error: 'Este vendedor no tiene Stripe activo para suscripciones.' }, { status: 422 })
+  }
+
   const meta = (listing.metadata ?? {}) as Record<string, unknown>
 
   // ── Resolve Stripe price ID from tier or single-plan metadata ─────────────

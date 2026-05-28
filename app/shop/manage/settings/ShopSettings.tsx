@@ -46,14 +46,15 @@ export interface ShopSettingsData {
         escrow_mode?: 'off' | 'optional' | 'required'
         payment_methods?: string[]
         show_phone?: boolean
-        phone?: string
+        phone?: string | null
         whatsapp_cta?: boolean
         show_email?: boolean
+        contact_email?: string | null
         bank_transfer?: {
           enabled: boolean
-          clabe?: string
-          bank_name?: string
-          account_holder?: string
+          clabe?: string | null
+          bank_name?: string | null
+          account_holder?: string | null
         }
       }
       shipping?: {
@@ -62,13 +63,13 @@ export interface ShopSettingsData {
         custom_rates?: boolean
         pickup_spots?: PickupSpot[]
         origin_address?: {
-          name?: string
-          street?: string
-          number?: string
-          colonia?: string
-          city?: string
-          state?: string
-          postal_code?: string
+          name?: string | null
+          street?: string | null
+          number?: string | null
+          colonia?: string | null
+          city?: string | null
+          state?: string | null
+          postal_code?: string | null
         }
       }
       notifications?: {
@@ -98,7 +99,7 @@ export interface ShopSettingsData {
         conditions?: string
         shipping_paid_by?: 'buyer' | 'seller'
         custom_note?: string | null
-      }
+      } | null
       ucp?: {
         webhook_url?: string
         webhook_secret?: string
@@ -108,11 +109,11 @@ export interface ShopSettingsData {
         accent_color?: string | null
         tagline?: string | null
         social?: {
-          instagram?: string
-          facebook?: string
-          whatsapp?: string
-          tiktok?: string
-          twitter?: string
+          instagram?: string | null
+          facebook?: string | null
+          whatsapp?: string | null
+          tiktok?: string | null
+          twitter?: string | null
         }
       }
     }
@@ -1084,28 +1085,28 @@ export default function ShopSettingsPanel({
             checkout: {
               escrow_mode:    escrowMode,
               show_phone:     showPhone,
-              phone:          showPhone ? phoneNumber.trim().replace(/\D/g, '') || undefined : undefined,
+              phone:          phoneNumber.trim().replace(/\D/g, '') || null,
               whatsapp_cta:   whatsappCta,
               show_email:     showEmail,
               bank_transfer: {
                 enabled:        bankTransferEnabled,
-                clabe:          clabe.trim() || undefined,
-                bank_name:      bankName.trim() || undefined,
-                account_holder: accountHolder.trim() || undefined,
+                clabe:          clabe.trim() || null,
+                bank_name:      bankName.trim() || null,
+                account_holder: accountHolder.trim() || null,
               },
             },
             shipping: {
               mercado_envios: mercadoEnvios,
               local_pickup:   localPickup,
-              pickup_spots:   pickupSpots.length > 0 ? pickupSpots : undefined,
+              pickup_spots:   pickupSpots,
               origin_address: {
-                name:        originName.trim()        || undefined,
-                street:      originStreet.trim()      || undefined,
-                number:      originNumber.trim()      || undefined,
-                colonia:     originColonia.trim()     || undefined,
-                city:        originCity.trim()        || undefined,
-                state:       originState.trim()       || undefined,
-                postal_code: originPostalCode.trim()  || undefined,
+                name:        originName.trim()        || null,
+                street:      originStreet.trim()      || null,
+                number:      originNumber.trim()      || null,
+                colonia:     originColonia.trim()     || null,
+                city:        originCity.trim()        || null,
+                state:       originState.trim()       || null,
+                postal_code: originPostalCode.trim()  || null,
               },
             },
             notifications:  { email_new_view: emailView, email_new_message: emailMessage },
@@ -1125,24 +1126,21 @@ export default function ShopSettingsPanel({
               dispatch_window_days: dispatchWindowDays,
               auto_confirm_days:   autoConfirmDays,
             },
-            // Only persist returns_policy if seller has explicitly chosen a window
-            ...(returnsWindow ? {
-              returns_policy: {
-                window:           returnsWindow,
-                conditions:       returnsConditions,
-                shipping_paid_by: returnsShippingBy,
-                custom_note:      returnsNote.trim() || null,
-              },
-            } : {}),
+            returns_policy: returnsWindow ? {
+              window:           returnsWindow,
+              conditions:       returnsConditions,
+              shipping_paid_by: returnsShippingBy,
+              custom_note:      returnsNote.trim() || null,
+            } : null,
             theme: {
               banner_url:   bannerUrl,
               accent_color: accentColor,
               tagline:      tagline.trim() || null,
               social: {
-                instagram: instagram.trim().replace(/^@/, '') || undefined,
-                facebook:  facebook.trim() || undefined,
-                whatsapp:  whatsappHandle.trim().replace(/\D/g, '') || undefined,
-                tiktok:    tiktok.trim().replace(/^@/, '') || undefined,
+                instagram: instagram.trim().replace(/^@/, '') || null,
+                facebook:  facebook.trim() || null,
+                whatsapp:  whatsappHandle.trim().replace(/\D/g, '') || null,
+                tiktok:    tiktok.trim().replace(/^@/, '') || null,
               },
             },
           },

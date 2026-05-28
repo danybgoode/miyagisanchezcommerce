@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
-
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-async function getMedusaToken(clerkJwt: string): Promise<string | null> {
-  const res = await fetch(`${MEDUSA_BASE}/auth/store/clerk`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
-    body: JSON.stringify({ token: clerkJwt }),
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  return data.token ?? null
-}
+import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 
 // ── PATCH — update shop profile + settings ───────────────────────────────────
 
@@ -36,7 +23,10 @@ interface ShopUpdatePayload {
       escrow_mode?: 'off' | 'optional' | 'required'
       payment_methods?: string[]
       show_phone?: boolean
+      phone?: string | null
       whatsapp_cta?: boolean
+      show_email?: boolean
+      contact_email?: string | null
       bank_transfer?: {
         enabled?: boolean
         clabe?: string | null
@@ -48,6 +38,8 @@ interface ShopUpdatePayload {
       mercado_envios?: boolean
       local_pickup?: boolean
       custom_rates?: boolean
+      pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
+      origin_address?: Record<string, string | null>
     }
     notifications?: {
       email_new_view?: boolean
@@ -88,7 +80,7 @@ interface ShopUpdatePayload {
       conditions?: string
       shipping_paid_by?: 'buyer' | 'seller'
       custom_note?: string | null
-    }
+    } | null
   }
 }
 
@@ -129,6 +121,23 @@ export async function PATCH(req: NextRequest) {
 
   let settingsOverride = body.settings ? (body.settings as Record<string, unknown>) : {}
 
+  const checkoutOverride = (settingsOverride.checkout ?? null) as Record<string, unknown> | null
+  if (checkoutOverride && Object.prototype.hasOwnProperty.call(checkoutOverride, 'show_email')) {
+    const user = await currentUser()
+    const email =
+      user?.primaryEmailAddress?.emailAddress ??
+      user?.emailAddresses[0]?.emailAddress ??
+      null
+
+    settingsOverride = {
+      ...settingsOverride,
+      checkout: {
+        ...checkoutOverride,
+        contact_email: checkoutOverride.show_email === true ? email : null,
+      },
+    }
+  }
+
   // Merge stripe_enabled into metadata.settings.stripe
   if (body.stripe_enabled !== undefined) {
     const existingStripe = (existingSettings.stripe ?? {}) as Record<string, unknown>
@@ -163,8 +172,7 @@ export async function PATCH(req: NextRequest) {
   // ── Sync profile fields to Medusa seller record (non-fatal) ─────────────────
   try {
     const clerkJwt = await getToken()
-    const medusaToken = clerkJwt ? await getMedusaToken(clerkJwt) : null
-    if (medusaToken) {
+    if (clerkJwt) {
       const medusaPayload: Record<string, unknown> = {}
       if (body.name !== undefined) medusaPayload.name = body.name.trim()
       if (body.description !== undefined) medusaPayload.description = body.description.trim() || null
@@ -179,15 +187,7 @@ export async function PATCH(req: NextRequest) {
         }
       }
       if (Object.keys(medusaPayload).length > 0) {
-        await fetch(`${MEDUSA_BASE}/store/sellers/me`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-publishable-api-key': PUB_KEY,
-            Authorization: `Bearer ${medusaToken}`,
-          },
-          body: JSON.stringify(medusaPayload),
-        })
+        await syncMedusaSellerProfile(clerkJwt, medusaPayload)
       }
     }
   } catch (e) {
