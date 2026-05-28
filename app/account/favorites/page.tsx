@@ -28,7 +28,7 @@ export default async function FavoritesPage() {
       price_cents_at_save,
       created_at,
       marketplace_listings (
-        id, title, price_cents, currency, condition, location, images, status, created_at,
+        id, medusa_product_id, title, price_cents, currency, condition, location, images, status, created_at,
         marketplace_shops ( name, slug, verified )
       )
     `)
@@ -40,9 +40,10 @@ export default async function FavoritesPage() {
     listing_id: string
     price_cents_at_save: number | null
     created_at: string
-    marketplace_listings: {
-      id: string
-      title: string
+      marketplace_listings: {
+        id: string
+        medusa_product_id: string | null
+        title: string
       price_cents: number | null
       currency: string
       condition: string | null
@@ -53,8 +54,8 @@ export default async function FavoritesPage() {
     } | null
   }>
 
-  const active  = favorites.filter(f => f.marketplace_listings?.status === 'active')
-  const soldOut = favorites.filter(f => f.marketplace_listings?.status !== 'active')
+  const active  = favorites.filter(f => f.marketplace_listings?.status === 'active' && f.marketplace_listings.medusa_product_id)
+  const soldOut = favorites.filter(f => f.marketplace_listings?.status !== 'active' || !f.marketplace_listings?.medusa_product_id)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -92,7 +93,7 @@ export default async function FavoritesPage() {
 
               return (
                 <div key={fav.id} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: 'var(--bg-elevated)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)' }}>
-                  <Link href={`/l/${listing.id}`} className="no-underline block">
+                  <Link href={`/l/${listing.medusa_product_id}`} className="no-underline block">
                     <div style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                       {listing.images?.[0] ? (
                         <img src={listing.images[0].url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -131,7 +132,7 @@ export default async function FavoritesPage() {
                   </Link>
                   {/* Favorite remove button overlay */}
                   <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                    <FavoriteButton listingId={listing.id} initialFavorited={true} isSignedIn={true} size="sm" />
+                    <FavoriteButton listingId={listing.medusa_product_id ?? listing.id} initialFavorited={true} isSignedIn={true} size="sm" />
                   </div>
                 </div>
               )
@@ -156,9 +157,9 @@ export default async function FavoritesPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing?.title ?? 'Anuncio eliminado'}</p>
-                        <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Vendido o eliminado</p>
+                        <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{listing?.medusa_product_id ? 'Vendido o eliminado' : 'Favorito antiguo no disponible'}</p>
                       </div>
-                      <FavoriteButton listingId={fav.listing_id} initialFavorited={true} isSignedIn={true} size="sm" />
+                      <FavoriteButton listingId={listing?.medusa_product_id ?? fav.listing_id} initialFavorited={true} isSignedIn={true} size="sm" />
                     </div>
                   )
                 })}

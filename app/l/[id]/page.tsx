@@ -130,7 +130,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // Check if favorited
   let isFavorited = false
   if (clerkUser) {
-    const { data: fav } = await db.from('marketplace_favorites').select('id').eq('clerk_user_id', clerkUser.id).eq('listing_id', id).maybeSingle()
+    const { data: fav } = await db
+      .from('marketplace_favorites')
+      .select('id, marketplace_listings!inner(medusa_product_id)')
+      .eq('clerk_user_id', clerkUser.id)
+      .eq('marketplace_listings.medusa_product_id', id)
+      .maybeSingle()
     isFavorited = !!fav
   }
 

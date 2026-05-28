@@ -33,10 +33,17 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
     const listingIds = listings.map(l => l.id)
     const { data: favs } = await db
       .from('marketplace_favorites')
-      .select('listing_id')
+      .select('marketplace_listings!inner(medusa_product_id)')
       .eq('clerk_user_id', user.id)
-      .in('listing_id', listingIds)
-    favoritedIds = new Set((favs ?? []).map(f => f.listing_id))
+      .in('marketplace_listings.medusa_product_id', listingIds)
+    favoritedIds = new Set(
+      (favs ?? [])
+        .map(f => {
+          const listing = f.marketplace_listings as unknown as { medusa_product_id?: string | null } | { medusa_product_id?: string | null }[]
+          return Array.isArray(listing) ? listing[0]?.medusa_product_id : listing?.medusa_product_id
+        })
+        .filter((id): id is string => !!id),
+    )
   }
   const isSignedIn = !!user
   const totalPages = Math.ceil(total / 24)
