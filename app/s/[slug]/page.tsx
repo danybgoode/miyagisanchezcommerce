@@ -62,7 +62,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) notFound()
-  const listings = await getShopListings(shop.id)
+  const listings = await getShopListings(shop.slug)
 
   // Detect own-channel mode (request arrived via tenant's custom domain)
   const reqHeaders = await headers()
