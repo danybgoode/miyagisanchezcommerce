@@ -10,6 +10,10 @@ interface CheckoutBody {
   offerId?: string
 }
 
+function listingLookupColumn(listingId: string) {
+  return listingId.startsWith('prod_') ? 'medusa_product_id' : 'id'
+}
+
 export async function POST(req: NextRequest) {
   let body: CheckoutBody
   try {
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
   const { data: listing } = await db
     .from('marketplace_listings')
     .select('id, title, price_cents, currency, listing_type, status, marketplace_shops!inner(id, mp_enabled)')
-    .eq('id', listingId)
+    .eq(listingLookupColumn(listingId), listingId)
     .single()
 
   if (!listing) {
@@ -62,6 +66,7 @@ export async function POST(req: NextRequest) {
       .from('marketplace_offers')
       .select('offer_amount_cents, counter_amount_cents, status')
       .eq('id', offerId)
+      .eq('listing_id', listing.id)
       .single()
 
     if (offer?.status === 'accepted') {

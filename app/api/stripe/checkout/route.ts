@@ -4,12 +4,22 @@ import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { detectChannel } from '@/lib/channel'
 
+interface CheckoutBody {
+  listingId: string
+  buyerEmail?: string
+  offerId?: string
+}
+
+function listingLookupColumn(listingId: string) {
+  return listingId.startsWith('prod_') ? 'medusa_product_id' : 'id'
+}
+
 export async function POST(req: NextRequest) {
   // Auth is optional for one-time purchases — Stripe Checkout collects buyer email.
   // Subscriptions (different route) require auth for lifecycle management.
   const { userId } = await auth()
 
-  let body: { listingId: string }
+  let body: CheckoutBody
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
   if (!body.listingId) {
@@ -20,7 +30,7 @@ export async function POST(req: NextRequest) {
   const { data: listing } = await db
     .from('marketplace_listings')
     .select('id, title, price_cents, currency, listing_type, images, shop_id, metadata, marketplace_shops!inner(id, name, metadata)')
-    .eq('id', body.listingId)
+    .eq(listingLookupColumn(body.listingId), body.listingId)
     .eq('status', 'active')
     .single()
 
@@ -44,6 +54,20 @@ export async function POST(req: NextRequest) {
     }, { status: 422 })
   }
 
+  let priceCents = listing.price_cents
+  if (body.offerId) {
+    const { data: offer } = await db
+      .from('marketplace_offers')
+      .select('offer_amount_cents, counter_amount_cents, status')
+      .eq('id', body.offerId)
+      .eq('listing_id', listing.id)
+      .single()
+
+    if (offer?.status === 'accepted') {
+      priceCents = offer.counter_amount_cents ?? offer.offer_amount_cents
+    }
+  }
+
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
   const thumb = (listing.images as Array<{ url: string }> | null)?.[0]?.url
 
@@ -58,7 +82,7 @@ export async function POST(req: NextRequest) {
       quantity: 1,
       price_data: {
         currency: (listing.currency ?? 'MXN').toLowerCase(),
-        unit_amount: listing.price_cents,
+        unit_amount: priceCents,
         product_data: {
           name: listing.title,
           ...(thumb ? { images: [thumb] } : {}),
@@ -85,10 +109,12 @@ export async function POST(req: NextRequest) {
       shop_id: listing.shop_id,
       buyer_clerk_id: userId ?? '',
       listing_type: listing.listing_type,
+      offer_id: body.offerId ?? '',
       channel: detectChannel(req),
       is_physical: isPhysical ? 'true' : 'false',
     },
+    ...(body.buyerEmail ? { customer_email: body.buyerEmail } : {}),
   })
 
-  return NextResponse.json({ url: session.url })
+  return NextResponse.json({ url: session.url, checkoutUrl: session.url })
 }

@@ -100,6 +100,10 @@ function whatsappLink(phone: string, listingTitle: string): string {
   return `https://wa.me/${full}?text=${text}`
 }
 
+function listingLookupColumn(listingId: string) {
+  return listingId.startsWith('prod_') ? 'medusa_product_id' : 'id'
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
   const { data: rawListing, error: listErr } = await db
     .from('marketplace_listings')
     .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled,source_url)')
-    .eq('id', listing_id)
+    .eq(listingLookupColumn(listing_id), listing_id)
     .eq('status', 'active')
     .single()
 
@@ -147,6 +151,7 @@ export async function POST(req: NextRequest) {
       .from('marketplace_offers')
       .select('offer_amount_cents, counter_amount_cents, status')
       .eq('id', offer_id)
+      .eq('listing_id', listing.id)
       .single()
 
     if (offer?.status === 'accepted') {
@@ -323,7 +328,7 @@ export async function POST(req: NextRequest) {
     session_id:         randomUUID(),
     created_at:         now.toISOString(),
     expires_at:         expiresAt.toISOString(),
-    listing_id,
+    listing_id:         listing.id,
     offer_id:           offer_id ?? null,
     price: hasPrice ? {
       amount_cents:  priceCents!,

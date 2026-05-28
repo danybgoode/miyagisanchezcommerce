@@ -153,7 +153,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
 
   // ── Offer constraints ───────────────────────────────────────────────────────
   const offerConstraints: UcpOfferConstraints | null = makeOffer
-    ? { min_offer_cents: null, expires_hours: 72 }
+    ? { min_offer_cents: null, expires_hours: 48 }
     : null
 
   // ── Checkout URLs (POST endpoints — agent sends listingId) ──────────────────
