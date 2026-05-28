@@ -140,6 +140,13 @@ export async function POST(req: NextRequest) {
       offerId: mpMeta.offer_id,
       fulfillmentMethod: mpMeta.fulfillment_method,
       pickupSpotId: mpMeta.pickup_spot_id,
+      shippingRateId: mpMeta.shipping_rate_id,
+      shippingCarrier: mpMeta.shipping_carrier,
+      shippingService: mpMeta.shipping_service,
+      shippingAmountCents: Number(mpMeta.shipping_amount_cents ?? 0) || 0,
+      shippingCurrency: mpMeta.shipping_currency,
+      shippingDeliveryEstimate: mpMeta.shipping_delivery_estimate,
+      shippingDeliveryLabel: mpMeta.shipping_delivery_label,
       amountCents,
       currency,
       buyerEmail,
@@ -251,6 +258,13 @@ async function handleMedusaMpPayment({
   offerId,
   fulfillmentMethod,
   pickupSpotId,
+  shippingRateId,
+  shippingCarrier,
+  shippingService,
+  shippingAmountCents,
+  shippingCurrency,
+  shippingDeliveryEstimate,
+  shippingDeliveryLabel,
   amountCents,
   currency,
   buyerEmail,
@@ -263,6 +277,13 @@ async function handleMedusaMpPayment({
   offerId?: string
   fulfillmentMethod?: string
   pickupSpotId?: string
+  shippingRateId?: string
+  shippingCarrier?: string
+  shippingService?: string
+  shippingAmountCents?: number
+  shippingCurrency?: string
+  shippingDeliveryEstimate?: string
+  shippingDeliveryLabel?: string
   amountCents: number
   currency: string
   buyerEmail: string | null
@@ -283,12 +304,22 @@ async function handleMedusaMpPayment({
       currency,
       status: 'paid',
       shipping_method: fulfillmentMethod ?? 'pending',
+      shipping_cost_cents: shippingAmountCents ?? 0,
       metadata: {
         medusa_order_id: medusaOrderId,
         medusa_cart_id: cartId,
         payment_method: 'mercadopago',
         fulfillment_method: fulfillmentMethod ?? null,
         pickup_spot_id: pickupSpotId ?? null,
+        shipping_quote: shippingRateId ? {
+          rate_id: shippingRateId,
+          carrier: shippingCarrier ?? null,
+          service: shippingService ?? null,
+          amount_cents: shippingAmountCents ?? 0,
+          currency: shippingCurrency ?? currency,
+          delivery_estimate: shippingDeliveryEstimate ? Number(shippingDeliveryEstimate) : null,
+          delivery_label: shippingDeliveryLabel || null,
+        } : null,
         ...(offerId ? { offer_id: offerId } : {}),
       },
     })

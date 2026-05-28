@@ -263,10 +263,26 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 // ── New Medusa flow: checkout.session.completed ───────────────────────────────
 
 async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
-  const { cart_id, product_id, seller_id, offer_id, fulfillment_method, payment_method, pickup_spot_id } = session.metadata ?? {}
+  const {
+    cart_id,
+    product_id,
+    seller_id,
+    offer_id,
+    fulfillment_method,
+    payment_method,
+    pickup_spot_id,
+    shipping_rate_id,
+    shipping_carrier,
+    shipping_service,
+    shipping_amount_cents,
+    shipping_currency,
+    shipping_delivery_estimate,
+    shipping_delivery_label,
+  } = session.metadata ?? {}
   if (!cart_id) return
 
   const amountTotal = session.amount_total ?? 0
+  const shippingAmountCents = Number(shipping_amount_cents ?? 0) || 0
   const currency = (session.currency ?? 'mxn').toUpperCase()
   const buyerEmail = session.customer_details?.email ?? null
   const buyerName = session.customer_details?.name ?? null
@@ -286,12 +302,22 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       currency,
       status: 'paid',
       shipping_method: fulfillment_method ?? 'pending',
+      shipping_cost_cents: shippingAmountCents,
       metadata: {
         medusa_order_id: medusaOrderId,
         medusa_cart_id: cart_id,
         payment_method: payment_method ?? 'stripe',
         fulfillment_method: fulfillment_method ?? null,
         pickup_spot_id: pickup_spot_id ?? null,
+        shipping_quote: shipping_rate_id ? {
+          rate_id: shipping_rate_id,
+          carrier: shipping_carrier ?? null,
+          service: shipping_service ?? null,
+          amount_cents: shippingAmountCents,
+          currency: shipping_currency ?? currency,
+          delivery_estimate: shipping_delivery_estimate ? Number(shipping_delivery_estimate) : null,
+          delivery_label: shipping_delivery_label || null,
+        } : null,
         ...(offer_id ? { offer_id } : {}),
       },
     })

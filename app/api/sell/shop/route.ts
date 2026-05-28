@@ -38,6 +38,16 @@ interface ShopUpdatePayload {
       mercado_envios?: boolean
       local_pickup?: boolean
       custom_rates?: boolean
+      envia_enabled?: boolean
+      allowed_carriers?: string[]
+      rate_display?: 'recommended' | 'cheapest' | 'all'
+      handling_fee_cents?: number
+      package_defaults?: {
+        weight_grams?: number
+        length_cm?: number
+        width_cm?: number
+        height_cm?: number
+      }
       pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
       origin_address?: Record<string, string | null>
     }

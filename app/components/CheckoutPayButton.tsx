@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
-import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress } from '@/lib/cart'
+import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress, type CheckoutShippingQuote } from '@/lib/cart'
 import type { CartItem } from './CartContext'
 
 function formatPrice(cents: number, currency: string) {
@@ -25,6 +25,7 @@ interface CheckoutPayButtonProps {
   fulfillmentMethod?: CheckoutFulfillmentMethod
   pickupSpotId?: string
   shippingAddress?: CheckoutShippingAddress
+  shippingQuote?: CheckoutShippingQuote
   disabled?: boolean
   onStarted?: () => void
 }
@@ -41,6 +42,7 @@ export default function CheckoutPayButton({
   fulfillmentMethod,
   pickupSpotId,
   shippingAddress,
+  shippingQuote,
   disabled,
   onStarted,
 }: CheckoutPayButtonProps) {
@@ -69,6 +71,7 @@ export default function CheckoutPayButton({
         fulfillmentMethod,
         pickupSpotId,
         shippingAddress,
+        shippingQuote,
       })
       onStarted?.()
       window.location.href = redirect_url
@@ -93,7 +96,7 @@ export default function CheckoutPayButton({
           <span className="animate-spin inline-block">⟳</span>
         ) : (
           <>
-            {provider === 'mercadopago' ? 'Pagar con Mercado Pago' : 'Pagar con tarjeta'} — {formatPrice(amountCents, currency)}
+            {provider === 'mercadopago' ? 'Pagar con Mercado Pago' : 'Pagar con tarjeta'} — {formatPrice(amountCents + (shippingQuote?.amountCents ?? 0), currency)}
           </>
         )}
       </button>

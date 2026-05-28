@@ -30,6 +30,7 @@ type CheckoutSettings = {
 
 type ShippingSettings = {
   local_pickup?: boolean
+  envia_enabled?: boolean
   pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
 }
 
@@ -155,12 +156,13 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const directWhatsappUrl = whatsappPhone ? whatsappLink(whatsappPhone, listing.title) : null
   const originAddress = (shippingSettings as ShippingSettings & { origin_address?: Record<string, string | null> }).origin_address
   const hasShippingOrigin = !!(originAddress?.street && originAddress?.city && originAddress?.state && originAddress?.postal_code)
+  const hasLiveShipping = shippingSettings.envia_enabled !== false && hasShippingOrigin
   const deliveryOptions = ([
     shippingSettings.local_pickup
       ? { id: 'local_pickup' as const, label: 'Recoleccion local', note: pickupSpots[0]?.name ?? 'Coordina lugar y hora con el vendedor.', detail: pickupSpots[0]?.address ?? pickupSpots[0]?.instructions ?? null, pickupSpotId: pickupSpots[0]?.name }
       : null,
-    !isDigital && listing.listing_type === 'product' && hasShippingOrigin
-      ? { id: 'shipping' as const, label: 'Envio a domicilio', note: 'El vendedor generara la guia con Envia.com desde tu pedido.', requiresAddress: true }
+    !isDigital && listing.listing_type === 'product' && hasLiveShipping
+      ? { id: 'shipping' as const, label: 'Envio a domicilio', note: 'Cotiza y elige paqueteria antes de pagar.', requiresAddress: true }
       : null,
     isDigital
       ? { id: 'digital' as const, label: 'Entrega digital', note: 'Recibiras acceso o archivo despues del pago.' }
@@ -171,7 +173,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     listing.listing_type === 'rental'
       ? { id: 'rental' as const, label: 'Renta', note: bookingUrl ? 'Revisa disponibilidad con el vendedor.' : 'Coordina fechas con el vendedor.' }
       : null,
-    !shippingSettings.local_pickup && !isDigital && listing.listing_type === 'product' && !hasShippingOrigin
+    !shippingSettings.local_pickup && !isDigital && listing.listing_type === 'product' && !hasLiveShipping
       ? { id: 'none' as const, label: 'Entrega por coordinar', note: 'El vendedor coordinara los detalles desde tu pedido.' }
       : null,
   ] as Array<DeliveryOption | null>).filter(isPresent)

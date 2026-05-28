@@ -60,6 +60,16 @@ export interface ShopSettingsData {
       shipping?: {
         local_pickup?: boolean
         custom_rates?: boolean
+        envia_enabled?: boolean
+        allowed_carriers?: string[]
+        rate_display?: 'recommended' | 'cheapest' | 'all'
+        handling_fee_cents?: number
+        package_defaults?: {
+          weight_grams?: number
+          length_cm?: number
+          width_cm?: number
+          height_cm?: number
+        }
         pickup_spots?: PickupSpot[]
         origin_address?: {
           name?: string | null
@@ -350,6 +360,15 @@ function generateHex32(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(32)))
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
+
+const ENVIA_CARRIERS = [
+  { id: 'dhl', label: 'DHL' },
+  { id: 'fedex', label: 'FedEx' },
+  { id: 'estafeta', label: 'Estafeta' },
+  { id: 'ups', label: 'UPS' },
+  { id: 'redpack', label: 'Redpack' },
+  { id: 'paquetexpress', label: 'Paquetexpress' },
+]
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -697,6 +716,19 @@ export default function ShopSettingsPanel({
   const [originCity, setOriginCity]             = useState(oa.city ?? '')
   const [originState, setOriginState]           = useState(oa.state ?? '')
   const [originPostalCode, setOriginPostalCode] = useState(oa.postal_code ?? '')
+  const [enviaShippingEnabled, setEnviaShippingEnabled] = useState(s.shipping?.envia_enabled ?? true)
+  const [allowedCarriers, setAllowedCarriers] = useState<string[]>(
+    s.shipping?.allowed_carriers?.length ? s.shipping.allowed_carriers : ENVIA_CARRIERS.map(carrier => carrier.id)
+  )
+  const [shippingRateDisplay, setShippingRateDisplay] = useState<'recommended' | 'cheapest' | 'all'>(
+    s.shipping?.rate_display ?? 'recommended'
+  )
+  const pkgDefaults = s.shipping?.package_defaults ?? {}
+  const [packageWeightGrams, setPackageWeightGrams] = useState(pkgDefaults.weight_grams ?? 500)
+  const [packageLengthCm, setPackageLengthCm] = useState(pkgDefaults.length_cm ?? 20)
+  const [packageWidthCm, setPackageWidthCm] = useState(pkgDefaults.width_cm ?? 15)
+  const [packageHeightCm, setPackageHeightCm] = useState(pkgDefaults.height_cm ?? 10)
+  const [handlingFeePesos, setHandlingFeePesos] = useState((s.shipping?.handling_fee_cents ?? 0) / 100)
 
   // Notifications
   const [emailView, setEmailView]       = useState(s.notifications?.email_new_view ?? false)
@@ -920,6 +952,16 @@ export default function ShopSettingsPanel({
     setTimeout(() => setToast(null), 4000)
   }, [])
 
+  function toggleCarrier(carrierId: string) {
+    setAllowedCarriers(current => {
+      const next = current.includes(carrierId)
+        ? current.filter(id => id !== carrierId)
+        : [...current, carrierId]
+      return next.length ? next : current
+    })
+    mark()
+  }
+
   // Scroll-based active section tracking
   useEffect(() => {
     const allItems = NAV_GROUPS.flatMap(g => g.items)
@@ -1095,6 +1137,16 @@ export default function ShopSettingsPanel({
             shipping: {
               local_pickup:   localPickup,
               pickup_spots:   pickupSpots,
+              envia_enabled:  enviaShippingEnabled,
+              allowed_carriers: allowedCarriers,
+              rate_display: shippingRateDisplay,
+              handling_fee_cents: Math.max(0, Math.round(handlingFeePesos * 100)),
+              package_defaults: {
+                weight_grams: Math.max(100, Math.round(packageWeightGrams)),
+                length_cm:    Math.max(1, Math.round(packageLengthCm)),
+                width_cm:     Math.max(1, Math.round(packageWidthCm)),
+                height_cm:    Math.max(1, Math.round(packageHeightCm)),
+              },
               origin_address: {
                 name:        originName.trim()        || null,
                 street:      originStreet.trim()      || null,
@@ -1162,6 +1214,12 @@ export default function ShopSettingsPanel({
   const activePreset = PRESETS.find(p => p.key === preset)
 
   const ESCROW_LABEL = { off: 'Desactivada', optional: 'Opcional', required: 'Obligatoria' }
+  const originAddressReady = Boolean(
+    originStreet.trim() &&
+    originCity.trim() &&
+    originState.trim() &&
+    originPostalCode.trim().length === 5
+  )
 
   // ── When rendered from a section page, auto-scroll to first visible section ──
   const focusSectionIds = focusSection ? (SLUG_TO_SECTION_IDS[focusSection] ?? [focusSection]) : []
@@ -1873,9 +1931,143 @@ export default function ShopSettingsPanel({
                     />
                   </div>
                 </div>
-                {(!originStreet || !originCity || !originPostalCode) && (
+                {!originAddressReady && (
                   <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
                     <strong>Completa tu dirección de origen</strong> para poder generar etiquetas y cotizar envíos con Envia.com cuando recibas un pedido.
+                  </div>
+                )}
+                {originAddressReady && (
+                  <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 leading-relaxed">
+                    <strong>Origen listo.</strong> El checkout puede cotizar envíos reales desde este punto cuando el comprador escriba su dirección.
+                  </div>
+                )}
+              </div>
+
+              {/* ── Envia.com checkout policy ──────────────────────────────── */}
+              <div className="pt-4">
+                <ToggleSwitch
+                  checked={enviaShippingEnabled}
+                  onChange={v => { setEnviaShippingEnabled(v); mark() }}
+                  disabled={!originAddressReady}
+                  label="Envío a domicilio con tarifas en vivo"
+                  description="Muestra al comprador opciones reales de paquetería calculadas por Envia.com antes de pagar."
+                />
+
+                {enviaShippingEnabled && (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
+                        Paqueterías disponibles
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {ENVIA_CARRIERS.map(carrier => {
+                          const active = allowedCarriers.includes(carrier.id)
+                          return (
+                            <button
+                              key={carrier.id}
+                              type="button"
+                              onClick={() => toggleCarrier(carrier.id)}
+                              className={`text-left border rounded-lg px-3 py-2 transition-colors ${
+                                active
+                                  ? 'border-[var(--color-accent)] bg-green-50 text-green-800'
+                                  : 'border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-accent)]'
+                              }`}
+                            >
+                              <span className="block text-sm font-semibold">{carrier.label}</span>
+                              <span className="block text-[11px] mt-0.5">{active ? 'Activo en checkout' : 'Oculto'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
+                        Opciones que verá el comprador
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        {[
+                          { id: 'recommended', label: 'Mejores 3', note: 'Equilibrio precio/tiempo' },
+                          { id: 'cheapest', label: 'Más barato', note: 'Una sola opción' },
+                          { id: 'all', label: 'Todas', note: 'Hasta 8 tarifas' },
+                        ].map(option => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => { setShippingRateDisplay(option.id as 'recommended' | 'cheapest' | 'all'); mark() }}
+                            className={`text-left border rounded-lg px-3 py-2 transition-colors ${
+                              shippingRateDisplay === option.id
+                                ? 'border-[var(--color-accent)] bg-green-50 text-green-800'
+                                : 'border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-accent)]'
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold">{option.label}</span>
+                            <span className="block text-[11px] mt-0.5">{option.note}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
+                        Paquete predeterminado
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Peso</label>
+                          <div className="flex">
+                            <input
+                              type="number"
+                              min={100}
+                              step={50}
+                              value={packageWeightGrams}
+                              onChange={e => { setPackageWeightGrams(Number(e.target.value) || 100); mark() }}
+                              className="w-full border border-[var(--color-border)] rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                            />
+                            <span className="border border-l-0 border-[var(--color-border)] rounded-r px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">g</span>
+                          </div>
+                        </div>
+                        {[
+                          { label: 'Largo', value: packageLengthCm, setter: setPackageLengthCm },
+                          { label: 'Ancho', value: packageWidthCm, setter: setPackageWidthCm },
+                          { label: 'Alto', value: packageHeightCm, setter: setPackageHeightCm },
+                        ].map(field => (
+                          <div key={field.label}>
+                            <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">{field.label}</label>
+                            <div className="flex">
+                              <input
+                                type="number"
+                                min={1}
+                                value={field.value}
+                                onChange={e => { field.setter(Number(e.target.value) || 1); mark() }}
+                                className="w-full border border-[var(--color-border)] rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                              />
+                              <span className="border border-l-0 border-[var(--color-border)] rounded-r px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">cm</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
+                        Manejo y empaque
+                      </label>
+                      <div className="flex max-w-[220px]">
+                        <span className="border border-r-0 border-[var(--color-border)] rounded-l px-3 py-2 text-sm text-[var(--color-muted)] bg-[var(--color-surface-alt)]">$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={handlingFeePesos}
+                          onChange={e => { setHandlingFeePesos(Number(e.target.value) || 0); mark() }}
+                          className="w-full border border-[var(--color-border)] rounded-r px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                        />
+                      </div>
+                      <p className="text-xs text-[var(--color-muted)] mt-1">
+                        Se suma a cada tarifa en checkout para cubrir empaque o traslado al punto de paquetería.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

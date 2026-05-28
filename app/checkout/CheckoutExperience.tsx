@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
-import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddress } from '@/lib/cart'
+import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 
 export type DeliveryOption = {
   id: CheckoutFulfillmentMethod
@@ -28,6 +28,18 @@ export type ManualOption = {
   href?: string | null
 }
 
+type ShippingRate = {
+  id: string
+  rateId: string
+  carrier: string
+  service: string
+  amountCents: number
+  currency: string
+  deliveryEstimate: number | null
+  deliveryLabel: string | null
+  logoUrl?: string | null
+}
+
 function optionButtonStyle(active: boolean): CSSProperties {
   return {
     display: 'flex',
@@ -41,6 +53,14 @@ function optionButtonStyle(active: boolean): CSSProperties {
     background: active ? 'var(--accent-soft)' : 'var(--bg-sunk)',
     color: 'var(--fg)',
   }
+}
+
+function formatCents(cents: number, currency: string) {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(cents / 100)
 }
 
 function blankAddress(): CheckoutShippingAddress {
@@ -84,6 +104,10 @@ export default function CheckoutExperience({
     paymentOptions[0]?.id ?? 'stripe',
   )
   const [address, setAddress] = useState<CheckoutShippingAddress>(() => blankAddress())
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
+  const [selectedShippingRateId, setSelectedShippingRateId] = useState<string | null>(null)
+  const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
+  const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
 
   const selectedDelivery = useMemo(
     () => deliveryOptions.find(option => option.id === selectedDeliveryId) ?? deliveryOptions[0],
@@ -101,7 +125,66 @@ export default function CheckoutExperience({
     address.state?.trim() &&
     address.postal_code?.trim(),
   )
-  const canPay = Boolean(selectedDelivery && selectedPayment && addressReady)
+  const needsShippingRate = Boolean(selectedDelivery?.id === 'shipping' && selectedDelivery.requiresAddress)
+  const selectedShippingRate = useMemo(
+    () => shippingRates.find(rate => rate.id === selectedShippingRateId) ?? null,
+    [shippingRates, selectedShippingRateId],
+  )
+  const selectedShippingQuote: CheckoutShippingQuote | undefined = selectedShippingRate
+    ? {
+        rateId: selectedShippingRate.rateId,
+        carrier: selectedShippingRate.carrier,
+        service: selectedShippingRate.service,
+        amountCents: selectedShippingRate.amountCents,
+        currency: selectedShippingRate.currency,
+        deliveryEstimate: selectedShippingRate.deliveryEstimate,
+        deliveryLabel: selectedShippingRate.deliveryLabel,
+      }
+    : undefined
+  const shippingAmountCents = selectedShippingRate?.amountCents ?? 0
+  const totalCents = amountCents + shippingAmountCents
+  const canPay = Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
+
+  useEffect(() => {
+    if (!needsShippingRate || !addressReady) return
+
+    const controller = new AbortController()
+    const timeout = window.setTimeout(async () => {
+      setShippingRatesLoading(true)
+      setShippingRatesError(null)
+      try {
+        const res = await fetch('/api/checkout/shipping-rates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listingId, address }),
+          signal: controller.signal,
+        })
+        const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string } | null
+        if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envio.')
+        const rates = data?.rates ?? []
+        setShippingRates(rates)
+        setSelectedShippingRateId(rates[0]?.id ?? null)
+        if (rates.length === 0) setShippingRatesError('No encontramos tarifas para esa direccion.')
+      } catch (err) {
+        if (controller.signal.aborted) return
+        setShippingRates([])
+        setSelectedShippingRateId(null)
+        setShippingRatesError(err instanceof Error ? err.message : 'No se pudo cotizar el envio.')
+      } finally {
+        if (!controller.signal.aborted) setShippingRatesLoading(false)
+      }
+    }, 450)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timeout)
+    }
+  }, [
+    needsShippingRate,
+    addressReady,
+    listingId,
+    address,
+  ])
 
   return (
     <>
@@ -139,6 +222,49 @@ export default function CheckoutExperience({
               <input value={address.postal_code ?? ''} onChange={e => setAddress({ ...address, postal_code: e.target.value.replace(/\D/g, '').slice(0, 5) })} placeholder="CP" style={inputStyle} />
             </div>
             {!addressReady && <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Completa la dirección para continuar.</p>}
+            {addressReady && needsShippingRate && (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>Opciones de paquetería</p>
+                  {shippingRatesLoading && <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Cotizando...</p>}
+                </div>
+
+                {shippingRatesLoading && shippingRates.length === 0 && (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {[0, 1].map(i => (
+                      <div key={i} style={{ height: 58, borderRadius: 8, background: 'var(--bg-sunk)', border: '1px solid var(--border)', opacity: 0.75 }} />
+                    ))}
+                  </div>
+                )}
+
+                {shippingRatesError && !shippingRatesLoading && (
+                  <div style={{ background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger, #dc2626)', borderRadius: 8, padding: 10 }}>
+                    <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)' }}>{shippingRatesError}</p>
+                  </div>
+                )}
+
+                {shippingRates.map(rate => {
+                  const active = selectedShippingRateId === rate.id
+                  return (
+                    <button
+                      key={rate.id}
+                      type="button"
+                      onClick={() => setSelectedShippingRateId(rate.id)}
+                      style={optionButtonStyle(active)}
+                    >
+                      <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{rate.carrier.toUpperCase()} · {rate.service}</span>
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                          {rate.deliveryLabel ? `Entrega estimada: ${rate.deliveryLabel}` : 'Entrega estimada por paquetería'}
+                        </span>
+                      </span>
+                      <strong style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{formatCents(rate.amountCents, rate.currency)}</strong>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -181,9 +307,21 @@ export default function CheckoutExperience({
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+            <span style={{ color: 'var(--fg-muted)' }}>Producto</span>
+            <strong>{formatCents(amountCents, currency)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
             <span style={{ color: 'var(--fg-muted)' }}>Entrega</span>
             <strong>{selectedDelivery?.label ?? 'Por coordinar'}</strong>
           </div>
+          {needsShippingRate && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, gap: 12 }}>
+              <span style={{ color: 'var(--fg-muted)' }}>Envío</span>
+              <strong style={{ textAlign: 'right' }}>
+                {selectedShippingRate ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}` : 'Selecciona una tarifa'}
+              </strong>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
             <span style={{ color: 'var(--fg-muted)' }}>Pago</span>
             <strong>{selectedPayment?.label ?? 'No disponible'}</strong>
@@ -191,6 +329,10 @@ export default function CheckoutExperience({
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
             <span style={{ color: 'var(--fg-muted)' }}>Comisión Miyagi</span>
             <strong>$0</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+            <span style={{ fontWeight: 800 }}>Total</span>
+            <strong>{formatCents(totalCents, currency)}</strong>
           </div>
         </div>
 
@@ -206,6 +348,7 @@ export default function CheckoutExperience({
             fulfillmentMethod={selectedDelivery?.id ?? 'none'}
             pickupSpotId={selectedDelivery?.pickupSpotId}
             shippingAddress={selectedDelivery?.requiresAddress ? address : undefined}
+            shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
             disabled={!canPay}
           />
         ) : (

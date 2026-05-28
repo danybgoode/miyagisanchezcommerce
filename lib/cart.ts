@@ -50,6 +50,16 @@ export interface CheckoutShippingAddress {
   country?: string
 }
 
+export interface CheckoutShippingQuote {
+  rateId: string
+  carrier: string
+  service: string
+  amountCents: number
+  currency: string
+  deliveryEstimate?: number | null
+  deliveryLabel?: string | null
+}
+
 export interface StartCheckoutParams {
   /** Single-item shorthand — still works for BuyButton / MercadoPagoButton */
   productId?: string
@@ -74,6 +84,8 @@ export interface StartCheckoutParams {
   pickupSpotId?: string
   /** Shipping address collected before redirecting to the payment rail */
   shippingAddress?: CheckoutShippingAddress
+  /** Buyer-selected live Envia quote */
+  shippingQuote?: CheckoutShippingQuote
 }
 
 export interface StartCheckoutResult {
@@ -91,7 +103,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, items, sellerId,
     provider, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress,
+    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote,
   } = params
 
   // Normalise to array — single-item path is the same as multi-item with one entry
@@ -174,6 +186,17 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(fulfillmentMethod ? { fulfillment_method: fulfillmentMethod } : {}),
       ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
       ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
+      ...(shippingQuote ? {
+        shipping_quote: {
+          rate_id: shippingQuote.rateId,
+          carrier: shippingQuote.carrier,
+          service: shippingQuote.service,
+          amount_cents: shippingQuote.amountCents,
+          currency: shippingQuote.currency,
+          delivery_estimate: shippingQuote.deliveryEstimate ?? null,
+          delivery_label: shippingQuote.deliveryLabel ?? null,
+        },
+      } : {}),
     }),
   })
   if (!checkoutRes.ok) {
