@@ -17,6 +17,7 @@ import { formatOfferAmount } from '@/lib/offers'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
+import { upsertOrderMirror } from '@/lib/order-mirror'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -292,38 +293,33 @@ async function handleMedusaMpPayment({
   // 1. Complete the Medusa cart (mp-authorize + complete)
   const medusaOrderId = await completeMedusaCartWithMp(cartId, paymentId)
 
-  // 2. Record in Supabase so the existing order UIs can find it
+  // 2. Record in Supabase so the existing order UIs can find it (idempotent)
   if (medusaOrderId) {
-    const { error: insertErr } = await db.from('marketplace_orders').insert({
-      shop_id: sellerId ?? '',
-      listing_id: productId ?? '',
-      mp_payment_id: paymentId,
-      buyer_email: buyerEmail,
-      buyer_name: buyerName,
-      amount_cents: amountCents,
+    await upsertOrderMirror({
+      medusaOrderId,
+      cartId,
+      sellerId: sellerId ?? '',
+      productId: productId ?? '',
+      paymentMethod: 'mercadopago',
+      amountCents,
       currency,
-      status: 'paid',
-      shipping_method: fulfillmentMethod ?? 'pending',
-      shipping_cost_cents: shippingAmountCents ?? 0,
-      metadata: {
-        medusa_order_id: medusaOrderId,
-        medusa_cart_id: cartId,
-        payment_method: 'mercadopago',
-        fulfillment_method: fulfillmentMethod ?? null,
-        pickup_spot_id: pickupSpotId ?? null,
-        shipping_quote: shippingRateId ? {
-          rate_id: shippingRateId,
-          carrier: shippingCarrier ?? null,
-          service: shippingService ?? null,
-          amount_cents: shippingAmountCents ?? 0,
-          currency: shippingCurrency ?? currency,
-          delivery_estimate: shippingDeliveryEstimate ? Number(shippingDeliveryEstimate) : null,
-          delivery_label: shippingDeliveryLabel || null,
-        } : null,
-        ...(offerId ? { offer_id: offerId } : {}),
-      },
+      buyerEmail,
+      buyerName,
+      fulfillmentMethod: fulfillmentMethod ?? null,
+      pickupSpotId: pickupSpotId ?? null,
+      shippingAmountCents: shippingAmountCents ?? 0,
+      mpPaymentId: paymentId,
+      offerId: offerId ?? null,
+      shippingQuote: shippingRateId ? {
+        rate_id: shippingRateId,
+        carrier: shippingCarrier ?? null,
+        service: shippingService ?? null,
+        amount_cents: shippingAmountCents ?? 0,
+        currency: shippingCurrency ?? currency,
+        delivery_estimate: shippingDeliveryEstimate ? Number(shippingDeliveryEstimate) : null,
+        delivery_label: shippingDeliveryLabel || null,
+      } : null,
     })
-    if (insertErr) console.error('[mp webhook] Supabase order insert failed:', insertErr)
   }
 
   // 3. Fire UCP webhook

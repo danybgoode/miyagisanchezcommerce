@@ -9,6 +9,7 @@ import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
+import { upsertOrderMirror } from '@/lib/order-mirror'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -290,38 +291,33 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   // 1. Complete the Medusa cart → creates Medusa order
   const medusaOrderId = await completeMedusaCart(cart_id)
 
-  // 2. Record in Supabase so existing seller/buyer order UIs can find it
+  // 2. Record in Supabase so existing seller/buyer order UIs can find it (idempotent)
   if (medusaOrderId) {
-    const { error: insertErr } = await db.from('marketplace_orders').insert({
-      shop_id: seller_id ?? '',        // Medusa seller ID — used as shop_id for queries
-      listing_id: product_id ?? '',    // Medusa product ID
-      stripe_session_id: session.id,
-      buyer_email: buyerEmail,
-      buyer_name: buyerName,
-      amount_cents: amountTotal,
+    await upsertOrderMirror({
+      medusaOrderId,
+      cartId: cart_id,
+      sellerId: seller_id ?? '',
+      productId: product_id ?? '',
+      paymentMethod: 'stripe',
+      amountCents: amountTotal,
       currency,
-      status: 'paid',
-      shipping_method: fulfillment_method ?? 'pending',
-      shipping_cost_cents: shippingAmountCents,
-      metadata: {
-        medusa_order_id: medusaOrderId,
-        medusa_cart_id: cart_id,
-        payment_method: payment_method ?? 'stripe',
-        fulfillment_method: fulfillment_method ?? null,
-        pickup_spot_id: pickup_spot_id ?? null,
-        shipping_quote: shipping_rate_id ? {
-          rate_id: shipping_rate_id,
-          carrier: shipping_carrier ?? null,
-          service: shipping_service ?? null,
-          amount_cents: shippingAmountCents,
-          currency: shipping_currency ?? currency,
-          delivery_estimate: shipping_delivery_estimate ? Number(shipping_delivery_estimate) : null,
-          delivery_label: shipping_delivery_label || null,
-        } : null,
-        ...(offer_id ? { offer_id } : {}),
-      },
+      buyerEmail,
+      buyerName,
+      fulfillmentMethod: fulfillment_method ?? null,
+      pickupSpotId: pickup_spot_id ?? null,
+      shippingAmountCents,
+      stripeSessionId: session.id,
+      offerId: offer_id ?? null,
+      shippingQuote: shipping_rate_id ? {
+        rate_id: shipping_rate_id,
+        carrier: shipping_carrier ?? null,
+        service: shipping_service ?? null,
+        amount_cents: shippingAmountCents,
+        currency: shipping_currency ?? currency,
+        delivery_estimate: shipping_delivery_estimate ? Number(shipping_delivery_estimate) : null,
+        delivery_label: shipping_delivery_label || null,
+      } : null,
     })
-    if (insertErr) console.error('[stripe webhook] Supabase order insert failed:', insertErr)
   }
 
   // 3. Fire UCP webhook (non-fatal)
