@@ -1281,9 +1281,12 @@ export default function SellWizard({
     if (title.trim().length < 5) errs.title = 'El título debe tener al menos 5 caracteres.'
     if (title.trim().length > 100) errs.title = 'El título no puede superar los 100 caracteres.'
     if (!category) errs.category = 'Selecciona una categoría para tu anuncio.'
-    if (!priceOnRequest && priceRaw) {
+    if (listingType !== 'subscription' && !priceOnRequest && !priceRaw.trim()) {
+      errs.price = 'Ingresa un precio o marca "Precio a consultar".'
+    }
+    if (listingType !== 'subscription' && !priceOnRequest && priceRaw) {
       const cents = parsePriceCents(priceRaw)
-      if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
+      if (!cents || cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
     }
     if (listingType === 'digital' && !digitalFile) {
       errs.digitalFile = 'Sube el archivo que los compradores recibirán al pagar.'

@@ -74,6 +74,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   } | undefined
   const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null } } | undefined
   const shippingSettings = shopSettings.shipping as {
+    mercado_envios?: boolean
     local_pickup?: boolean
     pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
   } | undefined
@@ -108,6 +109,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
   const shopHasScheduling = !!bookingUrl
   const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
+  const hasDirectContact = !!(whatsappPhone || visiblePhone || contactEmail || bookingUrl)
+  const paymentMethods = [
+    sellerHasMp && !isDigital && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
+    sellerHasStripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
+    hasClabe && { icon: 'iconoir-bank', label: 'SPEI', note: checkoutSettings?.bank_transfer?.bank_name ?? 'Transferencia bancaria' },
+    whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
+    bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
+  ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
+  const fulfillmentMethods = [
+    shippingSettings?.mercado_envios && listing.listing_type === 'product' && { icon: 'iconoir-delivery-truck', label: 'Mercado Envíos', note: 'Envío disponible' },
+    shippingSettings?.local_pickup && { icon: 'iconoir-shop', label: 'Recolección local', note: pickupSpots[0]?.name ?? 'Coordina con la tienda' },
+    isDigital && { icon: 'iconoir-download', label: 'Entrega digital', note: 'Disponible al pagar' },
+    listing.listing_type === 'service' && { icon: 'iconoir-calendar', label: 'Servicio', note: bookingUrl ? 'Agenda disponible' : 'Coordina con el vendedor' },
+    listing.listing_type === 'rental' && { icon: 'iconoir-calendar', label: 'Renta', note: bookingUrl ? 'Ver disponibilidad' : 'Coordina fechas' },
+    processingLabel && { icon: 'iconoir-box', label: 'Preparación', note: processingLabel },
+  ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
 
   // Check if favorited
   let isFavorited = false
@@ -254,6 +271,54 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                 <i className="iconoir-undo" style={{ fontSize: 11 }} />
                 Devoluciones: {returnsLabel}
               </span>
+            )}
+          </div>
+        )}
+
+        {(paymentMethods.length > 0 || fulfillmentMethods.length > 0 || (!hasBuyablePrice && isClaimed)) && (
+          <div style={{ marginBottom: 16, padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
+            {!hasBuyablePrice && isClaimed && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
+                <i className="iconoir-message-text" style={{ fontSize: 18, color: 'var(--accent)', marginTop: 1 }} />
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700 }}>Precio a consultar</p>
+                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                    {hasDirectContact ? 'Usa las opciones de contacto de la tienda para confirmar precio, pago y entrega.' : 'La tienda no publicó un precio para compra en línea.'}
+                  </p>
+                </div>
+              </div>
+            )}
+            {paymentMethods.length > 0 && (
+              <div style={{ marginBottom: fulfillmentMethods.length > 0 ? 12 : 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Métodos disponibles</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
+                  {paymentMethods.map(method => (
+                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
+                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
+                      <div className="min-w-0">
+                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
+                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fulfillmentMethods.length > 0 && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Entrega y disponibilidad</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
+                  {fulfillmentMethods.map(method => (
+                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
+                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
+                      <div className="min-w-0">
+                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
+                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

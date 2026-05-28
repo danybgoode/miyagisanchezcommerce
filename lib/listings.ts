@@ -99,16 +99,17 @@ export const getShopListings = unstable_cache(
       const variant = p.variants?.[0]
       const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
       const priceObj = mxnPrice ?? variant?.prices?.[0]
+      const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
       return {
         id: p.id,
         shop_id: seller?.id ?? '',
         medusa_product_id: p.id,
         title: p.title,
         description: p.description ?? null,
-        price_cents: priceObj?.amount ?? null,
-        currency: (priceObj?.currency_code ?? 'mxn').toUpperCase(),
+        price_cents: priceObj?.amount ?? fallbackPrice,
+        currency: (priceObj?.currency_code ?? (meta.currency as string | undefined) ?? 'mxn').toUpperCase(),
         condition: (meta.condition as string) ?? null,
-        listing_type: p.type?.value ?? 'product',
+        listing_type: p.type?.value ?? (meta.listing_type as string | undefined) ?? 'product',
         category: p.categories?.[0]?.handle ?? null,
         state: (meta.state as string) ?? null,
         municipio: (meta.municipio as string) ?? null,
