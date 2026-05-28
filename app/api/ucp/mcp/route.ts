@@ -397,12 +397,13 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string) {
   const res = await fetch(`${baseUrl}/api/offers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ listing_id: listingId, offer_amount_cents: offerCents, buyer_name: buyerName, buyer_email: buyerEmail, message: args.message }),
+    body: JSON.stringify({ listingId, offerAmountCents: offerCents, buyerName, buyerEmail, message: args.message }),
   })
-  const data = await res.json() as { id?: string; error?: string }
-  if (!res.ok || !data.id) return { isError: true, content: [{ type: 'text', text: `Offer failed: ${data.error ?? 'Unknown error'}` }] }
+  const data = await res.json() as { offerId?: string; id?: string; error?: string }
+  const offerId = data.offerId ?? data.id
+  if (!res.ok || !offerId) return { isError: true, content: [{ type: 'text', text: `Offer failed: ${data.error ?? 'Unknown error'}` }] }
 
-  return { content: [{ type: 'text', text: `✅ Offer submitted!\n\n**Offer ID:** \`${data.id}\`\n**Amount:** $${amount.toLocaleString('es-MX')} MXN\n**Listing:** ${listing.title}\n\nSeller has 72h to respond. Reply will arrive at ${buyerEmail}.\nIf accepted → call create_checkout with offer_id="${data.id}"` }] }
+  return { content: [{ type: 'text', text: `✅ Offer submitted!\n\n**Offer ID:** \`${offerId}\`\n**Amount:** $${amount.toLocaleString('es-MX')} MXN\n**Listing:** ${listing.title}\n\nSeller has 48h to respond. If accepted → call create_checkout with offer_id="${offerId}"` }] }
 }
 
 async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {

@@ -20,18 +20,27 @@ export default function SellerBundleSection({
   items: CartItem[]
 }) {
   const router = useRouter()
-  const { addItem, removeItem, items: cartItems } = useCart()
+  const { addItem, removeItem, closeCart, items: cartItems } = useCart()
   const selected = items.filter(item => cartItems.some(cartItem => cartItem.productId === item.productId))
   const subtotal = selected.reduce((sum, item) => sum + item.price_cents, 0)
   const checkoutSellerId = selected[0]?.sellerId ?? items[0]?.sellerId
   if (items.length < 2) return null
+
+  function toggleItem(item: CartItem, inBundle: boolean) {
+    if (inBundle) {
+      removeItem(item.productId)
+      return
+    }
+    addItem(item)
+    closeCart()
+  }
 
   return (
     <section style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
         <div>
           <h2 style={{ fontWeight: 700, fontSize: 16 }}>Arma un paquete</h2>
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Combina artículos de {sellerName} y paga todo junto.</p>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Combina artículos de {sellerName} y revisa todo antes de pagar.</p>
         </div>
         <button
           type="button"
@@ -66,7 +75,7 @@ export default function SellerBundleSection({
               </Link>
               <button
                 type="button"
-                onClick={() => inBundle ? removeItem(item.productId) : addItem(item)}
+                onClick={() => toggleItem(item, inBundle)}
                 className="font-semibold rounded-xl text-sm"
                 style={{
                   width: '100%',
@@ -77,7 +86,7 @@ export default function SellerBundleSection({
                   border: `1.5px solid ${inBundle ? 'var(--danger)' : 'var(--accent)'}`,
                 }}
               >
-                {inBundle ? 'Quitar' : 'Agregar'}
+                {inBundle ? 'Quitar del paquete' : 'Agregar al paquete'}
               </button>
             </div>
           )

@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
         escrow: 'Payment held in Stripe until buyer confirms delivery. Configurable per shop (off / optional / required).',
         verified_sellers: 'Shops with clerk_user_id that have completed identity verification.',
         repuve: 'Mexican vehicle history check. Listings with metadata.repuve contain cryptographic proof of REPUVE lookup.',
-        offers: 'All offers are time-bounded (72h seller response, 48h buyer payment window). Auto-expired and cancelled via Resend scheduled emails.',
+        offers: 'All offers are time-bounded (48h seller response, 48h buyer payment window). Auto-expired and cancelled via Resend scheduled emails.',
       },
 
       schema_org_context: 'https://schema.org',

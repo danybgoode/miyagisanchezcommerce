@@ -28,8 +28,11 @@ export default function BundleCheckoutClient() {
   const seller = items[0]
   const subtotal = items.reduce((sum, item) => sum + item.price_cents, 0)
   const currency = seller?.currency ?? 'MXN'
+  const returnPath = `/checkout/bundle${sellerId ? `?sellerId=${encodeURIComponent(sellerId)}` : ''}`
+  const currencyMismatch = items.some(item => item.currency !== currency)
   const hasMp = items.length > 0 && items.every(item => item.paymentMethods.mp)
   const hasStripe = items.length > 0 && items.every(item => item.paymentMethods.stripe)
+  const canPayOnline = !currencyMismatch && (hasMp || hasStripe)
 
   if (!isSignedIn) {
     return (
@@ -38,7 +41,7 @@ export default function BundleCheckoutClient() {
         <section style={{ marginTop: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 20, textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Inicia sesión para comprar tu paquete</h1>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}>Guardamos tu selección y te regresamos aquí para revisar antes de pagar.</p>
-          <Link href={`/sign-in?redirect_url=${encodeURIComponent('/checkout/bundle')}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <Link href={`/sign-in?redirect_url=${encodeURIComponent(returnPath)}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>
             Iniciar sesión
           </Link>
         </section>
@@ -71,11 +74,43 @@ export default function BundleCheckoutClient() {
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
+        {sellerIds.length > 1 && (
+          <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 12 }}>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 8 }}>Tienes paquetes de varias tiendas. Elige uno para pagar.</p>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+              {sellerIds.map(id => {
+                const group = itemsBySeller.get(id) ?? []
+                const active = id === sellerId
+                const total = group.reduce((sum, item) => sum + item.price_cents, 0)
+                return (
+                  <Link
+                    key={id}
+                    href={`/checkout/bundle?sellerId=${encodeURIComponent(id)}`}
+                    className="no-underline"
+                    style={{
+                      flexShrink: 0,
+                      minWidth: 160,
+                      padding: 10,
+                      borderRadius: 'var(--r-md)',
+                      border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                      background: active ? 'var(--accent-soft)' : 'var(--bg-sunk)',
+                      color: 'var(--fg)',
+                    }}
+                  >
+                    <p style={{ fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group[0]?.sellerName ?? 'Tienda'}</p>
+                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{group.length} artículo{group.length === 1 ? '' : 's'} · {formatPrice(total, group[0]?.currency ?? 'MXN')}</p>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
           <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
             <p style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>Paquete de {seller.sellerName}</p>
             <h1 style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>Revisar paquete</h1>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>Compra varios artículos del mismo vendedor en un solo pago.</p>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>Compra varios artículos del mismo vendedor en un solo pago. La entrega se coordina desde el pedido.</p>
           </div>
 
           <div style={{ display: 'grid' }}>
@@ -124,7 +159,12 @@ export default function BundleCheckoutClient() {
           </div>
 
           <div style={{ display: 'grid', gap: 10 }}>
-            {hasMp && sellerId && (
+            {currencyMismatch && (
+              <p style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--r-md)', padding: 10 }}>
+                Este paquete mezcla monedas. Quita artículos hasta que todos tengan la misma moneda para pagar en línea.
+              </p>
+            )}
+            {hasMp && sellerId && !currencyMismatch && (
               <CheckoutPayButton
                 provider="mercadopago"
                 items={items}
@@ -134,7 +174,7 @@ export default function BundleCheckoutClient() {
                 onStarted={() => clearSeller(sellerId)}
               />
             )}
-            {hasStripe && sellerId && (
+            {hasStripe && sellerId && !currencyMismatch && (
               <CheckoutPayButton
                 provider="stripe"
                 items={items}
@@ -144,7 +184,7 @@ export default function BundleCheckoutClient() {
                 onStarted={() => clearSeller(sellerId)}
               />
             )}
-            {!hasMp && !hasStripe && (
+            {!canPayOnline && !currencyMismatch && (
               <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Este vendedor todavía no tiene pagos en línea activos.</p>
             )}
           </div>

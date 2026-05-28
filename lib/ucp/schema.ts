@@ -48,7 +48,7 @@ export interface UcpCheckoutUrls {
 
 export interface UcpOfferConstraints {
   min_offer_cents: number | null   // null = no floor enforced
-  expires_hours: number            // how long seller has to respond (72h default)
+  expires_hours: number            // how long seller has to respond (48h default)
 }
 
 export interface UcpTrust {

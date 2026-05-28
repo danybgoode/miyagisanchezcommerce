@@ -19,7 +19,7 @@ export async function GET(
     .select(`
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id,
-      marketplace_listings ( id, title, price_cents, currency, images, status, condition, location ),
+      marketplace_listings ( id, title, price_cents, currency, images, status, condition, location, listing_type ),
       marketplace_shops ( id, name, slug, logo_url, metadata, mp_enabled )
     `)
     .eq('id', id)

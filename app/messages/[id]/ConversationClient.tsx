@@ -12,6 +12,7 @@ import type { CheckoutProvider } from '@/lib/cart'
 interface ConvListing {
   id: string; title: string; price_cents: number | null; currency: string
   images: Array<{ url: string }> | null; status: string; condition: string | null; location: string | null
+  listing_type?: string | null
 }
 interface ConvShop { id: string; name: string; slug: string; logo_url?: string | null }
 interface ConvOffer {
@@ -56,6 +57,26 @@ function sameDay(a: string, b: string) {
 }
 function fmt(cents: number, currency = 'MXN') {
   return formatOfferAmount(cents, currency)
+}
+
+function listingTypeLabel(type?: string | null) {
+  switch (type) {
+    case 'digital': return 'Digital'
+    case 'service': return 'Servicio'
+    case 'rental': return 'Renta'
+    case 'subscription': return 'Suscripción'
+    default: return 'Producto'
+  }
+}
+
+function listingStatusLabel(status?: string | null) {
+  switch (status) {
+    case 'sold': return 'Vendido'
+    case 'paused': return 'Pausado'
+    case 'draft': return 'Borrador'
+    case 'active': return 'Activo'
+    default: return status ?? 'Anuncio'
+  }
 }
 
 // ── Event renderer ────────────────────────────────────────────────────────────
@@ -515,6 +536,14 @@ export default function ConversationClient({ conversationId, initialConversation
   const listing = conv.marketplace_listings
   const shop    = conv.marketplace_shops
   const offer   = conv.marketplace_offers
+  const agreedCents = offer?.status === 'accepted' || offer?.status === 'paid'
+    ? offer.counter_amount_cents ?? offer.offer_amount_cents
+    : null
+  const headerPrice = agreedCents
+    ? fmt(agreedCents, offer?.currency ?? listing?.currency ?? 'MXN')
+    : listing?.price_cents
+      ? fmt(listing.price_cents, listing.currency)
+      : 'Precio a consultar'
 
   // Scroll to bottom on load and new events
   useEffect(() => {
@@ -598,13 +627,21 @@ export default function ConversationClient({ conversationId, initialConversation
             <div style={{ width: 44, height: 44, background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', flexShrink: 0 }} />
           )}
           <div className="flex-1 min-w-0">
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {listing?.title}
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-              {listing?.price_cents ? fmt(listing.price_cents, listing.currency) : '—'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {listing?.title}
+              </p>
+              {listing?.status && (
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: listing.status === 'active' ? 'var(--success)' : 'var(--fg-muted)', background: listing.status === 'active' ? 'var(--success-soft)' : 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '2px 7px' }}>
+                  {listingStatusLabel(listing.status)}
+                </span>
+              )}
+            </div>
+            <p style={{ fontSize: 13, color: agreedCents ? 'var(--success)' : 'var(--fg-muted)', fontWeight: agreedCents ? 800 : 400 }}>
+              {agreedCents ? 'Precio acordado: ' : ''}{headerPrice}
+              <span style={{ marginLeft: 6, color: 'var(--fg-muted)', fontWeight: 400 }}>· {listingTypeLabel(listing?.listing_type)}</span>
               {role === 'buyer' && shop && (
-                <span style={{ marginLeft: 6 }}>· {shop.name}</span>
+                <span style={{ marginLeft: 6, color: 'var(--fg-muted)', fontWeight: 400 }}>· {shop.name}</span>
               )}
             </p>
           </div>
