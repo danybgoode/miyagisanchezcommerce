@@ -12,8 +12,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { getMpPayment, getMpPreapproval } from '@/lib/mercadopago'
-import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
+import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 
@@ -193,28 +194,8 @@ export async function POST(req: NextRequest) {
   // ── Fire UCP webhook (non-fatal) ─────────────────────────────────────────
   deliverOrderWebhook(order.id, 'order.created').catch(e => console.error('[ucp-webhook] mp:', e))
 
-  // ── Mark winning offer as paid + cancel payment-expiry reminder ───────────
-  if (offer_id) {
-    const { data: paidOffer } = await db
-      .from('marketplace_offers')
-      .select('scheduled_reminder_ids')
-      .eq('id', offer_id)
-      .single()
-
-    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offer_id)
-
-    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
-    if (paidReminders.buyer_payment_expiry) {
-      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
-    }
-  }
-
-  // ── Auto-decline competing offers for this listing ────────────────────────
-  await db.from('marketplace_offers')
-    .update({ status: 'declined' })
-    .eq('listing_id', listing_id)
-    .in('status', ['pending', 'countered', 'accepted'])
-    .neq('id', offer_id ?? '')
+  // ── Mark winning offer paid, decline competing offers, close mirror listing
+  await markListingPurchased({ listingId: listing_id, offerId: offer_id })
 
   // ── Fetch listing + shop context for emails ───────────────────────────────
   const { data: listing } = await db
@@ -308,28 +289,8 @@ async function handleMedusaMpPayment({
   // 3. Fire UCP webhook
   deliverOrderWebhook(medusaOrderId ?? cartId, 'order.created').catch(e => console.error('[ucp-webhook] medusa mp:', e))
 
-  // 3. Mark winning offer as paid + cancel payment-expiry reminder
-  if (offerId) {
-    const { data: paidOffer } = await db
-      .from('marketplace_offers')
-      .select('scheduled_reminder_ids')
-      .eq('id', offerId)
-      .single()
-
-    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offerId)
-
-    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
-    if (paidReminders.buyer_payment_expiry) {
-      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
-    }
-
-    // Auto-decline competing offers
-    await db.from('marketplace_offers')
-      .update({ status: 'declined' })
-      .eq('listing_id', productId)
-      .in('status', ['pending', 'countered', 'accepted'])
-      .neq('id', offerId)
-  }
+  // 3. Mark winning offer paid, decline competing offers, close mirror listing
+  await markListingPurchased({ listingId: productId, offerId })
 
   // 4. Telegram admin alert
   const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)

@@ -193,10 +193,32 @@ function OfferActionBar({
     }
   }
 
-  if (offer.status === 'paid' || offer.status === 'declined' || offer.status === 'expired' || offer.status === 'withdrawn') return null
-
   const isExpiredOffer = new Date(offer.expires_at) < new Date()
   const isExpiredCounter = offer.counter_expires_at && new Date(offer.counter_expires_at) < new Date()
+  const isCheckoutExpired = offer.checkout_expires_at && new Date(offer.checkout_expires_at) < new Date()
+  const agreedCents = offer.counter_amount_cents ?? offer.offer_amount_cents
+
+  if (offer.status === 'paid') {
+    return (
+      <DealStatusBar
+        tone="success"
+        title="Compra realizada"
+        body={`El pedido quedó confirmado por ${fmt(agreedCents, offer.currency)}.`}
+      />
+    )
+  }
+
+  if (offer.status === 'declined') {
+    return <DealStatusBar tone="neutral" title="Oferta rechazada" body="El artículo sigue disponible si quieres iniciar una nueva conversación u oferta." />
+  }
+
+  if (offer.status === 'withdrawn') {
+    return <DealStatusBar tone="neutral" title="Oferta retirada" body="Esta negociación ya no está activa." />
+  }
+
+  if (offer.status === 'expired' || isExpiredOffer || isExpiredCounter || isCheckoutExpired) {
+    return <DealStatusBar tone="danger" title="Trato expirado" body="El precio acordado ya no está disponible. Puedes volver al anuncio para iniciar una nueva oferta." />
+  }
 
   if (role === 'seller' && offer.status === 'pending' && !isExpiredOffer) {
     return <SellerActionBar offer={offer} onAction={sellerAction} busy={busy} />
@@ -248,7 +270,6 @@ function OfferActionBar({
   }
 
   if (role === 'buyer' && offer.status === 'accepted') {
-    const agreedCents = offer.counter_amount_cents ?? offer.offer_amount_cents
     return (
       <div style={{ padding: '12px 16px', background: 'var(--success-soft)', borderTop: '1.5px solid var(--success)' }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>¡Trato listo! Compra al precio acordado.</p>
@@ -274,7 +295,36 @@ function OfferActionBar({
     )
   }
 
+  if (role === 'seller' && offer.status === 'accepted') {
+    return (
+      <DealStatusBar
+        tone="success"
+        title="Trato aceptado"
+        body={`Esperando pago del comprador por ${fmt(agreedCents, offer.currency)}.`}
+      />
+    )
+  }
+
   return null
+}
+
+function DealStatusBar({ tone, title, body }: {
+  tone: 'success' | 'danger' | 'neutral'
+  title: string
+  body: string
+}) {
+  const styles = {
+    success: { bg: 'var(--success-soft)', border: 'var(--success)', color: 'var(--success)' },
+    danger: { bg: 'var(--danger-soft)', border: 'var(--danger)', color: 'var(--danger)' },
+    neutral: { bg: 'var(--bg-elevated)', border: 'var(--border)', color: 'var(--fg)' },
+  }[tone]
+
+  return (
+    <div style={{ padding: '12px 16px', background: styles.bg, borderTop: `1.5px solid ${styles.border}` }}>
+      <p style={{ fontSize: 13, fontWeight: 800, color: styles.color, marginBottom: 3 }}>{title}</p>
+      <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{body}</p>
+    </div>
+  )
 }
 
 function SellerActionBar({ offer, onAction, busy }: {

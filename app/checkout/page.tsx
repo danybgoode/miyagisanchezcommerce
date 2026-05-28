@@ -62,8 +62,10 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
   const sellerHasMp = (shopMeta?.mp_enabled as boolean | undefined) !== false
   const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
+  if (params.offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
   const amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
+  if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
 
   const availableProviders: CheckoutProvider[] = [
     sellerHasMp && listing.listing_type !== 'digital' ? 'mercadopago' as const : null,

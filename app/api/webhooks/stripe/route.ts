@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
-import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail, cancelScheduledEmail } from '@/lib/email'
+import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
@@ -180,30 +181,8 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   // ── Fire UCP webhook (non-fatal) ─────────────────────────────────────────
   deliverOrderWebhook(order.id, 'order.created').catch(e => console.error('[ucp-webhook] stripe:', e))
 
-  // ── If this was an offer checkout, mark the offer as paid ────────────────
-  if (offer_id) {
-    const { data: paidOffer } = await db
-      .from('marketplace_offers')
-      .select('scheduled_reminder_ids')
-      .eq('id', offer_id)
-      .single()
-
-    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offer_id)
-
-    // Cancel the buyer payment-expiry reminder — payment is done
-    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
-    if (paidReminders.buyer_payment_expiry) {
-      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
-    }
-  }
-
-  // ── Auto-decline all OTHER pending/accepted offers for this listing ───────
-  // (listing is now sold — clean up competing offers)
-  await db.from('marketplace_offers')
-    .update({ status: 'declined' })
-    .eq('listing_id', listing_id)
-    .in('status', ['pending', 'countered', 'accepted'])
-    .neq('id', offer_id ?? '')  // don't re-decline the winning offer
+  // Mark winning offer paid, decline competing offers, and close the mirror listing.
+  await markListingPurchased({ listingId: listing_id, offerId: offer_id })
 
   // ── Fetch listing + shop for email context ────────────────────────────────
   const { data: listing } = await db
@@ -319,28 +298,8 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   // 3. Fire UCP webhook (non-fatal)
   deliverOrderWebhook(medusaOrderId ?? cart_id, 'order.created').catch(e => console.error('[ucp-webhook] medusa stripe:', e))
 
-  // 3. Mark winning offer as paid + cancel payment-expiry reminder
-  if (offer_id) {
-    const { data: paidOffer } = await db
-      .from('marketplace_offers')
-      .select('scheduled_reminder_ids')
-      .eq('id', offer_id)
-      .single()
-
-    await db.from('marketplace_offers').update({ status: 'paid' }).eq('id', offer_id)
-
-    const paidReminders = (paidOffer?.scheduled_reminder_ids ?? {}) as Record<string, string>
-    if (paidReminders.buyer_payment_expiry) {
-      cancelScheduledEmail(paidReminders.buyer_payment_expiry).catch(() => {})
-    }
-
-    // Auto-decline competing offers
-    await db.from('marketplace_offers')
-      .update({ status: 'declined' })
-      .eq('listing_id', product_id ?? '')
-      .in('status', ['pending', 'countered', 'accepted'])
-      .neq('id', offer_id)
-  }
+  // 3. Mark winning offer paid, decline competing offers, and close the mirror listing.
+  await markListingPurchased({ listingId: product_id, offerId: offer_id })
 
   // 4. Telegram admin alert
   const amountFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency }).format(amountTotal / 100)
