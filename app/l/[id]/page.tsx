@@ -85,7 +85,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   } | undefined
   const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null } } | undefined
   const shippingSettings = shopSettings.shipping as {
-    mercado_envios?: boolean
     local_pickup?: boolean
     pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
   } | undefined
@@ -129,7 +128,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
   const fulfillmentMethods = [
-    shippingSettings?.mercado_envios && listing.listing_type === 'product' && { icon: 'iconoir-delivery-truck', label: 'Mercado Envíos', note: 'Envío disponible' },
     shippingSettings?.local_pickup && { icon: 'iconoir-shop', label: 'Recolección local', note: pickupSpots[0]?.name ?? 'Coordina con la tienda' },
     isDigital && { icon: 'iconoir-download', label: 'Entrega digital', note: 'Disponible al pagar' },
     listing.listing_type === 'service' && { icon: 'iconoir-calendar', label: 'Servicio', note: bookingUrl ? 'Agenda disponible' : 'Coordina con el vendedor' },

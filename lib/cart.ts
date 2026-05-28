@@ -27,7 +27,28 @@ function medusaFetch(path: string, options?: RequestInit) {
   })
 }
 
+async function responseMessage(response: Response, fallback: string) {
+  const payload = await response.json().catch(() => null) as {
+    message?: string
+    error?: string
+  } | null
+
+  return payload?.message ?? payload?.error ?? fallback
+}
+
 export type CheckoutProvider = 'stripe' | 'mercadopago'
+export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'none'
+
+export interface CheckoutShippingAddress {
+  name?: string
+  phone?: string
+  line1?: string
+  line2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+  country?: string
+}
 
 export interface StartCheckoutParams {
   /** Single-item shorthand — still works for BuyButton / MercadoPagoButton */
@@ -47,6 +68,12 @@ export interface StartCheckoutParams {
   offerId?: string
   /** Clerk JWT — required for authenticated checkout */
   clerkJwt?: string
+  /** Buyer-selected fulfillment method from marketplace checkout */
+  fulfillmentMethod?: CheckoutFulfillmentMethod
+  /** Optional selected pickup spot ID/name from seller settings */
+  pickupSpotId?: string
+  /** Shipping address collected before redirecting to the payment rail */
+  shippingAddress?: CheckoutShippingAddress
 }
 
 export interface StartCheckoutResult {
@@ -64,7 +91,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, items, sellerId,
     provider, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, offerId, clerkJwt,
+    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress,
   } = params
 
   // Normalise to array — single-item path is the same as multi-item with one entry
@@ -107,8 +134,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     }),
   })
   if (!cartRes.ok) {
-    const err = await cartRes.json().catch(() => ({}))
-    throw new Error((err as any).message ?? 'Failed to create cart')
+    throw new Error(await responseMessage(cartRes, 'Failed to create cart'))
   }
   const { cart } = await cartRes.json()
   const cartId = cart.id
@@ -131,8 +157,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       body: JSON.stringify({ variant_id: resolvedVariantId, quantity: 1 }),
     })
     if (!itemRes.ok) {
-      const err = await itemRes.json().catch(() => ({}))
-      throw new Error((err as any).message ?? 'Failed to add item to cart')
+      throw new Error(await responseMessage(itemRes, 'Failed to add item to cart'))
     }
   }
 
@@ -146,11 +171,13 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(sellerId ? { seller_id: sellerId } : {}),
       ...(offerAmountCents ? { offer_amount_cents: offerAmountCents } : {}),
       ...(offerId ? { offer_id: offerId } : {}),
+      ...(fulfillmentMethod ? { fulfillment_method: fulfillmentMethod } : {}),
+      ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
+      ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
     }),
   })
   if (!checkoutRes.ok) {
-    const err = await checkoutRes.json().catch(() => ({}))
-    throw new Error((err as any).message ?? 'Failed to start checkout')
+    throw new Error(await responseMessage(checkoutRes, 'Failed to start checkout'))
   }
 
   return checkoutRes.json()

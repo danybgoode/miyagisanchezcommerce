@@ -28,7 +28,7 @@ const SECTIONS = [
     key: 'envios',
     icon: 'iconoir-delivery-truck',
     title: 'Envíos y entrega',
-    desc: 'Mercado Envíos, recolección local y puntos de pickup.',
+    desc: 'Recolección local, dirección de origen y etiquetas con Envia.com.',
     color: 'var(--warning)',
     bg: 'var(--warning-soft)',
   },

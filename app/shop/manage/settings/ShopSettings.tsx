@@ -58,7 +58,6 @@ export interface ShopSettingsData {
         }
       }
       shipping?: {
-        mercado_envios?: boolean
         local_pickup?: boolean
         custom_rates?: boolean
         pickup_spots?: PickupSpot[]
@@ -138,7 +137,7 @@ const PRESETS: Preset[] = [
     description: 'Ropa, hogar, artículos del día a día. Sin retención de fondos.',
     settings: {
       checkout: { escrow_mode: 'off', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true, mercado_envios: false },
+      shipping: { local_pickup: true },
     },
   },
   {
@@ -148,7 +147,7 @@ const PRESETS: Preset[] = [
     description: 'El comprador activa la protección si lo desea. Recomendado para electrónica usada.',
     settings: {
       checkout: { escrow_mode: 'optional', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true, mercado_envios: true },
+      shipping: { local_pickup: true },
     },
   },
   {
@@ -158,7 +157,7 @@ const PRESETS: Preset[] = [
     description: 'Joyería, coleccionables, electrónica cara. Compra Protegida siempre activa.',
     settings: {
       checkout: { escrow_mode: 'required', show_phone: false, whatsapp_cta: false },
-      shipping: { local_pickup: false, mercado_envios: true },
+      shipping: { local_pickup: false },
     },
   },
   {
@@ -168,7 +167,7 @@ const PRESETS: Preset[] = [
     description: 'Autos, motos, camiones. Pago protegido obligatorio + verificación REPUVE.',
     settings: {
       checkout: { escrow_mode: 'required', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true, mercado_envios: false },
+      shipping: { local_pickup: true },
     },
   },
   {
@@ -178,7 +177,7 @@ const PRESETS: Preset[] = [
     description: 'Venta y renta de propiedades. Depósito protegido para reserva.',
     settings: {
       checkout: { escrow_mode: 'required', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true, mercado_envios: false },
+      shipping: { local_pickup: true },
     },
   },
   {
@@ -188,7 +187,7 @@ const PRESETS: Preset[] = [
     description: 'Archivos, plantillas, cursos, licencias. Entrega automática.',
     settings: {
       checkout: { escrow_mode: 'off', show_phone: false, whatsapp_cta: false },
-      shipping: { local_pickup: false, mercado_envios: false },
+      shipping: { local_pickup: false },
     },
   },
 ]
@@ -686,7 +685,6 @@ export default function ShopSettingsPanel({
   const [showEmail, setShowEmail]     = useState(s.checkout?.show_email ?? false)
 
   // Shipping
-  const [mercadoEnvios, setMercadoEnvios] = useState(s.shipping?.mercado_envios ?? false)
   const [localPickup, setLocalPickup]     = useState(s.shipping?.local_pickup ?? true)
   const [pickupSpots, setPickupSpots]     = useState<PickupSpot[]>(s.shipping?.pickup_spots ?? [])
 
@@ -974,7 +972,6 @@ export default function ShopSettingsPanel({
     if (c.escrow_mode)              setEscrowMode(c.escrow_mode)
     if (c.show_phone !== undefined) setShowPhone(c.show_phone)
     if (c.whatsapp_cta !== undefined) setWhatsappCta(c.whatsapp_cta)
-    if (sh.mercado_envios !== undefined) setMercadoEnvios(sh.mercado_envios)
     if (sh.local_pickup  !== undefined) setLocalPickup(sh.local_pickup)
     mark()
   }
@@ -1096,7 +1093,6 @@ export default function ShopSettingsPanel({
               },
             },
             shipping: {
-              mercado_envios: mercadoEnvios,
               local_pickup:   localPickup,
               pickup_spots:   pickupSpots,
               origin_address: {
@@ -1572,9 +1568,6 @@ export default function ShopSettingsPanel({
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${localPickup ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                     Entrega en mano: {localPickup ? 'Sí' : 'No'}
                   </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${mercadoEnvios ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                    Mercado Envíos: {mercadoEnvios ? 'Sí' : 'No'}
-                  </span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${showPhone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                     Teléfono visible: {showPhone ? 'Sí' : 'No'}
                   </span>
@@ -1794,14 +1787,6 @@ export default function ShopSettingsPanel({
                   />
                 )}
               </div>
-              <ToggleSwitch
-                checked={mercadoEnvios}
-                onChange={v => { setMercadoEnvios(v); mark() }}
-                label="Mercado Envíos"
-                description="Genera etiquetas de envío directamente desde tu tienda. (Próximamente)"
-                disabled
-              />
-
               {/* ── Origin address (Envia.com) ──────────────────────────────── */}
               <div className="pt-4">
                 <div className="flex items-center gap-2 mb-1">

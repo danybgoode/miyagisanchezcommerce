@@ -86,7 +86,8 @@ export async function POST(
 
     const sellerMeta    = ((seller?.metadata ?? {}) as Record<string, unknown>)
     const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
-    originRaw    = sellerSettings.origin_address as Record<string, string> | undefined
+    const shippingSettings = (sellerSettings.shipping ?? {}) as Record<string, unknown>
+    originRaw    = shippingSettings.origin_address as Record<string, string> | undefined
   } else {
     // ── Legacy Supabase order ───────────────────────────────────────────────
     const { data: order } = await db
@@ -118,7 +119,8 @@ export async function POST(
 
     const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
     const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
-    originRaw = shopSettings.origin_address as Record<string, string> | undefined
+    const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
+    originRaw = shippingSettings.origin_address as Record<string, string> | undefined
   }
 
   if (!['paid', 'processing'].includes(orderStatus)) {
@@ -278,7 +280,8 @@ export async function GET(
 
     const sellerMeta     = ((seller?.metadata ?? {}) as Record<string, unknown>)
     const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
-    originRaw = sellerSettings.origin_address as Record<string, string> | undefined
+    const shippingSettings = (sellerSettings.shipping ?? {}) as Record<string, unknown>
+    originRaw = shippingSettings.origin_address as Record<string, string> | undefined
   } else {
     const { data: order } = await db
       .from('marketplace_orders')
@@ -300,7 +303,8 @@ export async function GET(
 
     const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
     const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
-    originRaw = shopSettings.origin_address as Record<string, string> | undefined
+    const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
+    originRaw = shippingSettings.origin_address as Record<string, string> | undefined
   }
 
   if (!originRaw?.postal_code) {

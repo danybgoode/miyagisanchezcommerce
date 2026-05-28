@@ -263,7 +263,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 // ── New Medusa flow: checkout.session.completed ───────────────────────────────
 
 async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
-  const { cart_id, product_id, seller_id, offer_id } = session.metadata ?? {}
+  const { cart_id, product_id, seller_id, offer_id, fulfillment_method, payment_method, pickup_spot_id } = session.metadata ?? {}
   if (!cart_id) return
 
   const amountTotal = session.amount_total ?? 0
@@ -285,10 +285,13 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       amount_cents: amountTotal,
       currency,
       status: 'paid',
-      shipping_method: 'pending',
+      shipping_method: fulfillment_method ?? 'pending',
       metadata: {
         medusa_order_id: medusaOrderId,
         medusa_cart_id: cart_id,
+        payment_method: payment_method ?? 'stripe',
+        fulfillment_method: fulfillment_method ?? null,
+        pickup_spot_id: pickup_spot_id ?? null,
         ...(offer_id ? { offer_id } : {}),
       },
     })

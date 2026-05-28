@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
-import { startCheckout, type CheckoutProvider } from '@/lib/cart'
+import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress } from '@/lib/cart'
 import type { CartItem } from './CartContext'
 
 function formatPrice(cents: number, currency: string) {
@@ -22,6 +22,9 @@ interface CheckoutPayButtonProps {
   currency: string
   offerId?: string
   offerAmountCents?: number
+  fulfillmentMethod?: CheckoutFulfillmentMethod
+  pickupSpotId?: string
+  shippingAddress?: CheckoutShippingAddress
   disabled?: boolean
   onStarted?: () => void
 }
@@ -35,6 +38,9 @@ export default function CheckoutPayButton({
   currency,
   offerId,
   offerAmountCents,
+  fulfillmentMethod,
+  pickupSpotId,
+  shippingAddress,
   disabled,
   onStarted,
 }: CheckoutPayButtonProps) {
@@ -48,30 +54,6 @@ export default function CheckoutPayButton({
     setError(null)
     try {
       const buyerEmail = user?.primaryEmailAddress?.emailAddress
-
-      if (listingId && (!items || items.length === 0)) {
-        const endpoint = provider === 'stripe' ? '/api/stripe/checkout' : '/api/mp/checkout'
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            listingId,
-            buyerEmail,
-            offerId,
-          }),
-        })
-        const data = await res.json().catch(() => ({})) as { checkoutUrl?: string; url?: string; error?: string; code?: string }
-        const checkoutUrl = data.checkoutUrl ?? data.url
-        if (!res.ok || !checkoutUrl) {
-          const err = new Error(data.error ?? 'No se pudo iniciar el pago.')
-          ;(err as Error & { code?: string }).code = data.code
-          throw err
-        }
-        onStarted?.()
-        window.location.href = checkoutUrl
-        return
-      }
-
       const clerkJwt = (await getToken()) ?? undefined
       const { redirect_url } = await startCheckout({
         productId: listingId,
@@ -84,6 +66,9 @@ export default function CheckoutPayButton({
         offerAmountCents,
         offerId,
         clerkJwt,
+        fulfillmentMethod,
+        pickupSpotId,
+        shippingAddress,
       })
       onStarted?.()
       window.location.href = redirect_url

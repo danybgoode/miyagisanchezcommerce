@@ -138,6 +138,8 @@ export async function POST(req: NextRequest) {
       productId: mpMeta.product_id ?? '',
       sellerId: mpMeta.seller_id ?? '',
       offerId: mpMeta.offer_id,
+      fulfillmentMethod: mpMeta.fulfillment_method,
+      pickupSpotId: mpMeta.pickup_spot_id,
       amountCents,
       currency,
       buyerEmail,
@@ -247,6 +249,8 @@ async function handleMedusaMpPayment({
   productId,
   sellerId,
   offerId,
+  fulfillmentMethod,
+  pickupSpotId,
   amountCents,
   currency,
   buyerEmail,
@@ -257,6 +261,8 @@ async function handleMedusaMpPayment({
   productId: string
   sellerId: string
   offerId?: string
+  fulfillmentMethod?: string
+  pickupSpotId?: string
   amountCents: number
   currency: string
   buyerEmail: string | null
@@ -276,10 +282,13 @@ async function handleMedusaMpPayment({
       amount_cents: amountCents,
       currency,
       status: 'paid',
-      shipping_method: 'pending',
+      shipping_method: fulfillmentMethod ?? 'pending',
       metadata: {
         medusa_order_id: medusaOrderId,
         medusa_cart_id: cartId,
+        payment_method: 'mercadopago',
+        fulfillment_method: fulfillmentMethod ?? null,
+        pickup_spot_id: pickupSpotId ?? null,
         ...(offerId ? { offer_id: offerId } : {}),
       },
     })
