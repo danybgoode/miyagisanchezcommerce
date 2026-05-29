@@ -73,14 +73,15 @@ export function getShopMercadoPago(metadata: Record<string, unknown> | null): Sh
 }
 
 /**
- * A seller can accept MP only once connected and not paused.
- * NOTE: checks the `connected` flag only (not access_token) — the token is
- * stripped from public seller metadata for security, and the backend
- * (start-checkout) is the authoritative gate that verifies the real token.
+ * A seller can accept MP once connected. We gate ONLY on `connected` — there is
+ * no "pause MP" UI yet, and the legacy `enabled` flag (set to false by
+ * Desconectar) caused reconnects to stay hidden. The backend (start-checkout)
+ * is the authoritative gate that verifies the real token. If a pause feature is
+ * added later, reintroduce an explicit check here.
  */
 export function sellerHasMpConnected(metadata: Record<string, unknown> | null): boolean {
   const mp = getShopMercadoPago(metadata)
-  return !!(mp.connected && mp.enabled !== false)
+  return !!mp.connected
 }
 
 export function buildMpAuthorizationUrl(params: { state: string; redirectUri: string; codeChallenge: string }): string {
