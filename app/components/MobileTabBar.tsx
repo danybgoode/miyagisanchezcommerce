@@ -110,7 +110,7 @@ function TabBarInner() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [hasUnread, setHasUnread]   = useState(false)
 
-  // Poll unread count every 20s (lightweight: only fetches a count)
+  // Poll unread count every 60s (lightweight count; in-conversation is realtime)
   useEffect(() => {
     if (!isSignedIn) { setHasUnread(false); return }
     let cancelled = false
@@ -124,7 +124,7 @@ function TabBarInner() {
     }
 
     checkUnread()
-    const id = setInterval(checkUnread, 20_000)
+    const id = setInterval(checkUnread, 60_000)
     return () => { cancelled = true; clearInterval(id) }
   }, [isSignedIn])
 

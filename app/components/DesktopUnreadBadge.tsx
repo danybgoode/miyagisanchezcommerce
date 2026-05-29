@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 
 // Renders a small red badge number next to the desktop messages icon.
-// Polls /api/conversations/unread every 20s.
+// Polls /api/conversations/unread every 60s (in-conversation delivery is realtime;
+// this is just the global nav badge for users not currently in a chat).
 export default function DesktopUnreadBadge() {
   const { isSignedIn } = useUser()
   const [unread, setUnread] = useState(0)
@@ -22,7 +23,7 @@ export default function DesktopUnreadBadge() {
     }
 
     check()
-    const id = setInterval(check, 20_000)
+    const id = setInterval(check, 60_000)
     return () => { cancelled = true; clearInterval(id) }
   }, [isSignedIn])
 
