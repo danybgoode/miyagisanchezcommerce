@@ -152,7 +152,10 @@ export function mpSettingsFromToken(token: MpTokenResponse, prev?: ShopMercadoPa
     public_key: token.public_key,
     expires_at: new Date(Date.now() + (token.expires_in ?? 0) * 1000).toISOString(),
     connected: true,
-    enabled: prev?.enabled ?? true,
+    // A fresh OAuth connect is always enabled. (Don't inherit prev.enabled —
+    // Desconectar sets enabled:false, which a reconnect must not carry over,
+    // or the MP button stays hidden via the `enabled !== false` gate.)
+    enabled: true,
     live_mode: token.live_mode ?? !isMpTestMode(),
   }
 }
