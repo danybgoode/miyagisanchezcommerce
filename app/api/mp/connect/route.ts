@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
-import { buildMpAuthorizationUrl } from '@/lib/mercadopago-connect'
+import { buildMpAuthorizationUrl, generateMpPkce } from '@/lib/mercadopago-connect'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 
 export async function GET(req: NextRequest) {
@@ -34,8 +34,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const state = randomUUID()
-    const url = buildMpAuthorizationUrl({ state, redirectUri: `${origin}/api/mp/connect/callback` })
-    return NextResponse.redirect(url)
+    const { verifier, challenge } = generateMpPkce()
+    const url = buildMpAuthorizationUrl({ state, redirectUri: `${origin}/api/mp/connect/callback`, codeChallenge: challenge })
+    const res = NextResponse.redirect(url)
+    // Stash the PKCE verifier for the callback (single browser, same domain).
+    // SameSite=Lax so it survives the top-level redirect back from MercadoPago.
+    res.cookies.set('mp_pkce_verifier', verifier, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 600,
+      path: '/api/mp/connect',
+    })
+    return res
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[mp/connect] failed to build auth URL:', msg)

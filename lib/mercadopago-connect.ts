@@ -13,8 +13,17 @@
  *   - Code TTL 10 min; access_token TTL 180 days; refresh_token provided.
  */
 
+import { createHash, randomBytes } from 'node:crypto'
+
 const MP_AUTH_URL = 'https://auth.mercadopago.com/authorization'
 const MP_OAUTH_TOKEN_URL = 'https://api.mercadopago.com/oauth/token'
+
+/** Generate a PKCE verifier + S256 challenge (MP applications require PKCE). */
+export function generateMpPkce(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString('base64url') // 43-char, RFC 7636 compliant
+  const challenge = createHash('sha256').update(verifier).digest('base64url')
+  return { verifier, challenge }
+}
 
 export interface ShopMercadoPagoSettings {
   /** Seller's MP collector/user id. */
@@ -74,7 +83,7 @@ export function sellerHasMpConnected(metadata: Record<string, unknown> | null): 
   return !!(mp.connected && mp.enabled !== false)
 }
 
-export function buildMpAuthorizationUrl(params: { state: string; redirectUri: string }): string {
+export function buildMpAuthorizationUrl(params: { state: string; redirectUri: string; codeChallenge: string }): string {
   const { clientId } = getMpAppCredentials()
   const qs = new URLSearchParams({
     client_id: clientId,
@@ -82,12 +91,14 @@ export function buildMpAuthorizationUrl(params: { state: string; redirectUri: st
     platform_id: 'mp',
     state: params.state,
     redirect_uri: params.redirectUri,
+    code_challenge: params.codeChallenge,
+    code_challenge_method: 'S256',
   })
   return `${MP_AUTH_URL}?${qs.toString()}`
 }
 
 /** Exchange an authorization code for seller tokens. */
-export async function exchangeMpCode(params: { code: string; redirectUri: string }): Promise<MpTokenResponse> {
+export async function exchangeMpCode(params: { code: string; redirectUri: string; codeVerifier?: string }): Promise<MpTokenResponse> {
   const { clientId, clientSecret } = getMpAppCredentials()
   const body: Record<string, unknown> = {
     client_id: clientId,
@@ -95,6 +106,7 @@ export async function exchangeMpCode(params: { code: string; redirectUri: string
     code: params.code,
     grant_type: 'authorization_code',
     redirect_uri: params.redirectUri,
+    ...(params.codeVerifier ? { code_verifier: params.codeVerifier } : {}),
   }
   if (isMpTestMode()) body.test_token = true
 

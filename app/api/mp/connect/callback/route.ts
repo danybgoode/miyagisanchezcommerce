@@ -40,8 +40,11 @@ export async function GET(req: NextRequest) {
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`).replace(/\/+$/, '')
   const redirectUri = `${origin}/api/mp/connect/callback`
 
+  const codeVerifier = req.cookies.get('mp_pkce_verifier')?.value
+  if (!codeVerifier) return errorRedirect('pkce_verifier_missing')
+
   try {
-    const token = await exchangeMpCode({ code, redirectUri })
+    const token = await exchangeMpCode({ code, redirectUri, codeVerifier })
 
     const meta = (shop.metadata ?? {}) as Record<string, unknown>
     const settings = (meta.settings ?? {}) as Record<string, unknown>
@@ -58,7 +61,9 @@ export async function GET(req: NextRequest) {
       console.error('[mp/connect/callback] Medusa seller sync failed (non-fatal):', e)
     }
 
-    return NextResponse.redirect(new URL('/shop/manage/settings?mp=connected', req.url))
+    const res = NextResponse.redirect(new URL('/shop/manage/settings?mp=connected', req.url))
+    res.cookies.set('mp_pkce_verifier', '', { maxAge: 0, path: '/api/mp/connect' })
+    return res
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[mp/connect/callback] token exchange failed:', msg, 'redirect_uri=', redirectUri)
