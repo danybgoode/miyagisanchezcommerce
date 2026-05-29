@@ -78,8 +78,14 @@ async function completeMedusaCart(cartId: string): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET) {
+  // Accept either the Vercel cron secret OR the backend Medusa job's internal
+  // secret (the scheduled job now lives on the backend; see
+  // apps/backend/src/jobs/reconcile-checkouts.ts).
+  const cronSecret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
+  const internalSecret = req.headers.get('x-internal-secret')
+  const cronOk = !!process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET
+  const internalOk = !!process.env.MEDUSA_INTERNAL_SECRET && internalSecret === process.env.MEDUSA_INTERNAL_SECRET
+  if (!cronOk && !internalOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

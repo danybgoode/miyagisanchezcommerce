@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/order-autoconfirm",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/reconcile-checkouts",
-      "schedule": "0 6 * * *"
     }
   ]
 }
