@@ -39,6 +39,7 @@ export interface ShopSettingsData {
   calcom_event_type_title?: string | null
   calcom_booking_url?: string | null
   stripe?: ShopStripe
+  mercadopago?: { connected?: boolean; enabled?: boolean; live_mode?: boolean }
   metadata: {
     settings?: {
       preset?: string
@@ -668,14 +669,24 @@ function PickupSpotManager({
 export default function ShopSettingsPanel({
   initial,
   stripeError,
+  mpError,
   activeSection: focusSection,
 }: {
   initial: ShopSettingsData
   stripeError?: string | null
+  mpError?: string | null
   activeSection?: string
 }) {
   const parsedLoc = parseLocation(initial.location)
   const s = initial.metadata?.settings ?? {}
+
+  async function handleMpDisconnect() {
+    if (!confirm('¿Desconectar Mercado Pago? Dejarás de aceptar pagos con Mercado Pago hasta que lo reconectes.')) return
+    try {
+      await fetch('/api/mp/connect', { method: 'DELETE' })
+    } catch { /* ignore */ }
+    window.location.reload()
+  }
 
   // Dirty tracking
   const [isDirty, setIsDirty] = useState(false)
@@ -2427,36 +2438,66 @@ export default function ShopSettingsPanel({
               </div>
             </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Permite a tus compradores pagar con tarjeta, OXXO, wallet y meses sin intereses a través de Mercado Pago.
+              Conecta tu cuenta de Mercado Pago para aceptar tarjeta, OXXO, wallet y meses sin intereses. El dinero llega directo a tu cuenta — sin comisiones de plataforma.
             </p>
-            <div className="divide-y divide-[var(--color-border)]">
-              <ToggleSwitch
-                checked={mpEnabled}
-                onChange={v => { setMpEnabled(v); mark() }}
-                label="Activar Mercado Pago"
-                description="Muestra el botón de Mercado Pago en tus anuncios físicos."
-              />
-            </div>
-            {mpEnabled ? (
-              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-0.5">
-                <p className="font-semibold">Lo que verán los compradores:</p>
-                <p>✓ Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
-                <p>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</p>
-                <p>✓ Checkout familiar — muchos compradores ya tienen cuenta</p>
+
+            {mpError && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+                <span className="font-semibold">Error al conectar Mercado Pago:</span>{' '}{mpError}
+              </div>
+            )}
+
+            {initial.mercadopago?.connected ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-green-800">Mercado Pago conectado</div>
+                    <div className="text-xs text-green-700 mt-0.5">Tu cuenta está lista. Los pagos llegan directo a tu cuenta de Mercado Pago.</div>
+                  </div>
+                  <button type="button" onClick={handleMpDisconnect} className="text-xs text-red-700 underline hover:text-red-900 flex-shrink-0">
+                    Desconectar
+                  </button>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-0.5">
+                  <p className="font-semibold">Lo que verán los compradores:</p>
+                  <p>✓ Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
+                  <p>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</p>
+                  <p>✓ El pago llega directo a tu cuenta de Mercado Pago</p>
+                </div>
+                {initial.mercadopago?.live_mode === false && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Conectado en modo de prueba (sandbox).
+                  </p>
+                )}
               </div>
             ) : (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-                El botón de Mercado Pago estará <strong>oculto</strong> en tus anuncios mientras esté desactivado.
-              </p>
-            )}
-            <div className="mt-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
-              <div className="flex items-start gap-2">
-                <span className="text-base mt-0.5">💡</span>
-                <p className="text-xs text-[var(--color-muted)] leading-relaxed">
-                  <strong>Próximamente:</strong> conecta tu propia cuenta de Mercado Pago para recibir pagos directamente, sin intermediarios.
+              <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <span className="text-2xl">🔵</span>
+                  <div>
+                    <div className="text-sm font-semibold">Conecta tu cuenta de Mercado Pago</div>
+                    <ul className="text-xs text-[var(--color-muted)] mt-1.5 space-y-0.5">
+                      <li>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</li>
+                      <li>✓ 0% comisión de plataforma</li>
+                      <li>✓ El dinero llega directo a tu cuenta</li>
+                      <li>✓ Checkout familiar para compradores mexicanos</li>
+                    </ul>
+                  </div>
+                </div>
+                <a href="/api/mp/connect"
+                  className="flex items-center justify-center gap-2 w-full bg-[#009EE3] text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:opacity-90 transition-opacity">
+                  Conectar Mercado Pago
+                </a>
+                <p className="text-[10px] text-center text-[var(--color-muted)] mt-2">
+                  Serás redirigido a Mercado Pago para autorizar la conexión.
                 </p>
               </div>
-            </div>
+            )}
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════

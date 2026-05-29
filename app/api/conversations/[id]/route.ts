@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { getShopStripe } from '@/lib/stripe'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 
 // ── GET — full conversation thread ────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export async function GET(
   } | null
   const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = (shopRaw?.mp_enabled ?? (shopRaw?.metadata?.mp_enabled as boolean | undefined)) !== false
+  const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
   const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
 
   // Mark unread as read for this user (fire-and-forget)

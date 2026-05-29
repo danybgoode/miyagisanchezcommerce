@@ -21,6 +21,7 @@ import { upsertOrderMirror } from '@/lib/order-mirror'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+const MEDUSA_INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 /** Patch the MP payment session with the real payment ID, then complete the Medusa cart. Returns order ID. */
 async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<string | null> {
@@ -60,6 +61,136 @@ async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Pr
   } catch (e) {
     console.error('[mp webhook] completeMedusaCartWithMp error:', cartId, e)
     return null
+  }
+}
+
+/** Complete a Medusa cart (session already authorized by the backend mp-ipn). */
+async function completeMedusaCart(cartId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': MEDUSA_PUB_KEY },
+    })
+    if (!res.ok) {
+      console.error('[mp webhook] complete failed:', cartId, await res.json().catch(() => ({})))
+      return null
+    }
+    const data = await res.json().catch(() => ({}))
+    return data?.order?.id ?? null
+  } catch (e) {
+    console.error('[mp webhook] complete error:', cartId, e)
+    return null
+  }
+}
+
+/**
+ * Marketplace MP payment (funds in the seller's account). The backend verifies
+ * with the seller's token + patches the session; we then complete + mirror.
+ */
+async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
+  let ipn: {
+    status: string
+    cart_id?: string | null
+    amount_cents?: number
+    currency?: string
+    buyer_email?: string | null
+    buyer_name?: string | null
+    metadata?: Record<string, any>
+  } | null = null
+
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/payments/mp-ipn`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        'x-internal-secret': MEDUSA_INTERNAL_SECRET,
+      },
+      body: JSON.stringify({ seller_id: sellerId, payment_id: paymentId }),
+    })
+    if (!res.ok) {
+      console.error('[mp webhook] mp-ipn failed:', await res.json().catch(() => ({})))
+      return
+    }
+    ipn = await res.json()
+  } catch (e) {
+    console.error('[mp webhook] mp-ipn error:', e)
+    return
+  }
+
+  if (!ipn || ipn.status !== 'approved' || !ipn.cart_id) return
+
+  const cartId = ipn.cart_id
+  const meta = (ipn.metadata ?? {}) as Record<string, any>
+  const productId = (meta.product_id as string) ?? ''
+  const currency = (ipn.currency ?? 'MXN').toUpperCase()
+  const amountCents = ipn.amount_cents ?? 0
+  const buyerEmail = ipn.buyer_email ?? null
+  const buyerName = ipn.buyer_name ?? null
+  const offerId = (meta.offer_id as string | undefined) ?? null
+  const shippingAmountCents = Number(meta.shipping_amount_cents ?? 0) || 0
+
+  const medusaOrderId = await completeMedusaCart(cartId)
+  if (!medusaOrderId) return
+
+  const { created } = await upsertOrderMirror({
+    medusaOrderId,
+    cartId,
+    sellerId: (meta.seller_id as string) ?? sellerId,
+    productId,
+    paymentMethod: 'mercadopago',
+    amountCents,
+    currency,
+    buyerEmail,
+    buyerName,
+    fulfillmentMethod: (meta.fulfillment_method as string) ?? null,
+    pickupSpotId: (meta.pickup_spot_id as string) ?? null,
+    shippingAmountCents,
+    mpPaymentId: paymentId,
+    offerId,
+    shippingQuote: meta.shipping_rate_id ? {
+      rate_id: meta.shipping_rate_id,
+      carrier: meta.shipping_carrier ?? null,
+      service: meta.shipping_service ?? null,
+      amount_cents: shippingAmountCents,
+      currency: meta.shipping_currency ?? currency,
+      delivery_estimate: meta.shipping_delivery_estimate ? Number(meta.shipping_delivery_estimate) : null,
+      delivery_label: meta.shipping_delivery_label || null,
+    } : null,
+  })
+
+  if (!created) return // late webhook racing the cron / a retry — side effects already done
+
+  deliverOrderWebhook(medusaOrderId, 'order.created').catch(e => console.error('[ucp-webhook] mp marketplace:', e))
+  if (productId) {
+    markListingPurchased({ listingId: productId, offerId: offerId ?? undefined })
+      .catch(e => console.error('[mp webhook] markListingPurchased:', e))
+  }
+
+  const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
+  tg.salePaid(amtFmt, productId || 'Producto', buyerEmail ?? 'comprador', 'mercadopago')
+
+  if (productId && buyerEmail) {
+    const be: string = buyerEmail
+    const listingInfo = await getMedusaListing(productId)
+    if (listingInfo) {
+      const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+      const listingUrl = `${SITE_URL}/l/${productId}`
+      const amountFormatted = formatOfferAmount(amountCents, currency)
+      sendOrderConfirmedToBuyer({
+        buyerEmail: be, buyerName,
+        listingTitle: listingInfo.title, listingUrl, amountPaid: amountFormatted,
+        shopName: listingInfo.seller_name, isDigital: false,
+      }).catch(e => console.error('[mp email] marketplace buyer:', e))
+      if (listingInfo.seller_clerk_id) {
+        getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
+          if (sellerEmail) return sendSaleCompletedToSeller({
+            sellerEmail, listingTitle: listingInfo.title, listingUrl,
+            amountPaid: amountFormatted, buyerName, buyerEmail: be, isDigital: false,
+          })
+        }).catch(e => console.error('[mp email] marketplace seller:', e))
+      }
+    }
   }
 }
 
@@ -109,7 +240,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true })
   }
 
-  // ── Fetch & verify payment from MP ───────────────────────────────────────
+  // ── Marketplace flow: seller_id carried on the preference notification_url ──
+  // These payments live in the SELLER's MP account, so we can't fetch them with
+  // the platform token. Delegate verification to the backend (which holds the
+  // seller token), then complete + mirror.
+  const sellerIdParam = searchParams.get('seller_id')
+  if (sellerIdParam) {
+    await handleMarketplaceMpPayment(sellerIdParam, paymentId).catch(e =>
+      console.error('[mp webhook] marketplace handler error:', e),
+    )
+    return NextResponse.json({ received: true })
+  }
+
+  // ── Fetch & verify payment from MP (legacy / platform-collected) ──────────
   let payment
   try {
     payment = await getMpPayment(paymentId)

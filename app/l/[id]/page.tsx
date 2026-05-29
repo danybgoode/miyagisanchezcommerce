@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
 import { getShopStripe } from '@/lib/stripe'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import BuyButton from '@/app/components/BuyButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
@@ -67,7 +68,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = (shopMeta?.mp_enabled as boolean | undefined) !== false
+  const sellerHasMp = sellerHasMpConnected(shopMeta)
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status

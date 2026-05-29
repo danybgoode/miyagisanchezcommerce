@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, formatPrice } from '@/lib/listings'
 import { getShopStripe } from '@/lib/stripe'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { db } from '@/lib/supabase'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
@@ -118,7 +119,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = (shopMeta?.mp_enabled as boolean | undefined) !== false
+  const sellerHasMp = sellerHasMpConnected(shopMeta)
   const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
   if (params.offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
   const amountCents = offerPriceCents ?? listing.price_cents

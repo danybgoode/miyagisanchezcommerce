@@ -38,6 +38,7 @@ export default async function SettingsSectionPage({
   if (!VALID_SECTIONS.has(section)) notFound()
 
   const stripeError = sp.stripe === 'error' ? (sp.reason ?? 'Error desconocido al conectar Stripe.') : null
+  const mpError = sp.mp === 'error' ? (sp.reason ?? 'Error desconocido al conectar Mercado Pago.') : null
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
@@ -55,6 +56,15 @@ export default async function SettingsSectionPage({
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
   const stripeSettings = settings.stripe as { account_id?: string; charges_enabled?: boolean; onboarding_complete?: boolean } | undefined
   const calcomSettings = settings.calcom as { connected?: boolean; username?: string; event_type_title?: string; booking_url?: string } | undefined
+  const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
+  // Strip MercadoPago secrets before metadata reaches the client component.
+  const safeMetadata = (() => {
+    const m = (shop.metadata ?? null) as Record<string, any> | null
+    const mp = (m?.settings as any)?.mercadopago
+    if (!mp) return m
+    const { access_token: _a, refresh_token: _r, ...safeMp } = mp
+    return { ...m, settings: { ...(m as any).settings, mercadopago: safeMp } }
+  })()
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
   const sectionTitle = SECTION_TITLES[section]
@@ -77,6 +87,7 @@ export default async function SettingsSectionPage({
       {/* Render the focused section from ShopSettings */}
       <ShopSettingsPanel
         stripeError={stripeError}
+        mpError={mpError}
         activeSection={section}
         initial={{
           name: shop.name,
@@ -91,7 +102,8 @@ export default async function SettingsSectionPage({
           calcom_event_type_title: calcomSettings?.event_type_title ?? null,
           calcom_booking_url: calcomSettings?.booking_url ?? null,
           stripe: stripeSettings,
-          metadata: shop.metadata as NonNullable<typeof shop.metadata> | null,
+          mercadopago: { connected: !!mpSettings?.connected, enabled: mpSettings?.enabled !== false, live_mode: mpSettings?.live_mode },
+          metadata: safeMetadata as NonNullable<typeof shop.metadata> | null,
           slug: (shop as unknown as { slug: string }).slug,
           custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain ?? null,
           custom_domain_verified: (shop as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,

@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
 
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
 
   // ── Shop signals ──────────────────────────────────────────────────────────
   const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
-  const hasMp          = ((shopMeta.mp_enabled as boolean | undefined) ?? shop?.mp_enabled) !== false
+  const hasMp          = sellerHasMpConnected(shopMeta as Record<string, unknown> | null)
   const hasStripe      = !!(stripeSettings.enabled !== false && stripeSettings.charges_enabled && stripeSettings.account_id)
 
   const bankTransfer   = (checkout.bank_transfer ?? {}) as Record<string, unknown>

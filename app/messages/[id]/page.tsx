@@ -5,6 +5,7 @@ import ConversationClient from './ConversationClient'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getShopStripe } from '@/lib/stripe'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -73,7 +74,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   } | null
   const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = (shopRaw?.mp_enabled ?? (shopRaw?.metadata?.mp_enabled as boolean | undefined)) !== false
+  const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
   const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
 
   // Mark as read (fire-and-forget, non-blocking)
