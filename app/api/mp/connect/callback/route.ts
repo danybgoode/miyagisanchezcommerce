@@ -35,10 +35,13 @@ export async function GET(req: NextRequest) {
 
   if (!shop) return NextResponse.redirect(new URL('/sell', req.url))
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  // Must byte-match the redirect_uri used at authorization AND registered in MP
+  // (trailing slash → invalid_grant). Strip any trailing slash defensively.
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`).replace(/\/+$/, '')
+  const redirectUri = `${origin}/api/mp/connect/callback`
 
   try {
-    const token = await exchangeMpCode({ code, redirectUri: `${origin}/api/mp/connect/callback` })
+    const token = await exchangeMpCode({ code, redirectUri })
 
     const meta = (shop.metadata ?? {}) as Record<string, unknown>
     const settings = (meta.settings ?? {}) as Record<string, unknown>
@@ -58,7 +61,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/shop/manage/settings?mp=connected', req.url))
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[mp/connect/callback] token exchange failed:', msg)
-    return errorRedirect('exchange_failed')
+    console.error('[mp/connect/callback] token exchange failed:', msg, 'redirect_uri=', redirectUri)
+    // Surface MP's actual error (e.g. invalid_grant / invalid_client) for diagnosis.
+    return errorRedirect(`exchange_failed: ${msg}`.slice(0, 350))
   }
 }

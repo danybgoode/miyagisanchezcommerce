@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
 
   if (!shop) return NextResponse.redirect(new URL('/sell', req.url))
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  // Strip any trailing slash so the redirect_uri byte-matches the value sent at
+  // token exchange AND the one registered in the MP app (a mismatch → invalid_grant).
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`).replace(/\/+$/, '')
 
   try {
     const state = randomUUID()
