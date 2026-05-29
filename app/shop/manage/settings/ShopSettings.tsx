@@ -2459,9 +2459,14 @@ export default function ShopSettingsPanel({
                     <div className="text-sm font-semibold text-green-800">Mercado Pago conectado</div>
                     <div className="text-xs text-green-700 mt-0.5">Tu cuenta está lista. Los pagos llegan directo a tu cuenta de Mercado Pago.</div>
                   </div>
-                  <button type="button" onClick={handleMpDisconnect} className="text-xs text-red-700 underline hover:text-red-900 flex-shrink-0">
-                    Desconectar
-                  </button>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <a href="https://www.mercadopago.com.mx/activities" target="_blank" rel="noreferrer" className="text-xs text-green-700 underline hover:text-green-900">
+                      Ver mi cuenta →
+                    </a>
+                    <button type="button" onClick={handleMpDisconnect} className="text-xs text-red-700 underline hover:text-red-900">
+                      Desconectar
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-0.5">
                   <p className="font-semibold">Lo que verán los compradores:</p>

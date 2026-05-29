@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.redirect(new URL('/sign-in', req.url))
 
   const errorRedirect = (reason: string) =>
-    NextResponse.redirect(new URL(`/shop/manage/settings?mp=error&reason=${encodeURIComponent(reason)}`, req.url))
+    NextResponse.redirect(new URL(`/shop/manage/settings/pagos?mp=error&reason=${encodeURIComponent(reason)}#mercadopago`, req.url))
 
   const code = req.nextUrl.searchParams.get('code')
   const oauthError = req.nextUrl.searchParams.get('error')
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       console.error('[mp/connect/callback] Medusa seller sync failed (non-fatal):', e)
     }
 
-    const res = NextResponse.redirect(new URL('/shop/manage/settings?mp=connected', req.url))
+    const res = NextResponse.redirect(new URL('/shop/manage/settings/pagos?mp=connected#mercadopago', req.url))
     res.cookies.set('mp_pkce_verifier', '', { maxAge: 0, path: '/api/mp/connect' })
     return res
   } catch (err) {

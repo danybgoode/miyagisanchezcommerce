@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.redirect(new URL('/sign-in', req.url))
 
   const errorRedirect = (reason: string) =>
-    NextResponse.redirect(new URL(`/shop/manage/settings?mp=error&reason=${encodeURIComponent(reason)}`, req.url))
+    NextResponse.redirect(new URL(`/shop/manage/settings/pagos?mp=error&reason=${encodeURIComponent(reason)}#mercadopago`, req.url))
 
   const { data: shop } = await db
     .from('marketplace_shops')
