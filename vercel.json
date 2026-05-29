@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/reconcile-checkouts",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
