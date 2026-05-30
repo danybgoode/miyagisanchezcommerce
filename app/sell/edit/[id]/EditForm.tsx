@@ -9,6 +9,7 @@ interface EditableFields {
   price_cents: number | null
   currency: string
   listing_type: string
+  available_quantity: number | null
   images: Array<{ url: string; alt?: string }>
 }
 
@@ -19,6 +20,9 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   const [priceRaw, setPriceRaw] = useState(
     initial.price_cents != null ? String(initial.price_cents / 100) : '',
   )
+  const [quantityRaw, setQuantityRaw] = useState(
+    initial.available_quantity != null ? String(initial.available_quantity) : '',
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -26,6 +30,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
 
   const isSubscription = initial.listing_type === 'subscription'
   const isDigital = initial.listing_type === 'digital'
+  const isProduct = initial.listing_type === 'product'
   const priceReadOnly = isSubscription // subscription prices live in tiers
 
   function parsePriceCents(raw: string): number | null {
@@ -56,6 +61,9 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       }
       if (!priceReadOnly) {
         body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
+      }
+      if (isProduct && quantityRaw.trim() !== '') {
+        body.quantity = Math.max(0, parseInt(quantityRaw) || 0)
       }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
@@ -173,6 +181,31 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       {isSubscription && (
         <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-muted)]">
           💡 Los precios de suscripción se gestionan en los planes del anuncio. Solo puedes editar título y descripción aquí.
+        </div>
+      )}
+
+      {/* Quantity / restock — physical products only */}
+      {isProduct && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Cantidad disponible
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={quantityRaw}
+            onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
+            placeholder="0"
+            className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+              fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
+            }`}
+          />
+          {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Pon 0 para marcar como agotado. Subir la cantidad reactiva un artículo vendido. No afecta pedidos en curso.
+          </p>
         </div>
       )}
 

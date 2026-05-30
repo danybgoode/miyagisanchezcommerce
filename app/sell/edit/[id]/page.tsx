@@ -50,6 +50,26 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     metadata: Record<string, unknown>
   }
 
+  // Available stock lives in Medusa Inventory (not Supabase). Fetch it directly for
+  // physical products so the seller can restock. Uses the backend listing endpoint
+  // (view-safe — does not increment view count).
+  const medusaProductId = listing.medusa_product_id ?? listing.id
+  let availableQuantity: number | null = null
+  if (listing.listing_type === 'product') {
+    try {
+      const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+      const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+      const r = await fetch(`${base}/store/listings/${medusaProductId}`, {
+        headers: { 'x-publishable-api-key': pub },
+        cache: 'no-store',
+      })
+      if (r.ok) {
+        const d = await r.json()
+        availableQuantity = d?.listing?.manage_inventory ? (d.listing.available_quantity ?? null) : null
+      }
+    } catch { /* non-fatal — quantity field just won't show a current value */ }
+  }
+
   const typeLabel: Record<string, string> = {
     product: '📦 Producto',
     service: '🔧 Servicio',
@@ -93,13 +113,14 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
       )}
 
       <EditForm
-        id={listing.medusa_product_id ?? listing.id}
+        id={medusaProductId}
         initial={{
           title: listing.title,
           description: listing.description ?? '',
           price_cents: listing.price_cents,
           currency: listing.currency ?? 'MXN',
           listing_type: listing.listing_type,
+          available_quantity: availableQuantity,
           images: (listing.images ?? []) as Array<{ url: string; alt?: string }>,
         }}
       />

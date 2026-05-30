@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
 
-  let body: { title?: string; description?: string; price_cents?: number | null }
+  let body: { title?: string; description?: string; price_cents?: number | null; quantity?: number | null }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
   if (body.title !== undefined) {
@@ -35,6 +35,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   if (body.price_cents !== undefined && body.price_cents !== null && body.price_cents < 0) {
     return NextResponse.json({ error: 'El precio no puede ser negativo.', field: 'price' }, { status: 422 })
+  }
+  if (body.quantity !== undefined && body.quantity !== null && (body.quantity < 0 || !Number.isFinite(body.quantity))) {
+    return NextResponse.json({ error: 'La cantidad no puede ser negativa.', field: 'quantity' }, { status: 422 })
   }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
@@ -49,6 +52,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.title !== undefined && { title: body.title.trim() }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+      ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
     }),
   })
 
