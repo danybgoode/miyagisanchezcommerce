@@ -1,14 +1,30 @@
 /**
  * POST /api/orders/[id]/return-request  — buyer opens a return request
- * GET  /api/orders/[id]/return-request  — get return requests for this order
+ * GET  /api/orders/[id]/return-request  — get return request state for this order
+ *
+ * Routes to the Medusa backend for Medusa order IDs (order_*).
+ * Sends emails via Resend after the backend creates the return record.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { currentUser } from '@clerk/nextjs/server'
-import { db } from '@/lib/supabase'
+import { auth } from '@clerk/nextjs/server'
 import { sendReturnRequestToSeller, sendReturnRequestConfirmedToBuyer, getSellerEmail } from '@/lib/email'
 import { tg } from '@/lib/telegram'
+import { db } from '@/lib/supabase'
 
-const VALID_REASONS = ['not_as_described', 'damaged', 'wrong_item', 'changed_mind', 'other'] as const
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY    = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-publishable-api-key': PUB_KEY,
+      Authorization: `Bearer ${clerkJwt}`,
+      ...(options?.headers ?? {}),
+    },
+  })
+}
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -17,30 +33,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await currentUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  const { userId, getToken } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  // Fetch order + verify access
-  const { data: order } = await db
-    .from('marketplace_orders')
-    .select('id, buyer_email, buyer_clerk_user_id, marketplace_shops!inner(clerk_user_id)')
-    .eq('id', id)
-    .maybeSingle()
+  // Medusa order
+  if (id.startsWith('order_')) {
+    const clerkJwt = await getToken()
+    if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+    const res = await medusaFetch(`/store/customers/me/orders/${id}/return-request`, clerkJwt)
+    const data = await res.json()
+    if (!res.ok) return NextResponse.json({ error: data.message ?? 'Error.' }, { status: res.status })
+    return NextResponse.json({ request: data.return_request })
+  }
 
-  if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
-
-  const shop = order.marketplace_shops as unknown as { clerk_user_id: string | null }
-  const buyerEmail = user.emailAddresses?.[0]?.emailAddress ?? ''
-  const isSeller = shop.clerk_user_id === user.id
-  const isBuyer = order.buyer_clerk_user_id === user.id || order.buyer_email?.toLowerCase() === buyerEmail.toLowerCase()
-  if (!isSeller && !isBuyer) return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
-
+  // Legacy Supabase fallback
   const { data: requests } = await db
     .from('marketplace_return_requests')
     .select('*')
     .eq('order_id', id)
     .order('created_at', { ascending: false })
-
   return NextResponse.json({ requests: requests ?? [] })
 }
 
@@ -51,26 +62,78 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await currentUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  const { userId, getToken } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   let body: { reason?: string; description?: string }
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
-  if (!body.reason || !VALID_REASONS.includes(body.reason as typeof VALID_REASONS[number])) {
+  // ── Medusa path ───────────────────────────────────────────────────────────
+  if (id.startsWith('order_')) {
+    const clerkJwt = await getToken()
+    if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+
+    const res = await medusaFetch(`/store/customers/me/orders/${id}/return-request`, clerkJwt, {
+      method: 'POST',
+      body: JSON.stringify({ reason: body.reason, description: body.description }),
+    })
+    const data = await res.json() as { return_request?: Record<string, unknown>; message?: string }
+    if (!res.ok) return NextResponse.json({ error: data.message ?? 'Error al crear la solicitud.' }, { status: res.status })
+
+    const returnReq = data.return_request!
+    const siteUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+
+    // Resolve seller for email notification
+    try {
+      const orderRes = await medusaFetch(`/store/customers/me/orders/${id}`, clerkJwt)
+      if (orderRes.ok) {
+        const orderData = await orderRes.json() as { order?: { marketplace_shops?: { id?: string; name?: string; clerk_user_id?: string }; marketplace_listings?: { title?: string } } }
+        const shop    = orderData.order?.marketplace_shops
+        const listing = orderData.order?.marketplace_listings
+        const listingTitle = listing?.title ?? 'Producto'
+        const shopName     = shop?.name ?? 'Vendedor'
+
+        if (shop?.clerk_user_id) {
+          const sellerEmail = await getSellerEmail(shop.clerk_user_id).catch(() => null)
+          if (sellerEmail) {
+            sendReturnRequestToSeller({
+              sellerEmail,
+              shopName,
+              buyerName:    null,
+              buyerEmail:   (returnReq.buyer_email as string) ?? '',
+              listingTitle,
+              reason:       body.reason ?? '',
+              description:  body.description?.trim() ?? null,
+              orderUrl:     `${siteUrl}/shop/manage/orders/${id}`,
+            }).catch(() => {})
+          }
+        }
+        sendReturnRequestConfirmedToBuyer({
+          buyerEmail: (returnReq.buyer_email as string) ?? '',
+          buyerName:  null,
+          listingTitle,
+          shopName,
+          orderUrl: `${siteUrl}/account/orders/${id}`,
+        }).catch(() => {})
+
+        tg.alert(`↩ Solicitud de devolución (Medusa)\n${listingTitle}\nMotivo: ${body.reason}`).catch(() => {})
+      }
+    } catch { /* non-fatal — emails best-effort */ }
+
+    return NextResponse.json({ return_request: returnReq }, { status: 201 })
+  }
+
+  // ── Legacy Supabase path ──────────────────────────────────────────────────
+  const VALID_REASONS = ['not_as_described', 'damaged', 'wrong_item', 'changed_mind', 'other']
+  if (!body.reason || !VALID_REASONS.includes(body.reason)) {
     return NextResponse.json({ error: 'Motivo de devolución inválido.' }, { status: 422 })
   }
 
-  // ── Fetch order and verify buyer access ───────────────────────────────────
   const { data: order } = await db
     .from('marketplace_orders')
-    .select(`
-      id, status, amount_cents, currency, buyer_email, buyer_name, buyer_clerk_user_id, shop_id,
-      marketplace_listings!inner(id, title),
-      marketplace_shops!inner(id, name, clerk_user_id)
-    `)
+    .select('id, status, amount_cents, currency, buyer_email, buyer_name, buyer_clerk_user_id, shop_id, marketplace_listings!inner(id, title), marketplace_shops!inner(id, name, clerk_user_id)')
     .eq('id', id)
     .maybeSingle()
 
@@ -78,86 +141,35 @@ export async function POST(
 
   const shop    = order.marketplace_shops as unknown as { id: string; name: string; clerk_user_id: string | null }
   const listing = order.marketplace_listings as unknown as { id: string; title: string }
-  const buyerEmail = user.emailAddresses?.[0]?.emailAddress ?? ''
-  const isBuyer = order.buyer_clerk_user_id === user.id || order.buyer_email?.toLowerCase() === buyerEmail.toLowerCase()
-
+  const isBuyer = order.buyer_clerk_user_id === userId
   if (!isBuyer) return NextResponse.json({ error: 'Solo el comprador puede abrir una devolución.' }, { status: 403 })
-
-  // Only allow return requests on delivered/completed orders
   if (!['delivered', 'completed'].includes(order.status)) {
     return NextResponse.json({ error: 'Solo puedes solicitar una devolución después de recibir el pedido.' }, { status: 422 })
   }
 
-  // Check if a return request already exists
-  const { data: existing } = await db
-    .from('marketplace_return_requests')
-    .select('id, status')
-    .eq('order_id', id)
-    .maybeSingle()
-
+  const { data: existing } = await db.from('marketplace_return_requests').select('id, status').eq('order_id', id).maybeSingle()
   if (existing && existing.status !== 'declined') {
-    return NextResponse.json({ error: 'Ya existe una solicitud de devolución para este pedido.', requestId: existing.id }, { status: 409 })
+    return NextResponse.json({ error: 'Ya existe una solicitud de devolución.', requestId: existing.id }, { status: 409 })
   }
 
-  // ── Create return request ─────────────────────────────────────────────────
   const { data: returnRequest, error: insertError } = await db
     .from('marketplace_return_requests')
-    .insert({
-      order_id:            id,
-      shop_id:             shop.id,
-      buyer_clerk_user_id: user.id,
-      buyer_email:         buyerEmail || order.buyer_email,
-      reason:              body.reason,
-      description:         body.description?.trim() || null,
-      status:              'pending',
-    })
-    .select('id')
-    .single()
+    .insert({ order_id: id, shop_id: shop.id, buyer_clerk_user_id: userId, buyer_email: order.buyer_email, reason: body.reason, description: body.description?.trim() || null, status: 'pending' })
+    .select('id').single()
 
-  if (insertError || !returnRequest) {
-    console.error('[return-request] insert error:', insertError)
-    return NextResponse.json({ error: 'Error al crear la solicitud.' }, { status: 500 })
-  }
+  if (insertError || !returnRequest) return NextResponse.json({ error: 'Error al crear la solicitud.' }, { status: 500 })
 
-  // Flag the order
-  await db
-    .from('marketplace_orders')
-    .update({ return_requested_at: new Date().toISOString() })
-    .eq('id', id)
+  await db.from('marketplace_orders').update({ return_requested_at: new Date().toISOString() }).eq('id', id)
 
-  // ── Side effects ──────────────────────────────────────────────────────────
-  const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
-  const orderUrl = `${siteUrl}/shop/manage/orders/${id}`
-  const buyerOrderUrl = `${siteUrl}/account/orders/${id}`
-
-  // Notify seller
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
   if (shop.clerk_user_id) {
     const sellerEmail = await getSellerEmail(shop.clerk_user_id)
     if (sellerEmail) {
-      sendReturnRequestToSeller({
-        sellerEmail,
-        shopName:     shop.name,
-        buyerName:    order.buyer_name ?? null,
-        buyerEmail:   (buyerEmail || order.buyer_email) ?? '',
-        listingTitle: listing.title,
-        reason:       body.reason,
-        description:  body.description?.trim() ?? null,
-        orderUrl,
-      }).catch(e => console.error('[email] returnRequestToSeller:', e))
+      sendReturnRequestToSeller({ sellerEmail, shopName: shop.name, buyerName: order.buyer_name ?? null, buyerEmail: order.buyer_email ?? '', listingTitle: listing.title, reason: body.reason, description: body.description?.trim() ?? null, orderUrl: `${siteUrl}/shop/manage/orders/${id}` }).catch(() => {})
     }
   }
-
-  // Confirm to buyer
-  sendReturnRequestConfirmedToBuyer({
-    buyerEmail:   (buyerEmail || order.buyer_email) ?? '',
-    buyerName:    order.buyer_name ?? null,
-    listingTitle: listing.title,
-    shopName:     shop.name,
-    orderUrl:     buyerOrderUrl,
-  }).catch(e => console.error('[email] returnRequestToBuyer:', e))
-
-  tg.alert(`↩ Solicitud de devolución\n${listing.title}\nMotivo: ${body.reason}\nComprador: ${buyerEmail}`)
-    .catch(() => {})
+  sendReturnRequestConfirmedToBuyer({ buyerEmail: order.buyer_email ?? '', buyerName: order.buyer_name ?? null, listingTitle: listing.title, shopName: shop.name, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
+  tg.alert(`↩ Solicitud de devolución\n${listing.title}\nMotivo: ${body.reason}`).catch(() => {})
 
   return NextResponse.json({ requestId: returnRequest.id }, { status: 201 })
 }
