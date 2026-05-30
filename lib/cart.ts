@@ -36,7 +36,7 @@ async function responseMessage(response: Response, fallback: string) {
   return payload?.message ?? payload?.error ?? fallback
 }
 
-export type CheckoutProvider = 'stripe' | 'mercadopago'
+export type CheckoutProvider = 'stripe' | 'mercadopago' | 'spei' | 'cash'
 export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'none'
 
 export interface CheckoutShippingAddress {
@@ -86,12 +86,23 @@ export interface StartCheckoutParams {
   shippingAddress?: CheckoutShippingAddress
   /** Buyer-selected live Envia quote */
   shippingQuote?: CheckoutShippingQuote
+  /** Buyer explicitly opts into escrow (when seller escrow_mode is 'optional') */
+  escrow?: boolean
 }
 
 export interface StartCheckoutResult {
-  redirect_url: string
+  /** Redirect URL for Stripe/MP. Null for SPEI/cash (no external redirect). */
+  redirect_url: string | null
   cart_id: string
   payment_session_id: string | null
+  /** SPEI: seller's CLABE interbancaria */
+  clabe?: string | null
+  /** SPEI: seller's bank name */
+  bank_name?: string | null
+  /** SPEI: account holder name */
+  account_holder?: string | null
+  /** Escrow mode that was applied, if any */
+  escrow_mode?: string | null
 }
 
 /**
@@ -103,7 +114,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, items, sellerId,
     provider, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote,
+    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
   } = params
 
   // Normalise to array — single-item path is the same as multi-item with one entry
@@ -186,6 +197,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(fulfillmentMethod ? { fulfillment_method: fulfillmentMethod } : {}),
       ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
       ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
+      ...(escrow ? { escrow: true } : {}),
       ...(shippingQuote ? {
         shipping_quote: {
           rate_id: shippingQuote.rateId,
@@ -203,5 +215,25 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     throw new Error(await responseMessage(checkoutRes, 'Failed to start checkout'))
   }
 
-  return checkoutRes.json()
+  const result: StartCheckoutResult = await checkoutRes.json()
+
+  // SPEI/cash: complete the cart immediately to create the Medusa order in pending state.
+  // No external redirect — the frontend will show bank transfer instructions.
+  if ((provider === 'spei' || provider === 'cash') && result.cart_id) {
+    const completeRes = await medusaFetch(`/store/carts/${result.cart_id}/complete`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({}),
+    })
+    if (!completeRes.ok) {
+      const msg = await responseMessage(completeRes, 'Failed to complete cart')
+      throw new Error(msg)
+    }
+    const { type, order } = await completeRes.json()
+    if (type === 'order' && order?.id) {
+      result.cart_id = order.id // Return order ID so caller can navigate to order page
+    }
+  }
+
+  return result
 }

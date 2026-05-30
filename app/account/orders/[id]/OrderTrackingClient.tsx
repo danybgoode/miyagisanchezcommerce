@@ -27,6 +27,7 @@ interface OrderTrackingProps {
     buyer_name: string | null
     buyer_email: string | null
     created_at: string
+    metadata?: Record<string, unknown> | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }[]
@@ -156,9 +157,16 @@ const RETURN_STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 export default function OrderTrackingClient({ order }: OrderTrackingProps) {
+  const meta = (order.metadata ?? {}) as Record<string, unknown>
+  const isEscrowOrder = !!meta.escrow_mode
+  const escrowCaptured = !!meta.escrow_captured
+  const isSpeiOrder = meta.payment_method === 'spei' || meta.payment_method === 'cash'
+  const paymentReceived = !!meta.payment_received
+
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [escrowConfirmed, setEscrowConfirmed] = useState(escrowCaptured)
 
   // Return request state
   const [showReturnForm, setShowReturnForm] = useState(false)
@@ -171,7 +179,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const shop     = Array.isArray(order.marketplace_shops)    ? order.marketplace_shops[0]    : order.marketplace_shops
   const shipment = order.marketplace_shipments?.[0] ?? null
   const thumb    = listing?.images?.[0]?.url ?? null
-  const meta     = STATUS_META[currentStatus] ?? STATUS_META.paid
+  const statusMeta = STATUS_META[currentStatus] ?? STATUS_META.paid
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -185,15 +193,27 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   async function confirmDelivery() {
     setConfirming(true)
     try {
-      const res = await fetch(`/api/orders/${order.id}`, {
-        method: 'PATCH',
+      // Escrow orders: use the dedicated confirm-delivery endpoint that triggers capture
+      const endpoint = isEscrowOrder
+        ? `/api/orders/${order.id}/confirm-delivery`
+        : `/api/orders/${order.id}`
+      const method = isEscrowOrder ? 'POST' : 'PATCH'
+      const body = isEscrowOrder ? '{}' : JSON.stringify({ status: 'completed' })
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
+        body,
       })
-      const data = await res.json() as { status?: string; error?: string }
+      const data = await res.json() as { status?: string; confirmed?: boolean; error?: string }
       if (!res.ok) { showToast(data.error ?? 'Error.', 'error'); return }
       setCurrentStatus('completed')
-      showToast('¡Gracias por confirmar! Recuerda calificar al vendedor.', 'success')
+      if (isEscrowOrder) {
+        setEscrowConfirmed(true)
+        showToast('Pago liberado al vendedor. ¡Gracias!', 'success')
+      } else {
+        showToast('¡Gracias por confirmar! Recuerda calificar al vendedor.', 'success')
+      }
     } catch {
       showToast('Sin conexión. Inténtalo de nuevo.', 'error')
     } finally {
@@ -201,7 +221,9 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
     }
   }
 
-  const canConfirm = currentStatus === 'delivered'
+  // For escrow: can confirm when delivered and not yet captured
+  // For regular: can confirm when delivered
+  const canConfirm = currentStatus === 'delivered' && (!isEscrowOrder || !escrowConfirmed)
 
   async function loadReturnRequest() {
     try {
@@ -249,13 +271,13 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       </nav>
 
       {/* Status banner */}
-      <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${meta.badge}`}>
+      <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${statusMeta.badge}`}>
         <span className="text-base">
           {currentStatus === 'shipped' || currentStatus === 'in_transit' ? '🚚' :
            currentStatus === 'delivered' || currentStatus === 'completed' ? '✓' :
            currentStatus === 'refunded' ? '↩' : '📋'}
         </span>
-        <p className="text-sm font-medium">{meta.message}</p>
+        <p className="text-sm font-medium">{statusMeta.message}</p>
       </div>
 
       {/* Product card */}
@@ -326,19 +348,62 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         </section>
       )}
 
+      {/* SPEI/cash pending payment notice */}
+      {isSpeiOrder && !paymentReceived && (
+        <section className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-amber-700">🏦</span>
+            <p className="text-sm font-semibold text-amber-800">Pago pendiente de verificación</p>
+          </div>
+          <p className="text-xs text-amber-700">
+            Tu transferencia SPEI está en proceso. El vendedor confirmará cuando reciba el depósito en su cuenta.
+          </p>
+        </section>
+      )}
+      {isSpeiOrder && paymentReceived && (
+        <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">Pago confirmado por el vendedor</p>
+          </div>
+        </section>
+      )}
+
       {/* Confirm delivery CTA */}
       {canConfirm && (
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
-          <p className="text-sm font-medium text-green-800 mb-1">¿Ya recibiste tu pedido?</p>
-          <p className="text-xs text-green-700 mb-3">Confirmar ayuda a que el vendedor reciba su pago completo.</p>
+          {isEscrowOrder ? (
+            <>
+              <p className="text-sm font-medium text-green-800 mb-1">¿Ya recibiste tu pedido en buen estado?</p>
+              <p className="text-xs text-green-700 mb-3">
+                Al confirmar, el pago en custodia se libera al vendedor. Si hay un problema, solicita devolución antes de confirmar.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-green-800 mb-1">¿Ya recibiste tu pedido?</p>
+              <p className="text-xs text-green-700 mb-3">Confirmar ayuda a que el vendedor reciba su pago completo.</p>
+            </>
+          )}
           <button
             type="button"
             onClick={confirmDelivery}
             disabled={confirming}
             className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
-            {confirming ? 'Confirmando…' : '✓ Sí, lo recibí — todo bien'}
+            {confirming ? 'Confirmando…' : isEscrowOrder ? '✓ Sí, lo recibí — liberar pago' : '✓ Sí, lo recibí — todo bien'}
           </button>
+        </section>
+      )}
+
+      {/* Escrow captured confirmation */}
+      {isEscrowOrder && escrowConfirmed && currentStatus !== 'delivered' && (
+        <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">Pago liberado al vendedor</p>
+          </div>
+          <p className="text-xs text-green-700 mt-1">El vendedor ya recibió el pago. ¡Gracias por tu compra!</p>
         </section>
       )}
 

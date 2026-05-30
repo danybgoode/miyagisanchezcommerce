@@ -10,6 +10,7 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
+import SpeiPaymentButton from '@/app/components/SpeiPaymentButton'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
@@ -255,11 +256,33 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               Inicia sesión para comprar
             </Link>
           )
+        ) : hasClabe ? (
+          <SpeiPaymentButton
+            listingId={listing.id}
+            sellerId={listing.shop?.id}
+            amountCents={agreedDealCents ?? listing.price_cents!}
+            currency={listing.currency}
+            isSignedIn={isSignedIn}
+            offerAmountCents={agreedDealCents ?? undefined}
+            offerId={activeDeal?.offerId ?? undefined}
+          />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
             Contacta al vendedor para pagar
           </div>
         )
+      )}
+      {/* SPEI as secondary option when card/MP is the primary payment method */}
+      {showBuyButtons && hasClabe && (sellerHasMp || sellerHasStripe) && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
+        <SpeiPaymentButton
+          listingId={listing.id}
+          sellerId={listing.shop?.id}
+          amountCents={agreedDealCents ?? listing.price_cents!}
+          currency={listing.currency}
+          isSignedIn={isSignedIn}
+          offerAmountCents={agreedDealCents ?? undefined}
+          offerId={activeDeal?.offerId ?? undefined}
+        />
       )}
       {hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
         <MakeOfferButton

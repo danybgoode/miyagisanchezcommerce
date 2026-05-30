@@ -40,6 +40,7 @@ interface OrderDetailProps {
     buyer_email: string | null
     created_at: string
     updated_at: string
+    metadata?: Record<string, unknown> | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -509,12 +510,22 @@ const RETURN_STATUS_META: Record<string, { label: string; badge: string }> = {
 }
 
 export default function OrderDetail({ order }: OrderDetailProps) {
+  const orderMeta = (order.metadata ?? {}) as Record<string, unknown>
+  const isEscrowOrder = !!orderMeta.escrow_mode
+  const escrowCapturedInit = !!orderMeta.escrow_captured
+  const isSpeiOrder = orderMeta.payment_method === 'spei' || orderMeta.payment_method === 'cash'
+  const paymentReceivedInit = !!orderMeta.payment_received
+
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [currentShipment, setCurrentShipment] = useState<Shipment | null>(
     order.marketplace_shipments?.[0] ?? null,
   )
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [escrowCaptured, setEscrowCaptured] = useState(escrowCapturedInit)
+  const [paymentReceived, setPaymentReceived] = useState(paymentReceivedInit)
+  const [confirmingPayment, setConfirmingPayment] = useState(false)
+  const [releasingEscrow, setReleasingEscrow] = useState(false)
 
   // Return request state
   const [returnRequest, setReturnRequest] = useState<{
@@ -606,6 +617,42 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  async function handleConfirmPayment() {
+    setConfirmingPayment(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/confirm-payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json() as { confirmed?: boolean; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al confirmar.', 'error'); return }
+      setPaymentReceived(true)
+      showToast('Pago confirmado. El pedido sigue su flujo normal.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setConfirmingPayment(false)
+    }
+  }
+
+  async function handleReleaseEscrow() {
+    setReleasingEscrow(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/release-escrow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json() as { released?: boolean; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al liberar.', 'error'); return }
+      setEscrowCaptured(true)
+      showToast('Pago liberado exitosamente.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setReleasingEscrow(false)
+    }
+  }
+
   const canShip = ['paid', 'processing'].includes(currentStatus) && listing?.listing_type === 'product'
 
   return (
@@ -689,6 +736,61 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             existingShipment={currentShipment}
             onShipped={handleShipped}
           />
+        </div>
+      )}
+
+      {/* SPEI/cash: seller confirm payment received */}
+      {isSpeiOrder && !paymentReceived && (
+        <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
+          <p className="text-sm font-semibold text-amber-800 mb-1">Pedido pendiente de pago</p>
+          <p className="text-xs text-amber-700 mb-3">
+            El comprador seleccionó SPEI/transferencia. Confirma cuando recibas el depósito en tu cuenta bancaria.
+          </p>
+          <button
+            type="button"
+            onClick={handleConfirmPayment}
+            disabled={confirmingPayment}
+            className="w-full bg-amber-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {confirmingPayment ? 'Confirmando…' : '✓ Confirmar pago recibido'}
+          </button>
+        </div>
+      )}
+      {isSpeiOrder && paymentReceived && (
+        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">Pago por SPEI confirmado</p>
+          </div>
+        </div>
+      )}
+
+      {/* Escrow: seller can manually release funds */}
+      {isEscrowOrder && !escrowCaptured && ['delivered', 'completed'].includes(currentStatus) && (
+        <div className="border border-purple-200 bg-purple-50/50 rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span>🔒</span>
+            <p className="text-sm font-semibold text-purple-800">Pago en custodia (escrow)</p>
+          </div>
+          <p className="text-xs text-purple-700 mb-3">
+            El pago está retenido hasta que el comprador confirme la recepción. Si el comprador no responde en 3 días después de la entrega, el pago se libera automáticamente.
+          </p>
+          <button
+            type="button"
+            onClick={handleReleaseEscrow}
+            disabled={releasingEscrow}
+            className="w-full border border-purple-400 text-purple-700 py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-100 disabled:opacity-50 transition-colors"
+          >
+            {releasingEscrow ? 'Liberando…' : '🔓 Liberar pago manualmente'}
+          </button>
+        </div>
+      )}
+      {isEscrowOrder && escrowCaptured && (
+        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">Pago de escrow liberado</p>
+          </div>
         </div>
       )}
 

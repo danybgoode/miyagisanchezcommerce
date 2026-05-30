@@ -58,7 +58,7 @@ export default function MercadoPagoButton({
         offerId,
         clerkJwt,
       })
-      window.location.href = redirect_url
+      if (redirect_url) window.location.href = redirect_url
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'No se pudo iniciar el pago.'
       setError(msg)
