@@ -2,9 +2,30 @@
 
 ## ⚠️ All payment logic lives in the Medusa backend
 
-Payment providers (Stripe Connect, MercadoPago, SPEI) are configured as Medusa payment provider modules in `apps/backend`. The frontend does NOT contain payment logic — it calls Medusa's cart/checkout flow which handles provider selection, routing, and webhooks internally.
+Payment providers (Stripe Connect, MercadoPago) are Medusa payment provider modules in `apps/backend/src/modules/`. The frontend calls Medusa's cart/checkout flow; it does NOT contain payment logic.
 
-**Do not add Stripe or MercadoPago API calls to the Next.js frontend.** If a payment concern arises, add it to `apps/backend/src/modules/` as a Medusa module or extend an existing payment provider.
+**Do not add Stripe or MercadoPago API calls to the Next.js frontend.** If a payment concern arises, extend `apps/backend/src/modules/` as a Medusa payment provider.
+
+---
+
+## ⚠️ Real checkout flow (as of 2026-05-30) — READ THIS FIRST
+
+The **live checkout path** is:
+1. `CheckoutExperience.tsx` → `lib/cart.ts startCheckout()` → creates Medusa cart + line items
+2. `POST /store/carts/:id/start-checkout` (Medusa backend, `src/api/store/carts/[id]/start-checkout/route.ts`)  
+   — creates Stripe Checkout Session OR MP Preference  
+   — creates Medusa PaymentCollection + PaymentSession  
+   — links payment collection to cart (via `remoteLink`)  
+   — stores Envia shipping quote in `cart.metadata`  
+3. Buyer redirects to Stripe/MP hosted page  
+4. On return: `POST /store/carts/:id/complete` (Medusa built-in) → creates Order  
+5. Frontend webhook confirms + mirrors to Supabase + sends emails
+
+**The legacy routes `/api/stripe/checkout` and `/api/mp/checkout` are DEAD CODE for one-time purchases.** They still exist (webhook legacy branches) but are no longer called by the PDP buy flow.
+
+**Fulfillment** is stored in `order.metadata.fulfillment_method` + `metadata.shipment` (E-lite) and now also in native Medusa `Fulfillment` objects via `createOrderFulfillmentWorkflow` (E-full, wired post Section 3). Envia label creation happens in the frontend ship route (`/api/orders/[id]/ship`).
+
+**SPEI / manual payments** are currently display-only (seller shows CLABE, buyer wires manually — NO order is created). Section 4 will replace this with a real Medusa `manual` payment provider creating a pending order.
 
 ---
 

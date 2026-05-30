@@ -15,17 +15,20 @@
 
 | Service | URL | Notes |
 |---|---|---|
-| Medusa API (Render) | `https://miyagi-medusa-api.onrender.com` | Service ID: `srv-d8bh3b9kh4rs739fpe5g` |
-| Database (Neon) | `DATABASE_URL` env var | Postgres, all migrations applied |
-| Frontend (Vercel) | `https://miyagisanchez.com` | Auto-deploy from `main` |
-| Backend repo | `https://github.com/danybgoode/medusa-bonsai-backend` | Separate repo, push triggers Render deploy |
+| Medusa API | `https://api.miyagisanchez.com` | GCP Cloud Run, us-east4; ~18min Cloud Build on `main` push |
+| Admin UI | `https://api.miyagisanchez.com/app` | Enabled; `DISABLE_MEDUSA_ADMIN` env gates it |
+| Database | `DATABASE_URL` env var | Neon Postgres; all migrations applied |
+| Frontend | `https://miyagisanchez.com` | Vercel, auto-deploy from `main` only |
+| Backend repo | `https://github.com/danybgoode/medusa-bonsai-backend` | Push `main` → Cloud Build trigger |
 
 **Seeded production data**:
 - Publishable key: `pk_bac9...` (set in `MEDUSA_PUBLISHABLE_KEY` on Vercel)
-- MXN region: `reg_01KSK1HZAWN5ZCSPZ74ER97HD9`
-- Sales channel: `sc_01KSK1J0V81P4EPY9G0JAPX353`
+- MXN is default store currency; Mexico region + stock location "México" exist
+- FulfillmentSet "Miyagi México" + 3 ShippingOptions seeded (post Section 3)
 
-**Stripe webhooks**:
+**CI/CD**: Cloud Build `cloudbuild.yaml` — builds Docker image → pushes to Artifact Registry → deploys Cloud Run revision. Check build status: `gh api repos/danybgoode/medusa-bonsai-backend/commits/main/check-runs`.
+
+**Webhooks**:
 - Frontend (`/api/webhooks/stripe`): handles `invoice.*`, `customer.subscription.*`, `payment_intent.*`
 - Medusa backend (`/hooks/payment/pp_stripe-connect_stripe-connect`): handles `payment_intent.succeeded`, `charge.refunded`, `checkout.session.completed`
 
@@ -67,8 +70,8 @@ medusa-config.ts           ← DB, CORS, plugins, modules config
 | Custom `seller` module | Multi-vendor: sellers own products, have slugs, metadata |
 | `@medusajs/payment-stripe` | Base Stripe; extended by custom Stripe Connect provider |
 | Custom `payment-stripe-connect` | Stripe Connect Express for seller payouts |
-| Custom `payment-mercadopago` | MP Checkout Pro + Preapproval (subscriptions) |
-| Custom Envia.com fulfillment | Mexican shipping carrier integration |
+| Custom `payment-mercadopago` | MP Checkout Pro + OAuth marketplace splits |
+| `@medusajs/fulfillment-manual` | Manual fulfillment provider (backing native Medusa fulfillment objects) |
 | Custom `auth-clerk` module | Validates Clerk JWTs for customer identification |
 | Custom `subscriptions` module | Recurring billing, tiers, content gating |
 
@@ -193,23 +196,8 @@ MercadoPago webhooks: `POST /api/webhooks/mercadopago` (frontend) and Medusa's b
 
 ## Medusa Admin Dashboard
 
-**Current status: disabled in production** (Render free plan memory constraints).
+**Current status: ENABLED at `https://api.miyagisanchez.com/app`** (Cloud Run has sufficient memory).
 
-**Why it's disabled**: `medusa-config.ts` has `admin: { disable: process.env.NODE_ENV === 'production' }`. The admin bundle requires ~512MB RAM at build time and adds overhead at runtime — the free Render plan (0.1 CPU / 512MB) can't support it reliably.
+Gate: `medusa-config.ts` has `admin: { disable: process.env.DISABLE_MEDUSA_ADMIN === 'true' }`. Set `DISABLE_MEDUSA_ADMIN=true` in Cloud Run env to turn it off.
 
-**How to access the admin**:
-
-Option A — Local (free, works today):
-```bash
-cd apps/backend
-# .env already points at production Neon DB
-npx medusa dev   # admin available at http://localhost:9000/app
-```
-This gives you full admin access (orders, products, sellers, inventory) against the live production database.
-
-Option B — Re-enable on Render (upgrade required):
-1. Upgrade Render to Hobby plan ($7/mo) or Standard ($25/mo)
-2. In `medusa-config.ts`, change to `admin: { disable: false }` or remove the condition
-3. Push to backend repo → Render rebuilds + serves admin at `https://miyagi-medusa-api.onrender.com/app`
-
-**Recommendation**: Use Option A for now. As the marketplace grows and Render gets upgraded, switch to Option B. The admin is the right tool for marketplace management — do not build custom UIs for order/product/seller management.
+Admin user: `daniel@despachobonsai.com` (created in prod Neon DB). If you need to create a new admin user, use a Cloud Run Job (no shell on Cloud Run) — clone the medusa-web image + secrets + VPC connector `medusa-conn` and run `medusa user -e email@x.com -p password`.
