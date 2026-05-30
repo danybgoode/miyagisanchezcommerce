@@ -25,7 +25,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
 
-  let body: { title?: string; description?: string; price_cents?: number | null; quantity?: number | null }
+  let body: {
+    title?: string
+    description?: string
+    price_cents?: number | null
+    quantity?: number | null
+    weight_grams?: number | null
+    attrs?: Record<string, unknown>
+  }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
   if (body.title !== undefined) {
@@ -53,6 +60,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.description !== undefined && { description: body.description }),
       ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
       ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
+      ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
+      ...(body.attrs !== undefined && { attrs: body.attrs }),
     }),
   })
 

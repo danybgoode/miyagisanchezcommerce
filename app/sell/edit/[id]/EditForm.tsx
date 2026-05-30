@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { AttrsSection, type Attrs, type ListingType } from '../../AttrsSection'
 
 interface EditableFields {
   title: string
@@ -9,6 +10,8 @@ interface EditableFields {
   price_cents: number | null
   currency: string
   listing_type: string
+  category: string
+  attrs: Record<string, unknown>
   available_quantity: number | null
   images: Array<{ url: string; alt?: string }>
 }
@@ -23,6 +26,14 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   const [quantityRaw, setQuantityRaw] = useState(
     initial.available_quantity != null ? String(initial.available_quantity) : '',
   )
+  const [attrs, setAttrs] = useState<Attrs>(
+    Object.fromEntries(
+      Object.entries(initial.attrs ?? {}).map(([k, v]) => [k, String(v ?? '')])
+    )
+  )
+  function setAttr(k: string, v: string) {
+    setAttrs(prev => ({ ...prev, [k]: v }))
+  }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -31,7 +42,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   const isSubscription = initial.listing_type === 'subscription'
   const isDigital = initial.listing_type === 'digital'
   const isProduct = initial.listing_type === 'product'
-  const priceReadOnly = isSubscription // subscription prices live in tiers
+  const priceReadOnly = isSubscription
 
   function parsePriceCents(raw: string): number | null {
     const n = parseFloat(raw.replace(/,/g, '').replace(/\s/g, ''))
@@ -58,6 +69,10 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       const body: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
+        // Non-empty attrs only
+        attrs: Object.fromEntries(
+          Object.entries(attrs).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+        ),
       }
       if (!priceReadOnly) {
         body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
@@ -89,7 +104,6 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
 
   return (
     <div className="space-y-6">
-      {/* Global error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3 text-sm flex items-start gap-2">
           <span className="mt-0.5 shrink-0">⚠</span>
@@ -103,7 +117,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
         </div>
       )}
 
-      {/* Images (read-only preview — upload via manage/content) */}
+      {/* Images preview */}
       {initial.images.length > 0 && (
         <div>
           <p className="text-sm font-medium text-[var(--color-text)] mb-2">Fotos actuales</p>
@@ -143,9 +157,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-          Descripción
-        </label>
+        <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Descripción</label>
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
@@ -155,7 +167,17 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
         />
       </div>
 
-      {/* Price — hidden for subscription (tiers manage their own prices) */}
+      {/* Category-specific attrs */}
+      {initial.category && (
+        <AttrsSection
+          category={initial.category}
+          listingType={initial.listing_type as ListingType}
+          attrs={attrs}
+          setAttr={setAttr}
+        />
+      )}
+
+      {/* Price */}
       {!priceReadOnly && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
@@ -180,11 +202,11 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       )}
       {isSubscription && (
         <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-muted)]">
-          💡 Los precios de suscripción se gestionan en los planes del anuncio. Solo puedes editar título y descripción aquí.
+          💡 Los precios de suscripción se gestionan en los planes del anuncio.
         </div>
       )}
 
-      {/* Quantity / restock — physical products only */}
+      {/* Quantity / restock */}
       {isProduct && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
@@ -204,12 +226,11 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
           />
           {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
           <p className="text-xs text-[var(--color-muted)] mt-1">
-            Pon 0 para marcar como agotado. Subir la cantidad reactiva un artículo vendido. No afecta pedidos en curso.
+            Pon 0 para marcar como agotado. No afecta pedidos en curso.
           </p>
         </div>
       )}
 
-      {/* Save button */}
       <button
         type="button"
         onClick={handleSave}

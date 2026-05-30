@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useId } from 'react'
 import { CATEGORIES, MEXICAN_STATES } from '@/lib/types'
+import { AttrsSection, type Attrs } from './AttrsSection'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -619,6 +620,7 @@ function StepListing({
   repuveStatus, setRepuveStatus,
   repuveFolio, setRepuveFolio,
   subTiers, setSubTiers,
+  attrs, setAttr,
   errors,
   submitting,
   submitError,
@@ -642,6 +644,7 @@ function StepListing({
   repuveFolio: string; setRepuveFolio: (v: string) => void
   subTiers: { id: string; label: string; price_raw: string; interval: 'month' | 'year'; features_raw: string; is_highlighted: boolean }[]
   setSubTiers: React.Dispatch<React.SetStateAction<{ id: string; label: string; price_raw: string; interval: 'month' | 'year'; features_raw: string; is_highlighted: boolean }[]>>
+  attrs: Attrs; setAttr: (k: string, v: string) => void
   errors: Record<string, string>
   submitting: boolean
   submitError: string | null
@@ -941,6 +944,16 @@ function StepListing({
           />
           <FieldError msg={errors.digitalFile} />
         </div>
+      )}
+
+      {/* Category-specific attributes (brand, size, year, etc.) */}
+      {category && (
+        <AttrsSection
+          category={category}
+          listingType={listingType}
+          attrs={attrs}
+          setAttr={setAttr}
+        />
       )}
 
       {/* Condition (only for products) */}
@@ -1254,6 +1267,11 @@ export default function SellWizard({
   const [digitalFile, setDigitalFile] = useState<DigitalFile | null>(null)
   const [repuveStatus, setRepuveStatus] = useState<RepuveStatus>('')
   const [repuveFolio, setRepuveFolio] = useState('')
+  // Category-specific structured attributes (brand, size, year, km…)
+  const [attrs, setAttrs] = useState<Attrs>({})
+  function setAttr(k: string, v: string) {
+    setAttrs(prev => ({ ...prev, [k]: v }))
+  }
   // Multi-tier subscription state (Phase B)
   interface SubTier {
     id: string
@@ -1349,6 +1367,10 @@ export default function SellWizard({
           category,
           state: listingState || undefined,
           municipio: listingCity.trim() || undefined,
+          // Non-empty attrs only (strip blank strings)
+          attrs: Object.fromEntries(
+            Object.entries(attrs).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+          ),
           images: readyPhotos,
           digital_file: digitalFile ?? undefined,
           repuve: repuveStatus ? { status: repuveStatus, folio: repuveFolio || undefined } : undefined,
@@ -1398,6 +1420,7 @@ export default function SellWizard({
     setCategory('')
     setListingType('product')
     setCondition('good')
+    setAttrs({})
     setSubTiers([{ id: Math.random().toString(36).slice(2), label: '', price_raw: '', interval: 'month', features_raw: '', is_highlighted: false }])
     setPriceRaw('')
     setPriceOnRequest(false)
@@ -1461,6 +1484,7 @@ export default function SellWizard({
             repuveStatus={repuveStatus} setRepuveStatus={setRepuveStatus}
             repuveFolio={repuveFolio} setRepuveFolio={setRepuveFolio}
             subTiers={subTiers} setSubTiers={setSubTiers}
+            attrs={attrs} setAttr={setAttr}
             errors={listingErrors}
             submitting={submitting}
             submitError={submitError}

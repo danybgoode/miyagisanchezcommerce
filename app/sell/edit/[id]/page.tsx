@@ -50,25 +50,31 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     metadata: Record<string, unknown>
   }
 
-  // Available stock lives in Medusa Inventory (not Supabase). Fetch it directly for
-  // physical products so the seller can restock. Uses the backend listing endpoint
-  // (view-safe — does not increment view count).
   const medusaProductId = listing.medusa_product_id ?? listing.id
+
+  // Fetch Medusa listing for quantity, attrs, category (view-safe endpoint)
   let availableQuantity: number | null = null
-  if (listing.listing_type === 'product') {
-    try {
-      const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-      const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-      const r = await fetch(`${base}/store/listings/${medusaProductId}`, {
-        headers: { 'x-publishable-api-key': pub },
-        cache: 'no-store',
-      })
-      if (r.ok) {
-        const d = await r.json()
-        availableQuantity = d?.listing?.manage_inventory ? (d.listing.available_quantity ?? null) : null
+  let medusaAttrs: Record<string, unknown> = {}
+  let medusaCategory = ''
+  try {
+    const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+    const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+    const r = await fetch(`${base}/store/listings/${medusaProductId}`, {
+      headers: { 'x-publishable-api-key': pub },
+      cache: 'no-store',
+    })
+    if (r.ok) {
+      const d = await r.json()
+      const ml = d?.listing
+      if (ml) {
+        if (listing.listing_type === 'product') {
+          availableQuantity = ml.manage_inventory ? (ml.available_quantity ?? null) : null
+        }
+        medusaAttrs = (ml.attrs as Record<string, unknown>) ?? {}
+        medusaCategory = (ml.category as string) ?? ''
       }
-    } catch { /* non-fatal — quantity field just won't show a current value */ }
-  }
+    }
+  } catch { /* non-fatal */ }
 
   const typeLabel: Record<string, string> = {
     product: '📦 Producto',
@@ -120,7 +126,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           price_cents: listing.price_cents,
           currency: listing.currency ?? 'MXN',
           listing_type: listing.listing_type,
+          category: medusaCategory,
           available_quantity: availableQuantity,
+          attrs: medusaAttrs,
           images: (listing.images ?? []) as Array<{ url: string; alt?: string }>,
         }}
       />

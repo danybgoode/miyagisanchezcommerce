@@ -33,6 +33,8 @@ interface CreatePayload {
     currency?: string
     condition?: string | null
     quantity?: number | null
+    weight_grams?: number | null
+    attrs?: Record<string, unknown>
     listing_type: string
     category: string
     state?: string
@@ -236,6 +238,8 @@ export async function POST(req: NextRequest) {
       municipio: body.listing.municipio || null,
       location: [body.listing.municipio?.trim(), body.listing.state?.trim()].filter(Boolean).join(', ') || null,
       quantity: body.listing.listing_type === 'product' ? Math.max(1, Math.floor(body.listing.quantity ?? 1)) : 1,
+      weight_grams: body.listing.weight_grams ?? null,
+      attrs: body.listing.attrs ?? {},
       images: body.listing.images ?? [],
       metadata,
     }),
