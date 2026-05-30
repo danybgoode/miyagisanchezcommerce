@@ -1,9 +1,12 @@
 import { redirect, notFound } from 'next/navigation'
-import { currentUser } from '@clerk/nextjs/server'
+import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import OrderTrackingClient from './OrderTrackingClient'
 
 export const metadata = { title: 'Detalle de compra — Miyagi Sánchez' }
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
 export default async function BuyerOrderDetailPage({
   params,
@@ -14,6 +17,29 @@ export default async function BuyerOrderDetailPage({
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
+  // ── Medusa-backed order (id like "order_…") ───────────────────────────────
+  // Read straight from Medusa (the system of record) instead of the Supabase
+  // mirror, so orders that were never mirrored still open. Ownership is enforced
+  // server-side by the backend (Clerk JWT → customer.external_id).
+  if (id.startsWith('order_')) {
+    const { getToken } = await auth()
+    const clerkJwt = await getToken()
+    if (!clerkJwt) redirect('/sign-in')
+
+    const res = await fetch(`${MEDUSA_BASE}/store/customers/me/orders/${id}`, {
+      headers: {
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        Authorization: `Bearer ${clerkJwt}`,
+      },
+      cache: 'no-store',
+    })
+    if (!res.ok) notFound()
+    const { order } = await res.json() as { order?: Parameters<typeof OrderTrackingClient>[0]['order'] }
+    if (!order) notFound()
+    return <OrderTrackingClient order={order} />
+  }
+
+  // ── Legacy Supabase order ─────────────────────────────────────────────────
   const buyerEmail = user.emailAddresses?.[0]?.emailAddress ?? ''
 
   const { data: order } = await db
