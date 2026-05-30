@@ -50,6 +50,21 @@ async function authorizeMpPayment(cartId: string, mpPaymentId: string): Promise<
   }
 }
 
+/** Seller/shop name for the post-purchase summary (channel-agnostic listings endpoint). */
+async function getListingSellerName(productId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${productId}`, {
+      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const { listing } = await res.json()
+    return listing?.seller?.name ?? listing?.shop?.name ?? null
+  } catch {
+    return null
+  }
+}
+
 export default async function PaymentSuccessPage({
   searchParams,
 }: {
@@ -86,10 +101,16 @@ export default async function PaymentSuccessPage({
         }).format(amountTotal / 100)
       : null
 
+    // Human-friendly order number (Medusa display_id) + seller name for the summary.
+    const orderNumber = order?.display_id != null ? `#${order.display_id}` : null
+    const sellerName = productId ? await getListingSellerName(productId) : null
+
     return <SuccessUI
       buyerName={null}
       amountPaid={amountPaid}
       itemName={itemName}
+      orderNumber={orderNumber}
+      sellerName={sellerName}
       listingId={productId ?? null}
       isDigital={false}
       provider={mpPaymentId ? 'mercadopago' : 'stripe'}
@@ -217,6 +238,8 @@ function SuccessUI({
   buyerName,
   amountPaid,
   itemName,
+  orderNumber,
+  sellerName,
   listingId,
   isDigital: _isDigital,
   provider,
@@ -224,6 +247,8 @@ function SuccessUI({
   buyerName: string | null
   amountPaid: string | null
   itemName: string
+  orderNumber: string | null
+  sellerName: string | null
   listingId: string | null
   isDigital: boolean
   provider: 'stripe' | 'mercadopago'
@@ -232,14 +257,32 @@ function SuccessUI({
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
         <CheckIcon />
-        <h1 className="text-2xl font-bold mb-2">
+        <h1 className="text-2xl font-bold mb-1">
           {buyerName ? `¡Gracias, ${buyerName}!` : '¡Pago completado!'}
         </h1>
-        {amountPaid && (
-          <p className="text-[var(--color-muted)] mb-6">
-            Pagaste <strong className="text-[var(--color-foreground)]">{amountPaid}</strong> por {itemName}.
-          </p>
+        {orderNumber && (
+          <p className="text-sm text-[var(--color-muted)] mb-6">Pedido {orderNumber}</p>
         )}
+
+        {/* Order summary */}
+        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-4 text-sm text-left">
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-[var(--color-muted)]">Artículo</span>
+            <span className="font-medium text-right">{itemName}</span>
+          </div>
+          {sellerName && (
+            <div className="flex justify-between gap-3 py-1">
+              <span className="text-[var(--color-muted)]">Vendedor</span>
+              <span className="font-medium text-right">{sellerName}</span>
+            </div>
+          )}
+          {amountPaid && (
+            <div className="flex justify-between gap-3 py-1 mt-1 pt-2 border-t border-[var(--color-border)]">
+              <span className="text-[var(--color-muted)]">Pagado</span>
+              <span className="font-bold text-right">{amountPaid}</span>
+            </div>
+          )}
+        </div>
 
         <div className="border border-[var(--color-border)] rounded-xl p-4 mb-6 text-sm text-left">
           <p className="text-[var(--color-muted)]">
@@ -248,6 +291,10 @@ function SuccessUI({
         </div>
 
         <div className="flex flex-col gap-3">
+          <Link href="/account/orders"
+            className="bg-[var(--color-foreground)] text-[var(--color-background)] px-5 py-2.5 rounded-lg text-sm font-semibold no-underline hover:opacity-90 transition-opacity">
+            Ver mis pedidos
+          </Link>
           {listingId && (
             <Link href={`/l/${listingId}`}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-lg text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
