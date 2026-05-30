@@ -38,6 +38,12 @@ export type Listing = {
   source_platform: string | null
   source_url: string | null
   views: number
+  /** Whether the variant tracks finite stock (physical products). */
+  manage_inventory?: boolean
+  /** Available units (stocked − reserved) for managed items; null = unlimited. */
+  available_quantity?: number | null
+  /** False only when a managed item has sold out. Absent ⇒ treat as in stock. */
+  in_stock?: boolean
   created_at: string
   shop?: Shop
 }

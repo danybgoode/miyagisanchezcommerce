@@ -100,6 +100,13 @@ export const getShopListings = unstable_cache(
       const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
       const priceObj = mxnPrice ?? variant?.prices?.[0]
       const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
+      const manageInventory = !!variant?.manage_inventory
+      const availableQuantity = manageInventory
+        ? (variant?.inventory_items ?? [])
+            .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
+            .reduce((sum: number, lvl: any) =>
+              sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
+        : null
       return {
         id: p.id,
         shop_id: seller?.id ?? '',
@@ -121,6 +128,9 @@ export const getShopListings = unstable_cache(
         source_platform: (meta.source_platform as string) ?? null,
         source_url: (meta.source_url as string) ?? null,
         views: (meta.views as number) ?? 0,
+        manage_inventory: manageInventory,
+        available_quantity: availableQuantity,
+        in_stock: !manageInventory || (availableQuantity ?? 0) > 0,
         created_at: p.created_at,
         shop: seller ? {
           id: seller.id,

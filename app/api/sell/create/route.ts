@@ -32,6 +32,7 @@ interface CreatePayload {
     price_cents?: number | null
     currency?: string
     condition?: string | null
+    quantity?: number | null
     listing_type: string
     category: string
     state?: string
@@ -234,6 +235,7 @@ export async function POST(req: NextRequest) {
       state: body.listing.state || null,
       municipio: body.listing.municipio || null,
       location: [body.listing.municipio?.trim(), body.listing.state?.trim()].filter(Boolean).join(', ') || null,
+      quantity: body.listing.listing_type === 'product' ? Math.max(1, Math.floor(body.listing.quantity ?? 1)) : 1,
       images: body.listing.images ?? [],
       metadata,
     }),

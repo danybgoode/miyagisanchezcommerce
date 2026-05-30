@@ -92,13 +92,20 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
             {listings.map(listing => (
               <div key={listing.id} style={{ position: 'relative' }}>
                 <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
+                <div style={{ position: 'relative' }}>
                 {listing.images?.[0] ? (
-                  <img src={listing.images[0].url} alt={listing.title} className="w-full h-40 object-cover" />
+                  <img src={listing.images[0].url} alt={listing.title} className="w-full h-40 object-cover" style={listing.in_stock === false ? { opacity: 0.55 } : undefined} />
                 ) : (
                   <div className="w-full h-40 flex items-center justify-center" style={{ background: 'var(--bg-sunk)' }}>
                     <i className="iconoir-package" style={{ fontSize: 40, color: 'var(--fg-subtle)' }} />
                   </div>
                 )}
+                {listing.in_stock === false && (
+                  <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, color: '#fff', background: 'var(--danger)', borderRadius: 'var(--r-pill)', padding: '3px 8px' }}>
+                    Agotado
+                  </span>
+                )}
+                </div>
                 <div className="p-3">
                   <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: 4 }}>
                     {listing.title}

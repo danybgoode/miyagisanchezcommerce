@@ -74,6 +74,10 @@ export interface UcpListing {
   views: number
   created_at: string
 
+  // Stock — true unless a Medusa-managed item has sold out (null = unlimited)
+  in_stock: boolean
+  available_quantity: number | null
+
   // Commerce capabilities
   shop: UcpShop
   actions: UcpActions
@@ -139,13 +143,17 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     ?.checkout as Record<string, unknown> | undefined)
     ?.escrow_mode as 'off' | 'optional' | 'required' | undefined ?? 'off'
 
+  // ── Stock ─────────────────────────────────────────────────────────────────
+  // Sold out only when Medusa Inventory tracks the item and stock hit 0.
+  const inStock = listing.in_stock !== false
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   const hasPrice = listing.price_cents != null && listing.price_cents > 0
   const isDigital = listing.listing_type === 'digital'
   const isClaimed = !!(shop?.clerk_user_id && !shop.clerk_user_id.startsWith('pending:'))
 
-  const buyNow = hasPrice && isClaimed && (hasMp || hasStripe)
-  const makeOffer = hasPrice && !isDigital && isClaimed
+  const buyNow = hasPrice && isClaimed && inStock && (hasMp || hasStripe)
+  const makeOffer = hasPrice && !isDigital && isClaimed && inStock
 
   // ── Trust ───────────────────────────────────────────────────────────────────
   const listingMeta = listing.metadata ?? {}
@@ -159,8 +167,8 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
 
   // ── Checkout URLs (POST endpoints — agent sends listingId) ──────────────────
   const checkoutUrls: UcpCheckoutUrls = {}
-  if (hasMp && hasPrice && !isDigital && isClaimed) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
-  if (hasStripe && hasPrice && isClaimed) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
+  if (hasMp && hasPrice && !isDigital && isClaimed && inStock) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
+  if (hasStripe && hasPrice && isClaimed && inStock) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
 
   // ── Schema.org ──────────────────────────────────────────────────────────────
   const schemaOrg: Record<string, unknown> = {
@@ -174,7 +182,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
       '@type': 'Offer',
       price: (listing.price_cents! / 100).toFixed(2),
       priceCurrency: listing.currency ?? 'MXN',
-      availability: 'https://schema.org/InStock',
+      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       seller: shop ? { '@type': 'Organization', name: shop.name } : undefined,
     } : undefined,
     itemCondition: listing.condition ? `https://schema.org/${
@@ -202,6 +210,9 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     state: listing.state,
     views: listing.views ?? 0,
     created_at: listing.created_at,
+
+    in_stock: inStock,
+    available_quantity: listing.available_quantity ?? null,
 
     shop: shop ? {
       id: shop.id,

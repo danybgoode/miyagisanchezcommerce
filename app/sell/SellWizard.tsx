@@ -609,6 +609,7 @@ function StepListing({
   category, setCategory,
   listingType, setListingType,
   condition, setCondition,
+  quantity, setQuantity,
   priceRaw, setPriceRaw,
   priceOnRequest, setPriceOnRequest,
   description, setDescription,
@@ -630,6 +631,7 @@ function StepListing({
   category: string; setCategory: (v: string) => void
   listingType: ListingType; setListingType: (v: ListingType) => void
   condition: Condition; setCondition: (v: Condition) => void
+  quantity: string; setQuantity: (v: string) => void
   priceRaw: string; setPriceRaw: (v: string) => void
   priceOnRequest: boolean; setPriceOnRequest: (v: boolean) => void
   description: string; setDescription: (v: string) => void
@@ -968,6 +970,26 @@ function StepListing({
         </div>
       )}
 
+      {/* Cantidad (stock) — only for physical products. Default 1 (artículo único). */}
+      {listingType === 'product' && (
+        <div>
+          <Label>Cantidad disponible</Label>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={() => setQuantity(String(Math.max(1, parseInt(quantity) || 1)))}
+            className="w-32 border rounded px-3 py-2.5 focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
+          />
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Para artículos únicos deja 1. Al venderse, el anuncio se marca como agotado automáticamente.
+          </p>
+        </div>
+      )}
+
       {/* Price — hidden for subscription (price is per-tier in the builder above) */}
       <div className={listingType === 'subscription' ? 'hidden' : ''}>
         <Label required={!priceOnRequest}>Precio</Label>
@@ -1223,6 +1245,7 @@ export default function SellWizard({
   const [category, setCategory] = useState('')
   const [listingType, setListingType] = useState<ListingType>('product')
   const [condition, setCondition] = useState<Condition>('good')
+  const [quantity, setQuantity] = useState('1')
   const [priceRaw, setPriceRaw] = useState('')
   const [priceOnRequest, setPriceOnRequest] = useState(false)
   const [description, setDescription] = useState('')
@@ -1321,6 +1344,7 @@ export default function SellWizard({
           price_cents: priceCents,
           currency: 'MXN',
           condition: listingType === 'product' ? condition : undefined,
+          quantity: listingType === 'product' ? Math.max(1, parseInt(quantity) || 1) : undefined,
           listing_type: listingType,
           category,
           state: listingState || undefined,
@@ -1427,6 +1451,7 @@ export default function SellWizard({
             category={category} setCategory={setCategory}
             listingType={listingType} setListingType={setListingType}
             condition={condition} setCondition={setCondition}
+            quantity={quantity} setQuantity={setQuantity}
             priceRaw={priceRaw} setPriceRaw={setPriceRaw}
             priceOnRequest={priceOnRequest} setPriceOnRequest={setPriceOnRequest}
             description={description} setDescription={setDescription}

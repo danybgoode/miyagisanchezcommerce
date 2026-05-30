@@ -155,7 +155,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     ? formatOfferAmount(agreedDealCents, activeDealCurrency)
     : formatPrice(listing)
   const showBuyerActions = isClaimed && !isOwnListing
-  const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && showBuyerActions
+  // Sold out only when Medusa Inventory tracks the item and stock hit 0. Legacy
+  // (unmanaged) listings have in_stock === undefined → never blocked.
+  const soldOut = listing.in_stock === false
+  const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && showBuyerActions && !soldOut
   const images = listing.images ?? []
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
@@ -360,6 +363,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 3 }}>Tu precio acordado</p>
           )}
           <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{effectivePrice}</p>
+          {soldOut && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
+              <i className="iconoir-cancel" style={{ fontSize: 12 }} />
+              Agotado
+            </span>
+          )}
           {agreedDealCents && listing.price_cents && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>
               Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span>
@@ -471,6 +480,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {showBuyButtons && (
           <div className="hidden md:block" style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
             {ctaButtons}
+          </div>
+        )}
+
+        {/* ── Sold-out notice (replaces buy CTAs) ─────────────────────────────── */}
+        {soldOut && showBuyerActions && !isDigital && !isSubscription && hasBuyablePrice && (
+          <div style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
+            <i className="iconoir-cancel" style={{ fontSize: 22, color: 'var(--danger)' }} />
+            <p style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>Artículo agotado</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Este artículo ya se vendió y no está disponible.</p>
           </div>
         )}
 

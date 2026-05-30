@@ -125,6 +125,9 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
+  // Block checkout for sold-out (Medusa-managed) items — backend reserves stock on
+  // order placement, so this saves the buyer a failed add-to-cart at the rail.
+  if (listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
 
   const availableProviders: CheckoutProvider[] = [
     sellerHasMp && listing.listing_type !== 'digital' ? 'mercadopago' as const : null,
