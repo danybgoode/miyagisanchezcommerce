@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { quoteShipments, type EnviaAddress, type EnviaPackage } from '@/lib/envia'
+import { toEnviaStateCode } from '@/lib/mx-locations'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -24,6 +25,8 @@ type CheckoutAddress = {
   line2?: string
   city?: string
   state?: string
+  /** Resolved Envia 2-digit state code (populated by CP-first lookup) */
+  state_code?: string
   postal_code?: string
   country?: string
 }
@@ -46,6 +49,7 @@ type ShippingSettings = {
     colonia?: string | null
     city?: string | null
     state?: string | null
+    state_code?: string | null
     postal_code?: string | null
   }
 }
@@ -65,7 +69,7 @@ function requiredAddressReady(address: CheckoutAddress) {
     address.name?.trim() &&
     address.line1?.trim() &&
     address.city?.trim() &&
-    address.state?.trim() &&
+    (address.state_code?.trim() || address.state?.trim()) &&
     address.postal_code?.trim()
   )
 }
@@ -76,7 +80,6 @@ function deliveryLabel(days: number | null) {
 }
 
 function buildPackage(listing: Listing, defaults: ShippingSettings['package_defaults']): EnviaPackage {
-  // Per-product weight_grams is stored in metadata (Section 1). Fall back to shop defaults.
   const productMeta = (listing.metadata ?? {}) as Record<string, unknown>
   const weightGrams = (productMeta.weight_grams as number | undefined) ?? defaults?.weight_grams ?? 500
   return {
@@ -89,6 +92,26 @@ function buildPackage(listing: Listing, defaults: ShippingSettings['package_defa
       height: Math.max(1, defaults?.height_cm ?? 10),
     },
   }
+}
+
+function mapEnviaError(msg: string): string {
+  const m = msg.toLowerCase()
+  if (m.includes('401') || m.includes('403') || m.includes('unauthorized') || m.includes('forbidden')) {
+    return 'Error de configuración del envío. Contacta al vendedor.'
+  }
+  if (m.includes('postal') || m.includes('zip') || m.includes('zipcode') || m.includes('codigo postal')) {
+    return 'El código postal ingresado no es válido. Revísalo e intenta de nuevo.'
+  }
+  if (m.includes('origin') || m.includes('origen')) {
+    return 'La dirección de origen del vendedor no está completa. Contacta al vendedor.'
+  }
+  if (m.includes('coverage') || m.includes('cobertura') || m.includes('no service') || m.includes('no rates')) {
+    return 'Las paqueterías no tienen cobertura para ese código postal. Intenta con otra dirección o coordina la entrega con el vendedor.'
+  }
+  if (m.includes('timeout') || m.includes('network') || m.includes('econnrefused')) {
+    return 'No se pudo conectar con el servicio de paquetería. Intenta en unos momentos.'
+  }
+  return 'No pudimos cotizar envío. Verifica el código postal o coordina la entrega directamente con el vendedor.'
 }
 
 export async function POST(req: NextRequest) {
@@ -117,12 +140,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   }
 
-  // All must be shippable products
   const nonShippable = listings.filter(l => l.listing_type !== 'product')
   if (nonShippable.length === listings.length) {
     return NextResponse.json({ error: 'Ningún artículo del paquete requiere envío por paquetería.' }, { status: 422 })
   }
-  // Filter to only physical products (ignore digital/service items in mixed bundles)
   const shippableListings = listings.filter(l => l.listing_type === 'product')
 
   // ── Seller settings (use first listing's shop) ──────────────────────────────
@@ -134,9 +155,15 @@ export async function POST(req: NextRequest) {
   if (shipping.envia_enabled === false) {
     return NextResponse.json({ error: 'El vendedor no tiene envío a domicilio activo.' }, { status: 422 })
   }
-  if (!originRaw?.street || !originRaw.city || !originRaw.state || !originRaw.postal_code) {
-    return NextResponse.json({ error: 'El vendedor todavía no completó su dirección de origen.' }, { status: 422 })
+  if (!originRaw?.street || !originRaw.city || !originRaw.postal_code) {
+    return NextResponse.json({ error: 'El vendedor todavía no completó su dirección de origen. Coordina la entrega directamente.' }, { status: 422 })
   }
+  if (!originRaw?.state && !originRaw?.state_code) {
+    return NextResponse.json({ error: 'El vendedor todavía no completó su dirección de origen. Coordina la entrega directamente.' }, { status: 422 })
+  }
+
+  // Normalize origin state to Envia 2-digit code
+  const originStateCode = toEnviaStateCode(originRaw.state_code ?? originRaw.state ?? '')
 
   const origin: EnviaAddress = {
     name: originRaw.name ?? shippableListings[0].shop?.name ?? 'Vendedor',
@@ -144,9 +171,15 @@ export async function POST(req: NextRequest) {
     number: originRaw.number ?? undefined,
     district: originRaw.colonia ?? undefined,
     city: originRaw.city,
-    state: originRaw.state,
+    state: originStateCode,
+    country: 'MX',
     postalCode: originRaw.postal_code,
   }
+
+  // Normalize destination state — prefer explicit state_code from CP lookup
+  const destStateCode = body.address.state_code
+    ? body.address.state_code
+    : toEnviaStateCode(body.address.state ?? '')
 
   const destination: EnviaAddress = {
     name: body.address.name ?? 'Comprador',
@@ -154,8 +187,8 @@ export async function POST(req: NextRequest) {
     street: body.address.line1 ?? '',
     district: body.address.line2,
     city: body.address.city ?? '',
-    state: body.address.state ?? '',
-    country: body.address.country ?? 'MX',
+    state: destStateCode,
+    country: 'MX',
     postalCode: body.address.postal_code ?? '',
   }
 
@@ -164,7 +197,6 @@ export async function POST(req: NextRequest) {
   const handlingFeeCents = Math.max(0, Math.round(shipping.handling_fee_cents ?? 0))
   const rateDisplay = shipping.rate_display ?? 'recommended'
 
-  // ── Build packages (one per shippable item) ──────────────────────────────────
   const packages: EnviaPackage[] = shippableListings.map(l => buildPackage(l, packageDefaults))
 
   try {
@@ -194,6 +226,14 @@ export async function POST(req: NextRequest) {
         return (a.deliveryEstimate ?? 99) - (b.deliveryEstimate ?? 99)
       })
 
+    if (normalized.length === 0) {
+      return NextResponse.json({
+        rates: [],
+        package_count: packages.length,
+        message: 'Las paqueterías no tienen cobertura para ese destino. Puedes coordinar la entrega directamente con el vendedor.',
+      })
+    }
+
     const visibleRates = rateDisplay === 'cheapest'
       ? normalized.slice(0, 1)
       : rateDisplay === 'all'
@@ -207,6 +247,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[checkout/shipping-rates] Envia quote failed:', msg)
-    return NextResponse.json({ error: 'No pudimos cotizar envío para esa dirección. Revisa el CP o intenta otra opción.' }, { status: 502 })
+    return NextResponse.json(
+      { error: mapEnviaError(msg) },
+      { status: 502 },
+    )
   }
 }

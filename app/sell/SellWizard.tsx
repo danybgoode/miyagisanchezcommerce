@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useRef, useCallback, useId } from 'react'
-import { CATEGORIES, MEXICAN_STATES } from '@/lib/types'
+import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
+import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { AttrsSection, type Attrs } from './AttrsSection'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -420,30 +421,34 @@ function StepShop({
       {/* Location */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
-          <Label required>Estado</Label>
+          <Label required>Estado / State</Label>
           <select
             value={shopState}
-            onChange={e => setShopState(e.target.value)}
+            onChange={e => { setShopState(e.target.value); setShopCity('') }}
             className={`w-full border rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
               errors.shopState ? 'border-red-400' : 'border-[var(--color-border)]'
             }`}
           >
             <option value="">Selecciona un estado</option>
-            {MEXICAN_STATES.map(s => (
-              <option key={s} value={s}>{s}</option>
+            {ESTADOS.map(e => (
+              <option key={e.inegi_code} value={e.name}>{e.name}</option>
             ))}
           </select>
           <FieldError msg={errors.shopState} />
         </div>
         <div>
-          <Label>Ciudad o municipio</Label>
-          <input
-            type="text"
+          <Label>Municipio / Municipality</Label>
+          <select
             value={shopCity}
             onChange={e => setShopCity(e.target.value)}
-            placeholder="Ej: Coyoacán, Zapopan..."
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
-          />
+            disabled={!shopState}
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">{shopState ? 'Municipio (opcional)' : 'Primero elige estado'}</option>
+            {(CITIES_BY_STATE[shopState] ?? []).map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -1071,28 +1076,32 @@ function StepListing({
 
       {/* Location */}
       <div>
-        <Label>Ubicación del anuncio</Label>
+        <Label>Ubicación del anuncio / Listing location</Label>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <select
               value={listingState}
-              onChange={e => setListingState(e.target.value)}
+              onChange={e => { setListingState(e.target.value); setListingCity('') }}
               className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
             >
-              <option value="">Estado (opcional)</option>
-              {MEXICAN_STATES.map(s => (
-                <option key={s} value={s}>{s}</option>
+              <option value="">Estado / State (opcional)</option>
+              {ESTADOS.map(e => (
+                <option key={e.inegi_code} value={e.name}>{e.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <input
-              type="text"
+            <select
               value={listingCity}
               onChange={e => setListingCity(e.target.value)}
-              placeholder="Ciudad o municipio (opcional)"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
-            />
+              disabled={!listingState}
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">{listingState ? 'Municipio / Municipality (opcional)' : 'Primero elige estado'}</option>
+              {(CITIES_BY_STATE[listingState] ?? []).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-1">Ayuda a compradores cercanos a encontrarte.</p>
@@ -1366,6 +1375,7 @@ export default function SellWizard({
           listing_type: listingType,
           category,
           state: listingState || undefined,
+          estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : undefined,
           municipio: listingCity.trim() || undefined,
           // Non-empty attrs only (strip blank strings)
           attrs: Object.fromEntries(

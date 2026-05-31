@@ -407,6 +407,63 @@ export function carrierTrackingUrl(carrier: string, trackingNumber: string): str
   return null
 }
 
+// ── Geocodes API ──────────────────────────────────────────────────────────────
+// Free, no auth required. Use to normalize a CP into the canonical Envia state code.
+
+export interface PostalLookupResult {
+  zipCode: string
+  /** Envia 2-digit state code — ready to pass into EnviaAddress.state */
+  stateCode: string
+  stateName: string
+  /** Municipio / locality (e.g. "Monterrey") */
+  municipio: string
+  /** Colonia / neighborhood list */
+  colonias: string[]
+  coords?: { lat: number; lng: number }
+}
+
+interface RawGeocodeResponse {
+  zip_code?: string
+  state?: {
+    name?: string
+    code?: { '2digit'?: string; '3digit'?: string }
+  }
+  locality?: string
+  suburbs?: string[]
+  coordinates?: { latitude?: string; longitude?: string }
+}
+
+export async function lookupPostalCode(cp: string): Promise<PostalLookupResult | null> {
+  const clean = cp.replace(/\D/g, '').padStart(5, '0').slice(0, 5)
+  if (clean.length < 4) return null
+
+  try {
+    const res = await fetch(`https://geocodes.envia.com/zipcode/MX/${clean}`, {
+      headers: { Accept: 'application/json' },
+      // CP→state is static data — cache aggressively
+      next: { revalidate: 86400 },
+    } as RequestInit)
+    if (!res.ok) return null
+
+    const data = await res.json() as RawGeocodeResponse
+    const stateCode = data.state?.code?.['2digit'] ?? ''
+    if (!stateCode) return null
+
+    return {
+      zipCode: clean,
+      stateCode,
+      stateName: data.state?.name ?? '',
+      municipio: data.locality ?? '',
+      colonias: (data.suburbs ?? []).filter(Boolean).sort(),
+      coords: data.coordinates?.latitude
+        ? { lat: Number(data.coordinates.latitude), lng: Number(data.coordinates.longitude) }
+        : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ── Carrier display labels ────────────────────────────────────────────────────
 
 export const CARRIER_LABELS: Record<string, string> = {

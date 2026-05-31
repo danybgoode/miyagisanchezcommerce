@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
+import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { tg } from '@/lib/telegram'
 
@@ -147,7 +148,8 @@ export async function POST(
     number:     originRaw.number,
     district:   originRaw.colonia,
     city:       originRaw.city ?? '',
-    state:      originRaw.state ?? '',
+    state:      toEnviaStateCode(originRaw.state_code ?? originRaw.state ?? ''),
+    country:    'MX',
     postalCode: originRaw.postal_code,
   }
   const destination: EnviaAddress = {
@@ -155,7 +157,8 @@ export async function POST(
     street:     shippingAddress.street ?? shippingAddress.line1 ?? '',
     district:   shippingAddress.colonia ?? shippingAddress.line2,
     city:       shippingAddress.city ?? '',
-    state:      shippingAddress.state ?? '',
+    state:      toEnviaStateCode(shippingAddress.state_code ?? shippingAddress.state ?? ''),
+    country:    'MX',
     postalCode: shippingAddress.postal_code ?? shippingAddress.postalCode ?? '',
     email:      buyerEmail ?? undefined,
   }
@@ -318,14 +321,16 @@ export async function GET(
     name: originRaw.name ?? shopName,
     street: originRaw.street ?? '',
     city: originRaw.city ?? '',
-    state: originRaw.state ?? '',
+    state: toEnviaStateCode(originRaw.state_code ?? originRaw.state ?? ''),
+    country: 'MX',
     postalCode: originRaw.postal_code,
   }
   const destination: EnviaAddress = {
     name: buyerName ?? shippingAddress.name ?? 'Comprador',
     street: shippingAddress.street ?? shippingAddress.line1 ?? '',
     city: shippingAddress.city ?? '',
-    state: shippingAddress.state ?? '',
+    state: toEnviaStateCode(shippingAddress.state_code ?? shippingAddress.state ?? ''),
+    country: 'MX',
     postalCode: shippingAddress.postal_code ?? shippingAddress.postalCode ?? '',
   }
 

@@ -130,6 +130,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           available_quantity: availableQuantity,
           attrs: medusaAttrs,
           images: (listing.images ?? []) as Array<{ url: string; alt?: string }>,
+          state: (listing.metadata?.state as string | undefined) ?? '',
+          municipio: (listing.metadata?.municipio as string | undefined) ?? '',
+          estado_code: (listing.metadata?.estado_code as string | undefined) ?? '',
         }}
       />
     </div>

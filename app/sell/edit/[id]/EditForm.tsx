@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AttrsSection, type Attrs, type ListingType } from '../../AttrsSection'
+import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
+import { CITIES_BY_STATE } from '@/lib/types'
 
 interface EditableFields {
   title: string
@@ -14,6 +16,9 @@ interface EditableFields {
   attrs: Record<string, unknown>
   available_quantity: number | null
   images: Array<{ url: string; alt?: string }>
+  state?: string
+  municipio?: string
+  estado_code?: string
 }
 
 export default function EditForm({ id, initial }: { id: string; initial: EditableFields }) {
@@ -34,6 +39,9 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   function setAttr(k: string, v: string) {
     setAttrs(prev => ({ ...prev, [k]: v }))
   }
+  const [listingState, setListingState] = useState(initial.state ?? '')
+  const [listingCity, setListingCity] = useState(initial.municipio ?? '')
+  const hasLegacyLocation = !!(initial.state && !initial.estado_code)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -69,10 +77,12 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       const body: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
-        // Non-empty attrs only
         attrs: Object.fromEntries(
           Object.entries(attrs).filter(([, v]) => v !== '' && v !== null && v !== undefined)
         ),
+        state: listingState || null,
+        estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : null,
+        municipio: listingCity.trim() || null,
       }
       if (!priceReadOnly) {
         body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
@@ -230,6 +240,41 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
           </p>
         </div>
       )}
+
+      {/* Location */}
+      <div>
+        <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+          Ubicación / Location
+        </label>
+        {hasLegacyLocation && !listingState && (
+          <div className="mb-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-xs">
+            ⚠ Actualizar ubicación / Update location — tu anuncio tiene una ubicación guardada como texto libre (&quot;{initial.state}&quot;). Selecciona el estado correcto para que aparezca en los filtros de búsqueda.
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <select
+            value={listingState}
+            onChange={e => { setListingState(e.target.value); setListingCity('') }}
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+          >
+            <option value="">Estado / State (opcional)</option>
+            {ESTADOS.map(e => (
+              <option key={e.inegi_code} value={e.name}>{e.name}</option>
+            ))}
+          </select>
+          <select
+            value={listingCity}
+            onChange={e => setListingCity(e.target.value)}
+            disabled={!listingState}
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">{listingState ? 'Municipio (opcional)' : 'Primero elige estado'}</option>
+            {(CITIES_BY_STATE[listingState] ?? []).map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <button
         type="button"

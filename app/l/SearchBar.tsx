@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { CATEGORIES, MEXICAN_STATES } from '@/lib/types'
+import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
+import { ESTADOS } from '@/lib/mx-locations'
 import type { SearchParams, SortOption } from '@/lib/types'
 
 type SearchBarProps = {
@@ -38,6 +39,7 @@ const PROPERTY_TYPES = [
 
 export default function SearchBar({ initialQ, initialCategory, initialState, params }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
+  const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
     params.property_type ? params.property_type.split(',').filter(Boolean) : []
   )
@@ -89,15 +91,31 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="sm:w-40">
           <select
             name="state"
-            defaultValue={initialState ?? ''}
+            value={selectedState}
+            onChange={e => setSelectedState(e.target.value)}
             className={selectClass}
           >
             <option value="">Todo México</option>
-            {MEXICAN_STATES.map(s => (
-              <option key={s} value={s}>{s}</option>
+            {ESTADOS.map(e => (
+              <option key={e.inegi_code} value={e.name}>{e.name}</option>
             ))}
           </select>
         </div>
+
+        {selectedState && (
+          <div className="sm:w-40">
+            <select
+              name="municipio"
+              defaultValue={params.municipio ?? ''}
+              className={selectClass}
+            >
+              <option value="">Todos los municipios</option>
+              {(CITIES_BY_STATE[selectedState] ?? []).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="sm:w-40">
           <select

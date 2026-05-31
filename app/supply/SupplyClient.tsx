@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { CATEGORIES, MEXICAN_STATES } from '@/lib/types'
+import { CATEGORIES } from '@/lib/types'
+import { ESTADOS } from '@/lib/mx-locations'
 import type { SupplyBatch, SupplyItem } from '@/lib/supply'
 
 type SchemaCheck = { table: string; role: string; ok: boolean; error: string | null }
@@ -605,14 +606,15 @@ export default function SupplyClient({ secret }: { secret: string }) {
                 </label>
               </div>
               <label className="block text-xs font-semibold text-zinc-600">
-                State <span className="text-red-700">*</span>
-                <select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} className="mt-1 w-full rounded border border-zinc-300 px-2 py-2 text-sm">
-                  {MEXICAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                Estado / State <span className="text-red-700">*</span>
+                <select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value, municipio: '' }))} className="mt-1 w-full rounded border border-zinc-300 px-2 py-2 text-sm">
+                  <option value="">Selecciona estado</option>
+                  {ESTADOS.map(e => <option key={e.inegi_code} value={e.name}>{e.name}</option>)}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-xs font-semibold text-zinc-600">
-                  Municipio
+                  Municipio / Municipality
                   <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))} className="mt-1 w-full rounded border border-zinc-300 px-2 py-2 text-sm" />
                 </label>
                 <label className="block text-xs font-semibold text-zinc-600">

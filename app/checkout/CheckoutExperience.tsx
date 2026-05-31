@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
@@ -40,6 +40,14 @@ type ShippingRate = {
   logoUrl?: string | null
 }
 
+type PostalLookupResult = {
+  zipCode: string
+  stateCode: string
+  stateName: string
+  municipio: string
+  colonias: string[]
+}
+
 function optionButtonStyle(active: boolean): CSSProperties {
   return {
     display: 'flex',
@@ -63,7 +71,7 @@ function formatCents(cents: number, currency: string) {
   }).format(cents / 100)
 }
 
-function blankAddress(): CheckoutShippingAddress {
+function blankAddress(): CheckoutShippingAddress & { state_code?: string } {
   return {
     country: 'MX',
     name: '',
@@ -72,6 +80,7 @@ function blankAddress(): CheckoutShippingAddress {
     line2: '',
     city: '',
     state: '',
+    state_code: '',
     postal_code: '',
   }
 }
@@ -103,11 +112,19 @@ export default function CheckoutExperience({
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider>(
     paymentOptions[0]?.id ?? 'stripe',
   )
-  const [address, setAddress] = useState<CheckoutShippingAddress>(() => blankAddress())
+  const [address, setAddress] = useState<CheckoutShippingAddress & { state_code?: string }>(() => blankAddress())
+
+  // CP-first lookup state
+  const [cpLookupLoading, setCpLookupLoading] = useState(false)
+  const [cpLookupError, setCpLookupError] = useState<string | null>(null)
+  const [cpLookupResult, setCpLookupResult] = useState<PostalLookupResult | null>(null)
+  const cpLookupRef = useRef<AbortController | null>(null)
+
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
   const [selectedShippingRateId, setSelectedShippingRateId] = useState<string | null>(null)
   const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
   const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
+  const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
 
   const selectedDelivery = useMemo(
     () => deliveryOptions.find(option => option.id === selectedDeliveryId) ?? deliveryOptions[0],
@@ -118,12 +135,15 @@ export default function CheckoutExperience({
     [paymentOptions, selectedPaymentId],
   )
 
+  // CP is valid once we have a successful lookup
+  const cpResolved = Boolean(cpLookupResult && address.state_code)
+
   const addressReady = !selectedDelivery?.requiresAddress || Boolean(
     address.name?.trim() &&
     address.line1?.trim() &&
     address.city?.trim() &&
-    address.state?.trim() &&
-    address.postal_code?.trim(),
+    address.state_code?.trim() &&
+    address.postal_code?.trim()
   )
   const needsShippingRate = Boolean(selectedDelivery?.id === 'shipping' && selectedDelivery.requiresAddress)
   const selectedShippingRate = useMemo(
@@ -145,6 +165,55 @@ export default function CheckoutExperience({
   const totalCents = amountCents + shippingAmountCents
   const canPay = Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
 
+  // ── CP-first lookup ────────────────────────────────────────────────────────
+  function handleCpChange(value: string) {
+    const cp = value.replace(/\D/g, '').slice(0, 5)
+    setAddress(a => ({ ...a, postal_code: cp, state: '', state_code: '', city: '' }))
+    setCpLookupResult(null)
+    setCpLookupError(null)
+
+    if (cp.length < 5) return
+
+    cpLookupRef.current?.abort()
+    const ctrl = new AbortController()
+    cpLookupRef.current = ctrl
+
+    setCpLookupLoading(true)
+    fetch('/api/checkout/postal-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cp }),
+      signal: ctrl.signal,
+    })
+      .then(r => r.json())
+      .then((data: PostalLookupResult & { error?: string }) => {
+        if (ctrl.signal.aborted) return
+        if (data.error) {
+          setCpLookupError(data.error)
+          return
+        }
+        setCpLookupResult(data)
+        setAddress(a => ({
+          ...a,
+          postal_code: data.zipCode,
+          state: data.stateName,
+          state_code: data.stateCode,
+          city: data.municipio,
+          // Reset colonia so buyer picks from dropdown
+          line2: '',
+        }))
+      })
+      .catch(e => {
+        if (ctrl.signal.aborted) return
+        setCpLookupError('No se pudo validar el código postal.')
+        console.error('[postal-lookup]', e)
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setCpLookupLoading(false)
+      })
+  }
+
+  // ── Quote shipping rates ───────────────────────────────────────────────────
   useEffect(() => {
     if (!needsShippingRate || !addressReady) return
 
@@ -152,6 +221,7 @@ export default function CheckoutExperience({
     const timeout = window.setTimeout(async () => {
       setShippingRatesLoading(true)
       setShippingRatesError(null)
+      setShippingRatesMessage(null)
       try {
         const res = await fetch('/api/checkout/shipping-rates', {
           method: 'POST',
@@ -159,12 +229,14 @@ export default function CheckoutExperience({
           body: JSON.stringify({ listingId, address }),
           signal: controller.signal,
         })
-        const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string } | null
+        const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string; message?: string } | null
         if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envio.')
         const rates = data?.rates ?? []
         setShippingRates(rates)
         setSelectedShippingRateId(rates[0]?.id ?? null)
-        if (rates.length === 0) setShippingRatesError('No encontramos tarifas para esa direccion.')
+        if (rates.length === 0) {
+          setShippingRatesMessage(data?.message ?? 'Las paqueterías no tienen cobertura para ese destino. Coordina la entrega con el vendedor.')
+        }
       } catch (err) {
         if (controller.signal.aborted) return
         setShippingRates([])
@@ -210,18 +282,110 @@ export default function CheckoutExperience({
 
         {selectedDelivery?.requiresAddress && (
           <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+
+            {/* Row 1: Name + Phone */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
-              <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" style={inputStyle} />
+              <input
+                value={address.name ?? ''}
+                onChange={e => setAddress({ ...address, name: e.target.value })}
+                placeholder="Nombre de quien recibe"
+                style={inputStyle}
+              />
+              <input
+                value={address.phone ?? ''}
+                onChange={e => setAddress({ ...address, phone: e.target.value })}
+                placeholder="Teléfono"
+                style={inputStyle}
+              />
             </div>
-            <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder="Calle y número" style={inputStyle} />
-            <input value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} placeholder="Colonia / referencias" style={inputStyle} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 10 }}>
-              <input value={address.city ?? ''} onChange={e => setAddress({ ...address, city: e.target.value })} placeholder="Ciudad" style={inputStyle} />
-              <input value={address.state ?? ''} onChange={e => setAddress({ ...address, state: e.target.value })} placeholder="Estado" style={inputStyle} />
-              <input value={address.postal_code ?? ''} onChange={e => setAddress({ ...address, postal_code: e.target.value.replace(/\D/g, '').slice(0, 5) })} placeholder="CP" style={inputStyle} />
+
+            {/* CP row — primary entry point */}
+            <div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={address.postal_code ?? ''}
+                  onChange={e => handleCpChange(e.target.value)}
+                  placeholder="Código postal (CP)"
+                  inputMode="numeric"
+                  maxLength={5}
+                  style={{
+                    ...inputStyle,
+                    paddingRight: 36,
+                    border: `1px solid ${cpLookupError ? 'var(--danger, #dc2626)' : cpResolved ? 'var(--success, #16a34a)' : 'var(--border)'}`,
+                  }}
+                />
+                {cpLookupLoading && (
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)' }}>
+                    ·
+                  </span>
+                )}
+                {cpResolved && !cpLookupLoading && (
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>
+                )}
+              </div>
+              {cpLookupError && (
+                <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>
+              )}
+              {cpResolved && (
+                <p style={{ fontSize: 12, color: 'var(--success, #16a34a)', marginTop: 4 }}>
+                  {cpLookupResult!.municipio}, {cpLookupResult!.stateName}
+                </p>
+              )}
             </div>
-            {!addressReady && <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Completa la dirección para continuar.</p>}
+
+            {/* Estado + Municipio — locked once CP resolves */}
+            {cpResolved && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <input
+                      value={cpLookupResult!.stateName}
+                      readOnly
+                      style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', cursor: 'default' }}
+                      title="Estado (determinado por el CP)"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      value={cpLookupResult!.municipio}
+                      readOnly
+                      style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', cursor: 'default' }}
+                      title="Municipio (determinado por el CP)"
+                    />
+                  </div>
+                </div>
+
+                {/* Colonia dropdown */}
+                {cpLookupResult!.colonias.length > 0 && (
+                  <select
+                    value={address.line2 ?? ''}
+                    onChange={e => setAddress({ ...address, line2: e.target.value })}
+                    style={inputStyle as CSSProperties}
+                  >
+                    <option value="">Selecciona colonia</option>
+                    {cpLookupResult!.colonias.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                )}
+              </>
+            )}
+
+            {/* Street */}
+            <input
+              value={address.line1 ?? ''}
+              onChange={e => setAddress({ ...address, line1: e.target.value })}
+              placeholder="Calle y número"
+              style={inputStyle}
+            />
+
+            {!addressReady && cpResolved && (
+              <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Completa nombre, calle y número para continuar.</p>
+            )}
+            {!cpResolved && !cpLookupError && !(address.postal_code?.length) && (
+              <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Empieza con tu código postal para auto-completar estado y municipio.</p>
+            )}
+
             {addressReady && needsShippingRate && (
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -239,7 +403,14 @@ export default function CheckoutExperience({
 
                 {shippingRatesError && !shippingRatesLoading && (
                   <div style={{ background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger, #dc2626)', borderRadius: 8, padding: 10 }}>
-                    <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)' }}>{shippingRatesError}</p>
+                    <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginBottom: 4 }}>{shippingRatesError}</p>
+                    <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>También puedes coordinar la entrega directamente con el vendedor.</p>
+                  </div>
+                )}
+
+                {shippingRatesMessage && !shippingRatesLoading && shippingRates.length === 0 && !shippingRatesError && (
+                  <div style={{ background: 'var(--warning-soft, #fffbeb)', border: '1px solid var(--warning, #d97706)', borderRadius: 8, padding: 10 }}>
+                    <p style={{ fontSize: 12, color: 'var(--warning, #92400e)' }}>{shippingRatesMessage}</p>
                   </div>
                 )}
 

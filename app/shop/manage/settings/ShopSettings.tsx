@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
+import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ export interface ShopSettingsData {
           colonia?: string | null
           city?: string | null
           state?: string | null
+          state_code?: string | null
           postal_code?: string | null
         }
       }
@@ -731,7 +733,13 @@ export default function ShopSettingsPanel({
   const [originColonia, setOriginColonia]       = useState(oa.colonia ?? '')
   const [originCity, setOriginCity]             = useState(oa.city ?? '')
   const [originState, setOriginState]           = useState(oa.state ?? '')
+  const [originStateCode, setOriginStateCode]   = useState(oa.state_code ?? toEnviaStateCode(oa.state ?? ''))
   const [originPostalCode, setOriginPostalCode] = useState(oa.postal_code ?? '')
+  const [originCpLookupLoading, setOriginCpLookupLoading] = useState(false)
+  const [originCpLookupError, setOriginCpLookupError]     = useState<string | null>(null)
+  const [originCpResolved, setOriginCpResolved]           = useState(Boolean(oa.state_code))
+  const [originColonias, setOriginColonias]               = useState<string[]>([])
+  const originCpRef = useRef<AbortController | null>(null)
   const [enviaShippingEnabled, setEnviaShippingEnabled] = useState(s.shipping?.envia_enabled ?? true)
   const [allowedCarriers, setAllowedCarriers] = useState<string[]>(
     s.shipping?.allowed_carriers?.length ? s.shipping.allowed_carriers : ENVIA_CARRIERS.map(carrier => carrier.id)
@@ -976,6 +984,53 @@ export default function ShopSettingsPanel({
     setTimeout(() => setToast(null), 4000)
   }, [])
 
+  function handleOriginCpChange(value: string) {
+    const cp = value.replace(/\D/g, '').slice(0, 5)
+    setOriginPostalCode(cp)
+    mark()
+
+    if (cp.length < 5) {
+      setOriginCpResolved(false)
+      setOriginCpLookupError(null)
+      return
+    }
+
+    originCpRef.current?.abort()
+    const ctrl = new AbortController()
+    originCpRef.current = ctrl
+    setOriginCpLookupLoading(true)
+    setOriginCpLookupError(null)
+
+    fetch('/api/checkout/postal-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cp }),
+      signal: ctrl.signal,
+    })
+      .then(r => r.json())
+      .then((data: { stateCode?: string; stateName?: string; municipio?: string; colonias?: string[]; error?: string }) => {
+        if (ctrl.signal.aborted) return
+        if (data.error || !data.stateCode) {
+          setOriginCpLookupError(data.error ?? 'Código postal no encontrado.')
+          setOriginCpResolved(false)
+          return
+        }
+        setOriginState(data.stateName ?? '')
+        setOriginStateCode(data.stateCode)
+        setOriginCity(data.municipio ?? '')
+        setOriginColonias(data.colonias ?? [])
+        setOriginCpResolved(true)
+        mark()
+      })
+      .catch(e => {
+        if (ctrl.signal.aborted) return
+        setOriginCpLookupError('No se pudo validar el código postal.')
+        setOriginCpResolved(false)
+        console.error('[origin-cp-lookup]', e)
+      })
+      .finally(() => { if (!ctrl.signal.aborted) setOriginCpLookupLoading(false) })
+  }
+
   function toggleCarrier(carrierId: string) {
     setAllowedCarriers(current => {
       const next = current.includes(carrierId)
@@ -1178,6 +1233,7 @@ export default function ShopSettingsPanel({
                 colonia:     originColonia.trim()     || null,
                 city:        originCity.trim()        || null,
                 state:       originState.trim()       || null,
+                state_code:  originStateCode.trim()   || null,
                 postal_code: originPostalCode.trim()  || null,
               },
             },
@@ -1245,7 +1301,7 @@ export default function ShopSettingsPanel({
   const originAddressReady = Boolean(
     originStreet.trim() &&
     originCity.trim() &&
-    originState.trim() &&
+    (originStateCode.trim() || originState.trim()) &&
     originPostalCode.trim().length === 5
   )
 
@@ -1406,7 +1462,7 @@ export default function ShopSettingsPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Estado</label>
+                  <label className="block text-sm font-medium mb-1">Estado / State</label>
                   <select
                     value={state}
                     onChange={e => {
@@ -1419,7 +1475,7 @@ export default function ShopSettingsPanel({
                     className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
                   >
                     <option value="">Selecciona estado</option>
-                    {MEXICAN_STATES.map(st => <option key={st} value={st}>{st}</option>)}
+                    {ESTADOS.map(e => <option key={e.inegi_code} value={e.name}>{e.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1887,6 +1943,7 @@ export default function ShopSettingsPanel({
                   Desde aquí se calcularán tarifas y se generarán etiquetas con DHL, FedEx, Estafeta, UPS y más. Todos los campos son necesarios.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Sender name */}
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Nombre del remitente</label>
                     <input
@@ -1897,6 +1954,91 @@ export default function ShopSettingsPanel({
                       className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     />
                   </div>
+
+                  {/* CP — entry point that auto-fills state/city */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">
+                      Código postal <span className="font-normal">(auto-completa estado y ciudad)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={originPostalCode}
+                        onChange={e => handleOriginCpChange(e.target.value)}
+                        placeholder="06600"
+                        maxLength={5}
+                        inputMode="numeric"
+                        className={`w-full border rounded px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
+                          originCpLookupError ? 'border-red-400' : originCpResolved ? 'border-green-400' : 'border-[var(--color-border)]'
+                        }`}
+                      />
+                      {originCpLookupLoading && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)] animate-pulse">·</span>
+                      )}
+                      {originCpResolved && !originCpLookupLoading && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 text-sm">✓</span>
+                      )}
+                    </div>
+                    {originCpLookupError && (
+                      <p className="text-red-600 text-xs mt-1">{originCpLookupError}</p>
+                    )}
+                    {originCpResolved && (
+                      <p className="text-green-700 text-xs mt-1">{originCity}, {originState}</p>
+                    )}
+                  </div>
+
+                  {/* Estado — read-only once CP resolved */}
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Estado</label>
+                    <input
+                      type="text"
+                      value={originState}
+                      readOnly={originCpResolved}
+                      onChange={e => { if (!originCpResolved) { setOriginState(e.target.value); mark() } }}
+                      placeholder="Ciudad de México"
+                      className={`w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
+                    />
+                  </div>
+
+                  {/* Ciudad — read-only once CP resolved */}
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Ciudad / Municipio</label>
+                    <input
+                      type="text"
+                      value={originCity}
+                      readOnly={originCpResolved}
+                      onChange={e => { if (!originCpResolved) { setOriginCity(e.target.value); mark() } }}
+                      placeholder="Ciudad de México"
+                      className={`w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
+                    />
+                  </div>
+
+                  {/* Colonia — dropdown when CP resolved, free-text otherwise */}
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Colonia</label>
+                    {originCpResolved && originColonias.length > 0 ? (
+                      <select
+                        value={originColonia}
+                        onChange={e => { setOriginColonia(e.target.value); mark() }}
+                        className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                      >
+                        <option value="">Selecciona colonia</option>
+                        {originColonias.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={originColonia}
+                        onChange={e => { setOriginColonia(e.target.value); mark() }}
+                        placeholder="Roma Norte"
+                        className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                      />
+                    )}
+                  </div>
+
+                  {/* Street */}
                   <div>
                     <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Calle</label>
                     <input
@@ -1907,6 +2049,8 @@ export default function ShopSettingsPanel({
                       className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     />
                   </div>
+
+                  {/* Ext number */}
                   <div>
                     <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Número exterior</label>
                     <input
@@ -1914,47 +2058,6 @@ export default function ShopSettingsPanel({
                       value={originNumber}
                       onChange={e => { setOriginNumber(e.target.value); mark() }}
                       placeholder="123"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Colonia</label>
-                    <input
-                      type="text"
-                      value={originColonia}
-                      onChange={e => { setOriginColonia(e.target.value); mark() }}
-                      placeholder="Roma Norte"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Ciudad</label>
-                    <input
-                      type="text"
-                      value={originCity}
-                      onChange={e => { setOriginCity(e.target.value); mark() }}
-                      placeholder="Ciudad de México"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Estado</label>
-                    <input
-                      type="text"
-                      value={originState}
-                      onChange={e => { setOriginState(e.target.value); mark() }}
-                      placeholder="Ciudad de México"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Código postal</label>
-                    <input
-                      type="text"
-                      value={originPostalCode}
-                      onChange={e => { setOriginPostalCode(e.target.value.replace(/\D/g, '').slice(0, 5)); mark() }}
-                      placeholder="06600"
-                      maxLength={5}
                       className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     />
                   </div>
