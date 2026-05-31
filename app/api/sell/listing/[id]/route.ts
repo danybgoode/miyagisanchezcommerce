@@ -85,6 +85,64 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ id, updated: true })
 }
 
+// ── Checkout viability check ──────────────────────────────────────────────────
+// Returns an error string if the listing cannot support a complete buyer journey,
+// or null if it's OK to publish.
+//
+// Rule: physical product with coord-only delivery (no Envia, no local pickup)
+// must have at least one manual payment method (SPEI, WhatsApp, or phone).
+// All other listing types always have a viable path.
+
+async function checkCheckoutViability(listingId: string, clerkJwt: string): Promise<string | null> {
+  try {
+    // Load the listing and its seller's shop metadata
+    const [listingRes, sellerRes] = await Promise.all([
+      medusaFetch(`/store/listings/${listingId}`, clerkJwt),
+      medusaFetch('/store/sellers/me', clerkJwt),
+    ])
+    if (!listingRes.ok || !sellerRes.ok) return null // non-fatal — allow publish on error
+
+    const { listing } = await listingRes.json() as { listing: Record<string, unknown> }
+    const { seller }  = await sellerRes.json()  as { seller: Record<string, unknown> }
+
+    // Only check physical products — digital/service/rental always have a path
+    const listingType = (listing?.metadata as Record<string, unknown> | null)?.listing_type as string ?? 'product'
+    if (listingType !== 'product') return null
+
+    const shopMeta   = (seller?.metadata ?? {}) as Record<string, unknown>
+    const settings   = (shopMeta.settings ?? {}) as Record<string, unknown>
+    const shipping   = (settings.shipping  ?? {}) as Record<string, unknown>
+    const checkout   = (settings.checkout  ?? {}) as Record<string, unknown>
+    const theme      = (settings.theme     ?? {}) as Record<string, unknown>
+
+    // Check if structured delivery is available
+    const hasLiveShipping = shipping.envia_enabled !== false && (() => {
+      const oa = (shipping.origin_address ?? {}) as Record<string, string | null>
+      return !!(oa.street && oa.city && oa.postal_code && (oa.state_code || oa.state))
+    })()
+    const hasLocalPickup = !!shipping.local_pickup
+
+    if (hasLiveShipping || hasLocalPickup) return null // has a structured delivery → card is available
+
+    // Coord-only: check for at least one manual payment method
+    const bankTransfer = (checkout.bank_transfer ?? {}) as Record<string, unknown>
+    const hasSpei      = !!(bankTransfer.enabled && (bankTransfer.clabe as string)?.length === 18)
+    const whatsappNum  = (theme as any)?.social?.whatsapp ?? checkout.phone
+    const hasWhatsapp  = !!(checkout.whatsapp_cta && whatsappNum)
+    const hasPhone     = !!(checkout.show_phone && checkout.phone)
+
+    if (hasSpei || hasWhatsapp || hasPhone) return null // has a manual payment path → OK
+
+    return [
+      'Para activar este anuncio necesitas configurar al menos un método de pago manual',
+      '(SPEI, WhatsApp o teléfono visible) o activar el envío a domicilio / recolección.',
+      'Sin esto, los compradores no tienen forma de pagar. Ve a Mi tienda → Configuración → Pagos y Envíos.',
+    ].join(' ')
+  } catch {
+    return null // on unexpected error, allow publish (fail open)
+  }
+}
+
 // ── PATCH — update listing status ─────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -103,6 +161,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+
+  // ── Checkout viability gate (activating only) ────────────────────────────────
+  // A product listing with coord-only delivery can only be published if the seller
+  // has at least one manual payment method configured — otherwise buyers have no
+  // way to complete a purchase and the checkout is unreachable.
+  if (body.status === 'active') {
+    const viabilityError = await checkCheckoutViability(id, clerkJwt)
+    if (viabilityError) return NextResponse.json({ error: viabilityError }, { status: 422 })
+  }
 
   // Map frontend status → Medusa product status
   const medusaStatus = body.status === 'active' ? 'published' : 'draft'

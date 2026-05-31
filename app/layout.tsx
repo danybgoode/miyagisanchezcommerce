@@ -223,6 +223,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                   {/* AI Agent button (client component) */}
                   <AIAgentButton />
+
+                  {/* Profile link — browser only; PWA tab bar handles this */}
+                  <Show when="signed-in">
+                    <a
+                      href="/account"
+                      className="icon-btn pwa-search-hide"
+                      title="Mi cuenta"
+                      aria-label="Mi cuenta"
+                    >
+                      <i className="iconoir-user" style={{ fontSize: 22 }} />
+                    </a>
+                  </Show>
                 </div>
 
                 {/* ── DESKTOP LAYOUT: full wordmark + nav ── */}
@@ -307,6 +319,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       <a href="/sell" className="btn btn-primary btn-sm">
                         <i className="iconoir-plus" style={{ fontSize: 14 }} />
                         Publicar
+                      </a>
+                      <a
+                        href="/account"
+                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                        className="hover:text-[var(--fg)]"
+                        title="Mi cuenta"
+                      >
+                        <i className="iconoir-user" style={{ fontSize: 15 }} />
+                        Mi cuenta
                       </a>
                       <UserButton />
                     </Show>
