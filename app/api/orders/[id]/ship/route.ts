@@ -1,13 +1,18 @@
 /**
  * POST /api/orders/[id]/ship
  *
- * Creates an Envia.com shipment for the order, generates a label, and
- * transitions the order to 'shipped'. Seller only.
+ * For Medusa orders (order_*): thin proxy to the Medusa backend's
+ * POST /store/sellers/me/orders/:id/ship endpoint. All Envia logic
+ * and Medusa fulfillment workflows live there (Medusa-first).
+ *
+ * For legacy Supabase orders: unchanged direct Envia path.
  *
  * Body:
- *   rateId      string  — Rate ID from a prior /ship/quote call
- *   weightGrams number  — Package weight in grams
- *   dimensions? { lengthCm, widthCm, heightCm }
+ *   weightGrams  number   — Package weight in grams
+ *   dimensions?  { lengthCm, widthCm, heightCm }
+ *
+ * Note: rateId is no longer required in the body for Medusa orders.
+ * It is read from order.metadata.shipping_rate_id (set at checkout time).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser, auth } from '@clerk/nextjs/server'
@@ -17,24 +22,9 @@ import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { tg } from '@/lib/telegram'
 
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_BASE    = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-// Fetch seller + order context for Medusa-backed orders
-async function getMedusaOrderContext(orderId: string, clerkJwt: string) {
-  const [orderRes, sellerRes] = await Promise.all([
-    fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${orderId}`, {
-      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
-    }),
-    fetch(`${MEDUSA_BASE}/store/sellers/me`, {
-      headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
-    }),
-  ])
-  if (!orderRes.ok) return null
-  const { order } = await orderRes.json() as { order: Record<string, unknown> }
-  const seller = sellerRes.ok ? ((await sellerRes.json()) as { seller?: Record<string, unknown> }).seller : null
-  return { order, seller }
-}
+const SITE_URL       = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 // ── POST /api/orders/[id]/ship ────────────────────────────────────────────────
 
@@ -47,7 +37,7 @@ export async function POST(
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   let body: {
-    rateId?: string
+    rateId?: string              // legacy only — Medusa orders use order metadata
     weightGrams?: number
     dimensions?: { lengthCm: number; widthCm: number; heightCm: number }
   }
@@ -55,91 +45,123 @@ export async function POST(
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
-  if (!body.rateId) return NextResponse.json({ error: 'rateId requerido.' }, { status: 400 })
   if (!body.weightGrams) return NextResponse.json({ error: 'weightGrams requerido.' }, { status: 400 })
 
-  let orderStatus: string
-  let shippingAddress: Record<string, string>
-  let buyerName: string | null
-  let buyerEmail: string | null
-  let listingTitle: string
-  let shopName: string
-  let originRaw: Record<string, string> | undefined
-  let supabaseOrderId: string | null = null
-
+  // ── Medusa order path (Phase B) ───────────────────────────────────────────
   if (id.startsWith('order_')) {
-    // ── Medusa order ────────────────────────────────────────────────────────
     const { getToken } = await auth()
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-    const ctx = await getMedusaOrderContext(id, clerkJwt)
-    if (!ctx) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+    const upstream = await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}/ship`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        Authorization: `Bearer ${clerkJwt}`,
+      },
+      body: JSON.stringify({
+        weightGrams: body.weightGrams,
+        ...(body.dimensions ? { dimensions: body.dimensions } : {}),
+      }),
+    }).catch(e => {
+      console.error('[ship] backend unreachable:', e)
+      return null
+    })
 
-    const { order, seller } = ctx
-    const listings = order.marketplace_listings as Record<string, unknown> | null
-    orderStatus  = (order.status as string) ?? 'paid'
-    shippingAddress = (order.shipping_address as Record<string, string>) ?? {}
-    buyerName    = (order.buyer_name as string | null) ?? null
-    buyerEmail   = (order.buyer_email as string | null) ?? null
-    listingTitle = (listings?.title as string) ?? 'Producto'
-    shopName     = ((order.marketplace_shops as Record<string, unknown>)?.name as string) ?? 'Mi tienda'
-
-    const sellerMeta    = ((seller?.metadata ?? {}) as Record<string, unknown>)
-    const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
-    const shippingSettings = (sellerSettings.shipping ?? {}) as Record<string, unknown>
-    originRaw    = shippingSettings.origin_address as Record<string, string> | undefined
-  } else {
-    // ── Legacy Supabase order ───────────────────────────────────────────────
-    const { data: order } = await db
-      .from('marketplace_orders')
-      .select(`
-        id, status, shipping_address, buyer_name, buyer_email,
-        marketplace_shops!inner(id, clerk_user_id, name, metadata),
-        marketplace_listings!inner(id, title)
-      `)
-      .eq('id', id)
-      .maybeSingle()
-
-    if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
-
-    const shop    = order.marketplace_shops as unknown as { id: string; clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
-    const listing = order.marketplace_listings as unknown as { id: string; title: string }
-
-    if (shop.clerk_user_id !== user.id) {
-      return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+    if (!upstream) {
+      return NextResponse.json({ error: 'No se pudo conectar con el servidor. Intenta de nuevo.' }, { status: 502 })
     }
 
-    orderStatus     = order.status
-    shippingAddress = (order.shipping_address ?? {}) as Record<string, string>
-    buyerName       = order.buyer_name ?? null
-    buyerEmail      = order.buyer_email ?? null
-    listingTitle    = listing.title
-    shopName        = shop.name
-    supabaseOrderId = id
+    const data = await upstream.json().catch(() => null) as Record<string, unknown> | null
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: (data?.message as string | undefined) ?? 'Error al generar etiqueta.' },
+        { status: upstream.status },
+      )
+    }
 
-    const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
-    const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
-    const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
-    originRaw = shippingSettings.origin_address as Record<string, string> | undefined
+    // Fire email + Telegram (backend handles commerce; Next.js handles notifications)
+    const trackingNumber = data?.trackingNumber as string | null ?? null
+    const labelUrl       = data?.labelUrl as string | null ?? null
+    const carrier        = data?.carrier as string ?? 'envia'
+
+    // Fetch minimal order info for notifications
+    try {
+      const orderRes = await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}`, {
+        headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
+      })
+      if (orderRes.ok) {
+        const { order } = await orderRes.json() as { order: Record<string, unknown> }
+        const buyerEmail = (order.buyer_email as string | null) ?? null
+        const buyerName  = (order.buyer_name as string | null) ?? null
+        const listingTitle = ((order.marketplace_listings as Record<string, unknown> | null)?.title as string) ?? 'Producto'
+        const shopName   = ((order.marketplace_shops as Record<string, unknown> | null)?.name as string) ?? 'Mi tienda'
+
+        if (buyerEmail) {
+          sendOrderShipped({
+            buyerEmail,
+            buyerName,
+            listingTitle,
+            orderUrl: `${SITE_URL}/account/orders/${id}`,
+            carrier,
+            trackingNumber,
+            estimatedDelivery: (data?.estimatedDeliveryDate as string | null) ?? null,
+            shopName,
+          }).catch(e => console.error('[email] orderShipped:', e))
+        }
+
+        tg.alert(`📦 Pedido enviado — ${listingTitle}\nGuía: ${trackingNumber ?? 'sin guía'}\nComprador: ${buyerEmail}`)
+      }
+    } catch (e) {
+      console.error('[ship] notification fetch failed (non-fatal):', e)
+    }
+
+    return NextResponse.json(data)
   }
 
-  if (!['paid', 'processing'].includes(orderStatus)) {
-    return NextResponse.json({ error: `No se puede enviar un pedido en estado "${orderStatus}".` }, { status: 422 })
+  // ── Legacy Supabase order path (unchanged) ────────────────────────────────
+  if (!body.rateId) return NextResponse.json({ error: 'rateId requerido.' }, { status: 400 })
+
+  const { data: order } = await db
+    .from('marketplace_orders')
+    .select(`
+      id, status, shipping_address, buyer_name, buyer_email,
+      marketplace_shops!inner(id, clerk_user_id, name, metadata),
+      marketplace_listings!inner(id, title)
+    `)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!order) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+
+  const shop    = order.marketplace_shops as unknown as { id: string; clerk_user_id: string | null; name: string; metadata: Record<string, unknown> | null }
+  const listing = order.marketplace_listings as unknown as { id: string; title: string }
+
+  if (shop.clerk_user_id !== user.id) {
+    return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
   }
+
+  if (!['paid', 'processing'].includes(order.status)) {
+    return NextResponse.json({ error: `No se puede enviar un pedido en estado "${order.status}".` }, { status: 422 })
+  }
+
+  const shippingAddress = (order.shipping_address ?? {}) as Record<string, string>
+  const buyerName       = order.buyer_name ?? null
+  const buyerEmail      = order.buyer_email ?? null
+  const listingTitle    = listing.title
+  const shopName        = shop.name
+
+  const shopMeta      = (shop.metadata ?? {}) as Record<string, unknown>
+  const shopSettings  = (shopMeta.settings ?? {}) as Record<string, unknown>
+  const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
+  const originRaw     = shippingSettings.origin_address as Record<string, string> | undefined
 
   if (!originRaw?.postal_code) {
-    return NextResponse.json({
-      error: 'Configura la dirección de origen de tu tienda en Ajustes antes de enviar.',
-      code: 'MISSING_ORIGIN_ADDRESS',
-    }, { status: 422 })
+    return NextResponse.json({ error: 'Configura la dirección de origen en Ajustes.', code: 'MISSING_ORIGIN_ADDRESS' }, { status: 422 })
   }
-
   if (!shippingAddress.postal_code && !shippingAddress.postalCode) {
-    return NextResponse.json({
-      error: 'Este pedido no tiene dirección de entrega registrada.',
-      code: 'MISSING_SHIPPING_ADDRESS',
-    }, { status: 422 })
+    return NextResponse.json({ error: 'Este pedido no tiene dirección de entrega.', code: 'MISSING_SHIPPING_ADDRESS' }, { status: 422 })
   }
 
   const origin: EnviaAddress = {
@@ -174,58 +196,40 @@ export async function POST(
 
   let shipment
   try {
-    shipment = await createShipment({ origin, destination, packages: [pkg], rateId: body.rateId!, reference: id })
+    shipment = await createShipment({ origin, destination, packages: [pkg], rateId: body.rateId, reference: id })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[envia] createShipment failed:', msg)
     return NextResponse.json({ error: `Error al generar etiqueta: ${msg}` }, { status: 502 })
   }
 
-  // Record shipment in Supabase (for legacy orders; for Medusa orders we store in Medusa via PATCH)
-  let shipmentRowId: string | undefined
-  if (supabaseOrderId) {
-    const { data: shipmentRow } = await db
-      .from('marketplace_shipments')
-      .insert({
-        order_id:               supabaseOrderId,
-        carrier:                shipment.carrier || 'envia',
-        tracking_number:        shipment.trackingNumber,
-        label_url:              shipment.labelUrl,
-        envia_shipment_id:      shipment.enviaShipmentId,
-        envia_rate_id:          body.rateId,
-        status:                 'label_created',
-        estimated_delivery_date: shipment.estimatedDeliveryDate ?? null,
-        weight_grams:           body.weightGrams,
-        metadata:               { raw: shipment.raw },
-      })
-      .select('id')
-      .single()
-    shipmentRowId = shipmentRow?.id
-    await db.from('marketplace_orders').update({ status: 'shipped', updated_at: new Date().toISOString() }).eq('id', supabaseOrderId)
-  } else {
-    // Medusa order — update status via backend
-    const { getToken } = await auth()
-    const clerkJwt = await getToken()
-    if (clerkJwt) {
-      await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-publishable-api-key': MEDUSA_PUB_KEY,
-          Authorization: `Bearer ${clerkJwt}`,
-        },
-        body: JSON.stringify({ status: 'shipped', carrier: shipment.carrier, tracking_number: shipment.trackingNumber }),
-      }).catch(e => console.error('[envia] Medusa shipped update failed:', e))
-    }
-  }
+  const { data: shipmentRow } = await db
+    .from('marketplace_shipments')
+    .insert({
+      order_id:                id,
+      carrier:                 shipment.carrier || 'envia',
+      tracking_number:         shipment.trackingNumber,
+      label_url:               shipment.labelUrl,
+      envia_shipment_id:       shipment.enviaShipmentId,
+      envia_rate_id:           body.rateId,
+      status:                  'label_created',
+      estimated_delivery_date: shipment.estimatedDeliveryDate ?? null,
+      weight_grams:            body.weightGrams,
+      metadata:                { raw: shipment.raw },
+    })
+    .select('id')
+    .single()
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+  await db.from('marketplace_orders')
+    .update({ status: 'shipped', updated_at: new Date().toISOString() })
+    .eq('id', id)
+
   if (buyerEmail) {
     sendOrderShipped({
       buyerEmail,
       buyerName,
       listingTitle,
-      orderUrl: `${siteUrl}/account/orders/${id}`,
+      orderUrl: `${SITE_URL}/account/orders/${id}`,
       carrier: shipment.carrier,
       trackingNumber: shipment.trackingNumber,
       estimatedDelivery: shipment.estimatedDeliveryDate,
@@ -236,7 +240,7 @@ export async function POST(
   tg.alert(`📦 Pedido enviado — ${listingTitle}\nGuía: ${shipment.trackingNumber ?? 'sin guía'}\nComprador: ${buyerEmail}`)
 
   return NextResponse.json({
-    shipmentId: shipmentRowId,
+    shipmentId: shipmentRow?.id,
     trackingNumber: shipment.trackingNumber,
     labelUrl: shipment.labelUrl,
     carrier: shipment.carrier,
@@ -244,7 +248,7 @@ export async function POST(
   })
 }
 
-// ── GET /api/orders/[id]/ship  (quote rates) ──────────────────────────────────
+// ── GET /api/orders/[id]/ship  (quote rates for existing order) ───────────────
 
 export async function GET(
   req: NextRequest,
@@ -271,15 +275,24 @@ export async function GET(
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-    const ctx = await getMedusaOrderContext(id, clerkJwt)
-    if (!ctx) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
+    const [orderRes, sellerRes] = await Promise.all([
+      fetch(`${MEDUSA_BASE}/store/sellers/me/orders/${id}`, {
+        headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
+      }),
+      fetch(`${MEDUSA_BASE}/store/sellers/me`, {
+        headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
+      }),
+    ])
+    if (!orderRes.ok) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 })
 
-    const { order, seller } = ctx
+    const { order } = await orderRes.json() as { order: Record<string, unknown> }
+    const seller = sellerRes.ok ? ((await sellerRes.json()) as { seller?: Record<string, unknown> }).seller : null
     const listings = order.marketplace_listings as Record<string, unknown> | null
+
     shippingAddress = (order.shipping_address as Record<string, string>) ?? {}
     buyerName       = (order.buyer_name as string | null) ?? null
     listingTitle    = (listings?.title as string) ?? 'Producto'
-    shopName        = ((order.marketplace_shops as Record<string, unknown>)?.name as string) ?? 'Mi tienda'
+    shopName        = ((order.marketplace_shops as Record<string, unknown> | null)?.name as string) ?? 'Mi tienda'
 
     const sellerMeta     = ((seller?.metadata ?? {}) as Record<string, unknown>)
     const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
@@ -304,8 +317,8 @@ export async function GET(
     shopName        = shop.name
     listingTitle    = (order.marketplace_listings as unknown as { title: string }).title
 
-    const shopMeta     = (shop.metadata ?? {}) as Record<string, unknown>
-    const shopSettings = (shopMeta.settings ?? {}) as Record<string, unknown>
+    const shopMeta      = (shop.metadata ?? {}) as Record<string, unknown>
+    const shopSettings  = (shopMeta.settings ?? {}) as Record<string, unknown>
     const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
     originRaw = shippingSettings.origin_address as Record<string, string> | undefined
   }
