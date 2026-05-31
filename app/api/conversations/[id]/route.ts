@@ -67,11 +67,7 @@ export async function GET(
   const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
   const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
 
-  // Mark unread as read for this user (fire-and-forget)
-  const unreadField = isBuyer ? 'buyer_unread' : 'seller_unread'
-  if ((isBuyer && conv.buyer_unread > 0) || (isSeller && conv.seller_unread > 0)) {
-    db.from('marketplace_conversations').update({ [unreadField]: 0 }).eq('id', id).then(() => {})
-  }
+  // Read-marking is now explicit via POST .../read (decoupled from polling).
 
   return NextResponse.json({
     conversation: { ...conv, marketplace_offers: offerWithCurrency, checkout_provider: checkoutProvider },

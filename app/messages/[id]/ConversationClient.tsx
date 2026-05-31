@@ -6,6 +6,8 @@ import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
 import { formatOfferAmount, timeUntil } from '@/lib/offers'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import type { CheckoutProvider } from '@/lib/cart'
+import { useConversationStream } from '@/lib/messaging/stream'
+import { ensurePushSubscription } from '@/lib/push-client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -457,6 +459,9 @@ function StampChooser({ role, conversationId, onStampSent }: {
       })
       onStampSent()
       setOpen(false)
+      // Good UX moment (user gesture) to ask for push permission. Idempotent;
+      // only prompts the first time, no-ops thereafter.
+      void ensurePushSubscription()
     } finally {
       setSending(null)
     }
@@ -591,13 +596,59 @@ export default function ConversationClient({ conversationId, initialConversation
     touchStartY.current = 0
   }, [pullY, refresh])
 
-  // Poll every 5 s while tab is visible (real-time updates without WebSockets)
+  // Realtime delivery via Supabase Realtime (RLS-scoped by the Clerk JWT).
+  // Replaces the old 5s full-thread poll. Stamps arrive instantly with no fetch;
+  // offer-related events trigger a one-shot refresh to pull updated offer state.
+  const { connected } = useConversationStream(conversationId, {
+    onEvent: (row) => {
+      const e = row as unknown as ConvEvent
+      setEvents((prev) =>
+        prev.some((x) => x.id === e.id)
+          ? prev
+          : [...prev, e].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      )
+      if (typeof e.event_type === 'string' && e.event_type.startsWith('offer')) refresh()
+    },
+    onConversation: (row) => {
+      const c = row as Partial<Conversation>
+      setConv((prev) => ({
+        ...prev,
+        ...(c.status !== undefined ? { status: c.status } : {}),
+        ...(c.buyer_unread !== undefined ? { buyer_unread: c.buyer_unread } : {}),
+        ...(c.seller_unread !== undefined ? { seller_unread: c.seller_unread } : {}),
+        ...(c.last_event_at !== undefined ? { last_event_at: c.last_event_at } : {}),
+      }))
+    },
+  })
+
+  // Backfill once on (re)connect, and when the tab regains focus — covers any
+  // events missed while disconnected and refreshes joined offer/checkout data.
   useEffect(() => {
+    if (connected) refresh()
+  }, [connected, refresh])
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [refresh])
+
+  // Mark conversation as read via the dedicated endpoint (decoupled from GET).
+  // Fires on mount and whenever realtime reconnects (which also triggers refresh).
+  useEffect(() => {
+    fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+  }, [conversationId, connected])
+
+  // Safety fallback poll: if realtime never connects (e.g. auth not yet wired),
+  // poll every 30 s so the UI still updates — degraded but not broken.
+  useEffect(() => {
+    if (connected) return
     const id = setInterval(() => {
       if (document.visibilityState === 'visible') refresh()
-    }, 5000)
+    }, 30_000)
     return () => clearInterval(id)
-  }, [refresh])
+  }, [connected, refresh])
 
   // Group events by day for date separators
   const grouped: Array<{ date: string; events: ConvEvent[] }> = []

@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
 import { canAccept, canCounter, canDecline, formatOfferAmount } from '@/lib/offers'
 import { sendOfferDeclined, sendOfferCountered, sendOfferAccepted, sendBuyerCounterExpiryWarning, sendBuyerPaymentExpiryWarning, cancelScheduledEmail } from '@/lib/email'
+import { notify } from '@/lib/notify'
 
 interface RespondBody {
   action: 'accept' | 'counter' | 'decline'
@@ -104,6 +105,15 @@ export async function PATCH(
     cancelSellerReminders()
     await db.from('marketplace_offers').update({ status: 'declined' }).eq('id', id)
     emitConvEvent('offer_declined', 'system', {}, true).catch(e => console.error('[conv] decline event:', e))
+    // Push buyer: their offer was declined
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: 'Oferta rechazada',
+          body: `Tu oferta por "${listing.title}" fue rechazada.`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
     sendOfferDeclined({
       listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
       askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
@@ -174,6 +184,15 @@ export async function PATCH(
       .catch(e => console.error('[reminders] buyer counter expiry:', e))
 
     emitConvEvent('offer_countered', 'seller', { counter_amount_cents: counterAmountCents, currency: listing.currency, message: counterMessage ?? null }, true).catch(e => console.error('[conv] counter event:', e))
+    // Push buyer: they received a counter-offer
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: 'Nueva contraoferta',
+          body: `${listing.title} — ${formatOfferAmount(counterAmountCents, listing.currency)}`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
     return NextResponse.json({ status: 'countered' })
   }
 
@@ -241,6 +260,15 @@ export async function PATCH(
     }).eq('id', id)
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: offer.offer_amount_cents, currency: listing.currency }, true).catch(e => console.error('[conv] accept event:', e))
+    // Push buyer: offer accepted — go pay
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: '¡Oferta aceptada!',
+          body: `Completa tu compra de "${listing.title}"`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
     const conversationUrl = await getConversationUrl()
     sendOfferAccepted({
       listingTitle: listing.title, listingId: listing.id,

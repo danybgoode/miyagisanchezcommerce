@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { STAMPS, type StampKey } from '@/lib/stamps'
+import { notify } from '@/lib/notify'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
 // ── POST — send a structured stamp message ────────────────────────────────────
 
@@ -12,6 +14,11 @@ export async function POST(
   const { id } = await params
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  const rl = await checkRateLimit('stamps', getClientIp(req))
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Demasiados mensajes. Inténtalo en un momento.' }, { status: 429 })
+  }
 
   const body = await req.json() as { stampKey?: string }
   if (!body.stampKey || !(body.stampKey in STAMPS)) {
@@ -57,6 +64,20 @@ export async function POST(
       [counterField]: currentCount,
     }).eq('id', id),
   ])
+
+  // Web push to the recipient (the other party). Never blocks the send.
+  const recipientId = isBuyer ? conv.seller_clerk_user_id : conv.buyer_clerk_user_id
+  try {
+    await notify(recipientId, {
+      kind: 'new_message',
+      title: 'Nuevo mensaje',
+      body: stamp.text,
+      url: `/messages/${id}`,
+      tag: `conv:${id}`,
+    })
+  } catch {
+    /* push failures never break messaging */
+  }
 
   return NextResponse.json({ ok: true })
 }
