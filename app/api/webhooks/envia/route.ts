@@ -11,9 +11,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/supabase'
 
-const MEDUSA_BASE     = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const MEDUSA_PUB_KEY  = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-const MEDUSA_INTERNAL = process.env.MEDUSA_INTERNAL_TOKEN ?? ''
+const MEDUSA_BASE            = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY         = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+const MEDUSA_INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 // Envia status → our order status mapping
 const ENVIA_TO_ORDER_STATUS: Record<string, string> = {
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         'x-publishable-api-key': MEDUSA_PUB_KEY,
-        ...(MEDUSA_INTERNAL ? { Authorization: `Bearer ${MEDUSA_INTERNAL}` } : {}),
+        ...(MEDUSA_INTERNAL_SECRET ? { 'x-internal-secret': MEDUSA_INTERNAL_SECRET } : {}),
       },
       body: JSON.stringify({
         orderId: medusaOrderId,
