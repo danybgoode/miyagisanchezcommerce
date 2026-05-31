@@ -11,6 +11,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/supabase'
 
+const MEDUSA_BASE     = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY  = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+const MEDUSA_INTERNAL = process.env.MEDUSA_INTERNAL_TOKEN ?? ''
+
 // Envia status → our order status mapping
 const ENVIA_TO_ORDER_STATUS: Record<string, string> = {
   picked_up:         'in_transit',
@@ -114,12 +118,38 @@ export async function POST(req: NextRequest) {
   const enviaStatus     = stringValue(eventData.status)
   const normalizedEnviaStatus = enviaStatus ? normalizedStatus(enviaStatus) : undefined
   const trackingNumber  = stringValue(eventData.tracking_number ?? eventData.trackingNumber)
+  // Envia echoes back the reference we set at label creation (our orderId for Medusa orders)
+  const reference       = stringValue(eventData.reference ?? eventData.externalReference)
 
   if ((!enviaShipmentId && !trackingNumber) || !normalizedEnviaStatus) {
     return NextResponse.json({ received: true }) // unknown event shape — ignore
   }
 
-  // ── Lookup shipment in our DB ─────────────────────────────────────────────
+  // ── Medusa order path ─────────────────────────────────────────────────────
+  // If the reference is a Medusa order ID, route to the backend tracking-update
+  // endpoint. This runs in parallel with the Supabase path so both are covered.
+  const medusaOrderId = reference?.startsWith('order_') ? reference : null
+  if (medusaOrderId) {
+    fetch(`${MEDUSA_BASE}/store/envia/tracking-update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        ...(MEDUSA_INTERNAL ? { Authorization: `Bearer ${MEDUSA_INTERNAL}` } : {}),
+      },
+      body: JSON.stringify({
+        orderId: medusaOrderId,
+        enviaStatus: normalizedEnviaStatus,
+        trackingNumber,
+        enviaShipmentId,
+      }),
+    }).then(r => {
+      if (!r.ok) r.json().then(d => console.error('[envia-webhook] Medusa update failed:', d)).catch(() => {})
+      else console.log(`[envia-webhook] Medusa ${medusaOrderId} → ${normalizedEnviaStatus}`)
+    }).catch(e => console.error('[envia-webhook] Medusa backend unreachable:', e))
+  }
+
+  // ── Lookup shipment in our DB (legacy Supabase orders) ────────────────────
   let shipmentQuery = db
     .from('marketplace_shipments')
     .select('id, order_id, status')
