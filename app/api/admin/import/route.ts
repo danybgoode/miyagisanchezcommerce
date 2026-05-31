@@ -19,14 +19,9 @@
  * Returns: { processed: number, skipped: number, failed: number }
  */
 
-import { createClient } from '@supabase/supabase-js'
-
 export const dynamic = 'force-dynamic'
 
-const db = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+import { db } from '@/lib/supabase'
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET
 
