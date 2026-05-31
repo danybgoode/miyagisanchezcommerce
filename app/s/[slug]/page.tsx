@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import ClaimButton from './ClaimButton'
 import ChannelLayout from './ChannelLayout'
+import ClosetListingCard from './ClosetListingCard'
 import type { Metadata } from 'next'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
@@ -94,6 +95,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
   const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
   const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
+  const checkoutSett = (settings.checkout ?? {}) as { bank_transfer?: { clabe?: string | null } }
+  const hasClabe = !!(checkoutSett.bank_transfer?.clabe?.trim() && checkoutSett.bank_transfer.clabe.trim().length === 18)
   const hasPickup = !!shipping.local_pickup
   const hasScheduling = !!(calcom.connected && calcom.booking_url) || !!scheduling.links?.some(link => link.url)
   const returnsLabel = returnsPolicy?.window === '7d' ? '7 días'
@@ -239,20 +242,26 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
             <p className="text-xs text-[var(--color-muted)] mb-3 sm:hidden">{listings.length} anuncios</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {listings.map(listing => (
-                <Link key={listing.id} href={`/l/${listing.id}`} className="no-underline group">
-                  <div className="bg-white border border-[var(--color-border)] rounded-lg overflow-hidden transition-all group-hover:shadow-md group-hover:border-opacity-0"
-                    style={{ ['--tw-ring-color' as string]: accent }}>
-                    {listing.images?.[0] ? (
-                      <img src={listing.images[0].url} alt={listing.title} className="w-full h-36 object-cover" />
-                    ) : (
-                      <div className="w-full h-36 bg-[var(--color-surface-alt)] flex items-center justify-center text-3xl">📦</div>
-                    )}
-                    <div className="p-2.5">
-                      <p className="text-xs font-medium text-[var(--color-text)] line-clamp-2 leading-snug">{listing.title}</p>
-                      <p className="text-sm font-bold mt-1" style={{ color: accent }}>{formatPrice(listing)}</p>
-                    </div>
-                  </div>
-                </Link>
+                <ClosetListingCard
+                  key={listing.id}
+                  accent={accent}
+                  item={{
+                    productId: listing.id,
+                    variantId: null,
+                    sellerId: shop.id ?? '',
+                    sellerSlug: shop.slug,
+                    sellerName: shop.name,
+                    title: listing.title,
+                    price_cents: listing.price_cents ?? 0,
+                    currency: listing.currency ?? 'MXN',
+                    imageUrl: listing.images?.[0]?.url ?? null,
+                    listing_type: listing.listing_type ?? 'product',
+                    paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
+                    href: `/l/${listing.id}`,
+                    formattedPrice: formatPrice(listing),
+                    status: listing.status,
+                  }}
+                />
               ))}
             </div>
           </>

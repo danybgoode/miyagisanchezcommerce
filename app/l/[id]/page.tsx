@@ -91,6 +91,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
   } | undefined
   const schedulingSettings = shopSettings.scheduling as { links?: Array<{ label?: string; url?: string }> } | undefined
+  type BundleTier = { min_items: number; percent_off: number }
+  const bundleConfig = shopSettings.bundles as { enabled?: boolean; tiers?: BundleTier[] } | undefined
+  const shopBundleTiers: BundleTier[] = bundleConfig?.enabled ? (bundleConfig.tiers ?? []) : []
   const visiblePhone = checkoutSettings?.show_phone && checkoutSettings.phone ? checkoutSettings.phone : null
   const whatsappPhone = checkoutSettings?.whatsapp_cta
     ? (themeSettings?.social?.whatsapp || checkoutSettings?.phone || null)
@@ -173,7 +176,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     currency: listing.currency,
     imageUrl: listing.images?.[0]?.url ?? null,
     listing_type: listing.listing_type,
-    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp },
+    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
   } : null
 
   const bundleListings = showBuyButtons && listing.shop?.slug
@@ -200,7 +203,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       currency: item.currency,
       imageUrl: item.images?.[0]?.url ?? null,
       listing_type: item.listing_type,
-      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp },
+      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
     })),
   ] : []
 
@@ -648,7 +651,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
 
         {bundleItems.length > 1 && listing.shop && (
-          <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} />
+          <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
         )}
 
         {/* ── Description ──────────────────────────────────────────────────────── */}

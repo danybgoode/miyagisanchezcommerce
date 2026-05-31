@@ -12,12 +12,22 @@ function formatPrice(cents: number, currency: string) {
   }).format(cents / 100)
 }
 
+interface BundleTier { min_items: number; percent_off: number }
+
+function resolveTier(tiers: BundleTier[], count: number): BundleTier | null {
+  if (!tiers.length || count < 2) return null
+  const q = tiers.filter(t => t.min_items >= 2 && t.min_items <= count && t.percent_off > 0).sort((a, b) => b.min_items - a.min_items)
+  return q[0] ?? null
+}
+
 export default function SellerBundleSection({
   sellerName,
   items,
+  bundleTiers = [],
 }: {
   sellerName: string
   items: CartItem[]
+  bundleTiers?: BundleTier[]
 }) {
   const router = useRouter()
   const { addItem, removeItem, closeCart, items: cartItems } = useCart()
@@ -25,6 +35,10 @@ export default function SellerBundleSection({
   const subtotal = selected.reduce((sum, item) => sum + item.price_cents, 0)
   const checkoutSellerId = selected[0]?.sellerId ?? items[0]?.sellerId
   if (items.length < 2) return null
+
+  const activeTier = resolveTier(bundleTiers, selected.length)
+  const discountCents = activeTier ? Math.round(subtotal * activeTier.percent_off / 100) : 0
+  const discountedSubtotal = subtotal - discountCents
 
   function toggleItem(item: CartItem, inBundle: boolean) {
     if (inBundle) {
@@ -93,11 +107,31 @@ export default function SellerBundleSection({
         })}
       </div>
 
+      {/* Next tier teaser — shown when no tier active yet */}
+      {selected.length > 0 && !activeTier && bundleTiers.length > 0 && (() => {
+        const nextTier = bundleTiers.filter(t => t.min_items > selected.length && t.percent_off > 0).sort((a, b) => a.min_items - b.min_items)[0]
+        if (!nextTier) return null
+        return (
+          <p style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' }}>
+            Agrega {nextTier.min_items - selected.length} artículo{nextTier.min_items - selected.length > 1 ? 's' : ''} más y obtén{' '}
+            <strong style={{ color: 'var(--success)' }}>{nextTier.percent_off}% de descuento</strong>
+          </p>
+        )
+      })()}
+
       {selected.length > 0 && (
         <div style={{ marginTop: 12, padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{selected.length} {selected.length === 1 ? 'artículo' : 'artículos'} en paquete</p>
-            <p style={{ fontSize: 17, fontWeight: 800 }}>{formatPrice(subtotal, selected[0].currency)}</p>
+            {activeTier ? (
+              <>
+                <p style={{ fontSize: 13, textDecoration: 'line-through', color: 'var(--fg-muted)', margin: 0 }}>{formatPrice(subtotal, selected[0].currency)}</p>
+                <p style={{ fontSize: 17, fontWeight: 800, color: 'var(--success)' }}>{formatPrice(discountedSubtotal, selected[0].currency)}</p>
+                <p style={{ fontSize: 11, color: 'var(--success)' }}>🎉 {activeTier.percent_off}% de descuento aplicado</p>
+              </>
+            ) : (
+              <p style={{ fontSize: 17, fontWeight: 800 }}>{formatPrice(subtotal, selected[0].currency)}</p>
+            )}
           </div>
           <button type="button" onClick={() => router.push(`/checkout/bundle?sellerId=${checkoutSellerId}`)} className="font-semibold rounded-xl text-sm" style={{ padding: '10px 14px', background: 'var(--fg)', color: 'var(--fg-inverse)', border: 'none' }}>
             Comprar paquete

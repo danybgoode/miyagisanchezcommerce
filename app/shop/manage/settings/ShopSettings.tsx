@@ -110,6 +110,10 @@ export interface ShopSettingsData {
         shipping_paid_by?: 'buyer' | 'seller'
         custom_note?: string | null
       } | null
+      bundles?: {
+        enabled?: boolean
+        tiers?: Array<{ min_items: number; percent_off: number }>
+      }
       ucp?: {
         webhook_url?: string
         webhook_secret?: string
@@ -269,6 +273,7 @@ const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
   canal:          ['canal'],
   pedidos:        ['pedidos'],
   politicas:      ['politicas'],
+  bundles:        ['bundles'],
 }
 
 // ── Escrow options ────────────────────────────────────────────────────────────
@@ -780,6 +785,14 @@ export default function ShopSettingsPanel({
   const [declinePct, setDeclinePct]   = useState(neg.auto_decline_pct ?? 50)
   const [counterPct, setCounterPct]   = useState(neg.auto_counter_pct ?? 75)
 
+  // Bundle discount
+  type BundleTier = { min_items: number; percent_off: number }
+  const bundleConfig = (s.bundles ?? {}) as { enabled?: boolean; tiers?: BundleTier[] }
+  const [bundlesEnabled, setBundlesEnabled] = useState(bundleConfig.enabled ?? false)
+  const [bundleTiers, setBundleTiers]       = useState<BundleTier[]>(
+    bundleConfig.tiers?.length ? bundleConfig.tiers : [{ min_items: 2, percent_off: 5 }]
+  )
+
   // Own channel — custom domain
   // Source of truth: domainDnsOk = our own CNAME lookup confirmed live.
   // Vercel's `verified` field only means "registered on project" — never use it as "live".
@@ -1177,6 +1190,10 @@ export default function ShopSettingsPanel({
                 auto_decline_pct: declinePct,
                 auto_counter_pct: counterPct,
               },
+            },
+            bundles: {
+              enabled: bundlesEnabled,
+              tiers:   bundleTiers.filter(t => t.min_items >= 2 && t.percent_off > 0).sort((a, b) => a.min_items - b.min_items),
             },
             scheduling:   { links: schedulingLinks },
             orders: {
@@ -2680,6 +2697,102 @@ export default function ShopSettingsPanel({
                 </div>
               )}
             </div>
+          </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION: Paquetes / Descuentos por volumen
+          ════════════════════════════════════════════════════════════════════ */}
+          <section id="bundles" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <SectionTitle>Descuentos por paquete</SectionTitle>
+            <p className="text-sm text-[var(--color-muted)] mb-4">
+              Incentiva a los compradores a llevar más de un artículo de tu tienda ofreciendo un descuento automático según la cantidad. Se aplica sobre el subtotal de artículos, antes del envío.
+            </p>
+
+            <ToggleSwitch
+              checked={bundlesEnabled}
+              onChange={v => { setBundlesEnabled(v); mark() }}
+              label="Activar descuentos por paquete"
+              description="Cuando está activo, el descuento se aplica automáticamente al pagar."
+            />
+
+            {bundlesEnabled && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Niveles de descuento</p>
+
+                {bundleTiers.map((tier, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 bg-white">
+                      <span className="text-sm text-[var(--color-muted)] whitespace-nowrap">Desde</span>
+                      <input
+                        type="number"
+                        min={2}
+                        max={20}
+                        value={tier.min_items}
+                        onChange={e => {
+                          const v = Math.max(2, Math.min(20, parseInt(e.target.value) || 2))
+                          setBundleTiers(prev => prev.map((t, i) => i === idx ? { ...t, min_items: v } : t))
+                          mark()
+                        }}
+                        className="w-12 text-sm font-semibold text-center border-0 outline-none bg-transparent"
+                      />
+                      <span className="text-sm text-[var(--color-muted)] whitespace-nowrap">artículos →</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={tier.percent_off}
+                        onChange={e => {
+                          const v = Math.max(1, Math.min(50, parseInt(e.target.value) || 1))
+                          setBundleTiers(prev => prev.map((t, i) => i === idx ? { ...t, percent_off: v } : t))
+                          mark()
+                        }}
+                        className="w-12 text-sm font-semibold text-center border-0 outline-none bg-transparent"
+                      />
+                      <span className="text-sm text-[var(--color-muted)]">% de descuento</span>
+                    </div>
+                    {bundleTiers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => { setBundleTiers(prev => prev.filter((_, i) => i !== idx)); mark() }}
+                        className="text-[var(--color-muted)] hover:text-[var(--color-danger)] text-lg leading-none"
+                        aria-label="Eliminar nivel"
+                      >×</button>
+                    )}
+                  </div>
+                ))}
+
+                {bundleTiers.length < 4 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const maxItems = Math.max(...bundleTiers.map(t => t.min_items))
+                      setBundleTiers(prev => [...prev, { min_items: maxItems + 1, percent_off: 10 }])
+                      mark()
+                    }}
+                    className="text-sm text-[var(--color-accent)] hover:underline"
+                  >
+                    + Agregar nivel
+                  </button>
+                )}
+
+                {/* Preview */}
+                <div className="mt-3 p-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg">
+                  <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide mb-2">Vista previa para el comprador</p>
+                  {[...bundleTiers]
+                    .filter(t => t.min_items >= 2 && t.percent_off > 0)
+                    .sort((a, b) => a.min_items - b.min_items)
+                    .map((t, i) => (
+                      <p key={i} className="text-xs text-[var(--color-text)] leading-relaxed">
+                        <span className="inline-block bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold mr-1">
+                          {t.percent_off}% off
+                        </span>
+                        al comprar {t.min_items} o más artículos de tu tienda
+                      </p>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════

@@ -1,5 +1,16 @@
+/**
+ * POST /api/checkout/shipping-rates
+ *
+ * Quote live Envia.com shipping rates.
+ *
+ * Single-item:  { listingId, address }
+ * Bundle:       { items: string[], address }  ← all items must belong to one seller
+ *
+ * Returns { rates[] } using the seller's ShippingSettings (carriers, handling fee, display).
+ * Bundle path combines all item weights/dims into one shipment (charged once).
+ */
 import { NextRequest, NextResponse } from 'next/server'
-import { quoteShipments, type EnviaAddress } from '@/lib/envia'
+import { quoteShipments, type EnviaAddress, type EnviaPackage } from '@/lib/envia'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -41,10 +52,7 @@ type ShippingSettings = {
 
 async function getListing(listingId: string): Promise<Listing | null> {
   const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      'x-publishable-api-key': PUB_KEY,
-    },
+    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
     cache: 'no-store',
   })
   if (!res.ok) return null
@@ -67,26 +75,58 @@ function deliveryLabel(days: number | null) {
   return days === 1 ? '1 dia habil' : `${days} dias habiles`
 }
 
+function buildPackage(listing: Listing, defaults: ShippingSettings['package_defaults']): EnviaPackage {
+  // Per-product weight_grams is stored in metadata (Section 1). Fall back to shop defaults.
+  const productMeta = (listing.metadata ?? {}) as Record<string, unknown>
+  const weightGrams = (productMeta.weight_grams as number | undefined) ?? defaults?.weight_grams ?? 500
+  return {
+    content: listing.title.slice(0, 80),
+    weight: Math.max(0.1, weightGrams / 1000),
+    declaredValue: listing.price_cents ? Math.round(listing.price_cents / 100) : 0,
+    dimensions: {
+      length: Math.max(1, defaults?.length_cm ?? 20),
+      width:  Math.max(1, defaults?.width_cm  ?? 15),
+      height: Math.max(1, defaults?.height_cm ?? 10),
+    },
+  }
+}
+
 export async function POST(req: NextRequest) {
-  let body: { listingId?: string; address?: CheckoutAddress }
-  try {
-    body = await req.json()
-  } catch {
+  let body: { listingId?: string; items?: string[]; address?: CheckoutAddress }
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
-  if (!body.listingId) return NextResponse.json({ error: 'listingId requerido.' }, { status: 400 })
   if (!body.address || !requiredAddressReady(body.address)) {
     return NextResponse.json({ error: 'Completa la dirección de entrega.' }, { status: 422 })
   }
 
-  const listing = await getListing(body.listingId)
-  if (!listing) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (listing.listing_type !== 'product') {
-    return NextResponse.json({ error: 'Este anuncio no requiere envío por paquetería.' }, { status: 422 })
+  // ── Resolve listing(s) ───────────────────────────────────────────────────────
+  const listingIds: string[] = body.items?.length
+    ? body.items
+    : body.listingId
+      ? [body.listingId]
+      : []
+
+  if (listingIds.length === 0) {
+    return NextResponse.json({ error: 'listingId o items requerido.' }, { status: 400 })
   }
 
-  const shopMeta = (listing.shop?.metadata ?? {}) as Record<string, unknown>
+  const listings = (await Promise.all(listingIds.map(id => getListing(id)))).filter(Boolean) as Listing[]
+  if (listings.length === 0) {
+    return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
+  }
+
+  // All must be shippable products
+  const nonShippable = listings.filter(l => l.listing_type !== 'product')
+  if (nonShippable.length === listings.length) {
+    return NextResponse.json({ error: 'Ningún artículo del paquete requiere envío por paquetería.' }, { status: 422 })
+  }
+  // Filter to only physical products (ignore digital/service items in mixed bundles)
+  const shippableListings = listings.filter(l => l.listing_type === 'product')
+
+  // ── Seller settings (use first listing's shop) ──────────────────────────────
+  const shopMeta = (shippableListings[0].shop?.metadata ?? {}) as Record<string, unknown>
   const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
   const shipping = (settings.shipping ?? {}) as ShippingSettings
   const originRaw = shipping.origin_address
@@ -99,7 +139,7 @@ export async function POST(req: NextRequest) {
   }
 
   const origin: EnviaAddress = {
-    name: originRaw.name ?? listing.shop?.name ?? 'Vendedor',
+    name: originRaw.name ?? shippableListings[0].shop?.name ?? 'Vendedor',
     street: originRaw.street,
     number: originRaw.number ?? undefined,
     district: originRaw.colonia ?? undefined,
@@ -124,22 +164,11 @@ export async function POST(req: NextRequest) {
   const handlingFeeCents = Math.max(0, Math.round(shipping.handling_fee_cents ?? 0))
   const rateDisplay = shipping.rate_display ?? 'recommended'
 
+  // ── Build packages (one per shippable item) ──────────────────────────────────
+  const packages: EnviaPackage[] = shippableListings.map(l => buildPackage(l, packageDefaults))
+
   try {
-    const rates = await quoteShipments({
-      origin,
-      destination,
-      carriers,
-      packages: [{
-        content: listing.title.slice(0, 80),
-        weight: Math.max(0.1, (packageDefaults.weight_grams ?? 500) / 1000),
-        declaredValue: listing.price_cents ? Math.round(listing.price_cents / 100) : 0,
-        dimensions: {
-          length: Math.max(1, packageDefaults.length_cm ?? 20),
-          width: Math.max(1, packageDefaults.width_cm ?? 15),
-          height: Math.max(1, packageDefaults.height_cm ?? 10),
-        },
-      }],
-    })
+    const rates = await quoteShipments({ origin, destination, carriers, packages })
 
     const normalized = rates
       .filter(rate => rate.rateId && rate.carrier && rate.service && rate.totalPrice > 0)
@@ -171,7 +200,10 @@ export async function POST(req: NextRequest) {
         ? normalized.slice(0, 8)
         : normalized.slice(0, 3)
 
-    return NextResponse.json({ rates: visibleRates })
+    return NextResponse.json({
+      rates: visibleRates,
+      package_count: packages.length,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[checkout/shipping-rates] Envia quote failed:', msg)

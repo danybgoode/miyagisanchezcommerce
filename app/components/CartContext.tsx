@@ -18,7 +18,7 @@ export interface CartItem {
   currency: string
   imageUrl: string | null
   listing_type: string
-  paymentMethods: { stripe: boolean; mp: boolean }
+  paymentMethods: { stripe: boolean; mp: boolean; spei?: boolean }
 }
 
 interface CartState {
