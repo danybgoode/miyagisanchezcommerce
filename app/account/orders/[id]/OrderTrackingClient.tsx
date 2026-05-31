@@ -40,23 +40,71 @@ interface OrderTrackingProps {
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
-const STATUS_STEPS = [
-  { key: 'paid',       label: 'Pago confirmado', desc: 'Tu pago fue procesado exitosamente.' },
-  { key: 'processing', label: 'Preparando',      desc: 'El vendedor está preparando tu pedido.' },
-  { key: 'shipped',    label: 'Enviado',          desc: 'Tu pedido está en camino.' },
-  { key: 'in_transit', label: 'En tránsito',      desc: 'El transportista tiene tu paquete.' },
-  { key: 'delivered',  label: '¡Entregado!',      desc: 'Tu pedido fue entregado. ¡Disfrútalo!' },
-]
+// Dynamic timeline per delivery method
+function getStatusSteps(fulfillmentMethod: string) {
+  if (fulfillmentMethod === 'local_pickup') {
+    return [
+      { key: 'paid',       label: 'Pago confirmado',        desc: 'Tu pago fue procesado exitosamente.' },
+      { key: 'processing', label: 'Listo para recoger',     desc: 'El vendedor tiene tu artículo listo y te contactará.' },
+      { key: 'delivered',  label: '¡Recogido!',             desc: '¡Listo! Recogiste tu artículo.' },
+    ]
+  }
+  if (fulfillmentMethod === 'none' || fulfillmentMethod === 'coord') {
+    return [
+      { key: 'paid',       label: 'Pago confirmado',          desc: 'Tu pago fue procesado exitosamente.' },
+      { key: 'processing', label: 'El vendedor te contactará', desc: 'El vendedor acordará contigo cómo y cuándo recibes tu pedido.' },
+      { key: 'delivered',  label: '¡Entregado!',              desc: 'Tu pedido fue entregado. ¡Disfrútalo!' },
+    ]
+  }
+  if (fulfillmentMethod === 'digital' || fulfillmentMethod === 'service') {
+    return [
+      { key: 'paid',      label: 'Pago confirmado', desc: 'Tu pago fue procesado exitosamente.' },
+      { key: 'fulfilled', label: 'Disponible',      desc: 'Tu archivo o acceso digital está listo.' },
+    ]
+  }
+  // Default: physical shipping via Envia
+  return [
+    { key: 'paid',       label: 'Pago confirmado', desc: 'Tu pago fue procesado exitosamente.' },
+    { key: 'processing', label: 'Preparando',      desc: 'El vendedor está preparando tu paquete.' },
+    { key: 'shipped',    label: 'Enviado',          desc: 'Tu pedido fue entregado a la paquetería.' },
+    { key: 'in_transit', label: 'En tránsito',      desc: 'El transportista tiene tu paquete.' },
+    { key: 'delivered',  label: '¡Entregado!',      desc: 'Tu pedido fue entregado. ¡Disfrútalo!' },
+  ]
+}
 
+// Order-level status — badge + buyer message
 const STATUS_META: Record<string, { badge: string; message: string }> = {
-  paid:       { badge: 'bg-amber-100 text-amber-700',   message: 'El vendedor está procesando tu pedido.' },
-  processing: { badge: 'bg-blue-100 text-blue-700',     message: 'El vendedor está preparando tu paquete.' },
-  shipped:    { badge: 'bg-indigo-100 text-indigo-700', message: 'Tu pedido fue enviado. Ya viene en camino 🚚' },
-  in_transit: { badge: 'bg-purple-100 text-purple-700', message: 'Tu paquete está en tránsito.' },
-  delivered:  { badge: 'bg-green-100 text-green-700',   message: '¡Tu pedido fue entregado! Espero que te encante 🎉' },
-  completed:  { badge: 'bg-gray-100 text-gray-500',     message: 'Compra completada.' },
-  refunded:   { badge: 'bg-red-100 text-red-600',       message: 'Se procesó un reembolso para este pedido.' },
-  fulfilled:  { badge: 'bg-green-100 text-green-700',   message: 'Tu producto digital está disponible.' },
+  // ── Standard order lifecycle ──────────────────────────────────────────────
+  paid:             { badge: 'bg-amber-100 text-amber-700',   message: 'El vendedor está procesando tu pedido.' },
+  processing:       { badge: 'bg-blue-100 text-blue-700',     message: 'El vendedor está preparando tu paquete.' },
+  shipped:          { badge: 'bg-indigo-100 text-indigo-700', message: 'Tu pedido fue enviado. Ya viene en camino 🚚' },
+  in_transit:       { badge: 'bg-purple-100 text-purple-700', message: 'Tu paquete está en tránsito hacia tu domicilio.' },
+  delivered:        { badge: 'bg-green-100 text-green-700',   message: '¡Tu pedido fue entregado! Espero que te encante 🎉' },
+  completed:        { badge: 'bg-gray-100 text-gray-500',     message: 'Compra completada.' },
+  refunded:         { badge: 'bg-red-100 text-red-600',       message: 'Se procesó un reembolso para este pedido.' },
+  fulfilled:        { badge: 'bg-green-100 text-green-700',   message: 'Tu producto digital está disponible.' },
+  // ── Granular shipment-level statuses (from Envia webhooks) ───────────────
+  // These override the order status message when the shipment is more specific.
+  label_created:    { badge: 'bg-indigo-100 text-indigo-700', message: 'La guía fue generada. El vendedor entregará tu paquete a la paquetería muy pronto.' },
+  picked_up:        { badge: 'bg-purple-100 text-purple-700', message: 'La paquetería recogió tu paquete. Ya está en camino 🚚' },
+  out_for_delivery: { badge: 'bg-purple-100 text-purple-700', message: '¡Tu paquete está en ruta de entrega hoy! Mantente disponible 🚚' },
+  exception:        { badge: 'bg-amber-100 text-amber-700',   message: 'La paquetería reportó un inconveniente. Sigue el rastreo para más detalles o contacta al vendedor.' },
+  cancelled_ship:   { badge: 'bg-amber-100 text-amber-700',   message: 'El envío fue cancelado. El vendedor está resolviendo — espera su mensaje.' },
+  // ── Delivery-method–specific overrides ───────────────────────────────────
+  pickup_processing: { badge: 'bg-blue-100 text-blue-700',   message: 'El vendedor tiene tu artículo listo. Te contactará para coordinar la recolección.' },
+  pickup_delivered:  { badge: 'bg-green-100 text-green-700', message: '¡Recogiste tu artículo! Esperamos que te encante 🎉' },
+  coord_processing:  { badge: 'bg-blue-100 text-blue-700',   message: 'El vendedor te contactará pronto para acordar cómo recibes tu pedido.' },
+}
+
+// Delivery method display label and icon
+const DELIVERY_METHOD_CHIP: Record<string, { icon: string; label: string }> = {
+  shipping:     { icon: '📦', label: 'Envío a domicilio' },
+  local_pickup: { icon: '📍', label: 'Recolección en mano' },
+  none:         { icon: '🤝', label: 'Entrega acordada' },
+  coord:        { icon: '🤝', label: 'Entrega acordada' },
+  digital:      { icon: '💻', label: 'Entrega digital' },
+  service:      { icon: '🔧', label: 'Servicio' },
+  rental:       { icon: '🔑', label: 'Renta' },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,8 +122,8 @@ function formatDate(iso: string) {
 
 // ── Status stepper ────────────────────────────────────────────────────────────
 
-function StatusStepper({ status }: { status: string }) {
-  const stepKeys   = STATUS_STEPS.map(s => s.key)
+function StatusStepper({ status, steps }: { status: string; steps: ReturnType<typeof getStatusSteps> }) {
+  const stepKeys   = steps.map(s => s.key)
   const currentIdx = stepKeys.indexOf(status)
 
   return (
@@ -84,7 +132,7 @@ function StatusStepper({ status }: { status: string }) {
       <div className="absolute left-3.5 top-4 bottom-4 w-0.5 bg-[var(--color-border)]" />
 
       <div className="space-y-0">
-        {STATUS_STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const done    = i < currentIdx
           const current = i === currentIdx
           const future  = i > currentIdx
@@ -179,7 +227,28 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const shop     = Array.isArray(order.marketplace_shops)    ? order.marketplace_shops[0]    : order.marketplace_shops
   const shipment = order.marketplace_shipments?.[0] ?? null
   const thumb    = listing?.images?.[0]?.url ?? null
-  const statusMeta = STATUS_META[currentStatus] ?? STATUS_META.paid
+
+  // Delivery method from metadata (preferred) or legacy shipping_method field
+  const fulfillmentMethod = (meta.fulfillment_method as string | undefined) ?? order.shipping_method ?? 'shipping'
+  const statusSteps = getStatusSteps(fulfillmentMethod)
+  const deliveryChip = DELIVERY_METHOD_CHIP[fulfillmentMethod] ?? DELIVERY_METHOD_CHIP.shipping
+
+  // Effective status key — shipment.status can be more granular than order.status
+  const effectiveStatusKey = (() => {
+    if (!shipment) return currentStatus
+    const ss = shipment.status
+    if (ss === 'out_for_delivery') return 'out_for_delivery'
+    if (ss === 'picked_up')        return 'picked_up'
+    if (ss === 'label_created' && currentStatus === 'shipped') return 'label_created'
+    if (ss === 'exception')        return 'exception'
+    if (ss === 'cancelled')        return 'cancelled_ship'
+    // Delivery-method-specific context overrides
+    if (fulfillmentMethod === 'local_pickup' && currentStatus === 'processing') return 'pickup_processing'
+    if (fulfillmentMethod === 'local_pickup' && currentStatus === 'delivered')  return 'pickup_delivered'
+    if ((fulfillmentMethod === 'none' || fulfillmentMethod === 'coord') && currentStatus === 'processing') return 'coord_processing'
+    return currentStatus
+  })()
+  const statusMeta = STATUS_META[effectiveStatusKey] ?? STATUS_META[currentStatus] ?? STATUS_META.paid
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -271,13 +340,22 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       </nav>
 
       {/* Status banner */}
-      <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${statusMeta.badge}`}>
-        <span className="text-base">
-          {currentStatus === 'shipped' || currentStatus === 'in_transit' ? '🚚' :
-           currentStatus === 'delivered' || currentStatus === 'completed' ? '✓' :
-           currentStatus === 'refunded' ? '↩' : '📋'}
-        </span>
-        <p className="text-sm font-medium">{statusMeta.message}</p>
+      <div className={`rounded-xl px-4 py-3 mb-6 ${statusMeta.badge}`}>
+        <div className="flex items-start gap-3">
+          <span className="text-base mt-0.5 flex-shrink-0">
+            {effectiveStatusKey === 'out_for_delivery' || currentStatus === 'shipped' || currentStatus === 'in_transit' || effectiveStatusKey === 'picked_up' ? '🚚' :
+             currentStatus === 'delivered' || currentStatus === 'completed' ? '✓' :
+             currentStatus === 'refunded' ? '↩' :
+             effectiveStatusKey === 'exception' || effectiveStatusKey === 'cancelled_ship' ? '⚠️' : '📋'}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">{statusMeta.message}</p>
+            {/* Delivery method chip */}
+            <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-medium opacity-75">
+              {deliveryChip.icon} {deliveryChip.label}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Product card */}
@@ -306,8 +384,8 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         </div>
       </section>
 
-      {/* Tracking card */}
-      {shipment && (
+      {/* Tracking card — only shown for shipping method orders with a real shipment */}
+      {shipment && shipment.tracking_number && (
         <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
           <h2 className="font-semibold text-sm mb-3">Seguimiento de envío</h2>
           <div className="flex items-center gap-3 mb-3">
@@ -344,7 +422,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {!['refunded', 'fulfilled'].includes(currentStatus) && (
         <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
           <h2 className="font-semibold text-sm mb-4">Estado del pedido</h2>
-          <StatusStepper status={currentStatus} />
+          <StatusStepper status={currentStatus} steps={statusSteps} />
         </section>
       )}
 
