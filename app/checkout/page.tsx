@@ -129,7 +129,9 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // order placement, so this saves the buyer a failed add-to-cart at the rail.
   if (listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
 
-  const availableProviders: CheckoutProvider[] = [
+  // Card providers — computed later after delivery options are known.
+  // Defined here to satisfy hoisting; overwritten below.
+  let availableProviders: CheckoutProvider[] = [
     sellerHasMp && listing.listing_type !== 'digital' ? 'mercadopago' as const : null,
     sellerHasStripe ? 'stripe' as const : null,
   ].filter(Boolean) as CheckoutProvider[]
@@ -181,6 +183,12 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       ? { id: 'none' as const, label: 'Entrega acordada', note: 'El vendedor te contactará para acordar cómo y cuándo recibirás tu pedido.' }
       : null,
   ] as Array<DeliveryOption | null>).filter(isPresent)
+
+  // "Entrega acordada" is the only delivery option — no card payments.
+  // Physical products with no structured delivery require coordination from
+  // both ends; instant card payment creates buyer anxiety with no delivery path.
+  const onlyCoordinated = deliveryOptions.length === 1 && deliveryOptions[0]?.id === 'none'
+  if (onlyCoordinated) availableProviders = []
 
   const paymentOptions = availableProviders.map(provider => ({
     id: provider,
@@ -251,6 +259,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           manualOptions={manualOptions}
           offerId={params.offerId}
           offerAmountCents={offerPriceCents ?? undefined}
+          onlyCoordinated={onlyCoordinated}
         />
       </div>
     </main>

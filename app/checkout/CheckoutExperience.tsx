@@ -97,6 +97,7 @@ export default function CheckoutExperience({
   manualOptions,
   offerId,
   offerAmountCents,
+  onlyCoordinated,
 }: {
   listingId: string
   sellerId: string
@@ -107,6 +108,7 @@ export default function CheckoutExperience({
   manualOptions: ManualOption[]
   offerId?: string
   offerAmountCents?: number
+  onlyCoordinated?: boolean
 }) {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>(
     deliveryOptions[0]?.id ?? 'none',
@@ -165,7 +167,9 @@ export default function CheckoutExperience({
       }
     : undefined
   const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
-  const canPay = Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
+  // For coord-only (no card providers), canPay is always false — the buyer
+  // uses manual options (WhatsApp / SPEI) directly, not the pay button.
+  const canPay = !onlyCoordinated && Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -412,9 +416,33 @@ export default function CheckoutExperience({
         )}
       </section>
 
+      {/* ── Coordination notice (replaces payment section when only coord) ──── */}
+      {onlyCoordinated && manualOptions.length === 0 && (
+        <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🤝</span>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Este vendedor coordina pago y entrega juntos</p>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                Para comprar este artículo, escríbele directamente al vendedor. Acordarán el método de pago y entrega antes de cerrar la venta.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Payment section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>
+          {onlyCoordinated ? 'Opciones de pago manual' : 'Elige pago'}
+        </h2>
+        {onlyCoordinated && paymentOptions.length === 0 && manualOptions.length > 0 && (
+          <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-sunk)', borderRadius: 8, borderLeft: '3px solid var(--accent)' }}>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+              Este vendedor coordina la entrega personalmente — el pago se acuerda junto con la entrega. Elige una opción para continuar.
+            </p>
+          </div>
+        )}
         <div style={{ display: 'grid', gap: 8 }}>
           {paymentOptions.map(option => (
             <button key={option.id} type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(selectedPayment?.id === option.id)}>
