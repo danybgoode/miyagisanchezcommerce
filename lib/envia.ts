@@ -445,7 +445,11 @@ export async function lookupPostalCode(cp: string): Promise<PostalLookupResult |
     } as RequestInit)
     if (!res.ok) return null
 
-    const data = await res.json() as RawGeocodeResponse
+    // Envia Geocodes API returns an array — take the first (and only) item
+    const raw = await res.json() as RawGeocodeResponse | RawGeocodeResponse[]
+    const data = Array.isArray(raw) ? raw[0] : raw
+    if (!data) return null
+
     const stateCode = data.state?.code?.['2digit'] ?? ''
     if (!stateCode) return null
 
