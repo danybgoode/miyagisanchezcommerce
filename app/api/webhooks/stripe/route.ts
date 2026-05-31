@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
-import { sendSaleCompletedToSeller, sendOrderConfirmedToBuyer, getSellerEmail } from '@/lib/email'
+import {
+  sendSaleCompletedToSeller,
+  sendOrderConfirmedToBuyer,
+  sendCoordinatedOrderToBuyer,
+  sendCoordinatedOrderToSeller,
+  sendPickupOrderToBuyer,
+  sendPickupOrderToSeller,
+  getSellerEmail,
+} from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
@@ -40,17 +48,34 @@ async function completeMedusaCart(cartId: string): Promise<string | null> {
 }
 
 /** Fetch listing info from Medusa for email context */
-async function getMedusaListing(productId: string): Promise<{ title: string; seller_name: string; seller_clerk_id?: string } | null> {
+type ListingInfo = {
+  title: string
+  seller_name: string
+  seller_clerk_id?: string
+  seller_phone?: string | null
+  seller_whatsapp?: string | null
+  pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
+}
+
+async function getMedusaListing(productId: string): Promise<ListingInfo | null> {
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/listings/${productId}`, {
       headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY },
     })
     if (!res.ok) return null
     const { listing } = await res.json()
+    const shopMeta = (listing?.shop?.metadata ?? listing?.seller?.metadata ?? {}) as Record<string, unknown>
+    const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
+    const checkout = (settings.checkout ?? {}) as Record<string, unknown>
+    const theme    = (settings.theme    ?? {}) as Record<string, unknown>
+    const shipping = (settings.shipping ?? {}) as Record<string, unknown>
     return {
       title: listing?.title ?? listing?.name ?? 'Producto',
       seller_name: listing?.seller?.name ?? listing?.shop?.name ?? '',
       seller_clerk_id: listing?.seller?.clerk_user_id ?? listing?.shop?.clerk_user_id ?? undefined,
+      seller_phone: checkout.show_phone && checkout.phone ? String(checkout.phone) : null,
+      seller_whatsapp: (theme as any)?.social?.whatsapp ?? checkout.phone ?? null,
+      pickup_spots: (shipping.pickup_spots ?? []) as ListingInfo['pickup_spots'],
     }
   } catch {
     return null
@@ -337,21 +362,97 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       const listingUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/l/${product_id}`
       const amountFormatted = formatOfferAmount(amountTotal, currency)
 
-      sendOrderConfirmedToBuyer({
-        buyerEmail,
-        buyerName,
-        listingTitle: listingInfo.title,
-        listingUrl,
-        amountPaid: amountFormatted,
-        shopName: listingInfo.seller_name,
-        isDigital: false,
-        digitalDownloadUrl: null,
-        digitalExpiresAt: null,
-      }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
+      const isPickup = fulfillment_method === 'local_pickup'
+      const isCoord  = !fulfillment_method || fulfillment_method === 'none' || fulfillment_method === 'coord' || fulfillment_method === 'rental'
+      const isShipping = fulfillment_method === 'shipping'
+      const orderUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/account/orders/${medusaOrderId ?? cart_id}`
 
+      // ── Buyer email ───────────────────────────────────────────────────────
+      if (isPickup) {
+        const spot = listingInfo.pickup_spots?.[0]
+        sendPickupOrderToBuyer({
+          buyerEmail,
+          buyerName,
+          listingTitle: listingInfo.title,
+          listingUrl,
+          amountPaid: amountFormatted,
+          shopName: listingInfo.seller_name,
+          pickupAddress: spot?.address ?? null,
+          pickupInstructions: spot?.instructions ?? null,
+          sellerPhone: listingInfo.seller_phone ?? null,
+          sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
+          orderUrl,
+        }).catch(e => console.error('[email] pickup buyer:', e))
+      } else if (isCoord) {
+        sendCoordinatedOrderToBuyer({
+          buyerEmail,
+          buyerName,
+          listingTitle: listingInfo.title,
+          listingUrl,
+          amountPaid: amountFormatted,
+          shopName: listingInfo.seller_name,
+          sellerPhone: listingInfo.seller_phone ?? null,
+          sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
+          orderUrl,
+        }).catch(e => console.error('[email] coord buyer:', e))
+      } else {
+        sendOrderConfirmedToBuyer({
+          buyerEmail,
+          buyerName,
+          listingTitle: listingInfo.title,
+          listingUrl,
+          amountPaid: amountFormatted,
+          shopName: listingInfo.seller_name,
+          isDigital: false,
+          digitalDownloadUrl: null,
+          digitalExpiresAt: null,
+        }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
+      }
+
+      // ── Seller email ──────────────────────────────────────────────────────
       if (listingInfo.seller_clerk_id) {
+        const sellerOrderUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/shop/manage/orders/${medusaOrderId ?? cart_id}`
         getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
           if (!sellerEmail) return
+          if (isPickup) {
+            return sendPickupOrderToSeller({
+              sellerEmail,
+              listingTitle: listingInfo.title,
+              listingUrl,
+              amountPaid: amountFormatted,
+              buyerName,
+              buyerEmail,
+              shopName: listingInfo.seller_name,
+              orderUrl: sellerOrderUrl,
+            })
+          }
+          if (isCoord) {
+            return sendCoordinatedOrderToSeller({
+              sellerEmail,
+              listingTitle: listingInfo.title,
+              listingUrl,
+              amountPaid: amountFormatted,
+              buyerName,
+              buyerEmail,
+              shopName: listingInfo.seller_name,
+              orderId: medusaOrderId ?? cart_id,
+              orderUrl: sellerOrderUrl,
+            })
+          }
+          if (isShipping) {
+            const { sendNewOrderToSeller } = require('@/lib/email')
+            return sendNewOrderToSeller({
+              sellerEmail,
+              listingTitle: listingInfo.title,
+              listingUrl,
+              amountPaid: amountFormatted,
+              buyerName,
+              buyerEmail,
+              shippingAddress: null,
+              orderId: medusaOrderId ?? cart_id,
+              orderUrl: sellerOrderUrl,
+            })
+          }
           return sendSaleCompletedToSeller({
             sellerEmail,
             listingTitle: listingInfo.title,
@@ -361,7 +462,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
             buyerEmail,
             isDigital: false,
           })
-        }).catch(e => console.error('[email] medusa sale completed seller:', e))
+        }).catch(e => console.error('[email] medusa seller email:', e))
       }
     }
   }

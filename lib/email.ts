@@ -745,7 +745,7 @@ export async function sendReturnDeclinedToBuyer(ctx: {
   const subject = `Tu solicitud de devolución fue rechazada — ${ctx.listingTitle}`
 
   const body = [
-    h1('El vendedor rechazó tu solicitud de devolución.'),
+    h1('El vendedor rechazó tu solicitud de devoluci��n.'),
     table([
       ['Producto', esc(ctx.listingTitle)],
       ['Vendedor', esc(ctx.shopName)],
@@ -756,4 +756,150 @@ export async function sendReturnDeclinedToBuyer(ctx: {
     notice('¿No quedó resuelto? Contáctanos y revisaremos el caso.', 'warn'),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MANUAL DELIVERY EMAILS (coordinated & local pickup)
+// ══════════��═════════════════════════════���═══════════════════════════════════════
+
+// ── Coordinated delivery — Buyer ─────────────────────────────────────────────
+
+export async function sendCoordinatedOrderToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  listingUrl: string
+  amountPaid: string
+  shopName: string
+  sellerPhone?: string | null
+  sellerWhatsapp?: string | null
+  orderUrl: string
+}): Promise<void> {
+  const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
+  const subject = `Compra confirmada — coordina la entrega con ${ctx.shopName}`
+
+  const whatsappUrl = ctx.sellerWhatsapp
+    ? `https://wa.me/${ctx.sellerWhatsapp.replace(/\D/g, '').replace(/^(?!52)/, '52')}?text=${encodeURIComponent(`Hola, acabo de comprar "${ctx.listingTitle}" en Miyagi Sánchez y quiero coordinar la entrega.`)}`
+    : null
+
+  const body = [
+    h1(greeting),
+    p('Tu pago fue procesado. El vendedor acordará contigo cómo y cuándo recibirás tu pedido — espera su mensaje o contáctalo directamente.'),
+    table([
+      ['Producto',  `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ['Vendedor',  esc(ctx.shopName)],
+      ['Pagado',    esc(ctx.amountPaid)],
+      ['Entrega',   'Por coordinar con el vendedor'],
+      ...(ctx.sellerPhone ? [['Teléfono vendedor', esc(ctx.sellerPhone)] as [string, string]] : []),
+    ]),
+    notice('El vendedor tiene hasta <strong>24 horas</strong> para contactarte. Guarda este correo como comprobante de tu compra.', 'info'),
+    whatsappUrl
+      ? cta('Contactar por WhatsApp', whatsappUrl)
+      : cta('Ver estado del pedido', ctx.orderUrl),
+    p(`Si en 24 horas no has tenido noticias, ve al <a href="${ctx.orderUrl}" style="color:#1d6f42">detalle de tu pedido</a> para escribirle al vendedor.`),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ── Coordinated delivery — Seller ───────��────────────────────────────────────
+
+export async function sendCoordinatedOrderToSeller(ctx: {
+  sellerEmail: string
+  listingTitle: string
+  listingUrl: string
+  amountPaid: string
+  buyerName: string | null
+  buyerEmail: string | null
+  shopName: string
+  orderId: string
+  orderUrl: string
+}): Promise<void> {
+  const subject = `📦 Nuevo pedido — acuerda la entrega con el comprador`
+
+  const body = [
+    h1('Tienes un nuevo pedido de entrega acordada'),
+    table([
+      ['Producto',   `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
+      ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
+    ]),
+    amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
+    notice('El comprador eligió <strong>entrega acordada</strong>. Tienes <strong>24 horas</strong> para contactarlo y definir cómo y cuándo le entregas el artículo.', 'warn'),
+    cta('Gestionar pedido', ctx.orderUrl),
+    divider(),
+    p('<strong>¿Qué hacer?</strong><br>1. Contacta al comprador por correo o mensaje.<br>2. Acuerda el método de entrega (envío propio, paquetería, en mano).<br>3. Una vez entregado, marca el pedido como entregado desde tu panel.'),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
+}
+
+// ── Local pickup — Buyer ─────────────────────────────────────────────────────
+
+export async function sendPickupOrderToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  listingUrl: string
+  amountPaid: string
+  shopName: string
+  pickupAddress?: string | null
+  pickupInstructions?: string | null
+  sellerPhone?: string | null
+  sellerWhatsapp?: string | null
+  orderUrl: string
+}): Promise<void> {
+  const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
+  const subject = `Compra confirmada — recoge tu pedido en ${ctx.shopName}`
+
+  const whatsappUrl = ctx.sellerWhatsapp
+    ? `https://wa.me/${ctx.sellerWhatsapp.replace(/\D/g, '').replace(/^(?!52)/, '52')}?text=${encodeURIComponent(`Hola, compré "${ctx.listingTitle}" en Miyagi Sánchez y quiero coordinar la recolección.`)}`
+    : null
+
+  const body = [
+    h1(greeting),
+    p('Tu pago fue procesado. Este vendedor ofrece recolección en mano. El vendedor te confirmará el lugar y horario disponible.'),
+    table([
+      ['Producto',        `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ['Vendedor',        esc(ctx.shopName)],
+      ['Pagado',          esc(ctx.amountPaid)],
+      ['Entrega',         'Recolección en mano'],
+      ...(ctx.pickupAddress      ? [['Ubicación',    esc(ctx.pickupAddress)]      as [string, string]] : []),
+      ...(ctx.pickupInstructions ? [['Instrucciones', esc(ctx.pickupInstructions)] as [string, string]] : []),
+      ...(ctx.sellerPhone        ? [['Teléfono',     esc(ctx.sellerPhone)]        as [string, string]] : []),
+    ]),
+    notice('El vendedor confirmará el horario. Guarda este correo como comprobante de pago.', 'info'),
+    whatsappUrl
+      ? cta('Coordinar por WhatsApp', whatsappUrl)
+      : cta('Ver estado del pedido', ctx.orderUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+// ── Local pickup — Seller ────────────────────────────────────────────────────
+
+export async function sendPickupOrderToSeller(ctx: {
+  sellerEmail: string
+  listingTitle: string
+  listingUrl: string
+  amountPaid: string
+  buyerName: string | null
+  buyerEmail: string | null
+  shopName: string
+  orderUrl: string
+}): Promise<void> {
+  const subject = `📦 Nuevo pedido — el comprador recogerá en mano`
+
+  const body = [
+    h1('Tienes un nuevo pedido de recolección'),
+    table([
+      ['Producto',   `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
+      ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
+    ]),
+    amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
+    notice('El comprador <strong>recogerá el artículo en mano</strong>. Contáctalo para confirmar el horario y lugar de recolección.', 'warn'),
+    cta('Gestionar pedido', ctx.orderUrl),
+    divider(),
+    p('<strong>¿Qué hacer?</strong><br>1. Contáctalo para confirmar horario de recolección.<br>2. Ten el artículo listo el día acordado.<br>3. Una vez entregado en mano, marca el pedido como entregado desde tu panel.'),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
 }

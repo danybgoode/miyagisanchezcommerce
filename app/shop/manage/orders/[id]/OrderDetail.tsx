@@ -515,6 +515,9 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const escrowCapturedInit = !!orderMeta.escrow_captured
   const isSpeiOrder = orderMeta.payment_method === 'spei' || orderMeta.payment_method === 'cash'
   const paymentReceivedInit = !!orderMeta.payment_received
+  const fulfillmentMethod = (orderMeta.fulfillment_method as string | undefined) ?? order.shipping_method ?? 'shipping'
+  const isPickupOrder = fulfillmentMethod === 'local_pickup'
+  const isCoordOrder  = fulfillmentMethod === 'none' || fulfillmentMethod === 'coord' || fulfillmentMethod === 'rental'
 
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [currentShipment, setCurrentShipment] = useState<Shipment | null>(
@@ -794,10 +797,55 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </div>
       )}
 
+      {/* ── Delivery method banners ────────────────────────────────────────── */}
+      {isPickupOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
+        <div className="border border-amber-200 bg-amber-50/60 rounded-xl p-4 mb-5">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">📍 Recolección en mano</p>
+          <p className="text-sm text-amber-800 mb-3">El comprador irá a recogerte el artículo. Confírmale el horario y lugar por correo o mensaje.</p>
+          {order.buyer_email && (
+            <a
+              href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, escríbeme para coordinar cuándo puedes venir a recoger tu pedido.`}
+              className="inline-flex text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 hover:bg-amber-100 transition-colors mr-2"
+            >
+              ✉ Escribir al comprador
+            </a>
+          )}
+          {currentStatus !== 'delivered' && (
+            <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
+              className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+              {updatingStatus ? 'Actualizando…' : '✓ Confirmar entrega en mano'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {isCoordOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
+        <div className="border border-purple-200 bg-purple-50/60 rounded-xl p-4 mb-5">
+          <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1">🤝 Entrega acordada</p>
+          <p className="text-sm text-purple-800 mb-3">El comprador espera que te contactes para acordar cómo y cuándo recibe el artículo. Tienes 24 h para escribirle.</p>
+          {order.buyer_email && (
+            <a
+              href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, compré tu artículo y quiero coordinarte la entrega.`}
+              className="inline-flex text-sm font-semibold text-purple-800 border border-purple-300 rounded-lg px-4 py-2 hover:bg-purple-100 transition-colors mr-2"
+            >
+              ✉ Contactar al comprador
+            </a>
+          )}
+          {['shipped', 'in_transit', 'processing'].includes(currentStatus) && (
+            <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
+              className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+              {updatingStatus ? 'Actualizando…' : '✓ Confirmar entregado'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Quick status actions */}
       {currentStatus === 'paid' && (
         <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-5">
-          <p className="text-sm font-medium text-blue-800 mb-3">¿Ya preparaste el pedido?</p>
+          <p className="text-sm font-medium text-blue-800 mb-3">
+            {isPickupOrder ? '¿Ya tienes el artículo listo para entregar?' : isCoordOrder ? '¿Ya contactaste al comprador?' : '¿Ya preparaste el pedido?'}
+          </p>
           <button type="button" onClick={() => updateStatus('processing')} disabled={updatingStatus}
             className="text-sm font-semibold text-blue-700 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-100 disabled:opacity-50 transition-colors">
             {updatingStatus ? 'Actualizando…' : '✓ Marcar como "En preparación"'}
@@ -805,7 +853,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </div>
       )}
 
-      {['shipped', 'in_transit'].includes(currentStatus) && (
+      {['shipped', 'in_transit'].includes(currentStatus) && !isPickupOrder && !isCoordOrder && (
         <div className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
           <p className="text-sm font-medium mb-3">¿El comprador ya lo recibió?</p>
           <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}

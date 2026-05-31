@@ -163,7 +163,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const hasLiveShipping = shippingSettings.envia_enabled !== false && hasShippingOrigin
   const deliveryOptions = ([
     shippingSettings.local_pickup
-      ? { id: 'local_pickup' as const, label: 'Recoleccion local', note: pickupSpots[0]?.name ?? 'Coordina lugar y hora con el vendedor.', detail: pickupSpots[0]?.address ?? pickupSpots[0]?.instructions ?? null, pickupSpotId: pickupSpots[0]?.name }
+      ? { id: 'local_pickup' as const, label: 'Recolección en mano', note: pickupSpots[0]?.name ?? 'El vendedor confirmará el horario y punto de entrega.', detail: pickupSpots[0]?.address ?? pickupSpots[0]?.instructions ?? null, pickupSpotId: pickupSpots[0]?.name }
       : null,
     !isDigital && listing.listing_type === 'product' && hasLiveShipping
       ? { id: 'shipping' as const, label: 'Envio a domicilio', note: 'Cotiza y elige paqueteria antes de pagar.', requiresAddress: true }
@@ -178,7 +178,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       ? { id: 'rental' as const, label: 'Renta', note: bookingUrl ? 'Revisa disponibilidad con el vendedor.' : 'Coordina fechas con el vendedor.' }
       : null,
     !shippingSettings.local_pickup && !isDigital && listing.listing_type === 'product' && !hasLiveShipping
-      ? { id: 'none' as const, label: 'Entrega por coordinar', note: 'El vendedor coordinara los detalles desde tu pedido.' }
+      ? { id: 'none' as const, label: 'Entrega acordada', note: 'El vendedor te contactará para acordar cómo y cuándo recibirás tu pedido.' }
       : null,
   ] as Array<DeliveryOption | null>).filter(isPresent)
 
