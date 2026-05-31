@@ -34,6 +34,13 @@ const offerLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'),  prefix: 'rl:offers' })
 }
 
+// Stamps: max 30 per IP per 10 min — prevents message spam
+const stampLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '10 m'), prefix: 'rl:stamps' })
+}
+
 // Checkout: max 20 per IP per 10 min — prevents checkout abuse
 const checkoutLimiter = () => {
   const redis = getRedis()
@@ -57,7 +64,7 @@ const supplyImportLimiter = () => {
 
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -68,9 +75,10 @@ export async function checkRateLimit(
   key: LimitKey,
   identifier: string,
 ): Promise<{ allowed: true } | { allowed: false; retryAfter: number; limit: number; remaining: number }> {
-  const getLimiter = key === 'offers' ? offerLimiter
-    : key === 'checkout' ? checkoutLimiter
-    : key === 'mcp'      ? mcpLimiter
+  const getLimiter = key === 'offers'       ? offerLimiter
+    : key === 'checkout'    ? checkoutLimiter
+    : key === 'mcp'         ? mcpLimiter
+    : key === 'stamps'      ? stampLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

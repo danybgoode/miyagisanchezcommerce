@@ -634,6 +634,22 @@ export default function ConversationClient({ conversationId, initialConversation
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [refresh])
 
+  // Mark conversation as read via the dedicated endpoint (decoupled from GET).
+  // Fires on mount and whenever realtime reconnects (which also triggers refresh).
+  useEffect(() => {
+    fetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
+  }, [conversationId, connected])
+
+  // Safety fallback poll: if realtime never connects (e.g. auth not yet wired),
+  // poll every 30 s so the UI still updates — degraded but not broken.
+  useEffect(() => {
+    if (connected) return
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [connected, refresh])
+
   // Group events by day for date separators
   const grouped: Array<{ date: string; events: ConvEvent[] }> = []
   for (const ev of events) {

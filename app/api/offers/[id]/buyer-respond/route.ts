@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { canAcceptCounter, canWithdraw, formatOfferAmount } from '@/lib/offers'
 import { stripe } from '@/lib/stripe'
 import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
+import { notify } from '@/lib/notify'
 
 interface BuyerRespondBody {
   action: 'accept-counter' | 'withdraw'
@@ -165,6 +166,16 @@ export async function PATCH(
     const conversationUrl = await getConversationUrl()
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: acceptedCents, currency: listing.currency }, true).catch(e => console.error('[conv] accept-counter event:', e))
+    // Push seller: buyer accepted their counter
+    const sellerClerkId = listing.marketplace_shops.clerk_user_id
+    if (sellerClerkId) {
+      db.from('marketplace_conversations').select('id').eq('offer_id', id).maybeSingle()
+        .then(({ data: c }) => notify(sellerClerkId, {
+          kind: 'offer', title: 'Contraoferta aceptada',
+          body: `El comprador aceptó tu contraoferta por "${listing.title}"`,
+          url: c?.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {}))
+    }
     // Buyer: accepted — with payment link
     sendOfferAccepted({
       listingTitle: listing.title, listingId: listing.id, listingUrl,

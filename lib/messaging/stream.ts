@@ -45,9 +45,15 @@ export function useConversationStream(
         },
         (p) => h.current.onConversation(p.new as Row),
       )
-      .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
+      .subscribe((status) => {
+        const ok = status === 'SUBSCRIBED'
+        setConnected(ok)
+        if (ok) console.debug('[realtime] connected', conversationId)
+        else     console.debug('[realtime] status', status, conversationId)
+      })
 
     return () => {
+      console.debug('[realtime] disconnected', conversationId)
       void supabase.removeChannel(channel)
     }
   }, [supabase, conversationId])
