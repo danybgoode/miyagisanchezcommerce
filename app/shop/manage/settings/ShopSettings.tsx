@@ -1008,7 +1008,7 @@ export default function ShopSettingsPanel({
       signal: ctrl.signal,
     })
       .then(r => r.json())
-      .then((data: { stateCode?: string; stateName?: string; municipio?: string; colonias?: string[]; error?: string }) => {
+      .then((data: { stateCode?: string; stateName?: string; alcaldia?: string; municipio?: string; colonias?: string[]; error?: string }) => {
         if (ctrl.signal.aborted) return
         if (data.error || !data.stateCode) {
           setOriginCpLookupError(data.error ?? 'Código postal no encontrado.')
@@ -1017,7 +1017,8 @@ export default function ShopSettingsPanel({
         }
         setOriginState(data.stateName ?? '')
         setOriginStateCode(data.stateCode)
-        setOriginCity(data.municipio ?? '')
+        // Prefer alcaldia (region_2) — for CDMX gives the specific alcaldía
+        setOriginCity(data.alcaldia ?? data.municipio ?? '')
         setOriginColonias(data.colonias ?? [])
         setOriginCpResolved(true)
         mark()
@@ -1983,7 +1984,7 @@ export default function ShopSettingsPanel({
                       <p className="text-red-600 text-xs mt-1">{originCpLookupError}</p>
                     )}
                     {originCpResolved && (
-                      <p className="text-green-700 text-xs mt-1">{originCity}, {originState}</p>
+                      <p className="text-green-700 text-xs mt-1">{originCity} · {originState}</p>
                     )}
                   </div>
 

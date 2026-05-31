@@ -44,7 +44,7 @@ type PostalLookupResult = {
   zipCode: string
   stateCode: string
   stateName: string
-  municipio: string
+  alcaldia: string
   colonias: string[]
 }
 
@@ -71,12 +71,14 @@ function formatCents(cents: number, currency: string) {
   }).format(cents / 100)
 }
 
-function blankAddress(): CheckoutShippingAddress & { state_code?: string } {
+function blankAddress(): CheckoutShippingAddress {
   return {
     country: 'MX',
     name: '',
     phone: '',
     line1: '',
+    ext_number: '',
+    int_number: '',
     line2: '',
     city: '',
     state: '',
@@ -112,42 +114,43 @@ export default function CheckoutExperience({
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider>(
     paymentOptions[0]?.id ?? 'stripe',
   )
-  const [address, setAddress] = useState<CheckoutShippingAddress & { state_code?: string }>(() => blankAddress())
+  const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
   // CP-first lookup state
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
-  const [cpLookupError, setCpLookupError] = useState<string | null>(null)
-  const [cpLookupResult, setCpLookupResult] = useState<PostalLookupResult | null>(null)
+  const [cpLookupError, setCpLookupError]     = useState<string | null>(null)
+  const [cpResult, setCpResult]               = useState<PostalLookupResult | null>(null)
   const cpLookupRef = useRef<AbortController | null>(null)
 
-  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
+  const [shippingRates, setShippingRates]               = useState<ShippingRate[]>([])
   const [selectedShippingRateId, setSelectedShippingRateId] = useState<string | null>(null)
   const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
-  const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
+  const [shippingRatesError, setShippingRatesError]     = useState<string | null>(null)
   const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
 
   const selectedDelivery = useMemo(
-    () => deliveryOptions.find(option => option.id === selectedDeliveryId) ?? deliveryOptions[0],
+    () => deliveryOptions.find(o => o.id === selectedDeliveryId) ?? deliveryOptions[0],
     [deliveryOptions, selectedDeliveryId],
   )
   const selectedPayment = useMemo(
-    () => paymentOptions.find(option => option.id === selectedPaymentId) ?? paymentOptions[0],
+    () => paymentOptions.find(o => o.id === selectedPaymentId) ?? paymentOptions[0],
     [paymentOptions, selectedPaymentId],
   )
 
-  // CP is valid once we have a successful lookup
-  const cpResolved = Boolean(cpLookupResult && address.state_code)
+  const cpResolved = Boolean(cpResult?.stateCode)
 
+  // Address is ready when all required structural fields are filled
   const addressReady = !selectedDelivery?.requiresAddress || Boolean(
     address.name?.trim() &&
-    address.line1?.trim() &&
-    address.city?.trim() &&
+    address.line1?.trim() &&         // calle
+    address.ext_number?.trim() &&    // número exterior
     address.state_code?.trim() &&
     address.postal_code?.trim()
   )
-  const needsShippingRate = Boolean(selectedDelivery?.id === 'shipping' && selectedDelivery.requiresAddress)
+
+  const needsShippingRate = selectedDelivery?.id === 'shipping' && !!selectedDelivery.requiresAddress
   const selectedShippingRate = useMemo(
-    () => shippingRates.find(rate => rate.id === selectedShippingRateId) ?? null,
+    () => shippingRates.find(r => r.id === selectedShippingRateId) ?? null,
     [shippingRates, selectedShippingRateId],
   )
   const selectedShippingQuote: CheckoutShippingQuote | undefined = selectedShippingRate
@@ -161,24 +164,22 @@ export default function CheckoutExperience({
         deliveryLabel: selectedShippingRate.deliveryLabel,
       }
     : undefined
-  const shippingAmountCents = selectedShippingRate?.amountCents ?? 0
-  const totalCents = amountCents + shippingAmountCents
+  const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
   const canPay = Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
     const cp = value.replace(/\D/g, '').slice(0, 5)
-    setAddress(a => ({ ...a, postal_code: cp, state: '', state_code: '', city: '' }))
-    setCpLookupResult(null)
+    setAddress(a => ({ ...a, postal_code: cp, state: '', state_code: '', city: '', line2: '' }))
+    setCpResult(null)
     setCpLookupError(null)
-
     if (cp.length < 5) return
 
     cpLookupRef.current?.abort()
     const ctrl = new AbortController()
     cpLookupRef.current = ctrl
-
     setCpLookupLoading(true)
+
     fetch('/api/checkout/postal-lookup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -188,19 +189,15 @@ export default function CheckoutExperience({
       .then(r => r.json())
       .then((data: PostalLookupResult & { error?: string }) => {
         if (ctrl.signal.aborted) return
-        if (data.error) {
-          setCpLookupError(data.error)
-          return
-        }
-        setCpLookupResult(data)
+        if (data.error) { setCpLookupError(data.error); return }
+        setCpResult(data)
         setAddress(a => ({
           ...a,
           postal_code: data.zipCode,
           state: data.stateName,
           state_code: data.stateCode,
-          city: data.municipio,
-          // Reset colonia so buyer picks from dropdown
-          line2: '',
+          city: data.alcaldia,   // alcaldía/municipio from region_2
+          line2: '',             // reset colonia so buyer picks from dropdown
         }))
       })
       .catch(e => {
@@ -208,9 +205,7 @@ export default function CheckoutExperience({
         setCpLookupError('No se pudo validar el código postal.')
         console.error('[postal-lookup]', e)
       })
-      .finally(() => {
-        if (!ctrl.signal.aborted) setCpLookupLoading(false)
-      })
+      .finally(() => { if (!ctrl.signal.aborted) setCpLookupLoading(false) })
   }
 
   // ── Quote shipping rates ───────────────────────────────────────────────────
@@ -230,36 +225,27 @@ export default function CheckoutExperience({
           signal: controller.signal,
         })
         const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string; message?: string } | null
-        if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envio.')
+        if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envío.')
         const rates = data?.rates ?? []
         setShippingRates(rates)
         setSelectedShippingRateId(rates[0]?.id ?? null)
-        if (rates.length === 0) {
-          setShippingRatesMessage(data?.message ?? 'Las paqueterías no tienen cobertura para ese destino. Coordina la entrega con el vendedor.')
-        }
+        if (rates.length === 0) setShippingRatesMessage(data?.message ?? 'Las paqueterías no tienen cobertura para ese destino.')
       } catch (err) {
         if (controller.signal.aborted) return
         setShippingRates([])
         setSelectedShippingRateId(null)
-        setShippingRatesError(err instanceof Error ? err.message : 'No se pudo cotizar el envio.')
+        setShippingRatesError(err instanceof Error ? err.message : 'No se pudo cotizar el envío.')
       } finally {
         if (!controller.signal.aborted) setShippingRatesLoading(false)
       }
     }, 450)
 
-    return () => {
-      controller.abort()
-      window.clearTimeout(timeout)
-    }
-  }, [
-    needsShippingRate,
-    addressReady,
-    listingId,
-    address,
-  ])
+    return () => { controller.abort(); window.clearTimeout(timeout) }
+  }, [needsShippingRate, addressReady, listingId, address])
 
   return (
     <>
+      {/* ── Delivery section ───────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
         <div style={{ display: 'grid', gap: 8 }}>
@@ -280,26 +266,17 @@ export default function CheckoutExperience({
           ))}
         </div>
 
+        {/* ── Address form ─────────────────────────────────────────────────── */}
         {selectedDelivery?.requiresAddress && (
           <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
 
-            {/* Row 1: Name + Phone */}
+            {/* Name + Phone */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <input
-                value={address.name ?? ''}
-                onChange={e => setAddress({ ...address, name: e.target.value })}
-                placeholder="Nombre de quien recibe"
-                style={inputStyle}
-              />
-              <input
-                value={address.phone ?? ''}
-                onChange={e => setAddress({ ...address, phone: e.target.value })}
-                placeholder="Teléfono"
-                style={inputStyle}
-              />
+              <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
+              <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
             </div>
 
-            {/* CP row — primary entry point */}
+            {/* CP — anchor of the whole form */}
             <div>
               <div style={{ position: 'relative' }}>
                 <input
@@ -310,80 +287,80 @@ export default function CheckoutExperience({
                   maxLength={5}
                   style={{
                     ...inputStyle,
-                    paddingRight: 36,
+                    paddingRight: 34,
                     border: `1px solid ${cpLookupError ? 'var(--danger, #dc2626)' : cpResolved ? 'var(--success, #16a34a)' : 'var(--border)'}`,
                   }}
                 />
-                {cpLookupLoading && (
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)' }}>
-                    ·
-                  </span>
-                )}
-                {cpResolved && !cpLookupLoading && (
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>
-                )}
+                {cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)', animation: 'pulse 1s infinite' }}>·</span>}
+                {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>}
               </div>
-              {cpLookupError && (
-                <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>
-              )}
-              {cpResolved && (
-                <p style={{ fontSize: 12, color: 'var(--success, #16a34a)', marginTop: 4 }}>
-                  {cpLookupResult!.municipio}, {cpLookupResult!.stateName}
-                </p>
+              {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>}
+              {!cpResolved && !cpLookupError && !address.postal_code?.length && (
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
               )}
             </div>
 
-            {/* Estado + Municipio — locked once CP resolves */}
-            {cpResolved && (
+            {/* Estado + Alcaldía — auto-filled and locked by CP */}
+            {cpResolved && cpResult && (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <input
-                      value={cpLookupResult!.stateName}
-                      readOnly
-                      style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', cursor: 'default' }}
-                      title="Estado (determinado por el CP)"
-                    />
+                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
+                    <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                      <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
+                    </div>
                   </div>
                   <div>
-                    <input
-                      value={cpLookupResult!.municipio}
-                      readOnly
-                      style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', cursor: 'default' }}
-                      title="Municipio (determinado por el CP)"
-                    />
+                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
+                    <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                      <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Colonia dropdown */}
-                {cpLookupResult!.colonias.length > 0 && (
+                {cpResult.colonias.length > 0 && (
                   <select
                     value={address.line2 ?? ''}
                     onChange={e => setAddress({ ...address, line2: e.target.value })}
                     style={inputStyle as CSSProperties}
                   >
                     <option value="">Selecciona colonia</option>
-                    {cpLookupResult!.colonias.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
+                    {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 )}
               </>
             )}
 
-            {/* Street */}
-            <input
-              value={address.line1 ?? ''}
-              onChange={e => setAddress({ ...address, line1: e.target.value })}
-              placeholder="Calle y número"
-              style={inputStyle}
-            />
+            {/* Street fields — only show once CP is resolved */}
+            {cpResolved && (
+              <>
+                {/* Calle */}
+                <input
+                  value={address.line1 ?? ''}
+                  onChange={e => setAddress({ ...address, line1: e.target.value })}
+                  placeholder="Calle"
+                  style={inputStyle}
+                />
 
-            {!addressReady && cpResolved && (
-              <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Completa nombre, calle y número para continuar.</p>
-            )}
-            {!cpResolved && !cpLookupError && !(address.postal_code?.length) && (
-              <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Empieza con tu código postal para auto-completar estado y municipio.</p>
+                {/* No. exterior + No. interior */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input
+                    value={address.ext_number ?? ''}
+                    onChange={e => setAddress({ ...address, ext_number: e.target.value })}
+                    placeholder="No. exterior"
+                    style={inputStyle}
+                  />
+                  <input
+                    value={address.int_number ?? ''}
+                    onChange={e => setAddress({ ...address, int_number: e.target.value })}
+                    placeholder="No. interior (opcional)"
+                    style={inputStyle}
+                  />
+                </div>
+              </>
             )}
 
             {addressReady && needsShippingRate && (
@@ -417,12 +394,7 @@ export default function CheckoutExperience({
                 {shippingRates.map(rate => {
                   const active = selectedShippingRateId === rate.id
                   return (
-                    <button
-                      key={rate.id}
-                      type="button"
-                      onClick={() => setSelectedShippingRateId(rate.id)}
-                      style={optionButtonStyle(active)}
-                    >
+                    <button key={rate.id} type="button" onClick={() => setSelectedShippingRateId(rate.id)} style={optionButtonStyle(active)}>
                       <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{rate.carrier.toUpperCase()} · {rate.service}</span>
@@ -440,16 +412,12 @@ export default function CheckoutExperience({
         )}
       </section>
 
+      {/* ── Payment section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
         <div style={{ display: 'grid', gap: 8 }}>
           {paymentOptions.map(option => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setSelectedPaymentId(option.id)}
-              style={optionButtonStyle(selectedPayment?.id === option.id)}
-            >
+            <button key={option.id} type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(selectedPayment?.id === option.id)}>
               <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${selectedPayment?.id === option.id ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
               <span>
                 <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
@@ -458,7 +426,6 @@ export default function CheckoutExperience({
             </button>
           ))}
         </div>
-
         {manualOptions.length > 0 && (
           <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>Métodos manuales del vendedor</p>
@@ -474,6 +441,7 @@ export default function CheckoutExperience({
         )}
       </section>
 
+      {/* ── Summary section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
@@ -489,7 +457,9 @@ export default function CheckoutExperience({
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, gap: 12 }}>
               <span style={{ color: 'var(--fg-muted)' }}>Envío</span>
               <strong style={{ textAlign: 'right' }}>
-                {selectedShippingRate ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}` : 'Selecciona una tarifa'}
+                {selectedShippingRate
+                  ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}`
+                  : 'Selecciona una tarifa'}
               </strong>
             </div>
           )}

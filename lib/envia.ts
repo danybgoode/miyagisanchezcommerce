@@ -415,8 +415,12 @@ export interface PostalLookupResult {
   /** Envia 2-digit state code — ready to pass into EnviaAddress.state */
   stateCode: string
   stateName: string
-  /** Municipio / locality (e.g. "Monterrey") */
-  municipio: string
+  /**
+   * Municipio or alcaldía from region_2 — more precise than locality.
+   * For CDMX: alcaldía name ("Miguel Hidalgo", "Cuauhtémoc", etc.)
+   * For other states: equals locality ("Monterrey", "Guadalajara", etc.)
+   */
+  alcaldia: string
   /** Colonia / neighborhood list */
   colonias: string[]
   coords?: { lat: number; lng: number }
@@ -431,6 +435,12 @@ interface RawGeocodeResponse {
   locality?: string
   suburbs?: string[]
   coordinates?: { latitude?: string; longitude?: string }
+  regions?: {
+    region_1?: string
+    region_2?: string
+    region_3?: string
+    region_4?: string
+  }
 }
 
 export async function lookupPostalCode(cp: string): Promise<PostalLookupResult | null> {
@@ -453,11 +463,16 @@ export async function lookupPostalCode(cp: string): Promise<PostalLookupResult |
     const stateCode = data.state?.code?.['2digit'] ?? ''
     if (!stateCode) return null
 
+    // Prefer region_2 (alcaldía/municipio-level) over locality.
+    // locality = "Ciudad de México" for ALL CDMX CPs; region_2 = specific alcaldía.
+    // For other states they are equal, so region_2 is always the better choice.
+    const alcaldia = data.regions?.region_2 || data.locality || ''
+
     return {
       zipCode: clean,
       stateCode,
       stateName: data.state?.name ?? '',
-      municipio: data.locality ?? '',
+      alcaldia,
       colonias: (data.suburbs ?? []).filter(Boolean).sort(),
       coords: data.coordinates?.latitude
         ? { lat: Number(data.coordinates.latitude), lng: Number(data.coordinates.longitude) }

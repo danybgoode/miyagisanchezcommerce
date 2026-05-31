@@ -42,10 +42,19 @@ export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' 
 export interface CheckoutShippingAddress {
   name?: string
   phone?: string
+  /** Street name only (e.g. "Av. Insurgentes Sur") */
   line1?: string
+  /** Exterior number (e.g. "1234") */
+  ext_number?: string
+  /** Interior number, optional (e.g. "Depto 5") */
+  int_number?: string
+  /** Colonia / neighborhood */
   line2?: string
+  /** Alcaldía or municipio (from CP lookup region_2) */
   city?: string
   state?: string
+  /** Envia 2-digit state code set by CP lookup */
+  state_code?: string
   postal_code?: string
   country?: string
 }
