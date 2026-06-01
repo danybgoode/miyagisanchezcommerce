@@ -10,7 +10,8 @@ interface OfferCheckoutButtonProps {
   offerId: string
   amountCents: number
   currency: string
-  provider: CheckoutProvider
+  /** Optional pre-selected provider. Omit so the checkout page lets the buyer choose. */
+  provider?: CheckoutProvider
   isSignedIn: boolean
   label?: string
   variant?: 'primary' | 'accent'
@@ -45,7 +46,8 @@ export default function OfferCheckoutButton({
 
   async function checkout() {
     setLoading(true)
-    router.push(`/checkout?listingId=${encodeURIComponent(listingId)}&offerId=${encodeURIComponent(offerId)}&provider=${provider}`)
+    const providerParam = provider ? `&provider=${provider}` : ''
+    router.push(`/checkout?listingId=${encodeURIComponent(listingId)}&offerId=${encodeURIComponent(offerId)}${providerParam}`)
   }
 
   return (

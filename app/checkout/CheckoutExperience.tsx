@@ -3,29 +3,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
+import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 
-export type DeliveryOption = {
+// ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
+type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
+type DeliveryMethod = {
   id: CheckoutFulfillmentMethod
   label: string
   note: string
-  detail?: string | null
-  pickupSpotId?: string
-  requiresAddress?: boolean
+  requires_address?: boolean
+  requires_pickup_spot?: boolean
+  pickup_spots?: PickupSpot[]
 }
-
-export type PaymentOption = {
-  id: CheckoutProvider
-  label: string
-  note: string
-}
-
-export type ManualOption = {
-  id: string
-  label: string
-  note: string
-  detail?: string | null
-  href?: string | null
+type PaymentMethod = { id: CheckoutProvider; provider_id: string; label: string; note: string; instant: boolean }
+type CheckoutOptions = {
+  payment_methods: PaymentMethod[]
+  payment_default: CheckoutProvider | null
+  delivery_methods: DeliveryMethod[]
+  delivery_default: CheckoutFulfillmentMethod | null
+  only_coordinated: boolean
+  preparation: string | null
 }
 
 type ShippingRate = {
@@ -37,7 +35,6 @@ type ShippingRate = {
   currency: string
   deliveryEstimate: number | null
   deliveryLabel: string | null
-  logoUrl?: string | null
 }
 
 type PostalLookupResult = {
@@ -63,94 +60,98 @@ function optionButtonStyle(active: boolean): CSSProperties {
   }
 }
 
+function radioDot(active: boolean): CSSProperties {
+  return { width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }
+}
+
 function formatCents(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
 }
 
 function blankAddress(): CheckoutShippingAddress {
-  return {
-    country: 'MX',
-    name: '',
-    phone: '',
-    line1: '',
-    ext_number: '',
-    int_number: '',
-    line2: '',
-    city: '',
-    state: '',
-    state_code: '',
-    postal_code: '',
-  }
+  return { country: 'MX', name: '', phone: '', line1: '', ext_number: '', int_number: '', line2: '', city: '', state: '', state_code: '', postal_code: '' }
 }
 
 export default function CheckoutExperience({
-  listingId,
   sellerId,
+  listingId,
+  items,
   amountCents,
   currency,
-  deliveryOptions,
-  paymentOptions,
-  manualOptions,
   offerId,
   offerAmountCents,
-  onlyCoordinated,
+  listingType = 'product',
+  isDigital = false,
+  onStarted,
 }: {
-  listingId: string
   sellerId: string
+  listingId?: string
+  items?: CartItem[]
   amountCents: number
   currency: string
-  deliveryOptions: DeliveryOption[]
-  paymentOptions: PaymentOption[]
-  manualOptions: ManualOption[]
   offerId?: string
   offerAmountCents?: number
-  onlyCoordinated?: boolean
+  listingType?: string
+  isDigital?: boolean
+  onStarted?: () => void
 }) {
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>(
-    deliveryOptions[0]?.id ?? 'none',
-  )
-  const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider>(
-    paymentOptions[0]?.id ?? 'stripe',
-  )
+  // ── Fetch checkout options from Medusa (single source of truth) ───────────
+  const [options, setOptions] = useState<CheckoutOptions | null>(null)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital) })
+    fetch(`/api/checkout/options?${qs}`)
+      .then(r => r.json())
+      .then((data: CheckoutOptions & { error?: string }) => {
+        if (cancelled) return
+        if (data.error) { setOptionsError(data.error); return }
+        setOptions(data)
+        setSelectedDeliveryId(data.delivery_default ?? data.delivery_methods[0]?.id ?? 'none')
+        setSelectedPaymentId(data.payment_default ?? data.payment_methods[0]?.id ?? null)
+      })
+      .catch(() => { if (!cancelled) setOptionsError('No se pudieron cargar las opciones de pago.') })
+    return () => { cancelled = true }
+  }, [sellerId, listingType, isDigital])
+
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
+  const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
+  const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
   const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
   // CP-first lookup state
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
-  const [cpLookupError, setCpLookupError]     = useState<string | null>(null)
-  const [cpResult, setCpResult]               = useState<PostalLookupResult | null>(null)
+  const [cpLookupError, setCpLookupError] = useState<string | null>(null)
+  const [cpResult, setCpResult] = useState<PostalLookupResult | null>(null)
   const cpLookupRef = useRef<AbortController | null>(null)
 
-  const [shippingRates, setShippingRates]               = useState<ShippingRate[]>([])
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
   const [selectedShippingRateId, setSelectedShippingRateId] = useState<string | null>(null)
   const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
-  const [shippingRatesError, setShippingRatesError]     = useState<string | null>(null)
+  const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
   const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
 
+  const deliveryMethods = options?.delivery_methods ?? []
+  const paymentMethods = options?.payment_methods ?? []
+
   const selectedDelivery = useMemo(
-    () => deliveryOptions.find(o => o.id === selectedDeliveryId) ?? deliveryOptions[0],
-    [deliveryOptions, selectedDeliveryId],
+    () => deliveryMethods.find(o => o.id === selectedDeliveryId) ?? deliveryMethods[0],
+    [deliveryMethods, selectedDeliveryId],
   )
   const selectedPayment = useMemo(
-    () => paymentOptions.find(o => o.id === selectedPaymentId) ?? paymentOptions[0],
-    [paymentOptions, selectedPaymentId],
+    () => paymentMethods.find(o => o.id === selectedPaymentId) ?? null,
+    [paymentMethods, selectedPaymentId],
   )
 
   const cpResolved = Boolean(cpResult?.stateCode)
-
-  // Address is ready when all required structural fields are filled
-  const addressReady = !selectedDelivery?.requiresAddress || Boolean(
-    address.name?.trim() &&
-    address.line1?.trim() &&         // calle
-    address.ext_number?.trim() &&    // número exterior
-    address.state_code?.trim() &&
-    address.postal_code?.trim()
+  const addressReady = !selectedDelivery?.requires_address || Boolean(
+    address.name?.trim() && address.line1?.trim() && address.ext_number?.trim() && address.state_code?.trim() && address.postal_code?.trim(),
   )
+  const needsShippingRate = selectedDelivery?.id === 'shipping' && !!selectedDelivery.requires_address
+  const needsPickupSpot = selectedDelivery?.id === 'local_pickup' && !!selectedDelivery.requires_pickup_spot
+  const pickupReady = !needsPickupSpot || !!selectedPickupSpotId
 
-  const needsShippingRate = selectedDelivery?.id === 'shipping' && !!selectedDelivery.requiresAddress
   const selectedShippingRate = useMemo(
     () => shippingRates.find(r => r.id === selectedShippingRateId) ?? null,
     [shippingRates, selectedShippingRateId],
@@ -167,9 +168,13 @@ export default function CheckoutExperience({
       }
     : undefined
   const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
-  // For coord-only (no card providers), canPay is always false — the buyer
-  // uses manual options (WhatsApp / SPEI) directly, not the pay button.
-  const canPay = !onlyCoordinated && Boolean(selectedDelivery && selectedPayment && addressReady && (!needsShippingRate || selectedShippingRate))
+
+  const canPay = Boolean(
+    selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
+  )
+
+  // Reset pickup spot selection when delivery method changes.
+  useEffect(() => { setSelectedPickupSpotId(null) }, [selectedDeliveryId])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -195,14 +200,7 @@ export default function CheckoutExperience({
         if (ctrl.signal.aborted) return
         if (data.error) { setCpLookupError(data.error); return }
         setCpResult(data)
-        setAddress(a => ({
-          ...a,
-          postal_code: data.zipCode,
-          state: data.stateName,
-          state_code: data.stateCode,
-          city: data.alcaldia,   // alcaldía/municipio from region_2
-          line2: '',             // reset colonia so buyer picks from dropdown
-        }))
+        setAddress(a => ({ ...a, postal_code: data.zipCode, state: data.stateName, state_code: data.stateCode, city: data.alcaldia, line2: '' }))
       })
       .catch(e => {
         if (ctrl.signal.aborted) return
@@ -215,7 +213,6 @@ export default function CheckoutExperience({
   // ── Quote shipping rates ───────────────────────────────────────────────────
   useEffect(() => {
     if (!needsShippingRate || !addressReady) return
-
     const controller = new AbortController()
     const timeout = window.setTimeout(async () => {
       setShippingRatesLoading(true)
@@ -225,7 +222,11 @@ export default function CheckoutExperience({
         const res = await fetch('/api/checkout/shipping-rates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listingId, address }),
+          body: JSON.stringify(
+            items?.length
+              ? { items: items.map(i => i.productId), address }
+              : { listingId, address },
+          ),
           signal: controller.signal,
         })
         const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string; message?: string } | null
@@ -243,227 +244,212 @@ export default function CheckoutExperience({
         if (!controller.signal.aborted) setShippingRatesLoading(false)
       }
     }, 450)
-
     return () => { controller.abort(); window.clearTimeout(timeout) }
-  }, [needsShippingRate, addressReady, listingId, address])
+  }, [needsShippingRate, addressReady, listingId, items, address])
+
+  // ── Loading / error states ─────────────────────────────────────────────────
+  if (optionsError) {
+    return (
+      <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--danger)' }}>⚠ {optionsError}</p>
+      </section>
+    )
+  }
+  if (!options) {
+    return (
+      <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16, display: 'grid', gap: 8 }}>
+        {[0, 1, 2].map(i => <div key={i} style={{ height: 54, borderRadius: 8, background: 'var(--bg-sunk)', opacity: 0.7 }} />)}
+      </section>
+    )
+  }
 
   return (
     <>
       {/* ── Delivery section ───────────────────────────────────────────────── */}
-      <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
-        <div style={{ display: 'grid', gap: 8 }}>
-          {deliveryOptions.map(option => (
-            <button
-              key={`${option.id}-${option.pickupSpotId ?? ''}`}
-              type="button"
-              onClick={() => setSelectedDeliveryId(option.id)}
-              style={optionButtonStyle(selectedDelivery?.id === option.id && selectedDelivery?.pickupSpotId === option.pickupSpotId)}
-            >
-              <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${selectedDelivery?.id === option.id ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
-                <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
-                {option.detail && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>{option.detail}</span>}
-              </span>
-            </button>
-          ))}
-        </div>
+      {deliveryMethods.length > 0 && (
+        <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {deliveryMethods.map(option => (
+              <button key={option.id} type="button" onClick={() => setSelectedDeliveryId(option.id)} style={optionButtonStyle(selectedDelivery?.id === option.id)}>
+                <span aria-hidden style={radioDot(selectedDelivery?.id === option.id)} />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
+                </span>
+              </button>
+            ))}
+          </div>
 
-        {/* ── Address form ─────────────────────────────────────────────────── */}
-        {selectedDelivery?.requiresAddress && (
-          <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-
-            {/* Name + Phone */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
-              <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
+          {/* Pickup spot picker — deterministic list of where you can recoger */}
+          {selectedDelivery?.id === 'local_pickup' && (selectedDelivery.pickup_spots?.length ?? 0) > 0 && (
+            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>¿Dónde quieres recogerlo?</p>
+              {selectedDelivery.pickup_spots!.map(spot => {
+                const active = selectedPickupSpotId === spot.id
+                return (
+                  <button key={spot.id} type="button" onClick={() => setSelectedPickupSpotId(spot.id)} style={optionButtonStyle(active)}>
+                    <span aria-hidden style={radioDot(active)} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{spot.name ?? 'Punto de entrega'}</span>
+                      {spot.address && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{spot.address}</span>}
+                      {spot.hours && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>🕐 {spot.hours}</span>}
+                      {spot.notes && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>{spot.notes}</span>}
+                      {spot.scheduling_url && active && (
+                        <a href={spot.scheduling_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>
+                          Agendar horario →
+                        </a>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+          )}
 
-            {/* CP — anchor of the whole form */}
-            <div>
-              <div style={{ position: 'relative' }}>
-                <input
-                  value={address.postal_code ?? ''}
-                  onChange={e => handleCpChange(e.target.value)}
-                  placeholder="Código postal (CP)"
-                  inputMode="numeric"
-                  maxLength={5}
-                  style={{
-                    ...inputStyle,
-                    paddingRight: 34,
-                    border: `1px solid ${cpLookupError ? 'var(--danger, #dc2626)' : cpResolved ? 'var(--success, #16a34a)' : 'var(--border)'}`,
-                  }}
-                />
-                {cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)', animation: 'pulse 1s infinite' }}>·</span>}
-                {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>}
+          {/* Address form (shipping) */}
+          {selectedDelivery?.requires_address && (
+            <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
+                <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
               </div>
-              {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>}
-              {!cpResolved && !cpLookupError && !address.postal_code?.length && (
-                <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
+
+              <div>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    value={address.postal_code ?? ''}
+                    onChange={e => handleCpChange(e.target.value)}
+                    placeholder="Código postal (CP)"
+                    inputMode="numeric"
+                    maxLength={5}
+                    style={{ ...inputStyle, paddingRight: 34, border: `1px solid ${cpLookupError ? 'var(--danger, #dc2626)' : cpResolved ? 'var(--success, #16a34a)' : 'var(--border)'}` }}
+                  />
+                  {cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)' }}>·</span>}
+                  {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>}
+                </div>
+                {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>}
+                {!cpResolved && !cpLookupError && !address.postal_code?.length && (
+                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
+                )}
+              </div>
+
+              {cpResolved && cpResult && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
+                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                        <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
+                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                        <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {cpResult.colonias.length > 0 && (
+                    <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
+                      <option value="">Selecciona colonia</option>
+                      {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </>
+              )}
+
+              {cpResolved && (
+                <>
+                  <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder="Calle" style={inputStyle} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input value={address.ext_number ?? ''} onChange={e => setAddress({ ...address, ext_number: e.target.value })} placeholder="No. exterior" style={inputStyle} />
+                    <input value={address.int_number ?? ''} onChange={e => setAddress({ ...address, int_number: e.target.value })} placeholder="No. interior (opcional)" style={inputStyle} />
+                  </div>
+                </>
+              )}
+
+              {addressReady && needsShippingRate && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>Opciones de paquetería</p>
+                    {shippingRatesLoading && <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Cotizando...</p>}
+                  </div>
+
+                  {shippingRatesLoading && shippingRates.length === 0 && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {[0, 1].map(i => <div key={i} style={{ height: 58, borderRadius: 8, background: 'var(--bg-sunk)', border: '1px solid var(--border)', opacity: 0.75 }} />)}
+                    </div>
+                  )}
+
+                  {shippingRatesError && !shippingRatesLoading && (
+                    <div style={{ background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger, #dc2626)', borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginBottom: 4 }}>{shippingRatesError}</p>
+                      <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>También puedes coordinar la entrega directamente con el vendedor.</p>
+                    </div>
+                  )}
+
+                  {shippingRatesMessage && !shippingRatesLoading && shippingRates.length === 0 && !shippingRatesError && (
+                    <div style={{ background: 'var(--warning-soft, #fffbeb)', border: '1px solid var(--warning, #d97706)', borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: 'var(--warning, #92400e)' }}>{shippingRatesMessage}</p>
+                    </div>
+                  )}
+
+                  {shippingRates.map(rate => {
+                    const active = selectedShippingRateId === rate.id
+                    return (
+                      <button key={rate.id} type="button" onClick={() => setSelectedShippingRateId(rate.id)} style={optionButtonStyle(active)}>
+                        <span aria-hidden style={radioDot(active)} />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{rate.carrier.toUpperCase()} · {rate.service}</span>
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                            {rate.deliveryLabel ? `Entrega estimada: ${rate.deliveryLabel}` : 'Entrega estimada por paquetería'}
+                          </span>
+                        </span>
+                        <strong style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{formatCents(rate.amountCents, rate.currency)}</strong>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
             </div>
+          )}
 
-            {/* Estado + Alcaldía — auto-filled and locked by CP */}
-            {cpResolved && cpResult && (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
-                    <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
-                      <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
-                    <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
-                      <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Colonia dropdown */}
-                {cpResult.colonias.length > 0 && (
-                  <select
-                    value={address.line2 ?? ''}
-                    onChange={e => setAddress({ ...address, line2: e.target.value })}
-                    style={inputStyle as CSSProperties}
-                  >
-                    <option value="">Selecciona colonia</option>
-                    {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                )}
-              </>
-            )}
-
-            {/* Street fields — only show once CP is resolved */}
-            {cpResolved && (
-              <>
-                {/* Calle */}
-                <input
-                  value={address.line1 ?? ''}
-                  onChange={e => setAddress({ ...address, line1: e.target.value })}
-                  placeholder="Calle"
-                  style={inputStyle}
-                />
-
-                {/* No. exterior + No. interior */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <input
-                    value={address.ext_number ?? ''}
-                    onChange={e => setAddress({ ...address, ext_number: e.target.value })}
-                    placeholder="No. exterior"
-                    style={inputStyle}
-                  />
-                  <input
-                    value={address.int_number ?? ''}
-                    onChange={e => setAddress({ ...address, int_number: e.target.value })}
-                    placeholder="No. interior (opcional)"
-                    style={inputStyle}
-                  />
-                </div>
-              </>
-            )}
-
-            {addressReady && needsShippingRate && (
-              <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>Opciones de paquetería</p>
-                  {shippingRatesLoading && <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Cotizando...</p>}
-                </div>
-
-                {shippingRatesLoading && shippingRates.length === 0 && (
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {[0, 1].map(i => (
-                      <div key={i} style={{ height: 58, borderRadius: 8, background: 'var(--bg-sunk)', border: '1px solid var(--border)', opacity: 0.75 }} />
-                    ))}
-                  </div>
-                )}
-
-                {shippingRatesError && !shippingRatesLoading && (
-                  <div style={{ background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger, #dc2626)', borderRadius: 8, padding: 10 }}>
-                    <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginBottom: 4 }}>{shippingRatesError}</p>
-                    <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>También puedes coordinar la entrega directamente con el vendedor.</p>
-                  </div>
-                )}
-
-                {shippingRatesMessage && !shippingRatesLoading && shippingRates.length === 0 && !shippingRatesError && (
-                  <div style={{ background: 'var(--warning-soft, #fffbeb)', border: '1px solid var(--warning, #d97706)', borderRadius: 8, padding: 10 }}>
-                    <p style={{ fontSize: 12, color: 'var(--warning, #92400e)' }}>{shippingRatesMessage}</p>
-                  </div>
-                )}
-
-                {shippingRates.map(rate => {
-                  const active = selectedShippingRateId === rate.id
-                  return (
-                    <button key={rate.id} type="button" onClick={() => setSelectedShippingRateId(rate.id)} style={optionButtonStyle(active)}>
-                      <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{rate.carrier.toUpperCase()} · {rate.service}</span>
-                        <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-                          {rate.deliveryLabel ? `Entrega estimada: ${rate.deliveryLabel}` : 'Entrega estimada por paquetería'}
-                        </span>
-                      </span>
-                      <strong style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{formatCents(rate.amountCents, rate.currency)}</strong>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ── Coordination notice (replaces payment section when only coord) ──── */}
-      {onlyCoordinated && manualOptions.length === 0 && (
-        <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>🤝</span>
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Este vendedor coordina pago y entrega juntos</p>
-              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-                Para comprar este artículo, escríbele directamente al vendedor. Acordarán el método de pago y entrega antes de cerrar la venta.
-              </p>
-            </div>
-          </div>
+          {options.preparation && (
+            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 10 }}>📦 Tiempo de preparación: {options.preparation}</p>
+          )}
         </section>
       )}
 
       {/* ── Payment section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>
-          {onlyCoordinated ? 'Opciones de pago manual' : 'Elige pago'}
-        </h2>
-        {onlyCoordinated && paymentOptions.length === 0 && manualOptions.length > 0 && (
-          <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-sunk)', borderRadius: 8, borderLeft: '3px solid var(--accent)' }}>
-            <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-              Este vendedor coordina la entrega personalmente — el pago se acuerda junto con la entrega. Elige una opción para continuar.
-            </p>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
+
+        {paymentMethods.length === 0 ? (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🤝</span>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>
+                {options.only_coordinated ? 'Este vendedor coordina pago y entrega juntos' : 'Pagos en línea no disponibles'}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                Escríbele directamente al vendedor para acordar el método de pago y la entrega antes de cerrar la venta.
+              </p>
+            </div>
           </div>
-        )}
-        <div style={{ display: 'grid', gap: 8 }}>
-          {paymentOptions.map(option => (
-            <button key={option.id} type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(selectedPayment?.id === option.id)}>
-              <span aria-hidden style={{ width: 18, height: 18, borderRadius: '50%', border: `5px solid ${selectedPayment?.id === option.id ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }} />
-              <span>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
-                <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-        {manualOptions.length > 0 && (
-          <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)' }}>Métodos manuales del vendedor</p>
-            {manualOptions.map(option => (
-              <div key={option.id} style={{ padding: 10, background: 'var(--bg-sunk)', borderRadius: 8 }}>
-                <p style={{ fontSize: 13, fontWeight: 700 }}>{option.label}</p>
-                <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</p>
-                {option.detail && <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2, overflowWrap: 'anywhere' }}>{option.detail}</p>}
-                {option.href && <a href={option.href} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>Abrir enlace</a>}
-              </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {paymentMethods.map(option => (
+              <button key={option.id} type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(selectedPayment?.id === option.id)}>
+                <span aria-hidden style={radioDot(selectedPayment?.id === option.id)} />
+                <span>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
+                </span>
+              </button>
             ))}
           </div>
         )}
@@ -474,7 +460,7 @@ export default function CheckoutExperience({
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>Producto</span>
+            <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? `Artículos (${items.length})` : 'Producto'}</span>
             <strong>{formatCents(amountCents, currency)}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
@@ -485,9 +471,7 @@ export default function CheckoutExperience({
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, gap: 12 }}>
               <span style={{ color: 'var(--fg-muted)' }}>Envío</span>
               <strong style={{ textAlign: 'right' }}>
-                {selectedShippingRate
-                  ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}`
-                  : 'Selecciona una tarifa'}
+                {selectedShippingRate ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}` : 'Selecciona una tarifa'}
               </strong>
             </div>
           )}
@@ -509,16 +493,18 @@ export default function CheckoutExperience({
           <CheckoutPayButton
             provider={selectedPayment.id}
             listingId={listingId}
+            items={items}
             sellerId={sellerId}
             amountCents={amountCents}
             currency={currency}
             offerId={offerId}
             offerAmountCents={offerAmountCents}
             fulfillmentMethod={selectedDelivery?.id ?? 'none'}
-            pickupSpotId={selectedDelivery?.pickupSpotId}
-            shippingAddress={selectedDelivery?.requiresAddress ? address : undefined}
+            pickupSpotId={selectedPickupSpotId ?? undefined}
+            shippingAddress={selectedDelivery?.requires_address ? address : undefined}
             shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
             disabled={!canPay}
+            onStarted={onStarted}
           />
         ) : (
           <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Este vendedor todavía no tiene pagos en línea activos.</p>

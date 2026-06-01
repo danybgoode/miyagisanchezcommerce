@@ -37,7 +37,7 @@ async function responseMessage(response: Response, fallback: string) {
 }
 
 export type CheckoutProvider = 'stripe' | 'mercadopago' | 'spei' | 'cash'
-export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'none'
+export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'coord' | 'none'
 
 export interface CheckoutShippingAddress {
   name?: string

@@ -10,7 +10,6 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
-import SpeiPaymentButton from '@/app/components/SpeiPaymentButton'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
@@ -132,8 +131,19 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
     bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
+  // Seller offers at least one online/selectable payment path → show the single
+  // "Comprar ahora" button (the checkout page is the method chooser).
+  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasClabe
   const fulfillmentMethods = [
-    shippingSettings?.local_pickup && { icon: 'iconoir-shop', label: 'Recolección local', note: pickupSpots[0]?.name ?? 'Coordina con la tienda' },
+    shippingSettings?.local_pickup && {
+      icon: 'iconoir-shop',
+      label: 'Recolección local',
+      note: pickupSpots.length > 1
+        ? `${pickupSpots.length} puntos de entrega — elige al pagar`
+        : pickupSpots[0]?.name
+          ? `${pickupSpots[0].name}${pickupSpots[0].address ? ` · ${pickupSpots[0].address}` : ''}`
+          : 'Punto de entrega — coordina con la tienda',
+    },
     isDigital && { icon: 'iconoir-download', label: 'Entrega digital', note: 'Disponible al pagar' },
     listing.listing_type === 'service' && { icon: 'iconoir-calendar', label: 'Servicio', note: bookingUrl ? 'Agenda disponible' : 'Coordina con el vendedor' },
     listing.listing_type === 'rental' && { icon: 'iconoir-calendar', label: 'Renta', note: bookingUrl ? 'Ver disponibilidad' : 'Coordina fechas' },
@@ -232,60 +242,27 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {activeDeal.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
         </div>
       )}
+      {/* Single "Comprar ahora" → unified checkout, where the buyer picks the
+          payment method among the ones the seller has enabled. No provider is
+          hardcoded here; the checkout page is the single chooser. */}
       {showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
-        sellerHasMp ? (
+        hasAnyPayment ? (
           agreedDealCents && activeDeal ? (
-            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} provider="mercadopago" isSignedIn={isSignedIn} />
-          ) : (
-            isSignedIn ? (
-              <Link href={`/checkout?listingId=${listing.id}&provider=mercadopago`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: '#009EE3', color: '#fff' }}>
-                Comprar ahora — {formatPrice(listing)}
-              </Link>
-            ) : (
-              <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}&provider=mercadopago`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: '#009EE3', color: '#fff' }}>
-                Inicia sesión para comprar
-              </Link>
-            )
-          )
-        ) : sellerHasStripe ? (
-          agreedDealCents && activeDeal ? (
-            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} provider="stripe" isSignedIn={isSignedIn} />
+            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} />
           ) : isSignedIn ? (
-            <Link href={`/checkout?listingId=${listing.id}&provider=stripe`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={`/checkout?listingId=${listing.id}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Comprar ahora — {effectivePrice}
             </Link>
           ) : (
-            <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}&provider=stripe`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Inicia sesión para comprar
             </Link>
           )
-        ) : hasClabe ? (
-          <SpeiPaymentButton
-            listingId={listing.id}
-            sellerId={listing.shop?.id}
-            amountCents={agreedDealCents ?? listing.price_cents!}
-            currency={listing.currency}
-            isSignedIn={isSignedIn}
-            offerAmountCents={agreedDealCents ?? undefined}
-            offerId={activeDeal?.offerId ?? undefined}
-          />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
             Contacta al vendedor para pagar
           </div>
         )
-      )}
-      {/* SPEI as secondary option when card/MP is the primary payment method */}
-      {showBuyButtons && hasClabe && (sellerHasMp || sellerHasStripe) && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
-        <SpeiPaymentButton
-          listingId={listing.id}
-          sellerId={listing.shop?.id}
-          amountCents={agreedDealCents ?? listing.price_cents!}
-          currency={listing.currency}
-          isSignedIn={isSignedIn}
-          offerAmountCents={agreedDealCents ?? undefined}
-          offerId={activeDeal?.offerId ?? undefined}
-        />
       )}
       {hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
         <MakeOfferButton

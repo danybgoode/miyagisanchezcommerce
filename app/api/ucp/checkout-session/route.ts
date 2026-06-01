@@ -105,6 +105,45 @@ function listingLookupColumn(listingId: string) {
   return listingId.startsWith('prod_') ? 'medusa_product_id' : 'id'
 }
 
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+/**
+ * Authoritative payment-method availability from Medusa's checkout-options —
+ * the SAME source the web checkout uses, so agents and humans see identical
+ * options. Returns a set of UCP method keys, or null if the backend is
+ * unreachable (caller falls back to local computation).
+ */
+async function fetchBackendPaymentMethods(
+  sellerRef: string,
+  listingType: string,
+  isDigital: boolean,
+): Promise<Set<PaymentMethodKey> | null> {
+  try {
+    const qs = new URLSearchParams({ listing_type: listingType, is_digital: String(isDigital) })
+    const res = await fetch(
+      `${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerRef)}/checkout-options?${qs}`,
+      { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
+    )
+    if (!res.ok) return null
+    const data = await res.json() as { payment_methods?: Array<{ id: string }> }
+    const map: Record<string, PaymentMethodKey> = {
+      mercadopago: 'mercadopago',
+      stripe: 'stripe',
+      spei: 'bank_transfer',
+      cash: 'cash_on_pickup',
+    }
+    const set = new Set<PaymentMethodKey>()
+    for (const m of data.payment_methods ?? []) {
+      const key = map[m.id]
+      if (key) set.add(key)
+    }
+    return set
+  } catch {
+    return null
+  }
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -189,11 +228,27 @@ export async function POST(req: NextRequest) {
   // ── Escrow ────────────────────────────────────────────────────────────────
   const escrowMode = (checkout.escrow_mode as 'off' | 'optional' | 'required' | undefined) ?? 'off'
 
+  // ── Authoritative payment availability (Medusa checkout-options) ───────────
+  // Single source of truth shared with the web checkout. Falls back to the
+  // local signals above when the backend is unreachable. The seller slug
+  // resolves the Medusa seller; id is a fallback.
+  const beMethods = await fetchBackendPaymentMethods(
+    shop?.slug ?? shop?.id ?? '',
+    listing.listing_type ?? 'product',
+    isDigital,
+  )
+  const beHas = (k: PaymentMethodKey) => (beMethods ? beMethods.has(k) : null)
+  // available = backend says so (when reachable) else local; price/claim always required.
+  const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed
+  const stripeAvailable = (beHas('stripe') ?? hasStripe) && hasPrice && isClaimed
+  const bankAvailable = (beHas('bank_transfer') ?? (hasBankTransfer && !isDigital)) && hasPrice
+  const cashAvailable = (beHas('cash_on_pickup') ?? (localPickup && !isDigital)) && isClaimed
+
   // ── Build payment options ─────────────────────────────────────────────────
 
   // 1. MercadoPago
   let mpCheckoutUrl: string | undefined
-  if (hasMp && hasPrice && !isDigital && isClaimed) {
+  if (mpAvailable) {
     // Pre-generate MP preference lazily — we return the POST endpoint + params instead
     // (avoids burning an MP API call on every session request)
     mpCheckoutUrl = `${baseUrl}/api/mp/checkout`
@@ -203,7 +258,7 @@ export async function POST(req: NextRequest) {
     method: 'mercadopago',
     label:  'Mercado Pago',
     description: 'Tarjeta de crédito/débito, OXXO, Mercado Pago wallet, meses sin intereses',
-    available: hasMp && hasPrice && !isDigital && isClaimed,
+    available: mpAvailable,
     instant:   true,
     escrow_compatible: escrowMode !== 'off',
     checkout_url: mpCheckoutUrl,
@@ -218,10 +273,10 @@ export async function POST(req: NextRequest) {
     method: 'stripe',
     label:  'Tarjeta internacional',
     description: 'Visa, Mastercard, American Express — pago directo al vendedor',
-    available: hasStripe && hasPrice && isClaimed,
+    available: stripeAvailable,
     instant:   true,
     escrow_compatible: escrowMode !== 'off',
-    checkout_url: hasStripe && hasPrice ? `${baseUrl}/api/stripe/checkout` : undefined,
+    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout` : undefined,
     ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
   }
 
@@ -230,7 +285,7 @@ export async function POST(req: NextRequest) {
     method: 'bank_transfer',
     label:  'Transferencia bancaria (SPEI)',
     description: 'Transfiere desde cualquier banco mexicano. El vendedor confirma antes de enviar.',
-    available: hasBankTransfer && hasPrice && !isDigital,
+    available: bankAvailable,
     instant:   false,
     escrow_compatible: false,  // manual confirmation — can't hold in escrow
     ...(hasBankTransfer && {
@@ -249,7 +304,7 @@ export async function POST(req: NextRequest) {
     method: 'cash_on_pickup',
     label:  'Efectivo al recoger',
     description: 'Paga en efectivo cuando vayas a recoger el artículo. Coordina con el vendedor.',
-    available: localPickup && !isDigital && isClaimed,
+    available: cashAvailable,
     instant:   false,
     escrow_compatible: false,
     ...(hasPickupContact && {
