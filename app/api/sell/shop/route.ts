@@ -3,6 +3,97 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
+import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-publishable-api-key': PUB_KEY,
+      Authorization: `Bearer ${clerkJwt}`,
+      ...(options?.headers ?? {}),
+    },
+  })
+}
+
+// ── POST — create the seller/shop on its own (before any listing exists) ──────
+// Decouples shop creation from listing creation: the onboarding wizard calls this
+// when Step 1 (shop info) completes, so abandoning before publishing a listing
+// still leaves a reachable /shop/manage. Idempotent — returns the existing seller
+// if one is already provisioned.
+
+interface ShopCreatePayload {
+  name?: string
+  state?: string
+  city?: string
+  description?: string
+}
+
+export async function POST(req: NextRequest) {
+  const { userId, getToken } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  let body: ShopCreatePayload
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
+
+  const clerkJwt = await getToken()
+  if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+
+  // Idempotent: if a Medusa seller already exists, return it unchanged.
+  const existingRes = await medusaFetch('/store/sellers/me', clerkJwt)
+  if (existingRes.ok) {
+    const { seller } = await existingRes.json() as { seller: MedusaSellerForMirror }
+    await ensureSupabaseShopMirror(seller, userId).catch(() => {})
+    return NextResponse.json({ shopSlug: seller.slug }, { status: 200 })
+  }
+  if (existingRes.status !== 404) {
+    const errBody = await existingRes.json().catch(() => ({})) as { message?: string }
+    console.error('[sell/shop] sellers/me failed:', existingRes.status, errBody)
+    return NextResponse.json({ error: errBody.message ?? 'Error al verificar tu tienda.' }, { status: 500 })
+  }
+
+  // No seller yet — create one. Mirror the validation in /api/sell/create.
+  let shopName = body.name?.trim() ?? ''
+  if (!shopName) {
+    const clerkUser = await currentUser()
+    shopName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ')
+      || clerkUser?.emailAddresses[0]?.emailAddress?.split('@')[0]
+      || 'Mi tienda'
+  }
+  if (shopName.length < 2) {
+    return NextResponse.json({ error: 'El nombre de la tienda debe tener al menos 2 caracteres.', field: 'name' }, { status: 422 })
+  }
+  if (shopName.length > 80) {
+    return NextResponse.json({ error: 'El nombre no puede superar los 80 caracteres.', field: 'name' }, { status: 422 })
+  }
+
+  const location = [body.city?.trim(), body.state?.trim()].filter(Boolean).join(', ') || null
+
+  const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: shopName,
+      description: body.description?.trim() || null,
+      location,
+    }),
+  })
+  const createData = await createRes.json()
+  if (!createRes.ok || !createData.seller) {
+    console.error('[sell/shop] seller creation failed:', createRes.status, createData)
+    return NextResponse.json({ error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }, { status: 500 })
+  }
+
+  const seller = createData.seller as MedusaSellerForMirror
+  await ensureSupabaseShopMirror(seller, userId).catch((e) => {
+    console.error('[sell/shop] Supabase mirror sync failed (non-fatal):', e)
+  })
+
+  return NextResponse.json({ shopSlug: seller.slug }, { status: 201 })
+}
 
 // ── PATCH — update shop profile + settings ───────────────────────────────────
 

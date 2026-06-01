@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
+import AgentHandoff from '@/app/components/AgentHandoff'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -957,6 +958,15 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               {processingReturn && (
                 <p className="text-xs text-center text-[var(--color-muted)] mt-2">Procesando…</p>
               )}
+
+              {/* AI agent handoff — an agent can evaluate and process the refund for the seller */}
+              <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+                <AgentHandoff
+                  title="Los agentes pueden iniciar y resolver reembolsos por ti"
+                  subtitle="Pásale esta solicitud a un agente IA para que evalúe el caso, decida entre reembolso total, parcial o rechazo, y lo ejecute con una nota para el comprador."
+                  prompt={`Soy el vendedor en Miyagi Sánchez. Asísteme a resolver una solicitud de devolución/reembolso del pedido ${order.id}${listing?.title ? ` ("${listing.title}")` : ''}.\n\nLee la ficha del marketplace en https://miyagisanchez.com/agent y conéctate al servidor MCP. Revisa la solicitud del comprador, recomiéndame una resolución (reembolso total, parcial o rechazo) con una nota para el comprador, y ejecútala cuando la apruebe.\n\nEl pedido: https://miyagisanchez.com/shop/manage/orders/${order.id}`}
+                />
+              </div>
             </div>
           )}
 

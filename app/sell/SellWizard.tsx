@@ -365,6 +365,7 @@ function StepShop({
   shopCity, setShopCity,
   shopDescription, setShopDescription,
   errors,
+  submitting,
   onNext,
 }: {
   shopName: string; setShopName: (v: string) => void
@@ -372,27 +373,9 @@ function StepShop({
   shopCity: string; setShopCity: (v: string) => void
   shopDescription: string; setShopDescription: (v: string) => void
   errors: Record<string, string>
+  submitting: boolean
   onNext: () => void
 }) {
-  function validate() {
-    const errs: Record<string, string> = {}
-    if (shopName.trim().length < 2) errs.shopName = 'El nombre debe tener al menos 2 caracteres.'
-    if (shopName.trim().length > 80) errs.shopName = 'El nombre no puede superar los 80 caracteres.'
-    if (!shopState) errs.shopState = 'Selecciona tu estado.'
-    return errs
-  }
-
-  function handleNext() {
-    const errs = validate()
-    if (Object.keys(errs).length > 0) {
-      // Propagate errors up so they're shown
-      Object.assign(errors, errs)
-      onNext() // will be blocked by parent checking errors
-      return
-    }
-    onNext()
-  }
-
   return (
     <div className="space-y-5">
       {/* Shop name */}
@@ -470,14 +453,15 @@ function StepShop({
 
       <button
         type="button"
-        onClick={handleNext}
-        className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded transition-colors text-sm"
+        onClick={onNext}
+        disabled={submitting}
+        className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Continuar — Tu anuncio →
+        {submitting ? 'Creando tu tienda…' : 'Continuar — Tu anuncio →'}
       </button>
 
       <p className="text-center text-xs text-[var(--color-muted)]">
-        Podrás personalizar el logo, colores y redes sociales más adelante.
+        Creamos tu tienda al continuar — podrás personalizar el logo, colores y redes sociales más adelante.
       </p>
     </div>
   )
@@ -1146,6 +1130,13 @@ function StepListing({
       <p className="text-xs text-[var(--color-muted)] text-center">
         Tu anuncio se publicará de inmediato y será visible para todos los compradores.
       </p>
+
+      {/* Escape hatch — shop is already created, so the dashboard is reachable now */}
+      <p className="text-xs text-center">
+        <a href="/shop/manage" className="text-[var(--color-muted)] hover:text-[var(--color-accent)] no-underline">
+          Terminar después — ir a mi tienda →
+        </a>
+      </p>
     </div>
   )
 }
@@ -1260,6 +1251,7 @@ export default function SellWizard({
   const [shopCity, setShopCity] = useState('')
   const [shopDescription, setShopDescription] = useState('')
   const [shopErrors, setShopErrors] = useState<Record<string, string>>({})
+  const [creatingShop, setCreatingShop] = useState(false)
 
   // Step 2 — listing
   const [photos, setPhotos] = useState<UploadedPhoto[]>([])
@@ -1308,15 +1300,40 @@ export default function SellWizard({
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  function handleShopNext() {
+  async function handleShopNext() {
     const errs: Record<string, string> = {}
     if (shopName.trim().length < 2) errs.shopName = 'El nombre debe tener al menos 2 caracteres.'
     if (shopName.trim().length > 80) errs.shopName = 'El nombre no puede superar los 80 caracteres.'
     if (!shopState) errs.shopState = 'Selecciona tu estado.'
     setShopErrors(errs)
     if (Object.keys(errs).length > 0) return
-    setStep(2)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    // Persist the shop now so it survives an abandoned listing — decouples shop
+    // creation from listing creation. Idempotent on the server.
+    setCreatingShop(true)
+    try {
+      const res = await fetch('/api/sell/shop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: shopName.trim(),
+          state: shopState,
+          city: shopCity.trim() || undefined,
+          description: shopDescription.trim() || undefined,
+        }),
+      })
+      const data = await res.json() as { shopSlug?: string; error?: string; field?: string }
+      if (!res.ok || !data.shopSlug) {
+        setShopErrors({ shopName: data.error ?? 'No se pudo crear la tienda. Inténtalo de nuevo.' })
+        return
+      }
+      setStep(2)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch {
+      setShopErrors({ shopName: 'Sin conexión. Inténtalo de nuevo.' })
+    } finally {
+      setCreatingShop(false)
+    }
   }
 
   function handleBack() {
@@ -1474,6 +1491,7 @@ export default function SellWizard({
             shopCity={shopCity} setShopCity={setShopCity}
             shopDescription={shopDescription} setShopDescription={setShopDescription}
             errors={shopErrors}
+            submitting={creatingShop}
             onNext={handleShopNext}
           />
         )}

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
+import AgentHandoff from '@/app/components/AgentHandoff'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -557,6 +558,16 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
             />
           </div>
+
+          {/* AI agent handoff — let an agent open and follow up on the refund */}
+          <div className="mb-4">
+            <AgentHandoff
+              title="¿Prefieres que un agente lo haga por ti?"
+              subtitle="Un agente IA puede abrir tu devolución, dar seguimiento al vendedor y gestionar el reembolso. Copia el prompt y ábrelo en Claude."
+              prompt={`Ayúdame a iniciar y dar seguimiento a una devolución/reembolso en Miyagi Sánchez para mi pedido ${order.id}${listing?.title ? ` ("${listing.title}")` : ''}.\n\nPrimero lee la ficha del marketplace en https://miyagisanchez.com/agent y conéctate al servidor MCP. Luego propón un plan (motivo de la devolución, evidencia y monto a reembolsar) y ejecútalo por mí.\n\nMi pedido: https://miyagisanchez.com/account/orders/${order.id}`}
+            />
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"

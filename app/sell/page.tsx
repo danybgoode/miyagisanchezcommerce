@@ -1,11 +1,24 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { currentUser, auth } from '@clerk/nextjs/server'
 import Link from 'next/link'
-import { db } from '@/lib/supabase'
 import SellWizard from './SellWizard'
 
 export const metadata = {
   title: 'Publicar anuncio — Miyagi Sánchez',
   description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
+}
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+function medusaFetch(path: string, clerkJwt: string) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'x-publishable-api-key': PUB_KEY,
+      Authorization: `Bearer ${clerkJwt}`,
+    },
+    cache: 'no-store',
+  })
 }
 
 interface ExistingShop {
@@ -81,16 +94,26 @@ export default async function SellPage() {
     )
   }
 
+  // Medusa is the source of truth for sellers (same as /shop/manage). Checking it
+  // here keeps shop-detection consistent: a user who created a shop but no listing
+  // yet still skips Step 1 instead of being asked to re-create the shop.
   let existingShop: ExistingShop | null = null
-  const { data: shop } = await db
-    .from('marketplace_shops')
-    .select('id, slug, name, location')
-    .eq('clerk_user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (shop) existingShop = shop as ExistingShop
+  const { getToken } = await auth()
+  const clerkJwt = await getToken()
+  if (clerkJwt) {
+    const sellerRes = await medusaFetch('/store/sellers/me', clerkJwt)
+    if (sellerRes.ok) {
+      const { seller } = await sellerRes.json() as {
+        seller: { id: string; slug: string; name: string; location: string | null }
+      }
+      existingShop = {
+        id: seller.id,
+        slug: seller.slug,
+        name: seller.name,
+        location: seller.location ?? null,
+      }
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
