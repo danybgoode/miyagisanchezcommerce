@@ -8,14 +8,29 @@
 
 ---
 
-## Supabase client
+## Supabase clients
 
+**Server (API routes, Server Components):**
 ```ts
 import { db } from '@/lib/supabase'
-// db = Supabase service-role client — bypasses RLS, safe for server-only code
+// db = service-role client — bypasses RLS, safe for server-only code
 // NEVER expose in client components or return to browser
 // NEVER use for products, orders, payments, or fulfillment — those go through Medusa
 ```
+
+**Browser (realtime only):**
+```ts
+import { useSupabaseBrowser } from '@/lib/supabase-browser'
+// anon key + Clerk session token (native third-party auth)
+// RLS-scoped: each user only receives their own rows via postgres_changes
+// Use ONLY inside client components for realtime subscriptions — all writes go through server API routes
+```
+
+The browser client uses Clerk's native Supabase integration (GA Apr 2025). Requires two dashboard toggles to activate:
+1. Clerk → Integrations → "Connect with Supabase" (injects `role: authenticated` into session token)
+2. Supabase → Authentication → Third-Party Auth → Add Clerk (issuer `https://clerk.miyagisanchez.com`)
+
+Until those are done the app falls back to a 30s poll — not broken, just not instant.
 
 ---
 
@@ -85,6 +100,21 @@ After review, supply items are published as Medusa products via `POST /api/suppl
 ### `marketplace_scrape_runs` + `marketplace_scrape_run_items`
 
 Admin scraper job tracking. Raw scraper output stored here before supply review.
+
+### `push_subscriptions`
+
+Web push (VAPID) subscriptions. One row per device per user. Used by `lib/notify.ts` to fan out push notifications when a new stamp or offer arrives. Dead subscriptions (410/404) are pruned automatically on delivery.
+
+| Column | Type | Notes |
+|---|---|---|
+| `clerk_user_id` | TEXT | |
+| `endpoint` | TEXT | Push service URL |
+| `p256dh` | TEXT | ECDH public key |
+| `auth` | TEXT | Auth secret |
+| `ua` | TEXT | User-agent (for debugging) |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: server-only (no read/write policies for `authenticated`). Only the service-role client touches this table.
 
 ### `ucp_buyer_identities`
 
