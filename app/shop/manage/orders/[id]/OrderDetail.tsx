@@ -541,6 +541,13 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const [partialRefundCents, setPartialRefundCents] = useState('')
   const [processingReturn, setProcessingReturn] = useState(false)
 
+  // Seller-initiated refund state
+  const [showInitiateRefund, setShowInitiateRefund] = useState(false)
+  const [initiateAmount, setInitiateAmount] = useState('')
+  const [initiateNote, setInitiateNote] = useState('')
+  const [initiatingRefund, setInitiatingRefund] = useState(false)
+  const [refundIssued, setRefundIssued] = useState(false)
+
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
     : order.marketplace_listings
@@ -621,6 +628,40 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  async function handleInitiateRefund() {
+    setInitiatingRefund(true)
+    try {
+      const amountCents = initiateAmount.trim()
+        ? Math.round(parseFloat(initiateAmount.replace(/[^0-9.]/g, '')) * 100)
+        : undefined
+      if (amountCents != null && (!amountCents || amountCents <= 0)) {
+        showToast('Ingresa un monto válido.', 'error')
+        setInitiatingRefund(false)
+        return
+      }
+      // requestId is unused for seller_refund — the backend synthesizes the record.
+      const res = await fetch(`/api/orders/${order.id}/return-request/new`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'seller_refund',
+          refund_amount_cents: amountCents,
+          seller_note: initiateNote.trim() || undefined,
+        }),
+      })
+      const data = await res.json() as { status?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al emitir el reembolso.', 'error'); return }
+      setRefundIssued(true)
+      setShowInitiateRefund(false)
+      setCurrentStatus('refunded')
+      showToast('Reembolso emitido. El comprador fue notificado.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setInitiatingRefund(false)
+    }
+  }
+
   async function handleConfirmPayment() {
     setConfirmingPayment(true)
     try {
@@ -658,6 +699,19 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   }
 
   const canShip = ['paid', 'processing'].includes(currentStatus) && listing?.listing_type === 'product'
+
+  // Seller can initiate a refund once payment is in (card paid; SPEI/cash confirmed),
+  // the order isn't already refunded, and there's no active buyer return request to
+  // resolve instead (a pending/accepted one uses the existing accept/decline panel).
+  const hasActiveBuyerRequest = !!returnRequest && !['declined', 'refunded'].includes(returnRequest.status)
+  const paymentSettled = !isSpeiOrder || paymentReceived
+  const canInitiateRefund =
+    paymentSettled &&
+    !refundIssued &&
+    currentStatus !== 'refunded' &&
+    !hasActiveBuyerRequest
+
+  const orderTotalPesos = (order.amount_cents / 100).toFixed(0)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -977,6 +1031,95 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             </div>
           )}
         </section>
+      )}
+
+      {/* ── Seller-initiated refund ──────────────────────────────────────────── */}
+      {refundIssued && (
+        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">Reembolso emitido al comprador</p>
+          </div>
+        </div>
+      )}
+
+      {canInitiateRefund && (
+        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
+          {!showInitiateRefund ? (
+            <>
+              <p className="text-sm font-semibold mb-1">¿Necesitas reembolsar este pedido?</p>
+              <p className="text-xs text-[var(--color-muted)] mb-3">
+                Emite un reembolso al comprador sin esperar a que abra una solicitud — por ejemplo si no puedes
+                cumplir el pedido o ya lo acordaron por mensaje. El comprador recibirá una notificación.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowInitiateRefund(true)}
+                className="text-sm font-semibold text-red-600 border border-red-200 rounded-lg px-4 py-2 bg-red-50 hover:bg-red-100 transition-colors"
+              >
+                ↩ Iniciar reembolso
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold mb-3">Iniciar reembolso</p>
+
+              <div className="mb-3">
+                <label className="text-xs text-[var(--color-muted)] block mb-1">
+                  Monto a reembolsar (MXN) <span className="font-normal">— déjalo vacío para reembolso total</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={order.amount_cents / 100}
+                  step="0.01"
+                  value={initiateAmount}
+                  onChange={e => setInitiateAmount(e.target.value)}
+                  placeholder={`Total: $${orderTotalPesos}`}
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="text-xs text-[var(--color-muted)] block mb-1">Nota para el comprador <span className="font-normal">(opcional)</span></label>
+                <textarea
+                  value={initiateNote}
+                  onChange={e => setInitiateNote(e.target.value)}
+                  rows={2}
+                  placeholder="Ej. No pude conseguir el artículo, te reembolso el total. ¡Disculpa la molestia!"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleInitiateRefund}
+                  disabled={initiatingRefund}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {initiatingRefund ? 'Emitiendo…' : initiateAmount.trim() ? 'Emitir reembolso parcial' : 'Emitir reembolso total'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInitiateRefund(false)}
+                  disabled={initiatingRefund}
+                  className="px-4 py-2.5 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              <p className="text-[11px] text-[var(--color-muted)] mt-2">
+                {isEscrowOrder && !escrowCaptured
+                  ? 'El pago está en custodia y aún no se cobra — se anulará la retención, sin movimiento de dinero.'
+                  : isSpeiOrder
+                  ? 'Pago por SPEI/efectivo: deberás devolver el dinero por transferencia. Esto solo registra el reembolso.'
+                  : 'El reembolso se procesa al instante en la tarjeta del comprador (5–10 días hábiles según su banco).'}
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {/* AI tip */}

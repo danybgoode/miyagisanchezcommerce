@@ -41,7 +41,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
-  if (!['accept', 'partial_refund', 'decline'].includes(body.action ?? '')) {
+  if (!['accept', 'partial_refund', 'decline', 'seller_refund'].includes(body.action ?? '')) {
     return NextResponse.json({ error: 'Acción inválida.' }, { status: 422 })
   }
 
@@ -52,7 +52,7 @@ export async function PATCH(
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-    // Map partial_refund → accept with refund_amount_cents
+    // Map partial_refund → accept with refund_amount_cents. seller_refund passes through.
     const medusaAction = body.action === 'partial_refund' ? 'accept' : body.action
 
     const res = await medusaFetch(`/store/sellers/me/orders/${id}/return-request`, clerkJwt, {
@@ -60,6 +60,7 @@ export async function PATCH(
       body: JSON.stringify({
         action: medusaAction,
         refund_amount_cents: body.refund_amount_cents,
+        note: body.seller_note,
       }),
     })
     const data = await res.json() as { refunded?: boolean; refund_status?: string; refund_amount_cents?: number; message?: string }
@@ -82,8 +83,14 @@ export async function PATCH(
           sendReturnDeclinedToBuyer({ buyerEmail, buyerName: null, listingTitle, shopName, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
           tg.alert(`❌ Devolución rechazada (Medusa)\n${listingTitle}`).catch(() => {})
         } else {
-          sendReturnAcceptedToBuyer({ buyerEmail, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial: body.action === 'partial_refund', sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
-          tg.alert(`✅ Devolución aceptada (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
+          // accept, partial_refund, and seller_refund all issue a refund to the buyer.
+          // For seller_refund the client only sends refund_amount_cents when the
+          // seller chose a partial amount (full refund omits it).
+          const isPartial = body.action === 'partial_refund'
+            || (body.action === 'seller_refund' && body.refund_amount_cents != null)
+          sendReturnAcceptedToBuyer({ buyerEmail, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
+          const alertLabel = body.action === 'seller_refund' ? 'Reembolso emitido por el vendedor' : 'Devolución aceptada'
+          tg.alert(`✅ ${alertLabel} (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
         }
       }
     } catch { /* non-fatal */ }
@@ -92,6 +99,11 @@ export async function PATCH(
   }
 
   // ── Legacy Supabase path ──────────────────────────────────────────────────
+  // Seller-initiated refunds are only supported for Medusa orders (the live source).
+  if (body.action === 'seller_refund') {
+    return NextResponse.json({ error: 'El reembolso directo solo está disponible para pedidos recientes.' }, { status: 422 })
+  }
+
   const { data: returnReq } = await db
     .from('marketplace_return_requests')
     .select('id, status, buyer_email, buyer_name, order_id')
