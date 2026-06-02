@@ -101,6 +101,12 @@ export default async function PaymentSuccessPage({
         }).format(amountTotal / 100)
       : null
 
+    // ── Print-ad placement? Route to the print management surface ──────────
+    // (a placement is not a shippable order; it lives in /account/print-ads)
+    const { data: printSub } = await db
+      .from('print_ad_submissions').select('id').eq('cart_id', cartId).maybeSingle()
+    if (printSub) return <PrintSuccessUI amountPaid={amountPaid} />
+
     // Human-friendly order number (Medusa display_id) + seller name for the summary.
     const orderNumber = order?.display_id != null ? `#${order.display_id}` : null
     const sellerName = productId ? await getListingSellerName(productId) : null
@@ -217,6 +223,29 @@ export default async function PaymentSuccessPage({
         <p className="text-xs text-[var(--color-muted)] mt-8">
           ✓ Pago seguro con Stripe · ✓ Sin comisiones de plataforma
         </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Print-ad placement success — routes to /account/print-ads ────────────────
+
+function PrintSuccessUI({ amountPaid }: { amountPaid: string | null }) {
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+      <div className="max-w-md w-full text-center">
+        <div className="text-5xl mb-4">🗞️</div>
+        <h1 className="text-2xl font-bold mb-2">¡Recibimos tu anuncio!</h1>
+        <p className="text-[var(--color-muted)] mb-6">
+          {amountPaid ? <>Pagaste <strong className="text-[var(--color-foreground)]">{amountPaid}</strong>. </> : null}
+          Nuestro equipo diseñará tu anuncio con estética México 86 y lo incluirá en la edición impresa. Te avisamos por correo cuando esté listo.
+        </p>
+        <Link
+          href="/account/print-ads"
+          className="inline-block bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+        >
+          Ver mis anuncios
+        </Link>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import CopyButton from '@/app/components/CopyButton'
 import type { PrintEditionPublic, PrintAdContent } from '@/lib/print'
 
 // ── Types shared with the server page ───────────────────────────────────────
@@ -205,7 +206,7 @@ export default function PrintAdBuilder({
             {manualInfo.spei?.clabe && (
               <div className="space-y-0.5">
                 <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Transferencia SPEI</div>
-                <div>CLABE: <strong>{manualInfo.spei.clabe}</strong></div>
+                <div className="flex items-center gap-2">CLABE: <strong>{manualInfo.spei.clabe}</strong><CopyButton value={manualInfo.spei.clabe} /></div>
                 {manualInfo.spei.bank_name && <div>Banco: {manualInfo.spei.bank_name}</div>}
                 {manualInfo.spei.account_holder && <div>Titular: {manualInfo.spei.account_holder}</div>}
               </div>
@@ -213,7 +214,7 @@ export default function PrintAdBuilder({
             {manualInfo.dimo?.phone && (
               <div className="space-y-0.5">
                 <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">DiMo</div>
-                <div>Teléfono: <strong>{manualInfo.dimo.phone}</strong></div>
+                <div className="flex items-center gap-2">Teléfono: <strong>{manualInfo.dimo.phone}</strong><CopyButton value={manualInfo.dimo.phone} /></div>
               </div>
             )}
             {manualInfo.cash?.note && (

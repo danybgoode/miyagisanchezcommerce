@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import PrintAdPreview from '@/app/components/PrintAdPreview'
+import CopyButton from '@/app/components/CopyButton'
 import type { PrintAdSubmission, PrintSubmissionStatus, PrintTier } from '@/lib/print'
 
 type Row = PrintAdSubmission & {
@@ -111,12 +112,12 @@ export default function AccountPrintAdsClient() {
                       <div className="font-semibold text-amber-800 mb-1">Falta el pago{deadline && ` · antes del ${deadline}`}</div>
                       {manual?.spei?.clabe ? (
                         <div className="text-amber-900 space-y-0.5">
-                          <div>SPEI · CLABE: <strong>{manual.spei.clabe}</strong></div>
+                          <div className="flex items-center gap-2">SPEI · CLABE: <strong>{manual.spei.clabe}</strong><CopyButton value={manual.spei.clabe} /></div>
                           {manual.spei.bank_name && <div>Banco: {manual.spei.bank_name}</div>}
                           {manual.spei.account_holder && <div>Titular: {manual.spei.account_holder}</div>}
                         </div>
                       ) : manual?.dimo?.phone ? (
-                        <div className="text-amber-900">DiMo: <strong>{manual.dimo.phone}</strong></div>
+                        <div className="text-amber-900 flex items-center gap-2">DiMo: <strong>{manual.dimo.phone}</strong><CopyButton value={manual.dimo.phone} /></div>
                       ) : (
                         <div className="text-amber-900">Te compartiremos los datos de pago.</div>
                       )}

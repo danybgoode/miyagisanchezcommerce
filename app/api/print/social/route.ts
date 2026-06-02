@@ -9,9 +9,12 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { tgNotify } from '@/lib/telegram'
+import { sendPrintSocialReceived } from '@/lib/email'
 import { PRINT_SOCIAL_TYPES, type PrintSocialType } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 const VALID_TYPES = new Set(PRINT_SOCIAL_TYPES.map((t) => t.key))
 
@@ -71,5 +74,9 @@ export async function POST(req: NextRequest) {
 
   if (error || !data) return NextResponse.json({ error: 'No se pudo enviar.' }, { status: 500 })
   tgNotify(`📣 Sección social: nuevo aporte (${type}) de ${data.submitter_name ?? 'alguien'} — revisar en /admin/print`).catch(() => {})
+  if (data.submitter_email) {
+    sendPrintSocialReceived({ toEmail: data.submitter_email, caption: data.caption, mineUrl: `${SITE_URL}/comunidad/mis-aportes` })
+      .catch((e) => console.error('[social] confirmation email:', e))
+  }
   return NextResponse.json({ submission: data }, { status: 201 })
 }

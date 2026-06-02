@@ -1144,3 +1144,59 @@ export async function sendPrintAdRejected(ctx: {
   ].join('')
   await send(ctx.buyerEmail, subject, body)
 }
+
+/** Admin: a buyer reports they've sent a manual payment — verify + confirm. */
+export async function sendPrintPaymentReportedToMiyagi(ctx: {
+  adminEmail: string
+  editionTitle: string
+  tierLabel: string
+  buyerEmail: string | null
+  amount?: string | null
+  adminUrl: string
+}): Promise<void> {
+  const subject = `💸 Pago reportado — ${ctx.editionTitle} (${ctx.tierLabel})`
+  const body = [
+    h1('Un anunciante reporta su pago'),
+    p('Verifica que el pago haya llegado y confírmalo en la cola editorial para liberar el diseño.'),
+    table([
+      ['Edición', esc(ctx.editionTitle)],
+      ['Tamaño', esc(ctx.tierLabel)],
+      ...(ctx.buyerEmail ? [['Anunciante', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
+      ...(ctx.amount ? [['Monto', esc(ctx.amount)] as [string, string]] : []),
+    ]),
+    cta('Confirmar en la cola editorial', ctx.adminUrl),
+  ].join('')
+  await send(ctx.adminEmail, subject, body)
+}
+
+/** Buyer: acknowledgement that we received their payment notice. */
+export async function sendPrintPaymentReportedToBuyer(ctx: {
+  buyerEmail: string
+  buyerName?: string | null
+  editionTitle: string
+  manageUrl: string
+}): Promise<void> {
+  const subject = `Recibimos tu aviso de pago — ${ctx.editionTitle}`
+  const body = [
+    h1('¡Gracias! Recibimos tu aviso'),
+    p('Estamos verificando tu pago. En cuanto lo confirmemos, empezamos a diseñar tu anuncio y te avisamos. Normalmente toma poco tiempo.'),
+    cta('Ver el estado de mi anuncio', ctx.manageUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+/** Submitter: confirmation that their community/social post was received. */
+export async function sendPrintSocialReceived(ctx: {
+  toEmail: string
+  caption: string
+  mineUrl: string
+}): Promise<void> {
+  const subject = '📣 Recibimos tu aporte para la edición impresa'
+  const body = [
+    h1('¡Gracias por compartir con tu colonia!'),
+    p('Recibimos tu aporte. Nuestro equipo lo revisará y podría aparecer en la próxima edición impresa.'),
+    quote(ctx.caption),
+    cta('Ver mis aportes', ctx.mineUrl),
+  ].join('')
+  await send(ctx.toEmail, subject, body)
+}
