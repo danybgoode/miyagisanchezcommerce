@@ -195,6 +195,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           item.id !== listing.id &&
           item.status === 'active' &&
           item.listing_type === 'product' &&
+          // Don't suggest sold-out items for a bundle — they'd fail at checkout's
+          // inventory reservation. in_stock === undefined (unmanaged) is allowed.
+          item.in_stock !== false &&
           !!item.price_cents &&
           item.price_cents > 0
         )
