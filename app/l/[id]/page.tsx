@@ -65,6 +65,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
   const isDigital = listing.listing_type === 'digital'
+  // Print-ad placements are bought through the ad builder (which captures the ad
+  // ingredients), never via the generic PDP checkout. Funnel to /sell/print/[edition].
+  const isPrintPlacement = listing.metadata?.is_print_placement === true
+  const printEditionId = listing.metadata?.print_edition_id as string | undefined
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
   const stripeSettings = getShopStripe(shopMeta)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
@@ -245,10 +249,21 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {activeDeal.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
         </div>
       )}
+      {/* Print-ad placement → funnel into the ad builder (captures ad content),
+          NOT the generic PDP checkout. */}
+      {isPrintPlacement && (
+        <Link
+          href={printEditionId ? `/sell/print/${printEditionId}` : '/shop/manage'}
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+          style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
+        >
+          🗞️ Diseña tu anuncio impreso
+        </Link>
+      )}
       {/* Single "Comprar ahora" → unified checkout, where the buyer picks the
           payment method among the ones the seller has enabled. No provider is
           hardcoded here; the checkout page is the single chooser. */}
-      {showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
+      {!isPrintPlacement && showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
         hasAnyPayment ? (
           agreedDealCents && activeDeal ? (
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} />
@@ -267,7 +282,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )
       )}
-      {hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
+      {!isPrintPlacement && hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
         <MakeOfferButton
           listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
           buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
