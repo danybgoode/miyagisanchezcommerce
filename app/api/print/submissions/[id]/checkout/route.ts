@@ -19,9 +19,14 @@ import {
   tierOccupancy,
   remainingForTier,
 } from '@/lib/print-server'
-import type { PrintEdition } from '@/lib/print'
+import { sendPrintAdPaymentPending } from '@/lib/email'
+import type { PrintEdition, PrintAdContent } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+const fmtMXN = (cents: number) =>
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
 
 const PROVIDERS: CheckoutProvider[] = ['stripe', 'mercadopago', 'manual', 'spei', 'cash']
 
@@ -79,6 +84,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const user = await currentUser()
   const buyerEmail = user?.emailAddresses?.[0]?.emailAddress ?? submission.buyer_email ?? undefined
 
+  const isManual = body.provider === 'manual' || body.provider === 'spei' || body.provider === 'cash'
+
   // ── Drive the shared checkout flow ────────────────────────────────────────
   let result
   try {
@@ -91,6 +98,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       buyerLastName: user?.lastName ?? undefined,
       clerkJwt: clerkJwt ?? undefined,
       fulfillmentMethod: 'digital',
+      // Print sends its own payment-pending email (not the generic manual order one).
+      suppressManualEmail: true,
     })
   } catch (e) {
     console.error('[print checkout] startCheckout failed:', e)
@@ -101,20 +110,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Card (stripe/mp): result.cart_id is the real cart id; the webhook completes it
   //   and stamps medusa_order_id. We store cart_id now so the webhook can find us.
   // Manual: startCheckout completed the cart inline; result.cart_id is the ORDER id.
-  //   No webhook fires — the owner confirms payment via the seller order flow, and
-  //   the slot is held meanwhile (pending_payment occupies capacity).
-  const isManual = body.provider === 'manual' || body.provider === 'spei' || body.provider === 'cash'
+  //   No webhook fires — the owner confirms payment in the admin console, and the
+  //   slot is held meanwhile (pending_payment occupies capacity).
+  const manualSnapshot = (result as unknown as {
+    manual_payment?: PrintAdContent['manual_payment']
+  }).manual_payment ?? null
+
   await db
     .from('print_ad_submissions')
     .update({
       status: 'pending_payment',
       buyer_email: buyerEmail ?? null,
       medusa_product_id: tier.medusa_product_id,
+      // Persist the manual payment instructions so the buyer can retrieve them anytime.
+      ...(isManual ? { content: { ...(submission.content ?? {}), manual_payment: manualSnapshot } } : {}),
       ...(isManual
         ? { medusa_order_id: result.cart_id ?? null }
         : { cart_id: result.cart_id ?? null }),
     })
     .eq('id', id)
+
+  // ── Manual: send the print-specific payment-pending email ─────────────────
+  if (isManual && manualSnapshot && buyerEmail) {
+    sendPrintAdPaymentPending({
+      buyerEmail,
+      buyerName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || null,
+      editionTitle: edition.title,
+      tierLabel: tier.label,
+      amountDue: fmtMXN(tier.price_cents),
+      manual: manualSnapshot,
+      submissionDeadline: edition.submission_deadline,
+      manageUrl: `${SITE_URL}/account/print-ads`,
+    }).catch((e) => console.error('[print checkout] pending email failed:', e))
+  }
 
   return NextResponse.json(result)
 }

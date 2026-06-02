@@ -101,6 +101,9 @@ export interface StartCheckoutParams {
   shippingQuote?: CheckoutShippingQuote
   /** Buyer explicitly opts into escrow (when seller escrow_mode is 'optional') */
   escrow?: boolean
+  /** Skip the generic manual-order confirmation email (caller sends its own,
+   *  e.g. the print-ad flow sends a print-specific payment-pending email). */
+  suppressManualEmail?: boolean
 }
 
 export interface StartCheckoutResult {
@@ -134,6 +137,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     productId, variantId, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
+    suppressManualEmail,
   } = params
 
   // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
@@ -257,11 +261,14 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       result.cart_id = order.id // Return order ID so caller can navigate to order page
       // Fire the buyer + seller confirmation emails (manual orders skip the
       // Stripe/MP webhooks that send them). Fire-and-forget — never block.
-      fetch('/api/orders/finalize-manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id }),
-      }).catch(() => { /* non-fatal */ })
+      // Skipped when the caller owns its own manual email (e.g. print-ad flow).
+      if (!suppressManualEmail) {
+        fetch('/api/orders/finalize-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id }),
+        }).catch(() => { /* non-fatal */ })
+      }
     }
   }
 

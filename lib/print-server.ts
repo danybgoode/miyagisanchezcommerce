@@ -6,7 +6,7 @@
  */
 
 import { db } from '@/lib/supabase'
-import { sendPrintAdReceivedToBuyer, sendPrintAdReceivedToMiyagi } from '@/lib/email'
+import { sendPrintAdReceivedToBuyer, sendPrintAdReceivedToMiyagi, sendPrintAdApproved, sendPrintAdRejected } from '@/lib/email'
 import {
   PRINT_OCCUPYING_STATUSES,
   type PrintEdition,
@@ -184,7 +184,7 @@ export async function sendPrintAdPaidEmails(
       amountPaid: amountFmt,
       submissionDeadline: edition?.submission_deadline ?? null,
       distributionDate: edition?.distribution_date ?? null,
-      manageUrl: `${SITE_URL}/shop/manage`,
+      manageUrl: `${SITE_URL}/account/print-ads`,
     }).catch((e) => console.error('[print] buyer email failed:', e))
   }
 
@@ -202,6 +202,30 @@ export async function sendPrintAdPaidEmails(
       photosCount: Array.isArray(content.photos) ? content.photos.length : 0,
       adminUrl: `${SITE_URL}/admin/print`,
     }).catch((e) => console.error('[print] admin email failed:', e))
+  }
+}
+
+/**
+ * Fire the buyer lifecycle email when the editor approves/rejects an ad.
+ * Loads edition + tier for context. Best-effort.
+ */
+export async function sendPrintAdLifecycleEmail(
+  submission: PrintAdSubmission,
+  kind: 'approved' | 'rejected',
+): Promise<void> {
+  const email = submission.buyer_email
+  if (!email) return
+  const { data: edition } = await db
+    .from('print_editions').select('*').eq('id', submission.edition_id).single() as { data: PrintEdition | null }
+  const tierLabel = (edition?.tiers ?? []).find((t) => t.key === submission.tier_key)?.label ?? submission.tier_key
+  const manageUrl = `${SITE_URL}/account/print-ads`
+  const editionTitle = edition?.title ?? 'Edición impresa'
+  if (kind === 'approved') {
+    sendPrintAdApproved({ buyerEmail: email, editionTitle, tierLabel, distributionDate: edition?.distribution_date ?? null, manageUrl })
+      .catch((e) => console.error('[print] approved email failed:', e))
+  } else {
+    sendPrintAdRejected({ buyerEmail: email, editionTitle, tierLabel, reason: submission.admin_notes ?? null, manageUrl })
+      .catch((e) => console.error('[print] rejected email failed:', e))
   }
 }
 

@@ -11,6 +11,8 @@ const LINKS: { href: string; icon: string; label: string; desc: string }[] = [
   { href: '/account/orders',        icon: 'iconoir-shopping-bag', label: 'Mis compras',    desc: 'Pedidos y seguimiento de envíos' },
   { href: '/account/favorites',     icon: 'iconoir-heart',        label: 'Favoritos',      desc: 'Anuncios que guardaste' },
   { href: '/account/subscriptions', icon: 'iconoir-credit-card',  label: 'Suscripciones',  desc: 'Tus suscripciones activas' },
+  { href: '/account/print-ads',     icon: 'iconoir-newspaper',    label: 'Anuncios impresos', desc: 'Tus anuncios en la edición impresa' },
+  { href: '/comunidad/nuevo',       icon: 'iconoir-megaphone',    label: 'Comparte con tu colonia', desc: 'Aparece en la sección social impresa' },
   { href: '/messages',              icon: 'iconoir-chat-bubble',  label: 'Mensajes',       desc: 'Conversaciones con vendedores' },
   { href: '/shop/manage',           icon: 'iconoir-shop',         label: 'Mi tienda',      desc: 'Vende y gestiona tus anuncios' },
 ]

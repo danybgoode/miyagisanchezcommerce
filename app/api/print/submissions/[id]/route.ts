@@ -36,6 +36,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 interface PatchBody {
   tier_key?: string
   content?: PrintAdContent
+  /** Resubmit a rejected ad for review after editing. */
+  resubmit?: boolean
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,14 +52,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (res.error === 'not_found') return NextResponse.json({ error: 'No encontrado.' }, { status: 404 })
   if (res.error) return NextResponse.json({ error: 'Sin permiso.' }, { status: 403 })
 
-  // Only drafts are editable by the seller; once paid it's locked for editing.
-  if (res.submission.status !== 'draft') {
+  // Editable by the buyer only while a draft, or when rejected (edit + resubmit).
+  const status = res.submission.status
+  if (status !== 'draft' && status !== 'rejected') {
     return NextResponse.json({ error: 'Este anuncio ya no se puede editar.' }, { status: 422 })
   }
 
   const patch: Record<string, unknown> = {}
   if (body.tier_key) patch.tier_key = body.tier_key
   if (body.content) patch.content = body.content
+  // Resubmitting a rejected ad: it was already paid → back into review ('paid'),
+  // otherwise back to 'draft'. Clear the editor's rejection note.
+  if (body.resubmit && status === 'rejected') {
+    patch.status = res.submission.medusa_order_id ? 'paid' : 'draft'
+    patch.admin_notes = null
+  }
 
   const { data, error } = await db
     .from('print_ad_submissions')

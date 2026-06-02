@@ -1054,3 +1054,93 @@ export async function sendPrintAdReceivedToMiyagi(ctx: {
   ].join('')
   await send(ctx.adminEmail, subject, body)
 }
+
+interface PrintManualMethods {
+  spei?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null } | null
+  dimo?: { phone?: string | null } | null
+  cash?: { note?: string | null } | null
+}
+
+/** Buyer: manual (SPEI/DiMo/cash) payment is pending — here's how to pay. */
+export async function sendPrintAdPaymentPending(ctx: {
+  buyerEmail: string
+  buyerName?: string | null
+  editionTitle: string
+  tierLabel: string
+  amountDue: string
+  manual: PrintManualMethods
+  submissionDeadline?: string | null
+  manageUrl: string
+}): Promise<void> {
+  const subject = `🗞️ Aparta tu anuncio — falta el pago (${ctx.editionTitle})`
+  const deadline = formatPrintDate(ctx.submissionDeadline)
+  const rows: [string, string][] = [
+    ['Edición', esc(ctx.editionTitle)],
+    ['Tamaño', esc(ctx.tierLabel)],
+    ...(deadline ? [['Pagar antes de', esc(deadline)] as [string, string]] : []),
+  ]
+  if (ctx.manual.spei?.clabe) {
+    rows.push(['CLABE (SPEI)', `<strong>${esc(ctx.manual.spei.clabe)}</strong>`])
+    if (ctx.manual.spei.bank_name) rows.push(['Banco', esc(ctx.manual.spei.bank_name)])
+    if (ctx.manual.spei.account_holder) rows.push(['Titular', esc(ctx.manual.spei.account_holder)])
+  }
+  if (ctx.manual.dimo?.phone) rows.push(['DiMo (teléfono)', `<strong>${esc(ctx.manual.dimo.phone)}</strong>`])
+  if (ctx.manual.cash?.note) rows.push(['Efectivo', esc(ctx.manual.cash.note)])
+
+  const body = [
+    h1('Tu lugar está apartado — falta el pago'),
+    p('Reservamos tu espacio en la edición. Para confirmar tu anuncio, realiza el pago con los datos de abajo. En cuanto lo recibamos, lo verás reflejado y empezamos el diseño.'),
+    amount(ctx.amountDue, 'Monto a pagar', true),
+    table(rows),
+    notice('Cuando hagas la transferencia, entra a "Mis anuncios" y toca <strong>"Ya hice el pago"</strong> para avisarnos y agilizar la confirmación.'),
+    cta('Ver instrucciones y estado', ctx.manageUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+/** Buyer: ad approved by the editor — it's going in the edition. */
+export async function sendPrintAdApproved(ctx: {
+  buyerEmail: string
+  buyerName?: string | null
+  editionTitle: string
+  tierLabel: string
+  distributionDate?: string | null
+  manageUrl: string
+}): Promise<void> {
+  const subject = `✅ Tu anuncio fue aprobado — ${ctx.editionTitle}`
+  const distrib = formatPrintDate(ctx.distributionDate)
+  const body = [
+    h1('¡Tu anuncio quedó aprobado!'),
+    p('Nuestro equipo revisó tu anuncio y lo incluiremos en la edición impresa. Ya puedes ver cómo quedará desde "Mis anuncios".'),
+    table([
+      ['Edición', esc(ctx.editionTitle)],
+      ['Tamaño', esc(ctx.tierLabel)],
+      ...(distrib ? [['Distribución', esc(distrib)] as [string, string]] : []),
+    ]),
+    cta('Ver mi anuncio', ctx.manageUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+/** Buyer: ad needs changes / was rejected — what to fix. */
+export async function sendPrintAdRejected(ctx: {
+  buyerEmail: string
+  buyerName?: string | null
+  editionTitle: string
+  tierLabel: string
+  reason?: string | null
+  manageUrl: string
+}): Promise<void> {
+  const subject = `✏️ Tu anuncio necesita ajustes — ${ctx.editionTitle}`
+  const body = [
+    h1('Necesitamos algunos ajustes'),
+    p('Revisamos tu anuncio y hay algo que ajustar antes de imprimirlo. Edítalo desde "Mis anuncios" y vuelve a enviarlo.'),
+    ...(ctx.reason ? [quote(ctx.reason)] : []),
+    table([
+      ['Edición', esc(ctx.editionTitle)],
+      ['Tamaño', esc(ctx.tierLabel)],
+    ]),
+    cta('Editar mi anuncio', ctx.manageUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}

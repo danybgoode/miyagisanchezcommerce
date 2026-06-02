@@ -4,8 +4,8 @@ import type { PrintAdContent } from '@/lib/print'
 
 /**
  * Screen-approximate preview of a printed ad (retro México-86 styling). NOT a
- * print proof — the real proof is Miyagi's InDesign export. Used in the admin
- * editorial queue to eyeball each submission before approving.
+ * print proof — the real proof is Miyagi's InDesign export. Shared by the admin
+ * editorial queue and the buyer's /account/print-ads page.
  */
 export default function PrintAdPreview({ content, tierLabel }: { content: PrintAdContent; tierLabel: string }) {
   const photo = content.photos?.[0] ?? null

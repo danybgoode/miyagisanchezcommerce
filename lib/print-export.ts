@@ -9,7 +9,7 @@
 import JSZip from 'jszip'
 import { db } from '@/lib/supabase'
 import { ensureSubmissionQr } from '@/lib/print-qr'
-import type { PrintEdition, PrintAdSubmission, PrintFileSpec, PrintTier } from '@/lib/print'
+import type { PrintEdition, PrintAdSubmission, PrintFileSpec, PrintTier, PrintSocialSubmission } from '@/lib/print'
 
 function extFromUrl(url: string, fallback = 'jpg'): string {
   const m = url.split('?')[0].match(/\.([a-z0-9]{2,5})$/i)
@@ -36,6 +36,7 @@ function specSheet(
   providerName: string,
   fileSpec: PrintFileSpec,
   ads: Array<{ folder: string; tier: string; advertiser: string; cta: string }>,
+  socialCount = 0,
 ): string {
   const lines = [
     `EDICIÓN: ${edition.title}`,
@@ -56,6 +57,8 @@ function specSheet(
     `── ANUNCIOS APROBADOS (${ads.length}) ──`,
     ...ads.map((a, i) => `${String(i + 1).padStart(2, '0')}. [${a.tier}] ${a.advertiser} — ${a.cta}  → ${a.folder}/`),
     '',
+    `── SECCIÓN SOCIAL (${socialCount}) ──  → carpeta social/`,
+    '',
     'Genera el PDF final en CMYK con sangrado y marcas de corte. Las imágenes y QR de este paquete están en alta resolución.',
   ]
   return lines.filter((l) => l !== '').join('\n')
@@ -64,6 +67,7 @@ function specSheet(
 function contactSheet(
   edition: PrintEdition,
   cards: Array<{ folder: string; tier: string; advertiser: string; headline: string; body: string; photo: string | null; qr: string | null; cta: string }>,
+  socialCards: Array<{ folder: string; type: string; caption: string; body: string; photo: string | null; submitter: string }> = [],
 ): string {
   const esc = (s: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${esc(edition.title)} — hoja de contactos</title>
@@ -91,7 +95,22 @@ ${cards.map((c) => `  <div class="ad">
       ${c.qr ? `<img class="qr" src="${c.folder}/${c.qr}" alt="QR">` : ''}
     </div>
   </div>`).join('\n')}
-</div></body></html>`
+</div>
+${socialCards.length ? `
+<h1 style="margin-top:32px">Sección social</h1>
+<p class="meta">${socialCards.length} aportes de la comunidad</p>
+<div class="grid">
+${socialCards.map((c) => `  <div class="ad">
+    ${c.photo ? `<img class="photo" src="${c.photo}" alt="">` : ''}
+    <div>
+      <div class="tier">${esc(c.type)}</div>
+      <h2 style="font-size:15px">${esc(c.caption)}</h2>
+      <div class="meta">${esc(c.body)}</div>
+      <div class="meta">— ${esc(c.submitter)}</div>
+    </div>
+  </div>`).join('\n')}
+</div>` : ''}
+</body></html>`
 }
 
 export interface ExportResult { filename: string; buffer: Buffer; adCount: number }
@@ -185,8 +204,43 @@ export async function buildEditionExportZip(editionId: string): Promise<ExportRe
     })
   }
 
-  zip.file('spec.txt', specSheet(edition, providerName, fileSpec, indexEntries))
-  zip.file('index.html', contactSheet(edition, cardEntries))
+  // ── Social / editorial section (approved items assigned to this edition) ──
+  const { data: socialRaw } = await db
+    .from('print_social_submissions')
+    .select('*')
+    .eq('edition_id', editionId)
+    .in('status', ['approved', 'placed'])
+    .order('created_at', { ascending: true })
+  const social = (socialRaw ?? []) as PrintSocialSubmission[]
+  const socialCards: Array<{ folder: string; type: string; caption: string; body: string; photo: string | null; submitter: string }> = []
+  let si = 0
+  for (const item of social) {
+    si++
+    const folder = `social/${String(si).padStart(2, '0')}-${slug(item.type)}`
+    const dir = zip.folder(folder)!
+    dir.file('text.txt', [
+      `Tipo: ${item.type}`,
+      item.zone ? `Zona: ${item.zone}` : '',
+      `Por: ${item.submitter_name ?? item.submitter_email ?? (item.source === 'editor' ? 'Editor' : 'Comunidad')}`,
+      '',
+      item.caption,
+      '',
+      item.body ?? '',
+    ].filter((l) => l !== '').join('\n'))
+    let firstPhoto: string | null = null
+    const photos = item.photos ?? []
+    for (let p = 0; p < photos.length; p++) {
+      const bytes = await fetchBytes(photos[p])
+      if (bytes) { const name = `photo-${p + 1}.${extFromUrl(photos[p])}`; dir.file(name, bytes); if (!firstPhoto) firstPhoto = `${folder}/${name}` }
+    }
+    socialCards.push({
+      folder, type: item.type, caption: item.caption, body: item.body ?? '',
+      photo: firstPhoto, submitter: item.submitter_name ?? (item.source === 'editor' ? 'Editor' : 'Comunidad'),
+    })
+  }
+
+  zip.file('spec.txt', specSheet(edition, providerName, fileSpec, indexEntries, social.length))
+  zip.file('index.html', contactSheet(edition, cardEntries, socialCards))
 
   const buffer = await zip.generateAsync({ type: 'nodebuffer' })
   const filename = `${slug(edition.title) || 'edicion'}-paquete.zip`

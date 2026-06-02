@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/order-autoconfirm",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/print-pending",
+      "schedule": "0 8 * * *"
     }
   ],
   "git": {

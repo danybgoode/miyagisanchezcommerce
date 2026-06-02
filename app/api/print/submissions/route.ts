@@ -22,7 +22,7 @@ export async function GET() {
 
   const { data, error } = await db
     .from('print_ad_submissions')
-    .select('*, print_editions(title, status, distribution_date, submission_deadline)')
+    .select('*, print_editions(title, status, distribution_date, submission_deadline, tiers)')
     .eq('seller_id', seller.id)
     .order('created_at', { ascending: false })
 

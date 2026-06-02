@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { PrintEditionPublic, PrintAdContent } from '@/lib/print'
 
@@ -34,8 +34,8 @@ function formatMXN(cents: number): string {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function PrintAdBuilder({
-  edition, prefill, listings,
-}: { edition: BuilderEdition; prefill: SellerPrefill; listings: BuilderListing[] }) {
+  edition, prefill, listings, initialSubmissionId,
+}: { edition: BuilderEdition; prefill: SellerPrefill; listings: BuilderListing[]; initialSubmissionId?: string | null }) {
   const availableTiers = edition.tiers.filter((t) => !t.sold_out)
 
   const [tierKey, setTierKey] = useState<string>(availableTiers[0]?.key ?? '')
@@ -49,11 +49,45 @@ export default function PrintAdBuilder({
   const [ctaType, setCtaType] = useState<'shop' | 'listing'>('shop')
   const [ctaListingId, setCtaListingId] = useState<string>(listings[0]?.id ?? '')
 
-  const [submissionId, setSubmissionId] = useState<string | null>(null)
+  const [submissionId, setSubmissionId] = useState<string | null>(initialSubmissionId ?? null)
+  const [loadedStatus, setLoadedStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState<null | 'saving' | 'paying'>(null)
   const [error, setError] = useState<string | null>(null)
-  const [manualInfo, setManualInfo] = useState<{ clabe?: string | null; bank_name?: string | null; account_holder?: string | null } | null>(null)
+  const [manualInfo, setManualInfo] = useState<{
+    spei?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null } | null
+    dimo?: { phone?: string | null } | null
+    cash?: { note?: string | null } | null
+  } | null>(null)
   const photoInput = useRef<HTMLInputElement>(null)
+
+  // Edit mode: load an existing submission and prefill the form.
+  useEffect(() => {
+    if (!initialSubmissionId) return
+    let active = true
+    fetch(`/api/print/submissions/${initialSubmissionId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!active || !d?.submission) return
+        const s = d.submission
+        const c = (s.content ?? {}) as PrintAdContent
+        if (s.tier_key) setTierKey(s.tier_key)
+        setHeadline(c.headline ?? '')
+        setSubhead(c.subhead ?? '')
+        setBody(c.body ?? '')
+        if (c.logo_url) setLogoUrl(c.logo_url)
+        if (Array.isArray(c.photos)) setPhotos(c.photos)
+        if (c.contact?.whatsapp_seller) setWhatsapp(c.contact.whatsapp_seller)
+        if (c.contact?.phone) setPhone(c.contact.phone)
+        if (c.cta_target?.type === 'listing') { setCtaType('listing'); if (c.cta_target.id) setCtaListingId(c.cta_target.id) }
+        setLoadedStatus(s.status ?? null)
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [initialSubmissionId])
+
+  // A rejected ad (already paid) is edited then resubmitted, not re-paid.
+  const isResubmit = loadedStatus === 'rejected'
+  const isLockedEdit = loadedStatus != null && loadedStatus !== 'draft' && loadedStatus !== 'rejected'
 
   const tier = edition.tiers.find((t) => t.key === tierKey)
 
@@ -125,6 +159,20 @@ export default function PrintAdBuilder({
     if (id) setError(null)
   }
 
+  /** Resubmit a rejected (already-paid) ad after editing — back into review. */
+  async function onResubmit() {
+    if (!submissionId) return
+    setBusy('saving'); setError(null)
+    const res = await fetch(`/api/print/submissions/${submissionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier_key: tierKey, content, resubmit: true }),
+    })
+    setBusy(null)
+    if (!res.ok) { setError((await res.json().catch(() => ({})))?.error ?? 'No se pudo reenviar.'); return }
+    window.location.href = '/account/print-ads'
+  }
+
   async function onPay(provider: Provider) {
     setBusy('paying')
     const id = await persist()
@@ -139,7 +187,7 @@ export default function PrintAdBuilder({
     if (!res.ok) { setError(data?.error ?? 'No se pudo iniciar el pago.'); return }
     if (data.redirect_url) { window.location.href = data.redirect_url; return }
     // Manual: no redirect — show payment instructions.
-    setManualInfo({ clabe: data.clabe, bank_name: data.bank_name, account_holder: data.account_holder })
+    setManualInfo(data.manual_payment ?? {})
   }
 
   // ── Manual confirmation screen ─────────────────────────────────────────────
@@ -151,19 +199,36 @@ export default function PrintAdBuilder({
         <p className="text-sm text-[var(--color-muted)] mb-6">
           Aparta tu lugar en <strong>{edition.title}</strong>. Realiza el pago para confirmar tu anuncio.
         </p>
-        {manualInfo.clabe ? (
-          <div className="border border-[var(--color-border)] rounded-xl p-4 text-left text-sm space-y-1">
-            <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Transferencia SPEI</div>
-            <div>CLABE: <strong>{manualInfo.clabe}</strong></div>
-            {manualInfo.bank_name && <div>Banco: {manualInfo.bank_name}</div>}
-            {manualInfo.account_holder && <div>Titular: {manualInfo.account_holder}</div>}
-            {tier && <div className="pt-1">Monto: <strong>{formatMXN(tier.price_cents)}</strong></div>}
+        {(manualInfo.spei?.clabe || manualInfo.dimo?.phone || manualInfo.cash?.note) ? (
+          <div className="border border-[var(--color-border)] rounded-xl p-4 text-left text-sm space-y-3">
+            {tier && <div className="pb-2 border-b border-[var(--color-border)]">Monto: <strong>{formatMXN(tier.price_cents)}</strong></div>}
+            {manualInfo.spei?.clabe && (
+              <div className="space-y-0.5">
+                <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Transferencia SPEI</div>
+                <div>CLABE: <strong>{manualInfo.spei.clabe}</strong></div>
+                {manualInfo.spei.bank_name && <div>Banco: {manualInfo.spei.bank_name}</div>}
+                {manualInfo.spei.account_holder && <div>Titular: {manualInfo.spei.account_holder}</div>}
+              </div>
+            )}
+            {manualInfo.dimo?.phone && (
+              <div className="space-y-0.5">
+                <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">DiMo</div>
+                <div>Teléfono: <strong>{manualInfo.dimo.phone}</strong></div>
+              </div>
+            )}
+            {manualInfo.cash?.note && (
+              <div className="space-y-0.5">
+                <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Efectivo</div>
+                <div>{manualInfo.cash.note}</div>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-sm">Te contactaremos con los datos de pago.</p>
         )}
-        <Link href="/shop/manage" className="mt-6 inline-block text-sm text-[var(--color-accent)] no-underline">
-          ← Volver a mi tienda
+        <p className="text-xs text-[var(--color-muted)] mt-4">Cuando pagues, entra a &ldquo;Mis anuncios&rdquo; y toca &ldquo;Ya hice el pago&rdquo;.</p>
+        <Link href="/account/print-ads" className="mt-2 inline-block text-sm text-[var(--color-accent)] no-underline">
+          → Ver mis anuncios
         </Link>
       </div>
     )
@@ -284,26 +349,39 @@ export default function PrintAdBuilder({
           <span className="text-sm text-[var(--color-muted)]">Total</span>
           <span className="text-xl font-bold">{tier ? formatMXN(tier.price_cents) : '—'}</span>
         </div>
-        <div className="flex flex-col gap-2">
-          <button type="button" onClick={() => onPay('stripe')} disabled={!tier || busy !== null}
+        {isResubmit ? (
+          // Rejected ad (already paid): edit + resubmit, no re-payment.
+          <button type="button" onClick={onResubmit} disabled={!tier || busy !== null}
             className="w-full bg-[var(--color-accent)] text-white rounded-lg py-3 font-semibold disabled:opacity-50">
-            {busy === 'paying' ? 'Procesando…' : 'Pagar con tarjeta'}
+            {busy === 'saving' ? 'Reenviando…' : 'Reenviar para revisión'}
           </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => onPay('mercadopago')} disabled={!tier || busy !== null}
-              className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
-              MercadoPago
+        ) : isLockedEdit ? (
+          // Paid/approved/placed: can't be edited here.
+          <p className="text-sm text-[var(--color-muted)] text-center">
+            Este anuncio ya fue pagado. Para cambios, usa &ldquo;Solicitar cambios&rdquo; en Mis anuncios.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <button type="button" onClick={() => onPay('stripe')} disabled={!tier || busy !== null}
+              className="w-full bg-[var(--color-accent)] text-white rounded-lg py-3 font-semibold disabled:opacity-50">
+              {busy === 'paying' ? 'Procesando…' : 'Pagar con tarjeta'}
             </button>
-            <button type="button" onClick={() => onPay('manual')} disabled={!tier || busy !== null}
-              className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
-              Pago directo
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => onPay('mercadopago')} disabled={!tier || busy !== null}
+                className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
+                MercadoPago
+              </button>
+              <button type="button" onClick={() => onPay('manual')} disabled={!tier || busy !== null}
+                className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
+                Pago directo
+              </button>
+            </div>
+            <button type="button" onClick={onSaveDraft} disabled={busy !== null}
+              className="w-full text-sm text-[var(--color-muted)] py-1 disabled:opacity-50">
+              {busy === 'saving' ? 'Guardando…' : 'Guardar borrador'}
             </button>
           </div>
-          <button type="button" onClick={onSaveDraft} disabled={busy !== null}
-            className="w-full text-sm text-[var(--color-muted)] py-1 disabled:opacity-50">
-            {busy === 'saving' ? 'Guardando…' : 'Guardar borrador'}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   )

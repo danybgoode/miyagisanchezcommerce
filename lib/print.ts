@@ -131,6 +131,19 @@ export interface PrintAdContent {
   template_choice?: string | null
   /** R2 URL of the generated QR code (set during production/export). */
   qr_url?: string | null
+  /** Manual payment instructions snapshot (for SPEI/DiMo/cash placements). */
+  manual_payment?: {
+    spei?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null } | null
+    dimo?: { phone?: string | null } | null
+    cash?: { note?: string | null } | null
+  } | null
+  /** Buyer signalled they sent a manual payment. */
+  payment_reported?: boolean
+  payment_reported_at?: string
+  /** A deadline reminder email has been sent (cron, avoids repeats). */
+  payment_reminded?: boolean
+  /** Buyer change requests on a paid/approved ad. */
+  change_requests?: Array<{ message: string; at: string }>
 }
 
 export interface PrintAdSubmission {
@@ -153,3 +166,34 @@ export interface PrintAdSubmission {
 /** Central WhatsApp surfaced on every ad (Miyagi concierge line). */
 export const MIYAGI_CENTRAL_WHATSAPP =
   process.env.NEXT_PUBLIC_MIYAGI_WHATSAPP ?? ''
+
+// ── Social / editorial section ─────────────────────────────────────────────
+
+export type PrintSocialType = 'recomendacion' | 'reconocimiento' | 'evento' | 'saludo' | 'otro'
+export type PrintSocialStatus = 'submitted' | 'approved' | 'placed' | 'rejected'
+
+export const PRINT_SOCIAL_TYPES: { key: PrintSocialType; label: string }[] = [
+  { key: 'recomendacion',  label: 'Recomendación' },
+  { key: 'reconocimiento', label: 'Reconocimiento' },
+  { key: 'evento',         label: 'Evento' },
+  { key: 'saludo',         label: 'Saludo' },
+  { key: 'otro',           label: 'Otro' },
+]
+
+export interface PrintSocialSubmission {
+  id: string
+  edition_id: string | null
+  submitter_clerk_user_id: string | null
+  submitter_name: string | null
+  submitter_email: string | null
+  type: PrintSocialType
+  caption: string
+  body: string | null
+  photos: string[]
+  zone: string | null
+  status: PrintSocialStatus
+  source: 'community' | 'editor'
+  admin_notes: string | null
+  created_at: string
+  updated_at: string
+}

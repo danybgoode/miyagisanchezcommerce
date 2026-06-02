@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret, sendPrintAdPaidEmails } from '@/lib/print-server'
+import { checkAdminSecret, sendPrintAdPaidEmails, sendPrintAdLifecycleEmail } from '@/lib/print-server'
 import type { PrintSubmissionStatus, PrintAdSubmission } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +41,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // payment here (pending_payment → paid), fire the same emails the card flow sends.
   if (body.status === 'paid' && prior?.status === 'pending_payment') {
     await sendPrintAdPaidEmails(data as PrintAdSubmission, {})
+  }
+  // Editorial lifecycle emails (only on the transition into the status).
+  if (body.status === 'approved' && prior?.status !== 'approved') {
+    await sendPrintAdLifecycleEmail(data as PrintAdSubmission, 'approved')
+  }
+  if (body.status === 'rejected' && prior?.status !== 'rejected') {
+    await sendPrintAdLifecycleEmail(data as PrintAdSubmission, 'rejected')
   }
 
   return NextResponse.json({ submission: data })

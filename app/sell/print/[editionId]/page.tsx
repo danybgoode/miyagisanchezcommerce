@@ -15,8 +15,12 @@ function medusaFetch(path: string, clerkJwt: string) {
   })
 }
 
-export default async function PrintAdBuilderPage({ params }: { params: Promise<{ editionId: string }> }) {
+export default async function PrintAdBuilderPage({ params, searchParams }: {
+  params: Promise<{ editionId: string }>
+  searchParams: Promise<{ submission?: string }>
+}) {
   const { editionId } = await params
+  const { submission: initialSubmissionId } = await searchParams
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
@@ -66,5 +70,5 @@ export default async function PrintAdBuilderPage({ params }: { params: Promise<{
       url: `${SITE_URL}/l/${l.id}`,
     }))
 
-  return <PrintAdBuilder edition={edition} prefill={prefill} listings={listings} />
+  return <PrintAdBuilder edition={edition} prefill={prefill} listings={listings} initialSubmissionId={initialSubmissionId ?? null} />
 }
