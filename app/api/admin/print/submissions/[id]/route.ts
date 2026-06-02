@@ -6,8 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret } from '@/lib/print-server'
-import type { PrintSubmissionStatus } from '@/lib/print'
+import { checkAdminSecret, sendPrintAdPaidEmails } from '@/lib/print-server'
+import type { PrintSubmissionStatus, PrintAdSubmission } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +31,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.admin_notes === 'string') patch.admin_notes = body.admin_notes
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
+  // Read prior status to detect the manual-payment reconciliation transition.
+  const { data: prior } = await db.from('print_ad_submissions').select('status').eq('id', id).single()
+
   const { data, error } = await db.from('print_ad_submissions').update(patch).eq('id', id).select('*').single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
+
+  // Manual/SPEI placements never hit a payment webhook — when the owner confirms
+  // payment here (pending_payment → paid), fire the same emails the card flow sends.
+  if (body.status === 'paid' && prior?.status === 'pending_payment') {
+    await sendPrintAdPaidEmails(data as PrintAdSubmission, {})
+  }
+
   return NextResponse.json({ submission: data })
 }

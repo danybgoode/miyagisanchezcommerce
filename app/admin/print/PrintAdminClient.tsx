@@ -6,6 +6,7 @@ import {
   type PrintTier, type PrintTierKey,
   type PrintProvider, type PrintEdition, type PrintAdSubmission,
 } from '@/lib/print'
+import PrintAdPreview from './PrintAdPreview'
 
 type AdminEdition = PrintEdition & {
   occupancy?: Record<string, number>
@@ -42,7 +43,7 @@ export default function PrintAdminClient({ secret }: { secret: string }) {
           </button>
         ))}
       </div>
-      {tab === 'providers' ? <Providers api={api} /> : <Editions api={api} />}
+      {tab === 'providers' ? <Providers api={api} /> : <Editions api={api} secret={secret} />}
     </div>
   )
 }
@@ -95,7 +96,7 @@ function Providers({ api }: { api: Api }) {
 
 // ── Editions ───────────────────────────────────────────────────────────────
 
-function Editions({ api }: { api: Api }) {
+function Editions({ api, secret }: { api: Api; secret: string }) {
   const [editions, setEditions] = useState<AdminEdition[]>([])
   const [providers, setProviders] = useState<PrintProvider[]>([])
   const [creating, setCreating] = useState(false)
@@ -112,7 +113,7 @@ function Editions({ api }: { api: Api }) {
         {creating ? '× Cancelar' : '+ Nueva edición'}
       </button>
       {creating && <EditionForm api={api} providers={providers} onDone={() => { setCreating(false); load() }} />}
-      {editions.map((e) => <EditionRow key={e.id} api={api} edition={e} onChange={load} />)}
+      {editions.map((e) => <EditionRow key={e.id} api={api} secret={secret} edition={e} onChange={load} />)}
     </div>
   )
 }
@@ -197,9 +198,10 @@ function EditionForm({ api, providers, onDone }: { api: Api; providers: PrintPro
   )
 }
 
-function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEdition; onChange: () => void }) {
+function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: string; edition: AdminEdition; onChange: () => void }) {
   const [open, setOpen] = useState(false)
   const occ: Record<string, number> = edition.occupancy ?? {}
+  const exportHref = `/api/admin/print/editions/${edition.id}/export?secret=${encodeURIComponent(secret)}`
 
   async function setStatus(status: string) {
     await api(`/editions/${edition.id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
@@ -225,22 +227,30 @@ function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEditio
           </span>
         ))}
       </div>
-      <button onClick={() => setOpen((v) => !v)} className="mt-2 text-xs text-[var(--color-accent)]">
-        {open ? 'Ocultar anuncios' : 'Ver anuncios'}
-      </button>
-      {open && <Submissions api={api} editionId={edition.id} />}
+      <div className="mt-2 flex items-center gap-4">
+        <button onClick={() => setOpen((v) => !v)} className="text-xs text-[var(--color-accent)]">
+          {open ? 'Ocultar anuncios' : 'Ver anuncios'}
+        </button>
+        <a href={exportHref} className="text-xs text-[var(--color-accent)] no-underline" download>
+          ⬇ Descargar paquete de producción
+        </a>
+      </div>
+      {open && <Submissions api={api} editionId={edition.id} tiers={edition.tiers ?? []} />}
     </div>
   )
 }
 
 // ── Submissions queue ─────────────────────────────────────────────────────────
 
-function Submissions({ api, editionId }: { api: Api; editionId: string }) {
+function Submissions({ api, editionId, tiers }: { api: Api; editionId: string; tiers: PrintTier[] }) {
   const [subs, setSubs] = useState<PrintAdSubmission[]>([])
+  const [openId, setOpenId] = useState<string | null>(null)
   const load = useCallback(() => {
     api(`/editions/${editionId}/submissions`).then((r) => r.json()).then((d) => setSubs(d.submissions ?? []))
   }, [api, editionId])
   useEffect(() => { load() }, [load])
+
+  const tierLabel = (key: string) => tiers.find((t) => t.key === key)?.label ?? key
 
   async function setStatus(id: string, status: string) {
     await api(`/submissions/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
@@ -252,17 +262,34 @@ function Submissions({ api, editionId }: { api: Api; editionId: string }) {
     <div className="mt-3 space-y-2">
       {subs.map((s) => (
         <div key={s.id} className="border border-[var(--color-border)] rounded-lg p-2.5 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">{s.content?.headline || '(sin titular)'} · {s.tier_key}</span>
-            <select value={s.status} onChange={(e) => setStatus(s.id, e.target.value)}
-              className="rounded border border-[var(--color-border)] px-1.5 py-0.5 bg-transparent">
-              {SUBMISSION_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
-            </select>
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => setOpenId((v) => (v === s.id ? null : s.id))} className="font-medium text-left">
+              {s.content?.headline || '(sin titular)'} · {tierLabel(s.tier_key)}
+            </button>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {(s.status === 'paid' || s.status === 'pending_payment') && (
+                <button onClick={() => setStatus(s.id, 'approved')}
+                  className="rounded bg-[var(--color-accent)] text-white px-2 py-0.5">Aprobar</button>
+              )}
+              {s.status !== 'rejected' && s.status !== 'refunded' && (
+                <button onClick={() => setStatus(s.id, 'rejected')}
+                  className="rounded border border-[var(--color-border)] px-2 py-0.5">Rechazar</button>
+              )}
+              <select value={s.status} onChange={(e) => setStatus(s.id, e.target.value)}
+                className="rounded border border-[var(--color-border)] px-1.5 py-0.5 bg-transparent">
+                {SUBMISSION_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+              </select>
+            </div>
           </div>
           <div className="text-[var(--color-muted)] mt-1">
             {s.buyer_email ?? 'sin email'} · CTA: {s.content?.cta_target?.url ?? '—'}
             {s.content?.photos?.length ? ` · ${s.content.photos.length} fotos` : ''}
           </div>
+          {openId === s.id && (
+            <div className="mt-3">
+              <PrintAdPreview content={s.content ?? {}} tierLabel={tierLabel(s.tier_key)} />
+            </div>
+          )}
         </div>
       ))}
     </div>

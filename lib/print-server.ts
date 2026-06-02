@@ -12,6 +12,7 @@ import {
   type PrintEdition,
   type PrintEditionPublic,
   type PrintTier,
+  type PrintAdSubmission,
 } from '@/lib/print'
 
 export type { PrintTier } from '@/lib/print'
@@ -145,7 +146,19 @@ export async function handlePrintAdPaid(input: {
       .eq('id', submission.id)
   }
 
-  // Edition + provider + tier context for the emails (best-effort).
+  await sendPrintAdPaidEmails(submission, { amountCents, currency, buyerEmail, buyerName })
+  return true
+}
+
+/**
+ * Send the buyer + Miyagi "ad paid" emails for a submission. Loads edition/provider/
+ * tier for context. Reused by the payment webhooks (card) and the admin console
+ * (manual/SPEI reconciliation). Best-effort — never throws into the caller.
+ */
+export async function sendPrintAdPaidEmails(
+  submission: PrintAdSubmission,
+  opts: { amountCents?: number; currency?: string; buyerEmail?: string | null; buyerName?: string | null },
+): Promise<void> {
   const { data: edition } = await db
     .from('print_editions')
     .select('*, print_providers(name)')
@@ -154,15 +167,17 @@ export async function handlePrintAdPaid(input: {
 
   const tier = (edition?.tiers ?? []).find((t) => t.key === submission.tier_key)
   const tierLabel = tier?.label ?? submission.tier_key
+  // Fall back to the tier's list price when the caller doesn't know the amount (manual reconciliation).
+  const amountCents = opts.amountCents ?? tier?.price_cents ?? 0
   const amountFmt = new Intl.NumberFormat('es-MX', {
-    style: 'currency', currency: currency || 'MXN',
+    style: 'currency', currency: opts.currency || 'MXN',
   }).format(amountCents / 100)
-  const email = buyerEmail ?? submission.buyer_email ?? null
+  const email = opts.buyerEmail ?? submission.buyer_email ?? null
 
   if (email) {
     sendPrintAdReceivedToBuyer({
       buyerEmail: email,
-      buyerName,
+      buyerName: opts.buyerName,
       editionTitle: edition?.title ?? 'Edición impresa',
       providerName: edition?.print_providers?.name ?? 'Miyagi Prints',
       tierLabel,
@@ -188,8 +203,6 @@ export async function handlePrintAdPaid(input: {
       adminUrl: `${SITE_URL}/admin/print`,
     }).catch((e) => console.error('[print] admin email failed:', e))
   }
-
-  return true
 }
 
 /** Admin secret guard (header x-admin-secret or ?secret=), matching /api/admin/scrape. */

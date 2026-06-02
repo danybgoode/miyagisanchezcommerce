@@ -129,6 +129,8 @@ export interface PrintAdContent {
   cta_target?: PrintCtaTarget | null
   featured_listing_ids?: string[]
   template_choice?: string | null
+  /** R2 URL of the generated QR code (set during production/export). */
+  qr_url?: string | null
 }
 
 export interface PrintAdSubmission {
