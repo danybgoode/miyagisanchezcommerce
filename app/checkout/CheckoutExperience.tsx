@@ -287,6 +287,21 @@ export default function CheckoutExperience({
 
   return (
     <>
+      {/* ── Delivery not configured (no coord fallback) ────────────────────── */}
+      {deliveryMethods.length === 0 && (
+        <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>📦</span>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Este vendedor aún no configura la entrega</p>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                Todavía no hay una opción de envío o recolección disponible para este artículo. Vuelve más tarde o escríbele al vendedor.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Delivery section ───────────────────────────────────────────────── */}
       {deliveryMethods.length > 0 && (
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>

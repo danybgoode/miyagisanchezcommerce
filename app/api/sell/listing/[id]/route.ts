@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { getShopStripe } from '@/lib/stripe'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -89,9 +91,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 // Returns an error string if the listing cannot support a complete buyer journey,
 // or null if it's OK to publish.
 //
-// Rule: physical product with coord-only delivery (no Envia, no local pickup)
-// must have at least one manual payment method (SPEI, WhatsApp, or phone).
-// All other listing types always have a viable path.
+// Rule (no "coordinate after purchase"): a physical product can only be published
+// when the seller has BOTH a concrete delivery method (shipping or local pickup)
+// AND a concrete payment method (MercadoPago, Stripe, SPEI, or DiMo). WhatsApp/
+// phone are contact affordances, not payment methods. Other listing types
+// (digital/service/rental) always have a viable path.
+
+function normalizeClabe(v: unknown): string {
+  return typeof v === 'string' ? v.replace(/\D/g, '') : ''
+}
 
 async function checkCheckoutViability(listingId: string, clerkJwt: string): Promise<string | null> {
   try {
@@ -113,31 +121,34 @@ async function checkCheckoutViability(listingId: string, clerkJwt: string): Prom
     const settings   = (shopMeta.settings ?? {}) as Record<string, unknown>
     const shipping   = (settings.shipping  ?? {}) as Record<string, unknown>
     const checkout   = (settings.checkout  ?? {}) as Record<string, unknown>
-    const theme      = (settings.theme     ?? {}) as Record<string, unknown>
 
-    // Check if structured delivery is available
+    // 1. Concrete delivery — shipping (Envia origin set) or local pickup.
     const hasLiveShipping = shipping.envia_enabled !== false && (() => {
       const oa = (shipping.origin_address ?? {}) as Record<string, string | null>
       return !!(oa.street && oa.city && oa.postal_code && (oa.state_code || oa.state))
     })()
     const hasLocalPickup = !!shipping.local_pickup
+    const hasDelivery = hasLiveShipping || hasLocalPickup
 
-    if (hasLiveShipping || hasLocalPickup) return null // has a structured delivery → card is available
-
-    // Coord-only: check for at least one manual payment method
+    // 2. Concrete payment — online (MP/Stripe) or manual (SPEI/DiMo). Cash needs
+    //    pickup so it's covered by the delivery check; WhatsApp/phone don't count.
+    const stripe = getShopStripe(shopMeta)
+    const hasStripe = !!(stripe.charges_enabled && stripe.account_id && stripe.enabled !== false)
+    const hasMp     = sellerHasMpConnected(shopMeta)
     const bankTransfer = (checkout.bank_transfer ?? {}) as Record<string, unknown>
-    const hasSpei      = !!(bankTransfer.enabled && (bankTransfer.clabe as string)?.length === 18)
-    const whatsappNum  = (theme as any)?.social?.whatsapp ?? checkout.phone
-    const hasWhatsapp  = !!(checkout.whatsapp_cta && whatsappNum)
-    const hasPhone     = !!(checkout.show_phone && checkout.phone)
+    const hasSpei   = bankTransfer.enabled !== false && normalizeClabe(bankTransfer.clabe).length === 18
+    const dimo      = (checkout.dimo ?? {}) as Record<string, unknown>
+    const hasDimo   = dimo.enabled === true && normalizeClabe(dimo.phone).length >= 10
+    const hasPayment = hasStripe || hasMp || hasSpei || hasDimo
 
-    if (hasSpei || hasWhatsapp || hasPhone) return null // has a manual payment path → OK
+    if (hasDelivery && hasPayment) return null
 
-    return [
-      'Para activar este anuncio necesitas configurar al menos un método de pago manual',
-      '(SPEI, WhatsApp o teléfono visible) o activar el envío a domicilio / recolección.',
-      'Sin esto, los compradores no tienen forma de pagar. Ve a Mi tienda → Configuración → Pagos y Envíos.',
-    ].join(' ')
+    const missing: string[] = []
+    if (!hasDelivery) missing.push('una forma de entrega (envío a domicilio o recolección en mano)')
+    if (!hasPayment)  missing.push('un método de pago (MercadoPago, Stripe, SPEI o DiMo)')
+
+    return `Para activar este anuncio configura ${missing.join(' y ')}. ` +
+      'Ve a Mi tienda → Configuración → Pagos y Envíos.'
   } catch {
     return null // on unexpected error, allow publish (fail open)
   }

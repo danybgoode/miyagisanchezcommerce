@@ -23,6 +23,13 @@ export interface PickupSpot {
   scheduling_url?: string
 }
 
+// Predefined Mexican banks for the structured "Pago directo" config (+ "Otro").
+const MX_BANKS = [
+  'BBVA', 'Banorte', 'Santander', 'Citibanamex', 'HSBC', 'Scotiabank',
+  'Banco Azteca', 'Inbursa', 'BanCoppel', 'Afirme', 'Banregio', 'BanBajío',
+  'Nu', 'Hey Banco', 'Klar', 'Mercado Pago', 'Otro',
+]
+
 export interface ShopSettingsData {
   name: string
   description: string
@@ -773,12 +780,20 @@ export default function ShopSettingsPanel({
   const logoInputRef   = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
-  // Bank transfer (SPEI)
+  // Pago directo — SPEI / DiMo / efectivo al recoger
   const bt = s.checkout?.bank_transfer ?? {} as NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['checkout']>['bank_transfer'] & {}
   const [bankTransferEnabled, setBankTransferEnabled] = useState(bt?.enabled ?? false)
   const [clabe, setClabe]               = useState(bt?.clabe ?? '')
   const [bankName, setBankName]         = useState(bt?.bank_name ?? '')
   const [accountHolder, setAccountHolder] = useState(bt?.account_holder ?? '')
+  const [bankIsOther, setBankIsOther]   = useState(!!bt?.bank_name && !MX_BANKS.includes(bt.bank_name))
+  // DiMo (transfer by phone number) + efectivo al recoger
+  const dimoCfg = (s.checkout as any)?.dimo ?? {}
+  const [dimoEnabled, setDimoEnabled]   = useState<boolean>(dimoCfg.enabled ?? false)
+  const [dimoPhone, setDimoPhone]       = useState<string>(dimoCfg.phone ?? '')
+  const cashCfg = (s.checkout as any)?.cash_pickup ?? {}
+  const [cashPickupEnabled, setCashPickupEnabled] = useState<boolean>(cashCfg.enabled ?? true)
+  const [cashPickupNote, setCashPickupNote]       = useState<string>(cashCfg.note ?? '')
 
   // Offers / trust gate
   type OffersSettings = NonNullable<NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>['offers']>
@@ -1212,6 +1227,14 @@ export default function ShopSettingsPanel({
                 clabe:          clabe.trim() || null,
                 bank_name:      bankName.trim() || null,
                 account_holder: accountHolder.trim() || null,
+              },
+              dimo: {
+                enabled: dimoEnabled,
+                phone:   dimoPhone.trim().replace(/\D/g, '') || null,
+              },
+              cash_pickup: {
+                enabled: cashPickupEnabled,
+                note:    cashPickupNote.trim() || null,
               },
             },
             shipping: {
@@ -2631,19 +2654,19 @@ export default function ShopSettingsPanel({
           ════════════════════════════════════════════════════════════════════ */}
           <section id="spei" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
             <div className="flex items-center justify-between mb-1">
-              <SectionTitle>Transferencia bancaria (SPEI)</SectionTitle>
+              <SectionTitle>Pago directo al vendedor</SectionTitle>
               <div className="-mt-3">
                 <CopyPromptButton prompt="¿Es seguro compartir mi CLABE interbancaria con compradores en línea en México? ¿Qué puede hacer alguien con mi CLABE? Verifica con información oficial del sistema SPEI del Banco de México: https://www.banxico.org.mx/sistemas-de-pago/spei.html — ¿Es reversible una transferencia SPEI? ¿Qué riesgos tiene este método de pago para el vendedor?" />
               </div>
             </div>
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Permite que tus compradores paguen por transferencia bancaria. Tú confirmas el pago manualmente antes de entregar.
+              El comprador te paga directamente (sin protección de Miyagi). Tú confirmas el pago manualmente antes de entregar. Elige los métodos que aceptas.
             </p>
             <div className="divide-y divide-[var(--color-border)]">
               <ToggleSwitch
                 checked={bankTransferEnabled}
                 onChange={v => { setBankTransferEnabled(v); mark() }}
-                label="Aceptar transferencias bancarias"
+                label="Transferencia SPEI (CLABE)"
                 description="Aparecerá como opción de pago en tus anuncios."
               />
             </div>
@@ -2668,12 +2691,27 @@ export default function ShopSettingsPanel({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Banco</label>
-                    <input
-                      value={bankName}
-                      onChange={e => { setBankName(e.target.value); mark() }}
-                      placeholder="BBVA, Banorte, HSBC…"
-                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
+                    <select
+                      value={bankIsOther ? 'Otro' : bankName}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (v === 'Otro') { setBankIsOther(true); setBankName('') }
+                        else { setBankIsOther(false); setBankName(v) }
+                        mark()
+                      }}
+                      className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    >
+                      <option value="">Selecciona tu banco…</option>
+                      {MX_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    {bankIsOther && (
+                      <input
+                        value={bankName}
+                        onChange={e => { setBankName(e.target.value); mark() }}
+                        placeholder="Nombre del banco"
+                        className="w-full mt-2 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Titular de la cuenta</label>
@@ -2700,6 +2738,60 @@ export default function ShopSettingsPanel({
                     💡 El comprador verá la CLABE al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* DiMo — transfer by phone number */}
+            <div className="divide-y divide-[var(--color-border)] mt-2">
+              <ToggleSwitch
+                checked={dimoEnabled}
+                onChange={v => { setDimoEnabled(v); mark() }}
+                label="DiMo (transferencia por teléfono)"
+                description="El comprador transfiere a tu número de teléfono vía DiMo / CoDi."
+              />
+            </div>
+            {dimoEnabled && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium mb-1">
+                  Teléfono DiMo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={dimoPhone}
+                  onChange={e => { setDimoPhone(e.target.value.replace(/\D/g, '').slice(0, 10)); mark() }}
+                  inputMode="tel"
+                  maxLength={10}
+                  placeholder="10 dígitos"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+                {dimoPhone && dimoPhone.length !== 10 && (
+                  <p className="text-amber-600 text-xs mt-1">⚠ El teléfono debe tener 10 dígitos ({dimoPhone.length}/10)</p>
+                )}
+              </div>
+            )}
+
+            {/* Efectivo al recoger — only meaningful with local pickup */}
+            <div className="divide-y divide-[var(--color-border)] mt-2">
+              <ToggleSwitch
+                checked={cashPickupEnabled}
+                onChange={v => { setCashPickupEnabled(v); mark() }}
+                label="Efectivo al recoger"
+                description="El comprador paga en efectivo al recoger su pedido."
+              />
+            </div>
+            {cashPickupEnabled && !localPickup && (
+              <p className="text-amber-600 text-xs mt-2">
+                ⚠ Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
+              </p>
+            )}
+            {cashPickupEnabled && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium mb-1">Instrucciones (opcional)</label>
+                <input
+                  value={cashPickupNote}
+                  onChange={e => { setCashPickupNote(e.target.value); mark() }}
+                  placeholder="Ej. Trae el monto exacto"
+                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
               </div>
             )}
           </section>
