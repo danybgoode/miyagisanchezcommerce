@@ -982,3 +982,75 @@ export async function sendManualOrderToSeller(ctx: {
   ].join('')
   await send(ctx.sellerEmail, subject, body)
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PRINT EDITION EMAILS — "Sal en la edición impresa"
+// ════════════════════════════════════════════════════════════════════════════════
+
+function formatPrintDate(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+/** Buyer (advertiser): receipt + what to expect after paying for a print placement. */
+export async function sendPrintAdReceivedToBuyer(ctx: {
+  buyerEmail: string
+  buyerName?: string | null
+  editionTitle: string
+  providerName: string
+  tierLabel: string
+  amountPaid: string
+  submissionDeadline?: string | null
+  distributionDate?: string | null
+  manageUrl: string
+}): Promise<void> {
+  const subject = `🗞️ Recibimos tu anuncio — ${ctx.editionTitle}`
+  const deadline = formatPrintDate(ctx.submissionDeadline)
+  const distrib = formatPrintDate(ctx.distributionDate)
+  const body = [
+    h1('¡Tu lugar en la edición impresa está apartado!'),
+    p('Gracias. Recibimos los elementos de tu anuncio y nuestro equipo lo diseñará con la estética México 86 antes de imprimir.'),
+    table([
+      ['Edición', esc(ctx.editionTitle)],
+      ['Imprenta', esc(ctx.providerName)],
+      ['Tamaño', esc(ctx.tierLabel)],
+      ...(deadline ? [['Cierre de edición', esc(deadline)] as [string, string]] : []),
+      ...(distrib ? [['Distribución', esc(distrib)] as [string, string]] : []),
+    ]),
+    amount(ctx.amountPaid, 'Pago recibido', true),
+    notice('Próximos pasos: <strong>Miyagi diseña tu anuncio</strong> → te compartimos una vista previa → se imprime y distribuye. Si necesitamos algo más, te escribimos.'),
+    cta('Ver mis anuncios', ctx.manageUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+/** Miyagi (admin): a new paid placement landed in the editorial queue. */
+export async function sendPrintAdReceivedToMiyagi(ctx: {
+  adminEmail: string
+  editionTitle: string
+  tierLabel: string
+  sellerName: string
+  buyerEmail: string | null
+  amountPaid: string
+  ctaUrl: string | null
+  photosCount: number
+  adminUrl: string
+}): Promise<void> {
+  const subject = `🗞️ Nuevo anuncio pagado — ${ctx.editionTitle} (${ctx.tierLabel})`
+  const body = [
+    h1('Nuevo anuncio para la edición impresa'),
+    table([
+      ['Edición', esc(ctx.editionTitle)],
+      ['Tamaño', esc(ctx.tierLabel)],
+      ['Anunciante', esc(ctx.sellerName)],
+      ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
+      ['Fotos', String(ctx.photosCount)],
+      ...(ctx.ctaUrl ? [['Enlace QR', `<a href="${esc(ctx.ctaUrl)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.ctaUrl)}</a>`] as [string, string]] : []),
+    ]),
+    amount(ctx.amountPaid, 'Pagado', true),
+    cta('Abrir cola editorial', ctx.adminUrl),
+  ].join('')
+  await send(ctx.adminEmail, subject, body)
+}

@@ -18,6 +18,7 @@ import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 import { upsertOrderMirror } from '@/lib/order-mirror'
+import { handlePrintAdPaid } from '@/lib/print-server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -315,6 +316,17 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
 
   // 1. Complete the Medusa cart → creates Medusa order
   const medusaOrderId = await completeMedusaCart(cart_id)
+
+  // 1b. Print-ad placement? Mark the submission paid, send print emails, and skip
+  //     the generic product/coordinated flow below (placements aren't shippable orders).
+  const isPrintAd = await handlePrintAdPaid({
+    cartId: cart_id, medusaOrderId, amountCents: amountTotal, currency, buyerEmail, buyerName,
+  })
+  if (isPrintAd) {
+    const amountFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountTotal / 100)
+    tg.salePaid(amountFmt, 'Anuncio impreso', buyerEmail ?? 'anunciante', 'stripe')
+    return
+  }
 
   // 2. Record in Supabase so existing seller/buyer order UIs can find it (idempotent)
   if (medusaOrderId) {

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback } from 'react'
 import Link from 'next/link'
+import PrintEditionCard from './PrintEditionCard'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -405,6 +406,9 @@ export default function ManageDashboard({
           </div>
         ))}
       </div>
+
+      {/* ── Print edition power-up ──────────────────────────────────────────── */}
+      <PrintEditionCard />
 
       {/* ── Listings ────────────────────────────────────────────────────────── */}
       <div>

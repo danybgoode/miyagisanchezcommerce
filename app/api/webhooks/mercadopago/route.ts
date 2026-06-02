@@ -26,6 +26,7 @@ import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { upsertOrderMirror } from '@/lib/order-mirror'
+import { handlePrintAdPaid } from '@/lib/print-server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -140,6 +141,16 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
 
   const medusaOrderId = await completeMedusaCart(cartId)
   if (!medusaOrderId) return
+
+  // Print-ad placement? Mark paid, send print emails, skip the generic order flow.
+  const isPrintAd = await handlePrintAdPaid({
+    cartId, medusaOrderId, amountCents, currency, buyerEmail, buyerName,
+  })
+  if (isPrintAd) {
+    const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
+    tg.salePaid(amtFmt, 'Anuncio impreso', buyerEmail ?? 'anunciante', 'mercadopago')
+    return
+  }
 
   const { created } = await upsertOrderMirror({
     medusaOrderId,
