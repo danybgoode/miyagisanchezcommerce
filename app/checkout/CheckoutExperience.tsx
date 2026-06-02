@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
-import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
+import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -16,7 +16,8 @@ type DeliveryMethod = {
   requires_pickup_spot?: boolean
   pickup_spots?: PickupSpot[]
 }
-type PaymentMethod = { id: CheckoutProvider; provider_id: string; label: string; note: string; instant: boolean }
+type ManualSubOption = { type: ManualSubType; label: string; note: string; requires_pickup?: boolean }
+type PaymentMethod = { id: CheckoutProvider; kind: 'online' | 'manual'; label: string; note: string; instant: boolean; protected?: boolean; sub_options?: ManualSubOption[] }
 type CheckoutOptions = {
   payment_methods: PaymentMethod[]
   payment_default: CheckoutProvider | null
@@ -118,6 +119,7 @@ export default function CheckoutExperience({
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
+  const [selectedManualSubType, setSelectedManualSubType] = useState<ManualSubType | null>(null)
   const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
   // CP-first lookup state
@@ -169,12 +171,32 @@ export default function CheckoutExperience({
     : undefined
   const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
 
+  // Manual ("Pago directo") sub-options. Cash-at-pickup only applies when the
+  // buyer chose pickup delivery, so filter it out otherwise.
+  const isPickup = selectedDelivery?.id === 'local_pickup'
+  const manualSubOptions = useMemo(
+    () => (selectedPayment?.kind === 'manual' ? selectedPayment.sub_options ?? [] : [])
+      .filter(o => o.type !== 'cash' || isPickup),
+    [selectedPayment, isPickup],
+  )
+  const isManualPayment = selectedPayment?.kind === 'manual'
+  const manualReady = !isManualPayment || (!!selectedManualSubType && manualSubOptions.some(o => o.type === selectedManualSubType))
+
   const canPay = Boolean(
-    selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
+    selectedDelivery && selectedPayment && addressReady && pickupReady && manualReady && (!needsShippingRate || selectedShippingRate),
   )
 
   // Reset pickup spot selection when delivery method changes.
   useEffect(() => { setSelectedPickupSpotId(null) }, [selectedDeliveryId])
+
+  // Default the manual sub-type to the first available option whenever the manual
+  // method is selected or its option set changes.
+  useEffect(() => {
+    if (!isManualPayment) { setSelectedManualSubType(null); return }
+    setSelectedManualSubType(prev =>
+      prev && manualSubOptions.some(o => o.type === prev) ? prev : (manualSubOptions[0]?.type ?? null),
+    )
+  }, [isManualPayment, manualSubOptions])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -442,15 +464,48 @@ export default function CheckoutExperience({
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
-            {paymentMethods.map(option => (
-              <button key={option.id} type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(selectedPayment?.id === option.id)}>
-                <span aria-hidden style={radioDot(selectedPayment?.id === option.id)} />
-                <span>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{option.label}</span>
-                  <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
-                </span>
-              </button>
-            ))}
+            {paymentMethods.map(option => {
+              const active = selectedPayment?.id === option.id
+              return (
+                <div key={option.id}>
+                  <button type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(active)}>
+                    <span aria-hidden style={radioDot(active)} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800 }}>{option.label}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+                          background: option.protected ? 'var(--success-soft, #f0fdf4)' : 'var(--bg-sunk)',
+                          color: option.protected ? 'var(--success-strong, #166534)' : 'var(--fg-muted)',
+                          border: `1px solid ${option.protected ? 'var(--success, #16a34a)' : 'var(--border)'}`,
+                        }}>
+                          {option.protected ? 'Protegido por Miyagi' : 'Acuerdo directo'}
+                        </span>
+                      </span>
+                      <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
+                    </span>
+                  </button>
+
+                  {/* Manual sub-options — how to pay the seller directly */}
+                  {active && option.kind === 'manual' && manualSubOptions.length > 0 && (
+                    <div style={{ display: 'grid', gap: 6, marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
+                      {manualSubOptions.map(sub => {
+                        const subActive = selectedManualSubType === sub.type
+                        return (
+                          <button key={sub.type} type="button" onClick={() => setSelectedManualSubType(sub.type)} style={optionButtonStyle(subActive)}>
+                            <span aria-hidden style={radioDot(subActive)} />
+                            <span style={{ minWidth: 0 }}>
+                              <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>{sub.label}</span>
+                              <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{sub.note}</span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </section>
@@ -492,6 +547,7 @@ export default function CheckoutExperience({
         {selectedPayment ? (
           <CheckoutPayButton
             provider={selectedPayment.id}
+            manualSubType={isManualPayment ? selectedManualSubType ?? undefined : undefined}
             listingId={listingId}
             items={items}
             sellerId={sellerId}

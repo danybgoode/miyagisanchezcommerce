@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth, useUser } from '@clerk/nextjs'
-import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress, type CheckoutShippingQuote, type StartCheckoutResult } from '@/lib/cart'
+import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type ManualSubType, type CheckoutShippingAddress, type CheckoutShippingQuote, type StartCheckoutResult } from '@/lib/cart'
 import type { CartItem } from './CartContext'
 
 function formatPrice(cents: number, currency: string) {
@@ -19,10 +19,13 @@ const PAY_LABEL: Record<CheckoutProvider, string> = {
   stripe: 'Pagar con tarjeta',
   spei: 'Pagar con SPEI',
   cash: 'Confirmar pedido',
+  manual: 'Confirmar pedido',
 }
 
 interface CheckoutPayButtonProps {
   provider: CheckoutProvider
+  /** When provider is 'manual', the chosen structured sub-type. */
+  manualSubType?: ManualSubType
   listingId?: string
   items?: CartItem[]
   sellerId?: string
@@ -40,6 +43,7 @@ interface CheckoutPayButtonProps {
 
 export default function CheckoutPayButton({
   provider,
+  manualSubType,
   listingId,
   items,
   sellerId,
@@ -63,7 +67,9 @@ export default function CheckoutPayButton({
   // we show inline instructions instead of leaving the page.
   const [manual, setManual] = useState<StartCheckoutResult | null>(null)
 
-  const isManual = provider === 'spei' || provider === 'cash'
+  const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
+  // Effective sub-type drives which instructions we show after the order is placed.
+  const subType: ManualSubType = provider === 'spei' ? 'clabe' : provider === 'cash' ? 'cash' : (manualSubType ?? 'clabe')
   const total = amountCents + (shippingQuote?.amountCents ?? 0)
 
   async function pay() {
@@ -77,6 +83,7 @@ export default function CheckoutPayButton({
         items: items?.map(item => ({ productId: item.productId, variantId: item.variantId })),
         sellerId,
         provider,
+        manualSubType: isManual ? subType : undefined,
         buyerEmail,
         buyerFirstName: user?.firstName ?? undefined,
         buyerLastName: user?.lastName ?? undefined,
@@ -112,11 +119,11 @@ export default function CheckoutPayButton({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="iconoir-check-circle" style={{ fontSize: 20, color: 'var(--success, #16a34a)' }} />
           <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--success-strong, #166534)' }}>
-            {provider === 'spei' ? 'Pedido registrado — realiza tu transferencia' : 'Pedido registrado — paga al recoger'}
+            {subType === 'cash' ? 'Pedido registrado — paga al recoger' : 'Pedido registrado — realiza tu pago'}
           </p>
         </div>
 
-        {provider === 'spei' && manual.clabe && (
+        {subType === 'clabe' && manual.clabe && (
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'grid', gap: 6 }}>
             <p style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--fg-muted)', fontWeight: 600 }}>CLABE interbancaria</p>
             <p style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 800, letterSpacing: 1 }}>{manual.clabe}</p>
@@ -129,10 +136,18 @@ export default function CheckoutPayButton({
           </div>
         )}
 
+        {subType === 'dimo' && manual.dimo_phone && (
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'grid', gap: 6 }}>
+            <p style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--fg-muted)', fontWeight: 600 }}>DiMo — transfiere a este teléfono</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 800, letterSpacing: 1 }}>{manual.dimo_phone}</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Monto: <strong>{formatPrice(total, currency)}</strong></p>
+          </div>
+        )}
+
         <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-          {provider === 'spei'
-            ? 'Una vez recibida la transferencia, el vendedor confirmará el pago y procesará tu pedido.'
-            : 'El vendedor confirmará el pago cuando recibas el artículo y pagues en efectivo.'}
+          {subType === 'cash'
+            ? 'El vendedor confirmará el pago cuando recibas el artículo y pagues en efectivo.'
+            : 'Una vez recibido tu pago, el vendedor lo confirmará y procesará tu pedido.'}
         </p>
 
         {isOrder && (

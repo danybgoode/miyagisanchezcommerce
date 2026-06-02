@@ -126,17 +126,20 @@ async function fetchBackendPaymentMethods(
       { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
     )
     if (!res.ok) return null
-    const data = await res.json() as { payment_methods?: Array<{ id: string }> }
-    const map: Record<string, PaymentMethodKey> = {
-      mercadopago: 'mercadopago',
-      stripe: 'stripe',
-      spei: 'bank_transfer',
-      cash: 'cash_on_pickup',
+    const data = await res.json() as {
+      payment_methods?: Array<{ id: string; kind?: string; sub_options?: Array<{ type: string }> }>
     }
     const set = new Set<PaymentMethodKey>()
     for (const m of data.payment_methods ?? []) {
-      const key = map[m.id]
-      if (key) set.add(key)
+      if (m.id === 'mercadopago') set.add('mercadopago')
+      else if (m.id === 'stripe') set.add('stripe')
+      else if (m.id === 'manual') {
+        // Manual now carries structured sub-options (clabe=SPEI, cash=on-pickup).
+        for (const so of m.sub_options ?? []) {
+          if (so.type === 'clabe') set.add('bank_transfer')
+          else if (so.type === 'cash') set.add('cash_on_pickup')
+        }
+      }
     }
     return set
   } catch {

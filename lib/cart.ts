@@ -36,7 +36,9 @@ async function responseMessage(response: Response, fallback: string) {
   return payload?.message ?? payload?.error ?? fallback
 }
 
-export type CheckoutProvider = 'stripe' | 'mercadopago' | 'spei' | 'cash'
+export type CheckoutProvider = 'stripe' | 'mercadopago' | 'spei' | 'cash' | 'manual'
+/** Sub-type for the unified manual ("Pago directo") method. */
+export type ManualSubType = 'clabe' | 'cash' | 'dimo'
 export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'coord' | 'none'
 
 export interface CheckoutShippingAddress {
@@ -78,6 +80,8 @@ export interface StartCheckoutParams {
   /** Pass seller ID to skip the expensive server-side scan */
   sellerId?: string
   provider: CheckoutProvider
+  /** When provider is 'manual', which structured instruction the buyer chose. */
+  manualSubType?: ManualSubType
   buyerEmail?: string
   buyerFirstName?: string
   buyerLastName?: string
@@ -110,6 +114,12 @@ export interface StartCheckoutResult {
   bank_name?: string | null
   /** SPEI: account holder name */
   account_holder?: string | null
+  /** Manual: which sub-type ('clabe' | 'cash' | 'dimo') */
+  sub_type?: ManualSubType | null
+  /** Manual: specific method recorded ('spei' | 'cash' | 'dimo') */
+  payment_method?: string | null
+  /** Manual DiMo: phone to transfer to */
+  dimo_phone?: string | null
   /** Escrow mode that was applied, if any */
   escrow_mode?: string | null
 }
@@ -122,9 +132,12 @@ export interface StartCheckoutResult {
 export async function startCheckout(params: StartCheckoutParams): Promise<StartCheckoutResult> {
   const {
     productId, variantId, items, sellerId,
-    provider, buyerEmail, buyerFirstName, buyerLastName,
+    provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
   } = params
+
+  // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
+  const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
 
   // Normalise to array — single-item path is the same as multi-item with one entry
   const lineItems: Array<{ productId: string; variantId?: string | null }> =
@@ -199,6 +212,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     headers: authHeaders,
     body: JSON.stringify({
       provider,
+      ...(manualSubType ? { manual_sub_type: manualSubType } : {}),
       buyer_email: buyerEmail,
       ...(sellerId ? { seller_id: sellerId } : {}),
       ...(offerAmountCents ? { offer_amount_cents: offerAmountCents } : {}),
@@ -226,9 +240,9 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
 
   const result: StartCheckoutResult = await checkoutRes.json()
 
-  // SPEI/cash: complete the cart immediately to create the Medusa order in pending state.
-  // No external redirect — the frontend will show bank transfer instructions.
-  if ((provider === 'spei' || provider === 'cash') && result.cart_id) {
+  // Manual: complete the cart immediately to create the Medusa order in pending
+  // state. No external redirect — the frontend shows the payment instructions.
+  if (isManual && result.cart_id) {
     const completeRes = await medusaFetch(`/store/carts/${result.cart_id}/complete`, {
       method: 'POST',
       headers: authHeaders,
