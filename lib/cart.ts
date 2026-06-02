@@ -255,6 +255,13 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     const { type, order } = await completeRes.json()
     if (type === 'order' && order?.id) {
       result.cart_id = order.id // Return order ID so caller can navigate to order page
+      // Fire the buyer + seller confirmation emails (manual orders skip the
+      // Stripe/MP webhooks that send them). Fire-and-forget — never block.
+      fetch('/api/orders/finalize-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      }).catch(() => { /* non-fatal */ })
     }
   }
 

@@ -29,6 +29,14 @@ interface OrderTrackingProps {
     buyer_email: string | null
     created_at: string
     metadata?: Record<string, unknown> | null
+    // Direct-payment ("Pago directo") fields from the Medusa order
+    payment_method?: string | null
+    payment_received?: boolean
+    manual_payment?: {
+      spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
+      dimo?: { phone: string } | null
+      cash?: { note?: string | null } | null
+    } | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }[]
@@ -358,6 +366,50 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           </div>
         </div>
       </div>
+
+      {/* Pago directo — pending payment instructions (all configured methods) */}
+      {order.payment_method === 'manual' && !order.payment_received && order.manual_payment && (
+        <section className="border-2 border-green-300 bg-green-50 rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">✅</span>
+            <h2 className="text-sm font-bold text-green-900">Pedido reservado — completa tu pago</h2>
+          </div>
+          <p className="text-xs text-green-800 mb-3">
+            Paga <strong>{formatPrice(order.amount_cents, order.currency)}</strong> con cualquiera de estas opciones. El vendedor confirmará tu pago y procesará el pedido. Puedes pagar como prefieras.
+          </p>
+          <div className="space-y-2">
+            {order.manual_payment.spei?.clabe && (
+              <div className="bg-white border border-green-200 rounded-lg p-3">
+                <p className="text-[10px] uppercase font-semibold text-gray-500">Transferencia SPEI</p>
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <p className="font-mono text-base font-bold tracking-wide">{order.manual_payment.spei.clabe}</p>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(order.manual_payment!.spei!.clabe); showToast('CLABE copiada', 'success') }}
+                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0">Copiar</button>
+                </div>
+                {order.manual_payment.spei.bank_name && <p className="text-xs text-gray-600">Banco: <strong>{order.manual_payment.spei.bank_name}</strong></p>}
+                {order.manual_payment.spei.account_holder && <p className="text-xs text-gray-600">Titular: <strong>{order.manual_payment.spei.account_holder}</strong></p>}
+              </div>
+            )}
+            {order.manual_payment.dimo?.phone && (
+              <div className="bg-white border border-green-200 rounded-lg p-3">
+                <p className="text-[10px] uppercase font-semibold text-gray-500">DiMo — transfiere a este teléfono</p>
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <p className="font-mono text-base font-bold tracking-wide">{order.manual_payment.dimo.phone}</p>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(order.manual_payment!.dimo!.phone); showToast('Teléfono copiado', 'success') }}
+                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0">Copiar</button>
+                </div>
+              </div>
+            )}
+            {order.manual_payment.cash && (
+              <div className="bg-white border border-green-200 rounded-lg p-3">
+                <p className="text-[10px] uppercase font-semibold text-gray-500">Efectivo al recoger</p>
+                <p className="text-xs text-gray-700 mt-1">{order.manual_payment.cash.note || 'Paga en efectivo cuando recojas tu pedido.'}</p>
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] text-green-700 mt-3">Te enviamos estos datos por correo. El vendedor confirmará en cuanto reciba el pago.</p>
+        </section>
+      )}
 
       {/* Product card */}
       <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">

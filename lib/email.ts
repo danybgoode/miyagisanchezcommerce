@@ -903,3 +903,82 @@ export async function sendPickupOrderToSeller(ctx: {
   ].join('')
   await send(ctx.sellerEmail, subject, body)
 }
+
+// ── Manual ("Pago directo") — pending payment ─────────────────────────────────
+
+export type ManualPaymentSnapshot = {
+  spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
+  dimo?: { phone: string } | null
+  cash?: { note?: string | null } | null
+}
+
+/** Renders the seller's configured manual methods as email table rows. */
+function manualInstructionRows(mp: ManualPaymentSnapshot): [string, string][] {
+  const rows: [string, string][] = []
+  if (mp.spei?.clabe) {
+    const extra = [mp.spei.bank_name ? `Banco: ${esc(mp.spei.bank_name)}` : '', mp.spei.account_holder ? `Titular: ${esc(mp.spei.account_holder)}` : '']
+      .filter(Boolean).join(' · ')
+    rows.push(['SPEI', `CLABE <strong style="font-family:monospace">${esc(mp.spei.clabe)}</strong>${extra ? `<br><span style="color:#666">${extra}</span>` : ''}`])
+  }
+  if (mp.dimo?.phone) {
+    rows.push(['DiMo', `Transfiere al teléfono <strong style="font-family:monospace">${esc(mp.dimo.phone)}</strong>`])
+  }
+  if (mp.cash) {
+    rows.push(['Efectivo al recoger', esc(mp.cash.note || 'Paga en efectivo cuando recojas tu pedido.')])
+  }
+  return rows
+}
+
+export async function sendManualOrderToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  listingUrl: string
+  amountToPay: string
+  shopName: string
+  manualPayment: ManualPaymentSnapshot
+  orderUrl: string
+}): Promise<void> {
+  const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
+  const subject = `Pedido registrado — completa tu pago en ${ctx.shopName}`
+  const rows = manualInstructionRows(ctx.manualPayment)
+
+  const body = [
+    h1(greeting),
+    p('Tu pedido quedó <strong>reservado</strong>. Para completarlo, realiza tu pago con cualquiera de las opciones que acepta el vendedor:'),
+    table([
+      ['Producto', `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ['Vendedor', esc(ctx.shopName)],
+      ['Monto a pagar', esc(ctx.amountToPay)],
+      ...rows,
+    ]),
+    notice('Una vez que el vendedor reciba tu pago, lo confirmará y procesará tu pedido. Guarda este correo.', 'info'),
+    cta('Ver mi pedido', ctx.orderUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
+export async function sendManualOrderToSeller(ctx: {
+  sellerEmail: string
+  listingTitle: string
+  listingUrl: string
+  amount: string
+  buyerName: string | null
+  buyerEmail: string | null
+  shopName: string
+  orderUrl: string
+}): Promise<void> {
+  const subject = `📦 Nuevo pedido — pago directo pendiente`
+  const body = [
+    h1('Tienes un nuevo pedido'),
+    table([
+      ['Producto', `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
+      ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
+    ]),
+    amount(ctx.amount, 'Monto del pedido', true),
+    notice('El comprador pagará por <strong>pago directo</strong> (SPEI / DiMo / efectivo). Cuando recibas el pago, márcalo como confirmado en tu panel para procesar el pedido.', 'warn'),
+    cta('Gestionar pedido', ctx.orderUrl),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
+}

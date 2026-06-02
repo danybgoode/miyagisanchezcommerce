@@ -119,7 +119,6 @@ export default function CheckoutExperience({
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
-  const [selectedManualSubType, setSelectedManualSubType] = useState<ManualSubType | null>(null)
   const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
   // CP-first lookup state
@@ -171,32 +170,24 @@ export default function CheckoutExperience({
     : undefined
   const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
 
-  // Manual ("Pago directo") sub-options. Cash-at-pickup only applies when the
-  // buyer chose pickup delivery, so filter it out otherwise.
+  // Manual ("Pago directo") — the buyer does NOT pick a sub-type at checkout.
+  // We just summarize what the seller accepts; all instructions appear on the
+  // order/success page after placing the order. Cash applies only with pickup.
   const isPickup = selectedDelivery?.id === 'local_pickup'
-  const manualSubOptions = useMemo(
-    () => (selectedPayment?.kind === 'manual' ? selectedPayment.sub_options ?? [] : [])
-      .filter(o => o.type !== 'cash' || isPickup),
-    [selectedPayment, isPickup],
-  )
   const isManualPayment = selectedPayment?.kind === 'manual'
-  const manualReady = !isManualPayment || (!!selectedManualSubType && manualSubOptions.some(o => o.type === selectedManualSubType))
+  const manualAccepted = useMemo(
+    () => (isManualPayment ? selectedPayment!.sub_options ?? [] : [])
+      .filter(o => o.type !== 'cash' || isPickup)
+      .map(o => o.label),
+    [isManualPayment, selectedPayment, isPickup],
+  )
 
   const canPay = Boolean(
-    selectedDelivery && selectedPayment && addressReady && pickupReady && manualReady && (!needsShippingRate || selectedShippingRate),
+    selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
   )
 
   // Reset pickup spot selection when delivery method changes.
   useEffect(() => { setSelectedPickupSpotId(null) }, [selectedDeliveryId])
-
-  // Default the manual sub-type to the first available option whenever the manual
-  // method is selected or its option set changes.
-  useEffect(() => {
-    if (!isManualPayment) { setSelectedManualSubType(null); return }
-    setSelectedManualSubType(prev =>
-      prev && manualSubOptions.some(o => o.type === prev) ? prev : (manualSubOptions[0]?.type ?? null),
-    )
-  }, [isManualPayment, manualSubOptions])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -501,21 +492,13 @@ export default function CheckoutExperience({
                     </span>
                   </button>
 
-                  {/* Manual sub-options — how to pay the seller directly */}
-                  {active && option.kind === 'manual' && manualSubOptions.length > 0 && (
-                    <div style={{ display: 'grid', gap: 6, marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
-                      {manualSubOptions.map(sub => {
-                        const subActive = selectedManualSubType === sub.type
-                        return (
-                          <button key={sub.type} type="button" onClick={() => setSelectedManualSubType(sub.type)} style={optionButtonStyle(subActive)}>
-                            <span aria-hidden style={radioDot(subActive)} />
-                            <span style={{ minWidth: 0 }}>
-                              <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>{sub.label}</span>
-                              <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{sub.note}</span>
-                            </span>
-                          </button>
-                        )
-                      })}
+                  {/* Manual — summarize what the seller accepts. The buyer gets the
+                      full instructions on the order page and pays afterward. */}
+                  {active && option.kind === 'manual' && manualAccepted.length > 0 && (
+                    <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
+                      <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                        Aceptan: <strong>{manualAccepted.join(' · ')}</strong>. Verás las instrucciones de pago al confirmar tu pedido.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -562,7 +545,6 @@ export default function CheckoutExperience({
         {selectedPayment ? (
           <CheckoutPayButton
             provider={selectedPayment.id}
-            manualSubType={isManualPayment ? selectedManualSubType ?? undefined : undefined}
             listingId={listingId}
             items={items}
             sellerId={sellerId}
