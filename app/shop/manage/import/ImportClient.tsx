@@ -7,6 +7,7 @@ import {
   CATALOG_IMPORT_FIELDS,
   EXAMPLE_CATALOG,
   MAX_IMPORT_ROWS,
+  EXTRACT_CHAR_LIMIT,
   parseCatalogFile,
   type CatalogParseResult,
   type CatalogImportRow,
@@ -64,13 +65,32 @@ function Uploader() {
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [report, setReport] = useState<RowResult[] | null>(null)
+  const [pasteText, setPasteText] = useState('')
+  const [extracting, setExtracting] = useState(false)
+
+  // Shared by both inputs (file + paste): show staging and fetch existing ids.
+  async function applyResult(parsed: CatalogParseResult) {
+    setReport(null)
+    setProgress({ done: 0, total: 0 })
+    setExistingIds(null)
+    setResult(parsed)
+    if (parsed.staged.some((s) => s.valid)) {
+      try {
+        const res = await fetch('/api/sell/import/existing')
+        if (res.ok) {
+          const data = (await res.json()) as { external_ids?: string[] }
+          setExistingIds(new Set(data.external_ids ?? []))
+        }
+      } catch {
+        // Non-fatal: without the set, every row simply previews as "Nuevo".
+      }
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null)
     setResult(null)
-    setExistingIds(null)
-    setReport(null)
-    setProgress({ done: 0, total: 0 })
+    setFileName(null)
     if (file.size > 5 * 1024 * 1024) {
       setError('El archivo es muy grande (máx. 5 MB).')
       return
@@ -78,23 +98,38 @@ function Uploader() {
     try {
       const text = await file.text()
       setFileName(file.name)
-      const parsed = parseCatalogFile(text, file.name)
-      setResult(parsed)
-
-      // Fetch existing external_ids so we can show create vs. update counts.
-      if (parsed.staged.some((s) => s.valid)) {
-        try {
-          const res = await fetch('/api/sell/import/existing')
-          if (res.ok) {
-            const data = (await res.json()) as { external_ids?: string[] }
-            setExistingIds(new Set(data.external_ids ?? []))
-          }
-        } catch {
-          // Non-fatal: without the set, every row simply previews as "Nuevo".
-        }
-      }
+      await applyResult(parseCatalogFile(text, file.name))
     } catch {
       setError('No se pudo leer el archivo. Intenta de nuevo.')
+    }
+  }
+
+  async function handleExtract() {
+    if (!pasteText.trim() || pasteText.length > EXTRACT_CHAR_LIMIT) return
+    setError(null)
+    setResult(null)
+    setFileName(null)
+    setExtracting(true)
+    try {
+      const res = await fetch('/api/sell/import/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: pasteText }),
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        staged?: CatalogParseResult['staged']
+        fileErrors?: CatalogParseResult['fileErrors']
+        error?: string
+      }
+      if (!res.ok) {
+        setError(data.error ?? 'No se pudo extraer el catálogo. Inténtalo de nuevo.')
+        return
+      }
+      await applyResult({ format: 'json', staged: data.staged ?? [], fileErrors: data.fileErrors ?? [] })
+    } catch {
+      setError('No se pudo contactar al servicio de IA. Inténtalo de nuevo.')
+    } finally {
+      setExtracting(false)
     }
   }
 
@@ -154,20 +189,53 @@ function Uploader() {
         }}
       />
 
-      <div className="border-2 border-dashed border-[var(--color-border)] rounded-2xl p-8 text-center">
-        <div className="text-3xl mb-2">📤</div>
-        <h2 className="font-semibold mb-1 flex items-center justify-center gap-2">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">4</span>
-          Subir tu archivo
+      {/* Paste & publish (Sprint 2) — the easy, native path */}
+      <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-4">
+        <h2 className="font-semibold mb-1 flex items-center gap-2">
+          <span className="text-xl">✨</span> Pega y publica
         </h2>
-        <p className="text-sm text-[var(--color-muted)] mb-4">
-          Sube el archivo (CSV o JSON) que generó tu IA. Lo revisamos al instante y te decimos en
-          español claro si algo necesita corregirse.
+        <p className="text-sm text-[var(--color-muted)] mb-3">
+          Pega lo que sea —listas, descripciones, mensajes de proveedor o notas— y nuestra IA arma tu
+          catálogo. Tú lo revisas antes de publicar.
+        </p>
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          rows={7}
+          placeholder={'Ej.\nBicicleta de montaña Trek rodada 29, seminueva, $8,500, Guadalajara\nClases de guitarra a domicilio, $350 la hora, CDMX\n…'}
+          className="w-full text-sm p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg,#fff)] text-[var(--color-foreground)] resize-y"
+          maxLength={EXTRACT_CHAR_LIMIT + 5000}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+          <span className={`text-xs ${pasteText.length > EXTRACT_CHAR_LIMIT ? 'text-red-600 font-semibold' : 'text-[var(--color-muted)]'}`}>
+            {pasteText.length.toLocaleString('es-MX')} / {EXTRACT_CHAR_LIMIT.toLocaleString('es-MX')} caracteres
+          </span>
+          <button
+            type="button"
+            onClick={handleExtract}
+            disabled={extracting || !pasteText.trim() || pasteText.length > EXTRACT_CHAR_LIMIT}
+            className="bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {extracting ? 'Extrayendo…' : 'Extraer productos'}
+          </button>
+        </div>
+        {pasteText.length > EXTRACT_CHAR_LIMIT && (
+          <p className="text-xs text-red-600 mt-2">
+            Te pasaste del límite. Para catálogos grandes, usa tu propia IA y sube el archivo (más abajo).
+          </p>
+        )}
+      </section>
+
+      {/* File upload — for files generated by the seller's own AI */}
+      <div className="border-2 border-dashed border-[var(--color-border)] rounded-2xl p-6 text-center">
+        <h2 className="font-semibold mb-1 text-sm">o sube un archivo (CSV o JSON)</h2>
+        <p className="text-xs text-[var(--color-muted)] mb-3">
+          ¿Ya tienes un archivo de tu propia IA? Súbelo y lo revisamos al instante.
         </p>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[var(--color-accent-hover)] transition-colors"
+          className="inline-block border border-[var(--color-border)] text-[var(--color-foreground)] px-5 py-2 rounded-lg text-sm font-medium hover:bg-[var(--color-muted-bg,#f7f7f7)] transition-colors"
         >
           Elegir archivo
         </button>
@@ -365,8 +433,20 @@ export default function ImportClient() {
         </Link>
         <h1 className="text-2xl font-bold leading-tight mt-2">Importar catálogo</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
-          Trae toda tu tienda en minutos. Deja que tu propio asistente de IA ordene tus datos y súbelos
-          aquí — sin formatos complicados ni mapeos manuales.
+          Trae toda tu tienda en minutos. Pega tu texto y deja que la IA lo arme, o sube un archivo que
+          generó tu propio asistente — sin formatos complicados ni mapeos manuales.
+        </p>
+      </div>
+
+      {/* ── Upload / paste + staging + import ───────────────────────────────── */}
+      <Uploader />
+
+      {/* ── Advanced path: use your own AI for big catalogs ─────────────────── */}
+      <div className="mt-10 mb-4 pt-6 border-t border-[var(--color-border)]">
+        <h2 className="font-semibold">¿Catálogo grande? Usa tu propia IA</h2>
+        <p className="text-sm text-[var(--color-muted)] mt-1">
+          Para catálogos extensos, copia este prompt en tu IA (Claude, ChatGPT o Gemini), genera un
+          archivo y súbelo arriba. Así no hay límite de tamaño.
         </p>
       </div>
 
@@ -451,9 +531,6 @@ export default function ImportClient() {
           {exampleJson}
         </pre>
       </section>
-
-      {/* ── Step 4: Upload + validate ───────────────────────────────────────── */}
-      <Uploader />
     </div>
   )
 }

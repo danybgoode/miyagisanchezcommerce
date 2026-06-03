@@ -62,9 +62,17 @@ const supplyImportLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:supply' })
 }
 
+// Catalog AI extract: max 15 paste-extractions per IP per hour — each call hits
+// a paid LLM, so keep it tight while still allowing real onboarding iteration.
+const catalogExtractLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(15, '1 h'), prefix: 'rl:catalog_extract' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -75,10 +83,11 @@ export async function checkRateLimit(
   key: LimitKey,
   identifier: string,
 ): Promise<{ allowed: true } | { allowed: false; retryAfter: number; limit: number; remaining: number }> {
-  const getLimiter = key === 'offers'       ? offerLimiter
-    : key === 'checkout'    ? checkoutLimiter
-    : key === 'mcp'         ? mcpLimiter
-    : key === 'stamps'      ? stampLimiter
+  const getLimiter = key === 'offers'          ? offerLimiter
+    : key === 'checkout'        ? checkoutLimiter
+    : key === 'mcp'             ? mcpLimiter
+    : key === 'stamps'          ? stampLimiter
+    : key === 'catalog_extract' ? catalogExtractLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()
