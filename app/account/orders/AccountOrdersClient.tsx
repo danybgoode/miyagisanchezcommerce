@@ -36,7 +36,8 @@ interface Order {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; badge: string; icon: string }> = {
-  paid:       { label: 'Pago confirmado',  badge: 'bg-amber-100 text-amber-700',   icon: '✓' },
+  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700', icon: '⏳' },
+  paid:       { label: 'Pago confirmado',  badge: 'bg-green-100 text-green-700',   icon: '✓' },
   processing: { label: 'Preparando envío', badge: 'bg-blue-100 text-blue-700',     icon: '📋' },
   shipped:    { label: 'Enviado',           badge: 'bg-indigo-100 text-indigo-700', icon: '📦' },
   in_transit: { label: 'En camino',        badge: 'bg-purple-100 text-purple-700', icon: '🚚' },

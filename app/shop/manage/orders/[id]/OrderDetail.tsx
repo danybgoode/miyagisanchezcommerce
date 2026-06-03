@@ -63,7 +63,8 @@ const ORDER_STEPS = [
 ]
 
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  paid:       { label: 'Nuevo',      badge: 'bg-amber-100 text-amber-700' },
+  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700' },
+  paid:       { label: 'Nuevo',      badge: 'bg-green-100 text-green-700' },
   processing: { label: 'Procesando', badge: 'bg-blue-100 text-blue-700' },
   shipped:    { label: 'Enviado',    badge: 'bg-indigo-100 text-indigo-700' },
   in_transit: { label: 'En camino',  badge: 'bg-purple-100 text-purple-700' },
@@ -514,7 +515,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const orderMeta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!orderMeta.escrow_mode
   const escrowCapturedInit = !!orderMeta.escrow_captured
-  const isSpeiOrder = orderMeta.payment_method === 'spei' || orderMeta.payment_method === 'cash'
+  const isSpeiOrder = ['manual', 'spei', 'cash', 'dimo'].includes(orderMeta.payment_method as string)
   const paymentReceivedInit = !!orderMeta.payment_received
   const fulfillmentMethod = (orderMeta.fulfillment_method as string | undefined) ?? order.shipping_method ?? 'shipping'
   const isPickupOrder = fulfillmentMethod === 'local_pickup'

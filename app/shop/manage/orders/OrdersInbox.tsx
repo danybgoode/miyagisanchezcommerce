@@ -39,7 +39,8 @@ interface Shop {
 type FilterTab = 'pending' | 'shipped' | 'delivered' | 'all'
 
 const STATUS_META: Record<string, { label: string; badge: string; dot: string }> = {
-  paid:       { label: 'Nuevo',       badge: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
+  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
+  paid:       { label: 'Nuevo',       badge: 'bg-green-100 text-green-700',   dot: 'bg-green-500' },
   processing: { label: 'Procesando',  badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500' },
   shipped:    { label: 'Enviado',      badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500' },
   in_transit: { label: 'En camino',   badge: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
@@ -77,7 +78,7 @@ function getShipment(order: Order): OrderShipment | null {
 }
 
 function needsAction(order: Order) {
-  return order.status === 'paid' || order.status === 'processing'
+  return order.status === 'pending_payment' || order.status === 'paid' || order.status === 'processing'
 }
 
 // ── Order card ────────────────────────────────────────────────────────────────

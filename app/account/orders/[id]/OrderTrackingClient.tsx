@@ -84,7 +84,8 @@ function getStatusSteps(fulfillmentMethod: string) {
 // Order-level status — badge + buyer message
 const STATUS_META: Record<string, { badge: string; message: string }> = {
   // ── Standard order lifecycle ──────────────────────────────────────────────
-  paid:             { badge: 'bg-amber-100 text-amber-700',   message: 'El vendedor está procesando tu pedido.' },
+  pending_payment:  { badge: 'bg-amber-100 text-amber-700',   message: 'Tu pago está pendiente. En cuanto el vendedor lo confirme, prepara tu pedido.' },
+  paid:             { badge: 'bg-green-100 text-green-700',   message: 'El vendedor está procesando tu pedido.' },
   processing:       { badge: 'bg-blue-100 text-blue-700',     message: 'El vendedor está preparando tu paquete.' },
   shipped:          { badge: 'bg-indigo-100 text-indigo-700', message: 'Tu pedido fue enviado. Ya viene en camino 🚚' },
   in_transit:       { badge: 'bg-purple-100 text-purple-700', message: 'Tu paquete está en tránsito hacia tu domicilio.' },
@@ -217,7 +218,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const meta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!meta.escrow_mode
   const escrowCaptured = !!meta.escrow_captured
-  const isSpeiOrder = meta.payment_method === 'spei' || meta.payment_method === 'cash'
+  const isSpeiOrder = ['manual', 'spei', 'cash', 'dimo'].includes(meta.payment_method as string)
   const paymentReceived = !!meta.payment_received
 
   const [currentStatus, setCurrentStatus] = useState(order.status)
@@ -486,9 +487,10 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <span className="text-amber-700">🏦</span>
             <p className="text-sm font-semibold text-amber-800">Pago pendiente de verificación</p>
           </div>
-          <p className="text-xs text-amber-700">
-            Tu transferencia SPEI está en proceso. El vendedor confirmará cuando reciba el depósito en su cuenta.
+          <p className="text-xs text-amber-700 mb-3">
+            Tu pago directo está en proceso. El vendedor confirmará cuando reciba el depósito. Si ya transferiste, avísale para agilizar.
           </p>
+          <ReportPaymentButton orderId={order.id} />
         </section>
       )}
       {isSpeiOrder && paymentReceived && (
@@ -658,5 +660,27 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
 
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
     </div>
+  )
+}
+
+// Buyer nudge for manual (SPEI/cash/DiMo) orders: notify the seller they've paid.
+function ReportPaymentButton({ orderId }: { orderId: string }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle')
+  async function report() {
+    setState('sending')
+    try {
+      const res = await fetch(`/api/orders/${orderId}/report-payment`, { method: 'POST' })
+      setState(res.ok ? 'done' : 'idle')
+    } catch { setState('idle') }
+  }
+  return (
+    <button
+      type="button"
+      onClick={report}
+      disabled={state !== 'idle'}
+      className="text-xs font-semibold bg-amber-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60"
+    >
+      {state === 'done' ? '✓ Avisaste al vendedor' : state === 'sending' ? 'Avisando…' : 'Ya hice el pago'}
+    </button>
   )
 }
