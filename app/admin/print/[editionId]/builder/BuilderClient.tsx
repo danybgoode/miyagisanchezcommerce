@@ -226,6 +226,10 @@ export default function BuilderClient({
               ))}
             </select>
           </label>
+          <a href={`/admin/print/${editionId}/print?secret=${encodeURIComponent(secret)}`} target="_blank" rel="noopener"
+            className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 text-xs font-semibold no-underline">
+            🖨 Vista de impresión
+          </a>
           <span className={`text-xs ${save === 'error' ? 'text-red-600' : 'text-[var(--color-muted)]'}`}>{saveLabel}</span>
         </div>
       </header>
