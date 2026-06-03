@@ -376,3 +376,12 @@ export function parseCatalogFile(text: string, fileName = ''): CatalogParseResul
 
   return { format, staged, fileErrors }
 }
+
+/**
+ * Re-validate already-shaped rows server-side (never trust the client). Returns
+ * StagedRows so the importer can skip rows with blocking errors. The `line` is
+ * the 1-based index within the submitted batch.
+ */
+export function validateRows(rows: unknown[]): StagedRow[] {
+  return rows.map((r, i) => stageRow(r && typeof r === 'object' ? (r as Record<string, unknown>) : {}, i + 1))
+}

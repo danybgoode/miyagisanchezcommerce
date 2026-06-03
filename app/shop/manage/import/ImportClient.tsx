@@ -9,8 +9,20 @@ import {
   MAX_IMPORT_ROWS,
   parseCatalogFile,
   type CatalogParseResult,
+  type CatalogImportRow,
   type ImportIssue,
 } from '@/lib/catalog-import'
+
+/** Must match CHUNK_MAX in app/api/sell/import/route.ts. */
+const IMPORT_CHUNK = 25
+
+type RowResult = {
+  line: number
+  title: string
+  status: 'created' | 'updated' | 'failed'
+  product_id?: string
+  reason?: string
+}
 
 // ── Copy-to-clipboard button ─────────────────────────────────────────────────
 
@@ -48,11 +60,16 @@ function Uploader() {
   const [result, setResult] = useState<CatalogParseResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [existingIds, setExistingIds] = useState<Set<string> | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [report, setReport] = useState<RowResult[] | null>(null)
 
   async function handleFile(file: File) {
     setError(null)
     setResult(null)
     setExistingIds(null)
+    setReport(null)
+    setProgress({ done: 0, total: 0 })
     if (file.size > 5 * 1024 * 1024) {
       setError('El archivo es muy grande (máx. 5 MB).')
       return
@@ -77,6 +94,36 @@ function Uploader() {
       }
     } catch {
       setError('No se pudo leer el archivo. Intenta de nuevo.')
+    }
+  }
+
+  async function runImport(rows: CatalogImportRow[]) {
+    setImporting(true)
+    setError(null)
+    const all: RowResult[] = []
+    setProgress({ done: 0, total: rows.length })
+    try {
+      for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
+        const chunk = rows.slice(i, i + IMPORT_CHUNK)
+        const res = await fetch('/api/sell/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: chunk }),
+        })
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string }
+          setError(err.error ?? 'No se pudo completar la importación.')
+          break
+        }
+        const data = (await res.json()) as { results: RowResult[] }
+        all.push(...data.results)
+        setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length })
+        setReport([...all])
+      }
+    } catch {
+      setError('Se interrumpió la importación. Revisa tu conexión e inténtalo de nuevo.')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -195,11 +242,15 @@ function Uploader() {
                 </p>
                 <button
                   type="button"
-                  disabled
-                  title="Disponible en el siguiente paso"
-                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed"
+                  disabled={importing || !!report}
+                  onClick={() => runImport(validRows.map((s) => s.row))}
+                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirmar e importar
+                  {importing
+                    ? `Procesando ${progress.done}/${progress.total}…`
+                    : report
+                      ? 'Importado'
+                      : `Confirmar e importar (${validCount})`}
                 </button>
               </div>
               <div className="overflow-x-auto">
@@ -237,11 +288,54 @@ function Uploader() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-4 py-2 text-xs text-[var(--color-muted)] border-t border-[var(--color-border)]">
-                La publicación de un clic llega en el siguiente paso.
-              </div>
+              {importing && (
+                <div className="px-4 py-3 border-t border-[var(--color-border)]">
+                  <div className="h-2 rounded-full bg-[var(--color-border)] overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--color-accent)] transition-all"
+                      style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Import report (US-4) */}
+          {report && (() => {
+            const created = report.filter((r) => r.status === 'created').length
+            const updated = report.filter((r) => r.status === 'updated').length
+            const failed = report.filter((r) => r.status === 'failed')
+            return (
+              <div className="mt-4 rounded-2xl border border-[var(--color-border)] p-4">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  {created > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">✓ {created} creados</span>
+                  )}
+                  {updated > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-sm font-semibold">↻ {updated} actualizados</span>
+                  )}
+                  {failed.length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">✕ {failed.length} fallaron</span>
+                  )}
+                </div>
+                {failed.length > 0 ? (
+                  <div className="space-y-2">
+                    {failed.map((r) => (
+                      <div key={r.line} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        <strong>{r.title}</strong>: {r.reason}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--color-muted)]">
+                    ¡Listo! Tu catálogo ya está publicado.{' '}
+                    <Link href="/shop/manage" className="text-[var(--color-accent)] hover:underline">Ver mis anuncios →</Link>
+                  </p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
