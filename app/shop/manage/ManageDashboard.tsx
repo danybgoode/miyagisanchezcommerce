@@ -390,14 +390,29 @@ export default function ManageDashboard({
             >
               Configuración
             </Link>
+            <span className="text-[var(--color-border)]">·</span>
+            <Link
+              href="/shop/manage/import"
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
+            >
+              Importar catálogo
+            </Link>
           </div>
         </div>
-        <Link
-          href="/sell"
-          className="flex-shrink-0 bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
-        >
-          + Nuevo anuncio
-        </Link>
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <Link
+            href="/shop/manage/import"
+            className="hidden sm:inline-block border border-[var(--color-border)] text-[var(--color-foreground)] px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-muted-bg,#f7f7f7)] transition-colors"
+          >
+            Importar
+          </Link>
+          <Link
+            href="/sell"
+            className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+          >
+            + Nuevo anuncio
+          </Link>
+        </div>
       </div>
 
       {/* ── Stats row ───────────────────────────────────────────────────────── */}
@@ -433,12 +448,20 @@ export default function ManageDashboard({
             <p className="text-sm text-[var(--color-muted)] mb-5">
               Publica tu primer producto, servicio o renta en menos de 2 minutos.
             </p>
-            <Link
-              href="/sell"
-              className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
-            >
-              Publicar primer anuncio
-            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/sell"
+                className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+              >
+                Publicar primer anuncio
+              </Link>
+              <Link
+                href="/shop/manage/import"
+                className="inline-block border border-[var(--color-border)] text-[var(--color-foreground)] px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-muted-bg,#f7f7f7)] transition-colors"
+              >
+                ¿Te cambias? Importa tu catálogo
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
