@@ -3,6 +3,7 @@ import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
 import DesktopUnreadBadge from '@/app/components/DesktopUnreadBadge'
+import ReferralAttribution from '@/app/components/ReferralAttribution'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import CartButton from '@/app/components/CartButton'
@@ -351,6 +352,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           <main>{children}</main>
+          <ReferralAttribution />
 
           <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div

@@ -70,6 +70,21 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   // ── Standard platform routing ────────────────────────────────────────────
   if (isProtected(req)) await auth.protect()
+
+  // ── Referral capture ──────────────────────────────────────────────────────
+  // A `?ref=CODE` on any platform page is stashed in a 30-day cookie. After the
+  // visitor signs up, the client posts to /api/referrals/attribute, which reads
+  // this cookie to credit the referrer.
+  const ref = req.nextUrl.searchParams.get('ref')
+  if (ref && /^[A-Za-z0-9]{4,12}$/.test(ref)) {
+    const res = NextResponse.next()
+    res.cookies.set('ref', ref.toUpperCase(), {
+      maxAge: 60 * 60 * 24 * 30,
+      path: '/',
+      sameSite: 'lax',
+    })
+    return res
+  }
 })
 
 export const config = {

@@ -94,6 +94,45 @@ export async function getReferrerByCode(code: string): Promise<string | null> {
   return data.clerk_user_id
 }
 
+export type AttributeResult = 'recorded' | 'skipped'
+
+/**
+ * Record that `referredClerkId` was referred by the owner of `code`.
+ * Returns 'recorded' on a fresh attribution, 'skipped' for self-referral,
+ * unknown code, already-referred, or any error. Idempotent — the unique
+ * constraint on referred_clerk_user_id prevents double-credit.
+ */
+export async function attributeReferral(
+  code: string,
+  referredClerkId: string,
+  referredEmail: string | null,
+): Promise<AttributeResult> {
+  if (!code || !referredClerkId) return 'skipped'
+
+  const referrer = await getReferrerByCode(code)
+  if (!referrer || referrer === referredClerkId) return 'skipped'
+
+  // Don't overwrite an existing attribution for this user.
+  const { data: already } = await db
+    .from('marketplace_referrals')
+    .select('id')
+    .eq('referred_clerk_user_id', referredClerkId)
+    .maybeSingle()
+  if (already) return 'skipped'
+
+  const { error } = await db.from('marketplace_referrals').insert({
+    referrer_clerk_user_id: referrer,
+    referred_clerk_user_id: referredClerkId,
+    referred_email: referredEmail,
+    status: 'signed_up',
+  })
+  if (error) {
+    if (error.code !== '23505') console.error('[referrals] attribute insert failed:', error.message)
+    return 'skipped'
+  }
+  return 'recorded'
+}
+
 /** Aggregate stats for the referrer's "Mis referidos" page. */
 export async function getReferralStats(clerkUserId: string): Promise<ReferralStats> {
   const empty: ReferralStats = { invited: 0, qualified: 0, rewarded: 0, credits: [] }
