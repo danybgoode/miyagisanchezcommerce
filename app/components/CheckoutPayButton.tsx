@@ -31,6 +31,7 @@ interface CheckoutPayButtonProps {
   currency: string
   offerId?: string
   offerAmountCents?: number
+  couponCode?: string
   fulfillmentMethod?: CheckoutFulfillmentMethod
   pickupSpotId?: string
   shippingAddress?: CheckoutShippingAddress
@@ -48,6 +49,7 @@ export default function CheckoutPayButton({
   currency,
   offerId,
   offerAmountCents,
+  couponCode,
   fulfillmentMethod,
   pickupSpotId,
   shippingAddress,
@@ -79,6 +81,7 @@ export default function CheckoutPayButton({
         buyerFirstName: user?.firstName ?? undefined,
         buyerLastName: user?.lastName ?? undefined,
         offerAmountCents,
+        couponCode,
         offerId,
         clerkJwt,
         fulfillmentMethod,

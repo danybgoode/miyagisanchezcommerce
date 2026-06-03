@@ -133,6 +133,47 @@ export default function CheckoutExperience({
   const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
   const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
 
+  // ── Coupon code ───────────────────────────────────────────────────────────
+  // Not offered when an accepted offer is in play (coupons don't stack on offers,
+  // mirroring the backend rule). Validation is a real-time preview; start-checkout
+  // re-checks authoritatively and recomputes the charged amount.
+  const couponsAllowed = !offerAmountCents
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountCents: number } | null>(null)
+  const [couponValidating, setCouponValidating] = useState(false)
+  const [couponError, setCouponError] = useState<string | null>(null)
+
+  async function applyCoupon() {
+    const code = couponInput.trim().toUpperCase()
+    if (!code) return
+    setCouponValidating(true)
+    setCouponError(null)
+    try {
+      const qs = new URLSearchParams({ sellerId, code, itemsCents: String(amountCents) })
+      const res = await fetch(`/api/checkout/validate-coupon?${qs}`)
+      const data = await res.json() as { valid?: boolean; code?: string; discount_cents?: number; message?: string }
+      if (!res.ok || !data.valid) {
+        setAppliedCoupon(null)
+        setCouponError(data.message ?? 'Cupón no válido.')
+        return
+      }
+      setAppliedCoupon({ code: data.code ?? code, discountCents: data.discount_cents ?? 0 })
+      setCouponInput(data.code ?? code)
+    } catch {
+      setCouponError('No se pudo validar el cupón. Intenta de nuevo.')
+    } finally {
+      setCouponValidating(false)
+    }
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponError(null)
+  }
+
+  const couponDiscountCents = appliedCoupon?.discountCents ?? 0
+
   const deliveryMethods = options?.delivery_methods ?? []
   const paymentMethods = options?.payment_methods ?? []
 
@@ -168,7 +209,7 @@ export default function CheckoutExperience({
         deliveryLabel: selectedShippingRate.deliveryLabel,
       }
     : undefined
-  const totalCents = amountCents + (selectedShippingRate?.amountCents ?? 0)
+  const totalCents = Math.max(0, amountCents - couponDiscountCents) + (selectedShippingRate?.amountCents ?? 0)
 
   // Manual ("Pago directo") — the buyer does NOT pick a sub-type at checkout.
   // We just summarize what the seller accepts; all instructions appear on the
@@ -536,6 +577,48 @@ export default function CheckoutExperience({
             <span style={{ color: 'var(--fg-muted)' }}>Comisión Miyagi</span>
             <strong>$0</strong>
           </div>
+
+          {/* ── Coupon code ─────────────────────────────────────────────── */}
+          {couponsAllowed && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+              {appliedCoupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, gap: 12 }}>
+                  <span style={{ color: 'var(--fg-muted)' }}>
+                    Cupón <strong style={{ color: 'var(--fg)', fontFamily: 'monospace' }}>{appliedCoupon.code}</strong>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <strong style={{ color: '#15803d' }}>−{formatCents(couponDiscountCents, currency)}</strong>
+                    <button type="button" onClick={removeCoupon} style={{ background: 'none', border: 'none', color: 'var(--fg-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                      Quitar
+                    </button>
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={couponInput}
+                      onChange={e => { setCouponInput(e.target.value.toUpperCase()); if (couponError) setCouponError(null) }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
+                      placeholder="Código de descuento"
+                      maxLength={24}
+                      style={{ ...inputStyle, flex: 1, fontFamily: 'monospace', letterSpacing: '0.04em' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={couponValidating || !couponInput.trim()}
+                      style={{ padding: '0 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: couponValidating || !couponInput.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                    >
+                      {couponValidating ? '…' : 'Aplicar'}
+                    </button>
+                  </div>
+                  {couponError && <p style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{couponError}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
             <span style={{ fontWeight: 800 }}>Total</span>
             <strong>{formatCents(totalCents, currency)}</strong>
@@ -552,6 +635,7 @@ export default function CheckoutExperience({
             currency={currency}
             offerId={offerId}
             offerAmountCents={offerAmountCents}
+            couponCode={appliedCoupon?.code}
             fulfillmentMethod={selectedDelivery?.id ?? 'none'}
             pickupSpotId={selectedPickupSpotId ?? undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}

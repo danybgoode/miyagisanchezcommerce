@@ -87,6 +87,8 @@ export interface StartCheckoutParams {
   buyerLastName?: string
   /** Accepted offer override in centavos */
   offerAmountCents?: number
+  /** Seller coupon code applied at checkout */
+  couponCode?: string
   /** Supabase offer ID — included in session metadata so the webhook can mark it paid */
   offerId?: string
   /** Clerk JWT — required for authenticated checkout */
@@ -136,7 +138,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
+    offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
     suppressManualEmail,
   } = params
 
@@ -220,6 +222,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       buyer_email: buyerEmail,
       ...(sellerId ? { seller_id: sellerId } : {}),
       ...(offerAmountCents ? { offer_amount_cents: offerAmountCents } : {}),
+      ...(couponCode ? { coupon_code: couponCode } : {}),
       ...(offerId ? { offer_id: offerId } : {}),
       ...(fulfillmentMethod ? { fulfillment_method: fulfillmentMethod } : {}),
       ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
