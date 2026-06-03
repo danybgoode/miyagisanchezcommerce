@@ -236,6 +236,10 @@ function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: stri
         <button onClick={() => setOpen((v) => !v)} className="text-xs text-[var(--color-accent)]">
           {open ? 'Ocultar anuncios' : 'Ver anuncios'}
         </button>
+        <a href={`/admin/print/${edition.id}/builder?secret=${encodeURIComponent(secret)}`}
+          className="text-xs text-[var(--color-accent)] no-underline font-medium">
+          ✎ Maquetar
+        </a>
         <a href={exportHref} className="text-xs text-[var(--color-accent)] no-underline" download>
           ⬇ Descargar paquete de producción
         </a>
