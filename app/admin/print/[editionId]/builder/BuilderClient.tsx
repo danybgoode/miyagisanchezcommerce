@@ -8,9 +8,11 @@ import {
 import type { PrintTier, PrintAdSubmission, PrintSocialSubmission } from '@/lib/print'
 import {
   emptyDocument, placedSubmissionIds, placedSocialIds, submissionToBlock, socialToBlock,
-  newPage, newId, newEditorialBlock, blockSize, spanKeyOf, densityRows,
-  PRINT_PAGE_DIMS, PRINT_SPAN_PRESETS,
+  newPage, newId, newEditorialBlock, blockSize, spanKeyOf, densityRows, findBlock,
+  PRINT_PAGE_DIMS, PRINT_SPAN_PRESETS, PRINT_BG_PALETTE, PRINT_BORDER_OPTIONS, PRINT_TEXT_SIZES,
+  PRINT_AD_FIELDS, PRINT_EDITORIAL_FIELDS,
   type PrintLayoutDocument, type PrintPageSize, type PrintDensity, type PrintSpanKey, type PrintPage, type PrintBlock,
+  type PrintBlockStyle, type PrintTextSize, type PrintBorderStyle,
 } from '@/lib/print-layout'
 import PrintAdBlock from '@/app/components/PrintAdBlock'
 
@@ -35,6 +37,7 @@ export default function BuilderClient({
   const [social, setSocial] = useState<PrintSocialSubmission[]>([])
   const [loaded, setLoaded] = useState(false)
   const [save, setSave] = useState<SaveState>('idle')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const api = useCallback(
     (path: string, init?: RequestInit) =>
@@ -131,6 +134,29 @@ export default function BuilderClient({
   }
   function setPageDensity(pageId: string, density: PrintDensity) {
     mutatePage(pageId, (p) => ({ ...p, density }))
+  }
+  function setBlockStyle(blockId: string, patch: Partial<PrintBlockStyle>) {
+    setDoc((d) => ({
+      ...d,
+      pages: d.pages.map((p) => ({
+        ...p,
+        blocks: p.blocks.map((b) => (b.id === blockId ? { ...b, style: { ...b.style, ...patch } } : b)),
+      })),
+    }))
+  }
+  function toggleField(blockId: string, field: string) {
+    setDoc((d) => ({
+      ...d,
+      pages: d.pages.map((p) => ({
+        ...p,
+        blocks: p.blocks.map((b) => {
+          if (b.id !== blockId) return b
+          const hidden = new Set(b.style.hidden_fields ?? [])
+          if (hidden.has(field)) hidden.delete(field); else hidden.add(field)
+          return { ...b, style: { ...b.style, hidden_fields: [...hidden] } }
+        }),
+      })),
+    }))
   }
   function insertEditorial(pageId: string, kind: 'section' | 'filler') {
     const label = window.prompt(kind === 'section' ? 'Título de la sección:' : 'Texto del relleno:') ?? ''
@@ -237,7 +263,7 @@ export default function BuilderClient({
           </aside>
 
           {/* Pages */}
-          <main className="flex-1 p-6 space-y-10 bg-[color-mix(in_srgb,var(--color-muted)_8%,transparent)]">
+          <main onClick={() => setSelectedId(null)} className="flex-1 p-6 space-y-10 bg-[color-mix(in_srgb,var(--color-muted)_8%,transparent)]">
             {doc.pages.map((page, i) => (
               <section key={page.id} className="mx-auto" style={{ maxWidth: 560 }}>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
@@ -259,6 +285,7 @@ export default function BuilderClient({
                 </div>
                 <PageGrid page={page} dims={dims}
                   tierLabel={tierLabel}
+                  selectedId={selectedId} onSelect={setSelectedId}
                   onSpan={(blockId, key) => setBlockSpan(page.id, blockId, key)}
                   onMerge={(blockId) => mergeWithNext(page.id, blockId)}
                   onEditLabel={(blockId, cur) => editLabel(page.id, blockId, cur)}
@@ -273,6 +300,19 @@ export default function BuilderClient({
           </main>
         </div>
       </DndContext>
+
+      {(() => {
+        const sel = selectedId ? findBlock(doc, selectedId) : null
+        if (!sel) return null
+        return (
+          <Inspector
+            block={sel.block}
+            onStyle={(patch) => setBlockStyle(sel.block.id, patch)}
+            onToggleField={(f) => toggleField(sel.block.id, f)}
+            onClose={() => setSelectedId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -312,6 +352,72 @@ function moveBlock(d: PrintLayoutDocument, blockId: string, overId: string): Pri
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
+function Inspector({ block, onStyle, onToggleField, onClose }: {
+  block: PrintBlock
+  onStyle: (patch: Partial<PrintBlockStyle>) => void
+  onToggleField: (field: string) => void
+  onClose: () => void
+}) {
+  const fields = block.kind === 'ad' ? PRINT_AD_FIELDS : PRINT_EDITORIAL_FIELDS
+  const hidden = new Set(block.style.hidden_fields ?? [])
+  const pill = (active: boolean) =>
+    `px-2 py-1 rounded-md text-xs border ${active ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]' : 'border-[var(--color-border)]'}`
+
+  return (
+    <aside className="fixed right-0 top-[57px] z-40 w-64 max-h-[calc(100vh-57px)] overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-bg)] p-4 space-y-4 shadow-xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold">Estilo del bloque</h2>
+        <button onClick={onClose} className="text-[var(--color-muted)] text-lg leading-none">×</button>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1.5">Fondo</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {PRINT_BG_PALETTE.map((c) => (
+            <button key={c.hex} title={c.label} onClick={() => onStyle({ bg: c.hex })}
+              className={`h-8 rounded-md border ${block.style.bg === c.hex ? 'ring-2 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}
+              style={{ background: c.hex }} />
+          ))}
+        </div>
+        <button onClick={() => onStyle({ bg: null })} className="mt-1.5 text-xs text-[var(--color-accent)]">Restablecer fondo</button>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1.5">Borde</div>
+        <div className="flex flex-wrap gap-1.5">
+          {PRINT_BORDER_OPTIONS.map((o) => (
+            <button key={o.key} onClick={() => onStyle({ border: o.key as PrintBorderStyle })}
+              className={pill((block.style.border ?? 'thick') === o.key)}>{o.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1.5">Tamaño de texto</div>
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => onStyle({ text_size: undefined })} className={pill(!block.style.text_size)}>Auto</button>
+          {PRINT_TEXT_SIZES.map((t) => (
+            <button key={t.key} onClick={() => onStyle({ text_size: t.key as PrintTextSize })}
+              className={pill(block.style.text_size === t.key)}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-1.5">Mostrar campos</div>
+        <div className="space-y-1">
+          {fields.map((f) => (
+            <label key={f.key} className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!hidden.has(f.key)} onChange={() => onToggleField(f.key)} />
+              {f.label}
+            </label>
+          ))}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
 function TrayCard({ title, subtitle, pages, onPlace }: {
   title: string; subtitle: string; pages: PrintPage[]; onPlace: (pageId: string) => void
 }) {
@@ -331,10 +437,12 @@ function TrayCard({ title, subtitle, pages, onPlace }: {
   )
 }
 
-function PageGrid({ page, dims, tierLabel, onSpan, onMerge, onEditLabel, onRemove, placeholderHint }: {
+function PageGrid({ page, dims, tierLabel, selectedId, onSelect, onSpan, onMerge, onEditLabel, onRemove, placeholderHint }: {
   page: PrintPage
   dims: { w_mm: number; h_mm: number }
   tierLabel: (k: string | null | undefined) => string
+  selectedId: string | null
+  onSelect: (blockId: string) => void
   onSpan: (blockId: string, key: PrintSpanKey) => void
   onMerge: (blockId: string) => void
   onEditLabel: (blockId: string, current: string) => void
@@ -348,6 +456,7 @@ function PageGrid({ page, dims, tierLabel, onSpan, onMerge, onEditLabel, onRemov
         style={{ gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: `repeat(${densityRows(page.density)}, 1fr)`, gridAutoRows: '1fr', gridAutoFlow: 'dense' }}>
         {page.blocks.map((b) => (
           <BlockSlot key={b.id} block={b} density={page.density} tierLabel={tierLabel(b.tier_key)}
+            selected={selectedId === b.id} onSelect={() => onSelect(b.id)}
             onSpan={(key) => onSpan(b.id, key)} onMerge={() => onMerge(b.id)}
             onEditLabel={() => onEditLabel(b.id, b.content.label ?? '')} onRemove={() => onRemove(b.id)} />
         ))}
@@ -361,10 +470,12 @@ function PageGrid({ page, dims, tierLabel, onSpan, onMerge, onEditLabel, onRemov
   )
 }
 
-function BlockSlot({ block, density, tierLabel, onSpan, onMerge, onEditLabel, onRemove }: {
+function BlockSlot({ block, density, tierLabel, selected, onSelect, onSpan, onMerge, onEditLabel, onRemove }: {
   block: PrintBlock
   density: PrintDensity
   tierLabel: string
+  selected: boolean
+  onSelect: () => void
   onSpan: (key: PrintSpanKey) => void
   onMerge: () => void
   onEditLabel: () => void
@@ -377,12 +488,15 @@ function BlockSlot({ block, density, tierLabel, onSpan, onMerge, onEditLabel, on
     : undefined
   const isEditorial = block.kind !== 'ad'
   return (
-    <div ref={setDropRef} className="relative group min-h-0" style={{ gridColumn: `span ${block.span.col}`, gridRow: `span ${block.span.row}` }}>
+    <div ref={setDropRef}
+      className={`relative group min-h-0 ${selected ? 'outline outline-2 outline-offset-1 outline-[var(--color-accent)]' : ''}`}
+      style={{ gridColumn: `span ${block.span.col}`, gridRow: `span ${block.span.row}` }}>
       <div ref={setDragRef} {...listeners} {...attributes} style={dragStyle}
+        onClick={(e) => { e.stopPropagation(); onSelect() }}
         className="h-full w-full cursor-grab active:cursor-grabbing touch-none">
         <PrintAdBlock block={block} tierLabel={tierLabel} size={blockSize(density, block.span)} />
       </div>
-      <div className="absolute right-1 top-1 z-10 hidden group-hover:flex items-center gap-1">
+      <div onClick={(e) => e.stopPropagation()} className="absolute right-1 top-1 z-10 hidden group-hover:flex items-center gap-1">
         {isEditorial && (
           <button onClick={onEditLabel} title="Editar texto" className="h-5 px-1 rounded bg-black/70 text-white text-[10px] leading-none grid place-items-center">✎</button>
         )}

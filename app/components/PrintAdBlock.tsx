@@ -5,7 +5,15 @@
  * render identically. Shares the palette of app/components/PrintAdPreview.tsx.
  */
 
-import type { PrintBlock, PrintBlockSize } from '@/lib/print-layout'
+import type { PrintBlock, PrintBlockSize, PrintTextSize } from '@/lib/print-layout'
+
+/** Manual text-scale override (US-3); when unset, scale follows the block footprint. */
+const TEXT_SCALE: Record<PrintTextSize, { headline: string; body: string; sub: string }> = {
+  xs:   { headline: 'text-xs',   body: 'text-[9px]',  sub: 'text-[9px]' },
+  sm:   { headline: 'text-base', body: 'text-[10px]', sub: 'text-[10px]' },
+  base: { headline: 'text-xl',   body: 'text-xs',     sub: 'text-xs' },
+  lg:   { headline: 'text-3xl',  body: 'text-sm',     sub: 'text-sm' },
+}
 
 const SIZE: Record<PrintBlockSize, {
   pad: string; photo: string; headline: string; sub: string; body: string; qr: string; showBody: boolean; showSub: boolean
@@ -30,6 +38,10 @@ const GREEN = '#0a4d2e'
 export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintBlock; tierLabel?: string; size: PrintBlockSize }) {
   const { content, style, kind } = block
   const s = SIZE[size]
+  const ts = style.text_size ? TEXT_SCALE[style.text_size] : null
+  const headlineCls = ts?.headline ?? s.headline
+  const bodyCls = ts?.body ?? s.body
+  const subCls = ts?.sub ?? s.sub
   const hidden = (f: string) => style.hidden_fields?.includes(f)
   const borderCls = BORDER[style.border ?? 'thick']
   const bg = style.bg || DEFAULT_BG
@@ -45,13 +57,13 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photo} alt="" className={`w-full object-cover mb-2 border ${s.photo}`} style={{ borderColor: `${GREEN}55` }} />
         )}
-        <div className={`font-black uppercase leading-tight ${kind === 'cover' ? 'text-4xl' : s.headline}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
+        <div className={`font-black uppercase leading-tight ${kind === 'cover' ? 'text-4xl' : headlineCls}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
           {content.label || content.headline || '—'}
         </div>
         {content.body && s.showBody && !hidden('body') && (
-          <p className={`mt-1.5 leading-snug ${s.body}`}>{content.body}</p>
+          <p className={`mt-1.5 leading-snug ${bodyCls}`}>{content.body}</p>
         )}
-        {content.subhead && <p className={`italic mt-1 ${s.sub}`} style={{ color: '#a3331f' }}>{content.subhead}</p>}
+        {content.subhead && <p className={`italic mt-1 ${subCls}`} style={{ color: '#a3331f' }}>{content.subhead}</p>}
       </div>
     )
   }
@@ -76,16 +88,16 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
           )}
           <div className="flex-1 min-w-0">
             {!hidden('headline') && (
-              <h3 className={`leading-none font-black uppercase ${s.headline}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
+              <h3 className={`leading-none font-black uppercase ${headlineCls}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
                 {content.headline || '(sin titular)'}
               </h3>
             )}
             {content.subhead && s.showSub && !hidden('subhead') && (
-              <p className={`italic mt-0.5 ${s.sub}`} style={{ color: '#a3331f' }}>{content.subhead}</p>
+              <p className={`italic mt-0.5 ${subCls}`} style={{ color: '#a3331f' }}>{content.subhead}</p>
             )}
           </div>
           {content.price && !hidden('price') && (
-            <span className={`font-black flex-shrink-0 ${s.sub}`} style={{ color: GREEN }}>{content.price}</span>
+            <span className={`font-black flex-shrink-0 ${subCls}`} style={{ color: GREEN }}>{content.price}</span>
           )}
         </div>
 
@@ -95,12 +107,12 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
         )}
 
         {content.body && s.showBody && !hidden('body') && (
-          <p className={`mt-2 leading-snug ${s.body} overflow-hidden`}>{content.body}</p>
+          <p className={`mt-2 leading-snug ${bodyCls} overflow-hidden`}>{content.body}</p>
         )}
 
         {!hidden('contact') && (
           <div className="mt-auto pt-2 flex items-end justify-between gap-2" style={{ borderTop: `2px dashed ${GREEN}66` }}>
-            <div className={`leading-relaxed ${s.body}`}>
+            <div className={`leading-relaxed ${bodyCls}`}>
               {wa && <div>📱 {wa}</div>}
               {content.contact?.phone && <div>☎ {content.contact.phone}</div>}
               {content.cta_target?.url && (

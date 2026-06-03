@@ -42,6 +42,47 @@ export type PrintBlockKind = 'ad' | 'cover' | 'section' | 'filler'
 export type PrintBorderStyle = 'thick' | 'dotted' | 'double' | 'none'
 export type PrintTextSize = 'xs' | 'sm' | 'base' | 'lg'
 
+/** Curated México-86 retro palette for block backgrounds (US-3 inspector). */
+export const PRINT_BG_PALETTE: { label: string; hex: string }[] = [
+  { label: 'Crema',    hex: '#fdfaf2' },
+  { label: 'Amarillo', hex: '#f7e6a2' },
+  { label: 'Durazno',  hex: '#f6c8a8' },
+  { label: 'Rosa',     hex: '#f3cdd8' },
+  { label: 'Menta',    hex: '#cfe8d6' },
+  { label: 'Cielo',    hex: '#cfe0f0' },
+  { label: 'Arena',    hex: '#e8dcc0' },
+  { label: 'Lavanda',  hex: '#ddd3ee' },
+]
+
+export const PRINT_BORDER_OPTIONS: { key: PrintBorderStyle; label: string }[] = [
+  { key: 'thick',  label: 'Gruesa' },
+  { key: 'dotted', label: 'Punteada' },
+  { key: 'double', label: 'Doble' },
+  { key: 'none',   label: 'Sin borde' },
+]
+
+export const PRINT_TEXT_SIZES: { key: PrintTextSize; label: string }[] = [
+  { key: 'xs',   label: 'XS' },
+  { key: 'sm',   label: 'S' },
+  { key: 'base', label: 'M' },
+  { key: 'lg',   label: 'L' },
+]
+
+/** Toggleable fields per block kind (hidden_fields). Headline/label stay always-on. */
+export const PRINT_AD_FIELDS: { key: string; label: string }[] = [
+  { key: 'logo',    label: 'Logo' },
+  { key: 'subhead', label: 'Subtítulo' },
+  { key: 'photo',   label: 'Foto' },
+  { key: 'price',   label: 'Precio' },
+  { key: 'body',    label: 'Descripción' },
+  { key: 'contact', label: 'Contacto' },
+  { key: 'qr',      label: 'QR' },
+]
+export const PRINT_EDITORIAL_FIELDS: { key: string; label: string }[] = [
+  { key: 'photo', label: 'Foto' },
+  { key: 'body',  label: 'Texto' },
+]
+
 export interface PrintBlockStyle {
   /** Hex from the curated retro palette (US-3). */
   bg?: string | null
@@ -163,6 +204,15 @@ export function socialToBlock(item: Pick<PrintSocialSubmission, 'id' | 'caption'
     style: {},
     tier_key: null,
   }
+}
+
+/** Locate a block by id across all pages (for inspector selection / style edits). */
+export function findBlock(doc: PrintLayoutDocument, blockId: string): { pageId: string; block: PrintBlock } | null {
+  for (const p of doc.pages ?? []) {
+    const block = p.blocks.find((b) => b.id === blockId)
+    if (block) return { pageId: p.id, block }
+  }
+  return null
 }
 
 /** New editorial insert (cover / section header / filler). */
