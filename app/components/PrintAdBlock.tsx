@@ -34,18 +34,24 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
   const borderCls = BORDER[style.border ?? 'thick']
   const bg = style.bg || DEFAULT_BG
 
-  // Editorial inserts (US-2): cover / section header / filler.
+  // Editorial inserts (US-2): cover / section header / filler / social.
   if (kind !== 'ad') {
+    const photo = content.photos?.[0] ?? null
     return (
-      <div className={`h-full w-full grid place-items-center text-center ${s.pad} ${borderCls}`}
+      <div className={`h-full w-full flex flex-col items-center justify-center text-center overflow-hidden ${s.pad} ${borderCls}`}
         style={{ background: bg, color: INK, borderColor: GREEN }}>
-        <div>
-          {kind === 'section' && <div className="text-[10px] uppercase tracking-[0.25em]" style={{ color: GREEN }}>Sección</div>}
-          <div className={`font-black uppercase ${kind === 'cover' ? 'text-5xl' : 'text-2xl'}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
-            {content.label || content.headline || '—'}
-          </div>
-          {content.subhead && <p className="italic mt-2" style={{ color: '#a3331f' }}>{content.subhead}</p>}
+        {kind === 'section' && <div className="text-[10px] uppercase tracking-[0.25em] mb-1" style={{ color: GREEN }}>Sección</div>}
+        {photo && !hidden('photo') && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo} alt="" className={`w-full object-cover mb-2 border ${s.photo}`} style={{ borderColor: `${GREEN}55` }} />
+        )}
+        <div className={`font-black uppercase leading-tight ${kind === 'cover' ? 'text-4xl' : s.headline}`} style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
+          {content.label || content.headline || '—'}
         </div>
+        {content.body && s.showBody && !hidden('body') && (
+          <p className={`mt-1.5 leading-snug ${s.body}`}>{content.body}</p>
+        )}
+        {content.subhead && <p className={`italic mt-1 ${s.sub}`} style={{ color: '#a3331f' }}>{content.subhead}</p>}
       </div>
     )
   }

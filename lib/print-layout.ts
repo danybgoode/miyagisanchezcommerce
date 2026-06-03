@@ -8,7 +8,7 @@
  * for load/save and the migration 20260603000000_print_layouts.sql for storage.
  */
 
-import type { PrintAdContent, PrintAdSubmission, PrintTierKey } from '@/lib/print'
+import type { PrintAdContent, PrintAdSubmission, PrintSocialSubmission, PrintTierKey } from '@/lib/print'
 
 // ── Paper / grid ──────────────────────────────────────────────────────────────
 
@@ -152,15 +152,44 @@ export function submissionToBlock(sub: Pick<PrintAdSubmission, 'id' | 'tier_key'
   }
 }
 
-/** Submission ids already placed anywhere in the document (to filter the tray). */
-export function placedSubmissionIds(doc: PrintLayoutDocument): Set<string> {
+/** Map an approved community/editor social item to a quarter-size editorial block. */
+export function socialToBlock(item: Pick<PrintSocialSubmission, 'id' | 'caption' | 'body' | 'photos'>): PrintBlock {
+  return {
+    id: uid(),
+    kind: 'filler',
+    source: { type: 'social', ref_id: item.id },
+    span: { col: 1, row: 1 },
+    content: { label: item.caption, body: item.body ?? undefined, photos: item.photos ?? [] },
+    style: {},
+    tier_key: null,
+  }
+}
+
+/** New editorial insert (cover / section header / filler). */
+export function newEditorialBlock(kind: Extract<PrintBlockKind, 'cover' | 'section' | 'filler'>, label: string): PrintBlock {
+  const span: PrintBlockSpan = kind === 'cover' ? { col: 2, row: 2 } : kind === 'section' ? { col: 2, row: 1 } : { col: 1, row: 1 }
+  return { id: uid(), kind, source: { type: 'custom' }, span, content: { label }, style: {}, tier_key: null }
+}
+
+/** Source ids of blocks already placed, keyed by source type (to filter trays). */
+function placedRefIds(doc: PrintLayoutDocument, type: PrintBlockSourceType): Set<string> {
   const ids = new Set<string>()
   for (const page of doc.pages ?? []) {
     for (const b of page.blocks ?? []) {
-      if (b.source.type === 'submission' && b.source.ref_id) ids.add(b.source.ref_id)
+      if (b.source.type === type && b.source.ref_id) ids.add(b.source.ref_id)
     }
   }
   return ids
+}
+
+/** Submission ids already placed anywhere in the document (to filter the tray). */
+export function placedSubmissionIds(doc: PrintLayoutDocument): Set<string> {
+  return placedRefIds(doc, 'submission')
+}
+
+/** Social item ids already placed (to filter the social tray). */
+export function placedSocialIds(doc: PrintLayoutDocument): Set<string> {
+  return placedRefIds(doc, 'social')
 }
 
 export { uid as newId }
