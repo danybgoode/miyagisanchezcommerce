@@ -26,7 +26,7 @@ export default async function BuyerOrderDetailPage({
     const clerkJwt = await getToken()
     if (!clerkJwt) redirect('/sign-in')
 
-    const res = await fetch(`${MEDUSA_BASE}/store/customers/me/orders/${id}`, {
+    const res = await fetch(`${MEDUSA_BASE}/store/buyer/me/orders/${id}`, {
       headers: {
         'x-publishable-api-key': MEDUSA_PUB_KEY,
         Authorization: `Bearer ${clerkJwt}`,

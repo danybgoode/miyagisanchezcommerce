@@ -55,7 +55,7 @@ export default async function AccountOrdersPage() {
     const { getToken } = await auth()
     const clerkJwt = await getToken()
     if (clerkJwt) {
-      const res = await fetch(`${MEDUSA_BASE}/store/customers/me/orders`, {
+      const res = await fetch(`${MEDUSA_BASE}/store/buyer/me/orders`, {
         headers: {
           'x-publishable-api-key': MEDUSA_PUB_KEY,
           Authorization: `Bearer ${clerkJwt}`,

@@ -2,7 +2,7 @@
  * POST /api/orders/[id]/confirm-delivery
  *
  * Buyer confirms delivery. For Medusa orders (order_*): proxies to
- * POST /store/customers/me/orders/:id/confirm-delivery which handles escrow capture.
+ * POST /store/buyer/me/orders/:id/confirm-delivery which handles escrow capture.
  * For legacy Supabase orders: marks status as 'completed'.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -23,7 +23,7 @@ export async function POST(
 
   // Medusa-backed order
   if (id.startsWith('order_')) {
-    const res = await fetch(`${MEDUSA_BASE}/store/customers/me/orders/${id}/confirm-delivery`, {
+    const res = await fetch(`${MEDUSA_BASE}/store/buyer/me/orders/${id}/confirm-delivery`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

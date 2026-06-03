@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Order context (buyer email, items, amount, manual instructions)
-    const res = await fetch(`${MEDUSA_BASE}/store/customers/me/orders/${orderId}`, {
+    const res = await fetch(`${MEDUSA_BASE}/store/buyer/me/orders/${orderId}`, {
       headers: { 'x-publishable-api-key': PUB_KEY, Authorization: `Bearer ${clerkJwt}` },
       cache: 'no-store',
     })

@@ -40,7 +40,7 @@ export async function GET(
   if (id.startsWith('order_')) {
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
-    const res = await medusaFetch(`/store/customers/me/orders/${id}/return-request`, clerkJwt)
+    const res = await medusaFetch(`/store/buyer/me/orders/${id}/return-request`, clerkJwt)
     const data = await res.json()
     if (!res.ok) return NextResponse.json({ error: data.message ?? 'Error.' }, { status: res.status })
     return NextResponse.json({ request: data.return_request })
@@ -75,7 +75,7 @@ export async function POST(
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-    const res = await medusaFetch(`/store/customers/me/orders/${id}/return-request`, clerkJwt, {
+    const res = await medusaFetch(`/store/buyer/me/orders/${id}/return-request`, clerkJwt, {
       method: 'POST',
       body: JSON.stringify({ reason: body.reason, description: body.description }),
     })
@@ -87,7 +87,7 @@ export async function POST(
 
     // Resolve seller for email notification
     try {
-      const orderRes = await medusaFetch(`/store/customers/me/orders/${id}`, clerkJwt)
+      const orderRes = await medusaFetch(`/store/buyer/me/orders/${id}`, clerkJwt)
       if (orderRes.ok) {
         const orderData = await orderRes.json() as { order?: { marketplace_shops?: { id?: string; name?: string; clerk_user_id?: string }; marketplace_listings?: { title?: string } } }
         const shop    = orderData.order?.marketplace_shops
