@@ -22,6 +22,7 @@ type RowResult = {
   status: 'created' | 'updated' | 'failed'
   product_id?: string
   reason?: string
+  images_failed?: number
 }
 
 // ── Copy-to-clipboard button ─────────────────────────────────────────────────
@@ -306,6 +307,7 @@ function Uploader() {
             const created = report.filter((r) => r.status === 'created').length
             const updated = report.filter((r) => r.status === 'updated').length
             const failed = report.filter((r) => r.status === 'failed')
+            const imagesFailed = report.reduce((sum, r) => sum + (r.images_failed ?? 0), 0)
             return (
               <div className="mt-4 rounded-2xl border border-[var(--color-border)] p-4">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -331,6 +333,11 @@ function Uploader() {
                   <p className="text-sm text-[var(--color-muted)]">
                     ¡Listo! Tu catálogo ya está publicado.{' '}
                     <Link href="/shop/manage" className="text-[var(--color-accent)] hover:underline">Ver mis anuncios →</Link>
+                  </p>
+                )}
+                {imagesFailed > 0 && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    ⚠️ {imagesFailed} imagen(es) no se pudieron traer y se dejaron con su enlace original.
                   </p>
                 )}
               </div>

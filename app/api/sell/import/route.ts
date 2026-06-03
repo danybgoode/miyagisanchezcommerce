@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { validateRows, type CatalogImportRow } from '@/lib/catalog-import'
+import { ingestImageUrls } from '@/lib/image-ingest'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -27,11 +28,12 @@ type RowResult = {
   status: 'created' | 'updated' | 'failed'
   product_id?: string
   reason?: string
+  images_failed?: number
 }
 
 const isStockable = (lt?: string) => (lt ?? 'product') === 'product'
 
-function buildCreateBody(row: CatalogImportRow) {
+function buildCreateBody(row: CatalogImportRow, images: Array<{ url: string; alt?: string }>) {
   const listingType = row.listing_type ?? 'product'
   const priceCents = row.price != null ? Math.round(row.price * 100) : null
   const location = [row.city?.trim(), row.state?.trim()].filter(Boolean).join(', ') || null
@@ -48,7 +50,7 @@ function buildCreateBody(row: CatalogImportRow) {
     location,
     quantity: isStockable(listingType) ? Math.max(1, Math.floor(row.quantity ?? 1)) : 1,
     weight_grams: row.weight_grams ?? null,
-    images: (row.images ?? []).map((url) => ({ url, alt: row.title })),
+    images,
     metadata: { external_id: row.external_id ?? null },
   }
 }
@@ -136,9 +138,11 @@ export async function POST(req: NextRequest) {
         }
         results.push({ line: s.line, title, status: 'updated', product_id: existingId })
       } else {
+        // Pull remote images into our R2 asset pipeline (graceful per-image).
+        const ingest = await ingestImageUrls(userId, s.row.images ?? [], s.row.title)
         const res = await medusaFetch('/store/sellers/me/products', clerkJwt, {
           method: 'POST',
-          body: JSON.stringify(buildCreateBody(s.row)),
+          body: JSON.stringify(buildCreateBody(s.row, ingest.images)),
         })
         const data = (await res.json().catch(() => ({}))) as { product_id?: string; message?: string }
         if (!res.ok || !data.product_id) {
@@ -147,7 +151,10 @@ export async function POST(req: NextRequest) {
         }
         // Track within this batch so a repeated external_id updates instead of duplicating.
         if (extId) map.set(extId, data.product_id)
-        results.push({ line: s.line, title, status: 'created', product_id: data.product_id })
+        results.push({
+          line: s.line, title, status: 'created', product_id: data.product_id,
+          ...(ingest.failed > 0 ? { images_failed: ingest.failed } : {}),
+        })
       }
     } catch (e) {
       results.push({ line: s.line, title, status: 'failed', reason: e instanceof Error ? e.message : 'Error inesperado.' })
