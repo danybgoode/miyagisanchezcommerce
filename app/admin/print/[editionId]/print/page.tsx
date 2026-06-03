@@ -55,8 +55,9 @@ export default async function PrintViewPage({
     .cmark { position: absolute; background: #000; }
     @media print {
       html, body { background: #fff !important; }
-      body * { visibility: hidden; }
-      .print-root, .print-root * { visibility: visible; }
+      /* Drop the site chrome entirely (no reserved space → no blank pages). */
+      body > *:not(main) { display: none !important; }
+      body > main { display: block !important; margin: 0 !important; padding: 0 !important; }
       .print-root { position: static !important; overflow: visible !important; background: #fff !important; padding: 0 !important; }
       .sheet { margin: 0 !important; box-shadow: none !important; }
       .no-print { display: none !important; }
