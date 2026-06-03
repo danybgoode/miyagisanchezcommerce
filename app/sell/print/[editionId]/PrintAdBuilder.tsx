@@ -54,6 +54,12 @@ export default function PrintAdBuilder({
   const [loadedStatus, setLoadedStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState<null | 'saving' | 'paying'>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Coupon (referral reward / platform promo, redeemable on print-ad checkout)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountCents: number } | null>(null)
+  const [couponValidating, setCouponValidating] = useState(false)
+  const [couponError, setCouponError] = useState<string | null>(null)
   const [manualInfo, setManualInfo] = useState<{
     spei?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null } | null
     dimo?: { phone?: string | null } | null
@@ -174,6 +180,29 @@ export default function PrintAdBuilder({
     window.location.href = '/account/print-ads'
   }
 
+  async function applyCoupon() {
+    const code = couponInput.trim().toUpperCase()
+    if (!code || !tier) return
+    setCouponValidating(true)
+    setCouponError(null)
+    try {
+      const qs = new URLSearchParams({ sellerId: 'miyagiprints', code, itemsCents: String(tier.price_cents) })
+      const res = await fetch(`/api/checkout/validate-coupon?${qs}`)
+      const data = await res.json() as { valid?: boolean; code?: string; discount_cents?: number; message?: string }
+      if (!res.ok || !data.valid) {
+        setAppliedCoupon(null)
+        setCouponError(data.message ?? 'Cupón no válido.')
+        return
+      }
+      setAppliedCoupon({ code: data.code ?? code, discountCents: data.discount_cents ?? 0 })
+      setCouponInput(data.code ?? code)
+    } catch {
+      setCouponError('No se pudo validar el cupón.')
+    } finally {
+      setCouponValidating(false)
+    }
+  }
+
   async function onPay(provider: Provider) {
     setBusy('paying')
     const id = await persist()
@@ -181,7 +210,7 @@ export default function PrintAdBuilder({
     const res = await fetch(`/api/print/submissions/${id}/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider }),
+      body: JSON.stringify({ provider, ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}) }),
     })
     const data = await res.json().catch(() => ({}))
     setBusy(null)
@@ -346,9 +375,39 @@ export default function PrintAdBuilder({
 
       {/* Actions */}
       <div className="sticky bottom-0 bg-[var(--color-background)] border-t border-[var(--color-border)] mt-6 py-4 -mx-4 px-4">
+        {/* Coupon (referral reward / platform promo) */}
+        {!isResubmit && !isLockedEdit && tier && (
+          <div className="mb-3">
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-[var(--color-muted)]">Cupón <strong className="font-mono text-[var(--color-foreground)]">{appliedCoupon.code}</strong></span>
+                <span className="flex items-center gap-2">
+                  <strong className="text-green-700">−{formatMXN(appliedCoupon.discountCents)}</strong>
+                  <button type="button" onClick={() => { setAppliedCoupon(null); setCouponInput('') }} className="text-xs underline text-[var(--color-muted)]">Quitar</button>
+                </span>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-2">
+                  <input value={couponInput} onChange={e => { setCouponInput(e.target.value.toUpperCase()); if (couponError) setCouponError(null) }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
+                    placeholder="¿Tienes un cupón?" maxLength={24}
+                    className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-mono bg-[var(--color-background)]" />
+                  <button type="button" onClick={applyCoupon} disabled={couponValidating || !couponInput.trim()}
+                    className="px-3 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] disabled:opacity-50">
+                    {couponValidating ? '…' : 'Aplicar'}
+                  </button>
+                </div>
+                {couponError && <p className="text-xs text-red-600 mt-1.5">{couponError}</p>}
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm text-[var(--color-muted)]">Total</span>
-          <span className="text-xl font-bold">{tier ? formatMXN(tier.price_cents) : '—'}</span>
+          <span className="text-xl font-bold">
+            {tier ? formatMXN(Math.max(0, tier.price_cents - (appliedCoupon?.discountCents ?? 0))) : '—'}
+          </span>
         </div>
         {isResubmit ? (
           // Rejected ad (already paid): edit + resubmit, no re-payment.

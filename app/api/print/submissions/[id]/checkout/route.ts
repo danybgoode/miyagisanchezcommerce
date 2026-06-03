@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  let body: { provider: CheckoutProvider }
+  let body: { provider: CheckoutProvider; couponCode?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
   if (!body.provider || !PROVIDERS.includes(body.provider)) {
     return NextResponse.json({ error: 'Método de pago no válido.' }, { status: 400 })
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       buyerFirstName: user?.firstName ?? undefined,
       buyerLastName: user?.lastName ?? undefined,
       clerkJwt: clerkJwt ?? undefined,
+      couponCode: body.couponCode,
       fulfillmentMethod: 'digital',
       // Print sends its own payment-pending email (not the generic manual order one).
       suppressManualEmail: true,
