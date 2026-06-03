@@ -9,9 +9,10 @@ import {
   MAX_IMPORT_ROWS,
   EXTRACT_CHAR_LIMIT,
   parseCatalogFile,
+  validateRows,
+  CATALOG_CATEGORY_KEYS,
   type CatalogParseResult,
   type CatalogImportRow,
-  type ImportIssue,
 } from '@/lib/catalog-import'
 
 /** Must match CHUNK_MAX in app/api/sell/import/route.ts. */
@@ -49,12 +50,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
   )
 }
 
-// ── Uploader (US-2: pick a file → parse → validate → plain-language errors) ──
-
-function priceLabel(price?: number, currency?: string) {
-  if (price === undefined) return 'A convenir'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency ?? 'MXN', maximumFractionDigits: 0 }).format(price)
-}
+// ── Uploader: paste/file → validate → editable staging → import ──────────────
 
 function Uploader() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -67,6 +63,8 @@ function Uploader() {
   const [report, setReport] = useState<RowResult[] | null>(null)
   const [pasteText, setPasteText] = useState('')
   const [extracting, setExtracting] = useState(false)
+  // Editable working copy of the rows (Story B: inline-fix before importing).
+  const [editRows, setEditRows] = useState<CatalogImportRow[]>([])
 
   // Shared by both inputs (file + paste): show staging and fetch existing ids.
   async function applyResult(parsed: CatalogParseResult) {
@@ -74,6 +72,7 @@ function Uploader() {
     setProgress({ done: 0, total: 0 })
     setExistingIds(null)
     setResult(parsed)
+    setEditRows(parsed.staged.map((s) => ({ ...s.row })))
     if (parsed.staged.some((s) => s.valid)) {
       try {
         const res = await fetch('/api/sell/import/existing')
@@ -90,6 +89,7 @@ function Uploader() {
   async function handleFile(file: File) {
     setError(null)
     setResult(null)
+    setEditRows([])
     setFileName(null)
     if (file.size > 5 * 1024 * 1024) {
       setError('El archivo es muy grande (máx. 5 MB).')
@@ -108,6 +108,7 @@ function Uploader() {
     if (!pasteText.trim() || pasteText.length > EXTRACT_CHAR_LIMIT) return
     setError(null)
     setResult(null)
+    setEditRows([])
     setFileName(null)
     setExtracting(true)
     try {
@@ -163,17 +164,30 @@ function Uploader() {
     }
   }
 
-  const validRows = result?.staged.filter((s) => s.valid) ?? []
+  // Re-validate the editable rows live so inline fixes flip a row to valid.
+  const staged = editRows.length ? validateRows(editRows) : []
+  const validRows = staged.filter((s) => s.valid)
   const validCount = validRows.length
-  const errorRowCount = result?.staged.filter((s) => !s.valid).length ?? 0
+  const errorRowCount = staged.filter((s) => !s.valid).length
   const isExisting = (extId?: string) => !!(extId && existingIds?.has(extId))
   const updateCount = validRows.filter((s) => isExisting(s.row.external_id)).length
   const createCount = validCount - updateCount
-  const allIssues: ImportIssue[] = result
-    ? [...result.fileErrors, ...result.staged.flatMap((s) => s.issues)]
-    : []
-  const errorIssues = allIssues.filter((i) => i.level === 'error')
-  const warningIssues = allIssues.filter((i) => i.level === 'warning')
+  const fileErrors = result?.fileErrors ?? []
+  const warningIssues = staged.flatMap((s) => s.issues).filter((i) => i.level === 'warning')
+
+  function updateField(i: number, field: keyof CatalogImportRow, raw: string) {
+    setEditRows((prev) => prev.map((row, idx) => {
+      if (idx !== i) return row
+      const next = { ...row }
+      if (field === 'price' || field === 'quantity') {
+        const n = raw.trim() === '' ? undefined : Number(raw.replace(/[^\d.]/g, ''))
+        next[field] = (n === undefined || Number.isNaN(n) ? undefined : n) as never
+      } else {
+        next[field] = (raw === '' ? undefined : raw) as never
+      }
+      return next
+    }))
+  }
 
   return (
     <div>
@@ -252,66 +266,44 @@ function Uploader() {
 
       {result && (
         <div className="mt-4">
-          {/* Summary */}
-          <div className="flex flex-wrap items-center gap-3 mb-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">
-              ✓ {validCount} {validCount === 1 ? 'producto válido' : 'productos válidos'}
-            </span>
-            {errorRowCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
-                ✕ {errorRowCount} con errores
-              </span>
-            )}
-            {result.format && (
-              <span className="text-xs text-[var(--color-muted)] uppercase tracking-wide">
-                formato {result.format}
-              </span>
-            )}
-          </div>
-
-          {/* Error cards */}
-          {errorIssues.length > 0 && (
+          {/* File-level errors (unparseable / over cap) */}
+          {fileErrors.length > 0 && (
             <div className="space-y-2 mb-3">
-              <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">
-                Corrige esto y vuelve a subir
-              </p>
-              {errorIssues.map((issue, idx) => (
+              {fileErrors.map((issue, idx) => (
                 <div key={idx} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                   {issue.message}
                 </div>
               ))}
-              <p className="text-xs text-[var(--color-muted)]">
-                💡 Copia estos mensajes y pégalos a tu IA para que corrija el archivo automáticamente.
-              </p>
             </div>
           )}
 
-          {/* Warnings */}
-          {warningIssues.length > 0 && (
-            <div className="space-y-2 mb-3">
-              {warningIssues.map((issue, idx) => (
-                <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  {issue.message}
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Summary */}
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">
+              ✓ {validCount} {validCount === 1 ? 'producto listo' : 'productos listos'}
+            </span>
+            {errorRowCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
+                ✕ {errorRowCount} por corregir
+              </span>
+            )}
+          </div>
 
-          {/* Staging preview (US-3) */}
-          {validCount > 0 && (
+          {/* Editable staging grid (US-3 preview + Story B inline fix) */}
+          {staged.length > 0 && (
             <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-[var(--color-muted-bg,#f7f7f7)] border-b border-[var(--color-border)]">
                 <p className="text-sm font-medium">
                   {createCount > 0 && <>Se crearán <strong>{createCount}</strong></>}
                   {createCount > 0 && updateCount > 0 && ' · '}
                   {updateCount > 0 && <>Se actualizarán <strong>{updateCount}</strong></>}
-                  {existingIds === null && createCount > 0 && updateCount === 0 && (
-                    <span className="text-[var(--color-muted)] font-normal"> producto(s)</span>
+                  {errorRowCount > 0 && (
+                    <span className="text-[var(--color-muted)] font-normal"> · {errorRowCount} con error</span>
                   )}
                 </p>
                 <button
                   type="button"
-                  disabled={importing || !!report}
+                  disabled={importing || !!report || validCount === 0}
                   onClick={() => runImport(validRows.map((s) => s.row))}
                   className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -326,37 +318,87 @@ function Uploader() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-left text-[var(--color-muted)] border-b border-[var(--color-border)]">
-                      <th className="py-2 px-3 font-semibold">Producto</th>
+                      <th className="py-2 px-3 font-semibold">Título</th>
+                      <th className="py-2 px-3 font-semibold">Categoría</th>
                       <th className="py-2 px-3 font-semibold">Precio</th>
                       <th className="py-2 px-3 font-semibold">SKU</th>
                       <th className="py-2 px-3 font-semibold">Inv.</th>
-                      <th className="py-2 px-3 font-semibold">Fotos</th>
                       <th className="py-2 px-3 font-semibold">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {validRows.map((s) => (
-                      <tr key={s.line} className="border-b border-[var(--color-border)] last:border-0 align-top">
-                        <td className="py-2 px-3 max-w-[16rem]">
-                          <div className="font-medium truncate">{s.row.title}</div>
-                          <div className="text-[var(--color-muted)] capitalize">{s.row.category}</div>
-                        </td>
-                        <td className="py-2 px-3 whitespace-nowrap">{priceLabel(s.row.price, s.row.currency)}</td>
-                        <td className="py-2 px-3 font-mono text-[var(--color-muted)]">{s.row.external_id ?? '—'}</td>
-                        <td className="py-2 px-3">{s.row.quantity ?? 1}</td>
-                        <td className="py-2 px-3">{s.row.images?.length ?? 0}</td>
-                        <td className="py-2 px-3">
-                          {isExisting(s.row.external_id) ? (
-                            <span className="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 font-semibold">Actualizar</span>
-                          ) : (
-                            <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 font-semibold">Nuevo</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {staged.map((s, i) => {
+                      const row = editRows[i] ?? s.row
+                      const cellErr = (field: string) => s.issues.some((iss) => iss.level === 'error' && iss.field === field)
+                      const inputBase = 'w-full bg-transparent rounded px-1.5 py-1 border'
+                      return (
+                        <tr key={i} className={`border-b border-[var(--color-border)] last:border-0 ${s.valid ? '' : 'bg-red-50/40'}`}>
+                          <td className="py-1.5 px-2 min-w-[14rem]">
+                            <input
+                              value={row.title ?? ''}
+                              onChange={(e) => updateField(i, 'title', e.target.value)}
+                              placeholder="Título del producto"
+                              className={`${inputBase} ${cellErr('title') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <select
+                              value={row.category ?? ''}
+                              onChange={(e) => updateField(i, 'category', e.target.value)}
+                              className={`${inputBase} ${cellErr('category') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                            >
+                              <option value="">—</option>
+                              {CATALOG_CATEGORY_KEYS.map((k) => (
+                                <option key={k} value={k}>{k}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-1.5 px-2 w-24">
+                            <input
+                              value={row.price ?? ''}
+                              onChange={(e) => updateField(i, 'price', e.target.value)}
+                              inputMode="decimal"
+                              placeholder="—"
+                              className={`${inputBase} ${cellErr('price') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2 w-28">
+                            <input
+                              value={row.external_id ?? ''}
+                              onChange={(e) => updateField(i, 'external_id', e.target.value)}
+                              placeholder="—"
+                              className={`${inputBase} font-mono border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2 w-16">
+                            <input
+                              value={row.quantity ?? ''}
+                              onChange={(e) => updateField(i, 'quantity', e.target.value)}
+                              inputMode="numeric"
+                              placeholder="1"
+                              className={`${inputBase} border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-3 whitespace-nowrap">
+                            {!s.valid ? (
+                              <span className="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-semibold" title={s.issues.find((iss) => iss.level === 'error')?.message}>Corregir</span>
+                            ) : isExisting(row.external_id) ? (
+                              <span className="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 font-semibold">Actualizar</span>
+                            ) : (
+                              <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 font-semibold">Nuevo</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
+              {errorRowCount > 0 && (
+                <p className="px-4 py-2 text-xs text-[var(--color-muted)] border-t border-[var(--color-border)]">
+                  💡 Corrige los campos marcados en rojo aquí mismo, o vuelve a generar el texto con tu IA.
+                </p>
+              )}
               {importing && (
                 <div className="px-4 py-3 border-t border-[var(--color-border)]">
                   <div className="h-2 rounded-full bg-[var(--color-border)] overflow-hidden">
@@ -367,6 +409,17 @@ function Uploader() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Warnings (e.g. image URL format) */}
+          {warningIssues.length > 0 && (
+            <div className="space-y-2 mt-3">
+              {warningIssues.map((issue, idx) => (
+                <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  {issue.message}
+                </div>
+              ))}
             </div>
           )}
 
