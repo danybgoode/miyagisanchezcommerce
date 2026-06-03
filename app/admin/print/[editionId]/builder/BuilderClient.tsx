@@ -9,14 +9,18 @@ import type { PrintTier, PrintAdSubmission, PrintSocialSubmission } from '@/lib/
 import {
   emptyDocument, placedSubmissionIds, placedSocialIds, submissionToBlock, socialToBlock,
   newPage, newId, newEditorialBlock, blockSize, spanKeyOf, densityRows, findBlock,
+  listingToBlock, shopToBlock,
   PRINT_PAGE_DIMS, PRINT_SPAN_PRESETS, PRINT_BG_PALETTE, PRINT_BORDER_OPTIONS, PRINT_TEXT_SIZES,
   PRINT_AD_FIELDS, PRINT_EDITORIAL_FIELDS,
   type PrintLayoutDocument, type PrintPageSize, type PrintDensity, type PrintSpanKey, type PrintPage, type PrintBlock,
-  type PrintBlockStyle, type PrintTextSize, type PrintBorderStyle,
+  type PrintBlockStyle, type PrintTextSize, type PrintBorderStyle, type CatalogListing, type CatalogShop,
 } from '@/lib/print-layout'
 import PrintAdBlock from '@/app/components/PrintAdBlock'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+type CatalogItem = CatalogListing & { shop: CatalogShop | null }
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 /**
  * Printed-edition builder. US-0/1: load + tray + fractional grid + auto-pack.
@@ -38,6 +42,11 @@ export default function BuilderClient({
   const [loaded, setLoaded] = useState(false)
   const [save, setSave] = useState<SaveState>('idle')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  const [catalogQ, setCatalogQ] = useState('')
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
+  const [catalogBusy, setCatalogBusy] = useState(false)
+  const [catalogTarget, setCatalogTarget] = useState('')
 
   const api = useCallback(
     (path: string, init?: RequestInit) =>
@@ -188,6 +197,28 @@ export default function BuilderClient({
     setDoc((d) => ({ ...d, pages: pages.length ? pages : [newPage(density)] }))
   }
 
+  // ── Catalog curation drawer (US-4) ───────────────────────────────────────────
+  function openCatalog() {
+    setCatalogTarget(doc.pages[doc.pages.length - 1]?.id ?? '')
+    setCatalogOpen(true)
+  }
+  async function searchCatalog(e?: React.FormEvent) {
+    e?.preventDefault()
+    setCatalogBusy(true)
+    const res = await api(`/catalog?q=${encodeURIComponent(catalogQ)}`)
+    const data = await res.json().catch(() => ({ items: [] }))
+    setCatalogItems(data.items ?? [])
+    setCatalogBusy(false)
+  }
+  function placeListing(item: CatalogItem) {
+    const pageId = catalogTarget || doc.pages[0]?.id
+    if (pageId) appendBlock(pageId, listingToBlock(item, SITE_URL))
+  }
+  function placeShop(shop: CatalogShop) {
+    const pageId = catalogTarget || doc.pages[0]?.id
+    if (pageId) appendBlock(pageId, shopToBlock(shop, SITE_URL))
+  }
+
   // ── Drag & drop (reorder within / across pages) ──────────────────────────────
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   function onDragEnd(e: DragEndEvent) {
@@ -241,6 +272,10 @@ export default function BuilderClient({
             <button onClick={autoPack} disabled={subs.length === 0}
               className="w-full rounded-lg bg-[var(--color-accent)] text-white py-1.5 text-xs font-semibold disabled:opacity-40">
               ⚡ Auto-acomodar ({subs.length})
+            </button>
+            <button onClick={openCatalog}
+              className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs font-semibold">
+              🔎 Buscar en catálogo
             </button>
 
             <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] pt-1">Anuncios ({tray.length})</h2>
@@ -317,6 +352,49 @@ export default function BuilderClient({
           />
         )
       })()}
+
+      {catalogOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-6" onClick={() => setCatalogOpen(false)}>
+          <div className="bg-[var(--color-bg)] rounded-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 border-b border-[var(--color-border)] flex items-center gap-2">
+              <form onSubmit={searchCatalog} className="flex-1 flex gap-2">
+                <input autoFocus value={catalogQ} onChange={(e) => setCatalogQ(e.target.value)} placeholder="Buscar anuncios en vivo…"
+                  className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm bg-transparent" />
+                <button type="submit" className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 text-sm font-semibold">Buscar</button>
+              </form>
+              <label className="text-xs text-[var(--color-muted)]">en
+                <select value={catalogTarget} onChange={(e) => setCatalogTarget(e.target.value)}
+                  className="ml-1 rounded border border-[var(--color-border)] px-1.5 py-1 text-xs bg-transparent">
+                  {doc.pages.map((p, i) => <option key={p.id} value={p.id}>P{i + 1}</option>)}
+                </select>
+              </label>
+              <button onClick={() => setCatalogOpen(false)} className="text-[var(--color-muted)] text-lg leading-none px-1">×</button>
+            </div>
+            <div className="p-3 overflow-y-auto">
+              {catalogBusy && <p className="text-sm text-[var(--color-muted)]">Buscando…</p>}
+              {!catalogBusy && catalogItems.length === 0 && <p className="text-sm text-[var(--color-muted)]">Busca un producto o tienda para traerlo a la maqueta como anuncio de cortesía.</p>}
+              <div className="grid grid-cols-2 gap-2">
+                {catalogItems.map((item) => (
+                  <div key={item.id} className="border border-[var(--color-border)] rounded-lg p-2 flex gap-2">
+                    {item.image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.image} alt="" className="h-14 w-14 rounded object-cover flex-shrink-0 border border-[var(--color-border)]" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm truncate">{item.title}</div>
+                      <div className="text-xs text-[var(--color-muted)] truncate">{item.price ?? ''}{item.shop ? ` · ${item.shop.name}` : ''}</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <button onClick={() => placeListing(item)} className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs hover:bg-[var(--color-accent)] hover:text-white">+ Anuncio</button>
+                        {item.shop && <button onClick={() => placeShop(item.shop!)} className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs hover:bg-[var(--color-accent)] hover:text-white">+ Tienda</button>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

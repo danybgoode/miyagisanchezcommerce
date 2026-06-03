@@ -70,12 +70,14 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
 
   const photo = content.photos?.[0] ?? null
   const wa = content.contact?.whatsapp_seller
+  // House ads (pulled from live catalog, no paid tier) get a courtesy badge.
+  const badge = tierLabel || (block.source.type === 'listing' ? 'Cortesía' : block.source.type === 'shop' ? 'Tienda' : '')
 
   return (
     <div className={`h-full w-full flex flex-col overflow-hidden ${borderCls}`} style={{ background: bg, color: INK, borderColor: GREEN }}>
       <div className="flex items-center justify-between px-2 py-0.5 flex-shrink-0" style={{ background: GREEN }}>
         <span className="text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: '#f7d23e', fontFamily: 'Arial Black, Impact, sans-serif' }}>
-          {tierLabel ?? ''}
+          {badge}
         </span>
         <span className="text-[8px] uppercase tracking-widest opacity-80" style={{ color: '#f7d23e' }}>Edición impresa</span>
       </div>

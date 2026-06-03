@@ -221,6 +221,53 @@ export function newEditorialBlock(kind: Extract<PrintBlockKind, 'cover' | 'secti
   return { id: uid(), kind, source: { type: 'custom' }, span, content: { label }, style: {}, tier_key: null }
 }
 
+function excerpt(text: string | null | undefined, max = 140): string | undefined {
+  if (!text) return undefined
+  const t = text.replace(/\s+/g, ' ').trim()
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t
+}
+
+/** Slim listing/shop shapes the curation drawer (US-4) maps into house-ad blocks. */
+export interface CatalogListing { id: string; title: string; description?: string | null; price?: string | null; image?: string | null }
+export interface CatalogShop { slug: string; name: string; description?: string | null; logo?: string | null }
+
+/** Map a live marketplace listing to a "house" ad block (no tier → courtesy placement). */
+export function listingToBlock(item: CatalogListing, siteUrl: string): PrintBlock {
+  return {
+    id: uid(),
+    kind: 'ad',
+    source: { type: 'listing', ref_id: item.id },
+    span: { col: 1, row: 1 },
+    content: {
+      headline: item.title,
+      body: excerpt(item.description),
+      price: item.price ?? undefined,
+      photos: item.image ? [item.image] : [],
+      cta_target: { type: 'listing', id: item.id, url: `${siteUrl}/l/${item.id}` },
+    },
+    style: {},
+    tier_key: null,
+  }
+}
+
+/** Map a live shop to a house spotlight block (links to /s/[slug]). */
+export function shopToBlock(item: CatalogShop, siteUrl: string): PrintBlock {
+  return {
+    id: uid(),
+    kind: 'ad',
+    source: { type: 'shop', ref_id: item.slug },
+    span: { col: 1, row: 1 },
+    content: {
+      headline: item.name,
+      body: excerpt(item.description),
+      logo_url: item.logo ?? null,
+      cta_target: { type: 'shop', id: item.slug, url: `${siteUrl}/s/${item.slug}` },
+    },
+    style: {},
+    tier_key: null,
+  }
+}
+
 /** Source ids of blocks already placed, keyed by source type (to filter trays). */
 function placedRefIds(doc: PrintLayoutDocument, type: PrintBlockSourceType): Set<string> {
   const ids = new Set<string>()

@@ -8,6 +8,7 @@ import QRCode from 'qrcode'
 import { db } from '@/lib/supabase'
 import { uploadToR2 } from '@/lib/r2'
 import type { PrintAdSubmission, PrintEdition } from '@/lib/print'
+import type { PrintLayoutDocument } from '@/lib/print-layout'
 
 /**
  * Append print-edition UTM params to a CTA URL (preserving any existing query),
@@ -69,4 +70,32 @@ export async function ensureSubmissionQr(
     .eq('id', submission.id)
 
   return qrUrl
+}
+
+/**
+ * Ensure every block with a CTA has a generated QR in its content, generating any
+ * that are missing (deterministic R2 key per block). Mutates `document` in place and
+ * returns whether anything changed (so the caller can persist when not locked). Used
+ * by the print view so catalog/house-ad blocks and paid blocks alike show real QRs.
+ */
+export async function ensureLayoutQrs(
+  editionId: string,
+  document: PrintLayoutDocument,
+): Promise<{ document: PrintLayoutDocument; changed: boolean }> {
+  let changed = false
+  for (const page of document.pages ?? []) {
+    for (const block of page.blocks ?? []) {
+      const url = block.content?.cta_target?.url
+      if (!url || block.content.qr_url) continue
+      try {
+        const png = await generateQrPng(buildQrTargetUrl(url, editionId))
+        const ab = png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer
+        block.content.qr_url = await uploadToR2(ab, `print/qr/block/${block.id}.png`, 'image/png')
+        changed = true
+      } catch (e) {
+        console.error('[print-qr] block QR failed:', e)
+      }
+    }
+  }
+  return { document, changed }
 }

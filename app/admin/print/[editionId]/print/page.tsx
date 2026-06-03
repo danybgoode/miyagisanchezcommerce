@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/supabase'
-import { loadLayoutOrEmpty } from '@/lib/print-layout-server'
+import { loadLayoutOrEmpty, upsertLayout } from '@/lib/print-layout-server'
+import { ensureLayoutQrs } from '@/lib/print-qr'
 import { densityRows, blockSize, PRINT_PAGE_DIMS } from '@/lib/print-layout'
 import type { PrintTier } from '@/lib/print'
 import PrintAdBlock from '@/app/components/PrintAdBlock'
@@ -34,6 +35,11 @@ export default async function PrintViewPage({
   if (!edition) redirect(`/admin/print?secret=${encodeURIComponent(secret)}`)
 
   const layout = await loadLayoutOrEmpty(editionId)
+  // Fill any missing QR codes (catalog/house ads + paid blocks) so the print proof is scannable.
+  const { document, changed } = await ensureLayoutQrs(editionId, layout.document)
+  if (changed && !layout.locked_at) {
+    try { await upsertLayout(editionId, { page_size: layout.page_size, document }) } catch { /* render anyway */ }
+  }
   const dims = (PRINT_PAGE_DIMS[layout.page_size] ?? PRINT_PAGE_DIMS.carta)
   const pageW = dims.w_mm + BLEED * 2
   const pageH = dims.h_mm + BLEED * 2
@@ -62,7 +68,7 @@ export default async function PrintViewPage({
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <PrintToolbar backHref={`/admin/print/${editionId}/builder?secret=${encodeURIComponent(secret)}`} />
 
-      {layout.document.pages.map((page) => (
+      {document.pages.map((page) => (
         <div key={page.id} className="sheet">
           <CropMarks />
           <div className="trim">
