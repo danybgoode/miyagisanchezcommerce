@@ -37,15 +37,22 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 
 // ── Uploader (US-2: pick a file → parse → validate → plain-language errors) ──
 
+function priceLabel(price?: number, currency?: string) {
+  if (price === undefined) return 'A convenir'
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency ?? 'MXN', maximumFractionDigits: 0 }).format(price)
+}
+
 function Uploader() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [result, setResult] = useState<CatalogParseResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [existingIds, setExistingIds] = useState<Set<string> | null>(null)
 
   async function handleFile(file: File) {
     setError(null)
     setResult(null)
+    setExistingIds(null)
     if (file.size > 5 * 1024 * 1024) {
       setError('El archivo es muy grande (máx. 5 MB).')
       return
@@ -53,14 +60,32 @@ function Uploader() {
     try {
       const text = await file.text()
       setFileName(file.name)
-      setResult(parseCatalogFile(text, file.name))
+      const parsed = parseCatalogFile(text, file.name)
+      setResult(parsed)
+
+      // Fetch existing external_ids so we can show create vs. update counts.
+      if (parsed.staged.some((s) => s.valid)) {
+        try {
+          const res = await fetch('/api/sell/import/existing')
+          if (res.ok) {
+            const data = (await res.json()) as { external_ids?: string[] }
+            setExistingIds(new Set(data.external_ids ?? []))
+          }
+        } catch {
+          // Non-fatal: without the set, every row simply previews as "Nuevo".
+        }
+      }
     } catch {
       setError('No se pudo leer el archivo. Intenta de nuevo.')
     }
   }
 
-  const validCount = result?.staged.filter((s) => s.valid).length ?? 0
+  const validRows = result?.staged.filter((s) => s.valid) ?? []
+  const validCount = validRows.length
   const errorRowCount = result?.staged.filter((s) => !s.valid).length ?? 0
+  const isExisting = (extId?: string) => !!(extId && existingIds?.has(extId))
+  const updateCount = validRows.filter((s) => isExisting(s.row.external_id)).length
+  const createCount = validCount - updateCount
   const allIssues: ImportIssue[] = result
     ? [...result.fileErrors, ...result.staged.flatMap((s) => s.issues)]
     : []
@@ -156,12 +181,65 @@ function Uploader() {
             </div>
           )}
 
-          {/* Next step (US-3/US-4) */}
+          {/* Staging preview (US-3) */}
           {validCount > 0 && (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted-bg,#f7f7f7)] p-4 text-sm text-[var(--color-muted)]">
-              {errorRowCount === 0
-                ? `Todo listo: ${validCount} ${validCount === 1 ? 'producto' : 'productos'} sin errores. La vista previa y la publicación llegan en el siguiente paso.`
-                : `${validCount} ${validCount === 1 ? 'producto está' : 'productos están'} listos; los demás necesitan corrección.`}
+            <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-[var(--color-muted-bg,#f7f7f7)] border-b border-[var(--color-border)]">
+                <p className="text-sm font-medium">
+                  {createCount > 0 && <>Se crearán <strong>{createCount}</strong></>}
+                  {createCount > 0 && updateCount > 0 && ' · '}
+                  {updateCount > 0 && <>Se actualizarán <strong>{updateCount}</strong></>}
+                  {existingIds === null && createCount > 0 && updateCount === 0 && (
+                    <span className="text-[var(--color-muted)] font-normal"> producto(s)</span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  disabled
+                  title="Disponible en el siguiente paso"
+                  className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed"
+                >
+                  Confirmar e importar
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-[var(--color-muted)] border-b border-[var(--color-border)]">
+                      <th className="py-2 px-3 font-semibold">Producto</th>
+                      <th className="py-2 px-3 font-semibold">Precio</th>
+                      <th className="py-2 px-3 font-semibold">SKU</th>
+                      <th className="py-2 px-3 font-semibold">Inv.</th>
+                      <th className="py-2 px-3 font-semibold">Fotos</th>
+                      <th className="py-2 px-3 font-semibold">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validRows.map((s) => (
+                      <tr key={s.line} className="border-b border-[var(--color-border)] last:border-0 align-top">
+                        <td className="py-2 px-3 max-w-[16rem]">
+                          <div className="font-medium truncate">{s.row.title}</div>
+                          <div className="text-[var(--color-muted)] capitalize">{s.row.category}</div>
+                        </td>
+                        <td className="py-2 px-3 whitespace-nowrap">{priceLabel(s.row.price, s.row.currency)}</td>
+                        <td className="py-2 px-3 font-mono text-[var(--color-muted)]">{s.row.external_id ?? '—'}</td>
+                        <td className="py-2 px-3">{s.row.quantity ?? 1}</td>
+                        <td className="py-2 px-3">{s.row.images?.length ?? 0}</td>
+                        <td className="py-2 px-3">
+                          {isExisting(s.row.external_id) ? (
+                            <span className="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 font-semibold">Actualizar</span>
+                          ) : (
+                            <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 font-semibold">Nuevo</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-2 text-xs text-[var(--color-muted)] border-t border-[var(--color-border)]">
+                La publicación de un clic llega en el siguiente paso.
+              </div>
             </div>
           )}
         </div>
