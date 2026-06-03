@@ -47,7 +47,7 @@ const STATUS_META: Record<string, { label: string; badge: string; icon: string }
   fulfilled:  { label: 'Descarga lista',   badge: 'bg-green-100 text-green-700',   icon: '⬇' },
 }
 
-const ACTIVE_STATUSES   = new Set(['paid', 'processing', 'shipped', 'in_transit'])
+const ACTIVE_STATUSES   = new Set(['pending_payment', 'paid', 'processing', 'shipped', 'in_transit'])
 const COMPLETE_STATUSES = new Set(['delivered', 'completed', 'fulfilled', 'refunded'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
