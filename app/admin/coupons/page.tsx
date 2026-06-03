@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import AdminCouponsClient, { type Coupon } from './AdminCouponsClient'
+import { getReferralSettings } from '@/lib/referrals'
 
 export const metadata = { title: 'Cupones de plataforma — Admin' }
 
@@ -29,5 +30,7 @@ export default async function AdminCouponsPage({ searchParams }: { searchParams:
     // Non-fatal — the client can refresh.
   }
 
-  return <AdminCouponsClient secret={secret} initialCoupons={initialCoupons} />
+  const initialSettings = await getReferralSettings()
+
+  return <AdminCouponsClient secret={secret} initialCoupons={initialCoupons} initialSettings={initialSettings} />
 }

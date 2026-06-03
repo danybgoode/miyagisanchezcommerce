@@ -26,11 +26,57 @@ function formatDiscount(c: Coupon): string {
   return c.type === 'percentage' ? `${c.value}%` : `$${c.value.toLocaleString('es-MX')} MXN`
 }
 
-export default function AdminCouponsClient({ secret, initialCoupons }: { secret: string; initialCoupons: Coupon[] }) {
+export interface ReferralSettings {
+  enabled: boolean
+  reward_type: 'fixed' | 'percentage'
+  reward_amount_cents: number
+  reward_expiry_days: number
+}
+
+export default function AdminCouponsClient({
+  secret,
+  initialCoupons,
+  initialSettings,
+}: {
+  secret: string
+  initialCoupons: Coupon[]
+  initialSettings: ReferralSettings
+}) {
   const q = `?secret=${encodeURIComponent(secret)}`
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Referral reward config
+  const [enabled, setEnabled] = useState(initialSettings.enabled)
+  const [rewardMXN, setRewardMXN] = useState(String(Math.round(initialSettings.reward_amount_cents / 100)))
+  const [expiryDays, setExpiryDays] = useState(String(initialSettings.reward_expiry_days))
+  const [savingCfg, setSavingCfg] = useState(false)
+  const [cfgMsg, setCfgMsg] = useState<string | null>(null)
+
+  async function saveConfig(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingCfg(true)
+    setCfgMsg(null)
+    try {
+      const res = await fetch(`/api/admin/referrals/config${q}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled,
+          reward_type: 'fixed',
+          reward_amount_cents: Math.round(Number(rewardMXN) * 100),
+          reward_expiry_days: Number(expiryDays),
+        }),
+      })
+      if (!res.ok) throw new Error('No se pudo guardar.')
+      setCfgMsg('Guardado ✓')
+    } catch (e) {
+      setCfgMsg(e instanceof Error ? e.message : 'Error al guardar.')
+    } finally {
+      setSavingCfg(false)
+    }
+  }
 
   const [code, setCode] = useState('')
   const [type, setType] = useState<DiscountType>('fixed')
@@ -96,6 +142,38 @@ export default function AdminCouponsClient({ secret, initialCoupons }: { secret:
         Códigos redimibles en la compra de anuncios impresos (tienda <strong>miyagiprints</strong>).
         Sirven para promociones de plataforma y como recompensa de referidos.
       </p>
+
+      {/* Referral reward config */}
+      <form onSubmit={saveConfig} className="border border-[var(--color-border)] rounded-xl p-5 mb-8 bg-[var(--color-surface-alt,#fafaf8)]">
+        <h2 className="font-semibold mb-1">Recompensa de referidos</h2>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Crédito que gana quien invita, cuando su referido hace su primera compra. Se emite como
+          cupón de plataforma de un solo uso.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+            Programa activo
+          </label>
+          <div>
+            <label className="block text-sm font-medium mb-1">Crédito (MXN)</label>
+            <input type="number" min="0" step="1" value={rewardMXN} onChange={e => setRewardMXN(e.target.value)}
+              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Vigencia (días)</label>
+            <input type="number" min="1" step="1" value={expiryDays} onChange={e => setExpiryDays(e.target.value)}
+              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]" />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mt-4">
+          <button type="submit" disabled={savingCfg}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50">
+            {savingCfg ? 'Guardando…' : 'Guardar recompensa'}
+          </button>
+          {cfgMsg && <span className="text-sm text-[var(--color-muted)]">{cfgMsg}</span>}
+        </div>
+      </form>
 
       <form onSubmit={handleCreate} className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
         <h2 className="font-semibold mb-4">Nuevo cupón de plataforma</h2>

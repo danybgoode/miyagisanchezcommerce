@@ -27,6 +27,7 @@ import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { upsertOrderMirror } from '@/lib/order-mirror'
 import { handlePrintAdPaid } from '@/lib/print-server'
+import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -185,6 +186,9 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     markListingPurchased({ listingId: productId, offerId: offerId ?? undefined })
       .catch(e => console.error('[mp webhook] markListingPurchased:', e))
   }
+
+  // ── Referral reward on the buyer's first purchase (non-fatal) ──────────────
+  maybeRewardReferralOnOrder({ buyerEmail }).catch(e => console.error('[referrals] mp:', e))
 
   const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
   tg.salePaid(amtFmt, productId || 'Producto', buyerEmail ?? 'comprador', 'mercadopago')

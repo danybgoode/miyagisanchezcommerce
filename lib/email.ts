@@ -212,6 +212,20 @@ export async function sendOfferConfirmed(ctx: OfferEmailCtx): Promise<void> {
   await send(ctx.buyerEmail, subject, body)
 }
 
+// ── Referral: reward earned ───────────────────────────────────────────────────
+export async function sendReferralReward(to: string, code: string, amountLabel: string): Promise<void> {
+  const subject = `¡Ganaste ${amountLabel} de crédito! 🎁`
+  const body = [
+    h1('Tu invitado hizo su primera compra'),
+    p('Como agradecimiento, te regalamos crédito para tu próximo anuncio en la edición impresa.'),
+    amount(amountLabel, `Cupón ${esc(code)}`, true),
+    p(`Ingresa el código <strong>${esc(code)}</strong> al pagar tu anuncio impreso.`),
+    cta('Crear un anuncio', `${SITE}/account/print-ads`),
+    notice('El crédito tiene vigencia limitada — úsalo pronto.'),
+  ].join('')
+  await send(to, subject, body)
+}
+
 // ── 2. Seller: new offer alert ────────────────────────────────────────────────
 export async function sendNewOfferToSeller(ctx: OfferEmailCtx & { sellerEmail: string }): Promise<void> {
   const subject = `Nueva oferta de ${ctx.buyerName} — ${ctx.listingTitle}`

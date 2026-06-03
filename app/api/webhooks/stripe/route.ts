@@ -19,6 +19,7 @@ import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 import { upsertOrderMirror } from '@/lib/order-mirror'
 import { handlePrintAdPaid } from '@/lib/print-server'
+import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -207,6 +208,10 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 
   // ── Fire UCP webhook (non-fatal) ─────────────────────────────────────────
   deliverOrderWebhook(order.id, 'order.created').catch(e => console.error('[ucp-webhook] stripe:', e))
+
+  // ── Referral reward on the buyer's first purchase (non-fatal) ────────────
+  maybeRewardReferralOnOrder({ buyerClerkUserId: buyer_clerk_id || null, buyerEmail })
+    .catch(e => console.error('[referrals] stripe:', e))
 
   // Mark winning offer paid, decline competing offers, and close the mirror listing.
   await markListingPurchased({ listingId: listing_id, offerId: offer_id })
