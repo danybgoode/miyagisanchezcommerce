@@ -47,6 +47,7 @@ export default function BuilderClient({
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [catalogBusy, setCatalogBusy] = useState(false)
   const [catalogTarget, setCatalogTarget] = useState('')
+  const [locked, setLocked] = useState(false)
 
   const api = useCallback(
     (path: string, init?: RequestInit) =>
@@ -76,6 +77,7 @@ export default function BuilderClient({
         setDoc(layoutRes.layout.document)
         setPageSize(layoutRes.layout.page_size === 'media_carta' ? 'media_carta' : 'carta')
       }
+      setLocked(!!layoutRes?.layout?.locked_at)
       setSubs((subsRes?.submissions ?? []).filter((s: PrintAdSubmission) => s.status === 'approved'))
       setSocial((socialRes?.submissions ?? []).filter((s: PrintSocialSubmission) => s.edition_id === editionId))
       setLoaded(true)
@@ -86,7 +88,7 @@ export default function BuilderClient({
   // Debounced autosave whenever the document or page size changes (post-load).
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (!loaded) return
+    if (!loaded || locked) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
       setSave('saving')
@@ -97,7 +99,7 @@ export default function BuilderClient({
       setSave(res.ok ? 'saved' : 'error')
     }, 800)
     return () => { if (timer.current) clearTimeout(timer.current) }
-  }, [doc, pageSize, loaded, api, editionId])
+  }, [doc, pageSize, loaded, locked, api, editionId])
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const placedSubs = useMemo(() => placedSubmissionIds(doc), [doc])
@@ -107,8 +109,14 @@ export default function BuilderClient({
   const dims = PRINT_PAGE_DIMS[pageSize]
 
   // ── Mutations ────────────────────────────────────────────────────────────────
-  const mutatePage = (pageId: string, fn: (p: PrintPage) => PrintPage) =>
-    setDoc((d) => ({ ...d, pages: d.pages.map((p) => (p.id === pageId ? fn(p) : p)) }))
+  const mutatePage = (pageId: string, fn: (p: PrintPage) => PrintPage) => {
+    if (locked) return
+    mutateDoc((d) => ({ ...d, pages: d.pages.map((p) => (p.id === pageId ? fn(p) : p)) }))
+  }
+  const mutateDoc = (fn: (d: PrintLayoutDocument) => PrintLayoutDocument) => {
+    if (locked) return
+    setDoc(fn)
+  }
 
   function appendBlock(pageId: string, block: PrintBlock) {
     mutatePage(pageId, (p) => ({ ...p, blocks: [...p.blocks, block] }))
@@ -145,7 +153,7 @@ export default function BuilderClient({
     mutatePage(pageId, (p) => ({ ...p, density }))
   }
   function setBlockStyle(blockId: string, patch: Partial<PrintBlockStyle>) {
-    setDoc((d) => ({
+    mutateDoc((d) => ({
       ...d,
       pages: d.pages.map((p) => ({
         ...p,
@@ -154,7 +162,7 @@ export default function BuilderClient({
     }))
   }
   function toggleField(blockId: string, field: string) {
-    setDoc((d) => ({
+    mutateDoc((d) => ({
       ...d,
       pages: d.pages.map((p) => ({
         ...p,
@@ -172,17 +180,17 @@ export default function BuilderClient({
     appendBlock(pageId, newEditorialBlock(kind, label))
   }
   function addPage() {
-    setDoc((d) => ({ ...d, pages: [...d.pages, newPage(d.density_default)] }))
+    mutateDoc((d) => ({ ...d, pages: [...d.pages, newPage(d.density_default)] }))
   }
   function addCoverPage() {
     const label = window.prompt('Título de portada:') ?? ''
-    setDoc((d) => ({ ...d, pages: [...d.pages, { id: newId(), kind: 'cover', density: 4, blocks: [newEditorialBlock('cover', label)] }] }))
+    mutateDoc((d) => ({ ...d, pages: [...d.pages, { id: newId(), kind: 'cover', density: 4, blocks: [newEditorialBlock('cover', label)] }] }))
   }
   function removePage(pageId: string) {
-    setDoc((d) => (d.pages.length <= 1 ? d : { ...d, pages: d.pages.filter((p) => p.id !== pageId) }))
+    mutateDoc((d) => (d.pages.length <= 1 ? d : { ...d, pages: d.pages.filter((p) => p.id !== pageId) }))
   }
   function setDefaultDensity(density: PrintDensity) {
-    setDoc((d) => ({ ...d, density_default: density }))
+    mutateDoc((d) => ({ ...d, density_default: density }))
   }
 
   /** Sequentially pack every approved ad into fresh pages at the default density. */
@@ -194,7 +202,7 @@ export default function BuilderClient({
     for (let i = 0; i < subs.length; i += density) {
       pages.push({ id: newId(), kind: 'grid', density, blocks: subs.slice(i, i + density).map(submissionToBlock) })
     }
-    setDoc((d) => ({ ...d, pages: pages.length ? pages : [newPage(density)] }))
+    mutateDoc((d) => ({ ...d, pages: pages.length ? pages : [newPage(density)] }))
   }
 
   // ── Catalog curation drawer (US-4) ───────────────────────────────────────────
@@ -219,13 +227,27 @@ export default function BuilderClient({
     if (pageId) appendBlock(pageId, shopToBlock(shop, SITE_URL))
   }
 
+  // ── Production lock (US-6) ────────────────────────────────────────────────────
+  async function sendToPrint() {
+    if (locked) return
+    if (!window.confirm('Enviar a imprenta bloquea la maqueta y marca la edición “en producción”. ¿Continuar?')) return
+    const res = await api(`/editions/${editionId}/lock`, { method: 'POST' })
+    if (res.ok) { setLocked(true); setSelectedId(null); setSave('saved') }
+    else alert('No se pudo bloquear la maqueta.')
+  }
+  async function reopen() {
+    const res = await api(`/editions/${editionId}/lock`, { method: 'DELETE' })
+    if (res.ok) setLocked(false)
+    else alert('No se pudo reabrir la maqueta.')
+  }
+
   // ── Drag & drop (reorder within / across pages) ──────────────────────────────
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   function onDragEnd(e: DragEndEvent) {
     const blockId = String(e.active.id)
     const overId = e.over ? String(e.over.id) : null
     if (!overId) return
-    setDoc((d) => moveBlock(d, blockId, overId))
+    mutateDoc((d) => moveBlock(d, blockId, overId))
   }
 
   const saveLabel = save === 'saving' ? 'Guardando…' : save === 'saved' ? 'Guardado ✓' : save === 'error' ? 'Error al guardar' : ''
@@ -243,15 +265,15 @@ export default function BuilderClient({
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <label className="text-xs text-[var(--color-muted)]">Densidad
-            <select value={doc.density_default} onChange={(e) => setDefaultDensity(Number(e.target.value) as PrintDensity)}
-              className="ml-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs bg-transparent">
+            <select value={doc.density_default} disabled={locked} onChange={(e) => setDefaultDensity(Number(e.target.value) as PrintDensity)}
+              className="ml-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs bg-transparent disabled:opacity-50">
               <option value={4}>4 por página</option>
               <option value={8}>8 por página</option>
             </select>
           </label>
           <label className="text-xs text-[var(--color-muted)]">Tamaño
-            <select value={pageSize} onChange={(e) => setPageSize(e.target.value as PrintPageSize)}
-              className="ml-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs bg-transparent">
+            <select value={pageSize} disabled={locked} onChange={(e) => setPageSize(e.target.value as PrintPageSize)}
+              className="ml-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs bg-transparent disabled:opacity-50">
               {(Object.keys(PRINT_PAGE_DIMS) as PrintPageSize[]).map((k) => (
                 <option key={k} value={k}>{PRINT_PAGE_DIMS[k].label}</option>
               ))}
@@ -262,25 +284,38 @@ export default function BuilderClient({
             🖨 Vista de impresión
           </a>
           <a href={`/api/admin/print/editions/${editionId}/pdf?secret=${encodeURIComponent(secret)}`} target="_blank" rel="noopener"
-            className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 text-xs font-semibold no-underline">
+            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold no-underline">
             ⬇ Descargar PDF
           </a>
+          {locked
+            ? <button onClick={reopen} className="rounded-lg border border-amber-500 text-amber-600 px-3 py-1.5 text-xs font-semibold">🔓 Reabrir</button>
+            : <button onClick={sendToPrint} className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 text-xs font-semibold">🔒 Enviar a imprenta</button>}
           <span className={`text-xs ${save === 'error' ? 'text-red-600' : 'text-[var(--color-muted)]'}`}>{saveLabel}</span>
         </div>
       </header>
+
+      {locked && (
+        <div className="bg-amber-100 text-amber-900 text-xs px-4 py-2 border-b border-amber-300">
+          🔒 Maqueta bloqueada — enviada a imprenta (edición en producción). Es de solo lectura; usa “Reabrir” para editar.
+        </div>
+      )}
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className="flex">
           {/* Tray */}
           <aside className="w-60 flex-shrink-0 border-r border-[var(--color-border)] p-3 space-y-2 max-h-[calc(100vh-57px)] overflow-y-auto sticky top-[57px]">
-            <button onClick={autoPack} disabled={subs.length === 0}
-              className="w-full rounded-lg bg-[var(--color-accent)] text-white py-1.5 text-xs font-semibold disabled:opacity-40">
-              ⚡ Auto-acomodar ({subs.length})
-            </button>
-            <button onClick={openCatalog}
-              className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs font-semibold">
-              🔎 Buscar en catálogo
-            </button>
+            {!locked && (
+              <>
+                <button onClick={autoPack} disabled={subs.length === 0}
+                  className="w-full rounded-lg bg-[var(--color-accent)] text-white py-1.5 text-xs font-semibold disabled:opacity-40">
+                  ⚡ Auto-acomodar ({subs.length})
+                </button>
+                <button onClick={openCatalog}
+                  className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs font-semibold">
+                  🔎 Buscar en catálogo
+                </button>
+              </>
+            )}
 
             <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] pt-1">Anuncios ({tray.length})</h2>
             {!loaded && <p className="text-xs text-[var(--color-muted)]">Cargando…</p>}
@@ -291,7 +326,7 @@ export default function BuilderClient({
             )}
             {tray.map((s) => (
               <TrayCard key={s.id} title={s.content?.headline || '(sin titular)'} subtitle={`${tierLabel(s.tier_key)} · ${s.buyer_email ?? 's/email'}`}
-                pages={doc.pages} onPlace={(pageId) => appendBlock(pageId, submissionToBlock(s))} />
+                pages={doc.pages} disabled={locked} onPlace={(pageId) => appendBlock(pageId, submissionToBlock(s))} />
             ))}
 
             {socialTray.length > 0 && (
@@ -299,7 +334,7 @@ export default function BuilderClient({
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] pt-2">Social ({socialTray.length})</h2>
                 {socialTray.map((s) => (
                   <TrayCard key={s.id} title={s.caption} subtitle={s.submitter_name ?? s.type}
-                    pages={doc.pages} onPlace={(pageId) => appendBlock(pageId, socialToBlock(s))} />
+                    pages={doc.pages} disabled={locked} onPlace={(pageId) => appendBlock(pageId, socialToBlock(s))} />
                 ))}
               </>
             )}
@@ -311,23 +346,26 @@ export default function BuilderClient({
               <section key={page.id} className="mx-auto" style={{ maxWidth: 560 }}>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">Página {i + 1}</span>
-                  <div className="flex items-center gap-2">
-                    <select value="" onChange={(e) => { if (e.target.value) { insertEditorial(page.id, e.target.value as 'section' | 'filler'); e.target.value = '' } }}
-                      className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent text-[var(--color-muted)]">
-                      <option value="">+ Insertar…</option>
-                      <option value="section">Encabezado de sección</option>
-                      <option value="filler">Relleno</option>
-                    </select>
-                    <select value={page.density} onChange={(e) => setPageDensity(page.id, Number(e.target.value) as PrintDensity)}
-                      className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent">
-                      <option value={4}>4-grid</option>
-                      <option value={8}>8-grid</option>
-                    </select>
-                    {doc.pages.length > 1 && <button onClick={() => removePage(page.id)} className="text-xs text-red-600">Quitar</button>}
-                  </div>
+                  {!locked && (
+                    <div className="flex items-center gap-2">
+                      <select value="" onChange={(e) => { if (e.target.value) { insertEditorial(page.id, e.target.value as 'section' | 'filler'); e.target.value = '' } }}
+                        className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent text-[var(--color-muted)]">
+                        <option value="">+ Insertar…</option>
+                        <option value="section">Encabezado de sección</option>
+                        <option value="filler">Relleno</option>
+                      </select>
+                      <select value={page.density} onChange={(e) => setPageDensity(page.id, Number(e.target.value) as PrintDensity)}
+                        className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent">
+                        <option value={4}>4-grid</option>
+                        <option value={8}>8-grid</option>
+                      </select>
+                      {doc.pages.length > 1 && <button onClick={() => removePage(page.id)} className="text-xs text-red-600">Quitar</button>}
+                    </div>
+                  )}
                 </div>
                 <PageGrid page={page} dims={dims}
                   tierLabel={tierLabel}
+                  locked={locked}
                   selectedId={selectedId} onSelect={setSelectedId}
                   onSpan={(blockId, key) => setBlockSpan(page.id, blockId, key)}
                   onMerge={(blockId) => mergeWithNext(page.id, blockId)}
@@ -336,16 +374,18 @@ export default function BuilderClient({
                   placeholderHint={`+ P${i + 1}`} />
               </section>
             ))}
-            <div className="mx-auto flex gap-2" style={{ maxWidth: 560 }}>
-              <button onClick={addPage} className="flex-1 rounded-xl border-2 border-dashed border-[var(--color-border)] py-3 text-sm text-[var(--color-accent)] hover:bg-white">+ Agregar página</button>
-              <button onClick={addCoverPage} className="flex-1 rounded-xl border-2 border-dashed border-[var(--color-border)] py-3 text-sm text-[var(--color-accent)] hover:bg-white">+ Página de portada</button>
-            </div>
+            {!locked && (
+              <div className="mx-auto flex gap-2" style={{ maxWidth: 560 }}>
+                <button onClick={addPage} className="flex-1 rounded-xl border-2 border-dashed border-[var(--color-border)] py-3 text-sm text-[var(--color-accent)] hover:bg-white">+ Agregar página</button>
+                <button onClick={addCoverPage} className="flex-1 rounded-xl border-2 border-dashed border-[var(--color-border)] py-3 text-sm text-[var(--color-accent)] hover:bg-white">+ Página de portada</button>
+              </div>
+            )}
           </main>
         </div>
       </DndContext>
 
       {(() => {
-        const sel = selectedId ? findBlock(doc, selectedId) : null
+        const sel = !locked && selectedId ? findBlock(doc, selectedId) : null
         if (!sel) return null
         return (
           <Inspector
@@ -504,29 +544,32 @@ function Inspector({ block, onStyle, onToggleField, onClose }: {
   )
 }
 
-function TrayCard({ title, subtitle, pages, onPlace }: {
-  title: string; subtitle: string; pages: PrintPage[]; onPlace: (pageId: string) => void
+function TrayCard({ title, subtitle, pages, disabled, onPlace }: {
+  title: string; subtitle: string; pages: PrintPage[]; disabled?: boolean; onPlace: (pageId: string) => void
 }) {
   return (
     <div className="rounded-lg border border-[var(--color-border)] p-2 text-xs">
       <div className="font-medium truncate">{title}</div>
       <div className="text-[var(--color-muted)] truncate">{subtitle}</div>
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {pages.map((p, i) => (
-          <button key={p.id} onClick={() => onPlace(p.id)}
-            className="rounded border border-[var(--color-border)] px-1.5 py-0.5 hover:bg-[var(--color-accent)] hover:text-white">
-            + P{i + 1}
-          </button>
-        ))}
-      </div>
+      {!disabled && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {pages.map((p, i) => (
+            <button key={p.id} onClick={() => onPlace(p.id)}
+              className="rounded border border-[var(--color-border)] px-1.5 py-0.5 hover:bg-[var(--color-accent)] hover:text-white">
+              + P{i + 1}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function PageGrid({ page, dims, tierLabel, selectedId, onSelect, onSpan, onMerge, onEditLabel, onRemove, placeholderHint }: {
+function PageGrid({ page, dims, tierLabel, locked, selectedId, onSelect, onSpan, onMerge, onEditLabel, onRemove, placeholderHint }: {
   page: PrintPage
   dims: { w_mm: number; h_mm: number }
   tierLabel: (k: string | null | undefined) => string
+  locked: boolean
   selectedId: string | null
   onSelect: (blockId: string) => void
   onSpan: (blockId: string, key: PrintSpanKey) => void
@@ -542,7 +585,7 @@ function PageGrid({ page, dims, tierLabel, selectedId, onSelect, onSpan, onMerge
         style={{ gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: `repeat(${densityRows(page.density)}, 1fr)`, gridAutoRows: '1fr', gridAutoFlow: 'dense' }}>
         {page.blocks.map((b) => (
           <BlockSlot key={b.id} block={b} density={page.density} tierLabel={tierLabel(b.tier_key)}
-            selected={selectedId === b.id} onSelect={() => onSelect(b.id)}
+            locked={locked} selected={selectedId === b.id} onSelect={() => onSelect(b.id)}
             onSpan={(key) => onSpan(b.id, key)} onMerge={() => onMerge(b.id)}
             onEditLabel={() => onEditLabel(b.id, b.content.label ?? '')} onRemove={() => onRemove(b.id)} />
         ))}
@@ -556,10 +599,11 @@ function PageGrid({ page, dims, tierLabel, selectedId, onSelect, onSpan, onMerge
   )
 }
 
-function BlockSlot({ block, density, tierLabel, selected, onSelect, onSpan, onMerge, onEditLabel, onRemove }: {
+function BlockSlot({ block, density, tierLabel, locked, selected, onSelect, onSpan, onMerge, onEditLabel, onRemove }: {
   block: PrintBlock
   density: PrintDensity
   tierLabel: string
+  locked: boolean
   selected: boolean
   onSelect: () => void
   onSpan: (key: PrintSpanKey) => void
@@ -567,8 +611,8 @@ function BlockSlot({ block, density, tierLabel, selected, onSelect, onSpan, onMe
   onEditLabel: () => void
   onRemove: () => void
 }) {
-  const { setNodeRef: setDropRef } = useDroppable({ id: `block:${block.id}` })
-  const { setNodeRef: setDragRef, listeners, attributes, transform } = useDraggable({ id: block.id })
+  const { setNodeRef: setDropRef } = useDroppable({ id: `block:${block.id}`, disabled: locked })
+  const { setNodeRef: setDragRef, listeners, attributes, transform } = useDraggable({ id: block.id, disabled: locked })
   const dragStyle = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 40, opacity: 0.85 }
     : undefined
@@ -577,11 +621,12 @@ function BlockSlot({ block, density, tierLabel, selected, onSelect, onSpan, onMe
     <div ref={setDropRef}
       className={`relative group min-h-0 ${selected ? 'outline outline-2 outline-offset-1 outline-[var(--color-accent)]' : ''}`}
       style={{ gridColumn: `span ${block.span.col}`, gridRow: `span ${block.span.row}` }}>
-      <div ref={setDragRef} {...listeners} {...attributes} style={dragStyle}
-        onClick={(e) => { e.stopPropagation(); onSelect() }}
-        className="h-full w-full cursor-grab active:cursor-grabbing touch-none">
+      <div ref={setDragRef} {...(locked ? {} : listeners)} {...(locked ? {} : attributes)} style={dragStyle}
+        onClick={locked ? undefined : (e) => { e.stopPropagation(); onSelect() }}
+        className={`h-full w-full ${locked ? '' : 'cursor-grab active:cursor-grabbing touch-none'}`}>
         <PrintAdBlock block={block} tierLabel={tierLabel} size={blockSize(density, block.span)} />
       </div>
+      {!locked && (
       <div onClick={(e) => e.stopPropagation()} className="absolute right-1 top-1 z-10 hidden group-hover:flex items-center gap-1">
         {isEditorial && (
           <button onClick={onEditLabel} title="Editar texto" className="h-5 px-1 rounded bg-black/70 text-white text-[10px] leading-none grid place-items-center">✎</button>
@@ -597,6 +642,7 @@ function BlockSlot({ block, density, tierLabel, selected, onSelect, onSpan, onMe
         )}
         <button onClick={onRemove} title="Quitar" className="h-5 w-5 rounded-full bg-black/70 text-white text-xs leading-none grid place-items-center">×</button>
       </div>
+      )}
     </div>
   )
 }

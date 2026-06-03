@@ -50,3 +50,23 @@ export async function upsertLayout(
   if (error) throw new Error(error.message)
   return data as PrintLayout
 }
+
+/** Lock (send to print) or reopen an edition's layout. Lock stamps locked_at and
+ *  flips the edition to in_production; reopen clears the lock. */
+export async function setLayoutLock(editionId: string, locked: boolean): Promise<string | null> {
+  const lockedAt = locked ? new Date().toISOString() : null
+  const existing = await loadLayout(editionId)
+  if (!existing) {
+    await db.from('print_layouts').upsert(
+      { edition_id: editionId, page_size: 'carta', document: emptyDocument(4), locked_at: lockedAt },
+      { onConflict: 'edition_id' },
+    )
+  } else {
+    const { error } = await db.from('print_layouts').update({ locked_at: lockedAt }).eq('edition_id', editionId)
+    if (error) throw new Error(error.message)
+  }
+  if (locked) {
+    await db.from('print_editions').update({ status: 'in_production' }).eq('id', editionId)
+  }
+  return lockedAt
+}
