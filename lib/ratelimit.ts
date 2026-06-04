@@ -70,9 +70,19 @@ const catalogExtractLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(15, '1 h'), prefix: 'rl:catalog_extract' })
 }
 
+// Embed widget: max 240 reads per IP per minute — the widget is public and
+// scriptable from any page, so it needs a ceiling, but generous enough for a
+// busy page rendering several cards. Only applied to embed-marked requests, so
+// it never throttles the marketplace or AI agents.
+const embedLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(240, '1 m'), prefix: 'rl:embed' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -88,6 +98,7 @@ export async function checkRateLimit(
     : key === 'mcp'             ? mcpLimiter
     : key === 'stamps'          ? stampLimiter
     : key === 'catalog_extract' ? catalogExtractLimiter
+    : key === 'embed'           ? embedLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()
