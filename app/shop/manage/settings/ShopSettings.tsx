@@ -955,6 +955,7 @@ export default function ShopSettingsPanel({
   const [agentToken, setAgentToken]         = useState<string | null>(null) // plaintext, shown once
   const [agentTokenBusy, setAgentTokenBusy] = useState(false)
   const [agentTokenCopied, setAgentTokenCopied] = useState(false)
+  const [mcpConfigCopied, setMcpConfigCopied] = useState(false)
 
   async function handleGenerateAgentToken() {
     setAgentTokenBusy(true)
@@ -3293,6 +3294,48 @@ export default function ShopSettingsPanel({
                   Regenerar invalida el token anterior. Si crees que se filtró, revócalo de inmediato.
                 </p>
               )}
+            </div>
+
+            {/* ── Conecta tu agente — ready-to-paste MCP config ── */}
+            <div className="mt-6 pt-5 border-t border-[var(--color-border)]">
+              <SectionTitle>Conecta tu agente</SectionTitle>
+              <p className="text-xs text-[var(--color-muted)] mb-3">
+                Pega esta configuración en tu cliente MCP (Claude Desktop u otro) para que tu agente lea y
+                ajuste tu tienda. Reemplaza el token por el que generaste arriba.
+              </p>
+              {(() => {
+                const token = agentToken ?? 'PEGA_TU_TOKEN_AQUÍ'
+                const snippet = `{
+  "mcpServers": {
+    "mi-tienda-miyagi": {
+      "url": "https://miyagisanchez.com/api/ucp/mcp",
+      "transport": "http",
+      "headers": { "Authorization": "Bearer ${token}" }
+    }
+  }
+}`
+                return (
+                  <div className="relative">
+                    <pre className="text-[11px] bg-gray-900 text-green-400 rounded-lg p-3 overflow-x-auto leading-relaxed">{snippet}</pre>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(snippet); setMcpConfigCopied(true); setTimeout(() => setMcpConfigCopied(false), 2000) }}
+                      className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded"
+                    >
+                      {mcpConfigCopied ? '✓ Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                )
+              })()}
+              <ol className="mt-3 text-xs text-[var(--color-muted)] list-decimal list-inside space-y-1">
+                <li>Genera tu token arriba y cópialo.</li>
+                <li>Pega esta configuración en tu cliente MCP, con tu token en lugar del marcador.</li>
+                <li>Tu agente podrá usar <code className="font-mono">get_store_configuration</code> y <code className="font-mono">patch_store_configuration</code>.</li>
+              </ol>
+              <p className="text-[11px] text-[var(--color-muted)] mt-2">
+                Tu agente puede ajustar perfil, envíos, negociación, notificaciones, pedidos y devoluciones.
+                Pagos, dominio y Cal.com siempre requieren un paso manual.
+              </p>
             </div>
           </section>
 
