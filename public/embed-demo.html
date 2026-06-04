@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Miyagi Sánchez — Embed widget demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px 80px; color: #111; }
+    h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 32px; }
+    .muted { color: #666; font-size: 13px; line-height: 1.5; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .surface { padding: 20px; border: 1px dashed #d6d9dc; border-radius: 12px; margin-top: 10px; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+    input { padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; }
+    button.go { padding: 8px 14px; border: 0; border-radius: 8px; background: #1d6f42; color: #fff; font-weight: 700; cursor: pointer; }
+    iframe { width: 100%; height: 620px; border: 1px solid #e6e8eb; border-radius: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Miyagi Sánchez · Embed widget — demo / live confirmation</h1>
+  <p class="muted">
+    Exercises all three Sprint 2 surfaces from a single host page. The host page's
+    own CSS never bleeds into the widgets (Shadow DOM). Buy hands off to the hosted
+    checkout in a popup — no payment surface renders here.
+  </p>
+  <p class="muted">
+    Fill the form (a real <code>prod_…</code> listing id, your <code>emb_pk_…</code> key, and an
+    optional shop slug), or pass them in the URL:
+    <code>?api=…&amp;listing=prod_…&amp;key=emb_pk_…&amp;slug=…</code>.
+    <code>api</code> defaults to this page's origin.
+  </p>
+
+  <form id="cfg">
+    <input name="api" placeholder="API origin (default: this origin)" size="26">
+    <input name="listing" placeholder="prod_… (listing id)" size="22">
+    <input name="key" placeholder="emb_pk_… (embed key)" size="22">
+    <input name="slug" placeholder="shop slug (for the iframe)" size="16">
+    <button class="go" type="submit">Render</button>
+  </form>
+
+  <h2>1 · &lt;miyagi-buy-button&gt;</h2>
+  <div class="surface" id="s-button"></div>
+
+  <h2>2 · &lt;miyagi-product&gt;</h2>
+  <div class="surface" id="s-card"></div>
+
+  <h2>3 · Full-shop &lt;iframe&gt; — /embed/s/[slug]</h2>
+  <div class="surface" id="s-iframe"><p class="muted">Provide a shop slug to load the storefront.</p></div>
+
+  <script>
+    var qs = new URLSearchParams(location.search)
+    var api = qs.get('api') || location.origin
+    var listing = qs.get('listing') || ''
+    var key = qs.get('key') || ''
+    var slug = qs.get('slug') || ''
+
+    // Pre-fill the form from the URL.
+    var f = document.getElementById('cfg')
+    f.api.value = qs.get('api') || ''
+    f.listing.value = listing; f.key.value = key; f.slug.value = slug
+    f.addEventListener('submit', function (e) {
+      e.preventDefault()
+      var p = new URLSearchParams()
+      if (f.api.value) p.set('api', f.api.value)
+      if (f.listing.value) p.set('listing', f.listing.value)
+      if (f.key.value) p.set('key', f.key.value)
+      if (f.slug.value) p.set('slug', f.slug.value)
+      location.search = p.toString()
+    })
+
+    function attr(v) { return v ? (' data-listing="' + v + '"') : '' }
+    function keyAttr(v) { return v ? (' data-key="' + v + '"') : '' }
+
+    if (listing) {
+      document.getElementById('s-button').innerHTML =
+        '<miyagi-buy-button' + attr(listing) + keyAttr(key) + '></miyagi-buy-button>'
+      document.getElementById('s-card').innerHTML =
+        '<miyagi-product' + attr(listing) + keyAttr(key) + '></miyagi-product>'
+    } else {
+      document.getElementById('s-button').innerHTML = '<p class="muted">Provide a listing id to render the button.</p>'
+      document.getElementById('s-card').innerHTML = '<p class="muted">Provide a listing id to render the card.</p>'
+    }
+
+    if (slug) {
+      var src = api + '/embed/s/' + encodeURIComponent(slug) + (key ? ('?key=' + encodeURIComponent(key)) : '')
+      document.getElementById('s-iframe').innerHTML = '<iframe src="' + src + '" loading="lazy"></iframe>'
+    }
+
+    // Load the loader from the chosen API origin (proves cross-origin works).
+    var s = document.createElement('script')
+    s.src = api + '/embed.js'
+    s.async = true
+    document.head.appendChild(s)
+  </script>
+</body>
+</html>

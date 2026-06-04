@@ -16,6 +16,29 @@ const nextConfig: NextConfig = {
       { source: '/.well-known/ucp', destination: '/api/ucp/manifest' },
     ]
   },
+  async headers() {
+    return [
+      {
+        // The embeddable widget loader is included via <script> from any site, so
+        // it must be CORS-open and cacheable. (07 · Embeddable Widget, Sprint 2.)
+        source: '/embed.js',
+        headers: [
+          { key: 'Content-Type', value: 'text/javascript; charset=utf-8' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400' },
+        ],
+      },
+      {
+        // The full-shop embed surface must be framable by ANY site (it's the
+        // whole point). frame-ancestors * is the modern directive; no global
+        // X-Frame-Options is set, so nothing to override. (US-5.)
+        source: '/embed/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: 'frame-ancestors *' },
+        ],
+      },
+    ]
+  },
 }
 
 export default withSentryConfig(nextConfig, {
