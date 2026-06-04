@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   buildSettingsCopilotPrompt,
   CONFIG_BLOCKS,
   MANUAL_SECTIONS,
   EXAMPLE_CONFIG,
+  parseConfigFile,
+  validateConfig,
+  type BlockResult,
+  type StoreConfigManifest,
 } from '@/lib/settings-import'
 
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
@@ -27,6 +31,145 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
     >
       {copied ? '✓ Copiado' : `📋 ${label}`}
     </button>
+  )
+}
+
+// ── Per-block result row (preview + report) ──────────────────────────────────
+
+function BlockRow({ b }: { b: BlockResult }) {
+  const ok = b.status === 'applied'
+  return (
+    <div className={`rounded-lg border p-3 ${ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">{b.label}</span>
+        <span className={`text-xs font-semibold ${ok ? 'text-green-700' : 'text-red-700'}`}>
+          {ok ? `✓ ${b.appliedFields.length} campo(s)` : '✕ omitido'}
+        </span>
+      </div>
+      {b.issues.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5">
+          {b.issues.map((iss, i) => (
+            <li key={i} className="text-xs text-red-700">• {iss}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ConfigUploader() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [manifest, setManifest] = useState<StoreConfigManifest | null>(null)
+  const [preview, setPreview] = useState<BlockResult[] | null>(null)
+  const [report, setReport] = useState<BlockResult[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
+
+  async function handleFile(file: File) {
+    setError(null); setManifest(null); setPreview(null); setReport(null); setFileName(null)
+    if (file.size > 2 * 1024 * 1024) { setError('El archivo es muy grande (máx. 2 MB).'); return }
+    try {
+      const text = await file.text()
+      const { manifest: m, error: e } = parseConfigFile(text)
+      if (!m) { setError(e ?? 'Archivo inválido.'); return }
+      setFileName(file.name)
+      setManifest(m)
+      setPreview(validateConfig(m).blocks)
+    } catch {
+      setError('No se pudo leer el archivo. Intenta de nuevo.')
+    }
+  }
+
+  async function apply() {
+    if (!manifest) return
+    setApplying(true); setError(null)
+    try {
+      const res = await fetch('/api/sell/settings-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifest }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; blocks?: BlockResult[]; error?: string }
+      if (!res.ok) { setError(data.error ?? 'No se pudo aplicar la configuración.'); if (data.blocks) setPreview(data.blocks); return }
+      setReport(data.blocks ?? [])
+    } catch {
+      setError('No se pudo aplicar la configuración. Intenta de nuevo.')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const appliedCount = (preview ?? []).filter((b) => b.status === 'applied').length
+
+  return (
+    <section className="border-2 border-dashed border-[var(--color-border)] rounded-2xl p-6">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
+      />
+
+      {!report && (
+        <div className="text-center">
+          <div className="text-3xl mb-2">⚙️</div>
+          <h2 className="font-semibold mb-1">Subir tu configuración</h2>
+          <p className="text-sm text-[var(--color-muted)] mb-4">
+            Sube el archivo JSON que generó tu IA. Te mostramos qué se va a aplicar antes de guardar.
+          </p>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[var(--color-accent-hover)] transition-colors"
+          >
+            Elegir archivo
+          </button>
+          {fileName && <p className="text-xs text-[var(--color-muted)] mt-3">📄 {fileName}</p>}
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Preview before applying */}
+      {preview && !report && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-sm font-medium">Se aplicarán <strong>{appliedCount}</strong> bloque(s)</p>
+            <button
+              type="button"
+              onClick={apply}
+              disabled={applying || appliedCount === 0}
+              className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {applying ? 'Aplicando…' : 'Aplicar configuración'}
+            </button>
+          </div>
+          <div className="space-y-2">
+            {preview.map((b) => <BlockRow key={b.key} b={b} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Delta report after applying */}
+      {report && (
+        <div>
+          <div className="text-center mb-4">
+            <div className="text-3xl mb-2">✅</div>
+            <h2 className="font-semibold">Configuración aplicada</h2>
+            <p className="text-sm text-[var(--color-muted)] mt-1">
+              <Link href="/shop/manage/settings" className="text-[var(--color-accent)] hover:underline">Ver mi configuración →</Link>
+            </p>
+          </div>
+          <div className="space-y-2">
+            {report.map((b) => <BlockRow key={b.key} b={b} />)}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -113,15 +256,8 @@ export default function SettingsImportClient() {
         </pre>
       </section>
 
-      {/* Upload (next story) */}
-      <section className="border-2 border-dashed border-[var(--color-border)] rounded-2xl p-8 text-center">
-        <div className="text-3xl mb-2">⚙️</div>
-        <h2 className="font-semibold mb-1">Subir tu configuración</h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          Muy pronto vas a poder subir aquí el archivo y aplicar toda tu configuración de una vez. Por
-          ahora, prepárala con el prompt de arriba.
-        </p>
-      </section>
+      {/* Upload + apply */}
+      <ConfigUploader />
     </div>
   )
 }
