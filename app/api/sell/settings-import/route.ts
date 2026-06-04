@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { revalidateTag } from 'next/cache'
 import { validateConfig, type StoreConfigManifest } from '@/lib/settings-import'
 import { applyShopSettings } from '@/lib/apply-shop-settings'
+import { ingestImageUrls } from '@/lib/image-ingest'
 
 /**
  * POST /api/sell/settings-import  (Storefront-as-Code, Sprint 3)
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Re-validate server-side — never trust the client.
-  const { blocks, patch } = validateConfig(manifest as StoreConfigManifest)
+  const { blocks, patch, assets } = validateConfig(manifest as StoreConfigManifest)
   const appliedBlocks = blocks.filter((b) => b.status === 'applied')
 
   if (appliedBlocks.length === 0) {
@@ -37,6 +38,22 @@ export async function POST(req: NextRequest) {
       { blocks, error: 'No encontramos configuración válida para aplicar. Revisa el archivo.' },
       { status: 422 },
     )
+  }
+
+  // US-3: pull remote logo/banner URLs into our R2 storage so the brand assets
+  // don't depend on the source host. Graceful — a failed fetch keeps the
+  // original URL (already in `patch`); never blocks the apply.
+  const assetUrls = [assets.logo_url, assets.banner_url].filter(Boolean) as string[]
+  if (assetUrls.length > 0) {
+    const ing = await ingestImageUrls(userId, assetUrls, patch.name ?? 'tienda')
+    let i = 0
+    if (assets.logo_url) { patch.logo_url = ing.images[i]?.url ?? patch.logo_url; i++ }
+    if (assets.banner_url) {
+      const url = ing.images[i]?.url
+      const theme = patch.settings?.theme as Record<string, unknown> | undefined
+      if (url && theme) theme.banner_url = url
+      i++
+    }
   }
 
   const clerkJwt = await getToken()
