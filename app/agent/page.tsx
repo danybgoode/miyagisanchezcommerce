@@ -305,11 +305,11 @@ export default function AgentPage() {
             Live marketplace
           </a>
           <a
-            href={`${ENDPOINT}/api/ucp/listings`}
+            href={`${ENDPOINT}/api/ucp/catalog`}
             className="btn btn-secondary btn-sm"
           >
             <i className="iconoir-code" style={{ fontSize: 14 }} />
-            Browse listings API
+            Browse catalog API
           </a>
         </div>
       </section>
