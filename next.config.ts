@@ -16,6 +16,20 @@ const nextConfig: NextConfig = {
       { source: '/.well-known/ucp', destination: '/api/ucp/manifest' },
     ]
   },
+  async headers() {
+    return [
+      {
+        // The embeddable widget loader is included via <script> from any site, so
+        // it must be CORS-open and cacheable. (07 · Embeddable Widget, Sprint 2.)
+        source: '/embed.js',
+        headers: [
+          { key: 'Content-Type', value: 'text/javascript; charset=utf-8' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400' },
+        ],
+      },
+    ]
+  },
 }
 
 export default withSentryConfig(nextConfig, {
