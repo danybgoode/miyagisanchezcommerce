@@ -28,6 +28,15 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400' },
         ],
       },
+      {
+        // The full-shop embed surface must be framable by ANY site (it's the
+        // whole point). frame-ancestors * is the modern directive; no global
+        // X-Frame-Options is set, so nothing to override. (US-5.)
+        source: '/embed/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: 'frame-ancestors *' },
+        ],
+      },
     ]
   },
 }

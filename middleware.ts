@@ -68,6 +68,16 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     )
   }
 
+  // ── Embed surface (full-shop iframe) ──────────────────────────────────────
+  // Tag /embed/* requests so the root layout drops platform chrome (white-label
+  // iframe). The route is served `frame-ancestors *` via next.config so any site
+  // can frame it; buy actions break out to a top-level tab on our own origin.
+  if (req.nextUrl.pathname.startsWith('/embed/')) {
+    const headers = new Headers(req.headers)
+    headers.set('x-miyagi-embed', '1')
+    return NextResponse.next({ request: { headers } })
+  }
+
   // ── Standard platform routing ────────────────────────────────────────────
   if (isProtected(req)) await auth.protect()
 

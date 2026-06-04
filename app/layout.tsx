@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
@@ -80,7 +81,10 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The embeddable full-shop iframe (/embed/*) is white-label — middleware tags
+  // it so we drop the platform header/footer/tab bar and render just the shop.
+  const isEmbed = (await headers()).get('x-miyagi-embed') === '1'
   return (
     <ClerkProvider>
       <html lang="es">
@@ -115,6 +119,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </head>
         <body>
           <CartProvider>
+          {!isEmbed && (
+          <>
           {/* ── Sticky header ── */}
           <div
             style={{
@@ -350,10 +356,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </header>
           </div>
+          </>
+          )}
 
           <main>{children}</main>
           <ReferralAttribution />
 
+          {!isEmbed && (
+          <>
           <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
               className="app-shell"
@@ -371,6 +381,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
           <MobileTabBar />
+          </>
+          )}
           <CartDrawer />
           </CartProvider>
         </body>
