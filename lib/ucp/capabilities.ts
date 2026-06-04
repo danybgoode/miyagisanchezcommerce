@@ -110,6 +110,7 @@ export const MCP_BUYER_TOOLS = [
 export const MCP_SELLER_TOOLS = [
   'get_store_configuration',
   'patch_store_configuration',
+  'list_offers',
 ] as const
 
 /** Every MCP tool name, in discovery order. */

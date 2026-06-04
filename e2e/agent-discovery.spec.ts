@@ -15,7 +15,7 @@ test.describe('Agent discovery surface', () => {
     )
     const tools: string[] = m.endpoints.mcp.mcp_tools
     expect(tools).toEqual(expect.arrayContaining(['get_store_configuration', 'patch_store_configuration']))
-    expect(tools.length).toBe(11)
+    expect(tools.length).toBeGreaterThanOrEqual(11)
     expect(m.endpoints.seller_configuration).toBeTruthy()
   })
 

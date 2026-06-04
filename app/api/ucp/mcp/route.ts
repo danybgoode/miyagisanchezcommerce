@@ -33,6 +33,7 @@ import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange } from '@/lib/agent-audit'
+import { listShopOffers } from '@/lib/offer-respond'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
 
@@ -229,6 +230,16 @@ const TOOLS = [
             scheduling:     { type: 'object', description: 'links: [{label, url}] — booking links (Cal.com connection is separate/manual)' },
           },
         },
+      },
+    },
+  },
+  {
+    name: 'list_offers',
+    description: "SELLER TOOL. List the open price offers on YOUR OWN shop's listings so you can decide how to respond. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each offer's amount, % of asking price, a quality read, the buyer name + message, status, time left, and listing — no secrets. Use before respond_to_offer.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pending_only: { type: 'boolean', description: 'If true, return only offers awaiting your response (status "pending"). Default false (all non-terminal offers).' },
       },
     },
   },
@@ -796,6 +807,32 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
   }
 }
 
+async function handleListOffers(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) {
+    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  }
+
+  const offers = await listShopOffers(shop.id, { actionableOnly: args.pending_only === true })
+  if (offers.length === 0) {
+    return { content: [{ type: 'text', text: 'No hay ofertas abiertas en este momento.' }] }
+  }
+
+  const lines = offers.map((o) =>
+    `• **${o.listing_title}** — ${o.offer_amount} (${o.pct_of_asking}% de ${o.list_price}, ${o.quality}) ` +
+    `· ${o.buyer_name} · ${o.status}${o.status === 'countered' && o.counter_amount ? ` (contraoferta ${o.counter_amount})` : ''} ` +
+    `· vence en ${o.expires_in}\n  id: \`${o.id}\`${o.message ? `\n  «${o.message}»` : ''}`,
+  )
+  const summary = [`## Ofertas abiertas (${offers.length})`, ...lines].join('\n')
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      { type: 'text', text: JSON.stringify({ offers }, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
@@ -833,6 +870,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
       case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
+      case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
       default:                     return null  // will become MethodNotFound error
     }
   }
