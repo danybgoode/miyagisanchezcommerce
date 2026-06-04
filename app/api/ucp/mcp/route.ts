@@ -28,8 +28,11 @@ import { toUcpListing } from '@/lib/ucp/schema'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
+import { applyStoreConfig } from '@/lib/apply-config-manifest'
+import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -203,6 +206,29 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'patch_store_configuration',
+    description: "SELLER TOOL. Update YOUR OWN shop's configuration. Requires the seller agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Send only the blocks you want to change inside `configuration` — untouched blocks are preserved (partial patch). Every value is strictly re-validated server-side before anything is written; invalid fields are dropped and reported, and a malformed block can never break the live storefront. Payments, custom domain, and Cal.com are OAuth-bound and are ignored here — they always need a manual step. Returns a per-block report of what was applied vs. skipped.",
+    inputSchema: {
+      type: 'object',
+      required: ['configuration'],
+      properties: {
+        configuration: {
+          type: 'object',
+          description: 'Partial store config. Include only the blocks to change. Mirrors the shape returned by get_store_configuration.',
+          properties: {
+            profile:        { type: 'object', description: 'name, description, state, city, tagline, accent_color (#rrggbb), logo_url, banner_url (absolute http/https URLs — ingested to our storage), social {instagram,facebook,whatsapp,tiktok,twitter}' },
+            shipping:       { type: 'object', description: 'local_pickup, envia_enabled, allowed_carriers[], rate_display (recommended|cheapest|all), handling_fee_cents, package_defaults, origin_address, pickup_spots[]' },
+            offers:         { type: 'object', description: 'min_buyer_trust_level, negotiation {enabled, auto_accept_pct, auto_decline_pct, auto_counter_pct} (percentages 0–100)' },
+            notifications:  { type: 'object', description: 'email_new_view, email_new_message (booleans)' },
+            orders:         { type: 'object', description: 'processing_time, auto_accept, dispatch_window_days, auto_confirm_days' },
+            returns_policy: { type: 'object', description: 'window, conditions, shipping_paid_by (buyer|seller), custom_note' },
+            scheduling:     { type: 'object', description: 'links: [{label, url}] — booking links (Cal.com connection is separate/manual)' },
+          },
+        },
+      },
     },
   },
 ]
@@ -715,6 +741,57 @@ async function handleGetStoreConfiguration(authHeader?: string | null) {
   }
 }
 
+async function handlePatchStoreConfiguration(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) {
+    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  }
+
+  // Accept either { configuration: {...} } or the manifest at the top level.
+  const raw = (args.configuration && typeof args.configuration === 'object' && !Array.isArray(args.configuration))
+    ? args.configuration as Record<string, unknown>
+    : args
+  if (!raw || typeof raw !== 'object' || Object.keys(raw).length === 0) {
+    return { isError: true, content: [{ type: 'text', text: 'Provide a `configuration` object with at least one block to change.' }] }
+  }
+
+  // Flag OAuth/manual blocks the agent tried to set — we ignore them by design.
+  const manualKeys = new Set(MANUAL_SECTIONS.map((m) => m.key))
+  const ignoredManual = Object.keys(raw).filter((k) => manualKeys.has(k))
+
+  const result = await applyStoreConfig(shop.clerk_user_id, null, raw as StoreConfigManifest)
+
+  if (!result.ok) {
+    const issues = result.blocks.flatMap((b) => b.issues.map((i) => `- ${b.label}: ${i}`)).join('\n')
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `No se aplicó ningún cambio. ${result.error ?? ''}${issues ? `\n\n${issues}` : ''}` }],
+    }
+  }
+
+  // Refresh storefront/PDP caches so the change shows immediately.
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const lines = result.blocks.map((b) =>
+    b.status === 'applied'
+      ? `✅ ${b.label}: ${b.appliedFields.join(', ')}${b.issues.length ? ` (omitidos: ${b.issues.join('; ')})` : ''}`
+      : `⏭️ ${b.label}: sin cambios válidos${b.issues.length ? ` (${b.issues.join('; ')})` : ''}`,
+  )
+  const summary = [
+    `## Configuración actualizada — ${shop.name ?? 'tu tienda'}`,
+    ...lines,
+    ...(ignoredManual.length ? ['', `⚠️ Ignorado (requiere paso manual): ${ignoredManual.join(', ')}`] : []),
+  ].join('\n')
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      { type: 'text', text: JSON.stringify({ ok: true, blocks: result.blocks, ignored_manual: ignoredManual }, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
@@ -750,7 +827,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
-      case 'get_store_configuration': return { content: (await handleGetStoreConfiguration(authHeader)).content }
+      case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
+      case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       default:                     return null  // will become MethodNotFound error
     }
   }
