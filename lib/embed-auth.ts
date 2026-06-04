@@ -79,13 +79,19 @@ export function isEmbedRequest(req: Request): boolean {
 export async function resolveEmbedShop(key?: string | null): Promise<EmbedShop | null> {
   if (!looksLikeEmbedKey(key)) return null
 
-  const { data, error } = await db
-    .from('marketplace_shops')
-    .select('id, slug, name, verified, logo_url, metadata')
-    .eq('metadata->>embed_key', key)
-    .limit(1)
-    .maybeSingle()
+  // Fail closed to "not recognized" on any DB error — a public resolver must
+  // never 500 on a transient lookup failure; the caller treats null as anonymous.
+  try {
+    const { data, error } = await db
+      .from('marketplace_shops')
+      .select('id, slug, name, verified, logo_url, metadata')
+      .eq('metadata->>embed_key', key)
+      .limit(1)
+      .maybeSingle()
 
-  if (error || !data) return null
-  return data as EmbedShop
+    if (error || !data) return null
+    return data as EmbedShop
+  } catch {
+    return null
+  }
 }
