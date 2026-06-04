@@ -56,6 +56,22 @@ export function embedKeyFromRequest(req: Request): string | null {
 }
 
 /**
+ * Is this request coming from the embeddable widget? True when it carries an
+ * embed key, the `embed` channel header, or a `?channel=embed` marker. Used to
+ * apply the embed rate-limit bucket ONLY to widget traffic on shared endpoints,
+ * leaving the marketplace and AI agents unthrottled.
+ */
+export function isEmbedRequest(req: Request): boolean {
+  if (embedKeyFromRequest(req)) return true
+  if (req.headers.get('x-miyagi-channel') === 'embed') return true
+  try {
+    return new URL(req.url).searchParams.get('channel') === 'embed'
+  } catch {
+    return false
+  }
+}
+
+/**
  * Resolve an embed key to the shop it belongs to (public fields only), or null.
  * Scoped by construction: a key maps to exactly one shop. The caller decides
  * what to do when null (treat as anonymous, or refuse).

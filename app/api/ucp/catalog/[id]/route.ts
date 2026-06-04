@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { isEmbedRequest } from '@/lib/embed-auth'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -28,6 +30,17 @@ export async function GET(
 ) {
   const { id } = await params
   const baseUrl = req.headers.get('origin') ?? 'https://miyagisanchez.com'
+
+  // Widget traffic is rate-limited; agents/marketplace are not. No-op w/o Redis.
+  if (isEmbedRequest(req)) {
+    const rl = await checkRateLimit('embed', getClientIp(req))
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes.' },
+        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+      )
+    }
+  }
 
   if (!id || typeof id !== 'string') {
     return NextResponse.json({ error: 'Missing listing id' }, { status: 400, headers: CORS })

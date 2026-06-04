@@ -23,6 +23,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { isEmbedRequest } from '@/lib/embed-auth'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing } from '@/lib/types'
 
 const MAX_LIMIT = 50
@@ -43,6 +45,18 @@ export async function OPTIONS() {
 }
 
 export async function GET(req: NextRequest) {
+  // Embed-marked requests (the public widget) are rate-limited; the marketplace
+  // and AI agents hitting the same endpoint are not. No-op without Redis.
+  if (isEmbedRequest(req)) {
+    const rl = await checkRateLimit('embed', getClientIp(req))
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes.' },
+        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+      )
+    }
+  }
+
   const { searchParams } = new URL(req.url)
   const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
   const baseUrl = origin.startsWith('http') ? origin : 'https://miyagisanchez.com'

@@ -71,18 +71,22 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // ── Standard platform routing ────────────────────────────────────────────
   if (isProtected(req)) await auth.protect()
 
-  // ── Referral capture ──────────────────────────────────────────────────────
-  // A `?ref=CODE` on any platform page is stashed in a 30-day cookie. After the
-  // visitor signs up, the client posts to /api/referrals/attribute, which reads
-  // this cookie to credit the referrer.
+  // ── Referral + channel capture ────────────────────────────────────────────
+  // `?ref=CODE` on any platform page is stashed in a 30-day cookie (read later by
+  // /api/referrals/attribute to credit the referrer). `?channel=embed` (the
+  // embeddable widget's hosted-checkout hand-off) is stashed in a short-lived
+  // cookie so detectChannel() can tag the sale `embed` across the checkout steps.
   const ref = req.nextUrl.searchParams.get('ref')
-  if (ref && /^[A-Za-z0-9]{4,12}$/.test(ref)) {
+  const validRef = ref ? /^[A-Za-z0-9]{4,12}$/.test(ref) : false
+  const isEmbed = req.nextUrl.searchParams.get('channel') === 'embed'
+  if (validRef || isEmbed) {
     const res = NextResponse.next()
-    res.cookies.set('ref', ref.toUpperCase(), {
-      maxAge: 60 * 60 * 24 * 30,
-      path: '/',
-      sameSite: 'lax',
-    })
+    if (validRef) {
+      res.cookies.set('ref', ref!.toUpperCase(), { maxAge: 60 * 60 * 24 * 30, path: '/', sameSite: 'lax' })
+    }
+    if (isEmbed) {
+      res.cookies.set('mi_channel', 'embed', { maxAge: 60 * 60 * 2, path: '/', sameSite: 'lax' })
+    }
     return res
   }
 })

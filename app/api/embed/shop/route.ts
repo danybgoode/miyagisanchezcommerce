@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveEmbedShop, embedKeyFromRequest } from '@/lib/embed-auth'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +29,15 @@ export async function OPTIONS() {
 }
 
 export async function GET(req: NextRequest) {
+  // Public + scriptable from any page → rate-limit per IP (no-op without Redis).
+  const rl = await checkRateLimit('embed', getClientIp(req))
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Demasiadas solicitudes.' },
+      { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
+
   const key = embedKeyFromRequest(req)
   const shop = await resolveEmbedShop(key)
 

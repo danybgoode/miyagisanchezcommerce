@@ -24,6 +24,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { isEmbedRequest } from '@/lib/embed-auth'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
 
@@ -150,6 +152,17 @@ async function fetchBackendPaymentMethods(
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // Widget traffic is rate-limited; agents/marketplace are not. No-op w/o Redis.
+  if (isEmbedRequest(req)) {
+    const rl = await checkRateLimit('embed', getClientIp(req))
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes.' },
+        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+      )
+    }
+  }
+
   const host    = req.headers.get('host') ?? 'miyagisanchez.com'
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
