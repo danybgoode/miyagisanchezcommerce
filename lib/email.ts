@@ -1214,3 +1214,36 @@ export async function sendPrintSocialReceived(ctx: {
   ].join('')
   await send(ctx.toEmail, subject, body)
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// AGENT CONFIG ALERTS (Sprint 4 US-4)
+// ════════════════════════════════════════════════════════════════════════════════
+
+const AGENT_BLOCK_LABELS: Record<string, string> = {
+  profile:        'Perfil y marca',
+  shipping:       'Envíos y entrega',
+  offers:         'Negociación y ofertas',
+  notifications:  'Notificaciones',
+  orders:         'Gestión de pedidos',
+  returns_policy: 'Devoluciones',
+  scheduling:     'Enlaces de agenda',
+}
+
+/** Security alert: a seller's MCP agent changed a sensitive config block. */
+export async function sendAgentConfigAlert(ctx: {
+  to: string
+  shopName: string
+  blocks: string[]
+  sensitive: string[]
+}): Promise<void> {
+  const subject = `Tu agente cambió la configuración de ${ctx.shopName}`
+  const label = (k: string) => AGENT_BLOCK_LABELS[k] ?? k
+  const body = [
+    h1('Un agente modificó tu tienda'),
+    p(`Tu agente de IA aplicó cambios en la configuración de <strong>${esc(ctx.shopName)}</strong> a través de MCP.`),
+    table(ctx.blocks.map((b) => [label(b), ctx.sensitive.includes(b) ? 'Modificado · sensible' : 'Modificado'])),
+    notice('Si no reconoces este cambio, revisa y revoca el token de tu agente en Configuración → Agentes e integraciones.', 'warn'),
+    cta('Revisar configuración', `${SITE}/shop/manage/settings/agentes`),
+  ].join('')
+  await send(ctx.to, subject, body)
+}

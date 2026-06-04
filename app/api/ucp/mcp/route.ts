@@ -32,6 +32,7 @@ import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
+import { recordAgentConfigChange } from '@/lib/agent-audit'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
 
@@ -772,6 +773,9 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
   // Refresh storefront/PDP caches so the change shows immediately.
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
+
+  // Operational audit log + security notifications (best-effort, never blocks).
+  await recordAgentConfigChange(shop, result)
 
   const lines = result.blocks.map((b) =>
     b.status === 'applied'
