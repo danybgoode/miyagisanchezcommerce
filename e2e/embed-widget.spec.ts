@@ -28,4 +28,11 @@ test.describe('Embed widget — loader script', () => {
     expect(body).toContain('/checkout?listingId=')
     expect(body).toContain('channel=embed')
   })
+
+  test('loader also registers the <miyagi-product> card (US-4)', async ({ request }) => {
+    const body = await (await request.get('/embed.js')).text()
+    expect(body).toContain("customElements.define('miyagi-product'")
+    // Card uses Shadow DOM so the host page's CSS can't bleed in or out.
+    expect(body).toContain('attachShadow')
+  })
 })
