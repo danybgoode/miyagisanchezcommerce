@@ -173,6 +173,18 @@ export default async function SettingsIndexPage() {
         </div>
       </div>
 
+      {/* Import config CTA */}
+      <Link href="/shop/manage/settings/import" className="no-underline">
+        <div style={{ marginBottom: 16, padding: '14px 16px', background: 'var(--accent-soft)', border: '1px solid var(--accent)', borderRadius: 'var(--r-lg)', display: 'flex', alignItems: 'center', gap: 12 }} className="hover:shadow-[var(--shadow-2)]">
+          <i className="iconoir-import" style={{ fontSize: 20, color: 'var(--accent)', flexShrink: 0 }} />
+          <div className="flex-1 min-w-0">
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>¿Te cambias de plataforma? Importa tu configuración</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2, lineHeight: 1.4 }}>Sube un archivo y configura tu tienda de un jalón, sin pasar por cada pantalla.</p>
+          </div>
+          <i className="iconoir-arrow-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', flexShrink: 0 }} />
+        </div>
+      </Link>
+
       {/* Section grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 10 }} className="sm:grid-cols-2">
         {SECTIONS.map(section => {
