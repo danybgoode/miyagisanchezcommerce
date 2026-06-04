@@ -28,6 +28,8 @@ import { toUcpListing } from '@/lib/ucp/schema'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { resolveAgentShop } from '@/lib/agent-auth'
+import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -193,6 +195,14 @@ const TOOLS = [
       properties: {
         identifier: { type: 'string', description: 'Email address (e.g. "juan@example.com") or Clerk user ID (e.g. "user_abc123")' },
       },
+    },
+  },
+  {
+    name: 'get_store_configuration',
+    description: "SELLER TOOL. Read YOUR OWN shop's declarative configuration — profile/brand, shipping, negotiation, notifications, order handling, returns policy, and scheduling links. Requires a seller agent token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; it is scoped to that one shop. Never returns secrets (no payment keys, bank CLABE, Stripe/MercadoPago tokens, or Cal.com keys). Call this before patch_store_configuration to see current values and which sections still need a manual step.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
     },
   },
 ]
@@ -674,6 +684,37 @@ async function handleGetBuyerTrust(args: Record<string, unknown>) {
   return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(trust, null, 2) }] }
 }
 
+// ── Seller-side config tools (Sprint 4) ───────────────────────────────────────
+
+const AGENT_AUTH_HINT =
+  'This is a seller tool. Provide your shop agent token as `Authorization: Bearer ms_agent_…`. ' +
+  'Generate or rotate it under “Agentes e integraciones” in your Miyagi Sánchez shop settings. ' +
+  'The token is scoped to a single shop.'
+
+async function handleGetStoreConfiguration(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) {
+    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  }
+
+  const snapshot = buildStoreConfigSnapshot(shop)
+  const manualLines = snapshot.manual_sections.map((m) => `- ${m.label}: ${m.why}`).join('\n')
+  const summary = [
+    `## Configuración de ${shop.name ?? 'tu tienda'}`,
+    `**Bloques con datos:** ${snapshot.configured_blocks.length ? snapshot.configured_blocks.join(', ') : 'ninguno aún'}`,
+    '',
+    'Estos bloques son editables con `patch_store_configuration`. Lo siguiente requiere un paso manual y NO se puede cambiar por agente:',
+    manualLines,
+  ].join('\n')
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      { type: 'text', text: JSON.stringify(snapshot, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
@@ -709,6 +750,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
+      case 'get_store_configuration': return { content: (await handleGetStoreConfiguration(authHeader)).content }
       default:                     return null  // will become MethodNotFound error
     }
   }

@@ -38,6 +38,8 @@ export interface ShopSettingsData {
   mp_enabled: boolean
   ucp_webhook_url?: string | null
   ucp_webhook_secret?: string | null
+  /** Whether an MCP agent token has already been provisioned (Sprint 4). */
+  agent_token_set?: boolean
   // Federated commerce — own channel
   slug?: string
   custom_domain?: string | null
@@ -946,6 +948,38 @@ export default function ShopSettingsPanel({
   const [showPayloadPreview, setShowPayloadPreview] = useState(false)
   const [webhookCopied, setWebhookCopied]   = useState(false)
   const [webhookUrlError, setWebhookUrlError] = useState('')
+
+  // MCP agent token (Sprint 4) — inbound credential a seller's agent uses to
+  // read/patch this shop's config. We only ever see the plaintext at creation.
+  const [agentTokenSet, setAgentTokenSet]   = useState(initial.agent_token_set ?? false)
+  const [agentToken, setAgentToken]         = useState<string | null>(null) // plaintext, shown once
+  const [agentTokenBusy, setAgentTokenBusy] = useState(false)
+  const [agentTokenCopied, setAgentTokenCopied] = useState(false)
+
+  async function handleGenerateAgentToken() {
+    setAgentTokenBusy(true)
+    try {
+      const res = await fetch('/api/sell/agent-token', { method: 'POST' })
+      const data = await res.json() as { token?: string; error?: string }
+      if (!res.ok || !data.token) { showToast(data.error ?? 'No se pudo generar el token.', 'error'); return }
+      setAgentToken(data.token)
+      setAgentTokenSet(true)
+      showToast('Token de agente generado. Cópialo ahora — no se vuelve a mostrar.', 'success')
+    } catch { showToast('Error de red al generar el token.', 'error') }
+    finally { setAgentTokenBusy(false) }
+  }
+
+  async function handleRevokeAgentToken() {
+    setAgentTokenBusy(true)
+    try {
+      const res = await fetch('/api/sell/agent-token', { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json().catch(() => ({})) as { error?: string }; showToast(d.error ?? 'No se pudo revocar.', 'error'); return }
+      setAgentToken(null)
+      setAgentTokenSet(false)
+      showToast('Token de agente revocado.', 'success')
+    } catch { showToast('Error de red al revocar.', 'error') }
+    finally { setAgentTokenBusy(false) }
+  }
 
   // Payment providers
   const [mpEnabled, setMpEnabled]           = useState(initial.mp_enabled ?? true)
@@ -3194,6 +3228,70 @@ export default function ShopSettingsPanel({
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* ── MCP agent token — let an AI agent read/patch this shop's config ── */}
+            <div className="mt-6 pt-5 border-t border-[var(--color-border)]">
+              <div className="flex items-center justify-between mb-1">
+                <SectionTitle>Token para tu agente (MCP)</SectionTitle>
+                <CopyPromptButton prompt="¿Qué es el Model Context Protocol (MCP) y cómo puede un agente de IA configurar mi tienda por mí? Explícame en términos sencillos cómo funciona un token tipo 'Bearer' y por qué solo debo compartirlo con mi propio asistente de confianza." />
+              </div>
+              <p className="text-xs text-[var(--color-muted)] mb-4">
+                Genera un token para que tu propio agente de IA lea y ajuste la configuración de tu tienda
+                vía MCP (<code className="font-mono bg-gray-100 px-1 rounded">get_store_configuration</code> /
+                <code className="font-mono bg-gray-100 px-1 rounded">patch_store_configuration</code>) sin entrar al panel.
+                Solo afecta a esta tienda. No incluye pagos, dominio ni claves — eso siempre se queda en un paso manual.
+              </p>
+
+              {agentToken ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-amber-800 mb-2">
+                    ⚠️ Copia este token ahora — no se vuelve a mostrar.
+                  </p>
+                  <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                    <code className="flex-1 text-xs font-mono text-[var(--color-foreground)] break-all">{agentToken}</code>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(agentToken); setAgentTokenCopied(true); setTimeout(() => setAgentTokenCopied(false), 2000) }}
+                      className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
+                    >
+                      {agentTokenCopied ? '✓ Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-amber-700 mt-2">
+                    Úsalo como <code className="font-mono">Authorization: Bearer {'{token}'}</code> contra el servidor MCP en <code className="font-mono">/api/ucp/mcp</code>.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateAgentToken}
+                    disabled={agentTokenBusy}
+                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50"
+                  >
+                    {agentTokenBusy ? 'Generando…' : agentTokenSet ? 'Regenerar token' : 'Generar token de agente'}
+                  </button>
+                  {agentTokenSet && (
+                    <>
+                      <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">✓ Token activo</span>
+                      <button
+                        type="button"
+                        onClick={handleRevokeAgentToken}
+                        disabled={agentTokenBusy}
+                        className="text-xs text-red-600 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Revocar
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {agentTokenSet && !agentToken && (
+                <p className="text-[11px] text-[var(--color-muted)] mt-2">
+                  Regenerar invalida el token anterior. Si crees que se filtró, revócalo de inmediato.
+                </p>
               )}
             </div>
           </section>

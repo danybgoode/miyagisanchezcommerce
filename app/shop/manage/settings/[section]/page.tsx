@@ -57,14 +57,20 @@ export default async function SettingsSectionPage({
   const stripeSettings = settings.stripe as { account_id?: string; charges_enabled?: boolean; onboarding_complete?: boolean } | undefined
   const calcomSettings = settings.calcom as { connected?: boolean; username?: string; event_type_title?: string; booking_url?: string } | undefined
   const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
-  // Strip MercadoPago secrets before metadata reaches the client component.
+  // Strip secrets before metadata reaches the client component:
+  // MercadoPago tokens + the hashed MCP agent token (never needs to leave the server).
   const safeMetadata = (() => {
-    const m = (shop.metadata ?? null) as Record<string, any> | null
+    let m = (shop.metadata ?? null) as Record<string, any> | null
+    if (m && ('ucp_agent_token_hash' in m || 'ucp_agent_token_created_at' in m)) {
+      const { ucp_agent_token_hash: _h, ucp_agent_token_created_at: _c, ...rest } = m
+      m = rest
+    }
     const mp = (m?.settings as any)?.mercadopago
     if (!mp) return m
     const { access_token: _a, refresh_token: _r, ...safeMp } = mp
     return { ...m, settings: { ...(m as any).settings, mercadopago: safeMp } }
   })()
+  const agentTokenSet = !!(meta?.ucp_agent_token_hash)
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
   const sectionTitle = SECTION_TITLES[section]
@@ -97,6 +103,7 @@ export default async function SettingsSectionPage({
           mp_enabled: (shop as unknown as { mp_enabled: boolean | null }).mp_enabled ?? true,
           ucp_webhook_url: (shop as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url ?? null,
           ucp_webhook_secret: (shop as unknown as { ucp_webhook_secret: string | null }).ucp_webhook_secret ?? null,
+          agent_token_set: agentTokenSet,
           calcom_connected: !!(shopRow.calcom_api_key && calcomSettings?.connected),
           calcom_username: calcomSettings?.username ?? null,
           calcom_event_type_title: calcomSettings?.event_type_title ?? null,
