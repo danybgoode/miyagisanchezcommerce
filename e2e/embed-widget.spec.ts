@@ -35,4 +35,14 @@ test.describe('Embed widget — loader script', () => {
     // Card uses Shadow DOM so the host page's CSS can't bleed in or out.
     expect(body).toContain('attachShadow')
   })
+
+  test('loader threads data-accent + data-locale and is bilingual (US-7)', async ({ request }) => {
+    const body = await (await request.get('/embed.js')).text()
+    // Brand accent + locale are read from the element's data- attributes.
+    expect(body).toContain("getAttribute('data-accent')")
+    expect(body).toContain("getAttribute('data-locale')")
+    // Both locales ship inside the standalone loader (no app i18n at runtime).
+    expect(body).toContain('Comprar')   // es default
+    expect(body).toContain('Buy now')   // en
+  })
 })
