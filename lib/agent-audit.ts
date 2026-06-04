@@ -129,6 +129,33 @@ export async function recordAgentOfferAction(
 }
 
 /**
+ * Audit + admin-notify a seller agent creating a brand-new listing. Creating a
+ * listing has no existing buyers to harm, so it's not money-sensitive (no seller
+ * security email) — but it does publish to the marketplace, so we log it and
+ * notify ops. Best-effort — never fails the create the agent already made.
+ */
+export async function recordAgentListingCreate(
+  shop: AgentShop,
+  entry: { productId: string; title: string; status: 'published' | 'draft' },
+): Promise<void> {
+  await appendAuditEntry(shop.id, {
+    at: new Date().toISOString(),
+    tool: 'create_listing',
+    applied_blocks: [`listing_create:${entry.productId}`],
+    fields: { [entry.productId]: [`status:${entry.status}`] },
+    sensitive_blocks: [],
+  })
+  try {
+    await tgNotify(
+      `🤖🆕 Agente creó un anuncio en *${shop.name ?? shop.slug ?? shop.id}* — «${entry.title}»` +
+      (entry.status === 'draft' ? '\n⚠️ Guardado como borrador (falta configuración para publicar).' : ''),
+    )
+  } catch (e) {
+    console.error('[agent-audit] telegram notify failed:', e)
+  }
+}
+
+/**
  * Audit + notify a seller agent's listing change. A price change moves what
  * buyers pay → sensitive → the seller also gets a security email. Best-effort.
  */
