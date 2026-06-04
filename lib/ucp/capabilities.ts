@@ -112,6 +112,7 @@ export const MCP_SELLER_TOOLS = [
   'patch_store_configuration',
   'list_offers',
   'respond_to_offer',
+  'create_listing',
   'list_my_listings',
   'update_listing',
   'set_listing_status',

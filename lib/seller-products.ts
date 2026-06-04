@@ -86,6 +86,48 @@ export async function patchSellerProductViaInternal(
   }
 }
 
+export interface SellerProductCreate {
+  title: string
+  description?: string | null
+  price_cents?: number | null
+  currency?: string
+  condition?: string | null
+  listing_type?: string
+  category?: string
+  state?: string | null
+  municipio?: string | null
+  location?: string | null
+  quantity?: number | null
+  weight_grams?: number | null
+  status?: 'published' | 'draft'
+  images?: Array<{ url: string; alt?: string }>
+  metadata?: Record<string, unknown>
+}
+
+/** Create a product through the backend internal route (x-internal-secret). The
+ *  agent token can't reach Medusa directly, so this is the service-to-service
+ *  door (sibling of patchSellerProductViaInternal). Returns the new product id. */
+export async function createSellerProductViaInternal(
+  sellerSlug: string,
+  body: SellerProductCreate,
+): Promise<{ ok: boolean; status: number; product_id?: string; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/seller-products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug, ...body }),
+    })
+    const d = (await res.json().catch(() => ({}))) as { product_id?: string; message?: string }
+    if (!res.ok || !d.product_id) {
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: res.status, product_id: d.product_id }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
 function normalizeClabe(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\D/g, '') : ''
 }

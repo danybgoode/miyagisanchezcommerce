@@ -32,9 +32,12 @@ import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
-import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction } from '@/lib/agent-audit'
+import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
-import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
+import { ingestImageUrls } from '@/lib/image-ingest'
+import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
@@ -256,6 +259,28 @@ const TOOLS = [
         action:              { type: 'string', enum: ['accept', 'counter', 'decline'], description: 'accept (commits a sale at the offer price), counter, or decline' },
         counter_amount_mxn:  { type: 'number', description: 'Required for action=counter. Counter price in MXN pesos (must be > the buyer offer and < the list price).' },
         counter_message:     { type: 'string', description: 'Optional message to the buyer with a counter.' },
+      },
+    },
+  },
+  {
+    name: 'create_listing',
+    description: "SELLER TOOL. Create a brand-new listing in YOUR OWN shop. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Price is in MXN pesos (price_mxn, not centavos). Image URLs are fetched into our storage. A physical `product` whose shop hasn't configured both a delivery method AND a payment method is saved as a draft (paused) with an explanation — it won't go live until the shop is sale-ready. Returns the new product_id (use it with update_listing / set_listing_status).",
+    inputSchema: {
+      type: 'object',
+      required: ['title', 'category'],
+      properties: {
+        title:        { type: 'string', description: '5–100 characters.' },
+        category:     { type: 'string', description: `One of: ${CATALOG_CATEGORY_KEYS.join(', ')}.` },
+        description:  { type: 'string', description: 'Improves quality + SEO.' },
+        price_mxn:    { type: 'number', description: 'Price in MXN pesos (1500 = $1,500). Omit for "a convenir".' },
+        currency:     { type: 'string', enum: [...IMPORT_CURRENCIES], description: 'Default MXN.' },
+        listing_type: { type: 'string', enum: [...IMPORT_LISTING_TYPES], description: 'Default product.' },
+        condition:    { type: 'string', enum: [...IMPORT_CONDITIONS], description: 'Physical products only.' },
+        quantity:     { type: 'number', description: 'Units available. Default 1 (physical products).' },
+        state:        { type: 'string', description: 'Mexican state, e.g. "Jalisco".' },
+        city:         { type: 'string', description: 'City / municipio / alcaldía.' },
+        images:       { type: 'array', items: { type: 'string' }, description: 'Absolute image URLs (http/https). The first is the cover. Max 6.' },
+        weight_grams: { type: 'number', description: 'Shipping weight in grams (improves shipping quotes).' },
       },
     },
   },
@@ -925,6 +950,100 @@ async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: stri
   }
 }
 
+async function handleCreateListing(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  // Shape the agent's args into a catalog-import row and re-validate server-side
+  // (never trust the agent) — reuses the exact rules the bulk importer enforces.
+  const raw: Record<string, unknown> = {
+    title: args.title,
+    category: args.category,
+    description: args.description,
+    price: args.price_mxn,
+    currency: args.currency,
+    listing_type: args.listing_type,
+    condition: args.condition,
+    quantity: args.quantity,
+    state: args.state,
+    city: args.city,
+    images: args.images,
+    weight_grams: args.weight_grams,
+  }
+  const [staged] = validateRows([raw])
+  if (!staged?.valid) {
+    const reason = staged?.issues.find((i) => i.level === 'error')?.message ?? 'Datos del anuncio inválidos.'
+    return { isError: true, content: [{ type: 'text', text: `No se pudo crear el anuncio: ${reason}` }] }
+  }
+  const row: CatalogImportRow = staged.row
+  const listingType = row.listing_type ?? 'product'
+  const isStockable = listingType === 'product'
+
+  // Pull any remote image URLs into our R2 pipeline (SSRF-guarded, capped,
+  // graceful per-image fallback — same path as bulk import).
+  const ingest = await ingestImageUrls(shop.clerk_user_id, row.images ?? [], row.title)
+
+  // Viability guardrail: a physical product the shop can't actually sell yet
+  // (no delivery AND/OR no payment) is created as a draft, never a live listing
+  // no buyer could check out.
+  const block = isStockable ? listingActivationBlock(shop.metadata, 'product') : null
+  const status: 'published' | 'draft' = block ? 'draft' : 'published'
+
+  const priceCents = row.price != null ? Math.round(row.price * 100) : null
+  const location = [row.city?.trim(), row.state?.trim()].filter(Boolean).join(', ') || null
+
+  const result = await createSellerProductViaInternal(shop.slug, {
+    title: row.title,
+    description: row.description ?? null,
+    price_cents: priceCents,
+    currency: row.currency ?? 'MXN',
+    condition: isStockable ? (row.condition ?? null) : null,
+    listing_type: listingType,
+    category: row.category,
+    state: row.state || null,
+    municipio: row.city || null,
+    location,
+    quantity: isStockable ? Math.max(1, Math.floor(row.quantity ?? 1)) : 1,
+    weight_grams: row.weight_grams ?? null,
+    status,
+    images: ingest.images,
+  })
+  if (!result.ok || !result.product_id) {
+    return { isError: true, content: [{ type: 'text', text: `No se pudo crear el anuncio: ${result.error}` }] }
+  }
+  const productId = result.product_id
+
+  // Mirror to the Supabase storefront copy so it shows in the portal + list_my_listings.
+  await syncSupabaseListingMirror(shop.id, {
+    id: productId,
+    title: row.title,
+    description: row.description ?? null,
+    price_cents: priceCents,
+    currency: row.currency ?? 'MXN',
+    condition: isStockable ? (row.condition ?? null) : null,
+    listing_type: listingType,
+    category: row.category,
+    state: row.state || null,
+    municipio: row.city || null,
+    location,
+    images: ingest.images,
+    status: status === 'published' ? 'active' : 'paused',
+  })
+
+  await recordAgentListingCreate(shop, { productId, title: row.title, status })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const imgNote = ingest.failed > 0 ? ` (${ingest.failed} imagen(es) no se pudieron importar)` : ''
+  const draftNote = status === 'draft' ? `\n⚠️ Guardado como borrador (pausado). ${block}` : ''
+  return {
+    content: [
+      { type: 'text', text: `✅ Anuncio creado${status === 'published' ? ' y publicado' : ''}: «${row.title}».${imgNote}${draftNote}\n\nproduct_id: \`${productId}\`` },
+    ],
+  }
+}
+
 async function handleListMyListings(authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1050,6 +1169,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
       case 'respond_to_offer':          return { content: (await handleRespondToOffer(args, baseUrl, authHeader)).content }
+      case 'create_listing':            return { content: (await handleCreateListing(args, authHeader)).content }
       case 'list_my_listings':          return { content: (await handleListMyListings(authHeader)).content }
       case 'update_listing':            return { content: (await handleUpdateListing(args, authHeader)).content }
       case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
