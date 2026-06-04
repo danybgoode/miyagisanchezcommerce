@@ -32,8 +32,10 @@ import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
-import { recordAgentConfigChange, recordAgentOfferAction } from '@/lib/agent-audit'
+import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
 
@@ -254,6 +256,38 @@ const TOOLS = [
         action:              { type: 'string', enum: ['accept', 'counter', 'decline'], description: 'accept (commits a sale at the offer price), counter, or decline' },
         counter_amount_mxn:  { type: 'number', description: 'Required for action=counter. Counter price in MXN pesos (must be > the buyer offer and < the list price).' },
         counter_message:     { type: 'string', description: 'Optional message to the buyer with a counter.' },
+      },
+    },
+  },
+  {
+    name: 'list_my_listings',
+    description: "SELLER TOOL. List YOUR OWN shop's listings (all statuses, incl. paused) so you can manage them. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each listing's product_id, title, price, status, and type. Use product_id with update_listing / set_listing_status.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'update_listing',
+    description: "SELLER TOOL. Update one of YOUR OWN listings: title, description, price, and/or stock quantity. Requires the shop agent token, scoped to one shop. Changing the price changes what buyers pay — it's audited and the seller is alerted. Get product_id from list_my_listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id'],
+      properties: {
+        product_id:  { type: 'string', description: 'Product id from list_my_listings' },
+        title:       { type: 'string', description: 'New title (max 100 chars)' },
+        description: { type: 'string', description: 'New description' },
+        price_mxn:   { type: 'number', description: 'New price in MXN pesos (e.g. 1500 = $1,500)' },
+        quantity:    { type: 'number', description: 'New stock quantity (physical products only)' },
+      },
+    },
+  },
+  {
+    name: 'set_listing_status',
+    description: "SELLER TOOL. Activate (publish) or pause (unpublish) one of YOUR OWN listings. Requires the shop agent token, scoped to one shop. Activating a physical product is blocked unless the shop has a delivery method AND a payment method configured (same rule as the portal). Get product_id from list_my_listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id', 'status'],
+      properties: {
+        product_id: { type: 'string', description: 'Product id from list_my_listings' },
+        status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
       },
     },
   },
@@ -891,6 +925,92 @@ async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: stri
   }
 }
 
+async function handleListMyListings(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const listings = await listShopListings(shop.id)
+  if (listings.length === 0) return { content: [{ type: 'text', text: 'No tienes anuncios todavía.' }] }
+
+  const lines = listings.map((l) =>
+    `• **${l.title}** — ${l.price ?? 'sin precio'} · ${l.status} · ${l.listing_type}\n  product_id: \`${l.product_id}\``,
+  )
+  return {
+    content: [
+      { type: 'text', text: [`## Tus anuncios (${listings.length})`, ...lines].join('\n') },
+      { type: 'text', text: JSON.stringify({ listings }, null, 2) },
+    ],
+  }
+}
+
+async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const productId = String(args.product_id ?? '')
+  if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const patch: { title?: string; description?: string | null; price_cents?: number | null; quantity?: number | null } = {}
+  const fields: string[] = []
+  if (typeof args.title === 'string') { patch.title = args.title; fields.push('title') }
+  if (typeof args.description === 'string') { patch.description = args.description; fields.push('description') }
+  if (typeof args.price_mxn === 'number') { patch.price_cents = Math.round(args.price_mxn * 100); fields.push('price') }
+  if (typeof args.quantity === 'number') { patch.quantity = Math.max(0, Math.floor(args.quantity)); fields.push('quantity') }
+  if (fields.length === 0) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica al menos un campo a cambiar: title, description, price_mxn o quantity.' }] }
+  }
+
+  const result = await patchSellerProductViaInternal(shop.slug, productId, patch)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo actualizar el anuncio: ${result.error}` }] }
+
+  // Mirror to the Supabase storefront copy (matches the portal route).
+  const mirror: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (patch.title !== undefined) mirror.title = patch.title.trim()
+  if (patch.description !== undefined) mirror.description = patch.description
+  if (patch.price_cents !== undefined) mirror.price_cents = patch.price_cents
+  if (Object.keys(mirror).length > 1) {
+    await db.from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
+  }
+
+  await recordAgentListingAction(shop, { productId, fields, title: patch.title })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return { content: [{ type: 'text', text: `✅ Anuncio actualizado: ${fields.join(', ')}.` }] }
+}
+
+async function handleSetListingStatus(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const productId = String(args.product_id ?? '')
+  const status = String(args.status ?? '')
+  if (!productId || !['active', 'paused'].includes(status)) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica product_id y status ("active" o "paused").' }] }
+  }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  if (status === 'active') {
+    const block = listingActivationBlock(shop.metadata, owned.listing_type)
+    if (block) return { isError: true, content: [{ type: 'text', text: block }] }
+  }
+
+  const result = await patchSellerProductViaInternal(shop.slug, productId, { status: status === 'active' ? 'published' : 'draft' })
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo cambiar el estado: ${result.error}` }] }
+
+  await db.from('marketplace_listings').update({ status, updated_at: new Date().toISOString() }).eq('medusa_product_id', productId)
+  await recordAgentListingAction(shop, { productId, fields: [`status:${status}`] })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return { content: [{ type: 'text', text: `✅ Anuncio ${status === 'active' ? 'activado' : 'pausado'}.` }] }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
@@ -930,6 +1050,9 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
       case 'respond_to_offer':          return { content: (await handleRespondToOffer(args, baseUrl, authHeader)).content }
+      case 'list_my_listings':          return { content: (await handleListMyListings(authHeader)).content }
+      case 'update_listing':            return { content: (await handleUpdateListing(args, authHeader)).content }
+      case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
       default:                     return null  // will become MethodNotFound error
     }
   }

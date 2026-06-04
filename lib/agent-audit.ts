@@ -127,3 +127,40 @@ export async function recordAgentOfferAction(
     console.error('[agent-audit] telegram notify failed:', e)
   }
 }
+
+/**
+ * Audit + notify a seller agent's listing change. A price change moves what
+ * buyers pay → sensitive → the seller also gets a security email. Best-effort.
+ */
+export async function recordAgentListingAction(
+  shop: AgentShop,
+  entry: { productId: string; fields: string[]; title?: string },
+): Promise<void> {
+  const sensitive = entry.fields.includes('price')
+  await appendAuditEntry(shop.id, {
+    at: new Date().toISOString(),
+    tool: 'manage_listing',
+    applied_blocks: [`listing:${entry.productId}`],
+    fields: { [entry.productId]: entry.fields },
+    sensitive_blocks: sensitive ? ['listing_price'] : [],
+  })
+  try {
+    await tgNotify(
+      `🤖📦 Agente modificó un anuncio en *${shop.name ?? shop.slug ?? shop.id}* — ${entry.fields.join(', ')}` +
+      (entry.title ? ` («${entry.title}»)` : '') + (sensitive ? '\n⚠️ Cambió el precio.' : ''),
+    )
+  } catch (e) {
+    console.error('[agent-audit] telegram notify failed:', e)
+  }
+  if (sensitive) {
+    try {
+      const email = await getSellerEmail(shop.clerk_user_id)
+      const label = `Precio de anuncio${entry.title ? ` — ${entry.title}` : ''}`
+      if (email) {
+        await sendAgentConfigAlert({ to: email, shopName: shop.name ?? 'tu tienda', blocks: [label], sensitive: [label] })
+      }
+    } catch (e) {
+      console.error('[agent-audit] seller email failed:', e)
+    }
+  }
+}

@@ -112,6 +112,9 @@ export const MCP_SELLER_TOOLS = [
   'patch_store_configuration',
   'list_offers',
   'respond_to_offer',
+  'list_my_listings',
+  'update_listing',
+  'set_listing_status',
 ] as const
 
 /** Every MCP tool name, in discovery order. */
