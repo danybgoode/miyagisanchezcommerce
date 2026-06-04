@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   buildSettingsCopilotPrompt,
   CONFIG_BLOCKS,
@@ -58,6 +59,7 @@ function BlockRow({ b }: { b: BlockResult }) {
 }
 
 function ConfigUploader() {
+  const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [manifest, setManifest] = useState<StoreConfigManifest | null>(null)
@@ -93,6 +95,9 @@ function ConfigUploader() {
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; blocks?: BlockResult[]; error?: string }
       if (!res.ok) { setError(data.error ?? 'No se pudo aplicar la configuración.'); if (data.blocks) setPreview(data.blocks); return }
       setReport(data.blocks ?? [])
+      // Invalidate the router cache so the settings list re-fetches and its
+      // completion checkmarks reflect what we just applied (US-4).
+      router.refresh()
     } catch {
       setError('No se pudo aplicar la configuración. Intenta de nuevo.')
     } finally {

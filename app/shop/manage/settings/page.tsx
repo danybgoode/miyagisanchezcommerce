@@ -100,11 +100,19 @@ const SECTIONS = [
 
 // ── Completion helpers (rough check per section) ──────────────────────────────
 
+// Sections whose completion needs a live handshake a config file can't grant
+// (OAuth / money / domain / webhook secret). When not done, we surface a
+// "still needs a manual step" hint instead of leaving them blank — this is what
+// the importer flags too (see MANUAL_SECTIONS in lib/settings-import.ts).
+const MANUAL_KEYS = new Set(['pagos', 'citas', 'canal', 'agentes'])
+
 function completedSections(shop: {
-  name: string; description: string | null; logo_url: string | null
+  name: string; description: string | null
   mp_enabled: boolean | null; stripe_ok: boolean; clabe_ok: boolean
   calcom_ok: boolean; custom_domain: string | null
   orders_ok: boolean; returns_ok: boolean
+  envios_ok: boolean; negociacion_ok: boolean; notificaciones_ok: boolean
+  diseno_ok: boolean; agentes_ok: boolean
 }): Set<string> {
   const done = new Set<string>()
   if (shop.name && shop.description) done.add('perfil')
@@ -113,6 +121,11 @@ function completedSections(shop: {
   if (shop.custom_domain) done.add('canal')
   if (shop.orders_ok) done.add('pedidos')
   if (shop.returns_ok) done.add('politicas')
+  if (shop.envios_ok) done.add('envios')
+  if (shop.negociacion_ok) done.add('negociacion')
+  if (shop.notificaciones_ok) done.add('notificaciones')
+  if (shop.diseno_ok) done.add('diseno')
+  if (shop.agentes_ok) done.add('agentes')
   return done
 }
 
@@ -122,7 +135,7 @@ export default async function SettingsIndexPage() {
 
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id, slug, name, description, logo_url, metadata, mp_enabled, custom_domain')
+    .select('id, slug, name, description, logo_url, metadata, mp_enabled, custom_domain, ucp_webhook_url')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -137,11 +150,25 @@ export default async function SettingsIndexPage() {
   const checkoutSettings = settings.checkout as { bank_transfer?: { clabe?: string } } | undefined
   const ordersSettings = settings.orders as { processing_time?: string } | undefined
   const returnsPolicySettings = settings.returns_policy as { window?: string } | undefined
+  const themeSettings = settings.theme as { banner_url?: string | null; accent_color?: string | null; tagline?: string | null; social?: Record<string, string | null> } | undefined
+  const shippingSettings = settings.shipping as { local_pickup?: boolean; envia_enabled?: boolean; pickup_spots?: unknown[]; origin_address?: Record<string, string | null> } | undefined
+  const offersSettings = settings.offers as { min_buyer_trust_level?: string; negotiation?: { enabled?: boolean } } | undefined
+  const notifSettings = settings.notifications as { email_new_view?: boolean; email_new_message?: boolean } | undefined
+
+  // The native settings editor persists the whole settings tree on every save,
+  // so an empty shell (e.g. default accent color, all-null origin address) is
+  // NOT "configured". Use value-based checks so a section lights up only when it
+  // holds real data — whether typed in by hand or applied by the importer.
+  const hasSocial = !!themeSettings?.social && Object.values(themeSettings.social).some(Boolean)
+  const diseno_ok = !!(themeSettings && (themeSettings.banner_url || themeSettings.tagline || hasSocial || (themeSettings.accent_color && themeSettings.accent_color !== '#1d6f42')))
+  const hasOrigin = !!shippingSettings?.origin_address && Object.values(shippingSettings.origin_address).some(Boolean)
+  const envios_ok = !!(shippingSettings && (shippingSettings.local_pickup || shippingSettings.envia_enabled || hasOrigin || (Array.isArray(shippingSettings.pickup_spots) && shippingSettings.pickup_spots.length > 0)))
+  const negociacion_ok = !!(offersSettings && ((offersSettings.min_buyer_trust_level && offersSettings.min_buyer_trust_level !== 'unverified') || offersSettings.negotiation?.enabled))
+  const notificaciones_ok = !!(notifSettings && (notifSettings.email_new_view || notifSettings.email_new_message))
 
   const shopComputed = {
     name: shop.name,
     description: (shop as unknown as { description: string | null }).description,
-    logo_url: (shop as unknown as { logo_url: string | null }).logo_url,
     mp_enabled: (shop as unknown as { mp_enabled: boolean | null }).mp_enabled,
     stripe_ok: !!stripeSettings?.charges_enabled,
     clabe_ok: !!checkoutSettings?.bank_transfer?.clabe,
@@ -151,6 +178,11 @@ export default async function SettingsIndexPage() {
     // 'none' = explicitly configured but not a positive trust signal → still mark done
     // '' / undefined = not yet configured → not done
     returns_ok: !!(returnsPolicySettings?.window),
+    envios_ok,
+    negociacion_ok,
+    notificaciones_ok,
+    diseno_ok,
+    agentes_ok: !!(shop as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url,
   }
 
   const done = completedSections(shopComputed)
@@ -219,9 +251,17 @@ export default async function SettingsIndexPage() {
                     <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning)', background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 'var(--r-pill)', padding: '2px 7px', flexShrink: 0 }}>Próximamente</span>
                   ) : done.has(section.key) ? (
                     <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }}>✓</span>
+                  ) : MANUAL_KEYS.has(section.key) ? (
+                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-muted)', background: 'var(--bg-sunk)', border: '1px solid var(--border)', borderRadius: 'var(--r-pill)', padding: '2px 7px', flexShrink: 0 }}>Pendiente</span>
                   ) : null}
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2, lineHeight: 1.4 }}>{section.desc}</p>
+                {!isSoon && !done.has(section.key) && MANUAL_KEYS.has(section.key) && (
+                  <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, lineHeight: 1.3 }}>
+                    <i className="iconoir-warning-triangle" style={{ fontSize: 12, flexShrink: 0 }} />
+                    Aún requiere un paso manual — termínalo aquí.
+                  </p>
+                )}
               </div>
               <i className="iconoir-arrow-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', alignSelf: 'center', flexShrink: 0 }} />
             </div>
