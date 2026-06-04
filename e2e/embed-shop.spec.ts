@@ -33,5 +33,11 @@ test.describe('Embed full-shop — framable surface', () => {
     const res = await request.get(`/embed/s/${slug}`, { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     expect(res.headers()['content-security-policy'] ?? '').toContain('frame-ancestors')
+
+    // White-label: the platform chrome (root-layout header) must be suppressed
+    // for embed-tagged requests. The header's search placeholder is a unique
+    // marker that only the platform chrome renders — it must be absent.
+    const html = await res.text()
+    expect(html).not.toContain('¿Qué estás buscando?')
   })
 })
