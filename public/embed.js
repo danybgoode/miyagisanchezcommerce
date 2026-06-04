@@ -82,9 +82,12 @@
       ? '/checkout?listingId=' + encodeURIComponent(listingId) + '&channel=embed'
       : '/l/' + encodeURIComponent(listingId) + '?channel=embed'
     var url = API + path
-    var win = window.open(url, 'miyagi_checkout',
-      'popup,noopener,noreferrer,width=480,height=820')
-    if (!win) window.open(url, '_blank', 'noopener,noreferrer')
+    // NB: do NOT pass `noopener` in the feature string — it makes window.open()
+    // return null even on success, which would defeat the popup-blocked check
+    // below and double-open. Instead sever the opener on the returned handle.
+    var win = window.open(url, 'miyagi_checkout', 'popup,width=480,height=820')
+    if (win) { try { win.opener = null } catch (e) { /* cross-origin: ignore */ } }
+    else { window.open(url, '_blank', 'noopener') }   // popup blocked → new tab
   }
 
   // Minimal HTML escape for any seller-controlled text we inject into the shadow.
