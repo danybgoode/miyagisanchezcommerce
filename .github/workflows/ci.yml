@@ -1,0 +1,100 @@
+name: CI
+
+# Deterministic pre-merge gate (Roadmap/WAYS-OF-WORKING.md → Review & merge):
+#   typecheck-build  — tsc --noEmit + next build, on the PR branch code
+#   e2e              — Playwright suite against the PR's Vercel preview
+#
+# Why poll the Vercel API instead of the `deployment_status` event: a workflow
+# triggered by `deployment_status` runs the file from the DEFAULT branch, so it
+# could never self-verify on this PR before merge. Triggering on `pull_request`
+# runs the branch's own workflow file; we then resolve the preview URL for the
+# head commit ourselves and hit it through the protection-bypass token.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-build:
+    name: Type-check + build
+    runs-on: ubuntu-latest
+    # Browser-public (publishable) build vars only — these already ship in the
+    # production bundle. No server secrets: every commerce route is dynamic, so
+    # `next build` needs nothing privileged (verified locally).
+    env:
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${{ vars.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+      NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: ${{ vars.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
+      NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: ${{ vars.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL }}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MEDUSA_STORE_URL: ${{ vars.NEXT_PUBLIC_MEDUSA_STORE_URL }}
+      NEXT_PUBLIC_MEDUSA_MXN_REGION_ID: ${{ vars.NEXT_PUBLIC_MEDUSA_MXN_REGION_ID }}
+      NEXT_PUBLIC_MP_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_MP_PUBLIC_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+      NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+      MEDUSA_STORE_URL: ${{ vars.MEDUSA_STORE_URL }}
+      # Skip Sentry sourcemap upload in CI (no auth token) — build only.
+      SENTRY_SKIP_AUTO_RELEASE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: Type-check
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: Playwright vs preview
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+
+      - name: Resolve Vercel preview URL for this commit
+        run: |
+          set -euo pipefail
+          echo "Waiting for the Vercel preview of commit ${HEAD_SHA:0:8}…"
+          for i in $(seq 1 40); do
+            resp=$(curl -s -H "Authorization: Bearer $VERCEL_API_TOKEN" \
+              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_TEAM_ID&target=preview&limit=20")
+            state=$(echo "$resp" | jq -r --arg s "$HEAD_SHA" \
+              'first(.deployments[] | select(.meta.githubCommitSha==$s)) | (.state // .readyState) // ""')
+            url=$(echo "$resp" | jq -r --arg s "$HEAD_SHA" \
+              'first(.deployments[] | select(.meta.githubCommitSha==$s)) | .url // ""')
+            echo "  attempt $i: state=${state:-<none>} url=${url:-<none>}"
+            case "$state" in
+              READY)
+                echo "PLAYWRIGHT_BASE_URL=https://$url" >> "$GITHUB_ENV"
+                echo "Preview ready: https://$url"
+                exit 0 ;;
+              ERROR|CANCELED)
+                echo "::error::Preview deployment $state for $HEAD_SHA"; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Timed out waiting for the Vercel preview of $HEAD_SHA"; exit 1
+
+      - name: Run Playwright suite against the preview
+        # PLAYWRIGHT_BASE_URL was exported to $GITHUB_ENV above; the bypass token
+        # (wired into playwright.config.ts) reaches the SSO-gated preview.
+        run: npm run test:e2e
