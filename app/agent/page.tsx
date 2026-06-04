@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import ucpUseCases from '@/ucp-use-cases.json'
+import { UCP_ENDPOINTS, MCP_BUYER_TOOLS, MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 
 export const metadata: Metadata = {
   title: 'Agent Briefing — Miyagi Sánchez',
@@ -22,14 +23,6 @@ const PAYMENT_METHODS = [
   { label: 'Stripe', note: 'cards, OXXO, Link — international' },
   { label: 'MercadoPago', note: 'SPEI, cards, cash — Mexico-native' },
   { label: 'SPEI transfer', note: 'direct bank transfer (manual)' },
-]
-
-const API_ENDPOINTS = [
-  { method: 'GET', path: '/api/ucp/listings', desc: 'List active products with filters: category, city, price_min, price_max, q (search)' },
-  { method: 'GET', path: '/api/ucp/listings/[id]', desc: 'Full product detail including seller, images, price, availability' },
-  { method: 'POST', path: '/api/ucp/checkout', desc: 'Initiate a checkout session for a listing' },
-  { method: 'POST', path: '/api/ucp/offer', desc: 'Submit a price offer to a seller' },
-  { method: 'GET', path: '/api/ucp/shops/[slug]', desc: 'Seller shop profile: name, categories, trust metrics' },
 ]
 
 export default function AgentPage() {
@@ -149,7 +142,7 @@ export default function AgentPage() {
           Base URL: <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-sunk)', padding: '2px 6px', borderRadius: 4 }}>{ENDPOINT}</code>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {API_ENDPOINTS.map(({ method, path, desc }) => (
+          {UCP_ENDPOINTS.map(({ method, path, description, auth }) => (
             <div
               key={path}
               style={{
@@ -169,8 +162,11 @@ export default function AgentPage() {
                 <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg)', fontSize: 13 }}>
                   {path}
                 </code>
+                {auth !== 'none' && (
+                  <span className="badge badge-soft" style={{ fontSize: 9, marginLeft: 'auto' }}>auth</span>
+                )}
               </div>
-              <p style={{ color: 'var(--fg-muted)', margin: 0, lineHeight: 1.5 }}>{desc}</p>
+              <p style={{ color: 'var(--fg-muted)', margin: 0, lineHeight: 1.5 }}>{description}</p>
             </div>
           ))}
         </div>
@@ -198,7 +194,7 @@ export default function AgentPage() {
 {
   "mcpServers": {
     "miyagi-sanchez": {
-      "url": "${ENDPOINT}/api/mcp",
+      "url": "${ENDPOINT}/api/ucp/mcp",
       "transport": "http"
     }
   }
@@ -208,6 +204,28 @@ export default function AgentPage() {
           Once connected, Claude can browse listings, check seller trust scores, negotiate prices,
           and complete purchases autonomously on your behalf.
         </p>
+
+        {/* MCP tools */}
+        <div style={{ marginTop: 18 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 6 }}>Buyer tools (no auth)</p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+            {MCP_BUYER_TOOLS.map((t) => (
+              <code key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'var(--bg-sunk)', padding: '3px 8px', borderRadius: 4, color: 'var(--fg-muted)' }}>{t}</code>
+            ))}
+          </div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 6 }}>Seller tools (shop agent token)</p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {MCP_SELLER_TOOLS.map((t) => (
+              <code key={t} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'var(--agent-soft)', padding: '3px 8px', borderRadius: 4, color: 'var(--agent)' }}>{t}</code>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+            Seller tools read and adjust a shop&apos;s own configuration. They require a per-shop token
+            (<code style={{ fontFamily: 'var(--font-mono)' }}>Authorization: Bearer ms_agent_…</code>)
+            generated in the shop&apos;s settings, scoped to that one shop. Payments, custom domain, and
+            Cal.com stay manual.
+          </p>
+        </div>
       </section>
 
       {/* UCP use cases */}

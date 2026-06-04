@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
     // Allow Next.js image optimizer to serve WebP/AVIF
     formats: ['image/avif', 'image/webp'],
   },
+  async rewrites() {
+    return [
+      // Well-known discovery → canonical UCP capability manifest, so AI agents
+      // can auto-find the API. Served via rewrite (reliable for .well-known).
+      { source: '/.well-known/ucp', destination: '/api/ucp/manifest' },
+    ]
+  },
 }
 
 export default withSentryConfig(nextConfig, {

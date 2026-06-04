@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { UCP_CAPABILITIES, MCP_TOOL_NAMES } from '@/lib/ucp/capabilities'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,15 +35,8 @@ export async function GET(req: NextRequest) {
       locale: 'es-MX',
       currency: 'MXN',
 
-      capabilities: [
-        'catalog_search',       // browse + filter listings
-        'listing_detail',       // get single listing with full trust metadata
-        'make_offer',           // A2A price negotiation
-        'buy_now_mercadopago',  // instant checkout via MercadoPago (cards, OXXO, wallet, MSI)
-        'buy_now_stripe',       // instant checkout via Stripe Connect
-        'escrow',               // optional/required payment hold until delivery confirmed
-        'mcp_server',           // Model Context Protocol — connect via MCP client
-      ],
+      // Canonical capability slugs — single source of truth in lib/ucp/capabilities.ts.
+      capabilities: UCP_CAPABILITIES,
 
       endpoints: {
         catalog: {
@@ -108,9 +102,18 @@ export async function GET(req: NextRequest) {
         mcp: {
           method: 'GET+POST',
           url: `${base}/api/ucp/mcp`,
-          description: 'Model Context Protocol server (HTTP/SSE transport). Connect from Claude Desktop, Gemini, or any MCP-compatible client to get native shopping tools: search_listings, get_listing, create_checkout, make_offer, get_shop.',
+          description: 'Model Context Protocol server (HTTP / JSON-RPC 2.0). Connect from Claude Desktop, Gemini, or any MCP-compatible client for native shopping tools plus seller-side configuration tools.',
           auth: 'none',
-          mcp_tools: ['search_listings', 'get_listing', 'create_checkout', 'make_offer', 'get_shop'],
+          mcp_tools: MCP_TOOL_NAMES,
+        },
+
+        seller_configuration: {
+          method: 'POST',
+          url: `${base}/api/ucp/mcp`,
+          description: "A seller's own agent can read and adjust its shop configuration via the MCP tools get_store_configuration and patch_store_configuration. Reads the declarative blocks (profile/brand, shipping, negotiation, notifications, orders, returns, scheduling) and patches them with strict validation; never exposes secrets. Payments, custom domain, and Cal.com are OAuth-bound and stay manual.",
+          auth: 'authorization_bearer_shop_token',
+          note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
+          mcp_tools: ['get_store_configuration', 'patch_store_configuration'],
         },
       },
 
