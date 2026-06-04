@@ -10,7 +10,13 @@
  */
 
 import { db } from './supabase'
-import { offerQuality, formatOfferAmount, timeUntil, type OfferStatus } from './offers'
+import { stripe } from './stripe'
+import { notify } from './notify'
+import { offerQuality, formatOfferAmount, timeUntil, canAccept, canCounter, canDecline, type OfferStatus } from './offers'
+import {
+  sendOfferDeclined, sendOfferCountered, sendOfferAccepted,
+  sendBuyerCounterExpiryWarning, sendBuyerPaymentExpiryWarning, cancelScheduledEmail,
+} from './email'
 
 export interface AgentOfferView {
   id: string
@@ -81,4 +87,281 @@ export async function listShopOffers(
       counter_amount: r.counter_amount_cents ? formatOfferAmount(r.counter_amount_cents, l.currency) : null,
     }
   })
+}
+
+// ── Respond to an offer (accept / counter / decline) ──────────────────────────
+// Extracted verbatim from app/api/offers/[id]/respond so the seller portal and
+// the seller's MCP agent share ONE code path. Parameterized by the authorized
+// seller's Clerk user id — the ownership check is identical for both callers.
+
+export interface RespondParams {
+  offerId: string
+  /** Clerk user id authorized to act on this offer (signed-in seller, or shop owner via agent token). */
+  authorizedClerkUserId: string
+  origin: string
+  action: 'accept' | 'counter' | 'decline'
+  counterAmountCents?: number
+  counterMessage?: string
+}
+
+export interface RespondResult {
+  ok: boolean
+  status?: 'declined' | 'countered' | 'accepted'
+  error?: string
+  field?: string
+  httpStatus: number
+}
+
+export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
+  const { offerId: id, authorizedClerkUserId, origin, action, counterAmountCents, counterMessage } = p
+
+  // ── Fetch offer + listing + shop (must belong to the authorized seller) ──────
+  const { data: offer } = await db
+    .from('marketplace_offers')
+    .select(`
+      *,
+      marketplace_listings!inner(
+        id, title, price_cents, currency, listing_type, images, status,
+        marketplace_shops!inner(id, clerk_user_id, metadata)
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (!offer) return { ok: false, error: 'Oferta no encontrada.', httpStatus: 404 }
+
+  const listing = offer.marketplace_listings as unknown as {
+    id: string; title: string; price_cents: number; currency: string
+    listing_type: string; images: Array<{ url: string }> | null; status: string
+    marketplace_shops: { id: string; clerk_user_id: string | null; metadata: Record<string, unknown> | null }
+  }
+
+  if (listing.marketplace_shops.clerk_user_id !== authorizedClerkUserId) {
+    return { ok: false, error: 'No autorizado.', httpStatus: 403 }
+  }
+
+  async function getConversationUrl() {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id')
+      .eq('offer_id', id)
+      .maybeSingle()
+    return conv?.id ? `${origin}/messages/${conv.id}` : null
+  }
+
+  // ── Cancel any pending seller reminder emails (before any state change) ───────
+  const scheduledIds = (offer.scheduled_reminder_ids ?? {}) as Record<string, string>
+  const cancelSellerReminders = () => {
+    if (scheduledIds.seller_24h) cancelScheduledEmail(scheduledIds.seller_24h).catch(() => {})
+    if (scheduledIds.seller_expiry) cancelScheduledEmail(scheduledIds.seller_expiry).catch(() => {})
+  }
+
+  // ── Validate action against current state ─────────────────────────────────────
+  if (action === 'accept' && !canAccept(offer)) {
+    return { ok: false, error: 'Esta oferta no puede ser aceptada en su estado actual.', httpStatus: 409 }
+  }
+  if (action === 'counter' && !canCounter(offer)) {
+    return { ok: false, error: 'Esta oferta no puede recibir contraoferta.', httpStatus: 409 }
+  }
+  if (action === 'decline' && !canDecline(offer)) {
+    return { ok: false, error: 'Esta oferta no puede ser rechazada.', httpStatus: 409 }
+  }
+
+  async function emitConvEvent(eventType: string, actor: string, metadata: Record<string, unknown>, incBuyerUnread = false) {
+    const { data: conv } = await db
+      .from('marketplace_conversations')
+      .select('id, buyer_unread')
+      .eq('offer_id', id)
+      .maybeSingle()
+    if (!conv) return
+    await Promise.all([
+      db.from('marketplace_conversation_events').insert({ conversation_id: conv.id, event_type: eventType, actor, metadata }),
+      incBuyerUnread
+        ? db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString(), buyer_unread: (conv.buyer_unread ?? 0) + 1 }).eq('id', conv.id)
+        : db.from('marketplace_conversations').update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', conv.id),
+    ])
+  }
+
+  // ── Decline ───────────────────────────────────────────────────────────────────
+  if (action === 'decline') {
+    cancelSellerReminders()
+    await db.from('marketplace_offers').update({ status: 'declined' }).eq('id', id)
+    emitConvEvent('offer_declined', 'system', {}, true).catch(e => console.error('[conv] decline event:', e))
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: 'Oferta rechazada',
+          body: `Tu oferta por "${listing.title}" fue rechazada.`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
+    sendOfferDeclined({
+      listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+      buyerEmail: offer.buyer_email, buyerName: offer.buyer_name,
+    }).catch(e => console.error('[email] offer declined:', e))
+    return { ok: true, status: 'declined', httpStatus: 200 }
+  }
+
+  // ── Counter ─────────────────────────────────────────────────────────────────
+  if (action === 'counter') {
+    cancelSellerReminders()
+    if (!counterAmountCents || !Number.isInteger(counterAmountCents)) {
+      return { ok: false, error: 'Monto de contraoferta inválido.', field: 'counterAmount', httpStatus: 422 }
+    }
+    if (counterAmountCents <= offer.offer_amount_cents) {
+      return { ok: false, error: 'La contraoferta debe ser mayor a la oferta del comprador.', field: 'counterAmount', httpStatus: 422 }
+    }
+    if (counterAmountCents >= listing.price_cents) {
+      return { ok: false, error: 'La contraoferta debe ser menor al precio de lista.', field: 'counterAmount', httpStatus: 422 }
+    }
+
+    const counterExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    await db.from('marketplace_offers').update({
+      status: 'countered',
+      counter_amount_cents: counterAmountCents,
+      counter_message: counterMessage?.trim() ?? null,
+      counter_expires_at: counterExpiresAt,
+    }).eq('id', id)
+
+    const conversationUrl = await getConversationUrl()
+    sendOfferCountered({
+      listingTitle: listing.title, listingId: listing.id,
+      listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email, buyerMessage: offer.message,
+      currency: listing.currency, offerId: id,
+      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
+      counterPct: Math.round((counterAmountCents / listing.price_cents) * 100),
+      counterMessage: counterMessage ?? null,
+      counterExpiresAt,
+      conversationUrl,
+    }).catch(e => console.error('[email] offer countered:', e))
+
+    sendBuyerCounterExpiryWarning({
+      buyerEmail: offer.buyer_email,
+      listingTitle: listing.title,
+      listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+      counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
+      expiresAt: counterExpiresAt,
+      conversationUrl,
+    }, new Date(new Date(counterExpiresAt).getTime() - 4 * 3600 * 1000))
+      .then(async counterExpiryId => {
+        if (!counterExpiryId) return
+        const newIds = { ...scheduledIds, buyer_counter_expiry: counterExpiryId }
+        await db.from('marketplace_offers').update({ scheduled_reminder_ids: newIds }).eq('id', id)
+      })
+      .catch(e => console.error('[reminders] buyer counter expiry:', e))
+
+    emitConvEvent('offer_countered', 'seller', { counter_amount_cents: counterAmountCents, currency: listing.currency, message: counterMessage ?? null }, true).catch(e => console.error('[conv] counter event:', e))
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: 'Nueva contraoferta',
+          body: `${listing.title} — ${formatOfferAmount(counterAmountCents, listing.currency)}`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
+    return { ok: true, status: 'countered', httpStatus: 200 }
+  }
+
+  // ── Accept ────────────────────────────────────────────────────────────────────
+  if (action === 'accept') {
+    cancelSellerReminders()
+    const acceptedCents = offer.offer_amount_cents
+    const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
+    const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
+      { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
+
+    let checkoutSessionId: string | null = null
+    let checkoutExpires: string | null = null
+
+    if (stripeSettings?.enabled !== false && stripeSettings?.charges_enabled && stripeSettings?.account_id) {
+      try {
+        const expiresAt = Math.floor(Date.now() / 1000) + 24 * 3600
+        const session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          customer_email: offer.buyer_email,
+          expires_at: expiresAt,
+          line_items: [{
+            price_data: {
+              currency: listing.currency.toLowerCase(),
+              unit_amount: acceptedCents,
+              product_data: {
+                name: `${listing.title} (oferta aceptada)`,
+                images: listing.images?.[0]?.url ? [listing.images[0].url] : [],
+              },
+            },
+            quantity: 1,
+          }],
+          payment_intent_data: {
+            transfer_data: { destination: stripeSettings.account_id },
+            application_fee_amount: 0,
+            metadata: { listing_id: listing.id, shop_id: listing.marketplace_shops.id, listing_type: listing.listing_type, offer_id: id },
+          },
+          metadata: { listing_id: listing.id, shop_id: listing.marketplace_shops.id, listing_type: listing.listing_type, offer_id: id },
+          success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/l/${listing.id}?offer=cancelled`,
+        })
+        checkoutSessionId = session.id
+        checkoutExpires = new Date(expiresAt * 1000).toISOString()
+      } catch (err) {
+        console.error('Failed to create offer checkout session:', err)
+      }
+    }
+
+    await db.from('marketplace_offers').update({
+      status: 'accepted',
+      checkout_session_id: checkoutSessionId,
+      checkout_expires_at: checkoutExpires,
+    }).eq('id', id)
+
+    emitConvEvent('offer_accepted', 'system', { amount_cents: offer.offer_amount_cents, currency: listing.currency }, true).catch(e => console.error('[conv] accept event:', e))
+    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
+      .then(({ data: c }) => {
+        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
+          kind: 'offer', title: '¡Oferta aceptada!',
+          body: `Completa tu compra de "${listing.title}"`,
+          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
+        }).catch(() => {})
+      })
+    const conversationUrl = await getConversationUrl()
+    sendOfferAccepted({
+      listingTitle: listing.title, listingId: listing.id,
+      listingUrl: `${origin}/l/${listing.id}`,
+      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
+      currency: listing.currency, offerId: id,
+      expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
+      checkoutExpiresAt: checkoutExpires,
+      conversationUrl,
+    }).catch(e => console.error('[email] offer accepted:', e))
+
+    if (checkoutExpires) {
+      sendBuyerPaymentExpiryWarning({
+        buyerEmail: offer.buyer_email,
+        listingTitle: listing.title,
+        checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
+        agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
+        expiresAt: checkoutExpires,
+      }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))
+        .then(async paymentExpiryId => {
+          if (!paymentExpiryId) return
+          const newIds = { ...scheduledIds, buyer_payment_expiry: paymentExpiryId }
+          await db.from('marketplace_offers').update({ scheduled_reminder_ids: newIds }).eq('id', id)
+        })
+        .catch(e => console.error('[reminders] buyer payment expiry:', e))
+    }
+
+    return { ok: true, status: 'accepted', httpStatus: 200 }
+  }
+
+  return { ok: false, error: 'Acción desconocida.', httpStatus: 400 }
 }

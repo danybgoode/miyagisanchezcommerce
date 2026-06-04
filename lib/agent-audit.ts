@@ -35,6 +35,20 @@ export interface AgentAuditEntry {
   sensitive_blocks: string[]
 }
 
+/** Append one entry to the capped audit log at metadata.ucp_agent_audit (re-reads
+ *  current metadata so it composes with any preceding write). Best-effort. */
+async function appendAuditEntry(shopId: string, entry: AgentAuditEntry): Promise<void> {
+  try {
+    const { data } = await db.from('marketplace_shops').select('metadata').eq('id', shopId).maybeSingle()
+    const meta = (data?.metadata ?? {}) as Record<string, unknown>
+    const log = Array.isArray(meta[AUDIT_KEY]) ? (meta[AUDIT_KEY] as AgentAuditEntry[]) : []
+    const next = [entry, ...log].slice(0, AUDIT_CAP)
+    await db.from('marketplace_shops').update({ metadata: { ...meta, [AUDIT_KEY]: next } }).eq('id', shopId)
+  } catch (e) {
+    console.error('[agent-audit] log write failed:', e)
+  }
+}
+
 export async function recordAgentConfigChange(
   shop: AgentShop,
   result: ApplyConfigResult,
@@ -56,16 +70,8 @@ export async function recordAgentConfigChange(
   }
 
   // 1) Append to the capped audit log (top-level metadata, preserved across
-  //    settings patches). Re-read so we append to the post-apply metadata.
-  try {
-    const { data } = await db.from('marketplace_shops').select('metadata').eq('id', shop.id).maybeSingle()
-    const meta = (data?.metadata ?? {}) as Record<string, unknown>
-    const log = Array.isArray(meta[AUDIT_KEY]) ? (meta[AUDIT_KEY] as AgentAuditEntry[]) : []
-    const next = [entry, ...log].slice(0, AUDIT_CAP)
-    await db.from('marketplace_shops').update({ metadata: { ...meta, [AUDIT_KEY]: next } }).eq('id', shop.id)
-  } catch (e) {
-    console.error('[agent-audit] log write failed:', e)
-  }
+  //    settings patches).
+  await appendAuditEntry(shop.id, entry)
 
   // 2) Admin/ops security notification — always.
   try {
@@ -93,5 +99,31 @@ export async function recordAgentConfigChange(
     } catch (e) {
       console.error('[agent-audit] seller email failed:', e)
     }
+  }
+}
+
+/**
+ * Audit + admin-notify a seller agent's offer response (accept / counter /
+ * decline). Accepting commits a sale at the offer price, so it's flagged
+ * sensitive. Best-effort — never fails the response the agent already made.
+ */
+export async function recordAgentOfferAction(
+  shop: AgentShop,
+  entry: { offerId: string; action: 'accept' | 'counter' | 'decline'; counterAmountCents?: number },
+): Promise<void> {
+  await appendAuditEntry(shop.id, {
+    at: new Date().toISOString(),
+    tool: 'respond_to_offer',
+    applied_blocks: [`offer:${entry.action}`],
+    fields: { [entry.action]: [entry.offerId] },
+    sensitive_blocks: entry.action === 'accept' ? ['offer_accept'] : [],
+  })
+  try {
+    await tgNotify(
+      `🤖🤝 Agente respondió una oferta (*${entry.action}*) en *${shop.name ?? shop.slug ?? shop.id}* — oferta ${entry.offerId}` +
+      (entry.action === 'accept' ? '\n⚠️ Venta comprometida al precio de la oferta.' : ''),
+    )
+  } catch (e) {
+    console.error('[agent-audit] telegram notify failed:', e)
   }
 }

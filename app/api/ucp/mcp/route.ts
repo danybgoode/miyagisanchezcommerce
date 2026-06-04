@@ -32,8 +32,8 @@ import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
-import { recordAgentConfigChange } from '@/lib/agent-audit'
-import { listShopOffers } from '@/lib/offer-respond'
+import { recordAgentConfigChange, recordAgentOfferAction } from '@/lib/agent-audit'
+import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import type { Listing } from '@/lib/types'
 
@@ -240,6 +240,20 @@ const TOOLS = [
       type: 'object',
       properties: {
         pending_only: { type: 'boolean', description: 'If true, return only offers awaiting your response (status "pending"). Default false (all non-terminal offers).' },
+      },
+    },
+  },
+  {
+    name: 'respond_to_offer',
+    description: "SELLER TOOL. Respond to a buyer's price offer on YOUR OWN listing: accept, counter, or decline. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. ACCEPTING commits a sale at the offered price and sends the buyer a checkout link — same effect as accepting in the portal. A counter must be ABOVE the buyer's offer and BELOW the list price. Get offer_id from list_offers.",
+    inputSchema: {
+      type: 'object',
+      required: ['offer_id', 'action'],
+      properties: {
+        offer_id:            { type: 'string', description: 'Offer UUID from list_offers' },
+        action:              { type: 'string', enum: ['accept', 'counter', 'decline'], description: 'accept (commits a sale at the offer price), counter, or decline' },
+        counter_amount_mxn:  { type: 'number', description: 'Required for action=counter. Counter price in MXN pesos (must be > the buyer offer and < the list price).' },
+        counter_message:     { type: 'string', description: 'Optional message to the buyer with a counter.' },
       },
     },
   },
@@ -833,6 +847,50 @@ async function handleListOffers(args: Record<string, unknown>, authHeader?: stri
   }
 }
 
+async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: string, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) {
+    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  }
+
+  const offerId = String(args.offer_id ?? '')
+  const action = String(args.action ?? '') as 'accept' | 'counter' | 'decline'
+  if (!offerId || !['accept', 'counter', 'decline'].includes(action)) {
+    return { isError: true, content: [{ type: 'text', text: 'Provide offer_id and action (accept | counter | decline).' }] }
+  }
+  const counterAmountCents = action === 'counter' && typeof args.counter_amount_mxn === 'number'
+    ? Math.round(args.counter_amount_mxn * 100)
+    : undefined
+
+  const result = await respondToOffer({
+    offerId,
+    authorizedClerkUserId: shop.clerk_user_id,
+    origin: baseUrl,
+    action,
+    counterAmountCents,
+    counterMessage: args.counter_message ? String(args.counter_message) : undefined,
+  })
+
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: `No se pudo responder la oferta: ${result.error}` }] }
+  }
+
+  // Audit + admin notification (best-effort; never fails the response).
+  await recordAgentOfferAction(shop, { offerId, action, counterAmountCents })
+
+  const msg = result.status === 'accepted'
+    ? '✅ Oferta aceptada. Se envió al comprador el enlace de pago — la venta queda comprometida a ese precio.'
+    : result.status === 'countered'
+      ? '✅ Contraoferta enviada al comprador.'
+      : '✅ Oferta rechazada.'
+  return {
+    content: [
+      { type: 'text', text: msg },
+      { type: 'text', text: JSON.stringify({ ok: true, status: result.status, offer_id: offerId }, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
@@ -871,6 +929,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
+      case 'respond_to_offer':          return { content: (await handleRespondToOffer(args, baseUrl, authHeader)).content }
       default:                     return null  // will become MethodNotFound error
     }
   }
