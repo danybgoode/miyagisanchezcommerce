@@ -7,6 +7,10 @@
  *   <miyagi-buy-button data-listing="prod_…" data-key="emb_pk_…"></miyagi-buy-button>
  *   <miyagi-product    data-listing="prod_…" data-key="emb_pk_…"></miyagi-product>
  *
+ * Optional theming/locale attributes (US-7): data-accent="#1d6f42" tints the CTA,
+ * data-locale="en" switches copy to English (default es-MX). The seller's snippet
+ * generator prefills these from their shop's brand color.
+ *
  * It reads PUBLIC data from our CORS-open UCP catalog API and, on buy, hands off
  * to our HOSTED checkout on miyagisanchez.com (a popup tagged channel=embed).
  * It NEVER renders a payment surface on the host page — live payments stay 100%
@@ -128,12 +132,13 @@
         var listingId = this.getAttribute('data-listing')
         var key = this.getAttribute('data-key')
         var labelOverride = this.getAttribute('data-label')
+        var accent = this.getAttribute('data-accent') || '#111'
 
-        root.innerHTML = '<style>' + baseStyle('#111') + '</style>' +
+        root.innerHTML = '<style>' + baseStyle(accent) + '</style>' +
           '<span class="mi-skel">' + esc(t(locale, 'loading')) + '</span>'
 
         if (!listingId) {
-          root.innerHTML = '<style>' + baseStyle('#111') + '</style>' +
+          root.innerHTML = '<style>' + baseStyle(accent) + '</style>' +
             '<span class="mi-err">miyagi-buy-button: data-listing required</span>'
           return
         }
@@ -142,7 +147,6 @@
           var buyable = !!(listing.actions && listing.actions.buy_now)
           var inStock = listing.in_stock !== false
           var price = listing.price && listing.price.formatted ? listing.price.formatted : ''
-          var accent = '#111'
           var label = labelOverride
             || (!inStock ? t(locale, 'sold')
               : buyable ? (t(locale, 'buy') + (price ? ' · ' + price : ''))
@@ -157,7 +161,7 @@
             btn.addEventListener('click', function () { openCheckout(listingId, buyable) })
           }
         }).catch(function () {
-          root.innerHTML = '<style>' + baseStyle('#111') + '</style>' +
+          root.innerHTML = '<style>' + baseStyle(accent) + '</style>' +
             '<span class="mi-err">' + esc(t(locale, 'error')) + '</span>'
         })
       }
@@ -197,12 +201,13 @@
         var locale = this.getAttribute('data-locale')
         var listingId = this.getAttribute('data-listing')
         var key = this.getAttribute('data-key')
+        var accent = this.getAttribute('data-accent') || '#111'
 
-        root.innerHTML = '<style>' + cardStyle('#111') + '</style>' +
+        root.innerHTML = '<style>' + cardStyle(accent) + '</style>' +
           '<div class="mi-card"><div class="mi-img-ph">' + esc(t(locale, 'loading')) + '</div></div>'
 
         if (!listingId) {
-          root.innerHTML = '<style>' + cardStyle('#111') + '</style>' +
+          root.innerHTML = '<style>' + cardStyle(accent) + '</style>' +
             '<span class="mi-err">miyagi-product: data-listing required</span>'
           return
         }
@@ -213,7 +218,6 @@
           var price = listing.price && listing.price.formatted ? listing.price.formatted : ''
           var img = listing.images && listing.images[0] ? listing.images[0].url : ''
           var cond = conditionLabel(locale, listing.condition)
-          var accent = '#111'
           var label = !inStock ? t(locale, 'sold')
             : buyable ? t(locale, 'buy')
             : t(locale, 'view')
@@ -240,7 +244,7 @@
             btn.addEventListener('click', function () { openCheckout(listingId, buyable) })
           }
         }).catch(function () {
-          root.innerHTML = '<style>' + cardStyle('#111') + '</style>' +
+          root.innerHTML = '<style>' + cardStyle(accent) + '</style>' +
             '<span class="mi-err">' + esc(t(locale, 'error')) + '</span>'
         })
       }

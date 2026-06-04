@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import EmbedSnippetSection from './EmbedSnippetSection'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 
@@ -256,6 +257,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Canal propio',
     items: [
       { id: 'canal', label: 'Dominio propio' },
+      { id: 'widget', label: 'Widget para tu web' },
     ],
   },
   {
@@ -281,7 +283,8 @@ const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
   notificaciones: ['notificaciones'],
   diseno:         ['apariencia', 'tipo'],
   agentes:        ['webhook'],
-  canal:          ['canal'],
+  canal:          ['canal', 'widget'],
+  widget:         ['widget'],
   pedidos:        ['pedidos'],
   politicas:      ['politicas'],
   bundles:        ['bundles'],
@@ -3759,6 +3762,11 @@ export default function ShopSettingsPanel({
 
             </div>
           </section>
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 13b: Embeddable widget — snippet generator (Sprint 3)
+          ════════════════════════════════════════════════════════════════════ */}
+          <EmbedSnippetSection slug={shopSlug} accent={accentColor} />
 
 
           {/* ════════════════════════════════════════════════════════════════════
