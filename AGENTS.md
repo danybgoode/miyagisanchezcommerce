@@ -20,8 +20,9 @@ medusa-bonsai/
 Before planning or building, read these — they are the source of truth and change often:
 - **`Roadmap/README.md`** (repo container root, one level above this app) — the product poster: every feature by domain, current status. *Untracked/local* but present in this workspace.
 - **`Roadmap/WAYS-OF-WORKING.md`** — how we plan/build/ship: the cadence, gitflow, Definition of Done (story **and** epic), QA/smoke-test rules, the Playwright harness (`npm run test:e2e`). Follow it.
+- **`Roadmap/LEARNINGS.md`** — the distilled, cross-cutting wisdom from past epics' retrospectives (multi-agent + async-deploy coordination, tooling gotchas, what's worked). **Read it** — it's how a past retro reaches you instead of dying in its epic folder. You feed it at epic close (see the epic Definition of Done).
 - **Team memory** (`~/.claude/projects/.../memory/`, auto-loaded via `MEMORY.md`) — durable facts: deploy topology (incl. the **regional** us-east4 backend Cloud Build trigger), per-epic notes, gotchas.
-- Process: **plan first** (plan mode → user stories → Daniel approves) → branch + **scaffold the epic/sprint docs before code** → build one story → verify → **smoke-test** → PR → merge. At **epic close**, update `Roadmap/README.md` (the poster) + write a `RETROSPECTIVE.md`.
+- Process: **plan first** (plan mode → user stories → Daniel approves) → branch + **scaffold the epic/sprint docs before code** → build one story → verify → **smoke-test** → PR → merge. At **epic close**, update `Roadmap/README.md` (the poster), write a `RETROSPECTIVE.md`, and **promote its durable learnings to `Roadmap/LEARNINGS.md`**.
 
 ---
 
