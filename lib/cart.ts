@@ -103,6 +103,9 @@ export interface StartCheckoutParams {
   shippingQuote?: CheckoutShippingQuote
   /** Buyer explicitly opts into escrow (when seller escrow_mode is 'optional') */
   escrow?: boolean
+  /** Tenant custom domain the buyer came from (own-channel hop). Stored on the
+   *  order so the success page can return them there + attribute the sale. */
+  originDomain?: string
   /** Skip the generic manual-order confirmation email (caller sends its own,
    *  e.g. the print-ad flow sends a print-specific payment-pending email). */
   suppressManualEmail?: boolean
@@ -139,6 +142,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     productId, variantId, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
+    originDomain,
     suppressManualEmail,
   } = params
 
@@ -228,6 +232,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
       ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
       ...(escrow ? { escrow: true } : {}),
+      ...(originDomain ? { origin_domain: originDomain } : {}),
       ...(shippingQuote ? {
         shipping_quote: {
           rate_id: shippingQuote.rateId,

@@ -10,6 +10,8 @@ type SearchParams = {
   listingId?: string
   offerId?: string
   provider?: CheckoutProvider
+  /** Tenant custom domain the buyer hopped from (own-channel checkout). */
+  origin?: string
 }
 
 function formatCents(cents: number, currency: string) {
@@ -63,7 +65,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -130,6 +132,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           isDigital={isDigital}
           offerId={params.offerId}
           offerAmountCents={offerPriceCents ?? undefined}
+          originDomain={params.origin}
         />
       </div>
     </main>

@@ -36,6 +36,7 @@ interface CheckoutPayButtonProps {
   pickupSpotId?: string
   shippingAddress?: CheckoutShippingAddress
   shippingQuote?: CheckoutShippingQuote
+  originDomain?: string
   disabled?: boolean
   onStarted?: () => void
 }
@@ -54,6 +55,7 @@ export default function CheckoutPayButton({
   pickupSpotId,
   shippingAddress,
   shippingQuote,
+  originDomain,
   disabled,
   onStarted,
 }: CheckoutPayButtonProps) {
@@ -88,6 +90,7 @@ export default function CheckoutPayButton({
         pickupSpotId,
         shippingAddress,
         shippingQuote,
+        originDomain,
       })
       onStarted?.()
       if (result.redirect_url) {
