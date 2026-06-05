@@ -67,6 +67,16 @@ async function getListingSellerName(productId: string): Promise<string | null> {
   }
 }
 
+function formatCents(cents: unknown, currency: unknown): string | null {
+  const amount = Math.round(Number(cents ?? 0))
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: String(currency ?? 'MXN').toUpperCase(),
+    maximumFractionDigits: 0,
+  }).format(amount / 100)
+}
+
 export default async function PaymentSuccessPage({
   searchParams,
 }: {
@@ -107,6 +117,19 @@ export default async function PaymentSuccessPage({
         if (mpStatus) qs.set('status', mpStatus)
         redirect(`https://${originDomain}/payment/success?${qs.toString()}`)
       }
+    }
+
+    const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
+    if (supportMeta?.kind === 'support') {
+      return <SupportSuccessUI
+        cartId={cartId}
+        orderId={(order?.id as string | undefined) ?? null}
+        amountPaid={formatCents(supportMeta.amount_cents, supportMeta.currency)}
+        amountCents={Math.round(Number(supportMeta.amount_cents ?? 0))}
+        currency={String(supportMeta.currency ?? 'MXN').toUpperCase()}
+        sellerSlug={(supportMeta.seller_slug as string | undefined) ?? null}
+        provider={mpPaymentId ? 'mercadopago' : 'stripe'}
+      />
     }
 
     const productId = (order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.product_id as string | undefined
@@ -242,6 +265,103 @@ export default async function PaymentSuccessPage({
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
           ✓ Pago seguro con Stripe · ✓ Sin comisiones de plataforma
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function SupportSuccessBridge({
+  cartId,
+  orderId,
+  amountCents,
+  currency,
+}: {
+  cartId: string
+  orderId: string | null
+  amountCents: number
+  currency: string
+}) {
+  const payload = JSON.stringify({
+    type: 'miyagi:support:success',
+    cart_id: cartId,
+    order_id: orderId,
+    amount_cents: amountCents,
+    currency,
+  }).replace(/</g, '\\u003c')
+
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          (function () {
+            var payload = ${payload};
+            try {
+              if (window.opener && !window.opener.closed) window.opener.postMessage(payload, '*');
+              if (window.parent && window.parent !== window) window.parent.postMessage(payload, '*');
+            } catch (e) {}
+          })();
+        `,
+      }}
+    />
+  )
+}
+
+function SupportSuccessUI({
+  cartId,
+  orderId,
+  amountPaid,
+  amountCents,
+  currency,
+  sellerSlug,
+  provider,
+}: {
+  cartId: string
+  orderId: string | null
+  amountPaid: string | null
+  amountCents: number
+  currency: string
+  sellerSlug: string | null
+  provider: 'stripe' | 'mercadopago'
+}) {
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+      <SupportSuccessBridge cartId={cartId} orderId={orderId} amountCents={amountCents} currency={currency} />
+      <div className="max-w-md w-full text-center">
+        <CheckIcon />
+        <h1 className="text-2xl font-bold mb-2">Gracias por apoyar</h1>
+        <p className="text-[var(--color-muted)] mb-6">
+          {amountPaid ? <>Tu contribución de <strong className="text-[var(--color-foreground)]">{amountPaid}</strong> fue recibida.</> : 'Tu contribución fue recibida.'}
+        </p>
+
+        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-6 text-sm text-left">
+          <div className="flex justify-between gap-3 py-1">
+            <span className="text-[var(--color-muted)]">Concepto</span>
+            <span className="font-medium text-right">Apoyo / contribución</span>
+          </div>
+          {amountPaid && (
+            <div className="flex justify-between gap-3 py-1 mt-1 pt-2 border-t border-[var(--color-border)]">
+              <span className="text-[var(--color-muted)]">Pagado</span>
+              <span className="font-bold text-right">{amountPaid}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {sellerSlug && (
+            <Link href={`/s/${sellerSlug}`}
+              className="border border-[var(--color-border)] px-5 py-2.5 rounded-lg text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
+              Ver la tienda
+            </Link>
+          )}
+          <Link href="/"
+            className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
+            Volver a Miyagi Sánchez
+          </Link>
+        </div>
+
+        <p className="text-xs text-[var(--color-muted)] mt-8">
+          {provider === 'mercadopago' ? 'Pago seguro con Mercado Pago' : 'Pago seguro con Stripe'}
         </p>
       </div>
     </div>

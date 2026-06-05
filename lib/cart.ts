@@ -121,6 +121,16 @@ export interface StartCheckoutParams {
   /** Tenant custom domain the buyer came from (own-channel hop). Stored on the
    *  order so the success page can return them there + attribute the sale. */
   originDomain?: string
+  /** Guest support contribution metadata for the support widget flow. */
+  support?: {
+    amount_cents: number
+    supporter_name?: string | null
+    supporter_email: string
+    message?: string | null
+    visibility: 'public' | 'private'
+    embed_key?: string | null
+    channel?: string
+  }
   /** Skip the generic manual-order confirmation email (caller sends its own,
    *  e.g. the print-ad flow sends a print-specific payment-pending email). */
   suppressManualEmail?: boolean
@@ -158,6 +168,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
     originDomain,
+    support,
     suppressManualEmail,
   } = params
 
@@ -254,6 +265,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
       ...(escrow ? { escrow: true } : {}),
       ...(originDomain ? { origin_domain: originDomain } : {}),
+      ...(support ? { support } : {}),
       ...(shippingQuote ? {
         shipping_quote: {
           rate_id: shippingQuote.rateId,
