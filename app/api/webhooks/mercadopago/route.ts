@@ -26,6 +26,7 @@ import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { upsertOrderMirror } from '@/lib/order-mirror'
+import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
@@ -35,7 +36,7 @@ const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PU
 const MEDUSA_INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 /** Patch the MP payment session with the real payment ID, then complete the Medusa cart. Returns order ID. */
-async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<string | null> {
+async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown> } | null> {
   try {
     // Step 1: authorize the session with the real MP payment ID
     const authRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/mp-authorize`, {
@@ -67,8 +68,9 @@ async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Pr
     }
     const data = await completeRes.json().catch(() => ({}))
     const orderId = data?.order?.id ?? null
+    const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
     console.log('[mp webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return orderId
+    return { orderId, metadata }
   } catch (e) {
     console.error('[mp webhook] completeMedusaCartWithMp error:', cartId, e)
     return null
@@ -481,7 +483,9 @@ async function handleMedusaMpPayment({
   buyerName: string | null
 }) {
   // 1. Complete the Medusa cart (mp-authorize + complete)
-  const medusaOrderId = await completeMedusaCartWithMp(cartId, paymentId)
+  const completed = await completeMedusaCartWithMp(cartId, paymentId)
+  const medusaOrderId = completed?.orderId ?? null
+  const orderMeta = completed?.metadata ?? {}
 
   // 2. Record in Supabase so the existing order UIs can find it (idempotent)
   if (medusaOrderId) {
@@ -500,6 +504,7 @@ async function handleMedusaMpPayment({
       shippingAmountCents: shippingAmountCents ?? 0,
       mpPaymentId: paymentId,
       offerId: offerId ?? null,
+      channel: (orderMeta.channel as string | undefined) ?? null,
       shippingQuote: shippingRateId ? {
         rate_id: shippingRateId,
         carrier: shippingCarrier ?? null,
@@ -526,8 +531,15 @@ async function handleMedusaMpPayment({
   if (productId && buyerEmail) {
     const listingInfo = await getMedusaListing(productId)
     if (listingInfo) {
+      // Own-channel: when the order came from a VERIFIED custom domain, brand the
+      // buyer email + product link to that domain (auth-gated order links stay on
+      // the platform). isVerifiedCustomDomain guards against forged metadata.
+      const originDomain = typeof orderMeta.origin_domain === 'string' ? orderMeta.origin_domain : null
+      const storeDomain = orderMeta.channel === 'custom_domain' && originDomain && (await isVerifiedCustomDomain(originDomain))
+        ? originDomain
+        : null
       const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
-      const listingUrl = `${SITE_URL}/l/${productId}`
+      const listingUrl = `${storeDomain ? `https://${storeDomain}` : SITE_URL}/l/${productId}`
       const amountFormatted = formatOfferAmount(amountCents, currency)
 
       const SITE_URL2 = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
@@ -550,6 +562,7 @@ async function handleMedusaMpPayment({
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
+          storeDomain,
         }).catch(e => console.error('[mp email] pickup buyer:', e))
       } else if (isCoord2) {
         sendCoordinatedOrderToBuyer({
@@ -562,6 +575,7 @@ async function handleMedusaMpPayment({
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
+          storeDomain,
         }).catch(e => console.error('[mp email] coord buyer:', e))
       } else {
         sendOrderConfirmedToBuyer({
@@ -572,6 +586,7 @@ async function handleMedusaMpPayment({
           amountPaid: amountFormatted,
           shopName: listingInfo.seller_name,
           isDigital: false,
+          storeDomain,
         }).catch(e => console.error('[mp email] medusa buyer:', e))
       }
 
