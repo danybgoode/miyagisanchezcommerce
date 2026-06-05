@@ -35,6 +35,9 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://miyagisanchez.com'
 
 export default defineConfig({
   testDir: './e2e',
+  // Arms the Clerk testing token for authed browser smokes (no-op without the
+  // Clerk keys + MS_TEST_BROWSER_AUTH, so the API gate is unaffected).
+  globalSetup: './e2e/global.setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

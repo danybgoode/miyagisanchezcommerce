@@ -98,3 +98,14 @@ jobs:
         # PLAYWRIGHT_BASE_URL was exported to $GITHUB_ENV above; the bypass token
         # (wired into playwright.config.ts) reaches the SSO-gated preview.
         run: npm run test:e2e
+
+      # Anonymous browser smokes against the preview — NON-BLOCKING (continue-on-error)
+      # so the gate stays the api suite above. Authed smokes are NOT run here: Clerk's
+      # testing token needs a dev instance + an allowed origin, which an SSO-gated
+      # ephemeral preview isn't — they run locally against a dev server (see
+      # e2e/README.md → "authed browser smokes").
+      - name: Browser smokes vs preview (non-blocking)
+        continue-on-error: true
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:browser

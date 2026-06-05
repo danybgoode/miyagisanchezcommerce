@@ -36,6 +36,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.0.35",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
