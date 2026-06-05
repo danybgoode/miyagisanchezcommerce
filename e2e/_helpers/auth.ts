@@ -31,6 +31,17 @@ export function sellerCreds(): Creds | null {
   return email && password ? { email, password } : null
 }
 
+/**
+ * Authed browser smokes are OFF by default. The production Clerk instance is
+ * email-code/OAuth-first (password is enabled but the UI routes to an email-code
+ * second factor), so a headless password sign-in can't complete unaided. Turning
+ * these on needs the Clerk testing-token setup (@clerk/testing) + the prod Clerk
+ * keys in CI — a security decision. Once wired, opt in with MS_TEST_BROWSER_AUTH=1.
+ */
+export function authEnabled(): boolean {
+  return process.env.MS_TEST_BROWSER_AUTH === '1'
+}
+
 /** Skip the current test/describe when an env fixture is missing — with a clear reason. */
 export function requireEnv<T>(value: T | null | undefined, what: string): T {
   test.skip(value == null || value === '', `Set ${what} to run this browser smoke.`)
@@ -38,22 +49,25 @@ export function requireEnv<T>(value: T | null | undefined, what: string): T {
 }
 
 /**
- * Sign in through Clerk's hosted form with email + password. Best-effort selectors
- * (Clerk markup is stable but versioned) — fail loudly if the form shape changes so
- * we update it rather than silently passing.
+ * Sign in through Clerk's `<SignIn>` component with email + password.
+ *
+ * Critical: click Clerk's **primary form button** (`.cl-formButtonPrimary`), NOT any
+ * button whose text matches /continue|continuar/ — the first screen also has a
+ * "Continuar con Google" social button, and matching on text walks into Google OAuth.
+ * Selectors use Clerk's stable `cl-*` classes / field names.
  */
 export async function signIn(page: Page, creds: Creds): Promise<void> {
   await page.goto('/sign-in')
-  // Step 1 — identifier
-  const email = page.locator('input[name="identifier"], input[type="email"]').first()
+  // Step 1 — identifier, then the form's own submit (not a social/OAuth button).
+  const email = page.locator('input[name="identifier"]').first()
   await email.waitFor({ state: 'visible', timeout: 15_000 })
   await email.fill(creds.email)
-  await page.getByRole('button', { name: /continue|continuar/i }).first().click()
-  // Step 2 — password
-  const password = page.locator('input[name="password"], input[type="password"]').first()
+  await page.locator('.cl-formButtonPrimary').first().click()
+  // Step 2 — the password field becomes enabled on the password step.
+  const password = page.locator('input[name="password"]:not([disabled])').first()
   await password.waitFor({ state: 'visible', timeout: 15_000 })
   await password.fill(creds.password)
-  await page.getByRole('button', { name: /continue|sign in|iniciar|continuar/i }).first().click()
+  await page.locator('.cl-formButtonPrimary').first().click()
   // Landed back in the app (Clerk redirects away from /sign-in on success).
   await page.waitForURL(url => !url.pathname.startsWith('/sign-in'), { timeout: 20_000 })
 }
