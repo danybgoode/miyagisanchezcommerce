@@ -28,6 +28,7 @@ function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
 
 interface ShopCreatePayload {
   name?: string
+  slug?: string
   state?: string
   city?: string
   description?: string
@@ -77,6 +78,9 @@ export async function POST(req: NextRequest) {
     method: 'POST',
     body: JSON.stringify({
       name: shopName,
+      // Optional seller-chosen slug; the backend slugifies + de-dupes it, and
+      // falls back to slugifying the name when absent.
+      ...(body.slug?.trim() && { slug: body.slug.trim() }),
       description: body.description?.trim() || null,
       location,
     }),

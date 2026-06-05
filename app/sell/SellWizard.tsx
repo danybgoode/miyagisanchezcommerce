@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useId } from 'react'
+import React, { useState, useRef, useCallback, useId, useEffect } from 'react'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { AttrsSection, type Attrs } from './AttrsSection'
+import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { slugify } from '@/lib/slug'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -361,6 +363,7 @@ function CharCount({ current, max }: { current: number; max: number }) {
 
 function StepShop({
   shopName, setShopName,
+  shopSlug, setShopSlug, slugStatus, setSlugStatus,
   shopState, setShopState,
   shopCity, setShopCity,
   shopDescription, setShopDescription,
@@ -369,6 +372,8 @@ function StepShop({
   onNext,
 }: {
   shopName: string; setShopName: (v: string) => void
+  shopSlug: string; setShopSlug: (v: string) => void
+  slugStatus: SlugStatus; setSlugStatus: (s: SlugStatus) => void
   shopState: string; setShopState: (v: string) => void
   shopCity: string; setShopCity: (v: string) => void
   shopDescription: string; setShopDescription: (v: string) => void
@@ -376,6 +381,7 @@ function StepShop({
   submitting: boolean
   onNext: () => void
 }) {
+  const slugBlocked = slugStatus === 'taken' || slugStatus === 'invalid'
   return (
     <div className="space-y-5">
       {/* Shop name */}
@@ -398,6 +404,19 @@ function StepShop({
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-1">
           Este nombre aparecerá en tu perfil público y en cada anuncio.
+        </p>
+      </div>
+
+      {/* Shop URL (slug) — auto-suggested from the name, editable */}
+      <div>
+        <SlugField
+          value={shopSlug}
+          onChange={setShopSlug}
+          onStatusChange={setSlugStatus}
+          label="URL de tu tienda"
+        />
+        <p className="text-xs text-[var(--color-muted)] mt-1">
+          Tu enlace para compartir. Lo puedes cambiar después en ajustes.
         </p>
       </div>
 
@@ -454,7 +473,7 @@ function StepShop({
       <button
         type="button"
         onClick={onNext}
-        disabled={submitting}
+        disabled={submitting || slugBlocked}
         className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {submitting ? 'Creando tu tienda…' : 'Continuar — Tu anuncio →'}
@@ -1247,11 +1266,20 @@ export default function SellWizard({
 
   // Step 1 — shop
   const [shopName, setShopName] = useState('')
+  const [shopSlug, setShopSlug] = useState('')
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle')
+  const slugTouched = useRef(false)
   const [shopState, setShopState] = useState('')
   const [shopCity, setShopCity] = useState('')
   const [shopDescription, setShopDescription] = useState('')
   const [shopErrors, setShopErrors] = useState<Record<string, string>>({})
   const [creatingShop, setCreatingShop] = useState(false)
+
+  // Auto-suggest the slug from the shop name until the seller edits it directly.
+  useEffect(() => {
+    if (!slugTouched.current) setShopSlug(slugify(shopName))
+  }, [shopName])
+  function handleSlugChange(v: string) { slugTouched.current = true; setShopSlug(v) }
 
   // Step 2 — listing
   const [photos, setPhotos] = useState<UploadedPhoto[]>([])
@@ -1317,6 +1345,7 @@ export default function SellWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: shopName.trim(),
+          slug: shopSlug.trim() || undefined,
           state: shopState,
           city: shopCity.trim() || undefined,
           description: shopDescription.trim() || undefined,
@@ -1380,7 +1409,7 @@ export default function SellWizard({
 
       const payload = {
         createShop: hasShopStep
-          ? { name: shopName.trim(), state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined }
+          ? { name: shopName.trim(), slug: shopSlug.trim() || undefined, state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined }
           : undefined,
         listing: {
           title: title.trim(),
@@ -1487,6 +1516,8 @@ export default function SellWizard({
         {step === 1 && (
           <StepShop
             shopName={shopName} setShopName={setShopName}
+            shopSlug={shopSlug} setShopSlug={handleSlugChange}
+            slugStatus={slugStatus} setSlugStatus={setSlugStatus}
             shopState={shopState} setShopState={setShopState}
             shopCity={shopCity} setShopCity={setShopCity}
             shopDescription={shopDescription} setShopDescription={setShopDescription}
