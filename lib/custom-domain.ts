@@ -42,3 +42,29 @@ export const getActiveCustomDomain = unstable_cache(
 )
 
 export const SHOP_DOMAINS_TAG = 'shop-domains'
+
+/**
+ * Is `domain` a LIVE (verified) custom domain of some shop? The open-redirect
+ * guard before sending a buyer back to a tenant domain after checkout — we only
+ * ever redirect to a domain that's actually a verified tenant storefront, never
+ * to a value forged in order metadata.
+ */
+export const isVerifiedCustomDomain = unstable_cache(
+  async (domain: string): Promise<boolean> => {
+    const d = domain.trim().toLowerCase()
+    if (!d) return false
+    try {
+      const { data } = await db
+        .from('marketplace_shops')
+        .select('id')
+        .eq('custom_domain', d)
+        .eq('custom_domain_verified', true)
+        .maybeSingle()
+      return !!data
+    } catch {
+      return false
+    }
+  },
+  ['is-verified-custom-domain'],
+  { revalidate: 300, tags: ['shop-domains'] },
+)

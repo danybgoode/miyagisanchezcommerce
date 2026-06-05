@@ -8,9 +8,11 @@
  */
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
+import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 
 export const metadata = { title: 'Pago completado — Miyagi Sánchez' }
 
@@ -88,6 +90,24 @@ export default async function PaymentSuccessPage({
     // Complete the cart → creates Medusa order (idempotent if already done by webhook)
     const result = await completeMedusaCart(cartId)
     const order = result?.order as Record<string, unknown> | undefined
+
+    // Own-channel return: if this purchase began on a tenant's custom domain, send
+    // the buyer back to that domain's success page so the funnel ends on their brand.
+    // Guards: redirect ONLY to a VERIFIED tenant domain (never a value forged into
+    // order metadata → no open redirect), and ONLY from the platform — the onChannel
+    // check stops a redirect loop once we're already on the domain. completeMedusaCart
+    // is idempotent, so re-running it on the domain just returns the same order.
+    const orderMeta = (order?.metadata ?? {}) as Record<string, unknown>
+    const originDomain = typeof orderMeta.origin_domain === 'string' ? orderMeta.origin_domain : null
+    if (originDomain && orderMeta.channel === 'custom_domain') {
+      const onChannel = (await headers()).get('x-miyagi-channel') === 'custom'
+      if (!onChannel && (await isVerifiedCustomDomain(originDomain))) {
+        const qs = new URLSearchParams({ cart_id: cartId })
+        if (mpPaymentId) qs.set('payment_id', mpPaymentId)
+        if (mpStatus) qs.set('status', mpStatus)
+        redirect(`https://${originDomain}/payment/success?${qs.toString()}`)
+      }
+    }
 
     const productId = (order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.product_id as string | undefined
     const itemName = (order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.title as string ?? 'tu compra'

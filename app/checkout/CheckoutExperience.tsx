@@ -83,6 +83,7 @@ export default function CheckoutExperience({
   offerAmountCents,
   listingType = 'product',
   isDigital = false,
+  originDomain,
   onStarted,
 }: {
   sellerId: string
@@ -94,6 +95,7 @@ export default function CheckoutExperience({
   offerAmountCents?: number
   listingType?: string
   isDigital?: boolean
+  originDomain?: string
   onStarted?: () => void
 }) {
   // ── Fetch checkout options from Medusa (single source of truth) ───────────
@@ -640,6 +642,7 @@ export default function CheckoutExperience({
             pickupSpotId={selectedPickupSpotId ?? undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
             shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
+            originDomain={originDomain}
             disabled={!canPay}
             onStarted={onStarted}
           />
