@@ -28,6 +28,7 @@ import { tg } from '@/lib/telegram'
 import { upsertOrderMirror } from '@/lib/order-mirror'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
+import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -189,6 +190,12 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
 
   // ── Referral reward on the buyer's first purchase (non-fatal) ──────────────
   maybeRewardReferralOnOrder({ buyerEmail }).catch(e => console.error('[referrals] mp:', e))
+  awardSweepstakesPurchaseBonusForOrder({
+    sellerId: (meta.seller_id as string) ?? sellerId,
+    orderId: medusaOrderId,
+    buyerEmail,
+    paidAt: new Date().toISOString(),
+  }).catch(e => console.error('[sweepstakes] mp marketplace:', e))
 
   const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(amountCents / 100)
   tg.salePaid(amtFmt, productId || 'Producto', buyerEmail ?? 'comprador', 'mercadopago')

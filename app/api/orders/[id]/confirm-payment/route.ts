@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { awardSweepstakesPurchaseBonusFromOrderMirror } from '@/lib/sweepstakes'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -35,5 +36,6 @@ export async function PATCH(
   })
   const data = await res.json()
   if (!res.ok) return NextResponse.json(data, { status: res.status })
+  awardSweepstakesPurchaseBonusFromOrderMirror(id).catch(e => console.error('[sweepstakes] direct payment:', e))
   return NextResponse.json(data)
 }
