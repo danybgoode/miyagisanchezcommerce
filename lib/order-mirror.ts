@@ -45,6 +45,8 @@ export interface OrderMirrorInput {
   offerId?: string | null
   stripeSessionId?: string | null
   mpPaymentId?: string | null
+  /** Sales channel of the order (e.g. 'custom_domain') for seller attribution. */
+  channel?: string | null
 }
 
 export interface OrderMirrorResult {
@@ -87,6 +89,7 @@ export async function upsertOrderMirror(input: OrderMirrorInput): Promise<OrderM
       pickup_spot_id: input.pickupSpotId ?? null,
       shipping_quote: input.shippingQuote ?? null,
       ...(input.offerId ? { offer_id: input.offerId } : {}),
+      ...(input.channel ? { channel: input.channel } : {}),
     },
   }
 
