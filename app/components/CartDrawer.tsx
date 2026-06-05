@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useCart, type CartItem } from './CartContext'
+import { formatPersonalizationLines } from '@/lib/personalization'
 
 const SPRING   = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 const EASE_OUT = 'cubic-bezier(0.2, 0, 0, 1)'
@@ -87,6 +88,11 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', margin: '2px 0 0' }}>
                 {formatPrice(item.price_cents, item.currency)}
               </p>
+              {formatPersonalizationLines(item.personalization).map((line, i) => (
+                <p key={i} style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {line}
+                </p>
+              ))}
             </div>
 
             {/* Remove */}

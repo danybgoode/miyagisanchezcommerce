@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
+import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -101,6 +102,13 @@ export default function CheckoutExperience({
   // ── Fetch checkout options from Medusa (single source of truth) ───────────
   const [options, setOptions] = useState<CheckoutOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
+
+  // Personalization the buyer entered in the PDP buy box, stashed for hand-off
+  // (single-item path). Bundle items carry their own payload on the CartItem.
+  const [personalization, setPersonalization] = useState<PersonalizationPayload | null>(null)
+  useEffect(() => {
+    if (listingId) setPersonalization(readStashedPersonalization(listingId))
+  }, [listingId])
 
   useEffect(() => {
     let cancelled = false
@@ -580,6 +588,34 @@ export default function CheckoutExperience({
             <strong>$0</strong>
           </div>
 
+          {/* ── Personalization echo (AC 3.1 — final review step) ─────────── */}
+          {(() => {
+            const blocks: Array<{ title?: string; lines: string[] }> = []
+            const single = formatPersonalizationLines(personalization)
+            if (single.length) blocks.push({ lines: single })
+            for (const it of items ?? []) {
+              const lines = formatPersonalizationLines(it.personalization)
+              if (lines.length) blocks.push({ title: it.title, lines })
+            }
+            if (!blocks.length) return null
+            return (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="iconoir-edit-pencil" style={{ fontSize: 13, color: 'var(--accent)' }} />
+                  Personalización
+                </p>
+                {blocks.map((b, bi) => (
+                  <div key={bi} style={{ marginBottom: bi < blocks.length - 1 ? 6 : 0 }}>
+                    {b.title && <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{b.title}</p>}
+                    {b.lines.map((line, i) => (
+                      <p key={i} style={{ fontSize: 12, color: 'var(--fg-muted)', wordBreak: 'break-word' }}>{line}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
           {/* ── Coupon code ─────────────────────────────────────────────── */}
           {couponsAllowed && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
@@ -631,6 +667,7 @@ export default function CheckoutExperience({
           <CheckoutPayButton
             provider={selectedPayment.id}
             listingId={listingId}
+            personalization={personalization}
             items={items}
             sellerId={sellerId}
             amountCents={amountCents}

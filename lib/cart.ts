@@ -8,6 +8,19 @@
  *   const { redirect_url } = await startCheckout({ items: [...], sellerId, provider, buyerEmail })
  */
 
+import type { PersonalizationPayload } from './personalization'
+
+/**
+ * The line-item body fragment that carries buyer personalization onto the Medusa
+ * cart line (→ order line natively). Empty when there's nothing to attach, so a
+ * non-personalized line item is byte-for-byte unchanged.
+ */
+export function lineItemPersonalizationMetadata(
+  personalization?: PersonalizationPayload | null,
+): { metadata: { personalization: PersonalizationPayload } } | Record<string, never> {
+  return personalization?.fields?.length ? { metadata: { personalization } } : {}
+}
+
 const MEDUSA_BASE = process.env.NEXT_PUBLIC_MEDUSA_STORE_URL
   ?? process.env.MEDUSA_STORE_URL
   ?? 'http://localhost:9000'
@@ -75,8 +88,10 @@ export interface StartCheckoutParams {
   /** Single-item shorthand — still works for BuyButton / MercadoPagoButton */
   productId?: string
   variantId?: string | null
+  /** Buyer-entered personalization for the single-item path → line-item metadata */
+  personalization?: PersonalizationPayload | null
   /** Multi-item bundle (CartDrawer — all items must be same seller) */
-  items?: Array<{ productId: string; variantId?: string | null }>
+  items?: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null }>
   /** Pass seller ID to skip the expensive server-side scan */
   sellerId?: string
   provider: CheckoutProvider
@@ -139,7 +154,7 @@ export interface StartCheckoutResult {
  */
 export async function startCheckout(params: StartCheckoutParams): Promise<StartCheckoutResult> {
   const {
-    productId, variantId, items, sellerId,
+    productId, variantId, personalization, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
     originDomain,
@@ -150,11 +165,11 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
 
   // Normalise to array — single-item path is the same as multi-item with one entry
-  const lineItems: Array<{ productId: string; variantId?: string | null }> =
+  const lineItems: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null }> =
     items && items.length > 0
       ? items
       : productId
-        ? [{ productId, variantId }]
+        ? [{ productId, variantId, personalization }]
         : []
 
   if (lineItems.length === 0) throw new Error('No items to checkout')
@@ -209,7 +224,13 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     const itemRes = await medusaFetch(`/store/carts/${cartId}/line-items`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ variant_id: resolvedVariantId, quantity: 1 }),
+      body: JSON.stringify({
+        variant_id: resolvedVariantId,
+        quantity: 1,
+        // Buyer personalization rides the line-item metadata → flows natively into
+        // the order line item (no custom order plumbing).
+        ...lineItemPersonalizationMetadata(lineItem.personalization),
+      }),
     })
     if (!itemRes.ok) {
       throw new Error(await responseMessage(itemRes, 'Failed to add item to cart'))

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress, type CheckoutShippingQuote } from '@/lib/cart'
 import type { CartItem } from './CartContext'
+import type { PersonalizationPayload } from '@/lib/personalization'
 
 function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat('es-MX', {
@@ -25,6 +26,8 @@ const PAY_LABEL: Record<CheckoutProvider, string> = {
 interface CheckoutPayButtonProps {
   provider: CheckoutProvider
   listingId?: string
+  /** Personalization for the single-item path (bundle items carry their own). */
+  personalization?: PersonalizationPayload | null
   items?: CartItem[]
   sellerId?: string
   amountCents: number
@@ -44,6 +47,7 @@ interface CheckoutPayButtonProps {
 export default function CheckoutPayButton({
   provider,
   listingId,
+  personalization,
   items,
   sellerId,
   amountCents,
@@ -76,7 +80,8 @@ export default function CheckoutPayButton({
       const clerkJwt = (await getToken()) ?? undefined
       const result = await startCheckout({
         productId: listingId,
-        items: items?.map(item => ({ productId: item.productId, variantId: item.variantId })),
+        personalization,
+        items: items?.map(item => ({ productId: item.productId, variantId: item.variantId, personalization: item.personalization })),
         sellerId,
         provider,
         buyerEmail,
