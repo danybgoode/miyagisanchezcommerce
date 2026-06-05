@@ -38,6 +38,30 @@ export function slugify(text: string): string {
     .slice(0, SLUG_MAX)
 }
 
+export type PreviousSlug = { slug: string; until: string }
+
+/**
+ * Pure decision for the old-slug → new-slug 301 (US-4): given a shop's current
+ * slug + its alias history, what should a request for `requested` redirect to?
+ * Returns the current slug if `requested` is a non-expired alias that isn't
+ * already the current slug, else null. Kept here (pure, no next/cache) so it's
+ * unit-testable; the DB-backed cached wrapper lives in lib/slug-redirect.ts.
+ */
+export function pickAliasTarget(
+  currentSlug: string,
+  previousSlugs: PreviousSlug[],
+  requested: string,
+  now: number = Date.now(),
+): string | null {
+  const s = requested.trim().toLowerCase()
+  const current = currentSlug.trim().toLowerCase()
+  if (!s || s === current) return null
+  const entry = previousSlugs.find(p => p?.slug?.toLowerCase() === s)
+  if (!entry) return null
+  if (new Date(entry.until).getTime() <= now) return null // expired
+  return current
+}
+
 export type SlugValidation = { valid: true } | { valid: false; reason: string }
 
 /**
