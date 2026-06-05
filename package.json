@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=api",
+    "test:e2e:browser": "playwright test --project=browser",
     "seed": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts",
     "seed:clear": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts --clear"
   },

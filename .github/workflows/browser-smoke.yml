@@ -1,0 +1,49 @@
+# Browser smoke — the OPT-IN real-browser layer (NOT the PR gate).
+#
+# The deterministic gate (ci.yml) stays API-only and chromium-free for speed.
+# This runs the `browser` Playwright project (Chromium) on demand and nightly,
+# against production by default. Authed/epic smokes read MS_TEST_* secrets and
+# skip gracefully when unset, so this is safe even before fixtures exist.
+#
+# Provision (Daniel): repo secrets
+#   MS_TEST_BUYER_EMAIL / MS_TEST_BUYER_PASSWORD
+#   MS_TEST_SELLER_EMAIL / MS_TEST_SELLER_PASSWORD
+#   MS_TEST_PERSONALIZED_LISTING_ID   (a public listing with a required custom field)
+name: Browser smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Target base URL (defaults to production)
+        required: false
+        default: https://miyagisanchez.com
+  schedule:
+    - cron: '0 9 * * *' # 09:00 UTC daily
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.base_url || 'https://miyagisanchez.com' }}
+      MS_TEST_BUYER_EMAIL: ${{ secrets.MS_TEST_BUYER_EMAIL }}
+      MS_TEST_BUYER_PASSWORD: ${{ secrets.MS_TEST_BUYER_PASSWORD }}
+      MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
+      MS_TEST_SELLER_PASSWORD: ${{ secrets.MS_TEST_SELLER_PASSWORD }}
+      MS_TEST_PERSONALIZED_LISTING_ID: ${{ secrets.MS_TEST_PERSONALIZED_LISTING_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-browser-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
