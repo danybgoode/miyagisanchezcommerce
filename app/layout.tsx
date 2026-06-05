@@ -1,15 +1,21 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
+import Link from 'next/link'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
 import DesktopUnreadBadge from '@/app/components/DesktopUnreadBadge'
+import PlatformBrand from '@/app/components/PlatformBrand'
+import PlatformThemeScript from '@/app/components/PlatformThemeScript'
+import PlatformThemeToggle from '@/app/components/PlatformThemeToggle'
 import ReferralAttribution from '@/app/components/ReferralAttribution'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import CartButton from '@/app/components/CartButton'
 import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import { getDictionary } from '@/lib/dictionary'
 import { getShop } from '@/lib/listings'
+import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -88,6 +94,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // it so we drop the platform header/footer/tab bar and render just the shop.
   const hdrs = await headers()
   const isEmbed = hdrs.get('x-miyagi-embed') === '1'
+  const platformPath = hdrs.get('x-miyagi-path') ?? '/'
 
   // Custom-domain ("own channel") requests are also white-label: middleware tags
   // them with the resolved shop slug so we drop platform chrome here and wrap the
@@ -102,10 +109,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // White-label = no platform chrome (embed iframe OR a live custom domain).
   const whiteLabel = isEmbed || isChannel
+  const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
+  const dict = await getDictionary('es')
+  const themeToggleLabels = dict.platformTheme.toggle
   return (
     <ClerkProvider>
-      <html lang="es">
+      <html lang="es" suppressHydrationWarning>
         <head>
+          {platformThemeEligible && <PlatformThemeScript />}
+
           {/* Space Grotesk — display + body */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -173,21 +185,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   className="flex md:hidden"
                   style={{ alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}
                 >
-                  {/* MS monogram favicon — compact, saves space for search */}
-                  <a
-                    href="/"
-                    style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}
-                    aria-label="Miyagi Sánchez — inicio"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/favicon.svg"
-                      alt="MS"
-                      width={30}
-                      height={30}
-                      style={{ borderRadius: 7, display: 'block' }}
-                    />
-                  </a>
+                  <PlatformBrand variant="mobile" />
 
                   {/* Search bar — hidden in PWA standalone (search is in bottom tab bar) */}
                   <form
@@ -234,13 +232,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <div className="pwa-spacer" />
 
                   {/* Sell icon */}
-                  <a
+                  <Link
                     href="/sell"
                     className="icon-btn accent"
                     title="Publicar anuncio"
                   >
                     <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
-                  </a>
+                  </Link>
 
                   {/* Cart */}
                   <CartButton />
@@ -248,16 +246,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {/* AI Agent button (client component) */}
                   <AIAgentButton />
 
+                  <PlatformThemeToggle
+                    labels={themeToggleLabels}
+                    variant="mobile"
+                    initialEligible={platformThemeEligible}
+                  />
+
                   {/* Profile link — browser only; PWA tab bar handles this */}
                   <Show when="signed-in">
-                    <a
+                    <Link
                       href="/account"
                       className="icon-btn pwa-search-hide"
                       title="Mi cuenta"
                       aria-label="Mi cuenta"
                     >
                       <i className="iconoir-user" style={{ fontSize: 22 }} />
-                    </a>
+                    </Link>
                   </Show>
                 </div>
 
@@ -266,56 +270,32 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   className="hidden md:flex"
                   style={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 16 }}
                 >
-                  {/* Wordmark */}
-                  <a
-                    href="/"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      textDecoration: 'none',
-                      lineHeight: 1,
-                      gap: 0,
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>
-                      Miyagi
-                    </span>
-                    <span
-                      style={{
-                        color: 'var(--accent)',
-                        fontSize: 9,
-                        margin: '0 3px',
-                        lineHeight: 1,
-                        position: 'relative',
-                        top: 1,
-                      }}
-                    >
-                      ●
-                    </span>
-                    <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: 'var(--fg)' }}>
-                      Sánchez
-                    </span>
-                  </a>
+                  <PlatformBrand variant="desktop" />
 
                   {/* Desktop nav */}
                   <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <a
+                    <PlatformThemeToggle
+                      labels={themeToggleLabels}
+                      variant="desktop"
+                      initialEligible={platformThemeEligible}
+                    />
+                    <Link
                       href="/l"
                       style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                       className="hover:text-[var(--fg)]"
                     >
                       Explorar
-                    </a>
-                    <a
+                    </Link>
+                    <Link
                       href="/agent"
                       style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                       className="hover:text-[var(--fg)]"
                       title="AI Agent briefing"
                     >
                       <i className="iconoir-sparks" style={{ fontSize: 15, verticalAlign: 'middle' }} />
-                    </a>
+                    </Link>
                     <Show when="signed-in">
-                      <a
+                      <Link
                         href="/messages"
                         style={{ position: 'relative', fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"
@@ -323,28 +303,28 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       >
                         <i className="iconoir-chat-bubble" style={{ fontSize: 15, verticalAlign: 'middle' }} />
                         <DesktopUnreadBadge />
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href="/account/favorites"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"
                         title="Favoritos"
                       >
                         <i className="iconoir-heart" style={{ fontSize: 15, verticalAlign: 'middle' }} />
-                      </a>
+                      </Link>
                       <CartButton />
-                      <a
+                      <Link
                         href="/shop/manage"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"
                       >
                         Mi tienda
-                      </a>
-                      <a href="/sell" className="btn btn-primary btn-sm">
+                      </Link>
+                      <Link href="/sell" className="btn btn-primary btn-sm">
                         <i className="iconoir-plus" style={{ fontSize: 14 }} />
                         Publicar
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href="/account"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
                         className="hover:text-[var(--fg)]"
@@ -352,20 +332,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       >
                         <i className="iconoir-user" style={{ fontSize: 15 }} />
                         Mi cuenta
-                      </a>
+                      </Link>
                       <UserButton />
                     </Show>
                     <Show when="signed-out">
-                      <a href="/sell" className="btn btn-primary btn-sm">
+                      <Link href="/sell" className="btn btn-primary btn-sm">
                         Publicar gratis
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href="/sign-in"
                         style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                         className="hover:text-[var(--fg)]"
                       >
                         Iniciar sesión
-                      </a>
+                      </Link>
                     </Show>
                   </nav>
                 </div>
@@ -386,7 +366,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {children}
             </ChannelLayout>
           ) : (
-            <main>{children}</main>
+            <main className={!whiteLabel ? 'platform-main-shell' : undefined}>
+              {!whiteLabel && (
+                <>
+                  <span aria-hidden className="platform-theme-spot platform-theme-spot-a" />
+                  <span aria-hidden className="platform-theme-spot platform-theme-spot-b" />
+                </>
+              )}
+              {children}
+            </main>
           )}
           <ReferralAttribution />
 
@@ -398,12 +386,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
             >
               <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
-              <a href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</a>
-              <a href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</a>
-              <a href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</a>
-              <a href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
+              <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+              <Link href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
+              <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
+              <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
                 <i className="iconoir-sparks" style={{ fontSize: 11 }} /> Agent API
-              </a>
+              </Link>
             </div>
           </footer>
 

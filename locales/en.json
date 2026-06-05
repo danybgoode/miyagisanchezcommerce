@@ -1,4 +1,15 @@
 {
+  "platformTheme": {
+    "toggle": {
+      "label": "Change platform theme",
+      "core": "Core",
+      "seasonal": "DesignerN",
+      "coreTitle": "Use the core Miyagi theme",
+      "seasonalTitle": "Use the seasonal collaboration",
+      "activeCore": "Core theme active",
+      "activeSeasonal": "Collaboration active"
+    }
+  },
   "terms": {
     "title": "Terms of use",
     "subtitle": "Basic rules for using Miyagi Sanchez.",
