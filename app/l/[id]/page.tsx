@@ -1,8 +1,9 @@
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import BuyButton from '@/app/components/BuyButton'
@@ -21,7 +22,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const listing = await getListing(id)
   if (!listing) return { title: 'Anuncio no encontrado' }
-  return { title: listing.title, description: listing.description ?? undefined }
+  // Canonical follows the seller's live custom domain when set, so the product
+  // ranks under the brand domain rather than the marketplace mirror.
+  const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
+  const canonical = domain ? `https://${domain}/l/${listing.id}` : `https://miyagisanchez.com/l/${listing.id}`
+  return {
+    title: listing.title,
+    description: listing.description ?? undefined,
+    alternates: { canonical },
+    openGraph: { url: canonical },
+  }
 }
 
 function timeAgo(dateStr: string): string {
@@ -67,6 +77,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const channelSlug = (await headers()).get('x-miyagi-shop-slug')
   const onChannel = !!channelSlug
   if (onChannel && listing.shop?.slug !== channelSlug) notFound()
+
+  // SEO continuity: on the marketplace host, if this product's shop has a LIVE
+  // custom domain, 308-redirect the legacy /l/[id] link to the tenant's own
+  // domain so traffic + ranking consolidate there.
+  if (!onChannel) {
+    const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
+    if (domain) permanentRedirect(`https://${domain}/l/${listing.id}`)
+  }
 
   const isSignedIn = !!clerkUser
   const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id

@@ -7,8 +7,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { SHOP_DOMAINS_TAG } from '@/lib/custom-domain'
 import {
   addDomainToProject,
   getDomainStatus,
@@ -129,6 +131,10 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', shop.id)
 
+  // Bust the platform-side reverse lookup so the new domain starts redirecting /
+  // canonicalising the moment it's verified (and so a replace clears the old one).
+  revalidateTag(SHOP_DOMAINS_TAG, 'default')
+
   // Replace flow: the new domain is now saved, so release the previous one from
   // Vercel to avoid orphaned domains on the project. Best-effort — never block.
   const previous = shop.custom_domain
@@ -182,12 +188,14 @@ export async function GET(req: NextRequest) {
       .from('marketplace_shops')
       .update({ custom_domain_verified: true })
       .eq('id', shop.id)
+    revalidateTag(SHOP_DOMAINS_TAG, 'default')
   } else if (!dns_ok && shop.custom_domain_verified) {
     // DNS was live but is no longer pointing to us (seller changed registrar etc.)
     await db
       .from('marketplace_shops')
       .update({ custom_domain_verified: false })
       .eq('id', shop.id)
+    revalidateTag(SHOP_DOMAINS_TAG, 'default')
   }
 
   return NextResponse.json({
@@ -227,6 +235,10 @@ export async function DELETE(_req: NextRequest) {
       custom_domain_vercel_ok: false,
     })
     .eq('id', shop.id)
+
+  // Instant fail-safe: drop the reverse lookup so the platform stops redirecting
+  // to the now-disconnected domain right away (no stale 308 to a dead host).
+  revalidateTag(SHOP_DOMAINS_TAG, 'default')
 
   return NextResponse.json({ ok: true })
 }
