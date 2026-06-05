@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCart, type CartItem } from './CartContext'
+import { readStashedPersonalization } from '@/lib/personalization'
 
 function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat('es-MX', {
@@ -45,7 +46,10 @@ export default function SellerBundleSection({
       removeItem(item.productId)
       return
     }
-    addItem(item)
+    // Carry personalization the buyer entered in this product's buy box (stashed
+    // by PersonalizationBuyBox) into the cart line so it echoes + reaches the order.
+    const personalization = readStashedPersonalization(item.productId)
+    addItem(personalization ? { ...item, personalization } : item)
     closeCart()
   }
 

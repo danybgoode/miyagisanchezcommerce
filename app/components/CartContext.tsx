@@ -4,6 +4,7 @@ import {
   createContext, useContext, useReducer, useEffect, useCallback, useRef,
   type ReactNode,
 } from 'react'
+import type { PersonalizationPayload } from '@/lib/personalization'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface CartItem {
   imageUrl: string | null
   listing_type: string
   paymentMethods: { stripe: boolean; mp: boolean; spei?: boolean }
+  /** Buyer-entered personalization for this item → carried to the line item. */
+  personalization?: PersonalizationPayload | null
 }
 
 interface CartState {

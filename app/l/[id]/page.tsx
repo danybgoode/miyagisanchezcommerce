@@ -8,6 +8,8 @@ import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import BuyButton from '@/app/components/BuyButton'
+import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
+import { getCustomFields } from '@/lib/personalization'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
@@ -209,6 +211,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // (unmanaged) listings have in_stock === undefined → never blocked.
   const soldOut = listing.in_stock === false
   const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && showBuyerActions && !soldOut
+  // Personalization fields configured by the seller (Medusa product metadata).
+  const customFields = getCustomFields(listing.metadata)
   const images = listing.images ?? []
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
@@ -297,7 +301,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           hardcoded here; the checkout page is the single chooser. */}
       {!isPrintPlacement && showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
         hasAnyPayment ? (
-          agreedDealCents && activeDeal ? (
+          // Personalizable product → fields + validating CTA (handles signed-in /
+          // signed-out / accepted-offer). Non-personalized keeps the plain CTAs.
+          customFields.length > 0 ? (
+            <PersonalizationBuyBox
+              listingId={listing.id}
+              defs={customFields}
+              isSignedIn={isSignedIn}
+              customDomain={customDomain}
+              priceLabel={effectivePrice}
+              offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
+            />
+          ) : agreedDealCents && activeDeal ? (
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
           ) : isSignedIn ? (
             <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>

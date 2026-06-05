@@ -221,6 +221,30 @@ export function formatPersonalizationLines(payload: PersonalizationPayload | nul
   return payload.fields.map(f => (f.label ? `${f.label}: ${f.value}` : f.value))
 }
 
+// ── Buy-now hand-off (sessionStorage) ─────────────────────────────────────────
+// The PDP buy-now CTA navigates to /checkout (it doesn't call startCheckout
+// itself), so the payload is stashed under a per-listing key the checkout page
+// reads back. sessionStorage (not local) — it's a single in-flight purchase.
+
+export function personalizationStorageKey(listingId: string): string {
+  return `ms_personalization_${listingId}`
+}
+
+export function stashPersonalization(listingId: string, payload: PersonalizationPayload | null): void {
+  try {
+    const key = personalizationStorageKey(listingId)
+    if (payload) sessionStorage.setItem(key, JSON.stringify(payload))
+    else sessionStorage.removeItem(key)
+  } catch { /* storage unavailable — non-fatal */ }
+}
+
+export function readStashedPersonalization(listingId: string): PersonalizationPayload | null {
+  try {
+    const raw = sessionStorage.getItem(personalizationStorageKey(listingId))
+    return raw ? readPersonalization(JSON.parse(raw)) : null
+  } catch { return null }
+}
+
 // ── Labels (es-MX UI chrome) ──────────────────────────────────────────────────
 
 export const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
