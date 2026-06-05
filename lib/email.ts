@@ -4,6 +4,7 @@
  */
 
 import { Resend } from 'resend'
+import { getDictionary, type Locale } from '@/lib/dictionary'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -224,6 +225,63 @@ export async function sendReferralReward(to: string, code: string, amountLabel: 
     notice('El crédito tiene vigencia limitada — úsalo pronto.'),
   ].join('')
   await send(to, subject, body)
+}
+
+// ── Sweepstakes: email verification ─────────────────────────────────────────
+export async function sendSweepstakesVerificationCode(ctx: {
+  to: string
+  code: string
+  locale: Locale
+  campaignTitle: string
+  campaignUrl: string
+}): Promise<void> {
+  const ui = (await getDictionary(ctx.locale)).sweepstakes.email
+  const body = [
+    h1(ui.verificationTitle),
+    p(ui.verificationIntro),
+    amount(ctx.code, ui.verificationCode, true),
+    table([[ui.campaign, `<a href="${ctx.campaignUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.campaignTitle)}</a>`]]),
+    notice(ui.verificationExpiry),
+  ].join('')
+  await send(ctx.to, ui.verificationSubject, body)
+}
+
+// ── Sweepstakes: winner notification ────────────────────────────────────────
+export async function sendSweepstakesWinner(ctx: {
+  to: string
+  locale: Locale
+  campaignTitle: string
+  campaignUrl: string
+}): Promise<void> {
+  const ui = (await getDictionary(ctx.locale)).sweepstakes.email
+  const body = [
+    h1(ui.winnerTitle),
+    p(ui.winnerIntro),
+    table([[ui.campaign, `<a href="${ctx.campaignUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.campaignTitle)}</a>`]]),
+    cta(ui.claimPrize, ctx.campaignUrl),
+  ].join('')
+  await send(ctx.to, `${ui.winnerSubject} — ${ctx.campaignTitle}`, body)
+}
+
+// ── Sweepstakes: consolation broadcast ──────────────────────────────────────
+export async function sendSweepstakesConsolation(ctx: {
+  to: string
+  locale: Locale
+  campaignTitle: string
+  campaignUrl: string
+  message: string
+  couponCode?: string | null
+}): Promise<void> {
+  const ui = (await getDictionary(ctx.locale)).sweepstakes.email
+  const body = [
+    h1(ui.consolationTitle),
+    p(ui.consolationIntro),
+    quote(ctx.message),
+    ctx.couponCode ? amount(ctx.couponCode, ui.coupon, true) : '',
+    table([[ui.campaign, `<a href="${ctx.campaignUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.campaignTitle)}</a>`]]),
+    cta(ui.claimPrize, ctx.campaignUrl),
+  ].join('')
+  await send(ctx.to, `${ui.consolationSubject} — ${ctx.campaignTitle}`, body)
 }
 
 // ── 2. Seller: new offer alert ────────────────────────────────────────────────
