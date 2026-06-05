@@ -37,11 +37,19 @@ test.describe('Own-shop — SEO continuity', () => {
   })
 
   test('a shop without a verified custom domain is NOT redirected and self-canonicalises', async ({ request }) => {
-    const res = await request.get('/s/miyagi-sanchez', { maxRedirects: 0 })
+    // Derive a real shop slug from the public catalog (no verified custom domain
+    // exists in any environment today, so this shop self-canonicalises). Skip if
+    // the environment has no active listings rather than fail on a hardcoded slug.
+    const cat = await request.get('/api/ucp/catalog?limit=1')
+    expect(cat.ok()).toBeTruthy()
+    const slug = (await cat.json())?.items?.[0]?.shop?.slug
+    test.skip(!slug, 'no active listings in this environment')
+
+    const res = await request.get(`/s/${slug}`, { maxRedirects: 0 })
     // No legacy→domain redirect when the shop has no live custom domain.
     expect(res.status()).toBe(200)
     const html = await res.text()
     expect(html).toContain('rel="canonical"')
-    expect(html).toContain('miyagisanchez.com/s/miyagi-sanchez')
+    expect(html).toContain(`miyagisanchez.com/s/${slug}`)
   })
 })
