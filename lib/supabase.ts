@@ -7,6 +7,35 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * returned so routes fail gracefully at runtime rather than at build time.
  */
 let _db: SupabaseClient | null = null
+
+function makeMissingConfigQuery(): unknown {
+  const result = { data: null, error: { message: 'not configured' } }
+  const query = {
+    select: () => query,
+    insert: () => query,
+    update: () => query,
+    upsert: () => query,
+    delete: () => query,
+    eq: () => query,
+    neq: () => query,
+    in: () => query,
+    is: () => query,
+    gte: () => query,
+    lte: () => query,
+    lt: () => query,
+    gt: () => query,
+    order: () => query,
+    limit: () => query,
+    single: () => Promise.resolve(result),
+    maybeSingle: () => Promise.resolve(result),
+    then: (
+      resolve: (value: typeof result) => unknown,
+      reject?: (reason: unknown) => unknown,
+    ) => Promise.resolve(result).then(resolve, reject),
+  }
+  return query
+}
+
 function getDb(): SupabaseClient {
   if (_db) return _db
   const url = process.env.SUPABASE_URL
@@ -15,7 +44,7 @@ function getDb(): SupabaseClient {
     // Return a minimal stub so builds in envs without service-role creds don't crash.
     // Real routes will still return errors at runtime, which is the correct behaviour.
     console.warn('[supabase] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — using stub')
-    _db = { from: () => ({ select: () => Promise.resolve({ data: null, error: { message: 'not configured' } }) } as unknown) } as unknown as SupabaseClient
+    _db = { from: () => makeMissingConfigQuery() } as unknown as SupabaseClient
     return _db
   }
   _db = createClient(url, key)

@@ -20,6 +20,7 @@ import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 import { upsertOrderMirror } from '@/lib/order-mirror'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
+import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -212,6 +213,12 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   // ── Referral reward on the buyer's first purchase (non-fatal) ────────────
   maybeRewardReferralOnOrder({ buyerClerkUserId: buyer_clerk_id || null, buyerEmail })
     .catch(e => console.error('[referrals] stripe:', e))
+  awardSweepstakesPurchaseBonusForOrder({
+    sellerId: shop_id,
+    orderId: order.id,
+    buyerEmail,
+    paidAt: new Date().toISOString(),
+  }).catch(e => console.error('[sweepstakes] stripe legacy:', e))
 
   // Mark winning offer paid, decline competing offers, and close the mirror listing.
   await markListingPurchased({ listingId: listing_id, offerId: offer_id })
@@ -360,6 +367,13 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
         delivery_label: shipping_delivery_label || null,
       } : null,
     })
+
+    awardSweepstakesPurchaseBonusForOrder({
+      sellerId: seller_id ?? null,
+      orderId: medusaOrderId,
+      buyerEmail,
+      paidAt: new Date().toISOString(),
+    }).catch(e => console.error('[sweepstakes] medusa stripe:', e))
   }
 
   // 3. Fire UCP webhook (non-fatal)

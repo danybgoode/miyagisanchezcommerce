@@ -22,6 +22,7 @@ import { upsertOrderMirror } from '@/lib/order-mirror'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
+import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -152,6 +153,12 @@ export async function GET(req: NextRequest) {
           .catch(e => console.error('[reconcile] markListingPurchased:', e))
       }
       deliverOrderWebhook(orderId, 'order.created').catch(e => console.error('[reconcile] ucp webhook:', e))
+      awardSweepstakesPurchaseBonusForOrder({
+        sellerId: c.seller_id,
+        orderId,
+        buyerEmail: c.buyer_email,
+        paidAt: new Date().toISOString(),
+      }).catch(e => console.error('[sweepstakes] reconcile:', e))
     }
 
     reconciled.push({ cartId: c.cart_id, orderId, created, provider: c.provider })

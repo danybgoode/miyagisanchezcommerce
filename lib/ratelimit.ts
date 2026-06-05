@@ -80,9 +80,16 @@ const embedLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(240, '1 m'), prefix: 'rl:embed' })
 }
 
+// Sweepstakes public writes: verification codes + entry attempts.
+const sweepstakesLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: 'rl:sweepstakes' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -99,6 +106,7 @@ export async function checkRateLimit(
     : key === 'stamps'          ? stampLimiter
     : key === 'catalog_extract' ? catalogExtractLimiter
     : key === 'embed'           ? embedLimiter
+    : key === 'sweepstakes'     ? sweepstakesLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()
