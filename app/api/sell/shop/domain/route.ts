@@ -13,7 +13,9 @@ import {
   addDomainToProject,
   getDomainStatus,
   removeDomainFromProject,
+  DomainConflictError,
 } from '@/lib/vercel-domains'
+import { CNAME_TARGET, APEX_A_RECORD, isApexDomain } from '@/lib/domain-utils'
 import dns from 'dns/promises'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -29,15 +31,39 @@ async function getShopForUser(clerkUserId: string) {
   return data
 }
 
-/** Lightweight DNS CNAME check — resolves on the server so we get a real answer */
-async function checkCname(domain: string): Promise<string | null> {
+/**
+ * Server-side DNS check — the source of truth for "live". Resolves on the
+ * server so we get a real answer the browser can't fake.
+ *
+ * `dns_ok` is true when the domain points at Vercel by EITHER path:
+ *  - a CNAME to `cname.vercel-dns.com` (the only valid setup for a subdomain), or
+ *  - an A record resolving to Vercel's anycast IP — which also covers an apex
+ *    using Cloudflare's CNAME-flattening (it surfaces as that A record).
+ * `cname_current` is kept for diagnostics: if a CNAME exists but points
+ * elsewhere, the UI can tell the seller exactly what to fix.
+ */
+async function checkDns(domain: string): Promise<{ dns_ok: boolean; cname_current: string | null }> {
+  let cname_current: string | null = null
   try {
     const records = await dns.resolveCname(domain)
-    return records[0] ?? null
+    cname_current = records[0] ?? null
   } catch {
-    // CNAME not set or domain doesn't exist yet
-    return null
+    // No CNAME (apex A-record setups have none) or domain doesn't exist yet.
   }
+
+  if (cname_current === CNAME_TARGET) return { dns_ok: true, cname_current }
+
+  // Apex (and CNAME-flattened) domains resolve to Vercel's A record.
+  if (isApexDomain(domain)) {
+    try {
+      const a = await dns.resolve4(domain)
+      if (a.includes(APEX_A_RECORD)) return { dns_ok: true, cname_current }
+    } catch {
+      // No A record yet.
+    }
+  }
+
+  return { dns_ok: false, cname_current }
 }
 
 // ── POST — save domain & provision on Vercel ─────────────────────────────────
@@ -81,6 +107,13 @@ export async function POST(req: NextRequest) {
   try {
     vercelStatus = await addDomainToProject(raw)
   } catch (err) {
+    // Domain already registered to a different Vercel account/project → clear 409.
+    if (err instanceof DomainConflictError) {
+      return NextResponse.json(
+        { error: 'Este dominio ya está en uso. Si es tuyo, contáctanos para liberarlo.' },
+        { status: 409 },
+      )
+    }
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[domain] Vercel addDomain failed:', msg)
     return NextResponse.json({ error: 'Error al registrar el dominio en Vercel.', detail: msg }, { status: 502 })
@@ -95,6 +128,17 @@ export async function POST(req: NextRequest) {
       custom_domain_verified: vercelStatus.verified,
     })
     .eq('id', shop.id)
+
+  // Replace flow: the new domain is now saved, so release the previous one from
+  // Vercel to avoid orphaned domains on the project. Best-effort — never block.
+  const previous = shop.custom_domain
+  if (previous && previous !== raw) {
+    try {
+      await removeDomainFromProject(previous)
+    } catch (err) {
+      console.error('[domain] Vercel removeDomain (replace) failed:', err)
+    }
+  }
 
   return NextResponse.json({
     domain: raw,
@@ -126,11 +170,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Error al verificar el dominio.', detail: msg }, { status: 502 })
   }
 
-  // Live DNS CNAME lookup — this is the only source of truth for "verified"
+  // Live DNS lookup — this is the only source of truth for "live".
   // Vercel's `verified` field just means "domain is registered on the project"
-  // — NOT that DNS is live. Only update DB when our own lookup confirms it.
-  const cname_current = await checkCname(domain)
-  const dns_ok = cname_current === 'cname.vercel-dns.com'
+  // (and, once true, that the SSL cert is issued) — NOT that DNS is live. Only
+  // update DB when our own lookup confirms the domain points at us.
+  const { dns_ok, cname_current } = await checkDns(domain)
 
   if (dns_ok && !shop.custom_domain_verified) {
     // DNS just went live — mark verified in DB
