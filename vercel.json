@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/print-pending",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/sweepstakes-draw",
-      "schedule": "* * * * *"
     }
   ],
   "git": {

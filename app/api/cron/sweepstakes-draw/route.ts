@@ -5,8 +5,11 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
+  const internalSecret = req.headers.get('x-internal-secret')
   const authz = req.headers.get('authorization')
-  if (secret !== process.env.CRON_SECRET && authz !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronOk = !!process.env.CRON_SECRET && (secret === process.env.CRON_SECRET || authz === `Bearer ${process.env.CRON_SECRET}`)
+  const internalOk = !!process.env.MEDUSA_INTERNAL_SECRET && internalSecret === process.env.MEDUSA_INTERNAL_SECRET
+  if (!cronOk && !internalOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
