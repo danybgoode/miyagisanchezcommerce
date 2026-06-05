@@ -22,13 +22,20 @@ import { db } from '@/lib/supabase'
 export const getActiveCustomDomain = unstable_cache(
   async (slug: string): Promise<string | null> => {
     if (!slug) return null
-    const { data } = await db
-      .from('marketplace_shops')
-      .select('custom_domain, custom_domain_verified')
-      .eq('slug', slug)
-      .maybeSingle()
-    if (!data?.custom_domain || !data.custom_domain_verified) return null
-    return String(data.custom_domain).toLowerCase()
+    // The redirect/canonical this feeds is an ENHANCEMENT — never let a Supabase
+    // hiccup (or a stubbed client in an env without service-role creds, e.g. a
+    // preview) throw and take down the shop/product page. Degrade to "no domain".
+    try {
+      const { data } = await db
+        .from('marketplace_shops')
+        .select('custom_domain, custom_domain_verified')
+        .eq('slug', slug)
+        .maybeSingle()
+      if (!data?.custom_domain || !data.custom_domain_verified) return null
+      return String(data.custom_domain).toLowerCase()
+    } catch {
+      return null
+    }
   },
   ['active-custom-domain'],
   { revalidate: 300, tags: ['shop-domains'] },
