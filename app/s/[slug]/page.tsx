@@ -1,9 +1,9 @@
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
+import { getActiveCustomDomain } from '@/lib/custom-domain'
 import ClaimButton from './ClaimButton'
-import ChannelLayout from './ChannelLayout'
 import ClosetListingCard from './ClosetListingCard'
 import type { Metadata } from 'next'
 
@@ -15,10 +15,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!shop) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
   const t = (theme?.theme ?? {}) as Record<string, unknown>
+  // Canonical points at the shop's own domain when live, so search engines
+  // consolidate ranking on the brand domain instead of the marketplace mirror.
+  const domain = await getActiveCustomDomain(slug)
+  const canonical = domain ? `https://${domain}/` : `https://miyagisanchez.com/s/${slug}`
   return {
     title: shop.name,
     description: (t.tagline as string | undefined) ?? shop.description ?? undefined,
+    alternates: { canonical },
     openGraph: {
+      url: canonical,
       images: (t.banner_url as string | undefined) ? [{ url: t.banner_url as string }] : undefined,
     },
   }
@@ -63,12 +69,17 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) notFound()
-  const listings = await getShopListings(shop.slug)
 
-  // Detect own-channel mode (request arrived via tenant's custom domain)
-  const reqHeaders = await headers()
-  const isChannel = reqHeaders.get('x-miyagi-channel') === 'custom'
-  const channelDomain = reqHeaders.get('x-miyagi-domain') ?? ''
+  // SEO continuity: if this shop has a LIVE custom domain and we're being viewed
+  // on the marketplace host (not already on that domain), 308-redirect legacy
+  // /s/[slug] traffic to the tenant's own home so links + ranking move with them.
+  const onChannel = (await headers()).get('x-miyagi-channel') === 'custom'
+  if (!onChannel) {
+    const domain = await getActiveCustomDomain(shop.slug)
+    if (domain) permanentRedirect(`https://${domain}/`)
+  }
+
+  const listings = await getShopListings(shop.slug)
 
   // Extract theme from metadata
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
@@ -270,19 +281,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     </div>
   )
 
-  // Own channel: wrap in white-label shell (no platform chrome)
-  if (isChannel) {
-    return (
-      <ChannelLayout
-        shopName={shop.name}
-        accentColor={accent}
-        logoUrl={shop.logo_url ?? null}
-        domain={channelDomain}
-      >
-        {pageContent}
-      </ChannelLayout>
-    )
-  }
-
+  // On a custom domain the root layout already wraps every page in the shop's
+  // white-label shell (ChannelLayout), so the page just returns its content.
   return pageContent
 }

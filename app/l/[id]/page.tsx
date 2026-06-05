@@ -1,7 +1,10 @@
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { getActiveCustomDomain } from '@/lib/custom-domain'
+import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import BuyButton from '@/app/components/BuyButton'
@@ -20,7 +23,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const listing = await getListing(id)
   if (!listing) return { title: 'Anuncio no encontrado' }
-  return { title: listing.title, description: listing.description ?? undefined }
+  // Canonical follows the seller's live custom domain when set, so the product
+  // ranks under the brand domain rather than the marketplace mirror.
+  const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
+  const canonical = domain ? `https://${domain}/l/${listing.id}` : `https://miyagisanchez.com/l/${listing.id}`
+  return {
+    title: listing.title,
+    description: listing.description ?? undefined,
+    alternates: { canonical },
+    openGraph: { url: canonical },
+  }
 }
 
 function timeAgo(dateStr: string): string {
@@ -58,6 +70,26 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const { id } = await params
   const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
+
+  // Custom-domain boundary: a tenant store shows ONLY its own products. If this
+  // PDP is reached on a custom domain (channel slug set by middleware) but the
+  // product belongs to another shop, render the white-label not-found instead of
+  // leaking a different seller's listing under this brand.
+  const reqHeaders = await headers()
+  const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
+  const onChannel = !!channelSlug
+  if (onChannel && listing.shop?.slug !== channelSlug) notFound()
+  // On a custom domain the buyer can't sign in / pay (Clerk is platform-only), so
+  // the buy + sign-in CTAs hop to the platform carrying this origin domain.
+  const customDomain = onChannel ? reqHeaders.get('x-miyagi-domain') : null
+
+  // SEO continuity: on the marketplace host, if this product's shop has a LIVE
+  // custom domain, 308-redirect the legacy /l/[id] link to the tenant's own
+  // domain so traffic + ranking consolidate there.
+  if (!onChannel) {
+    const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
+    if (domain) permanentRedirect(`https://${domain}/l/${listing.id}`)
+  }
 
   const isSignedIn = !!clerkUser
   const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id
@@ -266,13 +298,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       {!isPrintPlacement && showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
         hasAnyPayment ? (
           agreedDealCents && activeDeal ? (
-            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} />
+            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
           ) : isSignedIn ? (
-            <Link href={`/checkout?listingId=${listing.id}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Comprar ahora — {effectivePrice}
             </Link>
           ) : (
-            <Link href={`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listing.id}`)}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Inicia sesión para comprar
             </Link>
           )
@@ -540,14 +572,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Recibirás el archivo al completar el pago.</div>
               </div>
             </div>
-            <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} />
+            <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} customDomain={customDomain} />
           </div>
         )}
 
         {/* ── Seller card ──────────────────────────────────────────────────────── */}
         {listing.shop && (
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
-            <Link href={`/s/${listing.shop.slug}`} className="no-underline block">
+            <Link href={onChannel ? '/' : `/s/${listing.shop.slug}`} className="no-underline block">
               <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {listing.shop.logo_url ? (
