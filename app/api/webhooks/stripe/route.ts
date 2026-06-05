@@ -12,6 +12,7 @@ import {
   getSellerEmail,
 } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { personalizationFromOrderItems, type PersonalizationBlock } from '@/lib/personalization'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
@@ -27,7 +28,7 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
 /** Complete a Medusa cart → creates the Medusa order. Returns the order ID. */
-async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown> } | null> {
+async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[] } | null> {
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
       method: 'POST',
@@ -44,8 +45,9 @@ async function completeMedusaCart(cartId: string): Promise<{ orderId: string | n
     const data = await res.json().catch(() => ({}))
     const orderId = data?.order?.id ?? null
     const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
+    const personalization = personalizationFromOrderItems(data?.order?.items)
     console.log('[stripe webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return { orderId, metadata }
+    return { orderId, metadata, personalization }
   } catch (e) {
     console.error('[stripe webhook] completeMedusaCart error:', cartId, e)
     return null
@@ -405,6 +407,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       const siteBase = storeDomain ? `https://${storeDomain}` : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com')
       const listingUrl = `${siteBase}/l/${product_id}`
       const amountFormatted = formatOfferAmount(amountTotal, currency)
+      const personalization = completed?.personalization ?? []
 
       const isPickup = fulfillment_method === 'local_pickup'
       const isCoord  = !fulfillment_method || fulfillment_method === 'none' || fulfillment_method === 'coord' || fulfillment_method === 'rental'
@@ -426,6 +429,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[email] pickup buyer:', e))
       } else if (isCoord) {
@@ -439,6 +443,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[email] coord buyer:', e))
       } else {
@@ -452,6 +457,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           isDigital: false,
           digitalDownloadUrl: null,
           digitalExpiresAt: null,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
       }
@@ -471,6 +477,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
               buyerEmail,
               shopName: listingInfo.seller_name,
               orderUrl: sellerOrderUrl,
+              personalization,
             })
           }
           if (isCoord) {
@@ -484,6 +491,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
               shopName: listingInfo.seller_name,
               orderId: medusaOrderId ?? cart_id,
               orderUrl: sellerOrderUrl,
+              personalization,
             })
           }
           if (isShipping) {
@@ -498,6 +506,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
               shippingAddress: null,
               orderId: medusaOrderId ?? cart_id,
               orderUrl: sellerOrderUrl,
+              personalization,
             })
           }
           return sendSaleCompletedToSeller({

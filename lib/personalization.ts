@@ -208,7 +208,7 @@ export function readPersonalization(value: unknown): PersonalizationPayload | nu
     const ff = f as Record<string, unknown>
     const label = typeof ff.label === 'string' ? ff.label : ''
     const val = typeof ff.value === 'string' ? ff.value : ''
-    if (!val) continue
+    if (!val.trim()) continue
     clean.push({ id: typeof ff.id === 'string' ? ff.id : '', label, value: val })
   }
   return clean.length > 0 ? { fields: clean } : null
@@ -243,6 +243,27 @@ export function readStashedPersonalization(listingId: string): PersonalizationPa
     const raw = sessionStorage.getItem(personalizationStorageKey(listingId))
     return raw ? readPersonalization(JSON.parse(raw)) : null
   } catch { return null }
+}
+
+// ── Order line items → per-item personalization blocks ────────────────────────
+// Used by webhooks / finalize to feed the order emails directly from a Medusa
+// order's line items (each carries metadata.personalization).
+
+export interface PersonalizationBlock {
+  title?: string
+  fields: PersonalizationField[]
+}
+
+export function personalizationFromOrderItems(
+  items: Array<{ title?: string; metadata?: { personalization?: unknown } | null }> | null | undefined,
+): PersonalizationBlock[] {
+  if (!Array.isArray(items)) return []
+  const blocks: PersonalizationBlock[] = []
+  for (const it of items) {
+    const payload = readPersonalization(it?.metadata?.personalization)
+    if (payload) blocks.push({ title: it?.title, fields: payload.fields })
+  }
+  return blocks
 }
 
 // ── Labels (es-MX UI chrome) ──────────────────────────────────────────────────

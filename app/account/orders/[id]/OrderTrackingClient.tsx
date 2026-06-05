@@ -28,6 +28,7 @@ interface OrderTrackingProps {
     buyer_name: string | null
     buyer_email: string | null
     created_at: string
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
     metadata?: Record<string, unknown> | null
     // Direct-payment ("Pago directo") fields from the Medusa order
     payment_method?: string | null
@@ -432,6 +433,28 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <p className="text-xl font-bold mt-2">{formatPrice(order.amount_cents, order.currency)}</p>
           </div>
         </div>
+
+        {/* Personalization the buyer entered — echoed back for peace of mind. */}
+        {(order.personalization ?? []).length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Personalización</h3>
+            <div className="space-y-2">
+              {(order.personalization ?? []).map((block, bi) => (
+                <div key={bi}>
+                  {(order.personalization ?? []).length > 1 && block.title && (
+                    <p className="text-xs font-medium mb-1">{block.title}</p>
+                  )}
+                  {block.fields.map((f, fi) => (
+                    <div key={f.id ?? fi} className="flex gap-2 text-sm">
+                      <span className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</span>
+                      <span className="font-medium break-words">{f.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex items-center justify-between text-xs text-[var(--color-muted)]">
           <span>Comprado el {formatDate(order.created_at)}</span>
           <span className="font-mono text-[10px]">#{order.id.slice(0, 8)}</span>

@@ -41,6 +41,7 @@ interface OrderDetailProps {
     buyer_email: string | null
     created_at: string
     updated_at: string
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
     metadata?: Record<string, unknown> | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
@@ -777,6 +778,32 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             <p className="text-xl font-bold mt-2">{formatPrice(order.amount_cents, order.currency)}</p>
           </div>
         </div>
+
+        {/* Personalization — what the buyer asked for (treat as a primary spec). */}
+        {(order.personalization ?? []).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <span>✦</span> Personalización
+            </h3>
+            <div className="space-y-3">
+              {(order.personalization ?? []).map((block, bi) => (
+                <div key={bi}>
+                  {(order.personalization ?? []).length > 1 && block.title && (
+                    <p className="text-xs font-medium text-[var(--color-text)] mb-1">{block.title}</p>
+                  )}
+                  <dl className="space-y-1">
+                    {block.fields.map((f, fi) => (
+                      <div key={f.id ?? fi} className="flex gap-2 text-sm">
+                        <dt className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</dt>
+                        <dd className="font-medium break-words">{f.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Buyer info */}
