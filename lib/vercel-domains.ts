@@ -10,7 +10,21 @@
  * Server-only — never import in client components.
  */
 
+import { CNAME_TARGET } from './domain-utils'
+
 const API = 'https://api.vercel.com'
+
+/**
+ * Thrown when the domain is already registered to a *different* Vercel
+ * account/project (not this one) — i.e. it's genuinely taken elsewhere.
+ * The route maps this to a friendly 409 rather than a generic 502.
+ */
+export class DomainConflictError extends Error {
+  constructor(public detail: string) {
+    super('domain_conflict')
+    this.name = 'DomainConflictError'
+  }
+}
 
 function headers() {
   const token = process.env.VERCEL_API_TOKEN
@@ -60,14 +74,26 @@ export async function addDomainToProject(domain: string): Promise<VercelDomainSt
   const data = await res.json() as Record<string, unknown>
 
   if (!res.ok) {
-    // Domain already registered on this project — not a real error
-    if ((data.error as Record<string, unknown> | undefined)?.code === 'domain_already_in_use') {
-      return getDomainStatus(domain)
+    const error = data.error as Record<string, unknown> | undefined
+    const code = error?.code as string | undefined
+    const message = (error?.message as string | undefined) ?? `Vercel API error ${res.status}`
+
+    // `domain_already_in_use` can mean two very different things:
+    //  (a) it's already on THIS project → harmless, just read its status;
+    //  (b) it's on ANOTHER project/account → genuinely taken (getDomainStatus
+    //      will 404 on our project, surfacing it as a conflict).
+    if (code === 'domain_already_in_use') {
+      try {
+        return await getDomainStatus(domain)
+      } catch {
+        throw new DomainConflictError(message)
+      }
     }
-    throw new Error(
-      ((data.error as Record<string, unknown> | undefined)?.message as string | undefined)
-      ?? `Vercel API error ${res.status}`
-    )
+    // Domain owned by another Vercel team/account we can't touch.
+    if (code === 'forbidden' || code === 'domain_taken') {
+      throw new DomainConflictError(message)
+    }
+    throw new Error(message)
   }
 
   return normalizeDomainResponse(data)
@@ -122,7 +148,7 @@ function normalizeDomainResponse(data: Record<string, unknown>): VercelDomainSta
   const verification = (data.verification as Array<Record<string, unknown>> | undefined) ?? []
   return {
     verified: !!(data.verified),
-    cname_target: 'cname.vercel-dns.com',
+    cname_target: CNAME_TARGET,
     apex_name: (data.apexName as string | undefined) ?? null,
     verification: verification.map(v => ({
       type: String(v.type ?? ''),

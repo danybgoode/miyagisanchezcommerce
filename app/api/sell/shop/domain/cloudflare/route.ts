@@ -114,9 +114,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Step 3: Create the CNAME record ─────────────────────────────────────
+  // Use the full domain as the record name so subdomains (shop.midominio.com)
+  // get the record on the right host, not the apex. For an apex domain this is
+  // the zone root and Cloudflare flattens the CNAME automatically.
   const createRes = await cfPost(`/zones/${zoneId}/dns_records`, cf_token, {
     type: 'CNAME',
-    name: '@',
+    name: domain,
     content: CNAME_TARGET,
     ttl: 1,       // 1 = automatic TTL
     proxied: false, // Must be DNS-only (not proxied) for Vercel SSL to work

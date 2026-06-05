@@ -5,6 +5,7 @@ import Link from 'next/link'
 import EmbedSnippetSection from './EmbedSnippetSection'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
+import { dnsRecordFor } from '@/lib/domain-utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -822,17 +823,23 @@ export default function ShopSettingsPanel({
   )
 
   // Own channel — custom domain
-  // Source of truth: domainDnsOk = our own CNAME lookup confirmed live.
-  // Vercel's `verified` field only means "registered on project" — never use it as "live".
+  // Source of truth: domainDnsOk = our own DNS lookup confirmed live (CNAME for a
+  // subdomain, or the Vercel A record for an apex). Vercel's `verified` flag only
+  // means "registered on project + SSL issued" — surfaced separately as domainSslReady.
   const [shopSlug]                                  = useState(initial.slug ?? '')
   const [domainInput, setDomainInput]               = useState(initial.custom_domain ?? '')
   const [savedDomain, setSavedDomain]               = useState(initial.custom_domain ?? '')
   const [domainDnsOk, setDomainDnsOk]               = useState(initial.custom_domain_verified ?? false)
+  // Optimistic: a domain we've already confirmed live has long since had its SSL
+  // issued. A fresh status fetch on mount (below) corrects this if it's not true.
+  const [domainSslReady, setDomainSslReady]         = useState(initial.custom_domain_verified ?? false)
   const [domainCnameCurrent, setDomainCnameCurrent] = useState<string | null>(null)
   const [domainSaving, setDomainSaving]             = useState(false)
   const [domainChecking, setDomainChecking]         = useState(false)
   const [domainRemoving, setDomainRemoving]         = useState(false)
+  const [domainEditing, setDomainEditing]           = useState(false)
   const [domainError, setDomainError]               = useState<string | null>(null)
+  const [domainRemovedNote, setDomainRemovedNote]   = useState<string | null>(null)
   const [domainCopied, setDomainCopied]             = useState(false)
   const [domainLastChecked, setDomainLastChecked]   = useState<Date | null>(null)
   const [detectedRegistrar, setDetectedRegistrar]   = useState<string | null>(null)
@@ -858,25 +865,39 @@ export default function ShopSettingsPanel({
   }
   useEffect(() => () => stopDomainPolling(), []) // cleanup on unmount
 
-  // Core DNS check — returns true when CNAME resolves correctly
+  // Refresh real DNS + SSL status once on load when a domain is already saved,
+  // so a returning seller sees the current state (not just the persisted flag).
+  useEffect(() => {
+    if (savedDomain) checkDomainDns()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Core DNS check — returns true when the domain resolves to us (CNAME or apex A).
+  // Also captures Vercel's `verified` flag so we can surface SSL provisioning (US-2).
   async function checkDomainDns(): Promise<boolean> {
     setDomainChecking(true)
     try {
       const res = await fetch('/api/sell/shop/domain')
       if (!res.ok) return false
-      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null }
+      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null; verified?: boolean }
       const ok = data.dns_ok ?? false
       setDomainDnsOk(ok)
+      setDomainSslReady(!!data.verified)
       setDomainCnameCurrent(data.cname_current ?? null)
       setDomainLastChecked(new Date())
-      return ok
+      // Keep polling until DNS *and* the SSL cert are both ready.
+      return ok && !!data.verified
     } catch { return false }
     finally { setDomainChecking(false) }
   }
 
   async function handleDomainSave() {
-    setDomainSaving(true); setDomainError(null)
     const domainRaw = domainInput.trim()
+    // Replace flow: submitting the same domain just exits edit mode (no-op POST).
+    if (domainEditing && domainRaw.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') === savedDomain) {
+      setDomainEditing(false); return
+    }
+    setDomainSaving(true); setDomainError(null); setDomainRemovedNote(null)
     try {
       const res = await fetch('/api/sell/shop/domain', {
         method: 'POST',
@@ -887,7 +908,9 @@ export default function ShopSettingsPanel({
       if (!res.ok) { setDomainError(data.error ?? 'Error al guardar.'); return }
       const domain = data.domain ?? domainRaw
       setSavedDomain(domain)
+      setDomainEditing(false)
       setDomainDnsOk(false)   // never trust Vercel's `verified` — always confirm via DNS
+      setDomainSslReady(false)
       setDomainCnameCurrent(null)
       setDomainLastChecked(null)
       setDetectedRegistrar(null)
@@ -914,15 +937,31 @@ export default function ShopSettingsPanel({
     await checkDomainDns()
   }
 
+  // US-3 — open the edit/replace box pre-filled (non-destructive: the current
+  // domain stays live until a new one is saved; the server releases the old one).
+  function startDomainEdit() {
+    setDomainInput(savedDomain)
+    setDomainEditing(true)
+    setDomainError(null)
+  }
+  function cancelDomainEdit() {
+    setDomainEditing(false)
+    setDomainInput(savedDomain)
+    setDomainError(null)
+  }
+
   async function handleDomainRemove() {
     if (!confirm(`¿Eliminar el dominio ${savedDomain}? Tu tienda solo estará disponible en miyagisanchez.com.`)) return
+    const removed = savedDomain
     setDomainRemoving(true); setDomainError(null)
     stopDomainPolling()
     try {
       const res = await fetch('/api/sell/shop/domain', { method: 'DELETE' })
       if (!res.ok) { const d = await res.json() as { error?: string }; setDomainError(d.error ?? 'Error.'); return }
-      setSavedDomain(''); setDomainInput(''); setDomainDnsOk(false)
+      setSavedDomain(''); setDomainInput(''); setDomainDnsOk(false); setDomainSslReady(false)
+      setDomainEditing(false)
       setDomainCnameCurrent(null); setDomainLastChecked(null)
+      setDomainRemovedNote(removed)
     } catch { setDomainError('Sin conexión. Verifica tu internet.') }
     finally { setDomainRemoving(false) }
   }
@@ -942,6 +981,26 @@ export default function ShopSettingsPanel({
     } catch { setCfError('Sin conexión.') }
     finally { setCfSaving(false) }
   }
+
+  // The exact DNS record this domain needs (A at @ for apex, CNAME on the
+  // sub-label for a subdomain). Drives the record card + all the guides (US-5).
+  const dnsRecord = savedDomain ? dnsRecordFor(savedDomain) : null
+
+  // Derive one explicit status from what we know, instead of a lone boolean (US-1/US-2).
+  //   active      — DNS live AND SSL cert issued → fully online
+  //   provisioning — DNS live, Vercel still issuing the SSL certificate
+  //   error       — a record exists but points elsewhere, or a save error
+  //   unverified  — we've checked at least once and found nothing pointing to us
+  //   pending_dns — saved, not yet confirmed (freshly added / propagating)
+  type DomainStatus = 'active' | 'provisioning' | 'error' | 'unverified' | 'pending_dns' | 'none'
+  const domainStatus: DomainStatus = (() => {
+    if (!savedDomain) return 'none'
+    if (domainError) return 'error'
+    if (domainDnsOk) return domainSslReady ? 'active' : 'provisioning'
+    if (domainCnameCurrent && domainCnameCurrent !== 'cname.vercel-dns.com') return 'error'
+    if (domainLastChecked) return 'unverified'
+    return 'pending_dns'
+  })()
 
   // UCP Webhook
   const [webhookUrl, setWebhookUrl]         = useState(initial.ucp_webhook_url ?? '')
@@ -3353,12 +3412,21 @@ export default function ShopSettingsPanel({
                 <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
                   Canal Propio
                 </h2>
-                {domainDnsOk && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">● Activo</span>
+                {domainStatus === 'active' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Dominio activo</span>
                 )}
-                {savedDomain && !domainDnsOk && (
+                {domainStatus === 'provisioning' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">● Emitiendo SSL…</span>
+                )}
+                {domainStatus === 'error' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">● Revisa la configuración</span>
+                )}
+                {domainStatus === 'unverified' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">● Aún no apunta a nosotros</span>
+                )}
+                {domainStatus === 'pending_dns' && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
-                    {domainChecking ? '● Comprobando…' : '● Pendiente de DNS'}
+                    {domainChecking ? '● Comprobando…' : '● Configurando DNS…'}
                   </span>
                 )}
               </div>
@@ -3377,48 +3445,88 @@ export default function ShopSettingsPanel({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium mb-2">
-                    {savedDomain ? 'Dominio registrado' : 'Ingresa tu dominio'}
+                    {domainEditing ? 'Cambia tu dominio' : savedDomain ? 'Dominio registrado' : 'Ingresa tu dominio'}
                   </p>
-                  {!savedDomain ? (
+
+                  {/* Removal confirmation (US-7) — shown after a domain is deleted */}
+                  {!savedDomain && domainRemovedNote && (
+                    <div className="mb-3 flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                      <span className="text-green-600 flex-shrink-0">✓</span>
+                      <p className="text-xs text-green-700">
+                        Dominio <span className="font-mono">{domainRemovedNote}</span> eliminado. Tu tienda sigue
+                        activa en <span className="font-mono">miyagisanchez.com/s/{shopSlug}</span>.
+                      </p>
+                    </div>
+                  )}
+
+                  {(!savedDomain || domainEditing) ? (
                     <>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <input
                           type="text"
                           value={domainInput}
                           onChange={e => setDomainInput(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && !domainSaving && domainInput.trim() && handleDomainSave()}
                           placeholder="tutienda.mx"
-                          className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] font-mono"
+                          className="flex-1 min-w-0 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] font-mono"
                         />
-                        <button
-                          type="button"
-                          onClick={handleDomainSave}
-                          disabled={domainSaving || !domainInput.trim()}
-                          className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
-                        >
-                          {domainSaving ? 'Conectando…' : 'Conectar'}
-                        </button>
+                        <div className="flex gap-2">
+                          {domainEditing && (
+                            <button
+                              type="button"
+                              onClick={cancelDomainEdit}
+                              disabled={domainSaving}
+                              className="flex-1 sm:flex-none border border-[var(--color-border)] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[var(--color-surface-alt)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleDomainSave}
+                            disabled={domainSaving || !domainInput.trim()}
+                            className="flex-1 sm:flex-none bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                          >
+                            {domainSaving ? (domainEditing ? 'Reemplazando…' : 'Conectando…') : (domainEditing ? 'Reemplazar' : 'Conectar')}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs text-[var(--color-muted)] mt-2">
-                        ¿No tienes dominio?{' '}
-                        <a href="https://www.cloudflare.com/products/registrar/" target="_blank" rel="noopener noreferrer"
-                          className="text-[var(--color-accent)] underline">
-                          Regístralo a precio de costo en Cloudflare →
-                        </a>
-                      </p>
+                      {domainEditing ? (
+                        <p className="text-xs text-[var(--color-muted)] mt-2">
+                          Tu dominio actual sigue activo hasta que el nuevo quede listo.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[var(--color-muted)] mt-2">
+                          ¿No tienes dominio?{' '}
+                          <a href="https://www.cloudflare.com/products/registrar/" target="_blank" rel="noopener noreferrer"
+                            className="text-[var(--color-accent)] underline">
+                            Regístralo a precio de costo en Cloudflare →
+                          </a>
+                        </p>
+                      )}
                     </>
                   ) : (
                     <div>
                       <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
                         <span className="font-mono text-sm font-medium truncate">{savedDomain}</span>
-                        <button
-                          type="button"
-                          onClick={handleDomainRemove}
-                          disabled={domainRemoving}
-                          className="text-xs text-[var(--color-muted)] hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50 underline"
-                        >
-                          {domainRemoving ? 'Eliminando…' : 'Cambiar'}
-                        </button>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={startDomainEdit}
+                            disabled={domainRemoving}
+                            className="text-xs text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50 underline"
+                          >
+                            Cambiar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDomainRemove}
+                            disabled={domainRemoving}
+                            className="text-xs text-[var(--color-muted)] hover:text-red-600 transition-colors disabled:opacity-50 underline"
+                          >
+                            {domainRemoving ? 'Eliminando…' : 'Eliminar'}
+                          </button>
+                        </div>
                       </div>
                       {/* Registrar badge — shown while DNS pending */}
                       {detectedRegistrar && detectedRegistrar !== 'unknown' && !domainDnsOk && (
@@ -3451,28 +3559,56 @@ export default function ShopSettingsPanel({
                     <p className="text-xs text-[var(--color-muted)] mb-3">
                       {domainDnsOk
                         ? `${savedDomain} apunta correctamente a nuestros servidores.`
-                        : 'Agrega este registro CNAME en el panel de DNS de tu dominio.'
+                        : `Agrega este registro ${dnsRecord?.type ?? 'CNAME'} en el panel de DNS de tu dominio.`
                       }
                     </p>
 
-                    {/* DNS record card — terminal style */}
+                    {/* Fix hints for the error / unverified states (US-1) */}
+                    {domainStatus === 'error' && domainCnameCurrent && (
+                      <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                        <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
+                        <p className="text-xs text-red-700">
+                          Tu CNAME apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
+                          Cámbialo a <span className="font-mono">cname.vercel-dns.com</span> para conectar tu tienda.
+                        </p>
+                      </div>
+                    )}
+                    {domainStatus === 'unverified' && (
+                      <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                        <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
+                        <p className="text-xs text-amber-700">
+                          Tu dominio aún no apunta a nosotros. Agrega el registro de abajo en tu proveedor de
+                          DNS; en cuanto propague, tu tienda se activa sola.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* DNS record card — terminal style. Record adapts to apex (A) vs subdomain (CNAME) (US-5). */}
                     <div className="rounded-lg border border-[var(--color-border)] overflow-hidden bg-[#1a1a1a] mb-4">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-                        <span className="text-xs text-white/50 font-mono">Registro DNS — CNAME</span>
+                        <span className="text-xs text-white/50 font-mono">Registro DNS — {dnsRecord?.type ?? 'CNAME'}</span>
                         <button
                           type="button"
-                          onClick={() => { navigator.clipboard.writeText('cname.vercel-dns.com'); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
+                          onClick={() => { navigator.clipboard.writeText(dnsRecord?.value ?? 'cname.vercel-dns.com'); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
                           className={`text-xs px-2 py-0.5 rounded transition-all ${domainCopied ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
                         >
                           {domainCopied ? '✓ Copiado' : 'Copiar valor'}
                         </button>
                       </div>
-                      <div className="px-3 py-3 grid grid-cols-3 gap-3 text-xs font-mono">
-                        <div><div className="text-white/30 mb-1">TIPO</div><div className="text-amber-300">CNAME</div></div>
-                        <div><div className="text-white/30 mb-1">NOMBRE</div><div className="text-white">@</div></div>
-                        <div><div className="text-white/30 mb-1">VALOR</div><div className="text-green-300 break-all">cname.vercel-dns.com</div></div>
+                      <div className="px-3 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                        <div><div className="text-white/30 mb-1">TIPO</div><div className="text-amber-300">{dnsRecord?.type ?? 'CNAME'}</div></div>
+                        <div><div className="text-white/30 mb-1">NOMBRE</div><div className="text-white break-all">{dnsRecord?.host ?? '@'}</div></div>
+                        <div><div className="text-white/30 mb-1">VALOR</div><div className="text-green-300 break-all">{dnsRecord?.value ?? 'cname.vercel-dns.com'}</div></div>
                       </div>
                     </div>
+
+                    {/* Apex domains: offer the CNAME-flattening alternative for providers that support it */}
+                    {!domainDnsOk && dnsRecord?.isApex && (
+                      <p className="text-xs text-[var(--color-muted)] -mt-2 mb-4">
+                        ¿Tu proveedor permite CNAME en la raíz (p. ej. Cloudflare)? También puedes usar
+                        <span className="font-mono"> CNAME · @ · cname.vercel-dns.com</span> en lugar del registro A.
+                      </p>
+                    )}
 
                     {/* ── Context-aware DNS setup panels ────────────────────────── */}
                     {!domainDnsOk && (
@@ -3608,6 +3744,13 @@ export default function ShopSettingsPanel({
                                 </li>
                               ))}
                             </ol>
+                            {/* Subdomain caveat — these guides assume an apex (@); a subdomain uses its own host */}
+                            {dnsRecord && !dnsRecord.isApex && (
+                              <p className="px-4 pb-2 text-[10px] text-amber-700">
+                                ⚠ Como es un subdominio, usa Nombre/Host{' '}
+                                <span className="font-mono">{dnsRecord.host}</span> (no <span className="font-mono">@</span>).
+                              </p>
+                            )}
                             <div className="px-4 pb-3">
                               <a
                                 href={REGISTRAR_GUIDES[detectedRegistrar].url}
@@ -3628,9 +3771,9 @@ export default function ShopSettingsPanel({
                             <ol className="space-y-1.5">
                               {[
                                 'Ve al panel de DNS de tu proveedor de dominio (GoDaddy, Namecheap, etc.)',
-                                'Crea un nuevo registro tipo CNAME',
-                                'Nombre / Host: @ (o deja vacío) · Valor / Apunta a: cname.vercel-dns.com',
-                                'Guarda los cambios — la propagación puede tomar hasta 24 horas',
+                                `Crea un nuevo registro tipo ${dnsRecord?.type ?? 'CNAME'}`,
+                                `Nombre / Host: ${dnsRecord?.host ?? '@'} · Valor / Apunta a: ${dnsRecord?.value ?? 'cname.vercel-dns.com'}`,
+                                'Guarda los cambios — la propagación puede tomar hasta 48 horas',
                               ].map((step, i) => (
                                 <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
                                   <span className="flex-shrink-0 font-bold text-[var(--color-accent)]">{i + 1}.</span>
@@ -3651,17 +3794,17 @@ export default function ShopSettingsPanel({
                             <span className="inline-block w-3 h-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
                             <span>Comprobando propagación DNS…</span>
                           </>
-                        ) : domainCnameCurrent && !domainDnsOk ? (
+                        ) : domainStatus === 'error' && domainCnameCurrent ? (
                           <>
-                            <span className="text-amber-500">⚠</span>
+                            <span className="text-red-500">⚠</span>
                             <span>
-                              CNAME actual: <span className="font-mono">{domainCnameCurrent}</span> — aún no apunta a nosotros
+                              CNAME actual: <span className="font-mono break-all">{domainCnameCurrent}</span> — apunta a otro lugar
                             </span>
                           </>
-                        ) : domainLastChecked && !domainDnsOk ? (
-                          <span>Última comprobación: {domainLastChecked.toLocaleTimeString()} — propagación pendiente</span>
+                        ) : domainStatus === 'unverified' ? (
+                          <span>Tu dominio aún no apunta a nosotros — última comprobación: {domainLastChecked?.toLocaleTimeString()}</span>
                         ) : !domainDnsOk ? (
-                          <span>Comprobando automáticamente cada 8 segundos…</span>
+                          <span>Configurando DNS — comprobando automáticamente cada 8 segundos…</span>
                         ) : null}
                       </div>
                       {!domainDnsOk && (
@@ -3677,7 +3820,7 @@ export default function ShopSettingsPanel({
                     </div>
                     {!domainDnsOk && (
                       <p className="text-xs text-[var(--color-muted)] mt-2">
-                        La propagación puede tomar entre 5 minutos y 24 horas según tu proveedor.
+                        Configurando DNS, puede tomar entre 5 minutos y 48 horas según tu proveedor.
                       </p>
                     )}
                   </div>
@@ -3691,7 +3834,7 @@ export default function ShopSettingsPanel({
                     {domainDnsOk ? '✓' : '3'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    {domainDnsOk ? (
+                    {domainStatus === 'active' ? (
                       <>
                         <p className="text-sm font-semibold mb-3">🎉 ¡Tu tienda está activa en 2 canales!</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -3746,6 +3889,14 @@ export default function ShopSettingsPanel({
                         </div>
                         <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 leading-relaxed">
                           💡 Los dos canales comparten el mismo inventario, checkout y panel de administración. Cada venta se etiqueta con su canal de origen para que puedas ver de dónde vienen tus clientes.
+                        </p>
+                      </>
+                    ) : domainStatus === 'provisioning' ? (
+                      <>
+                        <p className="text-sm font-medium mb-1">DNS correcto ✓ — emitiendo certificado SSL…</p>
+                        <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+                          Tu dominio ya apunta a nosotros. Estamos emitiendo el certificado SSL (suele tardar uno o
+                          dos minutos). En cuanto esté listo, tu tienda abrirá con candado seguro 🔒.
                         </p>
                       </>
                     ) : (
