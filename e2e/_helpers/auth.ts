@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test'
-import { clerk } from '@clerk/testing/playwright'
+import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright'
 
 /**
  * Authed browser smokes via @clerk/testing.
@@ -37,9 +37,13 @@ export function requireEnv<T>(value: T | null | undefined, what: string): T {
   return value as T
 }
 
-/** Ticket-based sign-in. Navigate to a page that eager-loads Clerk first — `/`
- *  doesn't initialise `window.Clerk` for anonymous visitors, but `/sign-in` does. */
+/** Ticket-based sign-in.
+ *  - Arm the testing-token FAPI bypass BEFORE navigating, so clerk-js's load-time
+ *    Frontend API calls carry it (otherwise bot protection blocks them and
+ *    `window.Clerk` never finishes loading).
+ *  - Navigate to `/sign-in` (it eager-loads Clerk; `/` doesn't for anon visitors). */
 export async function signIn(page: Page, email: string): Promise<void> {
+  await setupClerkTestingToken({ page })
   await page.goto('/sign-in')
   await clerk.signIn({ page, emailAddress: email })
 }
