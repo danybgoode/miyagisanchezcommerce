@@ -8,6 +8,8 @@ import ReferralAttribution from '@/app/components/ReferralAttribution'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import CartButton from '@/app/components/CartButton'
+import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import { getShop } from '@/lib/listings'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -84,7 +86,22 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // The embeddable full-shop iframe (/embed/*) is white-label — middleware tags
   // it so we drop the platform header/footer/tab bar and render just the shop.
-  const isEmbed = (await headers()).get('x-miyagi-embed') === '1'
+  const hdrs = await headers()
+  const isEmbed = hdrs.get('x-miyagi-embed') === '1'
+
+  // Custom-domain ("own channel") requests are also white-label: middleware tags
+  // them with the resolved shop slug so we drop platform chrome here and wrap the
+  // WHOLE storefront (homepage, PDP, cart, account…) in the shop's branded shell.
+  const isChannel = hdrs.get('x-miyagi-channel') === 'custom'
+  const channelSlug = hdrs.get('x-miyagi-shop-slug') ?? ''
+  const channelDomain = hdrs.get('x-miyagi-domain') ?? ''
+  const channelShop = isChannel && channelSlug ? await getShop(channelSlug) : null
+  const channelSettings = ((channelShop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const channelTheme = (channelSettings.theme ?? {}) as { accent_color?: string | null }
+  const channelAccent = channelTheme.accent_color ?? '#1d6f42'
+
+  // White-label = no platform chrome (embed iframe OR a live custom domain).
+  const whiteLabel = isEmbed || isChannel
   return (
     <ClerkProvider>
       <html lang="es">
@@ -119,7 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </head>
         <body>
           <CartProvider>
-          {!isEmbed && (
+          {!whiteLabel && (
           <>
           {/* ── Sticky header ── */}
           <div
@@ -359,10 +376,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </>
           )}
 
-          <main>{children}</main>
+          {isChannel && channelShop ? (
+            <ChannelLayout
+              shopName={channelShop.name}
+              accentColor={channelAccent}
+              logoUrl={channelShop.logo_url ?? null}
+              domain={channelDomain}
+            >
+              {children}
+            </ChannelLayout>
+          ) : (
+            <main>{children}</main>
+          )}
           <ReferralAttribution />
 
-          {!isEmbed && (
+          {!whiteLabel && (
           <>
           <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div

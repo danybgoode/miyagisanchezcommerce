@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
@@ -58,6 +59,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const { id } = await params
   const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
+
+  // Custom-domain boundary: a tenant store shows ONLY its own products. If this
+  // PDP is reached on a custom domain (channel slug set by middleware) but the
+  // product belongs to another shop, render the white-label not-found instead of
+  // leaking a different seller's listing under this brand.
+  const channelSlug = (await headers()).get('x-miyagi-shop-slug')
+  const onChannel = !!channelSlug
+  if (onChannel && listing.shop?.slug !== channelSlug) notFound()
 
   const isSignedIn = !!clerkUser
   const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id
@@ -547,7 +556,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* ── Seller card ──────────────────────────────────────────────────────── */}
         {listing.shop && (
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
-            <Link href={`/s/${listing.shop.slug}`} className="no-underline block">
+            <Link href={onChannel ? '/' : `/s/${listing.shop.slug}`} className="no-underline block">
               <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {listing.shop.logo_url ? (
