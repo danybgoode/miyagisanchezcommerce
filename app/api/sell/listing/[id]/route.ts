@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { getShopStripe } from '@/lib/stripe'
+import { sanitizeFieldDefs } from '@/lib/personalization'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -34,6 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     quantity?: number | null
     weight_grams?: number | null
     attrs?: Record<string, unknown>
+    custom_fields?: unknown
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -55,6 +57,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
+  // Personalization field definitions → sanitised and stored on the Medusa
+  // product metadata (the backend update path merges arbitrary metadata).
+  const customFields = body.custom_fields !== undefined ? sanitizeFieldDefs(body.custom_fields) : undefined
+
   const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -64,6 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
       ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
       ...(body.attrs !== undefined && { attrs: body.attrs }),
+      ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
     }),
   })
 

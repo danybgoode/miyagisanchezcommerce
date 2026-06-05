@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { AttrsSection, type Attrs, type ListingType } from '../../AttrsSection'
 import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { CITIES_BY_STATE } from '@/lib/types'
+import PersonalizationSection from './PersonalizationSection'
+import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 
 interface EditableFields {
   title: string
@@ -14,6 +16,7 @@ interface EditableFields {
   listing_type: string
   category: string
   attrs: Record<string, unknown>
+  custom_fields?: unknown
   available_quantity: number | null
   images: Array<{ url: string; alt?: string }>
   state?: string
@@ -39,6 +42,9 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   function setAttr(k: string, v: string) {
     setAttrs(prev => ({ ...prev, [k]: v }))
   }
+  const [customFields, setCustomFields] = useState<CustomFieldDef[]>(
+    () => sanitizeFieldDefs(initial.custom_fields),
+  )
   const [listingState, setListingState] = useState(initial.state ?? '')
   const [listingCity, setListingCity] = useState(initial.municipio ?? '')
   const hasLegacyLocation = !!(initial.state && !initial.estado_code)
@@ -83,6 +89,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
         state: listingState || null,
         estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : null,
         municipio: listingCity.trim() || null,
+        custom_fields: sanitizeFieldDefs(customFields),
       }
       if (!priceReadOnly) {
         body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
@@ -185,6 +192,11 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
           attrs={attrs}
           setAttr={setAttr}
         />
+      )}
+
+      {/* Personalization fields — buyer-entered custom inputs (not for subscriptions) */}
+      {!isSubscription && (
+        <PersonalizationSection fields={customFields} setFields={setCustomFields} />
       )}
 
       {/* Price */}

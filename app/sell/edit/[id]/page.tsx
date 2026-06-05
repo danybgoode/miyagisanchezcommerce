@@ -56,6 +56,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   let availableQuantity: number | null = null
   let medusaAttrs: Record<string, unknown> = {}
   let medusaCategory = ''
+  let medusaCustomFields: unknown = []
   try {
     const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
     const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -72,6 +73,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         }
         medusaAttrs = (ml.attrs as Record<string, unknown>) ?? {}
         medusaCategory = (ml.category as string) ?? ''
+        medusaCustomFields = (ml.metadata as Record<string, unknown> | undefined)?.custom_fields ?? []
       }
     }
   } catch { /* non-fatal */ }
@@ -129,6 +131,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           category: medusaCategory,
           available_quantity: availableQuantity,
           attrs: medusaAttrs,
+          custom_fields: medusaCustomFields,
           images: (listing.images ?? []) as Array<{ url: string; alt?: string }>,
           state: (listing.metadata?.state as string | undefined) ?? '',
           municipio: (listing.metadata?.municipio as string | undefined) ?? '',
