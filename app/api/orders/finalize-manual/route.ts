@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
         shopName,
         manualPayment: order.manual_payment as ManualPaymentSnapshot,
         orderUrl: buyerOrderUrl,
+        personalization: order.personalization ?? [],
       }).catch(e => console.error('[finalize-manual] buyer email:', e))
     }
 
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest) {
           buyerEmail,
           shopName,
           orderUrl: sellerOrderUrl,
+          personalization: order.personalization ?? [],
         }).catch(e => console.error('[finalize-manual] seller email:', e))
       }
     }

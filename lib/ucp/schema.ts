@@ -11,6 +11,7 @@
  */
 
 import type { Listing, Shop } from '@/lib/types'
+import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -90,6 +91,10 @@ export interface UcpListing {
 
   // Domain-specific metadata (cars → brand/year/km, real estate → rooms/surface, etc.)
   metadata: Record<string, unknown>
+
+  // Buyer personalization the seller requires/offers (engraving text, options…).
+  // An agent must collect these and submit them on the checkout session.
+  personalization_fields: CustomFieldDef[]
 
   // Schema.org for LLM structured understanding
   schema_org: Record<string, unknown>
@@ -253,6 +258,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     },
 
     metadata: listingMeta,
+    personalization_fields: getCustomFields(listingMeta),
     schema_org: schemaOrg,
   }
 }

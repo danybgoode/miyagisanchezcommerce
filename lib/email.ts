@@ -120,6 +120,27 @@ function quote(text: string): string {
   return `<div style="margin:0 0 18px;padding:10px 14px;border-left:3px solid #e2e2de;color:#6b6b67;font-style:italic;font-size:13px">&ldquo;${esc(text)}&rdquo;</div>`
 }
 
+/** Buyer personalization — shown in order emails so both sides have the spec. */
+export type EmailPersonalization = Array<{ title?: string; fields: Array<{ label?: string; value?: string }> }>
+
+function personalizationBlock(blocks?: EmailPersonalization | null): string {
+  const clean = (blocks ?? []).filter(b => (b.fields ?? []).some(f => (f.value ?? '').trim()))
+  if (!clean.length) return ''
+  const multi = clean.length > 1
+  const sections = clean.map(b => {
+    const rows = (b.fields ?? [])
+      .filter(f => (f.value ?? '').trim())
+      .map(f => `<div style="margin:2px 0"><span style="color:#6b6b67">${esc(f.label ?? '')}:</span> <span style="font-weight:600;color:#1a1a18">${esc(f.value ?? '')}</span></div>`)
+      .join('')
+    const head = multi && b.title ? `<div style="font-weight:600;margin:0 0 3px;color:#1a1a18">${esc(b.title)}</div>` : ''
+    return `<div style="margin:0 0 8px">${head}${rows}</div>`
+  }).join('')
+  return `<div style="margin:0 0 20px;padding:12px 14px;background:#f0f0ec;border-left:3px solid #1d6f42;font-size:13px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 6px">Personalización</div>
+    ${sections}
+  </div>`
+}
+
 /** Inline notice (warning or neutral) */
 function notice(text: string, type: 'warn' | 'info' = 'info'): string {
   const bg    = type === 'warn' ? '#fffbeb' : '#f0f0ec'
@@ -594,6 +615,7 @@ export async function sendOrderConfirmedToBuyer(ctx: {
   isDigital: boolean
   digitalDownloadUrl?: string | null
   digitalExpiresAt?: string | null
+  personalization?: EmailPersonalization | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -610,6 +632,7 @@ export async function sendOrderConfirmedToBuyer(ctx: {
       ['Vendedor',  ctx.shopName],
       ['Pagado',    ctx.amountPaid],
     ]),
+    personalizationBlock(ctx.personalization),
     ctx.isDigital && ctx.digitalDownloadUrl
       ? [
           p('Tu archivo está listo para descargar.'),
@@ -640,6 +663,7 @@ export async function sendNewOrderToSeller(ctx: {
   shippingAddress: Record<string, string> | null
   orderId: string
   orderUrl: string
+  personalization?: EmailPersonalization | null
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — ${ctx.listingTitle}`
   const addrStr = ctx.shippingAddress
@@ -655,6 +679,7 @@ export async function sendNewOrderToSeller(ctx: {
       ...(ctx.buyerName  ? [['Comprador', ctx.buyerName]  as [string, string]] : []),
       ...(addrStr ? [['Dirección',  addrStr]              as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     notice('Envía en menos de 3 días hábiles para mantener una buena reputación. Los compradores que esperan más de 72 h cancelan con más frecuencia.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),
   ].join('')
@@ -859,6 +884,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
   sellerPhone?: string | null
   sellerWhatsapp?: string | null
   orderUrl: string
+  personalization?: EmailPersonalization | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -879,6 +905,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
       ['Entrega',   'Por coordinar con el vendedor'],
       ...(ctx.sellerPhone ? [['Teléfono vendedor', esc(ctx.sellerPhone)] as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     notice('El vendedor tiene hasta <strong>24 horas</strong> para contactarte. Guarda este correo como comprobante de tu compra.', 'info'),
     whatsappUrl
       ? cta('Contactar por WhatsApp', whatsappUrl)
@@ -900,6 +927,7 @@ export async function sendCoordinatedOrderToSeller(ctx: {
   shopName: string
   orderId: string
   orderUrl: string
+  personalization?: EmailPersonalization | null
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — acuerda la entrega con el comprador`
 
@@ -910,6 +938,7 @@ export async function sendCoordinatedOrderToSeller(ctx: {
       ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
       ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
     notice('El comprador eligió <strong>entrega acordada</strong>. Tienes <strong>24 horas</strong> para contactarlo y definir cómo y cuándo le entregas el artículo.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),
@@ -933,6 +962,7 @@ export async function sendPickupOrderToBuyer(ctx: {
   sellerPhone?: string | null
   sellerWhatsapp?: string | null
   orderUrl: string
+  personalization?: EmailPersonalization | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -955,6 +985,7 @@ export async function sendPickupOrderToBuyer(ctx: {
       ...(ctx.pickupInstructions ? [['Instrucciones', esc(ctx.pickupInstructions)] as [string, string]] : []),
       ...(ctx.sellerPhone        ? [['Teléfono',     esc(ctx.sellerPhone)]        as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     notice('El vendedor confirmará el horario. Guarda este correo como comprobante de pago.', 'info'),
     whatsappUrl
       ? cta('Coordinar por WhatsApp', whatsappUrl)
@@ -974,6 +1005,7 @@ export async function sendPickupOrderToSeller(ctx: {
   buyerEmail: string | null
   shopName: string
   orderUrl: string
+  personalization?: EmailPersonalization | null
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — el comprador recogerá en mano`
 
@@ -984,6 +1016,7 @@ export async function sendPickupOrderToSeller(ctx: {
       ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
       ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
     notice('El comprador <strong>recogerá el artículo en mano</strong>. Contáctalo para confirmar el horario y lugar de recolección.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),
@@ -1027,6 +1060,7 @@ export async function sendManualOrderToBuyer(ctx: {
   shopName: string
   manualPayment: ManualPaymentSnapshot
   orderUrl: string
+  personalization?: EmailPersonalization | null
 }): Promise<void> {
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
   const subject = `Pedido registrado — completa tu pago en ${ctx.shopName}`
@@ -1041,6 +1075,7 @@ export async function sendManualOrderToBuyer(ctx: {
       ['Monto a pagar', esc(ctx.amountToPay)],
       ...rows,
     ]),
+    personalizationBlock(ctx.personalization),
     notice('Una vez que el vendedor reciba tu pago, lo confirmará y procesará tu pedido. Guarda este correo.', 'info'),
     cta('Ver mi pedido', ctx.orderUrl),
   ].join('')
@@ -1056,6 +1091,7 @@ export async function sendManualOrderToSeller(ctx: {
   buyerEmail: string | null
   shopName: string
   orderUrl: string
+  personalization?: EmailPersonalization | null
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — pago directo pendiente`
   const body = [
@@ -1065,6 +1101,7 @@ export async function sendManualOrderToSeller(ctx: {
       ...(ctx.buyerName  ? [['Comprador', esc(ctx.buyerName)]  as [string, string]] : []),
       ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
     ]),
+    personalizationBlock(ctx.personalization),
     amount(ctx.amount, 'Monto del pedido', true),
     notice('El comprador pagará por <strong>pago directo</strong> (SPEI / DiMo / efectivo). Cuando recibas el pago, márcalo como confirmado en tu panel para procesar el pedido.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),

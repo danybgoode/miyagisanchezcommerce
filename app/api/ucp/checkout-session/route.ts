@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
@@ -88,6 +89,14 @@ interface UcpCheckoutSession {
     description:       string
   }
   listing:             ReturnType<typeof toUcpListing>
+  // Buyer personalization the agent submitted (echoed back) + whether all the
+  // listing's required fields are satisfied — so the agent can self-correct
+  // before placing the order.
+  personalization: {
+    submitted: PersonalizationPayload | null
+    required_complete: boolean
+    missing_field_id: string | null
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -167,7 +176,7 @@ export async function POST(req: NextRequest) {
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
 
-  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string }
+  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -392,6 +401,14 @@ export async function POST(req: NextRequest) {
     available.find(o => o.available)?.method ??
     null
 
+  // ── Personalization (agent-submitted) ──────────────────────────────────────
+  // Validate the submitted payload against the listing's required custom fields
+  // so the agent knows whether it's safe to place the order.
+  const customFields = getCustomFields((listing.metadata ?? {}) as Record<string, unknown>)
+  const submittedPersonalization = readPersonalization(body.personalization)
+  const submittedValues = Object.fromEntries((submittedPersonalization?.fields ?? []).map(f => [f.id, f.value]))
+  const personalizationCheck = validatePersonalization(customFields, submittedValues)
+
   // ── Compose session ────────────────────────────────────────────────────────
   const now       = new Date()
   const expiresAt = new Date(now.getTime() + 30 * 60 * 1000)
@@ -422,6 +439,11 @@ export async function POST(req: NextRequest) {
         : 'Sin Compra Protegida en esta tienda.',
     },
     listing: toUcpListing(listing, baseUrl),
+    personalization: {
+      submitted: submittedPersonalization,
+      required_complete: customFields.length === 0 ? true : personalizationCheck.ok,
+      missing_field_id: personalizationCheck.missingFieldId ?? null,
+    },
   }
 
   return NextResponse.json(session, { headers: CORS })

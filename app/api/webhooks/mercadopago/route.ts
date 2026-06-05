@@ -22,6 +22,7 @@ import {
   getSellerEmail,
 } from '@/lib/email'
 import { formatOfferAmount } from '@/lib/offers'
+import { personalizationFromOrderItems, type PersonalizationBlock } from '@/lib/personalization'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
@@ -36,7 +37,7 @@ const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PU
 const MEDUSA_INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 /** Patch the MP payment session with the real payment ID, then complete the Medusa cart. Returns order ID. */
-async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown> } | null> {
+async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[] } | null> {
   try {
     // Step 1: authorize the session with the real MP payment ID
     const authRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/mp-authorize`, {
@@ -69,8 +70,9 @@ async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Pr
     const data = await completeRes.json().catch(() => ({}))
     const orderId = data?.order?.id ?? null
     const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
+    const personalization = personalizationFromOrderItems(data?.order?.items)
     console.log('[mp webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return { orderId, metadata }
+    return { orderId, metadata, personalization }
   } catch (e) {
     console.error('[mp webhook] completeMedusaCartWithMp error:', cartId, e)
     return null
@@ -541,6 +543,7 @@ async function handleMedusaMpPayment({
       const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
       const listingUrl = `${storeDomain ? `https://${storeDomain}` : SITE_URL}/l/${productId}`
       const amountFormatted = formatOfferAmount(amountCents, currency)
+      const personalization = completed?.personalization ?? []
 
       const SITE_URL2 = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
       const isPickup2 = fulfillmentMethod === 'local_pickup'
@@ -562,6 +565,7 @@ async function handleMedusaMpPayment({
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[mp email] pickup buyer:', e))
       } else if (isCoord2) {
@@ -575,6 +579,7 @@ async function handleMedusaMpPayment({
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[mp email] coord buyer:', e))
       } else {
@@ -586,6 +591,7 @@ async function handleMedusaMpPayment({
           amountPaid: amountFormatted,
           shopName: listingInfo.seller_name,
           isDigital: false,
+          personalization,
           storeDomain,
         }).catch(e => console.error('[mp email] medusa buyer:', e))
       }
@@ -606,6 +612,7 @@ async function handleMedusaMpPayment({
                 buyerEmail,
                 shopName: listingInfo.seller_name,
                 orderUrl: sellerOrderUrl2,
+                personalization,
               })
             }
             if (isCoord2) {
@@ -619,6 +626,7 @@ async function handleMedusaMpPayment({
                 shopName: listingInfo.seller_name,
                 orderId: medusaOrderId ?? cartId,
                 orderUrl: sellerOrderUrl2,
+                personalization,
               })
             }
             return sendSaleCompletedToSeller({
