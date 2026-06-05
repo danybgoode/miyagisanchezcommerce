@@ -104,9 +104,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // trusted by the layout/pages to decide white-label rendering and shop scope,
   // and ONLY middleware may set them — so drop any a client tried to inject.
   const headers = new Headers(req.headers)
-  for (const h of ['x-miyagi-channel', 'x-miyagi-domain', 'x-miyagi-shop-slug', 'x-miyagi-embed']) {
+  for (const h of ['x-miyagi-channel', 'x-miyagi-domain', 'x-miyagi-shop-slug', 'x-miyagi-embed', 'x-miyagi-path']) {
     headers.delete(h)
   }
+  headers.set('x-miyagi-path', req.nextUrl.pathname)
 
   // ── Embed surface (full-shop iframe) ──────────────────────────────────────
   // Tag /embed/* requests so the root layout drops platform chrome (white-label
