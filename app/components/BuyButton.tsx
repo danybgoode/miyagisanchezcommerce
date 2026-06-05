@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { startCheckout } from '@/lib/cart'
+import { signInHopHref } from '@/lib/checkout-hop'
 
 interface BuyButtonProps {
   listingId: string
@@ -16,6 +17,8 @@ interface BuyButtonProps {
   offerAmountCents?: number
   /** Supabase offer ID for webhook reconciliation (optional) */
   offerId?: string
+  /** Tenant custom domain when rendered on an own-channel storefront (else null). */
+  customDomain?: string | null
 }
 
 export default function BuyButton({
@@ -27,6 +30,7 @@ export default function BuyButton({
   buyerEmail,
   offerAmountCents,
   offerId,
+  customDomain,
 }: BuyButtonProps) {
   const pathname = usePathname()
   const { getToken } = useAuth()
@@ -43,9 +47,15 @@ export default function BuyButton({
   }
 
   if (!isSignedIn) {
+    // On a custom domain, hop to the platform sign-in → platform checkout for
+    // this listing (Clerk can't run on the tenant domain). On the platform,
+    // unchanged: sign in and come back to this page.
+    const signInHref = customDomain
+      ? signInHopHref(`/checkout?listingId=${listingId}`, customDomain)
+      : `/sign-in?redirect_url=${encodeURIComponent(pathname)}`
     return (
       <a
-        href={`/sign-in?redirect_url=${encodeURIComponent(pathname)}`}
+        href={signInHref}
         className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
         style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
       >

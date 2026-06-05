@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { CheckoutProvider } from '@/lib/cart'
 import { formatOfferAmount } from '@/lib/offers'
+import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 
 interface OfferCheckoutButtonProps {
   listingId: string
@@ -15,6 +16,8 @@ interface OfferCheckoutButtonProps {
   isSignedIn: boolean
   label?: string
   variant?: 'primary' | 'accent'
+  /** Tenant custom domain when rendered on an own-channel storefront (else null). */
+  customDomain?: string | null
 }
 
 export default function OfferCheckoutButton({
@@ -26,15 +29,23 @@ export default function OfferCheckoutButton({
   isSignedIn,
   label = 'Comprar ahora',
   variant = 'primary',
+  customDomain = null,
 }: OfferCheckoutButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const providerParam = provider ? `&provider=${provider}` : ''
+  const checkoutPath = `/checkout?listingId=${encodeURIComponent(listingId)}&offerId=${encodeURIComponent(offerId)}${providerParam}`
 
   if (!isSignedIn) {
+    // On a custom domain, hop to the platform sign-in → platform checkout for
+    // this offer (Clerk can't run on the tenant domain).
+    const signInHref = customDomain
+      ? signInHopHref(checkoutPath, customDomain)
+      : `/sign-in?redirect_url=${encodeURIComponent(pathname)}`
     return (
       <a
-        href={`/sign-in?redirect_url=${encodeURIComponent(pathname)}`}
+        href={signInHref}
         className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
         style={{ background: 'var(--accent)', color: '#fff' }}
       >
@@ -46,8 +57,9 @@ export default function OfferCheckoutButton({
 
   async function checkout() {
     setLoading(true)
-    const providerParam = provider ? `&provider=${provider}` : ''
-    router.push(`/checkout?listingId=${encodeURIComponent(listingId)}&offerId=${encodeURIComponent(offerId)}${providerParam}`)
+    // On a custom domain, hop to the platform checkout (absolute); else stay in-app.
+    if (customDomain) window.location.href = checkoutHopHref(checkoutPath, customDomain)
+    else router.push(checkoutPath)
   }
 
   return (
