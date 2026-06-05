@@ -63,6 +63,11 @@ jobs:
       VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      # Authed browser smokes (dev Clerk instance, which the preview uses).
+      CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      MS_TEST_BUYER_EMAIL: ${{ secrets.MS_TEST_BUYER_EMAIL }}
+      MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,3 +103,14 @@ jobs:
         # PLAYWRIGHT_BASE_URL was exported to $GITHUB_ENV above; the bypass token
         # (wired into playwright.config.ts) reaches the SSO-gated preview.
         run: npm run test:e2e
+
+      # Opt-in browser smokes against the same preview (dev Clerk instance) —
+      # NON-BLOCKING (continue-on-error) so the gate stays the api suite above.
+      # Authed specs use @clerk/testing ticket sign-in; anonymous specs run too.
+      - name: Browser smokes vs preview (non-blocking)
+        continue-on-error: true
+        env:
+          MS_TEST_BROWSER_AUTH: "1"
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:browser

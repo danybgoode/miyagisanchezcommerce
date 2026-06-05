@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buyerCreds, authEnabled, requireEnv, signIn } from './_helpers/auth'
+import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
 
 /**
  * Browser harness — baseline smoke (the `browser` project · Chromium).
@@ -19,15 +19,13 @@ test.describe('browser smoke · app shell', () => {
 })
 
 test.describe('browser smoke · authed (buyer)', () => {
-  // Template for money-path smokes. OFF by default: the production Clerk instance
-  // is email-code/OAuth-first, so a headless password sign-in hits a second-factor
-  // (email-code) step. Enabling real authed smokes needs the Clerk testing-token
-  // setup (@clerk/testing) + the prod Clerk keys — a security decision. Opt in with
-  // MS_TEST_BROWSER_AUTH=1 once that's wired. See e2e/README.md.
+  // Money-path template via @clerk/testing ticket sign-in. Runs against a dev/preview
+  // (Clerk's testing token is dev-only); enable with MS_TEST_BROWSER_AUTH=1 + the dev
+  // Clerk keys + MS_TEST_BUYER_EMAIL. See e2e/README.md.
   test('a buyer can sign in and reach their account', async ({ page }) => {
-    test.skip(!authEnabled(), 'Set MS_TEST_BROWSER_AUTH=1 (+ Clerk testing setup) to run authed browser smokes.')
-    const creds = requireEnv(buyerCreds(), 'MS_TEST_BUYER_EMAIL / MS_TEST_BUYER_PASSWORD')
-    await signIn(page, creds)
+    test.skip(!authEnabled(), 'Set MS_TEST_BROWSER_AUTH=1 (+ dev Clerk keys) to run authed browser smokes.')
+    const email = requireEnv(buyerEmail(), 'MS_TEST_BUYER_EMAIL')
+    await signIn(page, email)
     await page.goto('/account')
     await expect(page).toHaveURL(/\/account/)
     await expect(page.locator('body')).not.toBeEmpty()
