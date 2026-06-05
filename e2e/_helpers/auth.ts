@@ -37,8 +37,9 @@ export function requireEnv<T>(value: T | null | undefined, what: string): T {
   return value as T
 }
 
-/** Ticket-based sign-in. Call after the page can load Clerk (we navigate to '/'). */
+/** Ticket-based sign-in. Navigate to a page that eager-loads Clerk first — `/`
+ *  doesn't initialise `window.Clerk` for anonymous visitors, but `/sign-in` does. */
 export async function signIn(page: Page, email: string): Promise<void> {
-  await page.goto('/')
+  await page.goto('/sign-in')
   await clerk.signIn({ page, emailAddress: email })
 }
