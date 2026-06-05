@@ -3,9 +3,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import EmbedSnippetSection from './EmbedSnippetSection'
+import SupportWidgetSection from './SupportWidgetSection'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 import { dnsRecordFor } from '@/lib/domain-utils'
+import { coerceSupportSettings } from '@/lib/support-widget'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +128,15 @@ export interface ShopSettingsData {
       bundles?: {
         enabled?: boolean
         tiers?: Array<{ min_items: number; percent_off: number }>
+      }
+      support?: {
+        enabled?: boolean
+        preset_amount_cents?: number[]
+        custom_min_cents?: number
+        custom_max_cents?: number
+        currency?: string
+        default_visibility?: 'public' | 'private'
+        support_product_id?: string | null
       }
       ucp?: {
         webhook_url?: string
@@ -258,6 +269,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Canal propio',
     items: [
       { id: 'canal', label: 'Dominio propio' },
+      { id: 'apoyo', label: 'Apoyos' },
       { id: 'widget', label: 'Widget para tu web' },
     ],
   },
@@ -284,7 +296,8 @@ const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
   notificaciones: ['notificaciones'],
   diseno:         ['apariencia', 'tipo'],
   agentes:        ['webhook'],
-  canal:          ['canal', 'widget'],
+  canal:          ['canal', 'apoyo', 'widget'],
+  apoyo:          ['apoyo'],
   widget:         ['widget'],
   pedidos:        ['pedidos'],
   politicas:      ['politicas'],
@@ -850,6 +863,22 @@ export default function ShopSettingsPanel({
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Own channel — support widget
+  const supportSettings = coerceSupportSettings(s.support)
+  const [supportEnabled, setSupportEnabled] = useState(supportSettings.enabled)
+  const [supportPresetPesos, setSupportPresetPesos] = useState<number[]>(
+    supportSettings.preset_amount_cents.map(amount => amount / 100)
+  )
+  const [supportCustomMinPesos, setSupportCustomMinPesos] = useState(supportSettings.custom_min_cents / 100)
+  const [supportCustomMaxPesos, setSupportCustomMaxPesos] = useState(supportSettings.custom_max_cents / 100)
+  const [supportDefaultVisibility, setSupportDefaultVisibility] = useState<'public' | 'private'>(supportSettings.default_visibility)
+  const [supportProductId, setSupportProductId] = useState<string | null>(supportSettings.support_product_id ?? null)
+
+  function setSupportPreset(index: number, value: number) {
+    setSupportPresetPesos((current) => current.map((amount, i) => i === index ? value : amount))
+    mark()
+  }
+
   // Auto-poll DNS every 8s after domain is saved, until live or 5 min elapsed
   function startDomainPolling() {
     stopDomainPolling()
@@ -1278,13 +1307,29 @@ export default function ShopSettingsPanel({
 
   async function handleSave() {
     const errors: Record<string, string> = {}
+    const supportPresetCents = supportPresetPesos.map(amount => Math.round(Number(amount) * 100))
+    const supportMinCents = Math.round(Number(supportCustomMinPesos) * 100)
+    const supportMaxCents = Math.round(Number(supportCustomMaxPesos) * 100)
+
     if (name.trim().length < 2)     errors.name = 'El nombre debe tener al menos 2 caracteres.'
     if (description.length > 500)   errors.description = 'Máximo 500 caracteres.'
     if (webhookUrl.trim() && !webhookUrl.trim().startsWith('https://')) {
       errors.webhook = 'La URL del webhook debe usar HTTPS.'
     }
+    if (supportEnabled) {
+      if (supportPresetCents.length !== 3 || supportPresetCents.some(amount => !Number.isFinite(amount) || amount <= 0)) {
+        errors.support = 'Configura exactamente tres montos de apoyo válidos.'
+      } else if (!Number.isFinite(supportMinCents) || !Number.isFinite(supportMaxCents) || supportMinCents < 100 || supportMinCents > supportMaxCents) {
+        errors.support = 'Revisa el mínimo y máximo de apoyo.'
+      } else if (supportMaxCents > 500000) {
+        errors.support = 'El máximo de apoyo no puede superar $5,000 MXN.'
+      } else if (supportPresetCents.some(amount => amount < supportMinCents || amount > supportMaxCents)) {
+        errors.support = 'Los montos sugeridos deben estar dentro del rango personalizado.'
+      }
+    }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
+      if (errors.support) scrollToSection('apoyo')
       if (errors.webhook) scrollToSection('webhook')
       return
     }
@@ -1295,6 +1340,13 @@ export default function ShopSettingsPanel({
       secretToSave = generateHex32()
       setWebhookSecret(secretToSave)
     }
+    const safeSupportPresetCents = supportPresetCents.every(amount => Number.isFinite(amount) && amount > 0)
+      ? supportPresetCents
+      : [5000, 10000, 20000]
+    const safeSupportMinCents = Number.isFinite(supportMinCents) ? Math.max(100, supportMinCents) : 2000
+    const safeSupportMaxCents = Number.isFinite(supportMaxCents)
+      ? Math.max(safeSupportMinCents, supportMaxCents)
+      : 500000
 
     setSaving(true)
     try {
@@ -1372,6 +1424,15 @@ export default function ShopSettingsPanel({
               enabled: bundlesEnabled,
               tiers:   bundleTiers.filter(t => t.min_items >= 2 && t.percent_off > 0).sort((a, b) => a.min_items - b.min_items),
             },
+            support: {
+              enabled: supportEnabled,
+              preset_amount_cents: safeSupportPresetCents,
+              custom_min_cents: safeSupportMinCents,
+              custom_max_cents: safeSupportMaxCents,
+              currency: 'MXN',
+              default_visibility: supportDefaultVisibility,
+              support_product_id: supportProductId,
+            },
             scheduling:   { links: schedulingLinks },
             orders: {
               processing_time:     processingTime,
@@ -1399,11 +1460,12 @@ export default function ShopSettingsPanel({
           },
         }),
       })
-      const data = await res.json() as { error?: string; field?: string }
+      const data = await res.json() as { error?: string; field?: string; support_product_id?: string }
       if (!res.ok) {
         if (data.field) setFieldErrors({ [data.field]: data.error ?? 'Error.' })
         else showToast(data.error ?? 'Error al guardar.', 'error')
       } else {
+        if (data.support_product_id) setSupportProductId(data.support_product_id)
         showToast('Cambios guardados correctamente.', 'success')
         setIsDirty(false)
       }
@@ -3915,7 +3977,26 @@ export default function ShopSettingsPanel({
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════
-              SECTION 13b: Embeddable widget — snippet generator (Sprint 3)
+              SECTION 13b: Support widget
+          ════════════════════════════════════════════════════════════════════ */}
+          <SupportWidgetSection
+            enabled={supportEnabled}
+            presetPesos={supportPresetPesos}
+            customMinPesos={supportCustomMinPesos}
+            customMaxPesos={supportCustomMaxPesos}
+            defaultVisibility={supportDefaultVisibility}
+            accent={accentColor}
+            error={fieldErrors.support}
+            supportProductId={supportProductId}
+            onEnabledChange={(value) => { setSupportEnabled(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onPresetPesosChange={(index, value) => { setSupportPreset(index, value); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onCustomMinPesosChange={(value) => { setSupportCustomMinPesos(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onCustomMaxPesosChange={(value) => { setSupportCustomMaxPesos(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onDefaultVisibilityChange={(value) => { setSupportDefaultVisibility(value); mark() }}
+          />
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 13c: Embeddable widget — snippet generator (Sprint 3)
           ════════════════════════════════════════════════════════════════════ */}
           <EmbedSnippetSection slug={shopSlug} accent={accentColor} />
 

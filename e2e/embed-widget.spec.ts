@@ -36,6 +36,15 @@ test.describe('Embed widget — loader script', () => {
     expect(body).toContain('attachShadow')
   })
 
+  test('loader registers <miyagi-support-widget> with lightbox checkout handoff', async ({ request }) => {
+    const body = await (await request.get('/embed.js')).text()
+    expect(body).toContain("customElements.define('miyagi-support-widget'")
+    expect(body).toContain('/api/embed/support')
+    expect(body).toContain('/api/embed/support/checkout')
+    expect(body).toContain('mi-backdrop')
+    expect(body).toContain('miyagi:support:success')
+  })
+
   test('loader threads data-accent + data-locale and is bilingual (US-7)', async ({ request }) => {
     const body = await (await request.get('/embed.js')).text()
     // Brand accent + locale are read from the element's data- attributes.
@@ -44,5 +53,7 @@ test.describe('Embed widget — loader script', () => {
     // Both locales ship inside the standalone loader (no app i18n at runtime).
     expect(body).toContain('Comprar')   // es default
     expect(body).toContain('Buy now')   // en
+    expect(body).toContain('Apoyar')    // support widget es
+    expect(body).toContain('Support')   // support widget en
   })
 })

@@ -334,6 +334,8 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   const completed = await completeMedusaCart(cart_id)
   const medusaOrderId = completed?.orderId ?? null
   const orderMeta = completed?.metadata ?? {}
+  const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
+  const isSupportPayment = supportMeta?.kind === 'support' || session.metadata?.checkout_kind === 'support'
 
   // 1b. Print-ad placement? Mark the submission paid, send print emails, and skip
   //     the generic product/coordinated flow below (placements aren't shippable orders).
@@ -354,7 +356,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       sellerId: seller_id ?? '',
       productId: product_id ?? '',
       paymentMethod: 'stripe',
-      amountCents: amountTotal,
+      amountCents: isSupportPayment ? Number(supportMeta?.amount_cents ?? amountTotal) : amountTotal,
       currency,
       buyerEmail,
       buyerName,
@@ -375,16 +377,24 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       } : null,
     })
 
-    awardSweepstakesPurchaseBonusForOrder({
-      sellerId: seller_id ?? null,
-      orderId: medusaOrderId,
-      buyerEmail,
-      paidAt: new Date().toISOString(),
-    }).catch(e => console.error('[sweepstakes] medusa stripe:', e))
+    if (!isSupportPayment) {
+      awardSweepstakesPurchaseBonusForOrder({
+        sellerId: seller_id ?? null,
+        orderId: medusaOrderId,
+        buyerEmail,
+        paidAt: new Date().toISOString(),
+      }).catch(e => console.error('[sweepstakes] medusa stripe:', e))
+    }
   }
 
   // 3. Fire UCP webhook (non-fatal)
   deliverOrderWebhook(medusaOrderId ?? cart_id, 'order.created').catch(e => console.error('[ucp-webhook] medusa stripe:', e))
+
+  if (isSupportPayment) {
+    const amountFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency }).format(Number(supportMeta?.amount_cents ?? amountTotal) / 100)
+    tg.salePaid(amountFmt, 'Apoyo / contribución', buyerEmail ?? 'comprador', 'stripe')
+    return
+  }
 
   // 3. Mark winning offer paid, decline competing offers, and close the mirror listing.
   await markListingPurchased({ listingId: product_id, offerId: offer_id })

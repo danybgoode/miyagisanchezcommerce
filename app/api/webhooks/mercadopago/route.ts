@@ -488,6 +488,8 @@ async function handleMedusaMpPayment({
   const completed = await completeMedusaCartWithMp(cartId, paymentId)
   const medusaOrderId = completed?.orderId ?? null
   const orderMeta = completed?.metadata ?? {}
+  const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
+  const isSupportPayment = supportMeta?.kind === 'support'
 
   // 2. Record in Supabase so the existing order UIs can find it (idempotent)
   if (medusaOrderId) {
@@ -497,7 +499,7 @@ async function handleMedusaMpPayment({
       sellerId: sellerId ?? '',
       productId: productId ?? '',
       paymentMethod: 'mercadopago',
-      amountCents,
+      amountCents: isSupportPayment ? Number(supportMeta?.amount_cents ?? amountCents) : amountCents,
       currency,
       buyerEmail,
       buyerName,
@@ -521,6 +523,12 @@ async function handleMedusaMpPayment({
 
   // 3. Fire UCP webhook
   deliverOrderWebhook(medusaOrderId ?? cartId, 'order.created').catch(e => console.error('[ucp-webhook] medusa mp:', e))
+
+  if (isSupportPayment) {
+    const amtFmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(Number(supportMeta?.amount_cents ?? amountCents) / 100)
+    tg.salePaid(amtFmt, 'Apoyo / contribución', buyerEmail ?? 'comprador', 'mercadopago')
+    return
+  }
 
   // 3. Mark winning offer paid, decline competing offers, close mirror listing
   await markListingPurchased({ listingId: productId, offerId })

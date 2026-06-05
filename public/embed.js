@@ -6,6 +6,7 @@
  *
  *   <miyagi-buy-button data-listing="prod_…" data-key="emb_pk_…"></miyagi-buy-button>
  *   <miyagi-product    data-listing="prod_…" data-key="emb_pk_…"></miyagi-product>
+ *   <miyagi-support-widget data-key="emb_pk_…"></miyagi-support-widget>
  *
  * Optional theming/locale attributes (US-7): data-accent="#1d6f42" tints the CTA,
  * data-locale="en" switches copy to English (default es-MX). The seller's snippet
@@ -48,12 +49,36 @@
       unavailable: 'No disponible', loading: 'Cargando…', error: 'No se pudo cargar',
       by: 'por', secure: 'Pago seguro en miyagisanchez.com',
       cond_new: 'Nuevo', cond_like_new: 'Como nuevo', cond_used: 'Usado',
+      support: 'Apoyar', support_for: 'Apoyar a', choose_amount: 'Elige un monto',
+      custom_amount: 'Otro monto', name_optional: 'Nombre (opcional)',
+      email: 'Correo para recibo', message_optional: 'Mensaje (opcional)',
+      public: 'Público', private: 'Privado', pay_with_stripe: 'Pagar con Stripe',
+      pay_with_mp: 'Pagar con Mercado Pago', support_secure: 'Pago seguro en Miyagi',
+      close: 'Cerrar', continue: 'Continuar', processing: 'Abriendo pago…',
+      amount_error: 'El monto está fuera del rango permitido.',
+      email_error: 'Ingresa un correo válido para recibir tu recibo.',
+      message_error: 'El mensaje no puede superar 250 caracteres.',
+      provider_unavailable: 'Este vendedor aún no tiene pagos activos.',
+      support_unavailable: 'Apoyos no disponibles', support_success: '¡Gracias por apoyar!',
+      support_success_body: 'Tu contribución quedó registrada.',
     },
     en: {
       buy: 'Buy now', view: 'View listing', sold: 'Sold out',
       unavailable: 'Unavailable', loading: 'Loading…', error: 'Could not load',
       by: 'by', secure: 'Secure checkout on miyagisanchez.com',
       cond_new: 'New', cond_like_new: 'Like new', cond_used: 'Used',
+      support: 'Support', support_for: 'Support', choose_amount: 'Choose an amount',
+      custom_amount: 'Custom amount', name_optional: 'Name (optional)',
+      email: 'Email for receipt', message_optional: 'Message (optional)',
+      public: 'Public', private: 'Private', pay_with_stripe: 'Pay with Stripe',
+      pay_with_mp: 'Pay with Mercado Pago', support_secure: 'Secure payment on Miyagi',
+      close: 'Close', continue: 'Continue', processing: 'Opening payment…',
+      amount_error: 'The amount is outside the allowed range.',
+      email_error: 'Enter a valid email for your receipt.',
+      message_error: 'Message cannot exceed 250 characters.',
+      provider_unavailable: 'This seller has not enabled payments yet.',
+      support_unavailable: 'Support unavailable', support_success: 'Thank you for the support!',
+      support_success_body: 'Your contribution was recorded.',
     },
   }
   function conditionLabel(locale, condition) {
@@ -77,6 +102,29 @@
       .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
   }
 
+  function fetchSupportConfig(key) {
+    var url = API + '/api/embed/support'
+    if (key) url += '?key=' + encodeURIComponent(key)
+    return fetch(url, { headers: key ? { 'x-miyagi-embed-key': key } : {} })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+  }
+
+  function formatMoney(cents, currency, locale) {
+    try {
+      return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', {
+        style: 'currency',
+        currency: currency || 'MXN',
+        maximumFractionDigits: 0,
+      }).format((Number(cents) || 0) / 100)
+    } catch (e) {
+      return '$' + Math.round((Number(cents) || 0) / 100)
+    }
+  }
+
+  function validEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
+  }
+
   // Hand off to the HOSTED checkout in a popup, tagged channel=embed so the sale
   // is attributed to the embed channel. Falls back to a same-tab nav if the popup
   // is blocked. Never renders payment on the host origin.
@@ -92,6 +140,12 @@
     var win = window.open(url, 'miyagi_checkout', 'popup,width=480,height=820')
     if (win) { try { win.opener = null } catch (e) { /* cross-origin: ignore */ } }
     else { window.open(url, '_blank', 'noopener') }   // popup blocked → new tab
+  }
+
+  function openSupportCheckout(url) {
+    var win = window.open(url, 'miyagi_support_checkout', 'popup,width=480,height=820')
+    if (!win) window.open(url, '_blank', 'noopener')
+    return win
   }
 
   // Minimal HTML escape for any seller-controlled text we inject into the shadow.
@@ -118,6 +172,308 @@
       'border:1px dashed #d6d9dc;border-radius:10px;display:inline-block}' +
       '.mi-err{color:#b00020;font-size:13px}'
     )
+  }
+
+  function supportStyle(accent) {
+    return baseStyle(accent) +
+      ':host{display:inline-block}' +
+      '.mi-support-btn{box-shadow:0 8px 20px rgba(0,0,0,.12)}' +
+      '.mi-backdrop{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.46);' +
+      'display:flex;align-items:center;justify-content:center;padding:18px}' +
+      '.mi-modal{width:min(420px,100%);max-height:min(720px,calc(100vh - 24px));overflow:auto;' +
+      'background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);color:#111}' +
+      '.mi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 10px}' +
+      '.mi-title{font-size:18px;font-weight:800;margin:0;color:#111}.mi-sub{font-size:13px;color:#667085;margin:4px 0 0}' +
+      '.mi-x{appearance:none;border:0;background:#f3f4f6;color:#111;border-radius:999px;width:32px;height:32px;' +
+      'font-size:20px;line-height:1;cursor:pointer}.mi-body{padding:0 18px 18px;display:flex;flex-direction:column;gap:13px}' +
+      '.mi-label{display:block;font-size:12px;font-weight:700;color:#344054;margin:0 0 6px}' +
+      '.mi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.mi-choice{appearance:none;border:1px solid #d0d5dd;' +
+      'background:#fff;border-radius:10px;padding:10px 8px;font-weight:800;color:#111;cursor:pointer;text-align:center}' +
+      '.mi-choice[data-active="1"]{border-color:var(--mi-accent);background:color-mix(in srgb,var(--mi-accent) 10%,white);color:var(--mi-accent)}' +
+      '.mi-field{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;font:inherit;font-size:14px;color:#111;background:#fff}' +
+      '.mi-field:focus{outline:2px solid color-mix(in srgb,var(--mi-accent) 25%,transparent);border-color:var(--mi-accent)}' +
+      '.mi-row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mi-vis{display:grid;grid-template-columns:1fr 1fr;border:1px solid #d0d5dd;' +
+      'border-radius:10px;overflow:hidden}.mi-vis button{appearance:none;border:0;background:#fff;padding:10px;font-weight:700;color:#475467;cursor:pointer}' +
+      '.mi-vis button[data-active="1"]{background:var(--mi-accent);color:#fff}.mi-actions{display:flex;flex-direction:column;gap:8px}' +
+      '.mi-pay{appearance:none;border:0;border-radius:11px;padding:12px 14px;font-size:14px;font-weight:800;color:#fff;cursor:pointer;background:#111}' +
+      '.mi-pay[data-provider="mercadopago"]{background:#009ee3}.mi-pay:disabled{opacity:.45;cursor:not-allowed}' +
+      '.mi-note{font-size:11px;color:#667085;text-align:center}.mi-error{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;' +
+      'border-radius:10px;padding:9px 10px;font-size:13px}.mi-success{padding:24px 18px 26px;text-align:center}.mi-success h3{margin:0 0 8px;' +
+      'font-size:20px;color:#111}.mi-success p{margin:0;color:#667085;font-size:14px}.mi-pop{font-size:34px;margin-bottom:10px}' +
+      '@media(max-width:480px){.mi-backdrop{align-items:flex-end;padding:0}.mi-modal{border-radius:18px 18px 0 0;max-height:calc(100vh - 16px)}}'
+  }
+
+  // ── <miyagi-support-widget> ────────────────────────────────────────────────
+  function defineSupportWidget() {
+    if (customElements.get('miyagi-support-widget')) return
+    customElements.define('miyagi-support-widget', class extends HTMLElement {
+      connectedCallback() {
+        if (this._mounted) return
+        this._mounted = true
+        this._root = this.attachShadow({ mode: 'open' })
+        this._locale = this.getAttribute('data-locale')
+        this._key = this.getAttribute('data-key')
+        this._accent = this.getAttribute('data-accent') || '#111'
+        this._label = this.getAttribute('data-label')
+        this._open = false
+        this._success = false
+        this._pendingCartId = null
+        this._state = null
+        var self = this
+
+        this._onMessage = function (event) {
+          if (event.origin !== API) return
+          var data = event.data || {}
+          if (data.type !== 'miyagi:support:success') return
+          if (self._pendingCartId && data.cart_id && data.cart_id !== self._pendingCartId) return
+          self.showSuccess()
+        }
+        window.addEventListener('message', this._onMessage)
+
+        this.renderLoading()
+        if (!this._key) {
+          this.renderUnavailable('miyagi-support-widget: data-key required')
+          return
+        }
+        fetchSupportConfig(this._key).then(function (config) {
+          self._config = config
+          var shopAccent = config.shop && config.shop.accent_color
+          if (!self.getAttribute('data-accent') && shopAccent) self._accent = shopAccent
+          self.render()
+        }).catch(function () {
+          self.renderUnavailable(t(self._locale, 'support_unavailable'))
+        })
+      }
+
+      disconnectedCallback() {
+        if (this._onMessage) window.removeEventListener('message', this._onMessage)
+        if (this._closeTimer) clearTimeout(this._closeTimer)
+      }
+
+      renderLoading() {
+        this._root.innerHTML = '<style>' + supportStyle(this._accent) + '</style>' +
+          '<span class="mi-skel">' + esc(t(this._locale, 'loading')) + '</span>'
+      }
+
+      renderUnavailable(message) {
+        this._root.innerHTML = '<style>' + supportStyle(this._accent) + '</style>' +
+          '<span class="mi-err">' + esc(message || t(this._locale, 'support_unavailable')) + '</span>'
+      }
+
+      openModal() {
+        var config = this._config || {}
+        var support = config.support || {}
+        var presets = support.preset_amount_cents || [5000, 10000, 20000]
+        this._open = true
+        this._success = false
+        this._state = {
+          amount_cents: presets[0] || 5000,
+          custom_pesos: '',
+          name: '',
+          email: '',
+          message: '',
+          visibility: support.default_visibility || 'public',
+          error: '',
+          busy: false,
+        }
+        this.render()
+      }
+
+      closeModal() {
+        this._open = false
+        this._success = false
+        this.render()
+      }
+
+      showSuccess() {
+        if (this._closeTimer) clearTimeout(this._closeTimer)
+        this._open = true
+        this._success = true
+        this.render()
+        var self = this
+        this._closeTimer = setTimeout(function () { self.closeModal() }, 3000)
+      }
+
+      setVisibility(value) {
+        if (!this._state) return
+        this._state.visibility = value
+        this.render()
+      }
+
+      setPreset(cents) {
+        if (!this._state) return
+        this._state.amount_cents = cents
+        this._state.custom_pesos = ''
+        this._state.error = ''
+        this.render()
+      }
+
+      syncFields() {
+        if (!this._state) return
+        var root = this._root
+        var custom = root.querySelector('[data-custom]')
+        var name = root.querySelector('[data-name]')
+        var email = root.querySelector('[data-email]')
+        var message = root.querySelector('[data-message]')
+        this._state.custom_pesos = custom ? custom.value : this._state.custom_pesos
+        this._state.name = name ? name.value : this._state.name
+        this._state.email = email ? email.value : this._state.email
+        this._state.message = message ? message.value : this._state.message
+      }
+
+      submit(provider) {
+        var self = this
+        var config = this._config || {}
+        var support = config.support || {}
+        this.syncFields()
+        var state = this._state || {}
+        var amount = state.custom_pesos && String(state.custom_pesos).trim()
+          ? Math.round(Number(state.custom_pesos) * 100)
+          : state.amount_cents
+        var min = Number(support.custom_min_cents || 100)
+        var max = Number(support.custom_max_cents || 500000)
+        if (!amount || amount < min || amount > max) {
+          state.error = t(this._locale, 'amount_error')
+          this.render()
+          return
+        }
+        if (!validEmail(state.email)) {
+          state.error = t(this._locale, 'email_error')
+          this.render()
+          return
+        }
+        if (String(state.message || '').length > 250) {
+          state.error = t(this._locale, 'message_error')
+          this.render()
+          return
+        }
+        state.busy = true
+        state.error = ''
+        this.render()
+
+        fetch(API + '/api/embed/support/checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-miyagi-embed-key': this._key,
+          },
+          body: JSON.stringify({
+            embed_key: this._key,
+            provider: provider,
+            amount_cents: amount,
+            supporter_name: state.name,
+            supporter_email: state.email,
+            message: state.message,
+            visibility: state.visibility,
+          }),
+        }).then(function (r) {
+          return r.json().then(function (data) {
+            if (!r.ok) throw new Error(data.error || data.message || 'checkout failed')
+            return data
+          })
+        }).then(function (data) {
+          self._pendingCartId = data.cart_id || null
+          state.busy = false
+          self.render()
+          if (data.checkout_url || data.redirect_url) openSupportCheckout(data.checkout_url || data.redirect_url)
+        }).catch(function (err) {
+          state.busy = false
+          state.error = err && err.message ? err.message : t(self._locale, 'error')
+          self.render()
+        })
+      }
+
+      render() {
+        var config = this._config || {}
+        var support = config.support || {}
+        var providers = config.payment_providers || {}
+        var hasProvider = !!(providers.stripe || providers.mercadopago)
+        var shopName = config.shop && config.shop.name ? config.shop.name : ''
+        var buttonLabel = this._label || t(this._locale, 'support')
+        var html = '<style>' + supportStyle(this._accent) + '</style>' +
+          '<button class="mi-btn mi-support-btn" type="button"' + (!hasProvider ? ' disabled' : '') + ' data-open>' +
+          '<span>' + esc(buttonLabel) + '</span></button>'
+
+        if (!hasProvider) {
+          html += '<span class="mi-err" style="display:block;margin-top:7px">' + esc(t(this._locale, 'provider_unavailable')) + '</span>'
+        }
+
+        if (this._open) {
+          html += this._success ? this.successHtml() : this.modalHtml(shopName, support, providers)
+        }
+
+        this._root.innerHTML = html
+        this.bind()
+      }
+
+      successHtml() {
+        return '<div class="mi-backdrop" data-close><div class="mi-modal" role="dialog" aria-modal="true" data-stop>' +
+          '<div class="mi-success"><div class="mi-pop">✓</div>' +
+          '<h3>' + esc(t(this._locale, 'support_success')) + '</h3>' +
+          '<p>' + esc(t(this._locale, 'support_success_body')) + '</p></div></div></div>'
+      }
+
+      modalHtml(shopName, support, providers) {
+        var state = this._state || {}
+        var presets = support.preset_amount_cents || [5000, 10000, 20000]
+        var currency = support.currency || 'MXN'
+        var min = formatMoney(support.custom_min_cents || 100, currency, this._locale)
+        var max = formatMoney(support.custom_max_cents || 500000, currency, this._locale)
+        var presetHtml = presets.map(function (amount) {
+          return '<button type="button" class="mi-choice" data-amount="' + amount + '" data-active="' +
+            (state.amount_cents === amount && !state.custom_pesos ? '1' : '0') + '">' +
+            esc(formatMoney(amount, currency, this._locale)) + '</button>'
+        }, this).join('')
+
+        return '<div class="mi-backdrop" data-close><div class="mi-modal" role="dialog" aria-modal="true" data-stop>' +
+          '<div class="mi-head"><div><p class="mi-title">' + esc(t(this._locale, 'support_for')) +
+          (shopName ? ' ' + esc(shopName) : '') + '</p><p class="mi-sub">' + esc(t(this._locale, 'support_secure')) +
+          '</p></div><button class="mi-x" type="button" data-close-btn aria-label="' + esc(t(this._locale, 'close')) + '">×</button></div>' +
+          '<div class="mi-body">' +
+          (state.error ? '<div class="mi-error">' + esc(state.error) + '</div>' : '') +
+          '<div><label class="mi-label">' + esc(t(this._locale, 'choose_amount')) + '</label><div class="mi-grid">' + presetHtml + '</div></div>' +
+          '<div><label class="mi-label">' + esc(t(this._locale, 'custom_amount')) + ' <span style="font-weight:500;color:#667085">(' + esc(min) + ' - ' + esc(max) + ')</span></label>' +
+          '<input class="mi-field" data-custom type="number" min="1" step="10" value="' + esc(state.custom_pesos || '') + '" placeholder="100"></div>' +
+          '<div class="mi-row2"><div><label class="mi-label">' + esc(t(this._locale, 'name_optional')) + '</label>' +
+          '<input class="mi-field" data-name maxlength="80" value="' + esc(state.name || '') + '"></div>' +
+          '<div><label class="mi-label">' + esc(t(this._locale, 'email')) + '</label>' +
+          '<input class="mi-field" data-email type="email" value="' + esc(state.email || '') + '"></div></div>' +
+          '<div><label class="mi-label">' + esc(t(this._locale, 'message_optional')) + '</label>' +
+          '<textarea class="mi-field" data-message maxlength="250" rows="3">' + esc(state.message || '') + '</textarea></div>' +
+          '<div class="mi-vis"><button type="button" data-vis="public" data-active="' + (state.visibility !== 'private' ? '1' : '0') + '">' +
+          esc(t(this._locale, 'public')) + '</button><button type="button" data-vis="private" data-active="' + (state.visibility === 'private' ? '1' : '0') + '">' +
+          esc(t(this._locale, 'private')) + '</button></div>' +
+          '<div class="mi-actions">' +
+          '<button class="mi-pay" type="button" data-provider="stripe"' + (!providers.stripe || state.busy ? ' disabled' : '') + '>' +
+          esc(state.busy ? t(this._locale, 'processing') : t(this._locale, 'pay_with_stripe')) + '</button>' +
+          '<button class="mi-pay" type="button" data-provider="mercadopago"' + (!providers.mercadopago || state.busy ? ' disabled' : '') + '>' +
+          esc(state.busy ? t(this._locale, 'processing') : t(this._locale, 'pay_with_mp')) + '</button>' +
+          '</div><div class="mi-note">' + esc(t(this._locale, 'secure')) + '</div>' +
+          '</div></div></div>'
+      }
+
+      bind() {
+        var self = this
+        var root = this._root
+        var open = root.querySelector('[data-open]')
+        if (open) open.addEventListener('click', function () { self.openModal() })
+        root.querySelectorAll('[data-close], [data-close-btn]').forEach(function (el) {
+          el.addEventListener('click', function () { self.closeModal() })
+        })
+        root.querySelectorAll('[data-stop]').forEach(function (el) {
+          el.addEventListener('click', function (event) { event.stopPropagation() })
+        })
+        root.querySelectorAll('[data-amount]').forEach(function (el) {
+          el.addEventListener('click', function () { self.setPreset(Number(el.getAttribute('data-amount'))) })
+        })
+        root.querySelectorAll('[data-vis]').forEach(function (el) {
+          el.addEventListener('click', function () { self.setVisibility(el.getAttribute('data-vis') === 'private' ? 'private' : 'public') })
+        })
+        root.querySelectorAll('[data-provider]').forEach(function (el) {
+          el.addEventListener('click', function () { self.submit(el.getAttribute('data-provider')) })
+        })
+      }
+    })
   }
 
   // ── <miyagi-buy-button> ────────────────────────────────────────────────────
@@ -253,4 +609,5 @@
 
   defineBuyButton()
   defineProductCard()
+  defineSupportWidget()
 })()
