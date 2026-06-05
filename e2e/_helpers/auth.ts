@@ -31,6 +31,17 @@ export function sellerCreds(): Creds | null {
   return email && password ? { email, password } : null
 }
 
+/**
+ * Authed browser smokes are OFF by default. The production Clerk instance is
+ * email-code/OAuth-first (password is enabled but the UI routes to an email-code
+ * second factor), so a headless password sign-in can't complete unaided. Turning
+ * these on needs the Clerk testing-token setup (@clerk/testing) + the prod Clerk
+ * keys in CI — a security decision. Once wired, opt in with MS_TEST_BROWSER_AUTH=1.
+ */
+export function authEnabled(): boolean {
+  return process.env.MS_TEST_BROWSER_AUTH === '1'
+}
+
 /** Skip the current test/describe when an env fixture is missing — with a clear reason. */
 export function requireEnv<T>(value: T | null | undefined, what: string): T {
   test.skip(value == null || value === '', `Set ${what} to run this browser smoke.`)

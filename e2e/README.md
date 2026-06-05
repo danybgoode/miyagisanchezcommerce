@@ -24,16 +24,24 @@ npm run test:e2e:browser
 ```
 
 ### Credentials & fixtures (skip gracefully when unset)
-Authed money-path smokes are Clerk-gated. Set env / CI secrets (see `e2e/_helpers/auth.ts`):
 
 | env | for |
 |---|---|
-| `MS_TEST_BUYER_EMAIL` / `MS_TEST_BUYER_PASSWORD` | buyer flows (password auth, not OTP-only) |
-| `MS_TEST_SELLER_EMAIL` / `MS_TEST_SELLER_PASSWORD` | seller flows |
-| `MS_TEST_PERSONALIZED_LISTING_ID` | a public listing with a **required** custom field |
+| `MS_TEST_PERSONALIZED_LISTING_ID` | a public listing with a **required** custom field (anonymous smoke) |
+| `MS_TEST_BUYER_EMAIL` / `MS_TEST_BUYER_PASSWORD` | buyer authed flows |
+| `MS_TEST_SELLER_EMAIL` / `MS_TEST_SELLER_PASSWORD` | seller authed flows |
+| `MS_TEST_BROWSER_AUTH=1` | **master switch** for authed smokes (off by default) |
 
 Any spec missing its fixture **skips with a clear reason** — never fails. So the harness is safe to
-run anywhere, and coverage lights up as fixtures land.
+run anywhere, and coverage lights up as fixtures land. **Prefer anonymous assertions** — many client
+islands (e.g. the personalization buy box) render + intercept *before* sign-in, so they need no auth.
+
+> **Authed smokes are OFF by default (`MS_TEST_BROWSER_AUTH` unset).** The production Clerk instance
+> is **email-code / OAuth-first** — password is enabled but the sign-in UI routes to an email-code
+> second factor, so a headless password sign-in can't complete unaided. Turning authed smokes on
+> needs the Clerk **testing-token** setup (`@clerk/testing`) + the prod Clerk keys in CI (a security
+> decision). The `MS_TEST_BUYER_*` / `MS_TEST_SELLER_*` accounts are already provisioned and ready
+> for that wiring.
 
 ## Conventions
 - `_helpers/` is not a test dir (no `*.spec.ts`) — shared helpers only.
