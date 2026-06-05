@@ -40,12 +40,25 @@ test.describe('Sweepstakes idempotency', () => {
     })
     expect(res.ok()).toBeTruthy()
     const data = await res.json() as {
+      legal_gate_blocked: boolean
+      duplicate_free_entry_same_entry: boolean
+      duplicate_free_ticket_count: number
+      expected_free_ticket_count: number
       purchase_ticket_rows: number
       expected_purchase_ticket_rows: number
+      kill_switch_blocked_purchase_rows: number
+      kill_switch_blocked_draw: boolean
+      kill_switch_blocked_broadcast: boolean
       draw_rows: number
       same_draw: boolean
     }
+    expect(data.legal_gate_blocked).toBe(true)
+    expect(data.duplicate_free_entry_same_entry).toBe(true)
+    expect(data.duplicate_free_ticket_count).toBe(data.expected_free_ticket_count)
     expect(data.purchase_ticket_rows).toBe(data.expected_purchase_ticket_rows)
+    expect(data.kill_switch_blocked_purchase_rows).toBe(0)
+    expect(data.kill_switch_blocked_draw).toBe(true)
+    expect(data.kill_switch_blocked_broadcast).toBe(true)
     expect(data.draw_rows).toBe(1)
     expect(data.same_draw).toBe(true)
   })
