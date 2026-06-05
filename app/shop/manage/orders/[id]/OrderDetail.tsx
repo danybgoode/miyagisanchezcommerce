@@ -732,6 +732,16 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold">Pedido</h1>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
+            {orderMeta.channel === 'custom_domain' && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                title="Venta originada en tu dominio propio"
+              >
+                <i className="iconoir-globe" style={{ fontSize: 11, verticalAlign: 'middle', marginRight: 3 }} />
+                Dominio propio
+              </span>
+            )}
           </div>
           <p className="text-xs text-[var(--color-muted)] font-mono">{order.id}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">{formatDate(order.created_at)}</p>

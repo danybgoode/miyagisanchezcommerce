@@ -18,6 +18,7 @@ import { tg } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 import { upsertOrderMirror } from '@/lib/order-mirror'
+import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
@@ -26,7 +27,7 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
 /** Complete a Medusa cart → creates the Medusa order. Returns the order ID. */
-async function completeMedusaCart(cartId: string): Promise<string | null> {
+async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown> } | null> {
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
       method: 'POST',
@@ -42,8 +43,9 @@ async function completeMedusaCart(cartId: string): Promise<string | null> {
     }
     const data = await res.json().catch(() => ({}))
     const orderId = data?.order?.id ?? null
+    const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
     console.log('[stripe webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return orderId
+    return { orderId, metadata }
   } catch (e) {
     console.error('[stripe webhook] completeMedusaCart error:', cartId, e)
     return null
@@ -327,7 +329,9 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   const buyerName = session.customer_details?.name ?? null
 
   // 1. Complete the Medusa cart → creates Medusa order
-  const medusaOrderId = await completeMedusaCart(cart_id)
+  const completed = await completeMedusaCart(cart_id)
+  const medusaOrderId = completed?.orderId ?? null
+  const orderMeta = completed?.metadata ?? {}
 
   // 1b. Print-ad placement? Mark the submission paid, send print emails, and skip
   //     the generic product/coordinated flow below (placements aren't shippable orders).
@@ -357,6 +361,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       shippingAmountCents,
       stripeSessionId: session.id,
       offerId: offer_id ?? null,
+      channel: (orderMeta.channel as string | undefined) ?? null,
       shippingQuote: shipping_rate_id ? {
         rate_id: shipping_rate_id,
         carrier: shipping_carrier ?? null,
@@ -390,7 +395,15 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   if (product_id && buyerEmail) {
     const listingInfo = await getMedusaListing(product_id)
     if (listingInfo) {
-      const listingUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/l/${product_id}`
+      // Own-channel: when the order came from a VERIFIED custom domain, brand the
+      // buyer email + point the product link at that domain (auth-gated order links
+      // stay on the platform). isVerifiedCustomDomain guards against forged metadata.
+      const originDomain = typeof orderMeta.origin_domain === 'string' ? orderMeta.origin_domain : null
+      const storeDomain = orderMeta.channel === 'custom_domain' && originDomain && (await isVerifiedCustomDomain(originDomain))
+        ? originDomain
+        : null
+      const siteBase = storeDomain ? `https://${storeDomain}` : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com')
+      const listingUrl = `${siteBase}/l/${product_id}`
       const amountFormatted = formatOfferAmount(amountTotal, currency)
 
       const isPickup = fulfillment_method === 'local_pickup'
@@ -413,6 +426,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
+          storeDomain,
         }).catch(e => console.error('[email] pickup buyer:', e))
       } else if (isCoord) {
         sendCoordinatedOrderToBuyer({
@@ -425,6 +439,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerPhone: listingInfo.seller_phone ?? null,
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
+          storeDomain,
         }).catch(e => console.error('[email] coord buyer:', e))
       } else {
         sendOrderConfirmedToBuyer({
@@ -437,6 +452,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           isDigital: false,
           digitalDownloadUrl: null,
           digitalExpiresAt: null,
+          storeDomain,
         }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
       }
 

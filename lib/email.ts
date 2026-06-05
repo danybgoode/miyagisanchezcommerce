@@ -43,7 +43,12 @@ export async function getSellerEmail(clerkUserId: string): Promise<string | null
 //   – one CTA, sharp-ish corners, accent green
 //   – footer is 2 lines of plain text
 
-function html(subject: string, body: string): string {
+/** Brand shown in the email wordmark + footer. Defaults to the platform; an
+ *  own-channel order brands to the seller's custom domain instead. */
+type Brand = { url: string; label: string }
+const DEFAULT_BRAND: Brand = { url: SITE, label: 'miyagisanchez.com' }
+
+function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND): string {
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -56,7 +61,7 @@ function html(subject: string, body: string): string {
 
   <!-- Wordmark -->
   <div style="padding-bottom:14px;margin-bottom:24px;border-bottom:2px solid #1d6f42">
-    <a href="${SITE}" style="text-decoration:none;color:#1a1a18;font-weight:700;font-size:14px;letter-spacing:-0.2px">miyagisanchez.com</a>
+    <a href="${brand.url}" style="text-decoration:none;color:#1a1a18;font-weight:700;font-size:14px;letter-spacing:-0.2px">${esc(brand.label)}</a>
   </div>
 
   ${body}
@@ -64,12 +69,17 @@ function html(subject: string, body: string): string {
   <!-- Footer -->
   <div style="margin-top:36px;padding-top:14px;border-top:1px solid #e2e2de;font-size:12px;color:#6b6b67;line-height:1.5">
     Este correo fue enviado por actividad en tu cuenta.<br>
-    <a href="${SITE}" style="color:#1d6f42;text-decoration:none">miyagisanchez.com</a> · sin comisiones, sin intermediarios.
+    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.
   </div>
 
 </div>
 </body>
 </html>`
+}
+
+/** Build the email brand from an optional own-channel store domain. */
+function brandFor(storeDomain?: string | null): Brand {
+  return storeDomain ? { url: `https://${storeDomain}`, label: storeDomain } : DEFAULT_BRAND
 }
 
 // ── Template building blocks ──────────────────────────────────────────────────
@@ -140,6 +150,7 @@ async function send(
   subject: string,
   body: string,
   scheduledAt?: Date,
+  brand?: Brand,
 ): Promise<string | null> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
@@ -155,7 +166,7 @@ async function send(
       from: FROM,
       to,
       subject,
-      html: html(subject, body),
+      html: html(subject, body, brand),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
     })
     return result.data?.id ?? null
@@ -583,6 +594,8 @@ export async function sendOrderConfirmedToBuyer(ctx: {
   isDigital: boolean
   digitalDownloadUrl?: string | null
   digitalExpiresAt?: string | null
+  /** Own-channel order → brand the email to the seller's custom domain. */
+  storeDomain?: string | null
 }): Promise<void> {
   const subject = ctx.isDigital ? `Tu descarga está lista — ${ctx.listingTitle}` : `Compra confirmada — ${ctx.listingTitle}`
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
@@ -608,7 +621,7 @@ export async function sendOrderConfirmedToBuyer(ctx: {
           cta('Ver estado del pedido', `${SITE}/account/orders`),
         ].join(''),
   ].join('')
-  await send(ctx.buyerEmail, subject, body)
+  await send(ctx.buyerEmail, subject, body, undefined, brandFor(ctx.storeDomain))
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -846,6 +859,8 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
   sellerPhone?: string | null
   sellerWhatsapp?: string | null
   orderUrl: string
+  /** Own-channel order → brand the email to the seller's custom domain. */
+  storeDomain?: string | null
 }): Promise<void> {
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
   const subject = `Compra confirmada — coordina la entrega con ${ctx.shopName}`
@@ -870,7 +885,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
       : cta('Ver estado del pedido', ctx.orderUrl),
     p(`Si en 24 horas no has tenido noticias, ve al <a href="${ctx.orderUrl}" style="color:#1d6f42">detalle de tu pedido</a> para escribirle al vendedor.`),
   ].join('')
-  await send(ctx.buyerEmail, subject, body)
+  await send(ctx.buyerEmail, subject, body, undefined, brandFor(ctx.storeDomain))
 }
 
 // ── Coordinated delivery — Seller ───────��────────────────────────────────────
@@ -918,6 +933,8 @@ export async function sendPickupOrderToBuyer(ctx: {
   sellerPhone?: string | null
   sellerWhatsapp?: string | null
   orderUrl: string
+  /** Own-channel order → brand the email to the seller's custom domain. */
+  storeDomain?: string | null
 }): Promise<void> {
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
   const subject = `Compra confirmada — recoge tu pedido en ${ctx.shopName}`
@@ -943,7 +960,7 @@ export async function sendPickupOrderToBuyer(ctx: {
       ? cta('Coordinar por WhatsApp', whatsappUrl)
       : cta('Ver estado del pedido', ctx.orderUrl),
   ].join('')
-  await send(ctx.buyerEmail, subject, body)
+  await send(ctx.buyerEmail, subject, body, undefined, brandFor(ctx.storeDomain))
 }
 
 // ── Local pickup — Seller ────────────────────────────────────────────────────
