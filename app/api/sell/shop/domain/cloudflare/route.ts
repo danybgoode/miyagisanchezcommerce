@@ -11,9 +11,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
+import { dnsRecordFor } from '@/lib/domain-utils'
+import { getDomainConfig } from '@/lib/vercel-domains'
 
 const CF_API = 'https://api.cloudflare.com/client/v4'
-const CNAME_TARGET = 'cname.vercel-dns.com'
 
 async function cfGet(path: string, token: string) {
   const res = await fetch(`${CF_API}${path}`, {
@@ -99,28 +100,48 @@ export async function POST(req: NextRequest) {
 
   const zoneId = zone.id
 
-  // ── Step 2: Remove any existing CNAME for this domain name ──────────────
+  // ── Step 2: Decide the correct record ───────────────────────────────────
+  // An apex domain needs an A record (registrars/Cloudflare reject a CNAME at the
+  // root and flatten it to an IP that may not match Vercel's); a subdomain needs
+  // a CNAME. `dnsRecordFor` is the single source of that decision, shared with the
+  // UI so the seller sees the same record we write.
+  const record = dnsRecordFor(domain)
+
+  // Prefer Vercel's project-specific recommended value (the apex IP / per-project
+  // CNAME can differ from the generic defaults); fall back to the static target.
+  let content = record.value
   try {
-    const listRes = await cfGet(
-      `/zones/${zoneId}/dns_records?type=CNAME&name=${encodeURIComponent(domain)}`,
-      cf_token,
-    )
-    const listData = await listRes.json() as { result?: Array<{ id: string }> }
-    for (const record of listData.result ?? []) {
-      await cfDelete(`/zones/${zoneId}/dns_records/${record.id}`, cf_token)
-    }
+    const cfg = await getDomainConfig(domain)
+    if (record.type === 'A' && cfg.recommendedIPv4[0]) content = cfg.recommendedIPv4[0]
+    if (record.type === 'CNAME' && cfg.recommendedCNAME) content = cfg.recommendedCNAME
   } catch {
-    // Non-fatal — continue to create
+    // Vercel config unreachable — keep the static fallback from domain-utils.
   }
 
-  // ── Step 3: Create the CNAME record ─────────────────────────────────────
-  // Use the full domain as the record name so subdomains (shop.midominio.com)
-  // get the record on the right host, not the apex. For an apex domain this is
-  // the zone root and Cloudflare flattens the CNAME automatically.
+  // ── Step 3: Remove conflicting A *and* CNAME records on this name ─────────
+  // (A previous run may have written the wrong type — clear both so the create
+  // doesn't collide with a stale record.)
+  for (const t of ['A', 'CNAME'] as const) {
+    try {
+      const listRes = await cfGet(
+        `/zones/${zoneId}/dns_records?type=${t}&name=${encodeURIComponent(domain)}`,
+        cf_token,
+      )
+      const listData = await listRes.json() as { result?: Array<{ id: string }> }
+      for (const existing of listData.result ?? []) {
+        await cfDelete(`/zones/${zoneId}/dns_records/${existing.id}`, cf_token)
+      }
+    } catch {
+      // Non-fatal — continue to create
+    }
+  }
+
+  // ── Step 4: Create the record (A for apex, CNAME for subdomain) ──────────
+  // `name: domain` is the full FQDN; for an apex this is the zone root.
   const createRes = await cfPost(`/zones/${zoneId}/dns_records`, cf_token, {
-    type: 'CNAME',
+    type: record.type,
     name: domain,
-    content: CNAME_TARGET,
+    content,
     ttl: 1,       // 1 = automatic TTL
     proxied: false, // Must be DNS-only (not proxied) for Vercel SSL to work
   })
@@ -138,7 +159,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    message: 'Registro CNAME creado en Cloudflare.',
+    message: `Registro ${record.type} creado en Cloudflare.`,
+    record_type: record.type,
     zone_id: zoneId,
     zone_name: zone.name,
   })
