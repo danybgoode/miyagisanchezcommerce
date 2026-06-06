@@ -3,6 +3,7 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
 import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+import { registerShopSubdomain } from '@/lib/vercel-domains'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -146,6 +147,8 @@ export async function POST(req: NextRequest) {
       shopSlug = sellerForMirror!.slug
       sellerId = sellerForMirror!.id ?? null
       sellerName = sellerForMirror!.name ?? null
+      // Register the shop's free subdomain (slug.miyagisanchez.com). Best-effort.
+      await registerShopSubdomain(shopSlug)
     } else {
       // Unexpected error from backend — surface it for easier debugging
       const errBody = await sellerRes.json().catch(() => ({})) as { message?: string }
