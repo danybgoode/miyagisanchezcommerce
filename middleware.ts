@@ -2,6 +2,8 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { shopSlugFromHost, ROOT_DOMAIN } from '@/lib/subdomain'
+import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -25,6 +27,84 @@ function isPlatformHost(hostname: string): boolean {
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const hostname = req.headers.get('host') ?? ''
+
+  // ── Subdomain channel: <slug>.miyagisanchez.com ──────────────────────────
+  // A shop's slug doubles as a free subdomain. Resolve it and serve the WHOLE
+  // storefront white-label (same machinery as a custom domain), tagged
+  // `x-miyagi-channel: subdomain`. The apex, www, Vercel previews, and reserved/
+  // infra labels (clerk, accounts, api…) return null here and fall through to the
+  // normal platform/custom-domain handling untouched.
+  const subSlug = shopSlugFromHost(hostname)
+  if (subSlug) {
+    let slug: string | null = null
+    let redirectTo: string | null = null
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { data: shop } = await supabase
+        .from('marketplace_shops')
+        .select('slug')
+        .eq('slug', subSlug)
+        .maybeSingle()
+      slug = shop?.slug ?? null
+      if (!slug) {
+        // Maybe a retired slug — look it up in the alias history (same store as
+        // the /s/[slug] redirect). Inline (no unstable_cache — invalid here).
+        const { data: aliasRow } = await supabase
+          .from('marketplace_shops')
+          .select('slug, metadata')
+          .contains('metadata', { previous_slug_keys: [subSlug] })
+          .limit(1)
+          .maybeSingle()
+        if (aliasRow?.slug) {
+          const prev = ((aliasRow.metadata as Record<string, unknown> | null)?.previous_slugs ?? []) as PreviousSlug[]
+          redirectTo = pickAliasTarget(String(aliasRow.slug), prev, subSlug)
+        }
+      }
+    } catch {
+      // DB unreachable → treat as unresolved (clean 404 below); never 500 a hit.
+    }
+
+    // Retired slug → 301 to the current shop's subdomain.
+    if (!slug && redirectTo) {
+      const url = req.nextUrl.clone()
+      url.protocol = 'https:'
+      url.host = `${redirectTo}.${ROOT_DOMAIN}`
+      url.pathname = '/'
+      url.search = ''
+      return NextResponse.redirect(url, 301)
+    }
+
+    if (slug) {
+      // Boundary isolation (same as custom domains): a subdomain serves ONLY its
+      // own shop — never expose /s/ or the cross-shop /l index here.
+      const path = req.nextUrl.pathname
+      if (path === '/s' || path.startsWith('/s/') || path === '/l' || path === '/l/') {
+        const home = req.nextUrl.clone()
+        home.pathname = '/'
+        home.search = ''
+        return NextResponse.redirect(home)
+      }
+
+      const headers = new Headers(req.headers)
+      headers.set('x-miyagi-channel', 'subdomain')
+      headers.set('x-miyagi-domain', hostname.split(':')[0].toLowerCase())
+      headers.set('x-miyagi-shop-slug', slug)
+
+      if (path === '/') {
+        const url = req.nextUrl.clone()
+        url.pathname = `/s/${slug}`
+        return NextResponse.rewrite(url, { request: { headers } })
+      }
+      return NextResponse.next({ request: { headers } })
+    }
+
+    // Well-formed but unknown subdomain → clean 404 (don't fall through to the
+    // custom-domain branch, which would look up a custom_domain that can't exist).
+    return new NextResponse(
+      '<!doctype html><html><head><title>Not found</title></head><body><p>Shop not found.</p></body></html>',
+      { status: 404, headers: { 'Content-Type': 'text/html' } },
+    )
+  }
 
   // ── Custom domain routing ────────────────────────────────────────────────
   // If the request arrives on a tenant's own domain (not *.miyagisanchez.com

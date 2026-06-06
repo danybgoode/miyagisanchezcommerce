@@ -10,7 +10,7 @@
 
 import type { NextRequest } from 'next/server'
 
-export type ChannelSource = 'marketplace' | 'custom_domain' | 'embed' | 'api'
+export type ChannelSource = 'marketplace' | 'custom_domain' | 'subdomain' | 'embed' | 'api'
 
 const PLATFORM_HOSTS = [
   'miyagisanchez.com',
@@ -36,6 +36,7 @@ export function detectChannel(req: NextRequest): ChannelSource {
   // Set by middleware when the request arrives via a tenant's custom domain
   const channelHeader = req.headers.get('x-miyagi-channel')
   if (channelHeader === 'custom') return 'custom_domain'
+  if (channelHeader === 'subdomain') return 'subdomain'
   if (channelHeader === 'embed') return 'embed'
 
   // Embed widget marks its hosted-checkout hand-off with a query param; the
