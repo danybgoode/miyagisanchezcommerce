@@ -60,6 +60,13 @@ export const UCP_ENDPOINTS: UcpEndpoint[] = [
     auth: 'none',
   },
   {
+    id: 'support_widget',
+    method: 'GET+POST',
+    path: '/api/embed/support',
+    description: 'Discover a seller support widget by embed key and initiate a guest contribution checkout through the same hosted Stripe/MercadoPago handoff used by the widget.',
+    auth: 'none',
+  },
+  {
     id: 'make_offer',
     method: 'POST',
     path: '/api/offers',
@@ -100,6 +107,8 @@ export const MCP_BUYER_TOOLS = [
   'check_availability',
   'book_appointment',
   'get_buyer_trust',
+  'get_support_options',
+  'create_support_checkout',
 ] as const
 
 /**
@@ -131,6 +140,7 @@ export const UCP_CAPABILITIES = [
   'escrow',
   'scheduling',          // check_availability + book_appointment
   'buyer_trust',         // OmniReputation
+  'support_widget',      // Buy Me a Coffee-style guest support contributions
   'mcp_server',
   'seller_configuration', // get/patch_store_configuration (token-scoped, Sprint 4)
 ] as const

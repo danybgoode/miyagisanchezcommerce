@@ -3,10 +3,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import EmbedSnippetSection from './EmbedSnippetSection'
+import SupportWidgetSection from './SupportWidgetSection'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { coerceSupportSettings } from '@/lib/support-widget'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -127,6 +129,15 @@ export interface ShopSettingsData {
       bundles?: {
         enabled?: boolean
         tiers?: Array<{ min_items: number; percent_off: number }>
+      }
+      support?: {
+        enabled?: boolean
+        preset_amount_cents?: number[]
+        custom_min_cents?: number
+        custom_max_cents?: number
+        currency?: string
+        default_visibility?: 'public' | 'private'
+        support_product_id?: string | null
       }
       ucp?: {
         webhook_url?: string
@@ -259,6 +270,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Canal propio',
     items: [
       { id: 'canal', label: 'Dominio propio' },
+      { id: 'apoyo', label: 'Apoyos' },
       { id: 'widget', label: 'Widget para tu web' },
     ],
   },
@@ -285,7 +297,8 @@ const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
   notificaciones: ['notificaciones'],
   diseno:         ['apariencia', 'tipo'],
   agentes:        ['webhook'],
-  canal:          ['canal', 'widget'],
+  canal:          ['canal', 'apoyo', 'widget'],
+  apoyo:          ['apoyo'],
   widget:         ['widget'],
   pedidos:        ['pedidos'],
   politicas:      ['politicas'],
@@ -842,6 +855,8 @@ export default function ShopSettingsPanel({
   // issued. A fresh status fetch on mount (below) corrects this if it's not true.
   const [domainSslReady, setDomainSslReady]         = useState(initial.custom_domain_verified ?? false)
   const [domainCnameCurrent, setDomainCnameCurrent] = useState<string | null>(null)
+  // A specific fix hint from the server, e.g. 'proxied' (Cloudflare orange cloud).
+  const [domainHint, setDomainHint]                 = useState<string | null>(null)
   const [domainSaving, setDomainSaving]             = useState(false)
   const [domainChecking, setDomainChecking]         = useState(false)
   const [domainRemoving, setDomainRemoving]         = useState(false)
@@ -857,6 +872,22 @@ export default function ShopSettingsPanel({
   const [cfSuccess, setCfSuccess]                   = useState(false)
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Own channel — support widget
+  const supportSettings = coerceSupportSettings(s.support)
+  const [supportEnabled, setSupportEnabled] = useState(supportSettings.enabled)
+  const [supportPresetPesos, setSupportPresetPesos] = useState<number[]>(
+    supportSettings.preset_amount_cents.map(amount => amount / 100)
+  )
+  const [supportCustomMinPesos, setSupportCustomMinPesos] = useState(supportSettings.custom_min_cents / 100)
+  const [supportCustomMaxPesos, setSupportCustomMaxPesos] = useState(supportSettings.custom_max_cents / 100)
+  const [supportDefaultVisibility, setSupportDefaultVisibility] = useState<'public' | 'private'>(supportSettings.default_visibility)
+  const [supportProductId, setSupportProductId] = useState<string | null>(supportSettings.support_product_id ?? null)
+
+  function setSupportPreset(index: number, value: number) {
+    setSupportPresetPesos((current) => current.map((amount, i) => i === index ? value : amount))
+    mark()
+  }
 
   // Auto-poll DNS every 8s after domain is saved, until live or 5 min elapsed
   function startDomainPolling() {
@@ -887,11 +918,12 @@ export default function ShopSettingsPanel({
     try {
       const res = await fetch('/api/sell/shop/domain')
       if (!res.ok) return false
-      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null; verified?: boolean }
+      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null; verified?: boolean; hint?: string | null }
       const ok = data.dns_ok ?? false
       setDomainDnsOk(ok)
       setDomainSslReady(!!data.verified)
       setDomainCnameCurrent(data.cname_current ?? null)
+      setDomainHint(data.hint ?? null)
       setDomainLastChecked(new Date())
       // Keep polling until DNS *and* the SSL cert are both ready.
       return ok && !!data.verified
@@ -920,6 +952,7 @@ export default function ShopSettingsPanel({
       setDomainDnsOk(false)   // never trust Vercel's `verified` — always confirm via DNS
       setDomainSslReady(false)
       setDomainCnameCurrent(null)
+      setDomainHint(null)
       setDomainLastChecked(null)
       setDetectedRegistrar(null)
       setCfSuccess(false)
@@ -968,7 +1001,7 @@ export default function ShopSettingsPanel({
       if (!res.ok) { const d = await res.json() as { error?: string }; setDomainError(d.error ?? 'Error.'); return }
       setSavedDomain(''); setDomainInput(''); setDomainDnsOk(false); setDomainSslReady(false)
       setDomainEditing(false)
-      setDomainCnameCurrent(null); setDomainLastChecked(null)
+      setDomainCnameCurrent(null); setDomainHint(null); setDomainLastChecked(null)
       setDomainRemovedNote(removed)
     } catch { setDomainError('Sin conexión. Verifica tu internet.') }
     finally { setDomainRemoving(false) }
@@ -1313,13 +1346,29 @@ export default function ShopSettingsPanel({
 
   async function handleSave() {
     const errors: Record<string, string> = {}
+    const supportPresetCents = supportPresetPesos.map(amount => Math.round(Number(amount) * 100))
+    const supportMinCents = Math.round(Number(supportCustomMinPesos) * 100)
+    const supportMaxCents = Math.round(Number(supportCustomMaxPesos) * 100)
+
     if (name.trim().length < 2)     errors.name = 'El nombre debe tener al menos 2 caracteres.'
     if (description.length > 500)   errors.description = 'Máximo 500 caracteres.'
     if (webhookUrl.trim() && !webhookUrl.trim().startsWith('https://')) {
       errors.webhook = 'La URL del webhook debe usar HTTPS.'
     }
+    if (supportEnabled) {
+      if (supportPresetCents.length !== 3 || supportPresetCents.some(amount => !Number.isFinite(amount) || amount <= 0)) {
+        errors.support = 'Configura exactamente tres montos de apoyo válidos.'
+      } else if (!Number.isFinite(supportMinCents) || !Number.isFinite(supportMaxCents) || supportMinCents < 100 || supportMinCents > supportMaxCents) {
+        errors.support = 'Revisa el mínimo y máximo de apoyo.'
+      } else if (supportMaxCents > 500000) {
+        errors.support = 'El máximo de apoyo no puede superar $5,000 MXN.'
+      } else if (supportPresetCents.some(amount => amount < supportMinCents || amount > supportMaxCents)) {
+        errors.support = 'Los montos sugeridos deben estar dentro del rango personalizado.'
+      }
+    }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
+      if (errors.support) scrollToSection('apoyo')
       if (errors.webhook) scrollToSection('webhook')
       return
     }
@@ -1330,6 +1379,13 @@ export default function ShopSettingsPanel({
       secretToSave = generateHex32()
       setWebhookSecret(secretToSave)
     }
+    const safeSupportPresetCents = supportPresetCents.every(amount => Number.isFinite(amount) && amount > 0)
+      ? supportPresetCents
+      : [5000, 10000, 20000]
+    const safeSupportMinCents = Number.isFinite(supportMinCents) ? Math.max(100, supportMinCents) : 2000
+    const safeSupportMaxCents = Number.isFinite(supportMaxCents)
+      ? Math.max(safeSupportMinCents, supportMaxCents)
+      : 500000
 
     setSaving(true)
     try {
@@ -1407,6 +1463,15 @@ export default function ShopSettingsPanel({
               enabled: bundlesEnabled,
               tiers:   bundleTiers.filter(t => t.min_items >= 2 && t.percent_off > 0).sort((a, b) => a.min_items - b.min_items),
             },
+            support: {
+              enabled: supportEnabled,
+              preset_amount_cents: safeSupportPresetCents,
+              custom_min_cents: safeSupportMinCents,
+              custom_max_cents: safeSupportMaxCents,
+              currency: 'MXN',
+              default_visibility: supportDefaultVisibility,
+              support_product_id: supportProductId,
+            },
             scheduling:   { links: schedulingLinks },
             orders: {
               processing_time:     processingTime,
@@ -1434,11 +1499,12 @@ export default function ShopSettingsPanel({
           },
         }),
       })
-      const data = await res.json() as { error?: string; field?: string }
+      const data = await res.json() as { error?: string; field?: string; support_product_id?: string }
       if (!res.ok) {
         if (data.field) setFieldErrors({ [data.field]: data.error ?? 'Error.' })
         else showToast(data.error ?? 'Error al guardar.', 'error')
       } else {
+        if (data.support_product_id) setSupportProductId(data.support_product_id)
         showToast('Cambios guardados correctamente.', 'success')
         setIsDirty(false)
       }
@@ -3667,13 +3733,23 @@ export default function ShopSettingsPanel({
                       }
                     </p>
 
-                    {/* Fix hints for the error / unverified states (US-1) */}
+                    {/* Fix hints for the proxied / error / unverified states (US-1) */}
+                    {domainHint === 'proxied' && (
+                      <div className="mb-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
+                        <span className="text-orange-500 flex-shrink-0 mt-0.5">🟠</span>
+                        <p className="text-xs text-orange-700">
+                          Tu dominio está detrás del proxy de Cloudflare (la nube naranja). Desactívalo
+                          para que quede en <span className="font-medium">DNS only</span> (nube gris) — Vercel necesita
+                          ver tu dominio directamente para emitir el certificado SSL.
+                        </p>
+                      </div>
+                    )}
                     {domainStatus === 'error' && domainCnameCurrent && (
                       <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
                         <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
                         <p className="text-xs text-red-700">
-                          Tu CNAME apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
-                          Cámbialo a <span className="font-mono">cname.vercel-dns.com</span> para conectar tu tienda.
+                          Tu {dnsRecord?.type ?? 'CNAME'} apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
+                          Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? 'cname.vercel-dns.com'}</span> para conectar tu tienda.
                         </p>
                       </div>
                     )}
@@ -4019,7 +4095,26 @@ export default function ShopSettingsPanel({
           </section>
 
           {/* ════════════════════════════════════════════════════════════════════
-              SECTION 13b: Embeddable widget — snippet generator (Sprint 3)
+              SECTION 13b: Support widget
+          ════════════════════════════════════════════════════════════════════ */}
+          <SupportWidgetSection
+            enabled={supportEnabled}
+            presetPesos={supportPresetPesos}
+            customMinPesos={supportCustomMinPesos}
+            customMaxPesos={supportCustomMaxPesos}
+            defaultVisibility={supportDefaultVisibility}
+            accent={accentColor}
+            error={fieldErrors.support}
+            supportProductId={supportProductId}
+            onEnabledChange={(value) => { setSupportEnabled(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onPresetPesosChange={(index, value) => { setSupportPreset(index, value); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onCustomMinPesosChange={(value) => { setSupportCustomMinPesos(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onCustomMaxPesosChange={(value) => { setSupportCustomMaxPesos(value); mark(); setFieldErrors(p => ({ ...p, support: '' })) }}
+            onDefaultVisibilityChange={(value) => { setSupportDefaultVisibility(value); mark() }}
+          />
+
+          {/* ════════════════════════════════════════════════════════════════════
+              SECTION 13c: Embeddable widget — snippet generator (Sprint 3)
           ════════════════════════════════════════════════════════════════════ */}
           <EmbedSnippetSection slug={shopSlug} accent={accentColor} />
 

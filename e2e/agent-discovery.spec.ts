@@ -11,12 +11,13 @@ test.describe('Agent discovery surface', () => {
     expect(res.ok()).toBeTruthy()
     const m = await res.json()
     expect(m.capabilities).toEqual(
-      expect.arrayContaining(['seller_configuration', 'scheduling', 'buyer_trust', 'mcp_server']),
+      expect.arrayContaining(['seller_configuration', 'scheduling', 'buyer_trust', 'support_widget', 'mcp_server']),
     )
     const tools: string[] = m.endpoints.mcp.mcp_tools
-    expect(tools).toEqual(expect.arrayContaining(['get_store_configuration', 'patch_store_configuration']))
-    expect(tools.length).toBeGreaterThanOrEqual(11)
+    expect(tools).toEqual(expect.arrayContaining(['get_store_configuration', 'patch_store_configuration', 'get_support_options', 'create_support_checkout']))
+    expect(tools.length).toBeGreaterThanOrEqual(13)
     expect(m.endpoints.seller_configuration).toBeTruthy()
+    expect(m.endpoints.support_widget.checkout_url).toContain('/api/embed/support/checkout')
   })
 
   test('/agent briefing uses the real MCP URL and no stale endpoints', async ({ request }) => {
@@ -43,7 +44,7 @@ test.describe('Agent discovery surface', () => {
     })
     expect(list.ok()).toBeTruthy()
     const names: string[] = (await list.json()).result.tools.map((t: { name: string }) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['get_store_configuration', 'patch_store_configuration']))
+    expect(names).toEqual(expect.arrayContaining(['get_store_configuration', 'patch_store_configuration', 'get_support_options', 'create_support_checkout']))
 
     const call = await request.post('/api/ucp/mcp', {
       data: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'get_store_configuration', arguments: {} } },

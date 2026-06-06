@@ -4,6 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+import { normalizeSupportSettings } from '@/lib/support-widget'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -186,6 +187,15 @@ interface ShopUpdatePayload {
       shipping_paid_by?: 'buyer' | 'seller'
       custom_note?: string | null
     } | null
+    support?: {
+      enabled?: boolean
+      preset_amount_cents?: number[]
+      custom_min_cents?: number
+      custom_max_cents?: number
+      currency?: string
+      default_visibility?: 'public' | 'private'
+      support_product_id?: string | null
+    }
   }
 }
 
@@ -225,6 +235,8 @@ export async function PATCH(req: NextRequest) {
   const existingSettings = (existingMeta.settings ?? {}) as Record<string, unknown>
 
   let settingsOverride = body.settings ? (body.settings as Record<string, unknown>) : {}
+  let clerkJwtForMedusa: string | null = null
+  let supportProductId: string | null = null
 
   const checkoutOverride = (settingsOverride.checkout ?? null) as Record<string, unknown> | null
   if (checkoutOverride && Object.prototype.hasOwnProperty.call(checkoutOverride, 'show_email')) {
@@ -241,6 +253,39 @@ export async function PATCH(req: NextRequest) {
         contact_email: checkoutOverride.show_email === true ? email : null,
       },
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(settingsOverride, 'support')) {
+    const normalizedSupport = normalizeSupportSettings(settingsOverride.support)
+    if (!normalizedSupport.ok) {
+      return NextResponse.json(
+        { error: normalizedSupport.error, field: normalizedSupport.field },
+        { status: 422 },
+      )
+    }
+
+    let supportSettings = normalizedSupport.settings
+    if (supportSettings.enabled) {
+      clerkJwtForMedusa = await getToken()
+      if (!clerkJwtForMedusa) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+
+      const provisionRes = await medusaFetch('/store/sellers/me/support-product', clerkJwtForMedusa, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      const provisionData = await provisionRes.json().catch(() => ({})) as { product_id?: string; message?: string }
+      if (!provisionRes.ok || !provisionData.product_id) {
+        console.error('[sell/shop] support product provision failed:', provisionRes.status, provisionData)
+        return NextResponse.json(
+          { error: provisionData.message ?? 'No se pudo preparar el producto de apoyos.', field: 'support' },
+          { status: 502 },
+        )
+      }
+      supportProductId = provisionData.product_id
+      supportSettings = { ...supportSettings, support_product_id: supportProductId }
+    }
+
+    settingsOverride = { ...settingsOverride, support: supportSettings }
   }
 
   // Merge stripe_enabled into metadata.settings.stripe
@@ -276,7 +321,7 @@ export async function PATCH(req: NextRequest) {
 
   // ── Sync profile fields to Medusa seller record (non-fatal) ─────────────────
   try {
-    const clerkJwt = await getToken()
+    const clerkJwt = clerkJwtForMedusa ?? await getToken()
     if (clerkJwt) {
       const medusaPayload: Record<string, unknown> = {}
       if (body.name !== undefined) medusaPayload.name = body.name.trim()
@@ -303,7 +348,7 @@ export async function PATCH(req: NextRequest) {
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ...(supportProductId ? { support_product_id: supportProductId } : {}) })
 }
 
 // ── Utility: shallow/deep merge ───────────────────────────────────────────────

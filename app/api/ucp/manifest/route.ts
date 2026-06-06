@@ -85,6 +85,23 @@ export async function GET(req: NextRequest) {
           body: { listingId: 'string' },
         },
 
+        support_widget: {
+          method: 'GET+POST',
+          url: `${base}/api/embed/support`,
+          checkout_url: `${base}/api/embed/support/checkout`,
+          description: 'Discover a seller support widget by publishable embed key and initiate a guest support contribution with hosted Stripe or Mercado Pago checkout.',
+          auth: 'none',
+          body: {
+            embed_key: 'emb_pk_...',
+            amount_cents: 'number — support amount in centavos',
+            supporter_email: 'string — required for receipt',
+            supporter_name: 'string (optional)',
+            message: 'string (optional, max 250 chars)',
+            visibility: 'public | private',
+            provider: 'stripe | mercadopago',
+          },
+        },
+
         make_offer: {
           method: 'POST',
           url: `${base}/api/offers`,

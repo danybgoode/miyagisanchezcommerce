@@ -140,6 +140,34 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_support_options',
+    description: 'Discover a seller support widget by publishable embed key. Returns public shop identity, preset support amounts, min/max custom amount, default visibility, and available hosted payment providers.',
+    inputSchema: {
+      type: 'object',
+      required: ['embed_key'],
+      properties: {
+        embed_key: { type: 'string', description: 'Publishable support/embed key, shaped like emb_pk_...' },
+      },
+    },
+  },
+  {
+    name: 'create_support_checkout',
+    description: 'Initiate a guest support contribution checkout for a seller support widget. Uses the same validation and hosted Stripe/Mercado Pago handoff as <miyagi-support-widget>; no Miyagi account is required.',
+    inputSchema: {
+      type: 'object',
+      required: ['embed_key', 'amount_cents', 'supporter_email'],
+      properties: {
+        embed_key: { type: 'string', description: 'Publishable support/embed key, shaped like emb_pk_...' },
+        amount_cents: { type: 'number', description: 'Contribution amount in centavos (e.g. 10000 = $100 MXN)' },
+        provider: { type: 'string', enum: ['mercadopago', 'stripe'], default: 'mercadopago' },
+        supporter_email: { type: 'string', description: 'Email for receipt' },
+        supporter_name: { type: 'string', description: 'Optional display name' },
+        message: { type: 'string', description: 'Optional message, max 250 characters' },
+        visibility: { type: 'string', enum: ['public', 'private'], default: 'public' },
+      },
+    },
+  },
+  {
     name: 'make_offer',
     description: "Submit a price offer on a listing. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
     inputSchema: {
@@ -483,6 +511,79 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     const data = await res.json() as { checkoutUrl?: string; error?: string }
     if (!res.ok || !data.checkoutUrl) return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${data.error ?? 'Unknown error'}` }] }
     return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n**Abre este enlace para completar el pago:**\n${data.checkoutUrl}\n\nEl enlace es válido por 30 minutos.` }] }
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+}
+
+async function handleGetSupportOptions(args: Record<string, unknown>, baseUrl: string) {
+  const embedKey = String(args.embed_key ?? '')
+  if (!embedKey) {
+    return { isError: true, content: [{ type: 'text', text: 'embed_key es obligatorio.' }] }
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/api/embed/support?key=${encodeURIComponent(embedKey)}`, {
+      headers: { 'x-miyagi-embed-key': embedKey },
+    })
+    const data = await res.json()
+    if (!res.ok || !data.valid) {
+      return { isError: true, content: [{ type: 'text', text: 'Apoyos no disponibles para esta llave.' }] }
+    }
+
+    const support = data.support ?? {}
+    const providers = data.payment_providers ?? {}
+    const presets = Array.isArray(support.preset_amount_cents)
+      ? support.preset_amount_cents.map((amount: number) => `$${Math.round(amount / 100)} ${support.currency ?? 'MXN'}`).join(', ')
+      : 'No configurados'
+    const availableProviders = [
+      providers.mercadopago && 'Mercado Pago',
+      providers.stripe && 'Stripe',
+    ].filter(Boolean).join(', ') || 'Ninguno'
+
+    const summary = [
+      `## Apoyos para ${data.shop?.name ?? 'esta tienda'}`,
+      `**Montos sugeridos:** ${presets}`,
+      `**Rango personalizado:** $${Math.round((support.custom_min_cents ?? 0) / 100)} - $${Math.round((support.custom_max_cents ?? 0) / 100)} ${support.currency ?? 'MXN'}`,
+      `**Visibilidad predeterminada:** ${support.default_visibility === 'private' ? 'privado' : 'público'}`,
+      `**Métodos disponibles:** ${availableProviders}`,
+    ].join('\n\n')
+
+    return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(data, null, 2) }] }
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+}
+
+async function handleCreateSupportCheckout(args: Record<string, unknown>, baseUrl: string) {
+  const embedKey = String(args.embed_key ?? '')
+  const amountCents = Math.round(Number(args.amount_cents ?? 0))
+  const supporterEmail = String(args.supporter_email ?? '')
+  const provider = String(args.provider ?? 'mercadopago')
+  if (!embedKey || !amountCents || !supporterEmail) {
+    return { isError: true, content: [{ type: 'text', text: 'Faltan campos requeridos: embed_key, amount_cents, supporter_email.' }] }
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/api/embed/support/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-miyagi-embed-key': embedKey },
+      body: JSON.stringify({
+        embed_key: embedKey,
+        amount_cents: amountCents,
+        provider,
+        supporter_email: supporterEmail,
+        supporter_name: args.supporter_name ? String(args.supporter_name) : undefined,
+        message: args.message ? String(args.message) : undefined,
+        visibility: args.visibility === 'private' ? 'private' : 'public',
+      }),
+    })
+    const data = await res.json() as { checkout_url?: string; redirect_url?: string; error?: string }
+    const checkoutUrl = data.checkout_url ?? data.redirect_url
+    if (!res.ok || !checkoutUrl) {
+      return { isError: true, content: [{ type: 'text', text: `Support checkout failed: ${data.error ?? 'Unknown error'}` }] }
+    }
+    return { content: [{ type: 'text', text: `✅ Checkout de apoyo listo.\n\n**Abre este enlace para completar el apoyo:**\n${checkoutUrl}` }] }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
   }
@@ -1160,6 +1261,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
       case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
       case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
+      case 'get_support_options':  return { content: (await handleGetSupportOptions(args, baseUrl)).content }
+      case 'create_support_checkout': return { content: (await handleCreateSupportCheckout(args, baseUrl)).content }
       case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl, authHeader)).content }
       case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
