@@ -1,5 +1,21 @@
 import 'server-only'
 import { db } from './supabase'
+import { generateShortCode } from './shortlink'
+
+/** Mint a short code not yet used by any listing (for mschz.org/[code]). */
+async function ensureUniqueShortCode(): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const code = generateShortCode()
+    const { data } = await db
+      .from('marketplace_listings')
+      .select('id')
+      .contains('metadata', { short_code: code })
+      .maybeSingle()
+    if (!data) return code
+  }
+  // Extremely unlikely; widen the code rather than fail the mirror sync.
+  return generateShortCode(9)
+}
 
 export interface MedusaSellerForMirror {
   id: string
@@ -158,10 +174,25 @@ export async function syncSupabaseListingMirror(
   shopId: string,
   listing: ListingForMirror,
 ) {
+  // Preserve an existing short code; mint one for new listings (the mschz.org/[code]
+  // short link — every listing gets one).
+  const { data: existing } = await db
+    .from('marketplace_listings')
+    .select('id, metadata')
+    .eq('medusa_product_id', listing.id)
+    .maybeSingle()
+
+  const existingMeta = (existing?.metadata ?? {}) as Record<string, unknown>
+  const shortCode = (typeof existingMeta.short_code === 'string' && existingMeta.short_code)
+    || await ensureUniqueShortCode()
+
   const metadata = {
     ...(listing.metadata ?? {}),
     source: 'medusa',
     medusa_product_id: listing.id,
+    short_code: shortCode,
+    // Keep a seller-set custom slug if one already exists (US-4).
+    ...(typeof existingMeta.short_slug === 'string' ? { short_slug: existingMeta.short_slug } : {}),
   }
 
   const payload = {
@@ -183,12 +214,6 @@ export async function syncSupabaseListingMirror(
     metadata,
     updated_at: new Date().toISOString(),
   }
-
-  const { data: existing } = await db
-    .from('marketplace_listings')
-    .select('id')
-    .eq('medusa_product_id', listing.id)
-    .maybeSingle()
 
   if (existing) {
     const { error } = await db
