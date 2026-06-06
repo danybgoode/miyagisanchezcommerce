@@ -54,6 +54,9 @@ test.describe('Embed widget — loader script', () => {
     expect(body).toContain("position:fixed")
     expect(body).toContain("safe-area-inset-bottom")
     expect(body).toContain("data-preview")
+    expect(body).toContain("data-preview-state")
+    expect(body).toContain("prepareModalState")
+    expect(body).toContain("preview_checkout")
   })
 
   test('loader threads data-accent + data-locale and is bilingual (US-7)', async ({ request }) => {
