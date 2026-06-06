@@ -8,6 +8,8 @@
  * `sellerId` may be a seller id OR slug (the backend resolves either).
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { isEnabled } from '@/lib/flags'
+import { applyPaymentKillSwitches } from '@/lib/checkout-killswitch'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY     = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -30,9 +32,16 @@ export async function GET(req: NextRequest) {
       { headers: { 'x-publishable-api-key': PUB_KEY } },
     )
     const data = await upstream.json().catch(() => null)
-    return NextResponse.json(data ?? { error: 'Respuesta inválida del servidor.' }, {
-      status: upstream.status,
-    })
+    if (data == null) {
+      return NextResponse.json({ error: 'Respuesta inválida del servidor.' }, { status: upstream.status })
+    }
+    // Apply platform kill-switches to the success payload. The flag read is
+    // fail-open (isEnabled → true if Flagsmith is unreachable), so Stripe is
+    // only ever removed on a deliberate dashboard toggle. Error bodies (no
+    // payment_methods array) pass through untouched.
+    const stripeEnabled = upstream.ok ? await isEnabled('checkout.stripe_enabled') : true
+    const filtered = applyPaymentKillSwitches(data, { stripeEnabled })
+    return NextResponse.json(filtered, { status: upstream.status })
   } catch (err) {
     console.error('[checkout/options] backend unreachable:', err)
     return NextResponse.json(

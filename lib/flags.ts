@@ -1,0 +1,71 @@
+/**
+ * lib/flags.ts
+ *
+ * The platform's feature-flag / kill-switch layer, backed by Flagsmith
+ * (SaaS, project "miyagisanchezmarketplace"). See the spike decision:
+ * Roadmap/00-ideas/2. readyforscope/spikeflagsmith.md.
+ *
+ * Design rules (non-negotiable — from the spike):
+ *  1. FAIL-OPEN. Every read falls back to DEFAULT_FLAGS. Flagsmith being
+ *     unreachable, slow, or missing the flag must NEVER break a request —
+ *     especially checkout. Kill-switches default to ENABLED (feature stays on).
+ *  2. SERVER-ONLY, environment-level. v1 is admin-only: no per-identity traits,
+ *     no per-shop segments. We evaluate the environment's flags, in-process.
+ *  3. LOCAL EVALUATION. The SDK fetches the environment document and evaluates
+ *     in-memory (~0 ms per request, refreshed every 60 s) — so flag reads add no
+ *     latency to the request path and request volume != Flagsmith API volume.
+ *
+ * Runtime: Node only (the SDK is not Edge-compatible). Call this from route
+ * handlers / server components, NOT from middleware (Edge).
+ */
+import 'server-only'
+import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
+
+/** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
+export type FlagKey = 'checkout.stripe_enabled'
+
+/**
+ * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
+ * network error, flag absent). For a kill-switch the safe default is `true`
+ * (the feature keeps working if the flag service is down).
+ */
+const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
+  'checkout.stripe_enabled': true,
+}
+
+const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
+
+let client: Flagsmith | null = null
+
+function getClient(): Flagsmith | null {
+  // No server-side environment key configured → run on defaults (local dev,
+  // preview without the secret, etc.). Never throw.
+  if (!ENV_KEY) return null
+  if (client) return client
+  client = new Flagsmith({
+    environmentKey: ENV_KEY,
+    enableLocalEvaluation: true,
+    environmentRefreshIntervalSeconds: 60,
+    // Per-flag fail-open inside the SDK, in case a flag is missing from the env.
+    defaultFlagHandler: (flagKey: string) =>
+      new DefaultFlag(null, DEFAULT_FLAGS[flagKey as FlagKey] ?? true),
+  })
+  return client
+}
+
+/**
+ * Is a feature enabled? Never throws — returns the fail-open default on any
+ * error or when Flagsmith isn't configured.
+ */
+export async function isEnabled(flag: FlagKey): Promise<boolean> {
+  const fallback = DEFAULT_FLAGS[flag]
+  const c = getClient()
+  if (!c) return fallback
+  try {
+    const flags = await c.getEnvironmentFlags()
+    return flags.isFeatureEnabled(flag)
+  } catch {
+    // Flagsmith unreachable / timed out / malformed → fail open.
+    return fallback
+  }
+}
