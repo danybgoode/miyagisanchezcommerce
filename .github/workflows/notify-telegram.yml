@@ -1,0 +1,179 @@
+name: Notify Telegram
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Push notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CICD_CHAT_ID: ${{ secrets.TELEGRAM_CICD_CHAT_ID }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          ACTOR_HANDLE: ${{ github.actor }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          HEAD_COMMIT_URL: ${{ github.event.head_commit.url }}
+        run: |
+          # Telegram is observability only; this step must never fail the workflow.
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CICD_CHAT_ID:-}" ]; then
+            echo "Telegram CI/CD secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          esc() {
+            local s="${1:-}"
+            s="${s//&/&amp;}"
+            s="${s//</&lt;}"
+            s="${s//>/&gt;}"
+            printf '%s' "$s"
+          }
+
+          short_sha="${GITHUB_SHA:0:7}"
+          commit_header="$(printf '%s' "${HEAD_COMMIT_MESSAGE:-Push to main}" | sed -n '1p')"
+          if [ -z "$commit_header" ]; then
+            commit_header="Push to main"
+          fi
+          commit_url="${HEAD_COMMIT_URL:-https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}}"
+
+          message="$(printf '<b>%s</b> · 📦 · <code>%s</code>\n%s\nAuthor: <code>%s</code>\n<a href="%s">View commit diff</a>' \
+            "$(esc "$REPOSITORY_NAME")" \
+            "$(esc "$short_sha")" \
+            "$(esc "$commit_header")" \
+            "$(esc "@$ACTOR_HANDLE")" \
+            "$(esc "$commit_url")")"
+
+          curl --silent --connect-timeout 5 --max-time 10 \
+            --request POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CICD_CHAT_ID}" \
+            --data-urlencode "text=${message}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            >/dev/null 2>&1 || true
+
+          exit 0
+
+  vercel-production-deploy:
+    name: Vercel production deploy notification
+    runs-on: ubuntu-latest
+    needs: notify
+    steps:
+      - name: Poll Vercel production deploy and notify Telegram
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CICD_CHAT_ID: ${{ secrets.TELEGRAM_CICD_CHAT_ID }}
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || vars.VERCEL_TEAM_ID }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          # Vercel webhooks are Pro-only; poll the API for this production deploy.
+          # Telegram is observability only; this step must never fail the workflow.
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CICD_CHAT_ID:-}" ]; then
+            echo "Telegram CI/CD secrets are not configured; skipping deploy notification."
+            exit 0
+          fi
+          if [ -z "${VERCEL_API_TOKEN:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "Vercel API secrets/vars are not configured; skipping deploy notification."
+            exit 0
+          fi
+
+          esc() {
+            local s="${1:-}"
+            s="${s//&/&amp;}"
+            s="${s//</&lt;}"
+            s="${s//>/&gt;}"
+            printf '%s' "$s"
+          }
+
+          send_telegram() {
+            local text="$1"
+            curl --silent --connect-timeout 5 --max-time 10 \
+              --request POST \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CICD_CHAT_ID}" \
+              --data-urlencode "text=${text}" \
+              --data-urlencode "parse_mode=HTML" \
+              --data-urlencode "disable_web_page_preview=true" \
+              >/dev/null 2>&1 || true
+          }
+
+          short_sha="${GITHUB_SHA:0:7}"
+          commit_header="$(printf '%s' "${HEAD_COMMIT_MESSAGE:-Push to main}" | sed -n '1p')"
+          if [ -z "$commit_header" ]; then
+            commit_header="Push to main"
+          fi
+
+          team_query=""
+          if [ -n "${VERCEL_TEAM_ID:-}" ]; then
+            team_query="&teamId=${VERCEL_TEAM_ID}"
+          fi
+          deployments_url="https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}${team_query}&target=production&limit=20"
+
+          echo "Waiting for Vercel production deployment of commit ${short_sha}..."
+          terminal_state=""
+          deploy_url=""
+
+          for i in $(seq 1 60); do
+            resp="$(curl --silent --connect-timeout 5 --max-time 15 \
+              -H "Authorization: Bearer ${VERCEL_API_TOKEN}" \
+              "$deployments_url" 2>/dev/null || true)"
+
+            state="$(printf '%s' "$resp" | jq -r --arg s "$GITHUB_SHA" \
+              'first(.deployments[]? | select(.meta.githubCommitSha==$s)) | (.state // .readyState) // ""' 2>/dev/null || true)"
+            url="$(printf '%s' "$resp" | jq -r --arg s "$GITHUB_SHA" \
+              'first(.deployments[]? | select(.meta.githubCommitSha==$s)) | .url // ""' 2>/dev/null || true)"
+
+            echo "  attempt $i: state=${state:-<none>} url=${url:-<none>}"
+
+            if [ -n "$url" ]; then
+              case "$url" in
+                http*) deploy_url="$url" ;;
+                *) deploy_url="https://$url" ;;
+              esac
+            fi
+
+            case "$state" in
+              READY|ERROR|CANCELED|CANCELLED)
+                terminal_state="$state"
+                break ;;
+            esac
+
+            sleep 15
+          done
+
+          if [ -z "$terminal_state" ]; then
+            echo "Timed out waiting for Vercel production deployment of ${GITHUB_SHA}; leaving workflow green."
+            exit 0
+          fi
+
+          case "$terminal_state" in
+            READY) status_label="✅ READY" ;;
+            ERROR) status_label="❌ ERROR" ;;
+            CANCELED|CANCELLED) status_label="❌ CANCELED" ;;
+            *) status_label="⚠️ ${terminal_state}" ;;
+          esac
+
+          if [ -z "$deploy_url" ]; then
+            deploy_url="https://vercel.com"
+          fi
+
+          message="$(printf '<b>%s</b> · 🚀 · <code>%s</code>\n%s\n<b>Status:</b> %s\n<a href="%s">View production deploy</a>' \
+            "$(esc "$REPOSITORY_NAME")" \
+            "$(esc "$short_sha")" \
+            "$(esc "$commit_header")" \
+            "$(esc "$status_label")" \
+            "$(esc "$deploy_url")")"
+
+          send_telegram "$message"
+          exit 0
