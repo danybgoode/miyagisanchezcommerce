@@ -55,6 +55,30 @@ export type VercelDomainStatus = {
   error: string | null
 }
 
+/**
+ * Vercel's live view of how a domain's DNS is actually configured — the
+ * authoritative source for "does this point at us and can we issue a cert?".
+ * Returned by GET /v6/domains/{domain}/config. Immune to per-project CNAME /
+ * apex-IP drift and to Cloudflare CNAME-flattening, which a raw `dns.resolve*`
+ * check is not.
+ */
+export type VercelDomainConfig = {
+  /** false = configured AND a TLS cert can be issued (i.e. genuinely live). */
+  misconfigured: boolean
+  /**
+   * How Vercel currently sees the domain resolving:
+   *  - 'A' / 'CNAME' — pointing at us correctly
+   *  - 'http'        — resolves to us but behind a proxy (e.g. Cloudflare's
+   *                    "orange cloud") → cert issuance blocked
+   *  - 'dns-01'/null — not resolving to us yet
+   */
+  configuredBy: 'A' | 'CNAME' | 'http' | 'dns-01' | null
+  /** Project-specific recommended apex A-record IPs (rank 1 first). */
+  recommendedIPv4: string[]
+  /** Project-specific recommended subdomain CNAME target (rank 1). */
+  recommendedCNAME: string | null
+}
+
 // ── addDomainToProject ───────────────────────────────────────────────────────
 
 /**
@@ -120,6 +144,44 @@ export async function getDomainStatus(domain: string): Promise<VercelDomainStatu
   }
 
   return normalizeDomainResponse(data)
+}
+
+// ── getDomainConfig ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch Vercel's live DNS-configuration view for a domain. This is the source of
+ * truth for "is it pointing at us" — `misconfigured: false` means it resolves to
+ * Vercel AND a TLS cert can be issued, which a raw `dns.resolve*` check can't tell
+ * us (it's blind to per-project CNAME targets, the apex anycast IP changing, and
+ * Cloudflare CNAME-flattening). Also surfaces the project-specific recommended
+ * records so we write/show exactly what this project expects.
+ */
+export async function getDomainConfig(domain: string): Promise<VercelDomainConfig> {
+  const res = await fetch(
+    `${API}/v6/domains/${encodeURIComponent(domain)}/config`,
+    { headers: headers() }
+  )
+  const data = await res.json() as Record<string, unknown>
+
+  if (!res.ok) {
+    throw new Error(
+      ((data.error as Record<string, unknown> | undefined)?.message as string | undefined)
+      ?? `Vercel API error ${res.status}`
+    )
+  }
+
+  // recommendedIPv4: Array<{ rank, value: string[] }>; recommendedCNAME: Array<{ rank, value: string }>
+  const ipv4 = (data.recommendedIPv4 as Array<{ rank?: number; value?: string[] }> | undefined) ?? []
+  const cname = (data.recommendedCNAME as Array<{ rank?: number; value?: string }> | undefined) ?? []
+  const topIpv4 = [...ipv4].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))[0]?.value ?? []
+  const topCname = [...cname].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))[0]?.value ?? null
+
+  return {
+    misconfigured: !!data.misconfigured,
+    configuredBy: (data.configuredBy as VercelDomainConfig['configuredBy']) ?? null,
+    recommendedIPv4: topIpv4,
+    recommendedCNAME: topCname,
+  }
 }
 
 // ── removeDomainFromProject ──────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { SHOP_DOMAINS_TAG } from '@/lib/custom-domain'
 import {
   addDomainToProject,
   getDomainStatus,
+  getDomainConfig,
   removeDomainFromProject,
   DomainConflictError,
 } from '@/lib/vercel-domains'
@@ -34,17 +35,22 @@ async function getShopForUser(clerkUserId: string) {
 }
 
 /**
- * Server-side DNS check — the source of truth for "live". Resolves on the
- * server so we get a real answer the browser can't fake.
+ * Server-side "is this domain live?" check.
  *
- * `dns_ok` is true when the domain points at Vercel by EITHER path:
- *  - a CNAME to `cname.vercel-dns.com` (the only valid setup for a subdomain), or
- *  - an A record resolving to Vercel's anycast IP — which also covers an apex
- *    using Cloudflare's CNAME-flattening (it surfaces as that A record).
- * `cname_current` is kept for diagnostics: if a CNAME exists but points
- * elsewhere, the UI can tell the seller exactly what to fix.
+ * Source of truth = Vercel's own config view (`misconfigured === false` means it
+ * resolves to us AND a TLS cert can be issued). This is immune to per-project
+ * CNAME targets, the apex anycast IP changing, and Cloudflare CNAME-flattening —
+ * all of which a raw `dns.resolve*` check gets wrong. We keep a best-effort
+ * `dns.resolveCname` only for the diagnostic `cname_current` the UI shows, and we
+ * surface a `hint` so the seller knows exactly what to fix:
+ *  - `proxied` — domain is behind a proxy (Cloudflare "orange cloud"); must be
+ *    DNS-only for Vercel to issue the certificate.
+ * If Vercel's config endpoint is unreachable we fall back to the legacy direct
+ * DNS check so the status poll never hard-fails.
  */
-async function checkDns(domain: string): Promise<{ dns_ok: boolean; cname_current: string | null }> {
+async function checkDns(
+  domain: string,
+): Promise<{ dns_ok: boolean; cname_current: string | null; hint: string | null }> {
   let cname_current: string | null = null
   try {
     const records = await dns.resolveCname(domain)
@@ -53,19 +59,25 @@ async function checkDns(domain: string): Promise<{ dns_ok: boolean; cname_curren
     // No CNAME (apex A-record setups have none) or domain doesn't exist yet.
   }
 
-  if (cname_current === CNAME_TARGET) return { dns_ok: true, cname_current }
-
-  // Apex (and CNAME-flattened) domains resolve to Vercel's A record.
-  if (isApexDomain(domain)) {
-    try {
-      const a = await dns.resolve4(domain)
-      if (a.includes(APEX_A_RECORD)) return { dns_ok: true, cname_current }
-    } catch {
-      // No A record yet.
+  try {
+    const cfg = await getDomainConfig(domain)
+    if (!cfg.misconfigured) return { dns_ok: true, cname_current, hint: null }
+    // Resolves to us but behind a proxy → cert can't be issued. Tell them why.
+    if (cfg.configuredBy === 'http') return { dns_ok: false, cname_current, hint: 'proxied' }
+    return { dns_ok: false, cname_current, hint: null }
+  } catch {
+    // Vercel config unreachable — fall back to the legacy direct DNS lookup.
+    if (cname_current === CNAME_TARGET) return { dns_ok: true, cname_current, hint: null }
+    if (isApexDomain(domain)) {
+      try {
+        const a = await dns.resolve4(domain)
+        if (a.includes(APEX_A_RECORD)) return { dns_ok: true, cname_current, hint: null }
+      } catch {
+        // No A record yet.
+      }
     }
+    return { dns_ok: false, cname_current, hint: null }
   }
-
-  return { dns_ok: false, cname_current }
 }
 
 // ── POST — save domain & provision on Vercel ─────────────────────────────────
@@ -180,7 +192,7 @@ export async function GET(req: NextRequest) {
   // Vercel's `verified` field just means "domain is registered on the project"
   // (and, once true, that the SSL cert is issued) — NOT that DNS is live. Only
   // update DB when our own lookup confirms the domain points at us.
-  const { dns_ok, cname_current } = await checkDns(domain)
+  const { dns_ok, cname_current, hint } = await checkDns(domain)
 
   if (dns_ok && !shop.custom_domain_verified) {
     // DNS just went live — mark verified in DB
@@ -204,6 +216,7 @@ export async function GET(req: NextRequest) {
     dns_ok,
     cname_target: vercelStatus.cname_target,
     cname_current,
+    hint,
     verification: vercelStatus.verification,
   })
 }

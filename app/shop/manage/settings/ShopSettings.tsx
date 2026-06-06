@@ -847,6 +847,8 @@ export default function ShopSettingsPanel({
   // issued. A fresh status fetch on mount (below) corrects this if it's not true.
   const [domainSslReady, setDomainSslReady]         = useState(initial.custom_domain_verified ?? false)
   const [domainCnameCurrent, setDomainCnameCurrent] = useState<string | null>(null)
+  // A specific fix hint from the server, e.g. 'proxied' (Cloudflare orange cloud).
+  const [domainHint, setDomainHint]                 = useState<string | null>(null)
   const [domainSaving, setDomainSaving]             = useState(false)
   const [domainChecking, setDomainChecking]         = useState(false)
   const [domainRemoving, setDomainRemoving]         = useState(false)
@@ -908,11 +910,12 @@ export default function ShopSettingsPanel({
     try {
       const res = await fetch('/api/sell/shop/domain')
       if (!res.ok) return false
-      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null; verified?: boolean }
+      const data = await res.json() as { dns_ok?: boolean; cname_current?: string | null; verified?: boolean; hint?: string | null }
       const ok = data.dns_ok ?? false
       setDomainDnsOk(ok)
       setDomainSslReady(!!data.verified)
       setDomainCnameCurrent(data.cname_current ?? null)
+      setDomainHint(data.hint ?? null)
       setDomainLastChecked(new Date())
       // Keep polling until DNS *and* the SSL cert are both ready.
       return ok && !!data.verified
@@ -941,6 +944,7 @@ export default function ShopSettingsPanel({
       setDomainDnsOk(false)   // never trust Vercel's `verified` — always confirm via DNS
       setDomainSslReady(false)
       setDomainCnameCurrent(null)
+      setDomainHint(null)
       setDomainLastChecked(null)
       setDetectedRegistrar(null)
       setCfSuccess(false)
@@ -989,7 +993,7 @@ export default function ShopSettingsPanel({
       if (!res.ok) { const d = await res.json() as { error?: string }; setDomainError(d.error ?? 'Error.'); return }
       setSavedDomain(''); setDomainInput(''); setDomainDnsOk(false); setDomainSslReady(false)
       setDomainEditing(false)
-      setDomainCnameCurrent(null); setDomainLastChecked(null)
+      setDomainCnameCurrent(null); setDomainHint(null); setDomainLastChecked(null)
       setDomainRemovedNote(removed)
     } catch { setDomainError('Sin conexión. Verifica tu internet.') }
     finally { setDomainRemoving(false) }
@@ -3625,13 +3629,23 @@ export default function ShopSettingsPanel({
                       }
                     </p>
 
-                    {/* Fix hints for the error / unverified states (US-1) */}
+                    {/* Fix hints for the proxied / error / unverified states (US-1) */}
+                    {domainHint === 'proxied' && (
+                      <div className="mb-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
+                        <span className="text-orange-500 flex-shrink-0 mt-0.5">🟠</span>
+                        <p className="text-xs text-orange-700">
+                          Tu dominio está detrás del proxy de Cloudflare (la nube naranja). Desactívalo
+                          para que quede en <span className="font-medium">DNS only</span> (nube gris) — Vercel necesita
+                          ver tu dominio directamente para emitir el certificado SSL.
+                        </p>
+                      </div>
+                    )}
                     {domainStatus === 'error' && domainCnameCurrent && (
                       <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
                         <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
                         <p className="text-xs text-red-700">
-                          Tu CNAME apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
-                          Cámbialo a <span className="font-mono">cname.vercel-dns.com</span> para conectar tu tienda.
+                          Tu {dnsRecord?.type ?? 'CNAME'} apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
+                          Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? 'cname.vercel-dns.com'}</span> para conectar tu tienda.
                         </p>
                       </div>
                     )}

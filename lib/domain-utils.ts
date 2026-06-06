@@ -11,9 +11,15 @@
  * isn't mistaken for a subdomain.
  */
 
-/** CNAME target a subdomain must point to. */
+// These are generic fallbacks. At runtime the domain route and the Cloudflare
+// automation prefer Vercel's *project-specific* recommended records from
+// `getDomainConfig()` (lib/vercel-domains.ts) — Vercel now issues per-project
+// CNAME targets and the apex IP can change, so the live value is authoritative
+// and these constants are only used when that API is unreachable.
+
+/** CNAME target a subdomain must point to (generic fallback). */
 export const CNAME_TARGET = 'cname.vercel-dns.com'
-/** A-record IP a true apex must point to (Vercel anycast). */
+/** A-record IP a true apex must point to — Vercel anycast (generic fallback). */
 export const APEX_A_RECORD = '76.76.21.21'
 
 // Two-label public suffixes that must be treated as a single TLD.
