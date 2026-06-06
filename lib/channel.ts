@@ -9,6 +9,7 @@
  */
 
 import type { NextRequest } from 'next/server'
+import { shopSlugFromHost } from '@/lib/subdomain'
 
 export type ChannelSource = 'marketplace' | 'custom_domain' | 'subdomain' | 'embed' | 'api'
 
@@ -49,6 +50,10 @@ export function detectChannel(req: NextRequest): ChannelSource {
   if (origin) {
     try {
       const host = new URL(origin).hostname
+      // A shop subdomain (slug.miyagisanchez.com) — checked before the platform
+      // rule below, since it also ends with `.miyagisanchez.com`. Keeps the buyer
+      // hop from a subdomain attributed as `subdomain`, not `marketplace`.
+      if (shopSlugFromHost(host)) return 'subdomain'
       if (PLATFORM_HOSTS.some(h => host === h || host.endsWith('.' + h))) {
         return 'marketplace'
       }
