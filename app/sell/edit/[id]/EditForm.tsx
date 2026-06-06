@@ -7,6 +7,15 @@ import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { CITIES_BY_STATE } from '@/lib/types'
 import PersonalizationSection from './PersonalizationSection'
 import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
+import { SlugField, type SlugStatus } from '@/components/SlugField'
+
+interface ShortlinkInfo {
+  shopSlug: string
+  /** Auto short code (always present after backfill). */
+  code: string
+  /** Seller-set custom slug (optional, preferred over the code). */
+  slug: string
+}
 
 interface EditableFields {
   title: string
@@ -24,7 +33,7 @@ interface EditableFields {
   estado_code?: string
 }
 
-export default function EditForm({ id, initial }: { id: string; initial: EditableFields }) {
+export default function EditForm({ id, initial, shortlink }: { id: string; initial: EditableFields; shortlink?: ShortlinkInfo }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
   const [description, setDescription] = useState(initial.description ?? '')
@@ -53,6 +62,13 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
 
+  // Product short link (mschz.org/[slug || code]) — US-3b/US-4
+  const [shortSlug, setShortSlug] = useState(shortlink?.slug ?? '')
+  const [shortStatus, setShortStatus] = useState<SlugStatus>('idle')
+  const [shortCopied, setShortCopied] = useState(false)
+  const shortSeg = shortSlug.trim() || shortlink?.code || ''
+  const shortUrl = shortSeg ? `mschz.org/${shortSeg}` : ''
+
   const isSubscription = initial.listing_type === 'subscription'
   const isDigital = initial.listing_type === 'digital'
   const isProduct = initial.listing_type === 'product'
@@ -72,6 +88,9 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       const cents = parsePriceCents(priceRaw)
       if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
     }
+    if (shortStatus === 'taken' || shortStatus === 'invalid') {
+      errs.short_slug = 'Corrige el enlace corto antes de guardar.'
+    }
     setFieldErrors(errs)
     if (Object.keys(errs).length > 0) return
 
@@ -90,6 +109,7 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
         estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : null,
         municipio: listingCity.trim() || null,
         custom_fields: sanitizeFieldDefs(customFields),
+        ...(shortlink ? { short_slug: shortSlug.trim() || null } : {}),
       }
       if (!priceReadOnly) {
         body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
@@ -197,6 +217,42 @@ export default function EditForm({ id, initial }: { id: string; initial: Editabl
       {/* Personalization fields — buyer-entered custom inputs (not for subscriptions) */}
       {!isSubscription && (
         <PersonalizationSection fields={customFields} setFields={setCustomFields} />
+      )}
+
+      {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}
+      {shortlink && (
+        <div className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-surface-alt)]">
+          <h3 className="text-sm font-medium mb-1">Enlace corto del producto</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+              {shortUrl}
+            </code>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(`https://${shortUrl}`); setShortCopied(true); setTimeout(() => setShortCopied(false), 2000) }}
+              className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-white'}`}
+            >
+              {shortCopied ? '✓ Copiado' : 'Copiar'}
+            </button>
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mt-2">
+            Compártelo en redes y mensajes. Por defecto usa un código; personalízalo si quieres:
+          </p>
+          <div className="mt-3">
+            <SlugField
+              value={shortSlug}
+              onChange={setShortSlug}
+              currentSlug={shortlink.slug || undefined}
+              onStatusChange={setShortStatus}
+              label="Personaliza el enlace (opcional)"
+              prefix="mschz.org/"
+              checkUrl={`/api/sell/shortlink/check?excludeListing=${id}`}
+              placeholder={shortlink.code}
+              successText="¡Disponible!"
+            />
+            {fieldErrors.short_slug && <p className="text-xs text-red-600 mt-1">{fieldErrors.short_slug}</p>}
+          </div>
+        </div>
       )}
 
       {/* Price */}
