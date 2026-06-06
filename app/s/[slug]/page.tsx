@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
+import { getSlugRedirect } from '@/lib/slug-redirect'
 import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import type { Metadata } from 'next'
@@ -68,7 +69,13 @@ function SocialLinks({ social }: { social: Social }) {
 export default async function ShopPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const shop = await getShop(slug)
-  if (!shop) notFound()
+  if (!shop) {
+    // The shop may have been renamed — 301 a retired slug to its current one for
+    // 90 days so old links/business cards keep working (US-4).
+    const current = await getSlugRedirect(slug)
+    if (current) permanentRedirect(`/s/${current}`)
+    notFound()
+  }
 
   // SEO continuity: if this shop has a LIVE custom domain and we're being viewed
   // on the marketplace host (not already on that domain), 308-redirect legacy

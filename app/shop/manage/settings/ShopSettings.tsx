@@ -7,6 +7,7 @@ import SupportWidgetSection from './SupportWidgetSection'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 import { dnsRecordFor } from '@/lib/domain-utils'
+import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -839,7 +840,14 @@ export default function ShopSettingsPanel({
   // Source of truth: domainDnsOk = our own DNS lookup confirmed live (CNAME for a
   // subdomain, or the Vercel A record for an apex). Vercel's `verified` flag only
   // means "registered on project + SSL issued" — surfaced separately as domainSslReady.
-  const [shopSlug]                                  = useState(initial.slug ?? '')
+  const [shopSlug, setShopSlug]                     = useState(initial.slug ?? '')
+  // Slug editor (US-3) + free-URL display (US-5)
+  const [slugEditing, setSlugEditing]               = useState(false)
+  const [slugInput, setSlugInput]                   = useState(initial.slug ?? '')
+  const [slugStatus, setSlugStatus]                 = useState<SlugStatus>('idle')
+  const [slugSaving, setSlugSaving]                 = useState(false)
+  const [slugError, setSlugError]                   = useState<string | null>(null)
+  const [slugCopied, setSlugCopied]                 = useState(false)
   const [domainInput, setDomainInput]               = useState(initial.custom_domain ?? '')
   const [savedDomain, setSavedDomain]               = useState(initial.custom_domain ?? '')
   const [domainDnsOk, setDomainDnsOk]               = useState(initial.custom_domain_verified ?? false)
@@ -1014,6 +1022,33 @@ export default function ShopSettingsPanel({
     } catch { setCfError('Sin conexión.') }
     finally { setCfSaving(false) }
   }
+
+  // ── Slug editor (US-3) ──────────────────────────────────────────────────
+  const shopUrl = `miyagisanchez.com/s/${shopSlug}`
+  function startSlugEdit() { setSlugInput(shopSlug); setSlugStatus('idle'); setSlugError(null); setSlugEditing(true) }
+  function cancelSlugEdit() { setSlugInput(shopSlug); setSlugEditing(false); setSlugError(null) }
+  function copyShopUrl() {
+    navigator.clipboard.writeText(`https://${shopUrl}`)
+    setSlugCopied(true); setTimeout(() => setSlugCopied(false), 2000)
+  }
+  async function handleSlugSave() {
+    const next = slugInput.trim().toLowerCase()
+    if (next === shopSlug) { setSlugEditing(false); return }
+    setSlugSaving(true); setSlugError(null)
+    try {
+      const res = await fetch('/api/sell/shop/slug', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: next }),
+      })
+      const data = await res.json() as { slug?: string; error?: string }
+      if (!res.ok || !data.slug) { setSlugError(data.error ?? 'No se pudo cambiar.'); return }
+      setShopSlug(data.slug)
+      setSlugEditing(false)
+    } catch { setSlugError('Sin conexión. Intenta de nuevo.') }
+    finally { setSlugSaving(false) }
+  }
+  const slugSaveBlocked = slugSaving || slugStatus === 'taken' || slugStatus === 'invalid' || slugStatus === 'checking'
 
   // The exact DNS record this domain needs (A at @ for apex, CNAME on the
   // sub-label for a subdomain). Drives the record card + all the guides (US-5).
@@ -3503,6 +3538,75 @@ export default function ShopSettingsPanel({
             </div>
 
             <div className="px-5 py-5 space-y-6">
+
+              {/* ══ Free shop URL (slug) — US-3 / US-5 ═══════════════════════════ */}
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] p-4">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="text-sm font-medium">Tu URL gratis</h3>
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">Incluida</span>
+                </div>
+                {!slugEditing ? (
+                  <>
+                    <div className="flex items-center gap-2 mt-2">
+                      <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+                        {shopUrl}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copyShopUrl}
+                        className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${slugCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
+                      >
+                        {slugCopied ? '✓ Copiado' : 'Copiar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startSlugEdit}
+                        className="text-xs px-3 py-2 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] whitespace-nowrap"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                    <p className="text-xs text-[var(--color-muted)] mt-2">
+                      Compártela en redes y tarjetas. ¿Quieres tu propio dominio sin <span className="font-mono">/s/</span>?{' '}
+                      <a href="#canal" onClick={(e) => { e.preventDefault(); document.getElementById('canal')?.scrollIntoView({ behavior: 'smooth' }) }} className="text-[var(--color-accent)] hover:underline">
+                        Mejora a dominio propio ↓
+                      </a>
+                    </p>
+                  </>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    <SlugField
+                      value={slugInput}
+                      onChange={setSlugInput}
+                      currentSlug={shopSlug}
+                      onStatusChange={setSlugStatus}
+                      label="Elige tu nueva URL"
+                      autoFocus
+                    />
+                    {slugError && <p className="text-xs text-red-600">{slugError}</p>}
+                    <p className="text-xs text-[var(--color-muted)]">
+                      Tu URL anterior seguirá redirigiendo aquí por 90 días.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSlugSave}
+                        disabled={slugSaveBlocked}
+                        className="text-xs px-4 py-2 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {slugSaving ? 'Guardando…' : 'Guardar URL'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelSlugEdit}
+                        className="text-xs px-4 py-2 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* ══ STEP 1 — Enter domain ════════════════════════════════════════ */}
               <div className="flex gap-2 items-start">

@@ -22,6 +22,7 @@ function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
 interface CreatePayload {
   createShop?: {
     name: string
+    slug?: string
     state: string
     city?: string
     description?: string
@@ -131,6 +132,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         body: JSON.stringify({
           name: shopName,
+          ...(body.createShop?.slug?.trim() && { slug: body.createShop.slug.trim() }),
           description: body.createShop?.description?.trim() || null,
           location,
         }),
