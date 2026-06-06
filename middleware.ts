@@ -4,6 +4,9 @@ import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { shopSlugFromHost, ROOT_DOMAIN } from '@/lib/subdomain'
 import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
+import {
+  isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
+} from '@/lib/shortlink'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -104,6 +107,52 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       '<!doctype html><html><head><title>Not found</title></head><body><p>Shop not found.</p></body></html>',
       { status: 404, headers: { 'Content-Type': 'text/html' } },
     )
+  }
+
+  // ── Short links: mschz.org/[x] ───────────────────────────────────────────
+  // Ultra-short branded redirector. Resolve the first path segment and 301 to the
+  // canonical storefront URL (shop slug → retired alias → product short-slug →
+  // product short-code); empty → home; unknown → branded 404. We target the
+  // platform canonical (/s/[slug], /l/[id]) and let those pages handle any custom-
+  // domain consolidation. Inline lookups (no unstable_cache in middleware).
+  if (isShortLinkHost(hostname)) {
+    const seg = firstSegment(req.nextUrl.pathname)
+    if (!seg) return NextResponse.redirect(HOME_TARGET, 301)
+
+    let target: string | null = null
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      // 1) Live shop slug.
+      const { data: shop } = await supabase
+        .from('marketplace_shops').select('slug').eq('slug', seg).maybeSingle()
+      if (shop?.slug) {
+        target = shopTarget(shop.slug)
+      } else {
+        // 2) Retired shop slug (90-day alias).
+        const { data: aliasShop } = await supabase
+          .from('marketplace_shops').select('slug, metadata')
+          .contains('metadata', { previous_slug_keys: [seg] }).limit(1).maybeSingle()
+        if (aliasShop?.slug) {
+          const prev = ((aliasShop.metadata as Record<string, unknown> | null)?.previous_slugs ?? []) as PreviousSlug[]
+          const current = pickAliasTarget(String(aliasShop.slug), prev, seg)
+          if (current) target = shopTarget(current)
+        }
+        // 3) Product custom slug, then short code.
+        if (!target) {
+          const { data: bySlug } = await supabase
+            .from('marketplace_listings').select('medusa_product_id')
+            .contains('metadata', { short_slug: seg }).limit(1).maybeSingle()
+          const { data: byCode } = bySlug ? { data: bySlug } : await supabase
+            .from('marketplace_listings').select('medusa_product_id')
+            .contains('metadata', { short_code: seg }).limit(1).maybeSingle()
+          if (byCode?.medusa_product_id) target = listingTarget(String(byCode.medusa_product_id))
+        }
+      }
+    } catch {
+      // DB unreachable → fall through to the branded 404 (never 500 a hit).
+    }
+
+    return NextResponse.redirect(target ?? NOT_FOUND_TARGET, 301)
   }
 
   // ── Custom domain routing ────────────────────────────────────────────────
