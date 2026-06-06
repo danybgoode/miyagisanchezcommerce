@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 
 const ORIGIN = 'https://miyagisanchez.com'
 
 type Visibility = 'public' | 'private'
+type WidgetPosition = 'bottom-right' | 'bottom-left'
 
 function moneyInput(onChange: (value: number) => void) {
   return (event: ChangeEvent<HTMLInputElement>) => {
@@ -59,6 +60,8 @@ export default function SupportWidgetSection({
   const [key, setKey] = useState<string | null>(null)
   const [loadingKey, setLoadingKey] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [position, setPosition] = useState<WidgetPosition>('bottom-right')
+  const scriptLoaded = useRef(false)
 
   useEffect(() => {
     let alive = true
@@ -76,11 +79,27 @@ export default function SupportWidgetSection({
     return () => { alive = false }
   }, [])
 
+  useEffect(() => {
+    if (scriptLoaded.current || typeof document === 'undefined') return
+    if (document.querySelector('script[data-miyagi-embed]')) {
+      scriptLoaded.current = true
+      return
+    }
+    const script = document.createElement('script')
+    script.src = `${window.location.origin}/embed.js`
+    script.async = true
+    script.setAttribute('data-miyagi-embed', '1')
+    document.head.appendChild(script)
+    scriptLoaded.current = true
+  }, [])
+
   const k = key ?? 'emb_pk_...'
   const accentAttr = accent && accent !== '#111' ? ` data-accent="${accent}"` : ''
+  const positionAttr = ` data-position="${position}"`
+  const previewKey = `${k}|${enabled}|${presetPesos.join(',')}|${customMinPesos}|${customMaxPesos}|${defaultVisibility}|${accent}|${position}`
   const snippet =
     `<script src="${ORIGIN}/embed.js" async></script>\n` +
-    `<miyagi-support-widget data-key="${k}"${accentAttr}></miyagi-support-widget>`
+    `<miyagi-support-widget data-key="${k}"${accentAttr}${positionAttr}></miyagi-support-widget>`
 
   async function copySnippet() {
     try {
@@ -210,6 +229,56 @@ export default function SupportWidgetSection({
             </button>
           </div>
           <pre className="overflow-x-auto whitespace-pre-wrap break-all bg-white p-3 font-mono text-xs text-[var(--color-foreground)]">{snippet}</pre>
+        </div>
+
+        <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-alt)] px-3 py-2">
+            <div>
+              <p className="text-sm font-semibold">Vista previa</p>
+              <p className="text-xs text-[var(--color-muted)]">Así se verá el botón flotante en una página externa.</p>
+            </div>
+            <div className="grid grid-cols-2 overflow-hidden rounded-md border border-[var(--color-border)] bg-white">
+              {([
+                ['bottom-right', 'Derecha'],
+                ['bottom-left', 'Izquierda'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPosition(value)}
+                  className={`px-3 py-1.5 text-xs font-semibold ${position === value ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="relative h-[320px] overflow-hidden bg-white">
+            <div className="absolute inset-0 p-5">
+              <div className="mb-4 h-5 w-36 rounded bg-[var(--color-surface-alt)]" />
+              <div className="mb-2 h-3 w-11/12 rounded bg-[var(--color-surface-alt)]" />
+              <div className="mb-2 h-3 w-4/5 rounded bg-[var(--color-surface-alt)]" />
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="h-24 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)]" />
+                <div className="h-24 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)]" />
+              </div>
+            </div>
+            {createElement('miyagi-support-widget', {
+              key: previewKey,
+              'data-preview': 'true',
+              'data-layout': 'preview',
+              'data-position': position,
+              'data-key': k,
+              'data-accent': accent,
+              'data-preview-enabled': enabled ? 'true' : 'false',
+              'data-preview-presets': presetPesos.map((value) => Math.round(value * 100)).join(','),
+              'data-preview-min': String(Math.round(customMinPesos * 100)),
+              'data-preview-max': String(Math.round(customMaxPesos * 100)),
+              'data-preview-currency': 'MXN',
+              'data-preview-visibility': defaultVisibility,
+              'data-preview-shop': 'tu tienda',
+            })}
+          </div>
         </div>
       </div>
     </section>
