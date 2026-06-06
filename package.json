@@ -25,6 +25,7 @@
     "@types/web-push": "^3.6.4",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
+    "flagsmith-nodejs": "^8.1.0",
     "jszip": "^3.10.1",
     "mercadopago": "^3.0.0",
     "next": "16.2.6",
