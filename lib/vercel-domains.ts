@@ -123,34 +123,6 @@ export async function addDomainToProject(domain: string): Promise<VercelDomainSt
   return normalizeDomainResponse(data)
 }
 
-// ── registerShopSubdomain ────────────────────────────────────────────────────
-
-/**
- * Register `<slug>.miyagisanchez.com` on the Vercel project so Vercel serves it
- * with a per-host TLS cert (issued once DNS resolves via the GoDaddy `*` CNAME).
- * Every shop's slug doubles as a free subdomain (the subdomains epic).
- *
- * **Best-effort, never throws** — the subdomain is a bonus channel, so a Vercel
- * hiccup must not break shop creation or a slug change. `addDomainToProject` is
- * idempotent (a domain already on the project just returns its status), so this
- * is safe to call repeatedly. Returns true on success.
- */
-export async function registerShopSubdomain(slug: string): Promise<boolean> {
-  const s = slug.trim().toLowerCase()
-  if (!s) return false
-  if (!process.env.VERCEL_API_TOKEN || !process.env.VERCEL_PROJECT_ID) return false
-  try {
-    await addDomainToProject(`${s}.${SHOP_SUBDOMAIN_ROOT}`)
-    return true
-  } catch (err) {
-    console.error('[vercel-domains] registerShopSubdomain failed for', s, err)
-    return false
-  }
-}
-
-/** Root the shop subdomains live under. */
-export const SHOP_SUBDOMAIN_ROOT = 'miyagisanchez.com'
-
 // ── getDomainStatus ──────────────────────────────────────────────────────────
 
 /**
