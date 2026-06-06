@@ -122,6 +122,11 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
 
       <EditForm
         id={medusaProductId}
+        shortlink={{
+          shopSlug: shopData?.slug ?? '',
+          code: (listing.metadata?.short_code as string | undefined) ?? '',
+          slug: (listing.metadata?.short_slug as string | undefined) ?? '',
+        }}
         initial={{
           title: listing.title,
           description: listing.description ?? '',
