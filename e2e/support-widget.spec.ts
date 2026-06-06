@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   coerceSupportSettings,
   normalizeSupportSettings,
@@ -113,5 +115,11 @@ test.describe('Support widget — public API fail-closed behavior', () => {
     expect(res.headers()['access-control-allow-origin']).toBe('*')
     const body = await res.json()
     expect(body.error).toContain('Apoyos')
+  })
+
+  test('support checkout lets Medusa resolve the support seller', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/embed/support/checkout/route.ts'), 'utf8')
+    expect(source).toContain('productId: support.support_product_id')
+    expect(source).not.toContain('sellerId: shop.id')
   })
 })

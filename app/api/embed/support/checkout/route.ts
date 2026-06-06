@@ -105,7 +105,6 @@ export async function POST(req: NextRequest) {
   try {
     const result = await startCheckout({
       productId: support.support_product_id,
-      sellerId: shop.id,
       provider,
       buyerEmail: supporterEmail,
       fulfillmentMethod: 'digital',

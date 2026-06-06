@@ -174,12 +174,62 @@
     )
   }
 
-  function supportStyle(accent) {
+  function supportLayout(value) {
+    return value === 'inline' || value === 'preview' ? value : 'floating'
+  }
+
+  function supportPosition(value) {
+    return value === 'bottom-left' ? 'bottom-left' : 'bottom-right'
+  }
+
+  function previewSupportConfig(el) {
+    var enabled = el.getAttribute('data-preview-enabled') !== 'false'
+    var presets = String(el.getAttribute('data-preview-presets') || '')
+      .split(',')
+      .map(function (v) { return Math.round(Number(v)) })
+      .filter(function (v) { return Number.isFinite(v) && v > 0 })
+    if (presets.length !== 3) presets = [5000, 10000, 20000]
+    return {
+      valid: true,
+      shop: {
+        name: el.getAttribute('data-preview-shop') || '',
+        accent_color: el.getAttribute('data-accent') || '#111',
+      },
+      support: {
+        enabled: enabled,
+        preset_amount_cents: presets,
+        custom_min_cents: Math.round(Number(el.getAttribute('data-preview-min') || 2000)),
+        custom_max_cents: Math.round(Number(el.getAttribute('data-preview-max') || 500000)),
+        currency: el.getAttribute('data-preview-currency') || 'MXN',
+        default_visibility: el.getAttribute('data-preview-visibility') === 'private' ? 'private' : 'public',
+      },
+      payment_providers: { stripe: enabled, mercadopago: enabled },
+    }
+  }
+
+  function supportStyle(accent, layout, position) {
+    var left = position === 'bottom-left'
+    var side = left ? 'left' : 'right'
+    var sideInset = left ? 'safe-area-inset-left' : 'safe-area-inset-right'
+    var hostStyle = layout === 'inline'
+      ? ':host{display:inline-block}'
+      : layout === 'preview'
+        ? ':host{position:absolute;inset:0;display:block;z-index:1;pointer-events:none}'
+        : ':host{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));' +
+          side + ':calc(24px + env(' + sideInset + '));display:block;z-index:2147483646}'
+    var launcherStyle = layout === 'preview'
+      ? '.mi-support-btn{position:absolute;bottom:16px;' + side + ':16px;pointer-events:auto}'
+      : '.mi-support-btn{}'
+    var backdropPosition = layout === 'preview' ? 'absolute' : 'fixed'
+    var mobileHostStyle = layout === 'floating'
+      ? ':host{bottom:calc(16px + env(safe-area-inset-bottom));' + side + ':calc(16px + env(' + sideInset + '))}'
+      : ''
     return baseStyle(accent) +
-      ':host{display:inline-block}' +
+      hostStyle +
+      launcherStyle +
       '.mi-support-btn{box-shadow:0 8px 20px rgba(0,0,0,.12)}' +
-      '.mi-backdrop{position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.46);' +
-      'display:flex;align-items:center;justify-content:center;padding:18px}' +
+      '.mi-backdrop{position:' + backdropPosition + ';inset:0;z-index:2147483647;background:rgba(15,23,42,.46);' +
+      'display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:auto}' +
       '.mi-modal{width:min(420px,100%);max-height:min(720px,calc(100vh - 24px));overflow:auto;' +
       'background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);color:#111}' +
       '.mi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 10px}' +
@@ -200,7 +250,8 @@
       '.mi-note{font-size:11px;color:#667085;text-align:center}.mi-error{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;' +
       'border-radius:10px;padding:9px 10px;font-size:13px}.mi-success{padding:24px 18px 26px;text-align:center}.mi-success h3{margin:0 0 8px;' +
       'font-size:20px;color:#111}.mi-success p{margin:0;color:#667085;font-size:14px}.mi-pop{font-size:34px;margin-bottom:10px}' +
-      '@media(max-width:480px){.mi-backdrop{align-items:flex-end;padding:0}.mi-modal{border-radius:18px 18px 0 0;max-height:calc(100vh - 16px)}}'
+      '@media(max-width:480px){' + mobileHostStyle +
+      '.mi-backdrop{align-items:flex-end;padding:0}.mi-modal{border-radius:18px 18px 0 0;max-height:calc(100vh - 16px)}}'
   }
 
   // ── <miyagi-support-widget> ────────────────────────────────────────────────
@@ -215,6 +266,8 @@
         this._key = this.getAttribute('data-key')
         this._accent = this.getAttribute('data-accent') || '#111'
         this._label = this.getAttribute('data-label')
+        this._layout = supportLayout(this.getAttribute('data-layout') || (this.getAttribute('data-preview') === 'true' ? 'preview' : 'floating'))
+        this._position = supportPosition(this.getAttribute('data-position'))
         this._open = false
         this._success = false
         this._pendingCartId = null
@@ -231,6 +284,11 @@
         window.addEventListener('message', this._onMessage)
 
         this.renderLoading()
+        if (this.getAttribute('data-preview') === 'true') {
+          this._config = previewSupportConfig(this)
+          this.render()
+          return
+        }
         if (!this._key) {
           this.renderUnavailable('miyagi-support-widget: data-key required')
           return
@@ -251,12 +309,12 @@
       }
 
       renderLoading() {
-        this._root.innerHTML = '<style>' + supportStyle(this._accent) + '</style>' +
+        this._root.innerHTML = '<style>' + supportStyle(this._accent, this._layout, this._position) + '</style>' +
           '<span class="mi-skel">' + esc(t(this._locale, 'loading')) + '</span>'
       }
 
       renderUnavailable(message) {
-        this._root.innerHTML = '<style>' + supportStyle(this._accent) + '</style>' +
+        this._root.innerHTML = '<style>' + supportStyle(this._accent, this._layout, this._position) + '</style>' +
           '<span class="mi-err">' + esc(message || t(this._locale, 'support_unavailable')) + '</span>'
       }
 
@@ -390,7 +448,7 @@
         var hasProvider = !!(providers.stripe || providers.mercadopago)
         var shopName = config.shop && config.shop.name ? config.shop.name : ''
         var buttonLabel = this._label || t(this._locale, 'support')
-        var html = '<style>' + supportStyle(this._accent) + '</style>' +
+        var html = '<style>' + supportStyle(this._accent, this._layout, this._position) + '</style>' +
           '<button class="mi-btn mi-support-btn" type="button"' + (!hasProvider ? ' disabled' : '') + ' data-open>' +
           '<span>' + esc(buttonLabel) + '</span></button>'
 

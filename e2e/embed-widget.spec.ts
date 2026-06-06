@@ -45,6 +45,17 @@ test.describe('Embed widget — loader script', () => {
     expect(body).toContain('miyagi:support:success')
   })
 
+  test('support widget launcher floats by default and still supports inline placement', async ({ request }) => {
+    const body = await (await request.get('/embed.js')).text()
+    expect(body).toContain("supportLayout(value)")
+    expect(body).toContain("supportPosition(value)")
+    expect(body).toContain("value === 'inline'")
+    expect(body).toContain("value === 'bottom-left'")
+    expect(body).toContain("position:fixed")
+    expect(body).toContain("safe-area-inset-bottom")
+    expect(body).toContain("data-preview")
+  })
+
   test('loader threads data-accent + data-locale and is bilingual (US-7)', async ({ request }) => {
     const body = await (await request.get('/embed.js')).text()
     // Brand accent + locale are read from the element's data- attributes.
