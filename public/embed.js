@@ -61,6 +61,7 @@
       provider_unavailable: 'Este vendedor aún no tiene pagos activos.',
       support_unavailable: 'Apoyos no disponibles', support_success: '¡Gracias por apoyar!',
       support_success_body: 'Tu contribución quedó registrada.',
+      preview_checkout: 'Vista previa: aquí se abriría el pago seguro.',
     },
     en: {
       buy: 'Buy now', view: 'View listing', sold: 'Sold out',
@@ -79,6 +80,7 @@
       provider_unavailable: 'This seller has not enabled payments yet.',
       support_unavailable: 'Support unavailable', support_success: 'Thank you for the support!',
       support_success_body: 'Your contribution was recorded.',
+      preview_checkout: 'Preview: secure payment would open here.',
     },
   }
   function conditionLabel(locale, condition) {
@@ -268,6 +270,8 @@
         this._label = this.getAttribute('data-label')
         this._layout = supportLayout(this.getAttribute('data-layout') || (this.getAttribute('data-preview') === 'true' ? 'preview' : 'floating'))
         this._position = supportPosition(this.getAttribute('data-position'))
+        this._preview = this.getAttribute('data-preview') === 'true'
+        this._previewState = this.getAttribute('data-preview-state') === 'open' ? 'open' : 'closed'
         this._open = false
         this._success = false
         this._pendingCartId = null
@@ -284,8 +288,9 @@
         window.addEventListener('message', this._onMessage)
 
         this.renderLoading()
-        if (this.getAttribute('data-preview') === 'true') {
+        if (this._preview) {
           this._config = previewSupportConfig(this)
+          if (this._previewState === 'open') this.prepareModalState()
           this.render()
           return
         }
@@ -318,7 +323,7 @@
           '<span class="mi-err">' + esc(message || t(this._locale, 'support_unavailable')) + '</span>'
       }
 
-      openModal() {
+      prepareModalState() {
         var config = this._config || {}
         var support = config.support || {}
         var presets = support.preset_amount_cents || [5000, 10000, 20000]
@@ -334,6 +339,10 @@
           error: '',
           busy: false,
         }
+      }
+
+      openModal() {
+        this.prepareModalState()
         this.render()
       }
 
@@ -385,6 +394,11 @@
         var support = config.support || {}
         this.syncFields()
         var state = this._state || {}
+        if (this._preview) {
+          state.error = t(this._locale, 'preview_checkout')
+          this.render()
+          return
+        }
         var amount = state.custom_pesos && String(state.custom_pesos).trim()
           ? Math.round(Number(state.custom_pesos) * 100)
           : state.amount_cents
