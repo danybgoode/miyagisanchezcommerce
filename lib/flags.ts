@@ -35,23 +35,26 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
 
-let client: Flagsmith | null = null
-
-function getClient(): Flagsmith | null {
-  // No server-side environment key configured → run on defaults (local dev,
-  // preview without the secret, etc.). Never throw.
-  if (!ENV_KEY) return null
-  if (client) return client
-  client = new Flagsmith({
-    environmentKey: ENV_KEY,
-    enableLocalEvaluation: true,
-    environmentRefreshIntervalSeconds: 60,
-    // Per-flag fail-open inside the SDK, in case a flag is missing from the env.
-    defaultFlagHandler: (flagKey: string) =>
-      new DefaultFlag(null, DEFAULT_FLAGS[flagKey as FlagKey] ?? true),
-  })
-  return client
-}
+// Constructed once at module load. Module evaluation is single-threaded, so this
+// sidesteps the check-then-set race a lazy getter would have — where concurrent
+// first requests on a cold instance each build a client and leak its 60 s polling
+// timer. `null` when no server-side key is configured (local dev / preview
+// without the secret) → isEnabled() simply runs on DEFAULT_FLAGS.
+const client: Flagsmith | null = ENV_KEY
+  ? new Flagsmith({
+      environmentKey: ENV_KEY,
+      enableLocalEvaluation: true,
+      environmentRefreshIntervalSeconds: 60,
+      // Fail FAST on the checkout path: if Flagsmith hangs, give up after ~2 s and
+      // fall back to defaults rather than blocking the request. The SDK default is
+      // 3 retries × 10 s timeout (+ 1 s delays) ≈ 33 s — unacceptable on checkout.
+      requestTimeoutSeconds: 2,
+      retries: 0,
+      // Per-flag fail-open inside the SDK, in case a flag is missing from the env.
+      defaultFlagHandler: (flagKey: string) =>
+        new DefaultFlag(null, DEFAULT_FLAGS[flagKey as FlagKey] ?? true),
+    })
+  : null
 
 /**
  * Is a feature enabled? Never throws — returns the fail-open default on any
@@ -59,10 +62,9 @@ function getClient(): Flagsmith | null {
  */
 export async function isEnabled(flag: FlagKey): Promise<boolean> {
   const fallback = DEFAULT_FLAGS[flag]
-  const c = getClient()
-  if (!c) return fallback
+  if (!client) return fallback
   try {
-    const flags = await c.getEnvironmentFlags()
+    const flags = await client.getEnvironmentFlags()
     return flags.isFeatureEnabled(flag)
   } catch {
     // Flagsmith unreachable / timed out / malformed → fail open.
