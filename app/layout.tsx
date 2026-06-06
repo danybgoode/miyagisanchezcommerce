@@ -96,10 +96,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isEmbed = hdrs.get('x-miyagi-embed') === '1'
   const platformPath = hdrs.get('x-miyagi-path') ?? '/'
 
-  // Custom-domain ("own channel") requests are also white-label: middleware tags
-  // them with the resolved shop slug so we drop platform chrome here and wrap the
-  // WHOLE storefront (homepage, PDP, cart, account…) in the shop's branded shell.
-  const isChannel = hdrs.get('x-miyagi-channel') === 'custom'
+  // Custom-domain ("own channel") AND subdomain (slug.miyagisanchez.com) requests
+  // are white-label: middleware tags them with the resolved shop slug so we drop
+  // platform chrome here and wrap the WHOLE storefront (homepage, PDP, cart,
+  // account…) in the shop's branded shell.
+  const channel = hdrs.get('x-miyagi-channel')
+  const isChannel = channel === 'custom' || channel === 'subdomain'
   const channelSlug = hdrs.get('x-miyagi-shop-slug') ?? ''
   const channelDomain = hdrs.get('x-miyagi-domain') ?? ''
   const channelShop = isChannel && channelSlug ? await getShop(channelSlug) : null

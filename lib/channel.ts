@@ -9,8 +9,9 @@
  */
 
 import type { NextRequest } from 'next/server'
+import { shopSlugFromHost } from '@/lib/subdomain'
 
-export type ChannelSource = 'marketplace' | 'custom_domain' | 'embed' | 'api'
+export type ChannelSource = 'marketplace' | 'custom_domain' | 'subdomain' | 'embed' | 'api'
 
 const PLATFORM_HOSTS = [
   'miyagisanchez.com',
@@ -36,6 +37,7 @@ export function detectChannel(req: NextRequest): ChannelSource {
   // Set by middleware when the request arrives via a tenant's custom domain
   const channelHeader = req.headers.get('x-miyagi-channel')
   if (channelHeader === 'custom') return 'custom_domain'
+  if (channelHeader === 'subdomain') return 'subdomain'
   if (channelHeader === 'embed') return 'embed'
 
   // Embed widget marks its hosted-checkout hand-off with a query param; the
@@ -48,6 +50,10 @@ export function detectChannel(req: NextRequest): ChannelSource {
   if (origin) {
     try {
       const host = new URL(origin).hostname
+      // A shop subdomain (slug.miyagisanchez.com) — checked before the platform
+      // rule below, since it also ends with `.miyagisanchez.com`. Keeps the buyer
+      // hop from a subdomain attributed as `subdomain`, not `marketplace`.
+      if (shopSlugFromHost(host)) return 'subdomain'
       if (PLATFORM_HOSTS.some(h => host === h || host.endsWith('.' + h))) {
         return 'marketplace'
       }

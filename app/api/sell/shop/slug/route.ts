@@ -16,6 +16,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { validateSlug } from '@/lib/slug'
 import { SLUG_REDIRECT_TAG } from '@/lib/slug-redirect'
+import { registerShopSubdomain } from '@/lib/vercel-domains'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -108,7 +109,11 @@ export async function PATCH(req: NextRequest) {
     })
     .eq('id', (shop as { id: string }).id)
 
-  // 3) Bust caches so the storefront + alias redirect reflect the change now.
+  // 3) Register the new subdomain (slug.miyagisanchez.com). Best-effort; the old
+  //    subdomain is left registered so it keeps serving the 90-day 301.
+  await registerShopSubdomain(newSlug)
+
+  // 4) Bust caches so the storefront + alias redirect reflect the change now.
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
   revalidateTag(SLUG_REDIRECT_TAG, 'default')

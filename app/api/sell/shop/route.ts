@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { normalizeSupportSettings } from '@/lib/support-widget'
+import { registerShopSubdomain } from '@/lib/vercel-domains'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -96,6 +97,9 @@ export async function POST(req: NextRequest) {
   await ensureSupabaseShopMirror(seller, userId).catch((e) => {
     console.error('[sell/shop] Supabase mirror sync failed (non-fatal):', e)
   })
+
+  // Register the shop's free subdomain (slug.miyagisanchez.com). Best-effort.
+  await registerShopSubdomain(seller.slug)
 
   return NextResponse.json({ shopSlug: seller.slug }, { status: 201 })
 }
