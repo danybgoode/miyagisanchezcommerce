@@ -849,6 +849,7 @@ export default function ShopSettingsPanel({
   const [slugError, setSlugError]                   = useState<string | null>(null)
   const [slugCopied, setSlugCopied]                 = useState(false)
   const [subCopied, setSubCopied]                   = useState(false)
+  const [shortCopied, setShortCopied]               = useState(false)
   const [domainInput, setDomainInput]               = useState(initial.custom_domain ?? '')
   const [savedDomain, setSavedDomain]               = useState(initial.custom_domain ?? '')
   const [domainDnsOk, setDomainDnsOk]               = useState(initial.custom_domain_verified ?? false)
@@ -1027,6 +1028,7 @@ export default function ShopSettingsPanel({
   // ── Slug editor (US-3) ──────────────────────────────────────────────────
   const shopUrl = `miyagisanchez.com/s/${shopSlug}`
   const subdomainUrl = `${shopSlug}.miyagisanchez.com`
+  const shortUrl = `mschz.org/${shopSlug}`
   function startSlugEdit() { setSlugInput(shopSlug); setSlugStatus('idle'); setSlugError(null); setSlugEditing(true) }
   function cancelSlugEdit() { setSlugInput(shopSlug); setSlugEditing(false); setSlugError(null) }
   function copyShopUrl() {
@@ -1036,6 +1038,10 @@ export default function ShopSettingsPanel({
   function copySubdomainUrl() {
     navigator.clipboard.writeText(`https://${subdomainUrl}`)
     setSubCopied(true); setTimeout(() => setSubCopied(false), 2000)
+  }
+  function copyShortUrl() {
+    navigator.clipboard.writeText(`https://${shortUrl}`)
+    setShortCopied(true); setTimeout(() => setShortCopied(false), 2000)
   }
   async function handleSlugSave() {
     const next = slugInput.trim().toLowerCase()
@@ -3585,7 +3591,21 @@ export default function ShopSettingsPanel({
                         {subCopied ? '✓ Copiado' : 'Copiar'}
                       </button>
                     </div>
+                    {/* Ultra-short branded link (short-links epic) */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+                        {shortUrl}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copyShortUrl}
+                        className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
+                      >
+                        {shortCopied ? '✓ Copiado' : 'Copiar'}
+                      </button>
+                    </div>
                     <p className="text-xs text-[var(--color-muted)] mt-2">
+                      <span className="font-mono">{shortUrl}</span> es tu enlace ultra-corto para bios y redes.
                       Tu tienda también vive en <span className="font-mono">{subdomainUrl}</span> — un enlace
                       más corto y con tu marca. Compártelos en redes y tarjetas. ¿Quieres tu propio dominio
                       sin <span className="font-mono">/s/</span>?{' '}
