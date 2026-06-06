@@ -21,6 +21,10 @@ export function SlugField({
   label = 'URL de tu tienda',
   disabled = false,
   autoFocus = false,
+  prefix = 'miyagisanchez.com/s/',
+  checkUrl = '/api/sell/shop/slug/check',
+  placeholder = 'mi-tienda',
+  successText = '¡Disponible! Tu tienda vivirá en esta URL.',
 }: {
   value: string
   onChange: (v: string) => void
@@ -30,6 +34,12 @@ export function SlugField({
   label?: string
   disabled?: boolean
   autoFocus?: boolean
+  /** URL prefix shown before the input (e.g. 'mschz.org/'). */
+  prefix?: string
+  /** Availability endpoint; receives `?slug=`. Returns `{ available, reason? }`. */
+  checkUrl?: string
+  placeholder?: string
+  successText?: string
 }) {
   const [status, setStatus] = useState<SlugStatus>('idle')
   const [reason, setReason] = useState<string | null>(null)
@@ -53,7 +63,8 @@ export function SlugField({
     setBoth('checking', null)
     debounce.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/sell/shop/slug/check?slug=${encodeURIComponent(slug)}`)
+        const sep = checkUrl.includes('?') ? '&' : '?'
+        const res = await fetch(`${checkUrl}${sep}slug=${encodeURIComponent(slug)}`)
         const data = await res.json() as { available?: boolean; reason?: string }
         if (data.available) setBoth('available', null)
         else setBoth('taken', data.reason ?? 'No disponible.')
@@ -76,7 +87,7 @@ export function SlugField({
       <label className="block text-sm font-medium text-[var(--color-fg)] mb-1">{label}</label>
       <div className={`flex items-stretch border rounded overflow-hidden bg-white focus-within:ring-2 focus-within:ring-[var(--color-accent)] ${borderClass}`}>
         <span className="px-3 py-2.5 text-xs sm:text-sm text-[var(--color-muted)] bg-[var(--color-bg-subtle,#f5f5f5)] border-r border-[var(--color-border)] font-mono whitespace-nowrap self-center">
-          miyagisanchez.com/s/
+          {prefix}
         </span>
         <input
           type="text"
@@ -85,7 +96,7 @@ export function SlugField({
           maxLength={40}
           disabled={disabled}
           autoFocus={autoFocus}
-          placeholder="mi-tienda"
+          placeholder={placeholder}
           aria-label="slug"
           className="flex-1 min-w-0 px-3 py-2.5 text-sm font-mono bg-transparent focus:outline-none disabled:opacity-60"
         />
@@ -97,7 +108,7 @@ export function SlugField({
       </div>
       {reason && <p className="text-xs text-red-600 mt-1">{reason}</p>}
       {status === 'available' && value && (
-        <p className="text-xs text-green-700 mt-1">¡Disponible! Tu tienda vivirá en esta URL.</p>
+        <p className="text-xs text-green-700 mt-1">{successText}</p>
       )}
     </div>
   )

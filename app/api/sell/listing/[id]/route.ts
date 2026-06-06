@@ -4,6 +4,8 @@ import { db } from '@/lib/supabase'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { getShopStripe } from '@/lib/stripe'
 import { sanitizeFieldDefs } from '@/lib/personalization'
+import { validateSlug } from '@/lib/slug'
+import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -36,8 +38,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     weight_grams?: number | null
     attrs?: Record<string, unknown>
     custom_fields?: unknown
+    short_slug?: string | null
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
+
+  // Custom product short slug (mschz.org/[slug]) — validate format + flat-namespace
+  // uniqueness up front. Empty/null clears it (falls back to the auto short code).
+  let nextShortSlug: string | null | undefined
+  if (body.short_slug !== undefined) {
+    const raw = (body.short_slug ?? '').trim().toLowerCase()
+    if (!raw) {
+      nextShortSlug = null
+    } else {
+      const v = validateSlug(raw)
+      if (!v.valid) return NextResponse.json({ error: v.reason, field: 'short_slug' }, { status: 422 })
+      if (await isShortlinkSegmentTaken(raw, id)) {
+        return NextResponse.json({ error: 'Ese enlace corto ya está en uso.', field: 'short_slug' }, { status: 409 })
+      }
+      nextShortSlug = raw
+    }
+  }
 
   if (body.title !== undefined) {
     const t = body.title.trim()
@@ -61,24 +81,43 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // product metadata (the backend update path merges arbitrary metadata).
   const customFields = body.custom_fields !== undefined ? sanitizeFieldDefs(body.custom_fields) : undefined
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      ...(body.title !== undefined && { title: body.title.trim() }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
-      ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
-      ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
-      ...(body.attrs !== undefined && { attrs: body.attrs }),
-      ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
-    }),
-  })
+  // Only call Medusa when a Medusa-owned field actually changed (a short_slug-only
+  // save touches just the Supabase mirror).
+  const hasMedusaFields = body.title !== undefined || body.description !== undefined
+    || body.price_cents !== undefined || body.quantity !== undefined
+    || body.weight_grams !== undefined || body.attrs !== undefined || customFields !== undefined
+  if (hasMedusaFields) {
+    const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        ...(body.title !== undefined && { title: body.title.trim() }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+        ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
+        ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
+        ...(body.attrs !== undefined && { attrs: body.attrs }),
+        ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
+      }),
+    })
 
-  if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })
-  if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (!res.ok) {
-    const d = await res.json().catch(() => ({})) as { message?: string }
-    return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status: 500 })
+    if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })
+    if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { message?: string }
+      return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status: 500 })
+    }
+  }
+
+  // Merge a custom short slug into the mirror metadata (preserving short_code + the
+  // rest). Done as a read-merge-write so we never clobber other metadata.
+  let mirrorMetadata: Record<string, unknown> | undefined
+  if (nextShortSlug !== undefined) {
+    const { data: row } = await db
+      .from('marketplace_listings').select('metadata').eq('medusa_product_id', id).maybeSingle()
+    const meta = ((row?.metadata ?? {}) as Record<string, unknown>)
+    if (nextShortSlug === null) delete (meta as Record<string, unknown>).short_slug
+    else meta.short_slug = nextShortSlug
+    mirrorMetadata = meta
   }
 
   await db
@@ -87,11 +126,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.title !== undefined && { title: body.title.trim() }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+      ...(mirrorMetadata !== undefined && { metadata: mirrorMetadata }),
       updated_at: new Date().toISOString(),
     })
     .eq('medusa_product_id', id)
 
-  return NextResponse.json({ id, updated: true })
+  return NextResponse.json({ id, updated: true, short_slug: nextShortSlug })
 }
 
 // ── Checkout viability check ──────────────────────────────────────────────────
