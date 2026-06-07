@@ -87,13 +87,13 @@ const sweepstakesLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: 'rl:sweepstakes' })
 }
 
-// Telegram inbound webhook: max 60 updates per IP per minute. New inbound
-// surface — Telegram itself is well-behaved, but the endpoint is public, so cap
-// it. Generous enough for a burst of /start messages from real sellers.
+// Telegram inbound webhook: max 30 /start redemptions per CHAT per minute. Keyed
+// by chat_id, not IP — every webhook call shares Telegram's server IPs, so an IP
+// bucket would throttle all sellers at once. Caps one user's /start spam only.
 const telegramWebhookLimiter = () => {
   const redis = getRedis()
   if (!redis) return null
-  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 m'), prefix: 'rl:tg_webhook' })
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'rl:tg_webhook' })
 }
 
 // Telegram link minting: max 10 deep-links per seller per 10 min — prevents a

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { tgSend } from '@/lib/telegram'
 import { parseStartCommand, isTokenExpired } from '@/lib/notifications/telegram-link'
-import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { checkRateLimit } from '@/lib/ratelimit'
 
 /**
  * Telegram Bot API webhook (Granular Notifications · Sprint 2).
@@ -25,22 +25,18 @@ type TgUpdate = {
   message?: {
     text?: string
     chat?: { id?: number | string }
-    from?: { username?: string; first_name?: string }
   }
 }
 
 export async function POST(req: NextRequest) {
-  // 1. Secret-token gate. If we have a secret configured, the header must match.
+  // 1. Secret-token gate — the real security boundary. If we have a secret
+  // configured, the header must match; anything else is rejected.
   const provided = req.headers.get('x-telegram-bot-api-secret-token')
   if (!WEBHOOK_SECRET || provided !== WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  // 2. Rate-limit by IP.
-  const rl = await checkRateLimit('telegram_webhook', getClientIp(req))
-  if (!rl.allowed) return NextResponse.json({ ok: true }, { status: 200 })
-
-  // 3. Parse the update. Any parse failure is a silent ack.
+  // 2. Parse the update. Any parse failure is a silent ack.
   let update: TgUpdate
   try {
     update = (await req.json()) as TgUpdate
@@ -56,6 +52,12 @@ export async function POST(req: NextRequest) {
   if (!token || chatId == null) return NextResponse.json({ ok: true })
 
   const chatIdStr = String(chatId)
+
+  // 3. Rate-limit redemption per chat — not per IP: every webhook call shares
+  // Telegram's server IPs, so an IP bucket would throttle all sellers at once.
+  // Per-chat caps a single user's /start spam without affecting anyone else.
+  const rl = await checkRateLimit('telegram_webhook', chatIdStr)
+  if (!rl.allowed) return NextResponse.json({ ok: true }, { status: 200 })
 
   try {
     // 4. Redeem the token: must exist and not be expired.
