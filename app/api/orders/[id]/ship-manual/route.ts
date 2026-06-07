@@ -16,6 +16,7 @@ import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sendOrderShipped } from '@/lib/email'
 import { tg } from '@/lib/telegram'
+import { canSellerShip, SHIP_BLOCKED_REASON } from '@/lib/manual-payment-state'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -55,7 +56,12 @@ export async function POST(
         },
       })
       if (orderRes.ok) {
-        const { order } = await orderRes.json() as { order: { buyer_email?: string; buyer_name?: string; marketplace_listings?: { title?: string }; marketplace_shops?: { name?: string } } }
+        const { order } = await orderRes.json() as { order: { buyer_email?: string; buyer_name?: string; payment_method?: string | null; payment_received?: boolean; marketplace_listings?: { title?: string }; marketplace_shops?: { name?: string } } }
+        // Courtesy fail-fast (S2.2): block shipping an unpaid manual order before the
+        // PATCH round-trip. The backend PATCH gate is the authoritative enforcement.
+        if (!canSellerShip(order)) {
+          return NextResponse.json({ error: SHIP_BLOCKED_REASON }, { status: 422 })
+        }
         buyerEmail = order.buyer_email ?? null
         buyerName = order.buyer_name ?? null
         listingTitle = order.marketplace_listings?.title ?? listingTitle
