@@ -6,6 +6,7 @@ import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
+import { computeCheckoutTotal } from '@/lib/checkout-total'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -219,7 +220,11 @@ export default function CheckoutExperience({
         deliveryLabel: selectedShippingRate.deliveryLabel,
       }
     : undefined
-  const totalCents = Math.max(0, amountCents - couponDiscountCents) + (selectedShippingRate?.amountCents ?? 0)
+  const totalCents = computeCheckoutTotal({
+    itemsCents: amountCents,
+    couponDiscountCents,
+    shippingCents: selectedShippingRate?.amountCents ?? 0,
+  })
 
   // Manual ("Pago directo") — the buyer does NOT pick a sub-type at checkout.
   // We just summarize what the seller accepts; all instructions appear on the
@@ -675,6 +680,7 @@ export default function CheckoutExperience({
             offerId={offerId}
             offerAmountCents={offerAmountCents}
             couponCode={appliedCoupon?.code}
+            couponDiscountCents={couponDiscountCents}
             fulfillmentMethod={selectedDelivery?.id ?? 'none'}
             pickupSpotId={selectedPickupSpotId ?? undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
