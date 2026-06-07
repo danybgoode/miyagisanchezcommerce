@@ -152,3 +152,6 @@ function esc(s: string | number): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 }
+
+/** HTML-escape an interpolated value for a `parse_mode: 'HTML'` Telegram body. */
+export const escapeHtml = esc

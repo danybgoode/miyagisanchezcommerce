@@ -5,7 +5,7 @@ import { validateOfferAmount, formatOfferAmount } from '@/lib/offers'
 import { sendOfferConfirmed, sendNewOfferToSeller, sendSellerOfferReminder, sendSellerExpiryWarning, getSellerEmail } from '@/lib/email'
 import { computeTrustScore, levelToMinScore, type TrustLevel } from '@/lib/ucp/identity'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
-import { tg } from '@/lib/telegram'
+import { tg, escapeHtml } from '@/lib/telegram'
 import { dispatchToSeller } from '@/lib/notifications/dispatch'
 
 interface CreateOfferBody {
@@ -312,6 +312,10 @@ export async function POST(req: NextRequest) {
         body: `${emailCtx.offerAmount} · ${emailCtx.listingTitle}`,
         url: emailCtx.listingUrl,
       },
+      telegram:
+        `🤝 <b>Nueva oferta</b>\n${escapeHtml(emailCtx.listingTitle)}\n` +
+        `${escapeHtml(emailCtx.offerAmount)} (precio: ${escapeHtml(emailCtx.askingPrice ?? '')})\n` +
+        `${escapeHtml(emailCtx.listingUrl)}`,
     })
 
     // Schedule reminders (look up email via Clerk) — out of scope for the seam.

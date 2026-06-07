@@ -6,6 +6,7 @@ import {
   isTokenExpired,
   LINK_TOKEN_TTL_MS,
 } from '../lib/notifications/telegram-link'
+import { resolveChatId } from '../lib/telegram'
 
 /**
  * Granular Multi-Channel Notifications · Sprint 2.
@@ -63,6 +64,23 @@ test.describe('telegram-link · parseStartCommand', () => {
   test('round-trips a real minted token', () => {
     const t = genLinkToken()
     expect(parseStartCommand(`/start ${t}`)).toBe(t)
+  })
+})
+
+test.describe('tgSend · chat targeting (resolveChatId)', () => {
+  test('an explicit chat id is used verbatim', () => {
+    expect(resolveChatId('555', 'admin')).toBe('555')
+  })
+
+  test('a missing/empty chat id falls back to the admin default', () => {
+    expect(resolveChatId(undefined, 'admin')).toBe('admin')
+    expect(resolveChatId(null, 'admin')).toBe('admin')
+    expect(resolveChatId('', 'admin')).toBe('admin')
+  })
+
+  test('no target at all → undefined (no send)', () => {
+    expect(resolveChatId(undefined, undefined)).toBeUndefined()
+    expect(resolveChatId('', '')).toBeUndefined()
   })
 })
 

@@ -16,7 +16,7 @@ import { formatOfferAmount } from '@/lib/offers'
 import { personalizationFromOrderItems, type PersonalizationBlock } from '@/lib/personalization'
 import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
-import { tg } from '@/lib/telegram'
+import { tg, escapeHtml } from '@/lib/telegram'
 import { transferToSeller } from '@/lib/stripe-subscriptions'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
 import { upsertOrderMirror } from '@/lib/order-mirror'
@@ -306,6 +306,9 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         body: `${amountFormatted} · ${listing.title}`,
         url: listingUrl,
       },
+      telegram:
+        `🛒 <b>¡Vendiste!</b>\n${escapeHtml(listing.title)} — <b>${escapeHtml(amountFormatted)}</b>\n` +
+        `Comprador: ${escapeHtml(buyerName || buyerEmail || '')}\n${escapeHtml(listingUrl)}`,
     })
   }
 }
@@ -544,6 +547,9 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
             body: `${amountFormatted} · ${listingInfo.title}`,
             url: listingUrl,
           },
+          telegram:
+            `🛒 <b>¡Vendiste!</b>\n${escapeHtml(listingInfo.title)} — <b>${escapeHtml(amountFormatted)}</b>\n` +
+            `Comprador: ${escapeHtml(buyerName || buyerEmail || '')}\n${escapeHtml(listingUrl)}`,
         })
       }
     }
