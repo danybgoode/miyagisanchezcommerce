@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
-import { isManualPaymentMethod } from '@/lib/manual-payment-state'
+import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -834,19 +834,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </div>
       </section>
 
-      {/* Shipping section — only for physical products */}
-      {listing?.listing_type === 'product' && (
-        <div className="mb-5">
-          <ShippingSection
-            orderId={order.id}
-            shippingAddress={order.shipping_address}
-            existingShipment={currentShipment}
-            onShipped={handleShipped}
-          />
-        </div>
-      )}
-
-      {/* SPEI/cash: seller confirm payment received */}
+      {/* SPEI/cash: seller confirm payment received — precedes shipping (S2.1) */}
       {isSpeiOrder && !paymentReceived && (
         <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
           <p className="text-sm font-semibold text-amber-800 mb-1">
@@ -872,6 +860,28 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-center gap-2">
             <span>✓</span>
             <p className="text-sm font-semibold text-green-800">Pago por SPEI confirmado</p>
+          </div>
+        </div>
+      )}
+
+      {/* Shipping section — physical products, gated on payment (S2.1).
+          A manual order can't be shipped until payment is confirmed; until then
+          the controls are hidden and we show the reason instead. */}
+      {listing?.listing_type === 'product' && paymentSettled && (
+        <div className="mb-5">
+          <ShippingSection
+            orderId={order.id}
+            shippingAddress={order.shipping_address}
+            existingShipment={currentShipment}
+            onShipped={handleShipped}
+          />
+        </div>
+      )}
+      {listing?.listing_type === 'product' && !paymentSettled && (
+        <div className="border border-[var(--color-border)] bg-[var(--color-surface-alt)] rounded-xl p-4 mb-5">
+          <div className="flex items-center gap-2">
+            <span>🔒</span>
+            <p className="text-sm font-medium text-[var(--color-muted)]">{SHIP_BLOCKED_UI_NOTE}</p>
           </div>
         </div>
       )}
