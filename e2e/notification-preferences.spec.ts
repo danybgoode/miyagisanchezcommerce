@@ -98,9 +98,43 @@ test.describe('notification preferences · event→group map', () => {
     expect(groupForEvent('offer_made')).toBe('offers')
   })
 
+  test('the Sprint-3 money-path event maps to the payments group', () => {
+    expect(groupForEvent('buyer_reported_paid')).toBe('payments')
+  })
+
   test('every mapped group is a known EVENT_GROUP', () => {
     for (const g of Object.values(EVENT_GROUP)) {
       expect(EVENT_GROUPS).toContain(g)
     }
+  })
+})
+
+test.describe('notification preferences · money-path (buyer_reported_paid) respects prefs', () => {
+  // S3.1: the buyer's "Ya hice el pago" fans out to the seller's enabled channels
+  // under the payments group. These pure guards prove the gating the dispatcher
+  // trusts — a disabled channel stays silent; an enabled one resolves a target.
+  const group = groupForEvent('buyer_reported_paid')   // 'payments'
+
+  test('default-on: email + push fire, telegram opt-in stays off', () => {
+    const prefs = resolvePrefs([])
+    expect(isChannelEnabled(prefs, group, 'email')).toBe(true)
+    expect(isChannelEnabled(prefs, group, 'push')).toBe(true)
+    expect(isChannelEnabled(prefs, group, 'telegram')).toBe(false)
+  })
+
+  test('payments → telegram ON + linked chat resolves the seller chat', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'telegram', enabled: true }])
+    expect(telegramTarget(prefs, group, { chat_id: '555' })).toBe('555')
+  })
+
+  test('payments → email OFF silences email but leaves push on', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'email', enabled: false }])
+    expect(isChannelEnabled(prefs, group, 'email')).toBe(false)
+    expect(isChannelEnabled(prefs, group, 'push')).toBe(true)
+  })
+
+  test('payments → telegram OFF resolves no target even with a linked chat', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'telegram', enabled: false }])
+    expect(telegramTarget(prefs, group, { chat_id: '555' })).toBeNull()
   })
 })

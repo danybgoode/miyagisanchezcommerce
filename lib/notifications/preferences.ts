@@ -20,12 +20,19 @@ export type Channel = (typeof CHANNELS)[number]
 
 /**
  * Concrete seller-facing events → their preference group. Sprint 1 routes only
- * the two already-durable events; Sprint 3 extends this map (buyer_reported_paid,
- * payment_confirmed → payments; order_shipped/delivered → orders; etc.).
+ * the two already-durable events. Sprint 3 adds the genuinely buyer-/system-
+ * triggered seller events: `buyer_reported_paid` → payments (the money-path
+ * keystone, #3b's durable event) and `return_requested` → returns.
+ *
+ * Deliberately NOT routed through the seam (seller-self-triggered → notifying the
+ * seller of their own click is noise): `payment_confirmed`, `order_shipped`,
+ * `order_delivered`. Their state vocabulary still lives in
+ * `lib/manual-payment-state.ts`; the seam just doesn't echo them back to the actor.
  */
 export const EVENT_GROUP = {
   new_order: 'orders',
   offer_made: 'offers',
+  buyer_reported_paid: 'payments',
 } as const satisfies Record<string, EventGroup>
 export type SellerEventKind = keyof typeof EVENT_GROUP
 
