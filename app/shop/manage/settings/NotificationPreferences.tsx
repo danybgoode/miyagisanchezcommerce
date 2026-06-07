@@ -162,7 +162,7 @@ export default function NotificationPreferences() {
         </div>
       ) : null}
 
-      {error && <div className="mt-3 text-xs text-[var(--color-danger,#c0392b)]">{error}</div>}
+      {error && <div className="mt-3 text-xs text-[var(--color-danger)]">{error}</div>}
     </section>
   )
 }
