@@ -49,9 +49,9 @@ export const SELLER_PERSONA_ROUTES: Record<SellerPersonaId, SellerPersonaRoute> 
   },
   negocios: {
     id: 'negocios',
-    pagePath: null,
-    from: 'vende',
-    status: 'upcoming',
+    pagePath: '/vende/negocios',
+    from: 'negocios',
+    status: 'live',
   },
   servicios: {
     id: 'servicios',

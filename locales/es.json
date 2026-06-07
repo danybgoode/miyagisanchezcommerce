@@ -99,7 +99,7 @@
           "title": "Tengo un negocio local",
           "body": "Imprenta, taller, tienda fisica o inventario que quieres poner en linea.",
           "icon": "iconoir-store",
-          "statusLabel": "Proximamente"
+          "statusLabel": ""
         },
         {
           "personaId": "servicios",
@@ -187,6 +187,65 @@
       "closingTitle": "Tu catalogo ya existe. Ponlo a vender.",
       "closingBody": "Empieza con lo que tienes: fotos, texto, IG o un archivo. Ajustas despues.",
       "closingCta": "Traer mi catalogo"
+    },
+    "negocios": {
+      "metadata": {
+        "title": "Lleva tu negocio local a internet — Miyagi Sanchez",
+        "description": "Abre una tienda para tu negocio local sin comisiones. Migra catalogo, vende con QR y conecta con la revista Mexico-86."
+      },
+      "eyebrow": "Negocios locales",
+      "heroTitle": "Tu negocio de la esquina, ahora tambien en linea — y en la revista.",
+      "heroLead": "Sube tu inventario en minutos, cobra directo y comparte tu tienda con link, QR, subdominio o dominio propio. Miyagi tambien puede llevarte a la edicion impresa Mexico-86.",
+      "trustLine": "No nos creas: preguntale a Claude que es miyagisanchez.com/vende/negocios y deja que revise si le conviene a tu negocio.",
+      "primaryCta": "Poner mi negocio en linea",
+      "secondaryCta": "Ver pagina general",
+      "heroStats": [
+        { "value": "0%", "label": "comision por venta" },
+        { "value": "QR", "label": "para vitrina, caja o volante" },
+        { "value": "Print", "label": "puente a revista Mexico-86" }
+      ],
+      "proofTitle": "No necesitas cambiar tu negocio para vender en linea",
+      "proofLead": "Miyagi se adapta a como ya trabajas: inventario, pagos directos, catalogo por QR y presencia impresa cuando te convenga.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-fast-arrow-right",
+          "title": "Migracion express",
+          "body": "Trae fotos, lista de precios, texto o archivo. Tu agente puede convertirlo en catalogo publicable."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "No pierdes margen por cada pedido. Cobras directo con los metodos que actives en tu tienda."
+        },
+        {
+          "icon": "iconoir-qr-code",
+          "title": "QR para tu mostrador",
+          "body": "Pon tu tienda en la caja, volante, aparador o recibo y manda a clientes al catalogo actualizado."
+        },
+        {
+          "icon": "iconoir-book",
+          "title": "Sal en Mexico-86",
+          "body": "La edicion impresa abre un puente que Shopify o Instagram no tienen: anuncio fisico con QR a tu tienda."
+        }
+      ],
+      "stepsTitle": "De local fisico a tienda online",
+      "steps": [
+        { "title": "Trae tu catalogo actual", "body": "Fotos, lista de precios, Excel, WhatsApp o texto. No empiezas desde cero." },
+        { "title": "Publica tu primera vitrina", "body": "Elige productos, precios, formas de pago y como quieres que te contacten." },
+        { "title": "Comparte QR y link", "body": "Usalo en mostrador, bolsas, volante, redes o revista. Cada persona llega a tu tienda." }
+      ],
+      "agentTitle": "Tu agente puede hacer la mudanza contigo",
+      "agentBody": "La tienda esta pensada para que Claude, Gemini o ChatGPT lean tu catalogo, sugieran textos y te ayuden a organizar productos.",
+      "socialTitle": "Para negocios que venden hoy, no para empezar desde cero",
+      "socialBody": "Si ya tienes clientes, inventario y formas de cobrar, Miyagi suma una vitrina online y un puente impreso sin comerte el margen.",
+      "socialStats": [
+        { "value": "QR", "label": "online desde el mostrador" },
+        { "value": "MXN", "label": "cobros pensados para Mexico" },
+        { "value": "Print", "label": "revista + tienda conectadas" }
+      ],
+      "closingTitle": "Tu local ya tiene historia. Dale tambien una URL.",
+      "closingBody": "Empieza con tu catalogo actual y prueba una tienda sin comisiones. Si funciona, la conviertes en tu canal permanente.",
+      "closingCta": "Abrir tienda local"
     },
     "mundial": {
       "metadata": {

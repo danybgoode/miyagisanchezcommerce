@@ -99,7 +99,7 @@
           "title": "I have a local business",
           "body": "Print shop, workshop, physical store, or inventory you want to bring online.",
           "icon": "iconoir-store",
-          "statusLabel": "Coming soon"
+          "statusLabel": ""
         },
         {
           "personaId": "servicios",
@@ -187,6 +187,65 @@
       "closingTitle": "Your catalog already exists. Put it to work.",
       "closingBody": "Start with what you have: photos, text, Instagram, or a file. You can tune it later.",
       "closingCta": "Bring my catalog"
+    },
+    "negocios": {
+      "metadata": {
+        "title": "Bring your local business online — Miyagi Sanchez",
+        "description": "Open a shop for your local business with no commissions. Migrate catalog, sell with QR, and connect to the Mexico-86 print magazine."
+      },
+      "eyebrow": "Local businesses",
+      "heroTitle": "Your corner business, now online too — and in the magazine.",
+      "heroLead": "Upload your inventory in minutes, collect directly, and share your shop with a link, QR, subdomain, or custom domain. Miyagi can also connect you to the Mexico-86 print edition.",
+      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/vende/negocios is and let it check whether it fits your business.",
+      "primaryCta": "Bring my business online",
+      "secondaryCta": "View general page",
+      "heroStats": [
+        { "value": "0%", "label": "commission per sale" },
+        { "value": "QR", "label": "for counter, window, or flyer" },
+        { "value": "Print", "label": "bridge to Mexico-86 magazine" }
+      ],
+      "proofTitle": "You do not need to change your business to sell online",
+      "proofLead": "Miyagi adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-fast-arrow-right",
+          "title": "Express migration",
+          "body": "Bring photos, a price list, text, or a file. Your agent can turn it into a publishable catalog."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% commission",
+          "body": "You do not lose margin on every order. Collect directly with the methods you enable in your shop."
+        },
+        {
+          "icon": "iconoir-qr-code",
+          "title": "QR for your counter",
+          "body": "Put your shop on the counter, flyer, window, or receipt and send customers to your updated catalog."
+        },
+        {
+          "icon": "iconoir-book",
+          "title": "Appear in Mexico-86",
+          "body": "The print edition opens a bridge Shopify or Instagram do not have: a physical ad with QR to your shop."
+        }
+      ],
+      "stepsTitle": "From physical shop to online storefront",
+      "steps": [
+        { "title": "Bring your current catalog", "body": "Photos, price list, spreadsheet, WhatsApp, or text. You do not start from scratch." },
+        { "title": "Publish your first storefront", "body": "Choose products, prices, payment methods, and how customers contact you." },
+        { "title": "Share QR and link", "body": "Use it on your counter, bags, flyers, social, or magazine ad. Every person reaches your shop." }
+      ],
+      "agentTitle": "Your agent can help with the move",
+      "agentBody": "The shop is designed so Claude, Gemini, or ChatGPT can read your catalog, suggest text, and help organize products.",
+      "socialTitle": "For businesses already selling today",
+      "socialBody": "If you already have customers, inventory, and payment methods, Miyagi adds an online storefront and print bridge without eating your margin.",
+      "socialStats": [
+        { "value": "QR", "label": "online from the counter" },
+        { "value": "MXN", "label": "payments built for Mexico" },
+        { "value": "Print", "label": "magazine + shop connected" }
+      ],
+      "closingTitle": "Your local shop already has a story. Give it a URL too.",
+      "closingBody": "Start with your current catalog and test a shop with no commissions. If it works, make it your permanent channel.",
+      "closingCta": "Open local shop"
     },
     "mundial": {
       "metadata": {
