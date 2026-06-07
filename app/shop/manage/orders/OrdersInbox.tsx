@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,11 @@ interface Order {
   buyer_email: string | null
   created_at: string
   updated_at: string
+  // Durable manual-payment lifecycle (curated top-level normalized fields).
+  payment_method?: string | null
+  payment_received?: boolean
+  buyer_reported_paid?: boolean
+  manual_payment_state?: string | null
   marketplace_listings: { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }
     | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }[]
   marketplace_shipments: OrderShipment[] | null
@@ -89,6 +95,11 @@ function OrderCard({ order }: { order: Order }) {
   const thumb    = listing?.images?.[0]?.url ?? null
   const meta     = STATUS_META[order.status] ?? STATUS_META.paid
   const urgent   = needsAction(order)
+  // Manual-payment lifecycle: an unconfirmed manual order is pending OR reported —
+  // never "ready to ship". The badge/footer reflect whose move it is.
+  const manualState = manualPaymentStateFromOrder(order)
+  const isUnpaidManual = manualState === 'pending_payment' || manualState === 'buyer_reported_paid'
+  const badgeLabel = manualState === 'buyer_reported_paid' ? manualPaymentBadge(manualState) : meta.label
 
   return (
     <Link
@@ -115,7 +126,7 @@ function OrderCard({ order }: { order: Order }) {
               {listing?.title ?? '—'}
             </p>
             <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>
-              {meta.label}
+              {badgeLabel}
             </span>
           </div>
 
@@ -146,7 +157,9 @@ function OrderCard({ order }: { order: Order }) {
         <div className="border-t border-amber-200 px-4 py-2 flex items-center gap-2">
           <span className="text-amber-500 text-sm">⚡</span>
           <p className="text-xs text-amber-700 font-medium">
-            {order.status === 'paid' ? 'Confirma y prepara el envío' : 'Listo para enviar'}
+            {isUnpaidManual
+              ? whoActsNext(manualState!, 'seller')
+              : order.status === 'paid' ? 'Confirma y prepara el envío' : 'Listo para enviar'}
           </p>
           <span className="ml-auto text-xs text-amber-600 font-semibold">Ver →</span>
         </div>
