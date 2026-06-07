@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import { isManualPaymentMethod } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,12 @@ interface OrderDetailProps {
     updated_at: string
     personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
     metadata?: Record<string, unknown> | null
+    // Direct-payment + durable manual-payment lifecycle (curated top-level fields).
+    payment_method?: string | null
+    payment_received?: boolean
+    buyer_reported_paid?: boolean
+    buyer_reported_paid_at?: string | null
+    manual_payment_state?: string | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -516,8 +523,12 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const orderMeta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!orderMeta.escrow_mode
   const escrowCapturedInit = !!orderMeta.escrow_captured
-  const isSpeiOrder = ['manual', 'spei', 'cash', 'dimo'].includes(orderMeta.payment_method as string)
-  const paymentReceivedInit = !!orderMeta.payment_received
+  // Manual-payment lifecycle reads the curated top-level normalized fields (raw
+  // metadata isn't passed through for Medusa orders), so confirm + reported state work.
+  const isSpeiOrder = isManualPaymentMethod(order.payment_method) ||
+    ['manual', 'spei', 'cash', 'dimo'].includes(orderMeta.payment_method as string)
+  const paymentReceivedInit = !!order.payment_received || orderMeta.payment_received === true
+  const buyerReportedPaid = !!order.buyer_reported_paid || orderMeta.buyer_reported_paid === true
   const fulfillmentMethod = (orderMeta.fulfillment_method as string | undefined) ?? order.shipping_method ?? 'shipping'
   const isPickupOrder = fulfillmentMethod === 'local_pickup'
   const isCoordOrder  = fulfillmentMethod === 'none' || fulfillmentMethod === 'coord' || fulfillmentMethod === 'rental'
@@ -838,9 +849,13 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {/* SPEI/cash: seller confirm payment received */}
       {isSpeiOrder && !paymentReceived && (
         <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
-          <p className="text-sm font-semibold text-amber-800 mb-1">Pedido pendiente de pago</p>
+          <p className="text-sm font-semibold text-amber-800 mb-1">
+            {buyerReportedPaid ? 'El comprador avisó que ya pagó' : 'Pedido pendiente de pago'}
+          </p>
           <p className="text-xs text-amber-700 mb-3">
-            El comprador seleccionó SPEI/transferencia. Confirma cuando recibas el depósito en tu cuenta bancaria.
+            {buyerReportedPaid
+              ? 'El comprador reportó su pago directo. Verifica el depósito en tu cuenta bancaria y confírmalo.'
+              : 'El comprador seleccionó SPEI/transferencia. Confirma cuando recibas el depósito en tu cuenta bancaria.'}
           </p>
           <button
             type="button"

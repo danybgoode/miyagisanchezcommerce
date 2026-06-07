@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import { isManualPaymentMethod } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,10 @@ interface OrderTrackingProps {
     // Direct-payment ("Pago directo") fields from the Medusa order
     payment_method?: string | null
     payment_received?: boolean
+    // Durable manual-payment lifecycle (Sprint 1) — persisted, survives reload.
+    buyer_reported_paid?: boolean
+    buyer_reported_paid_at?: string | null
+    manual_payment_state?: string | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -219,8 +224,12 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const meta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!meta.escrow_mode
   const escrowCaptured = !!meta.escrow_captured
-  const isSpeiOrder = ['manual', 'spei', 'cash', 'dimo'].includes(meta.payment_method as string)
-  const paymentReceived = !!meta.payment_received
+  // Manual-payment lifecycle reads the curated top-level normalized fields (raw
+  // metadata isn't passed through for Medusa orders), so they survive reload.
+  const isSpeiOrder = isManualPaymentMethod(order.payment_method) ||
+    ['manual', 'spei', 'cash', 'dimo'].includes(meta.payment_method as string)
+  const paymentReceived = !!order.payment_received || meta.payment_received === true
+  const buyerReportedPaid = !!order.buyer_reported_paid || meta.buyer_reported_paid === true
 
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -503,17 +512,21 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         </section>
       )}
 
-      {/* SPEI/cash pending payment notice */}
+      {/* SPEI/cash pending payment notice — reflects the durable reported state */}
       {isSpeiOrder && !paymentReceived && (
         <section className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-amber-700">🏦</span>
-            <p className="text-sm font-semibold text-amber-800">Pago pendiente de verificación</p>
+            <p className="text-sm font-semibold text-amber-800">
+              {buyerReportedPaid ? 'Pago reportado — en verificación' : 'Pago pendiente de verificación'}
+            </p>
           </div>
           <p className="text-xs text-amber-700 mb-3">
-            Tu pago directo está en proceso. El vendedor confirmará cuando reciba el depósito. Si ya transferiste, avísale para agilizar.
+            {buyerReportedPaid
+              ? 'Avisaste al vendedor que ya pagaste. En cuanto verifique el depósito, confirmará tu pago.'
+              : 'Tu pago directo está en proceso. El vendedor confirmará cuando reciba el depósito. Si ya transferiste, avísale para agilizar.'}
           </p>
-          <ReportPaymentButton orderId={order.id} />
+          <ReportPaymentButton orderId={order.id} initialReported={buyerReportedPaid} />
         </section>
       )}
       {isSpeiOrder && paymentReceived && (
@@ -686,9 +699,10 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   )
 }
 
-// Buyer nudge for manual (SPEI/cash/DiMo) orders: notify the seller they've paid.
-function ReportPaymentButton({ orderId }: { orderId: string }) {
-  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle')
+// Buyer nudge for manual (SPEI/cash/DiMo) orders: durably record + notify the
+// seller they've paid. `initialReported` reflects the persisted state on reload.
+function ReportPaymentButton({ orderId, initialReported = false }: { orderId: string; initialReported?: boolean }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'done'>(initialReported ? 'done' : 'idle')
   async function report() {
     setState('sending')
     try {
