@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, getSellerEmail } from '@/lib/email'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { tg } from '@/lib/telegram'
 import { db } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
@@ -79,8 +80,14 @@ export async function PATCH(
         const refundAmountCents = data.refund_amount_cents ?? 0
         const refundFormatted   = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(refundAmountCents / 100)
 
+        // Medusa orders don't carry the buyer's Clerk id → guest fall-through
+        // sends the email as today (buyer pref gating applies to legacy orders).
+        const buyerRecipient = { clerkUserId: null, email: buyerEmail }
         if (body.action === 'decline') {
-          sendReturnDeclinedToBuyer({ buyerEmail, buyerName: null, listingTitle, shopName, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
+          void dispatchToBuyer(buyerRecipient, {
+            group: 'buyer.devoluciones',
+            email: to => sendReturnDeclinedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }),
+          })
           tg.alert(`❌ Devolución rechazada (Medusa)\n${listingTitle}`).catch(() => {})
         } else {
           // accept, partial_refund, and seller_refund all issue a refund to the buyer.
@@ -88,7 +95,10 @@ export async function PATCH(
           // seller chose a partial amount (full refund omits it).
           const isPartial = body.action === 'partial_refund'
             || (body.action === 'seller_refund' && body.refund_amount_cents != null)
-          sendReturnAcceptedToBuyer({ buyerEmail, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
+          void dispatchToBuyer(buyerRecipient, {
+            group: 'buyer.devoluciones',
+            email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }),
+          })
           const alertLabel = body.action === 'seller_refund' ? 'Reembolso emitido por el vendedor' : 'Devolución aceptada'
           tg.alert(`✅ ${alertLabel} (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
         }
@@ -106,7 +116,7 @@ export async function PATCH(
 
   const { data: returnReq } = await db
     .from('marketplace_return_requests')
-    .select('id, status, buyer_email, buyer_name, order_id')
+    .select('id, status, buyer_email, buyer_name, buyer_clerk_user_id, order_id')
     .eq('id', requestId).eq('order_id', id).maybeSingle()
 
   if (!returnReq) return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 })
@@ -123,6 +133,11 @@ export async function PATCH(
   if (shop.clerk_user_id !== userId) return NextResponse.json({ error: 'Solo el vendedor puede gestionar devoluciones.' }, { status: 403 })
 
   const buyerOrderUrl = `${siteUrl}/account/orders/${id}`
+  // Buyer recipient for "Devoluciones" pref gating (guest → email as today).
+  const returnBuyer = {
+    clerkUserId: (returnReq.buyer_clerk_user_id as string | null) ?? null,
+    email: returnReq.buyer_email ?? '',
+  }
 
   if (body.action === 'accept') {
     const meta = order.metadata as Record<string, unknown> | null
@@ -142,7 +157,10 @@ export async function PATCH(
     }
     await db.from('marketplace_return_requests').update({ status: stripeRefundId ? 'refunded' : 'accepted', refund_amount_cents: order.amount_cents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
     const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(order.amount_cents / 100)
-    sendReturnAcceptedToBuyer({ buyerEmail: returnReq.buyer_email ?? '', buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: false, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }).catch(() => {})
+    void dispatchToBuyer(returnBuyer, {
+      group: 'buyer.devoluciones',
+      email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: false, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+    })
     tg.alert(`✅ Devolución aceptada\n${listing.title}${stripeRefundId ? `\n${stripeRefundId}` : ''}`).catch(() => {})
     return NextResponse.json({ status: stripeRefundId ? 'refunded' : 'accepted' })
   }
@@ -158,14 +176,20 @@ export async function PATCH(
     }
     await db.from('marketplace_return_requests').update({ status: 'partial_refund', refund_amount_cents: refundCents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
     const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(refundCents / 100)
-    sendReturnAcceptedToBuyer({ buyerEmail: returnReq.buyer_email ?? '', buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: true, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }).catch(() => {})
+    void dispatchToBuyer(returnBuyer, {
+      group: 'buyer.devoluciones',
+      email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: true, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+    })
     tg.alert(`🔁 Reembolso parcial\n${listing.title}\n${refundFormatted}`).catch(() => {})
     return NextResponse.json({ status: 'partial_refund' })
   }
 
   // Decline
   await db.from('marketplace_return_requests').update({ status: 'declined', seller_note: body.seller_note?.trim() || null, updated_at: new Date().toISOString() }).eq('id', requestId)
-  sendReturnDeclinedToBuyer({ buyerEmail: returnReq.buyer_email ?? '', buyerName: null, listingTitle: listing.title, shopName: shop.name, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }).catch(() => {})
+  void dispatchToBuyer(returnBuyer, {
+    group: 'buyer.devoluciones',
+    email: to => sendReturnDeclinedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+  })
   tg.alert(`❌ Devolución rechazada\n${listing.title}`).catch(() => {})
   return NextResponse.json({ status: 'declined' })
 }

@@ -19,12 +19,11 @@ import NotificationPreferencesGrid from '@/app/components/NotificationPreference
  * /api/account/notification-preferences. Renders the shared
  * NotificationPreferencesGrid (same component the seller panel uses). es-MX.
  *
- * Sprint 1 scope:
+ * Sprint 1 scope — EMAIL is the only live buyer channel:
  *   • Compras × Email is locked "Siempre" (the receipt — forced-on in the resolver).
- *   • Compras × Push/Telegram are inert ("pronto") — those events fire from the
- *     payment webhooks, wired in Sprint 2.
- *   • Telegram column is inert ("Conecta para activar") — the buyer link flow is
- *     Sprint 2. Envíos/Ofertas/Devoluciones email + push toggle live and persist.
+ *   • Envíos/Ofertas/Devoluciones × Email toggle live and persist.
+ *   • Push + Telegram columns are inert ("Pronto" / "Conecta para activar") —
+ *     both land in Sprint 2 (buyer push wiring + buyer Telegram link).
  */
 
 const CHANNEL_LABELS: Record<Channel, string> = {
@@ -33,12 +32,12 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   telegram: 'Telegram',
 }
 
-// Sprint-1 inert cells: the whole Telegram column (no buyer link yet) + the
-// Compras push cell (its events fire from the payment webhooks, wired in S2).
-function lockedInS1(group: string, channel: Channel): boolean {
-  if (channel === 'telegram') return true
-  if (group === 'buyer.compras' && channel === 'push') return true
-  return false
+// Sprint-1 inert channels: only Email delivers to buyers this sprint. Push +
+// Telegram are shown but disabled ("Pronto" / "Conecta para activar") — both are
+// wired in Sprint 2. (The Compras × Email receipt cell is locked separately, via
+// isBuyerForcedCell.)
+function lockedInS1(_group: string, channel: Channel): boolean {
+  return channel === 'push' || channel === 'telegram'
 }
 
 export default function BuyerNotificationPreferences() {
@@ -107,14 +106,10 @@ export default function BuyerNotificationPreferences() {
                 ? false
                 : prefs[g as BuyerEventGroup][ch]
           }
-          channelHint={ch => (ch === 'telegram' ? 'Conecta para activar' : null)}
-          cellNote={(g, ch) =>
-            isBuyerForcedCell(g as BuyerEventGroup, ch)
-              ? 'Siempre'
-              : g === 'buyer.compras' && ch === 'push'
-                ? 'pronto'
-                : null
+          channelHint={ch =>
+            ch === 'telegram' ? 'Conecta para activar' : ch === 'push' ? 'Pronto' : null
           }
+          cellNote={(g, ch) => (isBuyerForcedCell(g as BuyerEventGroup, ch) ? 'Siempre' : null)}
         />
       ) : null}
 
