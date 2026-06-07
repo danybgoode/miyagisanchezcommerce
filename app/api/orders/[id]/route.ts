@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sendOrderDelivered, getSellerEmail } from '@/lib/email'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -241,13 +242,21 @@ export async function PATCH(
         }
       } catch { /* use default */ }
 
-      sendOrderDelivered({
-        buyerEmail: order.buyer_email,
-        buyerName: order.buyer_name ?? null,
-        listingTitle,
-        orderUrl,
-        shopName: 'Miyagi Sánchez',
-      }).catch(e => console.error('[email] orderDelivered:', e))
+      // Buyer "Envíos" event — gated by the buyer's prefs (guest → email as today).
+      void dispatchToBuyer(
+        { clerkUserId: order.buyer_clerk_user_id ?? null, email: order.buyer_email },
+        {
+          group: 'buyer.envios',
+          email: to =>
+            sendOrderDelivered({
+              buyerEmail: to,
+              buyerName: order.buyer_name ?? null,
+              listingTitle,
+              orderUrl,
+              shopName: 'Miyagi Sánchez',
+            }),
+        },
+      )
     }
 
     tg.alert(`📦 Pedido marcado como entregado\nListingID: ${order.listing_id}\nComprador: ${order.buyer_email}`)

@@ -5,6 +5,7 @@ import { canAcceptCounter, canWithdraw, formatOfferAmount } from '@/lib/offers'
 import { stripe } from '@/lib/stripe'
 import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { notify } from '@/lib/notify'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 
 interface BuyerRespondBody {
   action: 'accept-counter' | 'withdraw'
@@ -176,19 +177,27 @@ export async function PATCH(
           url: c?.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
         }).catch(() => {}))
     }
-    // Buyer: accepted — with payment link
-    sendOfferAccepted({
-      listingTitle: listing.title, listingId: listing.id, listingUrl,
-      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
-      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
-      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
-      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
-      currency: listing.currency, offerId: id,
-      expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      checkoutUrl: conversationUrl ?? listingUrl,
-      checkoutExpiresAt: checkoutExpires,
-      conversationUrl,
-    }).catch(e => console.error('[email] counter-accept buyer:', e))
+    // Buyer: accepted — with payment link. "Ofertas" pref-gated (the buyer is
+    // signed in here — offer.buyer_clerk_user_id === user.id).
+    void dispatchToBuyer(
+      { clerkUserId: user.id, email: offer.buyer_email },
+      {
+        group: 'buyer.ofertas',
+        email: to =>
+          sendOfferAccepted({
+            listingTitle: listing.title, listingId: listing.id, listingUrl,
+            askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+            offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+            offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+            buyerName: offer.buyer_name, buyerEmail: to,
+            currency: listing.currency, offerId: id,
+            expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+            checkoutUrl: conversationUrl ?? listingUrl,
+            checkoutExpiresAt: checkoutExpires,
+            conversationUrl,
+          }),
+      },
+    )
 
     // Seller: counter was accepted — notify them
     if (listing.marketplace_shops.clerk_user_id) {

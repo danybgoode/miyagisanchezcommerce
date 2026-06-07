@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sendOrderShipped } from '@/lib/email'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { tg } from '@/lib/telegram'
 import { canSellerShip, SHIP_BLOCKED_REASON } from '@/lib/manual-payment-state'
 
@@ -35,12 +36,18 @@ export async function POST(
   }
 
   if (!body.carrier) return NextResponse.json({ error: 'carrier requerido.' }, { status: 400 })
+  // Capture the narrowed carrier — control-flow narrowing of body.carrier doesn't
+  // persist into the dispatchToBuyer email closures below.
+  const carrier = body.carrier
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
   let listingTitle = 'tu pedido'
   let shopName = 'Miyagi Sánchez'
   let buyerEmail: string | null = null
   let buyerName: string | null = null
+  // Buyer Clerk id for pref gating — null for Medusa orders (normalizer returns
+  // null) and guests → dispatchToBuyer's guest fall-through sends the email as today.
+  let buyerClerkId: string | null = null
 
   // ── Medusa order (ID starts with "order_") ────────────────────────────────
   if (id.startsWith('order_')) {
@@ -90,16 +97,23 @@ export async function POST(
     }
 
     if (buyerEmail) {
-      sendOrderShipped({
-        buyerEmail,
-        buyerName,
-        listingTitle,
-        orderUrl: `${siteUrl}/account/orders/${id}`,
-        carrier: body.carrierLabel ?? body.carrier,
-        trackingNumber: body.trackingNumber ?? null,
-        estimatedDelivery: null,
-        shopName,
-      }).catch(e => console.error('[email] orderShipped manual (medusa):', e))
+      void dispatchToBuyer(
+        { clerkUserId: buyerClerkId, email: buyerEmail },
+        {
+          group: 'buyer.envios',
+          email: to =>
+            sendOrderShipped({
+              buyerEmail: to,
+              buyerName,
+              listingTitle,
+              orderUrl: `${siteUrl}/account/orders/${id}`,
+              carrier: body.carrierLabel ?? carrier,
+              trackingNumber: body.trackingNumber ?? null,
+              estimatedDelivery: null,
+              shopName,
+            }),
+        },
+      )
     }
 
     tg.alert(`📦 Envío manual — ${listingTitle}\nGuía: ${body.trackingNumber ?? 'sin guía'} (${body.carrier})\nComprador: ${buyerEmail ?? '?'}`)
@@ -109,7 +123,7 @@ export async function POST(
   // ── Legacy Supabase order ─────────────────────────────────────────────────
   const { data: order } = await db
     .from('marketplace_orders')
-    .select('id, status, buyer_email, buyer_name, shop_id, listing_id, metadata')
+    .select('id, status, buyer_email, buyer_name, buyer_clerk_user_id, shop_id, listing_id, metadata')
     .eq('id', id)
     .maybeSingle()
 
@@ -135,6 +149,7 @@ export async function POST(
 
   buyerEmail = order.buyer_email
   buyerName = order.buyer_name ?? null
+  buyerClerkId = order.buyer_clerk_user_id ?? null
 
   // Try to enrich listing title
   if (medusaOrderId) {
@@ -185,16 +200,23 @@ export async function POST(
   await db.from('marketplace_orders').update({ status: 'shipped', updated_at: new Date().toISOString() }).eq('id', id)
 
   if (buyerEmail) {
-    sendOrderShipped({
-      buyerEmail,
-      buyerName,
-      listingTitle,
-      orderUrl: `${siteUrl}/account/orders/${id}`,
-      carrier: body.carrierLabel ?? body.carrier,
-      trackingNumber: body.trackingNumber ?? null,
-      estimatedDelivery: null,
-      shopName,
-    }).catch(e => console.error('[email] orderShipped manual:', e))
+    void dispatchToBuyer(
+      { clerkUserId: buyerClerkId, email: buyerEmail },
+      {
+        group: 'buyer.envios',
+        email: to =>
+          sendOrderShipped({
+            buyerEmail: to,
+            buyerName,
+            listingTitle,
+            orderUrl: `${siteUrl}/account/orders/${id}`,
+            carrier: body.carrierLabel ?? carrier,
+            trackingNumber: body.trackingNumber ?? null,
+            estimatedDelivery: null,
+            shopName,
+          }),
+      },
+    )
   }
 
   tg.alert(`📦 Envío manual — ${listingTitle}\nGuía: ${body.trackingNumber ?? 'sin guía'} (${body.carrier})\nComprador: ${buyerEmail}`)

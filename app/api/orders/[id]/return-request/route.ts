@@ -10,7 +10,7 @@ import { auth } from '@clerk/nextjs/server'
 import { sendReturnRequestToSeller, sendReturnRequestConfirmedToBuyer } from '@/lib/email'
 import { tg, escapeHtml } from '@/lib/telegram'
 import { db } from '@/lib/supabase'
-import { dispatchToSeller } from '@/lib/notifications/dispatch'
+import { dispatchToSeller, dispatchToBuyer } from '@/lib/notifications/dispatch'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY    = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -121,13 +121,21 @@ export async function POST(
               `Motivo: ${escapeHtml(reason)}\nRevísala en tu panel.`,
           })
         }
-        sendReturnRequestConfirmedToBuyer({
-          buyerEmail: (returnReq.buyer_email as string) ?? '',
-          buyerName:  null,
-          listingTitle,
-          shopName,
-          orderUrl: `${siteUrl}/account/orders/${id}`,
-        }).catch(() => {})
+        // Buyer "Devoluciones" confirmation — the buyer initiated this (signed in).
+        void dispatchToBuyer(
+          { clerkUserId: userId, email: (returnReq.buyer_email as string) ?? '' },
+          {
+            group: 'buyer.devoluciones',
+            email: to =>
+              sendReturnRequestConfirmedToBuyer({
+                buyerEmail: to,
+                buyerName:  null,
+                listingTitle,
+                shopName,
+                orderUrl: `${siteUrl}/account/orders/${id}`,
+              }),
+          },
+        )
 
         tg.alert(`↩ Solicitud de devolución (Medusa)\n${listingTitle}\nMotivo: ${body.reason}`).catch(() => {})
       }
@@ -186,7 +194,14 @@ export async function POST(
         `Motivo: ${escapeHtml(reason)}\nRevísala en tu panel.`,
     })
   }
-  sendReturnRequestConfirmedToBuyer({ buyerEmail: order.buyer_email ?? '', buyerName: order.buyer_name ?? null, listingTitle: listing.title, shopName: shop.name, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
+  void dispatchToBuyer(
+    { clerkUserId: order.buyer_clerk_user_id ?? userId, email: order.buyer_email ?? '' },
+    {
+      group: 'buyer.devoluciones',
+      email: to =>
+        sendReturnRequestConfirmedToBuyer({ buyerEmail: to, buyerName: order.buyer_name ?? null, listingTitle: listing.title, shopName: shop.name, orderUrl: `${siteUrl}/account/orders/${id}` }),
+    },
+  )
   tg.alert(`↩ Solicitud de devolución\n${listing.title}\nMotivo: ${body.reason}`).catch(() => {})
 
   return NextResponse.json({ requestId: returnRequest.id }, { status: 201 })

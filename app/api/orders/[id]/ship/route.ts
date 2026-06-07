@@ -20,6 +20,7 @@ import { db } from '@/lib/supabase'
 import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
 import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE    = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -99,16 +100,27 @@ export async function POST(
         const shopName   = ((order.marketplace_shops as Record<string, unknown> | null)?.name as string) ?? 'Mi tienda'
 
         if (buyerEmail) {
-          sendOrderShipped({
-            buyerEmail,
-            buyerName,
-            listingTitle,
-            orderUrl: `${SITE_URL}/account/orders/${id}`,
-            carrier,
-            trackingNumber,
-            estimatedDelivery: (data?.estimatedDeliveryDate as string | null) ?? null,
-            shopName,
-          }).catch(e => console.error('[email] orderShipped:', e))
+          // Medusa orders don't carry the buyer's Clerk id (normalizer returns
+          // null) → guest fall-through sends the email exactly as today. Buyer
+          // pref gating applies where the id is known (legacy path below).
+          const buyerClerkId = (order.buyer_clerk_user_id as string | null) ?? null
+          void dispatchToBuyer(
+            { clerkUserId: buyerClerkId, email: buyerEmail },
+            {
+              group: 'buyer.envios',
+              email: to =>
+                sendOrderShipped({
+                  buyerEmail: to,
+                  buyerName,
+                  listingTitle,
+                  orderUrl: `${SITE_URL}/account/orders/${id}`,
+                  carrier,
+                  trackingNumber,
+                  estimatedDelivery: (data?.estimatedDeliveryDate as string | null) ?? null,
+                  shopName,
+                }),
+            },
+          )
         }
 
         tg.alert(`📦 Pedido enviado — ${listingTitle}\nGuía: ${trackingNumber ?? 'sin guía'}\nComprador: ${buyerEmail}`)
@@ -126,7 +138,7 @@ export async function POST(
   const { data: order } = await db
     .from('marketplace_orders')
     .select(`
-      id, status, shipping_address, buyer_name, buyer_email,
+      id, status, shipping_address, buyer_name, buyer_email, buyer_clerk_user_id,
       marketplace_shops!inner(id, clerk_user_id, name, metadata),
       marketplace_listings!inner(id, title)
     `)
@@ -225,16 +237,24 @@ export async function POST(
     .eq('id', id)
 
   if (buyerEmail) {
-    sendOrderShipped({
-      buyerEmail,
-      buyerName,
-      listingTitle,
-      orderUrl: `${SITE_URL}/account/orders/${id}`,
-      carrier: shipment.carrier,
-      trackingNumber: shipment.trackingNumber,
-      estimatedDelivery: shipment.estimatedDeliveryDate,
-      shopName,
-    }).catch(e => console.error('[email] orderShipped:', e))
+    // Buyer "Envíos" event — gated by the buyer's prefs (guest → email as today).
+    void dispatchToBuyer(
+      { clerkUserId: order.buyer_clerk_user_id ?? null, email: buyerEmail },
+      {
+        group: 'buyer.envios',
+        email: to =>
+          sendOrderShipped({
+            buyerEmail: to,
+            buyerName,
+            listingTitle,
+            orderUrl: `${SITE_URL}/account/orders/${id}`,
+            carrier: shipment.carrier,
+            trackingNumber: shipment.trackingNumber,
+            estimatedDelivery: shipment.estimatedDeliveryDate,
+            shopName,
+          }),
+      },
+    )
   }
 
   tg.alert(`📦 Pedido enviado — ${listingTitle}\nGuía: ${shipment.trackingNumber ?? 'sin guía'}\nComprador: ${buyerEmail}`)

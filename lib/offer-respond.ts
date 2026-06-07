@@ -12,6 +12,7 @@
 import { db } from './supabase'
 import { stripe } from './stripe'
 import { notify } from './notify'
+import { dispatchToBuyer } from './notifications/dispatch'
 import { offerQuality, formatOfferAmount, timeUntil, canAccept, canCounter, canDecline, type OfferStatus } from './offers'
 import {
   sendOfferDeclined, sendOfferCountered, sendOfferAccepted,
@@ -140,6 +141,13 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     return { ok: false, error: 'No autorizado.', httpStatus: 403 }
   }
 
+  // Buyer recipient for "Ofertas" pref gating (guest → email as today). The
+  // existing notify() push stays as-is this sprint; Sprint 2 folds it into the seam.
+  const offerBuyer = {
+    clerkUserId: (offer.buyer_clerk_user_id as string | null) ?? null,
+    email: offer.buyer_email as string,
+  }
+
   async function getConversationUrl() {
     const { data: conv } = await db
       .from('marketplace_conversations')
@@ -195,12 +203,16 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
         }).catch(() => {})
       })
-    sendOfferDeclined({
-      listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
-      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
-      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
-      buyerEmail: offer.buyer_email, buyerName: offer.buyer_name,
-    }).catch(e => console.error('[email] offer declined:', e))
+    void dispatchToBuyer(offerBuyer, {
+      group: 'buyer.ofertas',
+      email: to =>
+        sendOfferDeclined({
+          listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+          askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+          offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+          buyerEmail: to, buyerName: offer.buyer_name,
+        }),
+    })
     return { ok: true, status: 'declined', httpStatus: 200 }
   }
 
@@ -226,21 +238,25 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     }).eq('id', id)
 
     const conversationUrl = await getConversationUrl()
-    sendOfferCountered({
-      listingTitle: listing.title, listingId: listing.id,
-      listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
-      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
-      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
-      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
-      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email, buyerMessage: offer.message,
-      currency: listing.currency, offerId: id,
-      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
-      counterPct: Math.round((counterAmountCents / listing.price_cents) * 100),
-      counterMessage: counterMessage ?? null,
-      counterExpiresAt,
-      conversationUrl,
-    }).catch(e => console.error('[email] offer countered:', e))
+    void dispatchToBuyer(offerBuyer, {
+      group: 'buyer.ofertas',
+      email: to =>
+        sendOfferCountered({
+          listingTitle: listing.title, listingId: listing.id,
+          listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+          askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+          offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+          offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+          buyerName: offer.buyer_name, buyerEmail: to, buyerMessage: offer.message,
+          currency: listing.currency, offerId: id,
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+          counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
+          counterPct: Math.round((counterAmountCents / listing.price_cents) * 100),
+          counterMessage: counterMessage ?? null,
+          counterExpiresAt,
+          conversationUrl,
+        }),
+    })
 
     sendBuyerCounterExpiryWarning({
       buyerEmail: offer.buyer_email,
@@ -330,19 +346,23 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
         }).catch(() => {})
       })
     const conversationUrl = await getConversationUrl()
-    sendOfferAccepted({
-      listingTitle: listing.title, listingId: listing.id,
-      listingUrl: `${origin}/l/${listing.id}`,
-      askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
-      offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
-      offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
-      buyerName: offer.buyer_name, buyerEmail: offer.buyer_email,
-      currency: listing.currency, offerId: id,
-      expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
-      checkoutExpiresAt: checkoutExpires,
-      conversationUrl,
-    }).catch(e => console.error('[email] offer accepted:', e))
+    void dispatchToBuyer(offerBuyer, {
+      group: 'buyer.ofertas',
+      email: to =>
+        sendOfferAccepted({
+          listingTitle: listing.title, listingId: listing.id,
+          listingUrl: `${origin}/l/${listing.id}`,
+          askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
+          offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+          offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
+          buyerName: offer.buyer_name, buyerEmail: to,
+          currency: listing.currency, offerId: id,
+          expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+          checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
+          checkoutExpiresAt: checkoutExpires,
+          conversationUrl,
+        }),
+    })
 
     if (checkoutExpires) {
       sendBuyerPaymentExpiryWarning({

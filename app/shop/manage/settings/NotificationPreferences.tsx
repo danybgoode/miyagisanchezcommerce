@@ -10,11 +10,13 @@ import {
   type EventGroup,
   type Channel,
 } from '@/lib/notifications/preferences'
+import NotificationPreferencesGrid from '@/app/components/NotificationPreferencesGrid'
 
 /**
  * Seller preference center — channels × event-groups grid.
  * Self-contained island: fetches/saves via /api/sell/notification-preferences,
  * independent of the big ShopSettings save flow. es-MX (matches this panel).
+ * Renders the shared NotificationPreferencesGrid (also used by the buyer center).
  *
  * Telegram column is shown but inert ("Conecta para activar") — Sprint 2 lights
  * it up with the seller Telegram link. Email/Push toggle live and persist.
@@ -26,38 +28,6 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   email: 'Email',
   push: 'Push',
   telegram: 'Telegram',
-}
-
-function Switch({
-  checked,
-  disabled,
-  onChange,
-  label,
-}: {
-  checked: boolean
-  disabled?: boolean
-  onChange: (v: boolean) => void
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-        disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
-      } ${checked ? 'bg-[var(--color-accent)]' : 'bg-gray-300'}`}
-    >
-      <span
-        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
-          checked ? 'translate-x-4' : 'translate-x-0'
-        }`}
-      />
-    </button>
-  )
 }
 
 export default function NotificationPreferences() {
@@ -188,51 +158,17 @@ export default function NotificationPreferences() {
       {loading ? (
         <div className="py-6 text-sm text-[var(--color-muted)]">Cargando…</div>
       ) : prefs ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-left">
-                <th className="py-2 pr-3 font-medium">Evento</th>
-                {CHANNELS.map(ch => (
-                  <th key={ch} className="px-3 py-2 text-center font-medium">
-                    {CHANNEL_LABELS[ch]}
-                    {ch === 'telegram' && !linked && (
-                      <div className="text-[10px] font-normal text-[var(--color-muted)]">
-                        Conecta para activar
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {EVENT_GROUPS.map(group => (
-                <tr key={group} className="border-b border-[var(--color-border)] last:border-0">
-                  <td className="py-3 pr-3">
-                    <div className="font-medium">{GROUP_COPY[group].label}</div>
-                    <div className="text-xs text-[var(--color-muted)]">{GROUP_COPY[group].summary}</div>
-                  </td>
-                  {CHANNELS.map(ch => {
-                    // Telegram toggles are inert until the seller links a chat.
-                    const locked = ch === 'telegram' && !linked
-                    return (
-                      <td key={ch} className="px-3 py-3 text-center">
-                        <div className="inline-flex justify-center">
-                          <Switch
-                            checked={locked ? false : prefs[group][ch]}
-                            disabled={locked}
-                            onChange={v => toggle(group, ch, v)}
-                            label={`${GROUP_COPY[group].label} · ${CHANNEL_LABELS[ch]}`}
-                          />
-                        </div>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <NotificationPreferencesGrid
+          groups={EVENT_GROUPS}
+          groupCopy={GROUP_COPY}
+          channels={CHANNELS}
+          channelLabels={CHANNEL_LABELS}
+          toggle={(g, ch, v) => toggle(g as EventGroup, ch, v)}
+          // Telegram toggles are inert until the seller links a chat.
+          isLocked={(_g, ch) => ch === 'telegram' && !linked}
+          isChecked={(g, ch) => (ch === 'telegram' && !linked ? false : prefs[g as EventGroup][ch])}
+          channelHint={ch => (ch === 'telegram' && !linked ? 'Conecta para activar' : null)}
+        />
       ) : null}
 
       {error && <div className="mt-3 text-xs text-[var(--color-danger)]">{error}</div>}
