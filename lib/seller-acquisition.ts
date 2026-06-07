@@ -1,4 +1,5 @@
 export type SellerPersonaId = 'vende' | 'creadores' | 'mundial' | 'negocios' | 'servicios'
+export type SellerAcquisitionVariant = 'a' | 'b'
 
 const UTM_KEYS = [
   'utm_source',
@@ -7,6 +8,9 @@ const UTM_KEYS = [
   'utm_content',
   'utm_term',
 ] as const
+
+const SELLER_ACQUISITION_VARIANTS = ['a', 'b'] as const
+const SELLER_ACQUISITION_VARIANT_PARAM = 'v'
 
 type QueryInput =
   | string
@@ -49,15 +53,16 @@ export const SELLER_PERSONA_ROUTES: Record<SellerPersonaId, SellerPersonaRoute> 
   },
   negocios: {
     id: 'negocios',
-    pagePath: null,
-    from: 'vende',
-    status: 'upcoming',
+    pagePath: '/vende/negocios',
+    from: 'negocios',
+    status: 'live',
   },
   servicios: {
     id: 'servicios',
-    pagePath: null,
-    from: 'vende',
-    status: 'upcoming',
+    pagePath: '/vende/servicios',
+    from: 'servicios',
+    type: 'service',
+    status: 'live',
   },
 }
 
@@ -79,6 +84,10 @@ export function parseSellerAcquisitionUtm(input?: QueryInput): SellerAcquisition
   return utm
 }
 
+export function resolveSellerAcquisitionVariant(input?: QueryInput): SellerAcquisitionVariant {
+  return readSellerAcquisitionVariant(input)?.variant ?? 'a'
+}
+
 export function sellerPersonaCtaHref(id: SellerPersonaId, input?: QueryInput): string {
   const route = resolveSellerPersonaRoute(id)
   return buildSellHref(route.from, input, route.type)
@@ -93,6 +102,11 @@ export function sellerPersonaRouterHref(id: SellerPersonaId, input?: QueryInput)
 
   const utm = parseSellerAcquisitionUtm(input)
   const params = new URLSearchParams(utm)
+  const explicitVariant = readSellerAcquisitionVariant(input)
+  if (explicitVariant?.explicit) {
+    params.set(SELLER_ACQUISITION_VARIANT_PARAM, explicitVariant.variant)
+  }
+
   const qs = params.toString()
   return qs ? `${route.pagePath}?${qs}` : route.pagePath
 }
@@ -103,6 +117,7 @@ function buildSellHref(from: string, input?: QueryInput, type?: string): string 
     params.set('type', type)
   }
   params.set('from', from)
+  params.set(SELLER_ACQUISITION_VARIANT_PARAM, resolveSellerAcquisitionVariant(input))
 
   const utm = parseSellerAcquisitionUtm(input)
   for (const key of UTM_KEYS) {
@@ -113,6 +128,21 @@ function buildSellHref(from: string, input?: QueryInput, type?: string): string 
   }
 
   return `/sell?${params.toString()}`
+}
+
+function readSellerAcquisitionVariant(input?: QueryInput): {
+  variant: SellerAcquisitionVariant
+  explicit: boolean
+} | null {
+  const params = toSearchParams(input)
+  const raw = params.get(SELLER_ACQUISITION_VARIANT_PARAM) ?? params.get('variant')
+  const value = raw?.trim().toLowerCase()
+
+  if (SELLER_ACQUISITION_VARIANTS.includes(value as SellerAcquisitionVariant)) {
+    return { variant: value as SellerAcquisitionVariant, explicit: true }
+  }
+
+  return null
 }
 
 function toSearchParams(input?: QueryInput): URLSearchParams {

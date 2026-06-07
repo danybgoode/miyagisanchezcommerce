@@ -12,10 +12,19 @@ test.describe('seller acquisition · anchor page', () => {
     ).toBeVisible()
     await expect(page.getByText(/preguntale a Claude/i)).toBeVisible()
     await expect(page.getByTestId('vende-router-creadores')).toBeVisible()
+    await expect(page.getByTestId('vende-router-negocios')).toBeVisible()
+    await expect(page.getByTestId('vende-router-servicios')).toBeVisible()
 
     await page.getByTestId('vende-router-creadores').click()
     await expect(page).toHaveURL((url) => (
       url.pathname === '/vende/creadores' &&
+      url.searchParams.get('utm_source') === 'browser-smoke'
+    ))
+
+    await page.goto('/vende?utm_source=browser-smoke')
+    await page.getByTestId('vende-router-servicios').click()
+    await expect(page).toHaveURL((url) => (
+      url.pathname === '/vende/servicios' &&
       url.searchParams.get('utm_source') === 'browser-smoke'
     ))
 

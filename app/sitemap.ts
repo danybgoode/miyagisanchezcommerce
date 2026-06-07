@@ -41,7 +41,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
     { url: `${base}/l`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${base}/vende`, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${base}/vende/creadores`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/vende/mundial`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/vende/negocios`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/vende/servicios`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/sell`, changeFrequency: 'monthly', priority: 0.5 },
   ]
 }

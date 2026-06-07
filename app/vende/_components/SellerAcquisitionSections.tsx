@@ -1,5 +1,7 @@
 import Link from 'next/link'
+import type { SellerAcquisitionVariant } from '@/lib/seller-acquisition'
 import { TrustPromptCopy } from './TrustPromptCopy'
+import { SellerAcquisitionVariantTag } from './SellerAcquisitionVariantTag'
 
 type LandingCta = {
   label: string
@@ -30,6 +32,7 @@ type PersonaRouterCard = {
 
 export type SellerAcquisitionPageConfig = {
   pageId: string
+  variant: SellerAcquisitionVariant
   eyebrow: string
   title: string
   lead: string
@@ -66,11 +69,14 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
   return (
     <main
       className="app-shell"
+      data-seller-persona={config.pageId}
+      data-seller-variant={config.variant}
       style={{
         paddingTop: 'var(--s-8)',
         paddingBottom: 'var(--s-10)',
       }}
     >
+      <SellerAcquisitionVariantTag persona={config.pageId} variant={config.variant} />
       <LandingHero config={config} />
       <ProofSection config={config} />
       {config.personaRouter ? <PersonaRouterSection router={config.personaRouter} pageId={config.pageId} /> : null}

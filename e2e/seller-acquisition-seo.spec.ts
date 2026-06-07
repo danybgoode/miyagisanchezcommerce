@@ -1,0 +1,75 @@
+import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+
+const BASE_URL = 'https://miyagisanchez.com'
+
+type SellerPageMetadata = {
+  title: string
+  description: string
+  ogAlt: string
+}
+
+const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8')) as {
+  sellerAcquisition: Record<string, { metadata: SellerPageMetadata }>
+}
+
+const sellerPages = [
+  { path: '/vende', meta: es.sellerAcquisition.anchor.metadata },
+  { path: '/vende/mundial', meta: es.sellerAcquisition.mundial.metadata },
+  { path: '/vende/creadores', meta: es.sellerAcquisition.creadores.metadata },
+  { path: '/vende/negocios', meta: es.sellerAcquisition.negocios.metadata },
+  { path: '/vende/servicios', meta: es.sellerAcquisition.servicios.metadata },
+]
+
+test.describe('seller acquisition · SEO and OpenGraph', () => {
+  for (const page of sellerPages) {
+    test(`${page.path} exposes persona metadata`, async ({ request }) => {
+      const res = await request.get(page.path)
+      expect(res.ok()).toBeTruthy()
+
+      const html = await res.text()
+      expect(html).toContain(page.meta.title)
+      expect(getMetaContents(html, 'name', 'description')).toContain(page.meta.description)
+      expect(getMetaContents(html, 'property', 'og:title')).toContain(page.meta.title)
+      expect(getMetaContents(html, 'property', 'og:description')).toContain(page.meta.description)
+      expect(getMetaContents(html, 'property', 'og:url')).toContain(`${BASE_URL}${page.path}`)
+      expect(getMetaContents(html, 'property', 'og:image')).toContain(`${BASE_URL}${page.path}/opengraph-image`)
+      expect(getMetaContents(html, 'property', 'og:image:alt')).toContain(page.meta.ogAlt)
+      expect(getMetaContents(html, 'name', 'twitter:card')).toContain('summary_large_image')
+      expect(getLinkHrefs(html, 'canonical')).toContain(`${BASE_URL}${page.path}`)
+    })
+  }
+
+  test('platform sitemap lists every seller acquisition page', async ({ request }) => {
+    const res = await request.get('/sitemap.xml')
+    expect(res.ok()).toBeTruthy()
+
+    const xml = await res.text()
+    for (const page of sellerPages) {
+      expect(xml).toContain(`<loc>${BASE_URL}${page.path}</loc>`)
+    }
+  })
+})
+
+function getMetaContents(html: string, attrName: 'name' | 'property', attrValue: string): string[] {
+  return getTags(html, 'meta')
+    .filter((tag) => getAttribute(tag, attrName) === attrValue)
+    .map((tag) => getAttribute(tag, 'content'))
+    .filter((value): value is string => Boolean(value))
+}
+
+function getLinkHrefs(html: string, rel: string): string[] {
+  return getTags(html, 'link')
+    .filter((tag) => getAttribute(tag, 'rel') === rel)
+    .map((tag) => getAttribute(tag, 'href'))
+    .filter((value): value is string => Boolean(value))
+}
+
+function getTags(html: string, tagName: 'link' | 'meta'): string[] {
+  return html.match(new RegExp(`<${tagName}\\b[^>]*>`, 'g')) ?? []
+}
+
+function getAttribute(tag: string, attrName: string): string | undefined {
+  const match = tag.match(new RegExp(`${attrName}=["']([^"']+)["']`, 'i'))
+  return match?.[1]
+}
