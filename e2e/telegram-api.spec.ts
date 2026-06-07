@@ -28,6 +28,11 @@ test.describe('telegram link API · auth gate', () => {
     const res = await request.delete('/api/sell/telegram/link')
     expect(res.status()).toBe(401)
   })
+
+  test('test-message POST rejects anonymous with 401', async ({ request }) => {
+    const res = await request.post('/api/sell/telegram/test')
+    expect(res.status()).toBe(401)
+  })
 })
 
 test.describe('telegram webhook · secret-token gate', () => {

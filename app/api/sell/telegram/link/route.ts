@@ -59,3 +59,13 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ url: `https://t.me/${username}?start=${token}` })
 }
+
+export async function DELETE() {
+  const user = await currentUser()
+  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  const { error } = await db.from('telegram_links').delete().eq('clerk_user_id', user.id)
+  if (error) return NextResponse.json({ error: 'No se pudo desconectar.' }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}

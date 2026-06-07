@@ -30,8 +30,6 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   push: 'Push',
   telegram: 'Telegram',
 }
-/** Telegram delivery arrives in Sprint 2 — the column stays inert until then. */
-const LOCKED_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(['telegram'])
 
 function Switch({
   checked,
@@ -69,6 +67,10 @@ export default function NotificationPreferences() {
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Telegram link state: null = unknown, false = not linked, true = connected.
+  const [linked, setLinked] = useState<boolean | null>(null)
+  const [tgBusy, setTgBusy] = useState(false)
+  const [tgMsg, setTgMsg] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -78,7 +80,7 @@ export default function NotificationPreferences() {
         if (active) setPrefs(d.prefs)
       })
       .catch(() => {
-        // Degrade gracefully: show the all-on defaults so the grid still renders.
+        // Degrade gracefully: show the defaults so the grid still renders.
         if (active) setPrefs(DEFAULT_PREFS)
       })
       .finally(() => active && setLoading(false))
@@ -86,6 +88,79 @@ export default function NotificationPreferences() {
       active = false
     }
   }, [])
+
+  // Telegram link status — refetched whenever the tab regains focus, so returning
+  // from the Telegram app after sending /start flips the UI to "Conectado".
+  useEffect(() => {
+    let active = true
+    function refreshLink() {
+      fetch('/api/sell/telegram/link')
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d: { linked: boolean }) => active && setLinked(!!d.linked))
+        .catch(() => active && setLinked(false))
+    }
+    refreshLink()
+    const onVis = () => document.visibilityState === 'visible' && refreshLink()
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      active = false
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+
+  async function connectTelegram() {
+    setTgBusy(true)
+    setTgMsg(null)
+    try {
+      const res = await fetch('/api/sell/telegram/link', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok || !d.url) throw new Error(d.error || String(res.status))
+      window.open(d.url, '_blank', 'noopener,noreferrer')
+      setTgMsg('Abre Telegram y envía el mensaje. Al volver, esta página se actualizará.')
+    } catch {
+      setTgMsg('No se pudo generar el enlace. Inténtalo de nuevo.')
+    } finally {
+      setTgBusy(false)
+    }
+  }
+
+  async function disconnectTelegram() {
+    setTgBusy(true)
+    setTgMsg(null)
+    try {
+      const res = await fetch('/api/sell/telegram/link', { method: 'DELETE' })
+      if (!res.ok) throw new Error(String(res.status))
+      setLinked(false)
+      // Locally clear Telegram toggles so the grid matches the (now inert) column.
+      if (prefs) {
+        setPrefs(
+          EVENT_GROUPS.reduce(
+            (acc, g) => ({ ...acc, [g]: { ...prefs[g], telegram: false } }),
+            { ...prefs } as Prefs,
+          ),
+        )
+      }
+      setTgMsg('Telegram desconectado.')
+    } catch {
+      setTgMsg('No se pudo desconectar. Inténtalo de nuevo.')
+    } finally {
+      setTgBusy(false)
+    }
+  }
+
+  async function sendTest() {
+    setTgBusy(true)
+    setTgMsg(null)
+    try {
+      const res = await fetch('/api/sell/telegram/test', { method: 'POST' })
+      if (!res.ok) throw new Error(String(res.status))
+      setTgMsg('Te enviamos una prueba a Telegram.')
+    } catch {
+      setTgMsg('No se pudo enviar la prueba.')
+    } finally {
+      setTgBusy(false)
+    }
+  }
 
   async function toggle(group: EventGroup, channel: Channel, next: boolean) {
     if (!prefs) return
@@ -124,7 +199,7 @@ export default function NotificationPreferences() {
                 {CHANNELS.map(ch => (
                   <th key={ch} className="px-3 py-2 text-center font-medium">
                     {CHANNEL_LABELS[ch]}
-                    {LOCKED_CHANNELS.has(ch) && (
+                    {ch === 'telegram' && !linked && (
                       <div className="text-[10px] font-normal text-[var(--color-muted)]">
                         Conecta para activar
                       </div>
@@ -141,7 +216,8 @@ export default function NotificationPreferences() {
                     <div className="text-xs text-[var(--color-muted)]">{GROUP_LABELS[group].desc}</div>
                   </td>
                   {CHANNELS.map(ch => {
-                    const locked = LOCKED_CHANNELS.has(ch)
+                    // Telegram toggles are inert until the seller links a chat.
+                    const locked = ch === 'telegram' && !linked
                     return (
                       <td key={ch} className="px-3 py-3 text-center">
                         <div className="inline-flex justify-center">
@@ -163,6 +239,49 @@ export default function NotificationPreferences() {
       ) : null}
 
       {error && <div className="mt-3 text-xs text-[var(--color-danger)]">{error}</div>}
+
+      {/* Telegram connection — the column above is interactive only once linked. */}
+      <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+        <div className="mb-1 text-sm font-medium">Telegram</div>
+        {linked ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-1 text-sm text-[var(--color-accent)]">
+              Conectado ✓
+            </span>
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={tgBusy}
+              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
+            >
+              Enviar prueba
+            </button>
+            <button
+              type="button"
+              onClick={disconnectTelegram}
+              disabled={tgBusy}
+              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-danger)] hover:bg-black/5 disabled:opacity-50"
+            >
+              Desconectar
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-[var(--color-muted)]">
+              Conecta Telegram para recibir avisos al instante. Activa los que quieras arriba.
+            </p>
+            <button
+              type="button"
+              onClick={connectTelegram}
+              disabled={tgBusy}
+              className="self-start rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              Conecta Telegram
+            </button>
+          </div>
+        )}
+        {tgMsg && <div className="mt-2 text-xs text-[var(--color-muted)]">{tgMsg}</div>}
+      </div>
     </section>
   )
 }
