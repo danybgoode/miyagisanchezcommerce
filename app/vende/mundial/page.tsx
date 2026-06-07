@@ -8,6 +8,7 @@ const PAGE_PATH = '/vende/mundial'
 const SELL_CTA = '/sell?type=service&from=mundial'
 
 const meta = es.sellerAcquisition.mundial.metadata
+const ogImage = `${BASE_URL}${PAGE_PATH}/opengraph-image`
 
 export const metadata: Metadata = {
   title: meta.title,
@@ -20,11 +21,13 @@ export const metadata: Metadata = {
     siteName: 'Miyagi Sánchez',
     title: meta.title,
     description: meta.description,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: meta.ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
     title: meta.title,
     description: meta.description,
+    images: [ogImage],
   },
 }
 

@@ -60,6 +60,18 @@ const CORE_ACCENT_FOREGROUND = '#ffffff'
 const PAPER = '#f9f9f7'
 const INK = '#1a1a18'
 
+export const PLATFORM_OG_COLORS = {
+  accent: CORE_ACCENT,
+  accentHover: CORE_ACCENT_HOVER,
+  accentInk: CORE_ACCENT_INK,
+  accentForeground: CORE_ACCENT_FOREGROUND,
+  paper: PAPER,
+  ink: INK,
+  muted: '#6b6b67',
+  border: '#dedbd4',
+  sunk: '#eeece8',
+}
+
 export const PLATFORM_THEME_STORAGE_KEY = 'miyagi:platform-theme'
 export const PLATFORM_THEME_CORE_ID: PlatformThemeChoice = 'core'
 export const PLATFORM_THEME_ALLOWED_PREFIXES = ['/l', '/agent'] as const

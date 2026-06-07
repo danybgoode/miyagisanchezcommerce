@@ -9,6 +9,7 @@ const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/vende'
 
 const meta = es.sellerAcquisition.anchor.metadata
+const ogImage = `${BASE_URL}${PAGE_PATH}/opengraph-image`
 
 export const metadata: Metadata = {
   title: meta.title,
@@ -21,11 +22,13 @@ export const metadata: Metadata = {
     siteName: 'Miyagi Sanchez',
     title: meta.title,
     description: meta.description,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: meta.ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
     title: meta.title,
     description: meta.description,
+    images: [ogImage],
   },
 }
 
