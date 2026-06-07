@@ -6,6 +6,7 @@ import { sendOfferConfirmed, sendNewOfferToSeller, sendSellerOfferReminder, send
 import { computeTrustScore, levelToMinScore, type TrustLevel } from '@/lib/ucp/identity'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { tg } from '@/lib/telegram'
+import { dispatchToSeller } from '@/lib/notifications/dispatch'
 
 interface CreateOfferBody {
   listingId: string
@@ -298,13 +299,24 @@ export async function POST(req: NextRequest) {
   // Buyer confirmation
   sendOfferConfirmed(emailCtx).catch(e => console.error('[email] offer confirmed:', e))
 
-  // Seller alert + schedule reminders (look up email via Clerk)
+  // Seller alert — through the preference seam (offers group: email + push).
+  // The seam resolves prefs + the seller email; default-on means today's email
+  // still fires unless the seller turned "Ofertas → Email" off.
   if (shopRow.clerk_user_id) {
+    void dispatchToSeller(shopRow.clerk_user_id, {
+      group: 'offers',
+      email: to => sendNewOfferToSeller({ ...emailCtx, sellerEmail: to }),
+      push: {
+        kind: 'offer',
+        title: 'Nueva oferta',
+        body: `${emailCtx.offerAmount} · ${emailCtx.listingTitle}`,
+        url: emailCtx.listingUrl,
+      },
+    })
+
+    // Schedule reminders (look up email via Clerk) — out of scope for the seam.
     getSellerEmail(shopRow.clerk_user_id).then(async sellerEmail => {
       if (!sellerEmail) return
-
-      // Immediate: new offer notification
-      await sendNewOfferToSeller({ ...emailCtx, sellerEmail })
 
       // Schedule: seller_24h — fires 24h after offer creation
       const reminderCtx = {
