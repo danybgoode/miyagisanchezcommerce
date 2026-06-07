@@ -8,6 +8,7 @@ import {
   telegramTarget,
   groupForEvent,
   EVENT_GROUP,
+  GROUP_COPY,
 } from '../lib/notifications/preferences'
 
 /**
@@ -98,9 +99,75 @@ test.describe('notification preferences · event→group map', () => {
     expect(groupForEvent('offer_made')).toBe('offers')
   })
 
+  test('the Sprint-3 money-path event maps to the payments group', () => {
+    expect(groupForEvent('buyer_reported_paid')).toBe('payments')
+  })
+
+  test('the Sprint-3 return event maps to the returns group', () => {
+    expect(groupForEvent('return_requested')).toBe('returns')
+  })
+
+  test('every settings group is wired to at least one event (no half-wired group)', () => {
+    const wired = new Set(Object.values(EVENT_GROUP))
+    for (const g of EVENT_GROUPS) expect(wired).toContain(g)
+  })
+
   test('every mapped group is a known EVENT_GROUP', () => {
     for (const g of Object.values(EVENT_GROUP)) {
       expect(EVENT_GROUPS).toContain(g)
     }
+  })
+})
+
+test.describe('notification preferences · money-path (buyer_reported_paid) respects prefs', () => {
+  // S3.1: the buyer's "Ya hice el pago" fans out to the seller's enabled channels
+  // under the payments group. These pure guards prove the gating the dispatcher
+  // trusts — a disabled channel stays silent; an enabled one resolves a target.
+  const group = groupForEvent('buyer_reported_paid')   // 'payments'
+
+  test('default-on: email + push fire, telegram opt-in stays off', () => {
+    const prefs = resolvePrefs([])
+    expect(isChannelEnabled(prefs, group, 'email')).toBe(true)
+    expect(isChannelEnabled(prefs, group, 'push')).toBe(true)
+    expect(isChannelEnabled(prefs, group, 'telegram')).toBe(false)
+  })
+
+  test('payments → telegram ON + linked chat resolves the seller chat', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'telegram', enabled: true }])
+    expect(telegramTarget(prefs, group, { chat_id: '555' })).toBe('555')
+  })
+
+  test('payments → email OFF silences email but leaves push on', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'email', enabled: false }])
+    expect(isChannelEnabled(prefs, group, 'email')).toBe(false)
+    expect(isChannelEnabled(prefs, group, 'push')).toBe(true)
+  })
+
+  test('payments → telegram OFF resolves no target even with a linked chat', () => {
+    const prefs = resolvePrefs([{ event_group: 'payments', channel: 'telegram', enabled: false }])
+    expect(telegramTarget(prefs, group, { chat_id: '555' })).toBeNull()
+  })
+})
+
+test.describe('notification preferences · settings copy completeness (S3.3, es-MX)', () => {
+  // The seller portal is es-MX (no dictionary). GROUP_COPY is the single source the
+  // settings UI renders AND the spec checks — so the per-group summary can't drift
+  // from what the seam actually sends, and no group ships without copy.
+  test('every settings group has a non-empty label + summary', () => {
+    for (const g of EVENT_GROUPS) {
+      expect(GROUP_COPY[g]?.label.trim().length).toBeGreaterThan(0)
+      expect(GROUP_COPY[g]?.summary.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  test('every group that has copy is a real settings group (no orphan copy)', () => {
+    for (const g of Object.keys(GROUP_COPY)) {
+      expect(EVENT_GROUPS).toContain(g as (typeof EVENT_GROUPS)[number])
+    }
+  })
+
+  test('the payments summary speaks to the buyer_reported_paid money path', () => {
+    // Anchors the copy to the event it actually fires on (one vocabulary with #3b).
+    expect(GROUP_COPY[groupForEvent('buyer_reported_paid')].summary.toLowerCase()).toContain('pag')
   })
 })

@@ -20,12 +20,20 @@ export type Channel = (typeof CHANNELS)[number]
 
 /**
  * Concrete seller-facing events → their preference group. Sprint 1 routes only
- * the two already-durable events; Sprint 3 extends this map (buyer_reported_paid,
- * payment_confirmed → payments; order_shipped/delivered → orders; etc.).
+ * the two already-durable events. Sprint 3 adds the genuinely buyer-/system-
+ * triggered seller events: `buyer_reported_paid` → payments (the money-path
+ * keystone, #3b's durable event) and `return_requested` → returns.
+ *
+ * Deliberately NOT routed through the seam (seller-self-triggered → notifying the
+ * seller of their own click is noise): `payment_confirmed`, `order_shipped`,
+ * `order_delivered`. Their state vocabulary still lives in
+ * `lib/manual-payment-state.ts`; the seam just doesn't echo them back to the actor.
  */
 export const EVENT_GROUP = {
   new_order: 'orders',
   offer_made: 'offers',
+  buyer_reported_paid: 'payments',
+  return_requested: 'returns',
 } as const satisfies Record<string, EventGroup>
 export type SellerEventKind = keyof typeof EVENT_GROUP
 
@@ -104,4 +112,18 @@ export function telegramTarget(prefs: Prefs, group: EventGroup, link: TelegramLi
 /** Resolve the preference group for a concrete event kind. */
 export function groupForEvent(kind: SellerEventKind): EventGroup {
   return EVENT_GROUP[kind]
+}
+
+// ── Settings copy (es-MX, matches the seller portal) ──────────────────────────────
+//
+// The label + one-line summary of what each group actually notifies about. Lives
+// here (next-free, the EVENT_GROUP source of truth) so the settings UI and the
+// completeness spec share ONE definition — the summary can't drift from what the
+// seam really sends. es-MX, consistent with the rest of the seller portal.
+
+export const GROUP_COPY: Record<EventGroup, { label: string; summary: string }> = {
+  orders:   { label: 'Pedidos',      summary: 'Cuando recibes una venta nueva.' },
+  offers:   { label: 'Ofertas',      summary: 'Cuando alguien hace una oferta.' },
+  payments: { label: 'Pagos',        summary: 'Cuando el comprador avisa que ya pagó.' },
+  returns:  { label: 'Devoluciones', summary: 'Cuando un comprador solicita una devolución.' },
 }

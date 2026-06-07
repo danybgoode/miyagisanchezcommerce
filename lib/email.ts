@@ -686,6 +686,33 @@ export async function sendNewOrderToSeller(ctx: {
   await send(ctx.sellerEmail, subject, body)
 }
 
+// ── Seller: buyer reported a manual payment ("Ya hice el pago") ───────────────
+//
+// The money-path keystone (Granular Notifications S3.1). Fires when a buyer taps
+// "Ya hice el pago" on a manual (SPEI/cash/DiMo) order — the durable
+// `buyer_reported_paid` event (#3b). The seller still confirms receipt to capture;
+// this just gets them to verify fast. Copy uses #3b's "en verificación" vocabulary.
+
+export async function sendBuyerReportedPaymentToSeller(ctx: {
+  sellerEmail: string
+  listingTitle: string
+  buyerEmail: string | null
+  orderUrl: string
+}): Promise<void> {
+  const subject = `💸 El comprador avisó que pagó — ${ctx.listingTitle}`
+  const body = [
+    h1('El comprador avisó que pagó'),
+    table([
+      ['Producto', `<a href="${ctx.orderUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ...(ctx.buyerEmail ? [['Comprador', esc(ctx.buyerEmail)] as [string, string]] : []),
+    ]),
+    p('El comprador marcó este pedido como pagado. Verifica que el depósito llegó a tu cuenta antes de confirmar el pago y preparar el envío.'),
+    notice('Hasta que confirmes el pago, el pedido sigue como “Pago reportado — en verificación”.', 'warn'),
+    cta('Verificar y confirmar', ctx.orderUrl),
+  ].join('')
+  await send(ctx.sellerEmail, subject, body)
+}
+
 // ── Buyer: order shipped notification ─────────────────────────────────────────
 
 export async function sendOrderShipped(ctx: {

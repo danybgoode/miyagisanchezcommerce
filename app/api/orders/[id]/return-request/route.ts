@@ -7,9 +7,10 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { sendReturnRequestToSeller, sendReturnRequestConfirmedToBuyer, getSellerEmail } from '@/lib/email'
-import { tg } from '@/lib/telegram'
+import { sendReturnRequestToSeller, sendReturnRequestConfirmedToBuyer } from '@/lib/email'
+import { tg, escapeHtml } from '@/lib/telegram'
 import { db } from '@/lib/supabase'
+import { dispatchToSeller } from '@/lib/notifications/dispatch'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY    = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -96,19 +97,29 @@ export async function POST(
         const shopName     = shop?.name ?? 'Vendedor'
 
         if (shop?.clerk_user_id) {
-          const sellerEmail = await getSellerEmail(shop.clerk_user_id).catch(() => null)
-          if (sellerEmail) {
-            sendReturnRequestToSeller({
-              sellerEmail,
-              shopName,
-              buyerName:    null,
-              buyerEmail:   (returnReq.buyer_email as string) ?? '',
-              listingTitle,
-              reason:       body.reason ?? '',
-              description:  body.description?.trim() ?? null,
-              orderUrl:     `${siteUrl}/shop/manage/orders/${id}`,
-            }).catch(() => {})
-          }
+          const orderUrl = `${siteUrl}/shop/manage/orders/${id}`
+          const reason   = body.reason ?? ''
+          // Seller notification through the preference seam (Devoluciones group):
+          // email + push + linked Telegram, per the seller's prefs. The seam
+          // resolves the seller email itself, only when the email channel is on.
+          void dispatchToSeller(shop.clerk_user_id, {
+            group: 'returns',
+            email: (to) =>
+              sendReturnRequestToSeller({
+                sellerEmail:  to,
+                shopName,
+                buyerName:    null,
+                buyerEmail:   (returnReq.buyer_email as string) ?? '',
+                listingTitle,
+                reason,
+                description:  body.description?.trim() ?? null,
+                orderUrl,
+              }),
+            push: { kind: 'order', title: 'Nueva solicitud de devolución', body: listingTitle, url: orderUrl },
+            telegram:
+              `↩️ <b>Nueva solicitud de devolución</b>\n${escapeHtml(listingTitle)}\n` +
+              `Motivo: ${escapeHtml(reason)}\nRevísala en tu panel.`,
+          })
         }
         sendReturnRequestConfirmedToBuyer({
           buyerEmail: (returnReq.buyer_email as string) ?? '',
@@ -163,10 +174,17 @@ export async function POST(
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
   if (shop.clerk_user_id) {
-    const sellerEmail = await getSellerEmail(shop.clerk_user_id)
-    if (sellerEmail) {
-      sendReturnRequestToSeller({ sellerEmail, shopName: shop.name, buyerName: order.buyer_name ?? null, buyerEmail: order.buyer_email ?? '', listingTitle: listing.title, reason: body.reason, description: body.description?.trim() ?? null, orderUrl: `${siteUrl}/shop/manage/orders/${id}` }).catch(() => {})
-    }
+    const orderUrl = `${siteUrl}/shop/manage/orders/${id}`
+    const reason   = body.reason   // narrowed to a validated string by the guard above
+    void dispatchToSeller(shop.clerk_user_id, {
+      group: 'returns',
+      email: (to) =>
+        sendReturnRequestToSeller({ sellerEmail: to, shopName: shop.name, buyerName: order.buyer_name ?? null, buyerEmail: order.buyer_email ?? '', listingTitle: listing.title, reason, description: body.description?.trim() ?? null, orderUrl }),
+      push: { kind: 'order', title: 'Nueva solicitud de devolución', body: listing.title, url: orderUrl },
+      telegram:
+        `↩️ <b>Nueva solicitud de devolución</b>\n${escapeHtml(listing.title)}\n` +
+        `Motivo: ${escapeHtml(reason)}\nRevísala en tu panel.`,
+    })
   }
   sendReturnRequestConfirmedToBuyer({ buyerEmail: order.buyer_email ?? '', buyerName: order.buyer_name ?? null, listingTitle: listing.title, shopName: shop.name, orderUrl: `${siteUrl}/account/orders/${id}` }).catch(() => {})
   tg.alert(`↩ Solicitud de devolución\n${listing.title}\nMotivo: ${body.reason}`).catch(() => {})
