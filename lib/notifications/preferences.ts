@@ -113,3 +113,17 @@ export function telegramTarget(prefs: Prefs, group: EventGroup, link: TelegramLi
 export function groupForEvent(kind: SellerEventKind): EventGroup {
   return EVENT_GROUP[kind]
 }
+
+// ── Settings copy (es-MX, matches the seller portal) ──────────────────────────────
+//
+// The label + one-line summary of what each group actually notifies about. Lives
+// here (next-free, the EVENT_GROUP source of truth) so the settings UI and the
+// completeness spec share ONE definition — the summary can't drift from what the
+// seam really sends. es-MX, consistent with the rest of the seller portal.
+
+export const GROUP_COPY: Record<EventGroup, { label: string; summary: string }> = {
+  orders:   { label: 'Pedidos',      summary: 'Cuando recibes una venta nueva.' },
+  offers:   { label: 'Ofertas',      summary: 'Cuando alguien hace una oferta.' },
+  payments: { label: 'Pagos',        summary: 'Cuando el comprador avisa que ya pagó.' },
+  returns:  { label: 'Devoluciones', summary: 'Cuando un comprador solicita una devolución.' },
+}

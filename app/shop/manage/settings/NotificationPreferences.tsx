@@ -5,6 +5,7 @@ import {
   EVENT_GROUPS,
   CHANNELS,
   DEFAULT_PREFS,
+  GROUP_COPY,
   type Prefs,
   type EventGroup,
   type Channel,
@@ -19,12 +20,8 @@ import {
  * it up with the seller Telegram link. Email/Push toggle live and persist.
  */
 
-const GROUP_LABELS: Record<EventGroup, { label: string; desc: string }> = {
-  orders:   { label: 'Pedidos',      desc: 'Nuevas ventas y su seguimiento.' },
-  offers:   { label: 'Ofertas',      desc: 'Cuando alguien hace una oferta.' },
-  payments: { label: 'Pagos',        desc: 'Confirmaciones y avisos de pago.' },
-  returns:  { label: 'Devoluciones', desc: 'Solicitudes de devolución.' },
-}
+// Group label + summary come from the shared GROUP_COPY (one source of truth with
+// the dispatch vocabulary) so what we show can't drift from what the seam sends.
 const CHANNEL_LABELS: Record<Channel, string> = {
   email: 'Email',
   push: 'Push',
@@ -212,8 +209,8 @@ export default function NotificationPreferences() {
               {EVENT_GROUPS.map(group => (
                 <tr key={group} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="py-3 pr-3">
-                    <div className="font-medium">{GROUP_LABELS[group].label}</div>
-                    <div className="text-xs text-[var(--color-muted)]">{GROUP_LABELS[group].desc}</div>
+                    <div className="font-medium">{GROUP_COPY[group].label}</div>
+                    <div className="text-xs text-[var(--color-muted)]">{GROUP_COPY[group].summary}</div>
                   </td>
                   {CHANNELS.map(ch => {
                     // Telegram toggles are inert until the seller links a chat.
@@ -225,7 +222,7 @@ export default function NotificationPreferences() {
                             checked={locked ? false : prefs[group][ch]}
                             disabled={locked}
                             onChange={v => toggle(group, ch, v)}
-                            label={`${GROUP_LABELS[group].label} · ${CHANNEL_LABELS[ch]}`}
+                            label={`${GROUP_COPY[group].label} · ${CHANNEL_LABELS[ch]}`}
                           />
                         </div>
                       </td>

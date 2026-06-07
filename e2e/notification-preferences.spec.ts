@@ -8,6 +8,7 @@ import {
   telegramTarget,
   groupForEvent,
   EVENT_GROUP,
+  GROUP_COPY,
 } from '../lib/notifications/preferences'
 
 /**
@@ -145,5 +146,28 @@ test.describe('notification preferences · money-path (buyer_reported_paid) resp
   test('payments → telegram OFF resolves no target even with a linked chat', () => {
     const prefs = resolvePrefs([{ event_group: 'payments', channel: 'telegram', enabled: false }])
     expect(telegramTarget(prefs, group, { chat_id: '555' })).toBeNull()
+  })
+})
+
+test.describe('notification preferences · settings copy completeness (S3.3, es-MX)', () => {
+  // The seller portal is es-MX (no dictionary). GROUP_COPY is the single source the
+  // settings UI renders AND the spec checks — so the per-group summary can't drift
+  // from what the seam actually sends, and no group ships without copy.
+  test('every settings group has a non-empty label + summary', () => {
+    for (const g of EVENT_GROUPS) {
+      expect(GROUP_COPY[g]?.label.trim().length).toBeGreaterThan(0)
+      expect(GROUP_COPY[g]?.summary.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  test('every group that has copy is a real settings group (no orphan copy)', () => {
+    for (const g of Object.keys(GROUP_COPY)) {
+      expect(EVENT_GROUPS).toContain(g as (typeof EVENT_GROUPS)[number])
+    }
+  })
+
+  test('the payments summary speaks to the buyer_reported_paid money path', () => {
+    // Anchors the copy to the event it actually fires on (one vocabulary with #3b).
+    expect(GROUP_COPY[groupForEvent('buyer_reported_paid')].summary.toLowerCase()).toContain('pag')
   })
 })
