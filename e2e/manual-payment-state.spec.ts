@@ -6,6 +6,8 @@ import {
   isManualPaymentMethod,
   whoActsNext,
   manualPaymentBadge,
+  canSellerShip,
+  SHIP_BLOCKED_REASON,
   type ManualPaymentState,
 } from '../lib/manual-payment-state'
 
@@ -115,5 +117,29 @@ test.describe('manual-payment-state · copy is complete for every state + role',
     expect(whoActsNext('pending_payment', 'seller')).toBe('Esperando pago')
     expect(whoActsNext('buyer_reported_paid', 'buyer')).toBe('Avisaste — el vendedor verifica')
     expect(whoActsNext('buyer_reported_paid', 'seller')).toBe('Verifica el pago reportado')
+  })
+})
+
+test.describe('manual-payment-state · ship gate (S2)', () => {
+  test('card / MP orders are always shippable (captured at checkout)', () => {
+    expect(canSellerShip({ payment_method: 'stripe' })).toBe(true)
+    expect(canSellerShip({ payment_method: 'mp', payment_received: false })).toBe(true)
+    expect(canSellerShip({})).toBe(true) // unknown method → not manual → not gated
+  })
+
+  test('a manual order is blocked until payment is confirmed', () => {
+    expect(canSellerShip({ payment_method: 'spei' })).toBe(false)
+    expect(canSellerShip({ payment_method: 'spei', payment_received: false })).toBe(false)
+    // a buyer report alone does NOT unblock — only seller confirmation does
+    expect(canSellerShip({ payment_method: 'spei', metadata: { buyer_reported_paid: true } })).toBe(false)
+  })
+
+  test('a confirmed manual order is shippable (flat field OR metadata)', () => {
+    expect(canSellerShip({ payment_method: 'cash', payment_received: true })).toBe(true)
+    expect(canSellerShip({ payment_method: 'dimo', metadata: { payment_received: true } })).toBe(true)
+  })
+
+  test('the blocked reason is a non-empty es-MX string', () => {
+    expect(SHIP_BLOCKED_REASON).toContain('pago')
   })
 })

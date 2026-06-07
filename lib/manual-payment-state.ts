@@ -138,3 +138,26 @@ const STATE_BADGE: Record<ManualPaymentState, string> = {
 export function manualPaymentBadge(state: ManualPaymentState): string {
   return STATE_BADGE[state]
 }
+
+// ── Ship gate ─────────────────────────────────────────────────────────────────────
+
+/** es-MX reason shown / returned when a seller tries to ship an unpaid manual order. */
+export const SHIP_BLOCKED_REASON = 'Aún no confirmas el pago de este pedido.'
+/** Shorter, action-oriented variant for the seller UI affordance. */
+export const SHIP_BLOCKED_UI_NOTE = 'Esperando pago — confirma el depósito antes de enviar.'
+
+/**
+ * A seller may ship only once a manual (SPEI/DiMo/cash) order's payment is confirmed.
+ * Card/MP orders are captured at checkout → always shippable. The single source of
+ * truth for both the UI affordance (S2.1) and the server gates (S2.2).
+ */
+export function canSellerShip(order: {
+  payment_method?: string | null
+  payment_received?: boolean | null
+  metadata?: Record<string, unknown> | null
+}): boolean {
+  const meta = (order.metadata ?? {}) as Record<string, unknown>
+  const method = order.payment_method ?? (meta.payment_method as string | undefined) ?? null
+  if (!isManualPaymentMethod(method)) return true
+  return !!order.payment_received || meta.payment_received === true
+}
