@@ -131,7 +131,7 @@ function ActiveOfferCard({
               onClick={wrap(onAcceptCounter)}
               disabled={busy}
               className="flex-1 font-semibold py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
-              style={{ background: 'var(--accent)', color: '#fff' }}
+              style={{ background: 'var(--accent)', color: 'var(--fg-inverse)' }}
             >
               {busy ? '…' : '✓ Aceptar trato'}
             </button>
@@ -483,7 +483,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                   onClick={handleSubmit}
                   disabled={step === 'submitting' || (amountValidation?.level === 'block' && offerCents > 0)}
                   className="w-full font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                  style={{ background: 'var(--accent)', color: '#fff', padding: '13px 0', fontSize: 14 }}
+                  style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', padding: '13px 0', fontSize: 14 }}
                 >
                   {step === 'submitting' ? (
                     <><span className="animate-spin inline-block">⟳</span> Enviando oferta…</>

@@ -407,12 +407,12 @@ export default function CheckoutExperience({
                     placeholder="Código postal (CP)"
                     inputMode="numeric"
                     maxLength={5}
-                    style={{ ...inputStyle, paddingRight: 34, border: `1px solid ${cpLookupError ? 'var(--danger, #dc2626)' : cpResolved ? 'var(--success, #16a34a)' : 'var(--border)'}` }}
+                    style={{ ...inputStyle, paddingRight: 34, border: `1px solid ${cpLookupError ? 'var(--danger)' : cpResolved ? 'var(--success)' : 'var(--border)'}` }}
                   />
                   {cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)' }}>·</span>}
-                  {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success, #16a34a)' }}>✓</span>}
+                  {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success)' }}>✓</span>}
                 </div>
-                {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginTop: 4 }}>{cpLookupError}</p>}
+                {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{cpLookupError}</p>}
                 {!cpResolved && !cpLookupError && !address.postal_code?.length && (
                   <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
                 )}
@@ -424,14 +424,14 @@ export default function CheckoutExperience({
                     <div>
                       <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
                       <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
                         <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
                       </div>
                     </div>
                     <div>
                       <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
                       <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success, #16a34a)' }}>✓</span>
+                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
                         <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
                       </div>
                     </div>
@@ -470,15 +470,15 @@ export default function CheckoutExperience({
                   )}
 
                   {shippingRatesError && !shippingRatesLoading && (
-                    <div style={{ background: 'var(--danger-soft, #fef2f2)', border: '1px solid var(--danger, #dc2626)', borderRadius: 8, padding: 10 }}>
-                      <p style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginBottom: 4 }}>{shippingRatesError}</p>
+                    <div style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>{shippingRatesError}</p>
                       <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>También puedes coordinar la entrega directamente con el vendedor.</p>
                     </div>
                   )}
 
                   {shippingRatesMessage && !shippingRatesLoading && shippingRates.length === 0 && !shippingRatesError && (
-                    <div style={{ background: 'var(--warning-soft, #fffbeb)', border: '1px solid var(--warning, #d97706)', borderRadius: 8, padding: 10 }}>
-                      <p style={{ fontSize: 12, color: 'var(--warning, #92400e)' }}>{shippingRatesMessage}</p>
+                    <div style={{ background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 12, color: 'var(--warning)' }}>{shippingRatesMessage}</p>
                     </div>
                   )}
 
@@ -537,9 +537,9 @@ export default function CheckoutExperience({
                         <span style={{ fontSize: 13, fontWeight: 800 }}>{option.label}</span>
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-                          background: option.protected ? 'var(--success-soft, #f0fdf4)' : 'var(--bg-sunk)',
-                          color: option.protected ? 'var(--success-strong, #166534)' : 'var(--fg-muted)',
-                          border: `1px solid ${option.protected ? 'var(--success, #16a34a)' : 'var(--border)'}`,
+                          background: option.protected ? 'var(--success-soft)' : 'var(--bg-sunk)',
+                          color: option.protected ? 'var(--success-strong)' : 'var(--fg-muted)',
+                          border: `1px solid ${option.protected ? 'var(--success)' : 'var(--border)'}`,
                         }}>
                           {option.protected ? 'Protegido por Miyagi' : 'Acuerdo directo'}
                         </span>
@@ -642,7 +642,7 @@ export default function CheckoutExperience({
                     Cupón <strong style={{ color: 'var(--fg)', fontFamily: 'monospace' }}>{appliedCoupon.code}</strong>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <strong style={{ color: '#15803d' }}>−{formatCents(couponDiscountCents, currency)}</strong>
+                    <strong style={{ color: 'var(--success-ink)' }}>−{formatCents(couponDiscountCents, currency)}</strong>
                     <button type="button" onClick={removeCoupon} style={{ background: 'none', border: 'none', color: 'var(--fg-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
                       Quitar
                     </button>
@@ -668,7 +668,7 @@ export default function CheckoutExperience({
                       {couponValidating ? '…' : 'Aplicar'}
                     </button>
                   </div>
-                  {couponError && <p style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{couponError}</p>}
+                  {couponError && <p style={{ fontSize: 12, color: 'var(--danger-strong)', marginTop: 6 }}>{couponError}</p>}
                 </div>
               )}
             </div>

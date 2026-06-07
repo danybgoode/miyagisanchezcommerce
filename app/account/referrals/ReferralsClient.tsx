@@ -68,12 +68,12 @@ export default function ReferralsClient({
           <div className="border border-[var(--color-border)] rounded-xl p-5 mb-6">
             <label className="block text-xs font-medium text-[var(--color-muted)] mb-2">Tu enlace de invitación</label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 min-w-0 truncate text-sm bg-[var(--color-surface-alt,#f5f5f5)] rounded-lg px-3 py-2">{link}</code>
+              <code className="flex-1 min-w-0 truncate text-sm bg-[var(--surface-muted)] rounded-lg px-3 py-2">{link}</code>
               <button onClick={copy} className="px-3 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] whitespace-nowrap">
                 {copied ? '¡Copiado!' : 'Copiar'}
               </button>
             </div>
-            <button onClick={share} className="mt-3 w-full px-4 py-2 text-sm font-semibold rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90">
+            <button onClick={share} className="mt-3 w-full px-4 py-2 text-sm font-semibold rounded-lg bg-[var(--accent)] text-[var(--fg-inverse)] hover:opacity-90">
               Compartir
             </button>
             <p className="text-xs text-[var(--color-muted)] mt-3">

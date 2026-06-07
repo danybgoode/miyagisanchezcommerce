@@ -56,11 +56,11 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
 
   if (state === 'sent') {
     return (
-      <div style={{ padding: '20px', background: '#f0faf7', border: '1px solid #3a8a7a', borderRadius: '8px' }}>
-        <p style={{ fontWeight: 600, color: '#1a1a1a', marginBottom: '8px' }}>
+      <div style={{ padding: '20px', background: 'var(--claim-accent-soft)', border: '1px solid var(--claim-accent)', borderRadius: '8px' }}>
+        <p style={{ fontWeight: 600, color: 'var(--claim-ink)', marginBottom: '8px' }}>
           ¡Listo! Revisa tu correo para continuar.
         </p>
-        <p style={{ fontSize: '14px', color: '#555', marginBottom: devLink ? '16px' : 0 }}>
+        <p style={{ fontSize: '14px', color: 'var(--claim-muted)', marginBottom: devLink ? '16px' : 0 }}>
           Enviamos un enlace a <strong>{email}</strong>. Haz clic para continuar.
         </p>
         {devLink && (
@@ -68,8 +68,8 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
             href={devLink}
             style={{
               display: 'inline-block',
-              background: '#3a8a7a',
-              color: 'white',
+              background: 'var(--claim-accent)',
+              color: 'var(--fg-inverse)',
               padding: '10px 20px',
               borderRadius: '6px',
               textDecoration: 'none',

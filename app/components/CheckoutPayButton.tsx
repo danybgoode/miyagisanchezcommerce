@@ -135,8 +135,8 @@ export default function CheckoutPayButton({
         disabled={disabled || loading}
         className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm disabled:opacity-60 transition-colors"
         style={{
-          background: provider === 'mercadopago' ? '#009EE3' : isManual ? 'var(--bg-elevated)' : 'var(--fg)',
-          color: provider === 'mercadopago' ? '#fff' : isManual ? 'var(--fg)' : 'var(--fg-inverse)',
+          background: provider === 'mercadopago' ? 'var(--provider-mercadopago)' : isManual ? 'var(--bg-elevated)' : 'var(--fg)',
+          color: provider === 'mercadopago' ? 'var(--fg-inverse)' : isManual ? 'var(--fg)' : 'var(--fg-inverse)',
           border: isManual ? '1.5px solid var(--border)' : 'none',
         }}
       >

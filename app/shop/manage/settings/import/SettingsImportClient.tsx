@@ -214,7 +214,7 @@ export default function SettingsImportClient() {
           value={prompt}
           onFocus={(e) => e.currentTarget.select()}
           rows={12}
-          className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-muted-bg,#f7f7f7)] text-[var(--color-foreground)] resize-y"
+          className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
         />
       </section>
 
@@ -228,7 +228,7 @@ export default function SettingsImportClient() {
         <div className="space-y-2">
           {CONFIG_BLOCKS.map((b) => (
             <div key={String(b.key)} className="flex gap-2 text-sm">
-              <code className="font-mono text-xs bg-[var(--color-muted-bg,#f7f7f7)] rounded px-1.5 py-0.5 h-fit">{String(b.key)}</code>
+              <code className="font-mono text-xs bg-[var(--surface-muted)] rounded px-1.5 py-0.5 h-fit">{String(b.key)}</code>
               <span className="text-[var(--color-muted)]">{b.desc}</span>
             </div>
           ))}
@@ -256,7 +256,7 @@ export default function SettingsImportClient() {
           </h2>
           <CopyButton text={exampleJson} label="Copiar ejemplo" />
         </div>
-        <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-muted-bg,#f7f7f7)] text-[var(--color-foreground)] overflow-x-auto">
+        <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] overflow-x-auto">
           {exampleJson}
         </pre>
       </section>

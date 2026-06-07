@@ -15,7 +15,7 @@ export default function ClaimButton({ href, accent }: { href: string; accent: st
       onMouseOver={e => {
         const el = e.currentTarget as HTMLElement
         el.style.backgroundColor = accent
-        el.style.color = '#fff'
+        el.style.color = 'var(--fg-inverse)'
       }}
       onMouseOut={e => {
         const el = e.currentTarget as HTMLElement
