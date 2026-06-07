@@ -2,13 +2,13 @@ import type { Metadata } from 'next'
 import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
 import { sellerPersonaCtaHref } from '@/lib/seller-acquisition'
-import { SellerAcquisitionPage } from './_components/SellerAcquisitionSections'
-import { buildAnchorPageConfig } from './_components/page-config'
+import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
+import { buildLocalBusinessPageConfig } from '../_components/page-config'
 
 const BASE_URL = 'https://miyagisanchez.com'
-const PAGE_PATH = '/vende'
+const PAGE_PATH = '/vende/negocios'
 
-const meta = es.sellerAcquisition.anchor.metadata
+const meta = es.sellerAcquisition.negocios.metadata
 const ogImage = `${BASE_URL}${PAGE_PATH}/opengraph-image`
 
 export const metadata: Metadata = {
@@ -32,14 +32,14 @@ export const metadata: Metadata = {
   },
 }
 
-type VendePageProps = {
+type LocalBusinessPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function VendePage({ searchParams }: VendePageProps) {
+export default async function LocalBusinessSellerPage({ searchParams }: LocalBusinessPageProps) {
   const query = await searchParams
   const ui = (await getDictionary('es')).sellerAcquisition
-  const config = buildAnchorPageConfig(ui, query)
+  const config = buildLocalBusinessPageConfig(ui, query)
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -55,8 +55,8 @@ export default async function VendePage({ searchParams }: VendePageProps) {
     },
     potentialAction: {
       '@type': 'CreateAction',
-      name: ui.anchor.primaryCta,
-      target: `${BASE_URL}${sellerPersonaCtaHref('vende', query)}`,
+      name: ui.negocios.primaryCta,
+      target: `${BASE_URL}${sellerPersonaCtaHref('negocios', query)}`,
     },
   }
 

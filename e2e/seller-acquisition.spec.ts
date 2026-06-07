@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   parseSellerAcquisitionUtm,
+  resolveSellerAcquisitionVariant,
   resolveSellerPersonaRoute,
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
@@ -24,6 +25,17 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       type: 'service',
       status: 'live',
     })
+    expect(resolveSellerPersonaRoute('negocios')).toMatchObject({
+      pagePath: '/vende/negocios',
+      from: 'negocios',
+      status: 'live',
+    })
+    expect(resolveSellerPersonaRoute('servicios')).toMatchObject({
+      pagePath: '/vende/servicios',
+      from: 'servicios',
+      type: 'service',
+      status: 'live',
+    })
   })
 
   test('builds CTA hrefs with persona from-param and safe UTM carry-through', () => {
@@ -34,18 +46,44 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       ref: 'not-carried',
     })
 
-    expect(href).toBe('/sell?from=creadores&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
+    expect(href).toBe('/sell?from=creadores&v=a&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
   })
 
   test('keeps World Cup service type on the shipped wedge CTA', () => {
     expect(sellerPersonaCtaHref('mundial', 'utm_source=qr')).toBe(
-      '/sell?type=service&from=mundial&utm_source=qr',
+      '/sell?type=service&from=mundial&v=a&utm_source=qr',
     )
   })
 
-  test('routes backlog personas to the anchor onboarding with attribution', () => {
+  test('routes the local business persona to its page with attribution', () => {
     expect(sellerPersonaRouterHref('negocios', 'utm_source=flyer')).toBe(
-      '/sell?from=vende&utm_source=flyer',
+      '/vende/negocios?utm_source=flyer',
+    )
+    expect(sellerPersonaCtaHref('negocios', 'utm_source=flyer')).toBe(
+      '/sell?from=negocios&v=a&utm_source=flyer',
+    )
+  })
+
+  test('routes the services persona to its page and service CTA with attribution', () => {
+    expect(sellerPersonaRouterHref('servicios', 'utm_source=flyer')).toBe(
+      '/vende/servicios?utm_source=flyer',
+    )
+    expect(sellerPersonaCtaHref('servicios', 'utm_source=flyer')).toBe(
+      '/sell?type=service&from=servicios&v=a&utm_source=flyer',
+    )
+  })
+
+  test('resolves A/B variants fail-safe and tags conversion links', () => {
+    expect(resolveSellerAcquisitionVariant()).toBe('a')
+    expect(resolveSellerAcquisitionVariant('v=b')).toBe('b')
+    expect(resolveSellerAcquisitionVariant({ variant: 'B' })).toBe('b')
+    expect(resolveSellerAcquisitionVariant({ v: 'bad-value' })).toBe('a')
+
+    expect(sellerPersonaCtaHref('creadores', { v: 'b', utm_source: 'ig' })).toBe(
+      '/sell?from=creadores&v=b&utm_source=ig',
+    )
+    expect(sellerPersonaRouterHref('creadores', 'v=b&utm_source=ig')).toBe(
+      '/vende/creadores?utm_source=ig&v=b',
     )
   })
 

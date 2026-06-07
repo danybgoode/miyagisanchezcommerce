@@ -38,7 +38,8 @@
     "anchor": {
       "metadata": {
         "title": "Vende sin comisiones en Mexico — Miyagi Sanchez",
-        "description": "Abre una tienda gratis en Miyagi Sanchez. Vende productos, servicios, experiencias o catalogos completos sin comisiones."
+        "description": "Abre una tienda gratis en Miyagi Sanchez. Vende productos, servicios, experiencias o catalogos completos sin comisiones.",
+        "ogAlt": "Miyagi Sanchez: vende lo que sea en Mexico sin comisiones."
       },
       "eyebrow": "Vendedores en Mexico",
       "heroTitle": "Vende lo que sea en Mexico. Sin comisiones.",
@@ -76,7 +77,7 @@
         }
       ],
       "routerTitle": "Que tipo de vendedor eres?",
-      "routerLead": "Elige el camino que mas se parece a tu negocio. Si aun no hay pagina dedicada, te llevamos directo al onboarding.",
+      "routerLead": "Elige el camino que mas se parece a tu negocio. Cada ruta conserva la atribucion para medir que mensaje convierte mejor.",
       "routerCards": [
         {
           "personaId": "creadores",
@@ -99,7 +100,7 @@
           "title": "Tengo un negocio local",
           "body": "Imprenta, taller, tienda fisica o inventario que quieres poner en linea.",
           "icon": "iconoir-store",
-          "statusLabel": "Proximamente"
+          "statusLabel": ""
         },
         {
           "personaId": "servicios",
@@ -107,7 +108,7 @@
           "title": "Vendo servicios profesionales",
           "body": "Consultas, sesiones, paquetes, mantenimiento o trabajo por cita.",
           "icon": "iconoir-user-star",
-          "statusLabel": "Proximamente"
+          "statusLabel": ""
         }
       ],
       "stepsTitle": "Como funciona",
@@ -127,12 +128,20 @@
       ],
       "closingTitle": "Empieza gratis y dejalo si no te gusta.",
       "closingBody": "No hay contrato, no hay comision escondida y no necesitas rehacer tu negocio. Sube una primera oferta y prueba.",
-      "closingCta": "Abrir mi tienda"
+      "closingCta": "Abrir mi tienda",
+      "variants": {
+        "b": {
+          "heroTitle": "Abre tu tienda gratis en Mexico. 0% comision.",
+          "primaryCta": "Crear tienda gratis",
+          "closingCta": "Empezar sin comision"
+        }
+      }
     },
     "creadores": {
       "metadata": {
         "title": "Vende tu catalogo creativo sin comisiones — Miyagi Sanchez",
-        "description": "Trae tu catalogo de Instagram a una tienda propia. 0% comision, dominio o subdominio, widget y cobro directo."
+        "description": "Trae tu catalogo de Instagram a una tienda propia. 0% comision, dominio o subdominio, widget y cobro directo.",
+        "ogAlt": "Miyagi Sanchez para creadores: catalogo propio, 0% comision y cobro directo."
       },
       "eyebrow": "Creadores y disenadores",
       "heroTitle": "Deja de pagar comisiones de Shopify y de perder ventas en los DMs.",
@@ -186,12 +195,154 @@
       ],
       "closingTitle": "Tu catalogo ya existe. Ponlo a vender.",
       "closingBody": "Empieza con lo que tienes: fotos, texto, IG o un archivo. Ajustas despues.",
-      "closingCta": "Traer mi catalogo"
+      "closingCta": "Traer mi catalogo",
+      "variants": {
+        "b": {
+          "heroTitle": "Tu catalogo de Instagram merece una tienda propia.",
+          "primaryCta": "Migrar mi catalogo",
+          "closingCta": "Migrar mi catalogo"
+        }
+      }
+    },
+    "negocios": {
+      "metadata": {
+        "title": "Lleva tu negocio local a internet — Miyagi Sanchez",
+        "description": "Abre una tienda para tu negocio local sin comisiones. Migra catalogo, vende con QR y conecta con la revista Mexico-86.",
+        "ogAlt": "Miyagi Sanchez para negocios locales: tienda online, QR y revista Mexico-86."
+      },
+      "eyebrow": "Negocios locales",
+      "heroTitle": "Tu negocio de la esquina, ahora tambien en linea — y en la revista.",
+      "heroLead": "Sube tu inventario en minutos, cobra directo y comparte tu tienda con link, QR, subdominio o dominio propio. Miyagi tambien puede llevarte a la edicion impresa Mexico-86.",
+      "trustLine": "No nos creas: preguntale a Claude que es miyagisanchez.com/vende/negocios y deja que revise si le conviene a tu negocio.",
+      "primaryCta": "Poner mi negocio en linea",
+      "secondaryCta": "Ver pagina general",
+      "heroStats": [
+        { "value": "0%", "label": "comision por venta" },
+        { "value": "QR", "label": "para vitrina, caja o volante" },
+        { "value": "Print", "label": "puente a revista Mexico-86" }
+      ],
+      "proofTitle": "No necesitas cambiar tu negocio para vender en linea",
+      "proofLead": "Miyagi se adapta a como ya trabajas: inventario, pagos directos, catalogo por QR y presencia impresa cuando te convenga.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-fast-arrow-right",
+          "title": "Migracion express",
+          "body": "Trae fotos, lista de precios, texto o archivo. Tu agente puede convertirlo en catalogo publicable."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "No pierdes margen por cada pedido. Cobras directo con los metodos que actives en tu tienda."
+        },
+        {
+          "icon": "iconoir-qr-code",
+          "title": "QR para tu mostrador",
+          "body": "Pon tu tienda en la caja, volante, aparador o recibo y manda a clientes al catalogo actualizado."
+        },
+        {
+          "icon": "iconoir-book",
+          "title": "Sal en Mexico-86",
+          "body": "La edicion impresa abre un puente que Shopify o Instagram no tienen: anuncio fisico con QR a tu tienda."
+        }
+      ],
+      "stepsTitle": "De local fisico a tienda online",
+      "steps": [
+        { "title": "Trae tu catalogo actual", "body": "Fotos, lista de precios, Excel, WhatsApp o texto. No empiezas desde cero." },
+        { "title": "Publica tu primera vitrina", "body": "Elige productos, precios, formas de pago y como quieres que te contacten." },
+        { "title": "Comparte QR y link", "body": "Usalo en mostrador, bolsas, volante, redes o revista. Cada persona llega a tu tienda." }
+      ],
+      "agentTitle": "Tu agente puede hacer la mudanza contigo",
+      "agentBody": "La tienda esta pensada para que Claude, Gemini o ChatGPT lean tu catalogo, sugieran textos y te ayuden a organizar productos.",
+      "socialTitle": "Para negocios que venden hoy, no para empezar desde cero",
+      "socialBody": "Si ya tienes clientes, inventario y formas de cobrar, Miyagi suma una vitrina online y un puente impreso sin comerte el margen.",
+      "socialStats": [
+        { "value": "QR", "label": "online desde el mostrador" },
+        { "value": "MXN", "label": "cobros pensados para Mexico" },
+        { "value": "Print", "label": "revista + tienda conectadas" }
+      ],
+      "closingTitle": "Tu local ya tiene historia. Dale tambien una URL.",
+      "closingBody": "Empieza con tu catalogo actual y prueba una tienda sin comisiones. Si funciona, la conviertes en tu canal permanente.",
+      "closingCta": "Abrir tienda local",
+      "variants": {
+        "b": {
+          "heroTitle": "Pon tu local en internet sin perder margen.",
+          "primaryCta": "Crear tienda con QR",
+          "closingCta": "Crear tienda local"
+        }
+      }
+    },
+    "servicios": {
+      "metadata": {
+        "title": "Vende servicios profesionales sin comisiones — Miyagi Sanchez",
+        "description": "Publica servicios, agenda citas con Cal.com y cobra directo. Sin comisiones de plataforma para profesionales en Mexico.",
+        "ogAlt": "Miyagi Sanchez para servicios profesionales: agenda, cobra y vende sin comisiones."
+      },
+      "eyebrow": "Servicios profesionales",
+      "heroTitle": "Cobra y agenda sin complicaciones. Sin comisiones.",
+      "heroLead": "Publica consultas, clases, belleza, oficios, reparaciones o paquetes por cita. Miyagi te da link, tienda, agenda y cobro directo sin quitarte porcentaje.",
+      "trustLine": "No nos creas: preguntale a Claude que es miyagisanchez.com/vende/servicios y pidele que revise si sirve para tu oficio.",
+      "primaryCta": "Publicar mi servicio",
+      "secondaryCta": "Ver pagina general",
+      "heroStats": [
+        { "value": "0%", "label": "comision por reserva" },
+        { "value": "Cal.com", "label": "agenda cuando aplica" },
+        { "value": "MXN", "label": "cobra directo a tu cuenta" }
+      ],
+      "proofTitle": "Servicios con agenda, cobro y pagina propia",
+      "proofLead": "Tu trabajo puede vivir como listing de servicio: descripcion clara, precio o cotizacion, horarios y formas de pago.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-tools",
+          "title": "Tipo servicio",
+          "body": "El onboarding acepta servicios y rentas, no solo productos fisicos. Publica sesiones, paquetes o visitas."
+        },
+        {
+          "icon": "iconoir-calendar",
+          "title": "Agenda conectada",
+          "body": "Usa Cal.com para citas con horario, cupo o disponibilidad; el cliente entiende cuando te puede reservar."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "No pagas porcentaje por cada consulta o trabajo. Tu margen se queda contigo."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Cobra directo",
+          "body": "Activa tarjeta, MercadoPago, SPEI, efectivo o acuerdo directo segun como trabajes."
+        }
+      ],
+      "stepsTitle": "De oficio o consulta a servicio vendible",
+      "steps": [
+        { "title": "Describe lo que haces", "body": "Servicio, zona, duracion, precio o rango. Tu agente puede ayudarte a redactarlo claro." },
+        { "title": "Define agenda y cobro", "body": "Conecta Cal.com si necesitas horarios; elige como quieres recibir pagos." },
+        { "title": "Comparte tu link", "body": "Envia tu servicio por WhatsApp, redes, QR o web. Cada visita llega con atribucion." }
+      ],
+      "agentTitle": "Tu agente puede convertir tu oferta en listing",
+      "agentBody": "Miyagi esta escrito para que un agente lea tu servicio, proponga descripcion, preguntas frecuentes y pasos de venta.",
+      "socialTitle": "Para profesionales que venden tiempo, oficio y confianza",
+      "socialBody": "Haz que el cliente vea que ofreces, cuanto cuesta o como cotiza, cuando estas disponible y como pagarte.",
+      "socialStats": [
+        { "value": "Agenda", "label": "citas y disponibilidad" },
+        { "value": "Link", "label": "servicio listo para compartir" },
+        { "value": "0%", "label": "sin comision por venta" }
+      ],
+      "closingTitle": "Tu servicio ya se vende por mensajes. Dale una pagina.",
+      "closingBody": "Publica una primera oferta, prueba el flujo y ajusta la agenda conforme lleguen clientes.",
+      "closingCta": "Crear servicio",
+      "variants": {
+        "b": {
+          "heroTitle": "Convierte tu servicio en una pagina que agenda y cobra.",
+          "primaryCta": "Vender mi servicio",
+          "closingCta": "Vender mi servicio"
+        }
+      }
     },
     "mundial": {
       "metadata": {
         "title": "Vende experiencias del Mundial — Miyagi Sanchez",
-        "description": "Publica tours, rincones de comida y rentas para el Mundial 2026 en Mexico. Sin comisiones y directo a tu cuenta."
+        "description": "Publica tours, rincones de comida y rentas para el Mundial 2026 en Mexico. Sin comisiones y directo a tu cuenta.",
+        "ogAlt": "Miyagi Sanchez Mundial 2026: vende experiencias en Mexico sin comisiones."
       },
       "eyebrow": "Mundial 2026 · Mexico",
       "heroTitle": "Captura al publico global del Mundial.",
@@ -244,7 +395,14 @@
       "agentBody": "La pagina esta hecha con texto real, secciones semanticas y metadata. Claude, Gemini o cualquier crawler puede explicar por que un proveedor local deberia publicar aqui.",
       "closingTitle": "El Mundial no espera. Tu anuncio tampoco.",
       "closingBody": "Si vendes experiencias, comida, traslados, tours, hospedaje temporal o servicios locales, empieza con un anuncio de servicio y ajusta despues.",
-      "closingCta": "Publicar mi servicio"
+      "closingCta": "Publicar mi servicio",
+      "variants": {
+        "b": {
+          "heroTitle": "Que el Mundial encuentre tu experiencia local.",
+          "primaryCta": "Publicar experiencia",
+          "closingCta": "Publicar experiencia"
+        }
+      }
     }
   },
   "terms": {

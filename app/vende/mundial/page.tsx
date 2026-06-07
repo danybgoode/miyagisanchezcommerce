@@ -2,12 +2,15 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
+import { resolveSellerAcquisitionVariant, sellerPersonaCtaHref } from '@/lib/seller-acquisition'
+import { SellerAcquisitionVariantTag } from '../_components/SellerAcquisitionVariantTag'
+import { applySellerAcquisitionPageVariant } from '../_components/page-config'
 
 const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/vende/mundial'
-const SELL_CTA = '/sell?type=service&from=mundial'
 
 const meta = es.sellerAcquisition.mundial.metadata
+const ogImage = `${BASE_URL}${PAGE_PATH}/opengraph-image`
 
 export const metadata: Metadata = {
   title: meta.title,
@@ -20,16 +23,25 @@ export const metadata: Metadata = {
     siteName: 'Miyagi Sánchez',
     title: meta.title,
     description: meta.description,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: meta.ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
     title: meta.title,
     description: meta.description,
+    images: [ogImage],
   },
 }
 
-export default async function MundialSellerPage() {
-  const ui = (await getDictionary('es')).sellerAcquisition.mundial
+type MundialPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function MundialSellerPage({ searchParams }: MundialPageProps) {
+  const query = await searchParams
+  const variant = resolveSellerAcquisitionVariant(query)
+  const ui = applySellerAcquisitionPageVariant((await getDictionary('es')).sellerAcquisition.mundial, variant)
+  const sellCta = sellerPersonaCtaHref('mundial', query)
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -46,15 +58,18 @@ export default async function MundialSellerPage() {
     potentialAction: {
       '@type': 'CreateAction',
       name: ui.primaryCta,
-      target: `${BASE_URL}${SELL_CTA}`,
+      target: `${BASE_URL}${sellCta}`,
     },
   }
 
   return (
     <main
       className="app-shell"
+      data-seller-persona="mundial"
+      data-seller-variant={variant}
       style={{ paddingTop: 36, paddingBottom: 72 }}
     >
+      <SellerAcquisitionVariantTag persona="mundial" variant={variant} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -107,7 +122,7 @@ export default async function MundialSellerPage() {
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
             <Link
-              href={SELL_CTA}
+              href={sellCta}
               className="btn btn-primary btn-lg"
               data-testid="mundial-primary-cta"
               prefetch={false}
@@ -307,7 +322,7 @@ export default async function MundialSellerPage() {
           <p className="t-lead">{ui.closingBody}</p>
         </div>
         <Link
-          href={SELL_CTA}
+          href={sellCta}
           className="btn btn-primary btn-lg"
           data-testid="mundial-closing-cta"
           prefetch={false}
