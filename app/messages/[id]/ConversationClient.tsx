@@ -111,7 +111,7 @@ function EventBubble({ event, role }: { event: ConvEvent; role: 'buyer' | 'selle
           boxShadow: 'var(--shadow-1)',
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--fg-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Oferta</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? '#fff' : 'var(--fg)' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)' }}>
             {fmt(meta.amount_cents as number, currency)}
           </div>
           <div style={{ fontSize: 11, color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--fg-subtle)', marginTop: 2 }}>{formatTime(event.created_at)}</div>
@@ -130,7 +130,7 @@ function EventBubble({ event, role }: { event: ConvEvent; role: 'buyer' | 'selle
           border: isMine ? 'none' : '1.5px solid var(--info)',
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--info)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contraoferta</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? '#fff' : 'var(--info)' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? 'var(--fg-inverse)' : 'var(--info)' }}>
             {fmt(meta.counter_amount_cents as number ?? meta.amount_cents as number, currency)}
           </div>
           {typeof meta.message === 'string' && meta.message && <div style={{ fontSize: 13, color: isMine ? 'rgba(255,255,255,0.85)' : 'var(--info)', marginTop: 6, fontStyle: 'italic' }}>&ldquo;{meta.message}&rdquo;</div>}
@@ -149,7 +149,7 @@ function EventBubble({ event, role }: { event: ConvEvent; role: 'buyer' | 'selle
           background: isMine ? 'var(--fg)' : 'var(--bg-elevated)',
           border: isMine ? 'none' : '1px solid var(--border)',
         }}>
-          <span style={{ fontSize: 14, color: isMine ? '#fff' : 'var(--fg)', lineHeight: 1.4 }}>{meta.text as string}</span>
+          <span style={{ fontSize: 14, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)', lineHeight: 1.4 }}>{meta.text as string}</span>
           <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,0.5)' : 'var(--fg-subtle)', marginTop: 3, textAlign: 'right' }}>{formatTime(event.created_at)}</div>
         </div>
       </div>
@@ -275,7 +275,7 @@ function OfferActionBar({
           onClick={() => buyerAction('accept-counter')}
           disabled={busy}
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
-          style={{ background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
           ✓ Aceptar trato
         </button>
@@ -393,7 +393,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           onClick={() => onAction('counter', cents, counterMsg || undefined)}
           disabled={busy || cents <= 0}
           className="w-full font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
-          style={{ background: 'var(--info)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14 }}
+          style={{ background: 'var(--info)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer', fontSize: 14 }}
         >
           Enviar contraoferta — {cents > 0 ? fmt(cents, offer.currency) : '…'}
         </button>
@@ -413,7 +413,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           onClick={() => onAction('accept')}
           disabled={busy}
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
-          style={{ background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
           ✓ Aceptar
         </button>

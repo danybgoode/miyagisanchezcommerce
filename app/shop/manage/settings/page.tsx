@@ -21,8 +21,8 @@ const SECTIONS = [
     icon: 'iconoir-credit-card',
     title: 'Métodos de pago',
     desc: 'Stripe Connect, Mercado Pago y transferencia SPEI.',
-    color: '#009EE3',
-    bg: '#e8f7fd',
+    color: 'var(--provider-mercadopago)',
+    bg: 'var(--provider-mercadopago-soft)',
   },
   {
     key: 'envios',

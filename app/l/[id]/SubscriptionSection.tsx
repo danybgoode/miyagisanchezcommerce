@@ -228,7 +228,7 @@ export default function SubscriptionSection({
                 type="button"
                 onClick={handleMpSubscribe}
                 disabled={loading}
-                className="w-full bg-[#009EE3] hover:bg-[#0087c3] text-white font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full bg-[var(--provider-mercadopago)] hover:bg-[var(--provider-mercadopago-hover)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor">
                   <path d="M28 16a12 12 0 1 1-24 0 12 12 0 0 1 24 0zm-14.7 4.4 7.6-4.4-7.6-4.4v8.8z"/>

@@ -181,7 +181,7 @@ export default function AgentPage() {
         <pre
           style={{
             background: 'var(--papel-900)',
-            color: '#a8ffc4',
+            color: 'var(--agent-code-fg)',
             borderRadius: 'var(--r-md)',
             padding: '16px 18px',
             fontSize: 12,

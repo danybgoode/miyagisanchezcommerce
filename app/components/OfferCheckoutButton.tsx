@@ -47,7 +47,7 @@ export default function OfferCheckoutButton({
       <a
         href={signInHref}
         className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
-        style={{ background: 'var(--accent)', color: '#fff' }}
+        style={{ background: 'var(--accent)', color: 'var(--fg-inverse)' }}
       >
         <i className="iconoir-log-in" style={{ fontSize: 16 }} />
         Inicia sesión para comprar
@@ -71,7 +71,7 @@ export default function OfferCheckoutButton({
         className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm disabled:opacity-60 transition-colors"
         style={{
           background: variant === 'accent' ? 'var(--accent)' : 'var(--fg)',
-          color: variant === 'accent' ? '#fff' : 'var(--fg-inverse)',
+          color: 'var(--fg-inverse)',
           border: 'none',
         }}
       >

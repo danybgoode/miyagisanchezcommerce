@@ -104,7 +104,7 @@ export default async function FavoritesPage() {
                       )}
                       {/* Price drop badge */}
                       {priceDrop && (
-                        <div style={{ position: 'absolute', top: 8, left: 8, background: 'var(--danger)', color: '#fff', borderRadius: 'var(--r-pill)', padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
+                        <div style={{ position: 'absolute', top: 8, left: 8, background: 'var(--danger)', color: 'var(--fg-inverse)', borderRadius: 'var(--r-pill)', padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
                           ↓ {formatPrice(dropAmount, listing.currency)} menos
                         </div>
                       )}

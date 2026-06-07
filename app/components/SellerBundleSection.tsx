@@ -65,7 +65,7 @@ export default function SellerBundleSection({
           onClick={() => router.push(`/checkout/bundle?sellerId=${checkoutSellerId}`)}
           disabled={selected.length === 0}
           className="font-semibold rounded-xl text-sm disabled:opacity-50"
-          style={{ padding: '10px 14px', background: 'var(--accent)', color: '#fff', border: 'none', flexShrink: 0 }}
+          style={{ padding: '10px 14px', background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', flexShrink: 0 }}
         >
           Revisar{selected.length ? ` (${selected.length})` : ''}
         </button>

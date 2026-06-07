@@ -33,7 +33,7 @@ export default function PrintEditionCard() {
 
   return (
     <div className="mb-8 rounded-2xl border border-[var(--color-border)] overflow-hidden">
-      <div className="bg-gradient-to-r from-[#0a4d2e] to-[#16a34a] px-5 py-4 text-white">
+      <div className="bg-gradient-to-r from-[var(--print-accent)] to-[var(--print-accent-bright)] px-5 py-4 text-[var(--fg-inverse)]">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-90">
           <span>🗞️</span> Edición impresa · México 86
         </div>

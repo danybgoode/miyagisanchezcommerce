@@ -101,7 +101,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                   </div>
                 )}
                 {listing.in_stock === false && (
-                  <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, color: '#fff', background: 'var(--danger)', borderRadius: 'var(--r-pill)', padding: '3px 8px' }}>
+                  <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, color: 'var(--fg-inverse)', background: 'var(--danger)', borderRadius: 'var(--r-pill)', padding: '3px 8px' }}>
                     Agotado
                   </span>
                 )}

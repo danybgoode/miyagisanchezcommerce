@@ -136,8 +136,8 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
               style={{
                 width: '100%', padding: '11px 16px', borderRadius: 12,
                 border: 'none',
-                background: '#009ee3',
-                color: '#fff', fontFamily: 'var(--font-sans)',
+                background: 'var(--provider-mercadopago)',
+                color: 'var(--fg-inverse)', fontFamily: 'var(--font-sans)',
                 fontSize: 14, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 textDecoration: 'none',

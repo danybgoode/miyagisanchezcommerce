@@ -20,7 +20,7 @@ export interface StoreConfigManifest {
     state?: string
     city?: string
     tagline?: string
-    accent_color?: string        // hex like "#1d6f42"
+    accent_color?: string        // six-digit brand accent hex
     logo_url?: string            // absolute URL — ingested to our storage
     banner_url?: string          // absolute URL — ingested to our storage
     social?: {

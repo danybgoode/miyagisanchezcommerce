@@ -30,13 +30,13 @@
   /* Semantic */
   --color-energy:              #b04341;
   --color-energy-soft:         #fbeeed;
-  --color-promo:               #b8771a;
+  --color-promo:               #95590c;
   --color-promo-soft:          #fbf2e2;
   --color-agent:               #1e3a5f;
   --color-agent-soft:          #ecf0f6;
   --color-success:             #1d6f42;
   --color-success-soft:        #eef4f0;
-  --color-warning:             #b8771a;
+  --color-warning:             #95590c;
   --color-warning-soft:        #fbf2e2;
   --color-danger:              #b04341;
   --color-danger-soft:         #fbeeed;
@@ -143,6 +143,41 @@
   --danger-soft:   var(--color-danger-soft);
   --info:          var(--color-info);
   --info-soft:     var(--color-info-soft);
+
+  /* ─── Semantic integration aliases ─── */
+  /* Exact legacy/provider values kept here so components can style by intent. */
+  --surface-muted:        #f7f7f7;
+  --surface-channel:      #fafafa;
+  --surface-supply:       #f7f8f6;
+  --preview-ink:          #1a1a1a;
+
+  --success-strong:       #166534;
+  --success-ink:          #15803d;
+  --danger-strong:        #dc2626;
+
+  --claim-accent:         #3a8a7a;
+  --claim-accent-soft:    #f0faf7;
+  --claim-accent-border:  rgba(58, 138, 122, 0.2);
+  --claim-ink:            #1a1a1a;
+  --claim-muted:          #555555;
+
+  --embed-fg:             #111111;
+  --embed-fg-muted:       #666666;
+  --embed-fg-subtle:      #888888;
+  --embed-surface-sunk:   #f3f4f6;
+  --embed-placeholder:    #c0c4c8;
+
+  --agent-code-fg:        #a8ffc4;
+
+  --provider-mercadopago:       #009EE3;
+  --provider-mercadopago-hover: #0087c3;
+  --provider-mercadopago-soft:  #e8f7fd;
+  --provider-whatsapp:          #25D366;
+  --provider-envia:             #f6821f;
+  --provider-envia-hover:       #e07216;
+
+  --print-accent:        #0a4d2e;
+  --print-accent-bright: #16a34a;
 
   /* ─── Liquid Glass ─── */
   --glass-fill:        color-mix(in oklch, var(--papel-0) 62%, transparent);

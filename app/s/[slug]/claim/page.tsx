@@ -26,14 +26,14 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
               <p className="font-bold text-[var(--color-text)]">{shop.name}</p>
               <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com/s/{slug}</p>
             </div>
-            <span className="ml-auto text-xs font-semibold bg-[var(--color-accent)] text-white px-2 py-0.5 rounded">
+            <span className="ml-auto text-xs font-semibold bg-[var(--accent)] text-[var(--fg-inverse)] px-2 py-0.5 rounded">
               Reclamada
             </span>
           </div>
 
           {/* Body: is it you? */}
           <div className="px-5 py-5 space-y-5">
-            <div className="flex items-start gap-3 p-4 bg-[#f0faf7] border border-[#3a8a7a]/20 rounded-lg">
+            <div className="flex items-start gap-3 p-4 bg-[var(--claim-accent-soft)] border border-[var(--claim-accent-border)] rounded-lg">
               <span className="text-xl mt-0.5">👤</span>
               <div>
                 <p className="text-sm font-semibold text-[var(--color-text)] mb-1">
@@ -44,7 +44,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
                 </p>
                 <a
                   href="https://dashboard.despachobonsai.com/dashboard/commerce"
-                  className="inline-block text-sm font-semibold bg-[var(--color-accent)] !text-white px-4 py-2 rounded no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+                  className="inline-block text-sm font-semibold bg-[var(--accent)] !text-[var(--fg-inverse)] px-4 py-2 rounded no-underline hover:bg-[var(--accent-hover)] transition-colors"
                 >
                   Ir a mi panel de ventas →
                 </a>
