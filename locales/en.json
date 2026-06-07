@@ -128,7 +128,14 @@
       ],
       "closingTitle": "Start free and leave it if you do not like it.",
       "closingBody": "No contract, no hidden commission, and no need to rebuild your business. Upload a first offer and try it.",
-      "closingCta": "Open my shop"
+      "closingCta": "Open my shop",
+      "variants": {
+        "b": {
+          "heroTitle": "Open your free shop in Mexico. 0% commission.",
+          "primaryCta": "Create free shop",
+          "closingCta": "Start with no commission"
+        }
+      }
     },
     "creadores": {
       "metadata": {
@@ -188,7 +195,14 @@
       ],
       "closingTitle": "Your catalog already exists. Put it to work.",
       "closingBody": "Start with what you have: photos, text, Instagram, or a file. You can tune it later.",
-      "closingCta": "Bring my catalog"
+      "closingCta": "Bring my catalog",
+      "variants": {
+        "b": {
+          "heroTitle": "Your Instagram catalog deserves its own shop.",
+          "primaryCta": "Migrate my catalog",
+          "closingCta": "Migrate my catalog"
+        }
+      }
     },
     "negocios": {
       "metadata": {
@@ -248,7 +262,14 @@
       ],
       "closingTitle": "Your local shop already has a story. Give it a URL too.",
       "closingBody": "Start with your current catalog and test a shop with no commissions. If it works, make it your permanent channel.",
-      "closingCta": "Open local shop"
+      "closingCta": "Open local shop",
+      "variants": {
+        "b": {
+          "heroTitle": "Put your local shop online without losing margin.",
+          "primaryCta": "Create shop with QR",
+          "closingCta": "Create local shop"
+        }
+      }
     },
     "servicios": {
       "metadata": {
@@ -308,7 +329,14 @@
       ],
       "closingTitle": "Your service already sells through messages. Give it a page.",
       "closingBody": "Publish a first offer, test the flow, and tune your schedule as customers arrive.",
-      "closingCta": "Create service"
+      "closingCta": "Create service",
+      "variants": {
+        "b": {
+          "heroTitle": "Turn your service into a page that schedules and collects.",
+          "primaryCta": "Sell my service",
+          "closingCta": "Sell my service"
+        }
+      }
     },
     "mundial": {
       "metadata": {
@@ -367,7 +395,14 @@
       "agentBody": "The page uses real text, semantic sections, and metadata. Claude, Gemini, or any crawler can explain why a local provider should publish here.",
       "closingTitle": "The World Cup will not wait. Neither should your listing.",
       "closingBody": "If you sell experiences, food, transfers, tours, short-term rentals, or local services, start with a service listing and tune it later.",
-      "closingCta": "Publish my service"
+      "closingCta": "Publish my service",
+      "variants": {
+        "b": {
+          "heroTitle": "Let the World Cup find your local experience.",
+          "primaryCta": "Publish experience",
+          "closingCta": "Publish experience"
+        }
+      }
     }
   },
   "terms": {

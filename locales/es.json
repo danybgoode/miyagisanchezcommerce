@@ -128,7 +128,14 @@
       ],
       "closingTitle": "Empieza gratis y dejalo si no te gusta.",
       "closingBody": "No hay contrato, no hay comision escondida y no necesitas rehacer tu negocio. Sube una primera oferta y prueba.",
-      "closingCta": "Abrir mi tienda"
+      "closingCta": "Abrir mi tienda",
+      "variants": {
+        "b": {
+          "heroTitle": "Abre tu tienda gratis en Mexico. 0% comision.",
+          "primaryCta": "Crear tienda gratis",
+          "closingCta": "Empezar sin comision"
+        }
+      }
     },
     "creadores": {
       "metadata": {
@@ -188,7 +195,14 @@
       ],
       "closingTitle": "Tu catalogo ya existe. Ponlo a vender.",
       "closingBody": "Empieza con lo que tienes: fotos, texto, IG o un archivo. Ajustas despues.",
-      "closingCta": "Traer mi catalogo"
+      "closingCta": "Traer mi catalogo",
+      "variants": {
+        "b": {
+          "heroTitle": "Tu catalogo de Instagram merece una tienda propia.",
+          "primaryCta": "Migrar mi catalogo",
+          "closingCta": "Migrar mi catalogo"
+        }
+      }
     },
     "negocios": {
       "metadata": {
@@ -248,7 +262,14 @@
       ],
       "closingTitle": "Tu local ya tiene historia. Dale tambien una URL.",
       "closingBody": "Empieza con tu catalogo actual y prueba una tienda sin comisiones. Si funciona, la conviertes en tu canal permanente.",
-      "closingCta": "Abrir tienda local"
+      "closingCta": "Abrir tienda local",
+      "variants": {
+        "b": {
+          "heroTitle": "Pon tu local en internet sin perder margen.",
+          "primaryCta": "Crear tienda con QR",
+          "closingCta": "Crear tienda local"
+        }
+      }
     },
     "servicios": {
       "metadata": {
@@ -308,7 +329,14 @@
       ],
       "closingTitle": "Tu servicio ya se vende por mensajes. Dale una pagina.",
       "closingBody": "Publica una primera oferta, prueba el flujo y ajusta la agenda conforme lleguen clientes.",
-      "closingCta": "Crear servicio"
+      "closingCta": "Crear servicio",
+      "variants": {
+        "b": {
+          "heroTitle": "Convierte tu servicio en una pagina que agenda y cobra.",
+          "primaryCta": "Vender mi servicio",
+          "closingCta": "Vender mi servicio"
+        }
+      }
     },
     "mundial": {
       "metadata": {
@@ -367,7 +395,14 @@
       "agentBody": "La pagina esta hecha con texto real, secciones semanticas y metadata. Claude, Gemini o cualquier crawler puede explicar por que un proveedor local deberia publicar aqui.",
       "closingTitle": "El Mundial no espera. Tu anuncio tampoco.",
       "closingBody": "Si vendes experiencias, comida, traslados, tours, hospedaje temporal o servicios locales, empieza con un anuncio de servicio y ajusta despues.",
-      "closingCta": "Publicar mi servicio"
+      "closingCta": "Publicar mi servicio",
+      "variants": {
+        "b": {
+          "heroTitle": "Que el Mundial encuentre tu experiencia local.",
+          "primaryCta": "Publicar experiencia",
+          "closingCta": "Publicar experiencia"
+        }
+      }
     }
   },
   "terms": {

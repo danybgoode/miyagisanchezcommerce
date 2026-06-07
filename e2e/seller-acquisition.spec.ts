@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   parseSellerAcquisitionUtm,
+  resolveSellerAcquisitionVariant,
   resolveSellerPersonaRoute,
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
@@ -45,12 +46,12 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       ref: 'not-carried',
     })
 
-    expect(href).toBe('/sell?from=creadores&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
+    expect(href).toBe('/sell?from=creadores&v=a&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
   })
 
   test('keeps World Cup service type on the shipped wedge CTA', () => {
     expect(sellerPersonaCtaHref('mundial', 'utm_source=qr')).toBe(
-      '/sell?type=service&from=mundial&utm_source=qr',
+      '/sell?type=service&from=mundial&v=a&utm_source=qr',
     )
   })
 
@@ -59,7 +60,7 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       '/vende/negocios?utm_source=flyer',
     )
     expect(sellerPersonaCtaHref('negocios', 'utm_source=flyer')).toBe(
-      '/sell?from=negocios&utm_source=flyer',
+      '/sell?from=negocios&v=a&utm_source=flyer',
     )
   })
 
@@ -68,7 +69,21 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       '/vende/servicios?utm_source=flyer',
     )
     expect(sellerPersonaCtaHref('servicios', 'utm_source=flyer')).toBe(
-      '/sell?type=service&from=servicios&utm_source=flyer',
+      '/sell?type=service&from=servicios&v=a&utm_source=flyer',
+    )
+  })
+
+  test('resolves A/B variants fail-safe and tags conversion links', () => {
+    expect(resolveSellerAcquisitionVariant()).toBe('a')
+    expect(resolveSellerAcquisitionVariant('v=b')).toBe('b')
+    expect(resolveSellerAcquisitionVariant({ variant: 'B' })).toBe('b')
+    expect(resolveSellerAcquisitionVariant({ v: 'bad-value' })).toBe('a')
+
+    expect(sellerPersonaCtaHref('creadores', { v: 'b', utm_source: 'ig' })).toBe(
+      '/sell?from=creadores&v=b&utm_source=ig',
+    )
+    expect(sellerPersonaRouterHref('creadores', 'v=b&utm_source=ig')).toBe(
+      '/vende/creadores?utm_source=ig&v=b',
     )
   })
 
