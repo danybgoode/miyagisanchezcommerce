@@ -40,7 +40,7 @@ export default function DesktopUnreadBadge() {
         height: 15,
         borderRadius: 8,
         background: 'var(--danger)',
-        color: '#fff',
+        color: 'var(--fg-inverse)',
         fontSize: 9,
         fontWeight: 700,
         display: 'flex',

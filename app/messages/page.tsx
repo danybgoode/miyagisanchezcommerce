@@ -126,7 +126,7 @@ export default async function MessagesPage() {
 
           {unread > 0 && (
             <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>{unread}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-inverse)' }}>{unread}</span>
             </div>
           )}
         </div>
@@ -141,7 +141,7 @@ export default async function MessagesPage() {
         <div className="flex items-center gap-3">
           <h1 style={{ fontWeight: 700, fontSize: 22 }}>Mensajes</h1>
           {totalUnread > 0 && (
-            <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
+            <span style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
               {totalUnread}
             </span>
           )}

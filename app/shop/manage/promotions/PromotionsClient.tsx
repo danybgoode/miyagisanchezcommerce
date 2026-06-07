@@ -146,7 +146,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
               <button
                 type="button"
                 onClick={() => setCode(randomCode())}
-                className="px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-muted-bg,#f5f5f5)] whitespace-nowrap"
+                className="px-3 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--surface-muted)] whitespace-nowrap"
               >
                 Generar
               </button>

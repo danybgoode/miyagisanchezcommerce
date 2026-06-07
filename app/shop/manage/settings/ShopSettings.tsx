@@ -2849,7 +2849,7 @@ export default function ShopSettingsPanel({
                   </div>
                 </div>
                 <a href="/api/mp/connect"
-                  className="flex items-center justify-center gap-2 w-full bg-[#009EE3] text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:opacity-90 transition-opacity">
+                  className="flex items-center justify-center gap-2 w-full bg-[var(--provider-mercadopago)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-lg text-sm no-underline hover:opacity-90 transition-opacity">
                   Conectar Mercado Pago
                 </a>
                 <p className="text-[10px] text-center text-[var(--color-muted)] mt-2">
@@ -3805,7 +3805,7 @@ export default function ShopSettingsPanel({
                     )}
 
                     {/* DNS record card — terminal style. Record adapts to apex (A) vs subdomain (CNAME) (US-5). */}
-                    <div className="rounded-lg border border-[var(--color-border)] overflow-hidden bg-[#1a1a1a] mb-4">
+                    <div className="rounded-lg border border-[var(--border)] overflow-hidden bg-[var(--preview-ink)] mb-4">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
                         <span className="text-xs text-white/50 font-mono">Registro DNS — {dnsRecord?.type ?? 'CNAME'}</span>
                         <button
@@ -3872,7 +3872,7 @@ export default function ShopSettingsPanel({
                                   href="https://dash.cloudflare.com/profile/api-tokens/create"
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 bg-[#f6821f] text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-[#e07216] transition-colors no-underline mb-3"
+                                  className="inline-flex items-center gap-2 bg-[var(--provider-envia)] text-[var(--fg-inverse)] text-xs font-semibold px-3 py-2 rounded-lg hover:bg-[var(--provider-envia-hover)] transition-colors no-underline mb-3"
                                 >
                                   <span>☁️</span> Abrir Cloudflare → Crear token
                                 </a>

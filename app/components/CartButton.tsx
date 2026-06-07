@@ -29,7 +29,7 @@ export default function CartButton() {
           minWidth: 16, height: 16,
           borderRadius: 'var(--r-pill)',
           background: 'var(--accent)',
-          color: '#fff',
+          color: 'var(--fg-inverse)',
           fontSize: 10, fontWeight: 700,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '0 3px',

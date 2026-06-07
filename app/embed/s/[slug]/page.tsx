@@ -50,7 +50,7 @@ export default async function EmbedShopPage({
 
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const theme = (settings.theme ?? {}) as { accent_color?: string | null; tagline?: string | null }
-  const accent = theme.accent_color ?? '#1d6f42'
+  const accent = theme.accent_color ?? 'var(--accent)'
 
   // Buy breaks out of the iframe to our own origin (Clerk can't run framed).
   // Carry the embed key through for attribution where present.
@@ -63,13 +63,13 @@ export default async function EmbedShopPage({
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* Shop heading */}
           <div className="mb-5">
-            <h1 className="text-lg font-bold leading-tight" style={{ color: '#111' }}>{shop.name}</h1>
-            {theme.tagline && <p className="text-sm text-[#666] mt-0.5 italic">&ldquo;{theme.tagline}&rdquo;</p>}
-            <p className="text-xs text-[#888] mt-1">{listings.length} anuncios</p>
+            <h1 className="text-lg font-bold leading-tight" style={{ color: 'var(--embed-fg)' }}>{shop.name}</h1>
+            {theme.tagline && <p className="text-sm text-[var(--embed-fg-muted)] mt-0.5 italic">&ldquo;{theme.tagline}&rdquo;</p>}
+            <p className="text-xs text-[var(--embed-fg-subtle)] mt-1">{listings.length} anuncios</p>
           </div>
 
           {listings.length === 0 ? (
-            <div className="text-center py-16 text-[#888]">
+            <div className="text-center py-16 text-[var(--embed-fg-subtle)]">
               <div className="text-4xl mb-3">📦</div>
               <p className="font-medium">Esta tienda aún no tiene anuncios.</p>
             </div>
@@ -85,14 +85,14 @@ export default async function EmbedShopPage({
                     rel="noopener noreferrer"
                     className="block rounded-xl overflow-hidden border border-black/10 bg-white no-underline hover:shadow-md transition-shadow"
                   >
-                    <div className="aspect-square bg-[#f3f4f6] flex items-center justify-center overflow-hidden">
+                    <div className="aspect-square bg-[var(--embed-surface-sunk)] flex items-center justify-center overflow-hidden">
                       {img
                         ? <img src={img} alt={listing.title} className="w-full h-full object-cover" />
-                        : <span className="text-3xl text-[#c0c4c8]">🏪</span>}
+                        : <span className="text-3xl text-[var(--embed-placeholder)]">🏪</span>}
                     </div>
                     <div className="p-2.5">
-                      <p className="text-[13px] font-semibold text-[#111] line-clamp-2 leading-snug">{listing.title}</p>
-                      <p className="text-[15px] font-extrabold mt-1" style={{ color: '#111' }}>{formatPrice(listing)}</p>
+                      <p className="text-[13px] font-semibold text-[var(--embed-fg)] line-clamp-2 leading-snug">{listing.title}</p>
+                      <p className="text-[15px] font-extrabold mt-1" style={{ color: 'var(--embed-fg)' }}>{formatPrice(listing)}</p>
                     </div>
                   </a>
                 )

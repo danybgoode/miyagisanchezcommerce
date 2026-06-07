@@ -48,7 +48,7 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
                 {shopName.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="font-semibold text-sm truncate" style={{ color: '#111' }}>
+            <span className="font-semibold text-sm truncate" style={{ color: 'var(--embed-fg)' }}>
               {shopName}
             </span>
           </a>
@@ -56,21 +56,21 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
       </header>
 
       {/* ── Page content ──────────────────────────────────────────────────── */}
-      <main className="flex-1 bg-[#fafafa]">
+      <main className="flex-1 bg-[var(--surface-channel)]">
         {children}
       </main>
 
       {/* ── Minimal footer ────────────────────────────────────────────────── */}
       <footer className="border-t py-5 bg-white" style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs"
-          style={{ color: '#888' }}>
+          style={{ color: 'var(--embed-fg-subtle)' }}>
           <span>© {new Date().getFullYear()} {shopName}</span>
           <a
             href="https://miyagisanchez.com"
             target="_blank"
             rel="noopener noreferrer"
             className="no-underline hover:opacity-70 transition-opacity"
-            style={{ color: '#aaa' }}
+            style={{ color: 'var(--fg-subtle)' }}
           >
             Tienda impulsada por Miyagi Sánchez
           </a>

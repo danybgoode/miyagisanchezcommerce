@@ -56,7 +56,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
   const selectClass = 'border border-white/30 bg-white/20 text-white rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white w-full [&>option]:text-[var(--color-text)] [&>option]:bg-white'
 
   return (
-    <form ref={formRef} method="GET" action="/l" className="rounded-xl p-4 bg-[#3a8a7a] mb-6">
+    <form ref={formRef} method="GET" action="/l" className="rounded-xl p-4 bg-[var(--claim-accent)] mb-6">
       {/* Hidden property_type input for checkboxes */}
       {selectedPropertyTypes.length > 0 && (
         <input type="hidden" name="property_type" value={selectedPropertyTypes.join(',')} />
@@ -131,7 +131,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
 
         <button
           type="submit"
-          className="bg-white text-[#3a8a7a] font-semibold px-5 py-1.5 rounded text-sm hover:bg-white/90 transition-colors shrink-0"
+          className="bg-white text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded text-sm hover:bg-white/90 transition-colors shrink-0"
         >
           Buscar
         </button>

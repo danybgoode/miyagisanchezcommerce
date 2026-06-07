@@ -459,7 +459,7 @@ export default function SupplyClient({ secret }: { secret: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8f6]">
+    <div className="min-h-screen bg-[var(--surface-supply)]">
       <div className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4">
           <div>

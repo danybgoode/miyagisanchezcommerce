@@ -409,13 +409,13 @@ export default function ManageDashboard({
         <div className="flex-shrink-0 flex items-center gap-2">
           <Link
             href="/shop/manage/import"
-            className="hidden sm:inline-block border border-[var(--color-border)] text-[var(--color-foreground)] px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-muted-bg,#f7f7f7)] transition-colors"
+            className="hidden sm:inline-block border border-[var(--border)] text-[var(--fg)] px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--surface-muted)] transition-colors"
           >
             Importar
           </Link>
           <Link
             href="/sell"
-            className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+            className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--accent-hover)] transition-colors"
           >
             + Nuevo anuncio
           </Link>
@@ -458,13 +458,13 @@ export default function ManageDashboard({
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/sell"
-                className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+                className="inline-block bg-[var(--accent)] text-[var(--fg-inverse)] px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--accent-hover)] transition-colors"
               >
                 Publicar primer anuncio
               </Link>
               <Link
                 href="/shop/manage/import"
-                className="inline-block border border-[var(--color-border)] text-[var(--color-foreground)] px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-muted-bg,#f7f7f7)] transition-colors"
+                className="inline-block border border-[var(--border)] text-[var(--fg)] px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--surface-muted)] transition-colors"
               >
                 ¿Te cambias? Importa tu catálogo
               </Link>

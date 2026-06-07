@@ -239,7 +239,7 @@ function TabBarInner() {
               height: 42,
               borderRadius: '50%',
               background: 'var(--accent)',
-              color: '#fff',
+              color: 'var(--fg-inverse)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
