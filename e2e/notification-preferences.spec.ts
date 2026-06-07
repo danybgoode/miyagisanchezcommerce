@@ -102,6 +102,15 @@ test.describe('notification preferences · event→group map', () => {
     expect(groupForEvent('buyer_reported_paid')).toBe('payments')
   })
 
+  test('the Sprint-3 return event maps to the returns group', () => {
+    expect(groupForEvent('return_requested')).toBe('returns')
+  })
+
+  test('every settings group is wired to at least one event (no half-wired group)', () => {
+    const wired = new Set(Object.values(EVENT_GROUP))
+    for (const g of EVENT_GROUPS) expect(wired).toContain(g)
+  })
+
   test('every mapped group is a known EVENT_GROUP', () => {
     for (const g of Object.values(EVENT_GROUP)) {
       expect(EVENT_GROUPS).toContain(g)

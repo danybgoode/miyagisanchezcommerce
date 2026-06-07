@@ -33,6 +33,7 @@ export const EVENT_GROUP = {
   new_order: 'orders',
   offer_made: 'offers',
   buyer_reported_paid: 'payments',
+  return_requested: 'returns',
 } as const satisfies Record<string, EventGroup>
 export type SellerEventKind = keyof typeof EVENT_GROUP
 
