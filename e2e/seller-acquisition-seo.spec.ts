@@ -1,7 +1,17 @@
 import { expect, test } from '@playwright/test'
-import es from '../locales/es.json'
+import { readFileSync } from 'node:fs'
 
 const BASE_URL = 'https://miyagisanchez.com'
+
+type SellerPageMetadata = {
+  title: string
+  description: string
+  ogAlt: string
+}
+
+const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8')) as {
+  sellerAcquisition: Record<string, { metadata: SellerPageMetadata }>
+}
 
 const sellerPages = [
   { path: '/vende', meta: es.sellerAcquisition.anchor.metadata },
