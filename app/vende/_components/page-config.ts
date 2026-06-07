@@ -12,6 +12,7 @@ type SellerAcquisitionCopy = Dictionary['sellerAcquisition']
 type AnchorCopy = SellerAcquisitionCopy['anchor']
 type CreatorCopy = SellerAcquisitionCopy['creadores']
 type LocalBusinessCopy = SellerAcquisitionCopy['negocios']
+type ServicesCopy = SellerAcquisitionCopy['servicios']
 
 export function buildAnchorPageConfig(
   copy: SellerAcquisitionCopy,
@@ -78,9 +79,25 @@ export function buildLocalBusinessPageConfig(
   }
 }
 
+export function buildServicesPageConfig(
+  copy: SellerAcquisitionCopy,
+  query: QueryParams,
+): SellerAcquisitionPageConfig {
+  const page = copy.servicios
+
+  return {
+    ...baseConfig(copy, page, 'servicios', query),
+    pageId: 'servicios',
+    secondaryCta: {
+      label: page.secondaryCta,
+      href: sellerPersonaRouterHref('vende', query),
+    },
+  }
+}
+
 function baseConfig(
   copy: SellerAcquisitionCopy,
-  page: AnchorCopy | CreatorCopy | LocalBusinessCopy,
+  page: AnchorCopy | CreatorCopy | LocalBusinessCopy | ServicesCopy,
   personaId: SellerPersonaId,
   query: QueryParams,
 ): SellerAcquisitionPageConfig {

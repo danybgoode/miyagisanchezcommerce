@@ -76,7 +76,7 @@
         }
       ],
       "routerTitle": "What kind of seller are you?",
-      "routerLead": "Choose the path that best matches your business. If a dedicated page is not ready yet, we take you straight to onboarding.",
+      "routerLead": "Choose the path that best matches your business. Each route preserves attribution so we can measure which message converts best.",
       "routerCards": [
         {
           "personaId": "creadores",
@@ -107,7 +107,7 @@
           "title": "I sell professional services",
           "body": "Consultations, sessions, packages, maintenance, or appointment-based work.",
           "icon": "iconoir-user-star",
-          "statusLabel": "Coming soon"
+          "statusLabel": ""
         }
       ],
       "stepsTitle": "How it works",
@@ -246,6 +246,65 @@
       "closingTitle": "Your local shop already has a story. Give it a URL too.",
       "closingBody": "Start with your current catalog and test a shop with no commissions. If it works, make it your permanent channel.",
       "closingCta": "Open local shop"
+    },
+    "servicios": {
+      "metadata": {
+        "title": "Sell professional services with no commissions — Miyagi Sanchez",
+        "description": "Publish services, schedule appointments with Cal.com, and get paid directly. No platform commissions for professionals in Mexico."
+      },
+      "eyebrow": "Professional services",
+      "heroTitle": "Get paid and scheduled without friction. No commissions.",
+      "heroLead": "Publish consultations, classes, beauty, trades, repairs, or appointment packages. Miyagi gives you a link, shop, scheduling, and direct payment without taking a percentage.",
+      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/vende/servicios is and have it check whether it works for your trade.",
+      "primaryCta": "Publish my service",
+      "secondaryCta": "View general page",
+      "heroStats": [
+        { "value": "0%", "label": "commission per booking" },
+        { "value": "Cal.com", "label": "scheduling when needed" },
+        { "value": "MXN", "label": "get paid to your account" }
+      ],
+      "proofTitle": "Services with scheduling, payment, and your own page",
+      "proofLead": "Your work can live as a service listing: clear description, price or quote, schedule, and payment methods.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-tools",
+          "title": "Service listing type",
+          "body": "Onboarding supports services and rentals, not only physical products. Publish sessions, packages, or visits."
+        },
+        {
+          "icon": "iconoir-calendar",
+          "title": "Connected scheduling",
+          "body": "Use Cal.com for appointments with time slots, capacity, or availability; customers understand when they can book."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% commission",
+          "body": "You do not pay a percentage for each consultation or job. Your margin stays with you."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Get paid directly",
+          "body": "Enable card, MercadoPago, SPEI, cash, or direct coordination depending on how you work."
+        }
+      ],
+      "stepsTitle": "From trade or consultation to sellable service",
+      "steps": [
+        { "title": "Describe what you do", "body": "Service, area, duration, price, or range. Your agent can help make it clear." },
+        { "title": "Define schedule and payment", "body": "Connect Cal.com if you need time slots; choose how you want to get paid." },
+        { "title": "Share your link", "body": "Send your service by WhatsApp, social, QR, or website. Every visit arrives with attribution." }
+      ],
+      "agentTitle": "Your agent can turn your offer into a listing",
+      "agentBody": "Miyagi is written so an agent can read your service and propose description, FAQs, and sales steps.",
+      "socialTitle": "For professionals who sell time, skill, and trust",
+      "socialBody": "Show customers what you offer, what it costs or how to quote, when you are available, and how to pay you.",
+      "socialStats": [
+        { "value": "Schedule", "label": "appointments and availability" },
+        { "value": "Link", "label": "service ready to share" },
+        { "value": "0%", "label": "no commission per sale" }
+      ],
+      "closingTitle": "Your service already sells through messages. Give it a page.",
+      "closingBody": "Publish a first offer, test the flow, and tune your schedule as customers arrive.",
+      "closingCta": "Create service"
     },
     "mundial": {
       "metadata": {

@@ -76,7 +76,7 @@
         }
       ],
       "routerTitle": "Que tipo de vendedor eres?",
-      "routerLead": "Elige el camino que mas se parece a tu negocio. Si aun no hay pagina dedicada, te llevamos directo al onboarding.",
+      "routerLead": "Elige el camino que mas se parece a tu negocio. Cada ruta conserva la atribucion para medir que mensaje convierte mejor.",
       "routerCards": [
         {
           "personaId": "creadores",
@@ -107,7 +107,7 @@
           "title": "Vendo servicios profesionales",
           "body": "Consultas, sesiones, paquetes, mantenimiento o trabajo por cita.",
           "icon": "iconoir-user-star",
-          "statusLabel": "Proximamente"
+          "statusLabel": ""
         }
       ],
       "stepsTitle": "Como funciona",
@@ -246,6 +246,65 @@
       "closingTitle": "Tu local ya tiene historia. Dale tambien una URL.",
       "closingBody": "Empieza con tu catalogo actual y prueba una tienda sin comisiones. Si funciona, la conviertes en tu canal permanente.",
       "closingCta": "Abrir tienda local"
+    },
+    "servicios": {
+      "metadata": {
+        "title": "Vende servicios profesionales sin comisiones — Miyagi Sanchez",
+        "description": "Publica servicios, agenda citas con Cal.com y cobra directo. Sin comisiones de plataforma para profesionales en Mexico."
+      },
+      "eyebrow": "Servicios profesionales",
+      "heroTitle": "Cobra y agenda sin complicaciones. Sin comisiones.",
+      "heroLead": "Publica consultas, clases, belleza, oficios, reparaciones o paquetes por cita. Miyagi te da link, tienda, agenda y cobro directo sin quitarte porcentaje.",
+      "trustLine": "No nos creas: preguntale a Claude que es miyagisanchez.com/vende/servicios y pidele que revise si sirve para tu oficio.",
+      "primaryCta": "Publicar mi servicio",
+      "secondaryCta": "Ver pagina general",
+      "heroStats": [
+        { "value": "0%", "label": "comision por reserva" },
+        { "value": "Cal.com", "label": "agenda cuando aplica" },
+        { "value": "MXN", "label": "cobra directo a tu cuenta" }
+      ],
+      "proofTitle": "Servicios con agenda, cobro y pagina propia",
+      "proofLead": "Tu trabajo puede vivir como listing de servicio: descripcion clara, precio o cotizacion, horarios y formas de pago.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-tools",
+          "title": "Tipo servicio",
+          "body": "El onboarding acepta servicios y rentas, no solo productos fisicos. Publica sesiones, paquetes o visitas."
+        },
+        {
+          "icon": "iconoir-calendar",
+          "title": "Agenda conectada",
+          "body": "Usa Cal.com para citas con horario, cupo o disponibilidad; el cliente entiende cuando te puede reservar."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "No pagas porcentaje por cada consulta o trabajo. Tu margen se queda contigo."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Cobra directo",
+          "body": "Activa tarjeta, MercadoPago, SPEI, efectivo o acuerdo directo segun como trabajes."
+        }
+      ],
+      "stepsTitle": "De oficio o consulta a servicio vendible",
+      "steps": [
+        { "title": "Describe lo que haces", "body": "Servicio, zona, duracion, precio o rango. Tu agente puede ayudarte a redactarlo claro." },
+        { "title": "Define agenda y cobro", "body": "Conecta Cal.com si necesitas horarios; elige como quieres recibir pagos." },
+        { "title": "Comparte tu link", "body": "Envia tu servicio por WhatsApp, redes, QR o web. Cada visita llega con atribucion." }
+      ],
+      "agentTitle": "Tu agente puede convertir tu oferta en listing",
+      "agentBody": "Miyagi esta escrito para que un agente lea tu servicio, proponga descripcion, preguntas frecuentes y pasos de venta.",
+      "socialTitle": "Para profesionales que venden tiempo, oficio y confianza",
+      "socialBody": "Haz que el cliente vea que ofreces, cuanto cuesta o como cotiza, cuando estas disponible y como pagarte.",
+      "socialStats": [
+        { "value": "Agenda", "label": "citas y disponibilidad" },
+        { "value": "Link", "label": "servicio listo para compartir" },
+        { "value": "0%", "label": "sin comision por venta" }
+      ],
+      "closingTitle": "Tu servicio ya se vende por mensajes. Dale una pagina.",
+      "closingBody": "Publica una primera oferta, prueba el flujo y ajusta la agenda conforme lleguen clientes.",
+      "closingCta": "Crear servicio"
     },
     "mundial": {
       "metadata": {

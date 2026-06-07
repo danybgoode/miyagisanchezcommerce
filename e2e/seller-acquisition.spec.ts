@@ -29,6 +29,12 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       from: 'negocios',
       status: 'live',
     })
+    expect(resolveSellerPersonaRoute('servicios')).toMatchObject({
+      pagePath: '/vende/servicios',
+      from: 'servicios',
+      type: 'service',
+      status: 'live',
+    })
   })
 
   test('builds CTA hrefs with persona from-param and safe UTM carry-through', () => {
@@ -57,9 +63,12 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
     )
   })
 
-  test('routes backlog personas to the anchor onboarding with attribution', () => {
+  test('routes the services persona to its page and service CTA with attribution', () => {
     expect(sellerPersonaRouterHref('servicios', 'utm_source=flyer')).toBe(
-      '/sell?from=vende&utm_source=flyer',
+      '/vende/servicios?utm_source=flyer',
+    )
+    expect(sellerPersonaCtaHref('servicios', 'utm_source=flyer')).toBe(
+      '/sell?type=service&from=servicios&utm_source=flyer',
     )
   })
 
