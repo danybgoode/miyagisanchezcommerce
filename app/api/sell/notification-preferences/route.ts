@@ -46,10 +46,18 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Parámetros inválidos.' }, { status: 400 })
   }
 
-  // Telegram isn't togglable until the seller links a chat (Sprint 2). Keep the
-  // column inert so a stray write can't enable a channel that can't deliver.
+  // Telegram is only togglable once the seller has linked a chat — a channel that
+  // can't deliver can't be enabled. (Sprint 2 lit this up; before linking the
+  // grid keeps the column inert and a stray write is still rejected here.)
   if (channel === 'telegram') {
-    return NextResponse.json({ error: 'Conecta Telegram para activar este canal.' }, { status: 400 })
+    const { data: link } = await db
+      .from('telegram_links')
+      .select('chat_id')
+      .eq('clerk_user_id', user.id)
+      .maybeSingle()
+    if (!link) {
+      return NextResponse.json({ error: 'Conecta Telegram para activar este canal.' }, { status: 400 })
+    }
   }
 
   const { error } = await db.from('notification_preferences').upsert(

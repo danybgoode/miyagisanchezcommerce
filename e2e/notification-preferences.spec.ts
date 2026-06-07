@@ -1,42 +1,63 @@
 import { test, expect } from '@playwright/test'
 import {
   DEFAULT_PREFS,
+  CHANNEL_DEFAULTS,
   EVENT_GROUPS,
-  CHANNELS,
   resolvePrefs,
   isChannelEnabled,
+  telegramTarget,
   groupForEvent,
   EVENT_GROUP,
 } from '../lib/notifications/preferences'
 
 /**
- * Granular Multi-Channel Notifications · Sprint 1.
+ * Granular Multi-Channel Notifications · Sprint 1 + Sprint 2.
  * Pure-logic guards on the seller-preference resolver — the seam every channel
- * trusts. No network, no auth; deterministic. This is the free coverage for the
- * default-on contract (zero regression) and the event→group mapping.
+ * trusts. No network, no auth; deterministic. Covers the default contract
+ * (email/push default-on = zero regression; telegram opt-in = off), the
+ * event→group mapping, and the Telegram target resolution.
  */
 
 test.describe('notification preferences · defaults', () => {
-  test('DEFAULT_PREFS is on for every group × channel (default-on = zero regression)', () => {
+  test('DEFAULT_PREFS follows the per-channel default (email/push on, telegram off)', () => {
     for (const g of EVENT_GROUPS) {
-      for (const ch of CHANNELS) {
-        expect(DEFAULT_PREFS[g][ch]).toBe(true)
-      }
+      expect(DEFAULT_PREFS[g].email).toBe(true)
+      expect(DEFAULT_PREFS[g].push).toBe(true)
+      expect(DEFAULT_PREFS[g].telegram).toBe(false)   // opt-in — Sprint 2
     }
+    expect(CHANNEL_DEFAULTS).toEqual({ email: true, push: true, telegram: false })
   })
 
-  test('zero rows resolves to all-on defaults', () => {
+  test('zero rows resolves to the per-channel defaults', () => {
     const prefs = resolvePrefs([])
     for (const g of EVENT_GROUPS) {
-      for (const ch of CHANNELS) {
-        expect(isChannelEnabled(prefs, g, ch)).toBe(true)
-      }
+      expect(isChannelEnabled(prefs, g, 'email')).toBe(true)
+      expect(isChannelEnabled(prefs, g, 'push')).toBe(true)
+      expect(isChannelEnabled(prefs, g, 'telegram')).toBe(false)
     }
   })
 
   test('null/undefined rows are safe → defaults', () => {
     expect(isChannelEnabled(resolvePrefs(null), 'orders', 'email')).toBe(true)
     expect(isChannelEnabled(resolvePrefs(undefined), 'offers', 'push')).toBe(true)
+    expect(isChannelEnabled(resolvePrefs(null), 'orders', 'telegram')).toBe(false)
+  })
+})
+
+test.describe('notification preferences · telegram target', () => {
+  const onPrefs = resolvePrefs([{ event_group: 'orders', channel: 'telegram', enabled: true }])
+
+  test('returns the linked chat_id when the group is on for Telegram', () => {
+    expect(telegramTarget(onPrefs, 'orders', { chat_id: '999' })).toBe('999')
+  })
+
+  test('returns null when the seller has no linked chat', () => {
+    expect(telegramTarget(onPrefs, 'orders', null)).toBeNull()
+  })
+
+  test('returns null when the group is off for Telegram (default opt-in off)', () => {
+    const offPrefs = resolvePrefs([])   // telegram defaults off
+    expect(telegramTarget(offPrefs, 'orders', { chat_id: '999' })).toBeNull()
   })
 })
 

@@ -87,9 +87,26 @@ const sweepstakesLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: 'rl:sweepstakes' })
 }
 
+// Telegram inbound webhook: max 30 /start redemptions per CHAT per minute. Keyed
+// by chat_id, not IP — every webhook call shares Telegram's server IPs, so an IP
+// bucket would throttle all sellers at once. Caps one user's /start spam only.
+const telegramWebhookLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'rl:tg_webhook' })
+}
+
+// Telegram link minting: max 10 deep-links per seller per 10 min — prevents a
+// seller hammering "Conecta Telegram" into a pile of live tokens.
+const telegramLinkLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '10 m'), prefix: 'rl:tg_link' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -107,6 +124,8 @@ export async function checkRateLimit(
     : key === 'catalog_extract' ? catalogExtractLimiter
     : key === 'embed'           ? embedLimiter
     : key === 'sweepstakes'     ? sweepstakesLimiter
+    : key === 'telegram_webhook'? telegramWebhookLimiter
+    : key === 'telegram_link'   ? telegramLinkLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

@@ -35,19 +35,32 @@ export type PrefRow = { channel: string; event_group: string; enabled: boolean }
 /** Resolved grid: group → channel → enabled. */
 export type Prefs = Record<EventGroup, Record<Channel, boolean>>
 
-/** Build a fresh all-`value` grid. */
-function grid(value: boolean): Prefs {
+/**
+ * Per-channel default when a seller has no explicit row.
+ *   email / push → ON (default-on = zero regression for the 164 existing sellers).
+ *   telegram     → OFF (opt-in): Telegram couldn't deliver before Sprint 2, so a
+ *                  freshly-linked seller doesn't get flooded — they turn on the
+ *                  groups they want. There is no regression either way (net-new).
+ */
+export const CHANNEL_DEFAULTS: Record<Channel, boolean> = {
+  email: true,
+  push: true,
+  telegram: false,
+}
+
+/** Build a fresh grid from the per-channel defaults. */
+function defaultGrid(): Prefs {
   return EVENT_GROUPS.reduce((acc, g) => {
     acc[g] = CHANNELS.reduce((c, ch) => {
-      c[ch] = value
+      c[ch] = CHANNEL_DEFAULTS[ch]
       return c
     }, {} as Record<Channel, boolean>)
     return acc
   }, {} as Prefs)
 }
 
-/** Default-on for every (group × channel). No rows ⇒ everything enabled. */
-export const DEFAULT_PREFS: Prefs = grid(true)
+/** The default grid: email/push on, telegram opt-in (off). */
+export const DEFAULT_PREFS: Prefs = defaultGrid()
 
 function isEventGroup(v: string): v is EventGroup {
   return (EVENT_GROUPS as readonly string[]).includes(v)
@@ -58,7 +71,7 @@ function isChannel(v: string): v is Channel {
 
 /** Overlay persisted rows on the defaults. Unknown/invalid keys are ignored. */
 export function resolvePrefs(rows: PrefRow[] | null | undefined): Prefs {
-  const prefs = grid(true)
+  const prefs = defaultGrid()
   for (const row of rows ?? []) {
     if (isEventGroup(row.event_group) && isChannel(row.channel)) {
       prefs[row.event_group][row.channel] = !!row.enabled
@@ -67,9 +80,25 @@ export function resolvePrefs(rows: PrefRow[] | null | undefined): Prefs {
   return prefs
 }
 
-/** Is `channel` enabled for `group` in these prefs? Defaults to on if unknown. */
+/**
+ * Is `channel` enabled for `group` in these prefs? Falls back to the channel's
+ * own default if the cell is unknown (email/push on, telegram off).
+ */
 export function isChannelEnabled(prefs: Prefs, group: EventGroup, channel: Channel): boolean {
-  return prefs[group]?.[channel] ?? true
+  return prefs[group]?.[channel] ?? CHANNEL_DEFAULTS[channel]
+}
+
+/** A persisted Telegram link (or null when the seller hasn't connected one). */
+export type TelegramLink = { chat_id: string } | null
+
+/**
+ * Resolve the Telegram target for an event: the seller's linked chat_id when the
+ * group is enabled on Telegram AND a link exists; otherwise null (no send). Pure
+ * so the dispatcher's linked/unlinked/group-off decision is unit-testable.
+ */
+export function telegramTarget(prefs: Prefs, group: EventGroup, link: TelegramLink): string | null {
+  if (!link) return null
+  return isChannelEnabled(prefs, group, 'telegram') ? link.chat_id : null
 }
 
 /** Resolve the preference group for a concrete event kind. */

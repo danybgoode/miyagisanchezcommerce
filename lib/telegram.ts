@@ -1,11 +1,16 @@
 /**
- * Telegram admin notifications.
- * Messages go to Daniel's private chat (@Don_Dany).
- * All functions are fire-and-forget — never throw, never block.
+ * Telegram messaging.
  *
- * Env vars required:
- *   TELEGRAM_BOT_TOKEN   — bot token from @BotFather
- *   TELEGRAM_CHAT_ID     — admin's personal chat ID
+ * Two audiences share one bot (TELEGRAM_BOT_TOKEN):
+ *   • admin — Daniel's private chat (TELEGRAM_CHAT_ID); every `tg.*` helper below.
+ *   • sellers — their own linked chat (Granular Notifications epic, Sprint 2);
+ *     the dispatch seam passes an explicit chat_id to `tgSend`.
+ *
+ * All sends are fire-and-forget — never throw, never block the request path.
+ *
+ * Env vars:
+ *   TELEGRAM_BOT_TOKEN   — bot token from @BotFather (required for any send)
+ *   TELEGRAM_CHAT_ID     — admin's personal chat ID (default target for tgSend)
  */
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
@@ -13,15 +18,33 @@ const CHAT_ID   = process.env.TELEGRAM_CHAT_ID
 
 // ── Core send ──────────────────────────────────────────────────────────────────
 
-export async function tgNotify(text: string): Promise<void> {
-  if (!BOT_TOKEN || !CHAT_ID) return   // silently skip if not configured
+/**
+ * Resolve the effective chat id: an explicit (non-empty) `chatId` wins; otherwise
+ * fall back to `adminDefault`. Pure + side-effect-free so it is unit-testable
+ * without the network. Returns undefined when neither is available (→ no send).
+ */
+export function resolveChatId(
+  chatId: string | undefined | null,
+  adminDefault: string | undefined = CHAT_ID,
+): string | undefined {
+  return chatId && chatId.length > 0 ? chatId : adminDefault || undefined
+}
+
+/**
+ * Send a Telegram message. `chatId` defaults to the admin chat, so every existing
+ * `tg.*` admin call (which omits it) is byte-for-byte unchanged. The seller
+ * channel passes an explicit linked chat_id.
+ */
+export async function tgSend(chatId: string | undefined | null, text: string): Promise<void> {
+  const target = resolveChatId(chatId)
+  if (!BOT_TOKEN || !target) return   // silently skip if not configured / no target
 
   try {
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id:    CHAT_ID,
+        chat_id:    target,
         text,
         parse_mode: 'HTML',
       }),
@@ -30,6 +53,39 @@ export async function tgNotify(text: string): Promise<void> {
   } catch {
     // Intentionally swallowed — Telegram is observability, not critical path
   }
+}
+
+/** Admin notification — sends to TELEGRAM_CHAT_ID. Thin wrapper over `tgSend`. */
+export async function tgNotify(text: string): Promise<void> {
+  return tgSend(undefined, text)
+}
+
+// ── Bot identity (for building deep links) ──────────────────────────────────────
+
+let _botUsername: string | null = null
+
+/**
+ * Resolve the bot's @username via getMe, cached for the process lifetime — used
+ * to build `t.me/<username>?start=<token>` deep links. Returns null if the bot
+ * token is unset or the call fails (the caller surfaces a friendly error).
+ */
+export async function getBotUsername(): Promise<string | null> {
+  if (_botUsername) return _botUsername
+  if (!BOT_TOKEN) return null
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    const data = await res.json()
+    const username: unknown = data?.result?.username
+    if (typeof username === 'string' && username.length > 0) {
+      _botUsername = username
+      return username
+    }
+  } catch {
+    // fall through → null
+  }
+  return null
 }
 
 // ── Typed event helpers ────────────────────────────────────────────────────────
@@ -96,3 +152,6 @@ function esc(s: string | number): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 }
+
+/** HTML-escape an interpolated value for a `parse_mode: 'HTML'` Telegram body. */
+export const escapeHtml = esc
