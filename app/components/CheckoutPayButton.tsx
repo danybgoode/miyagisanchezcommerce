@@ -6,6 +6,7 @@ import { useAuth, useUser } from '@clerk/nextjs'
 import { startCheckout, type CheckoutFulfillmentMethod, type CheckoutProvider, type CheckoutShippingAddress, type CheckoutShippingQuote } from '@/lib/cart'
 import type { CartItem } from './CartContext'
 import type { PersonalizationPayload } from '@/lib/personalization'
+import { computeCheckoutTotal } from '@/lib/checkout-total'
 
 function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat('es-MX', {
@@ -35,6 +36,8 @@ interface CheckoutPayButtonProps {
   offerId?: string
   offerAmountCents?: number
   couponCode?: string
+  /** Coupon discount in cents — so the CTA total matches the summary exactly. */
+  couponDiscountCents?: number
   fulfillmentMethod?: CheckoutFulfillmentMethod
   pickupSpotId?: string
   shippingAddress?: CheckoutShippingAddress
@@ -55,6 +58,7 @@ export default function CheckoutPayButton({
   offerId,
   offerAmountCents,
   couponCode,
+  couponDiscountCents,
   fulfillmentMethod,
   pickupSpotId,
   shippingAddress,
@@ -70,7 +74,13 @@ export default function CheckoutPayButton({
   const [error, setError] = useState<string | null>(null)
 
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
-  const total = amountCents + (shippingQuote?.amountCents ?? 0)
+  // Same computation as the summary "Total" (lib/checkout-total) so the CTA never
+  // shows a different number than the summary — coupon included.
+  const total = computeCheckoutTotal({
+    itemsCents: amountCents,
+    couponDiscountCents,
+    shippingCents: shippingQuote?.amountCents ?? 0,
+  })
 
   async function pay() {
     setLoading(true)

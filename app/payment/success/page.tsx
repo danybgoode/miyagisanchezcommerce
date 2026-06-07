@@ -101,6 +101,13 @@ export default async function PaymentSuccessPage({
     const result = await completeMedusaCart(cartId)
     const order = result?.order as Record<string, unknown> | undefined
 
+    // Async-success recovery (S3.3): completion can still be settling (webhook race)
+    // or have failed. Never show a false "success" with a null order — render a
+    // recovery state with a retry (re-runs this idempotent completion) instead.
+    if (!order) {
+      return <PaymentPendingRecovery cartId={cartId} mpPaymentId={mpPaymentId} mpStatus={mpStatus} />
+    }
+
     // Own-channel return: if this purchase began on a tenant's custom domain, send
     // the buyer back to that domain's success page so the funnel ends on their brand.
     // Guards: redirect ONLY to a VERIFIED tenant domain (never a value forged into
@@ -399,6 +406,52 @@ function CheckIcon() {
       <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
       </svg>
+    </div>
+  )
+}
+
+// S3.3 — shown when cart completion hasn't produced an order yet (webhook race or
+// a failed/settling payment). A recovery state, never a false success. "Revisar de
+// nuevo" re-navigates to this same URL, re-running the idempotent completion;
+// prefetch is disabled so a hover can't silently re-run it.
+function PaymentPendingRecovery({
+  cartId,
+  mpPaymentId,
+  mpStatus,
+}: {
+  cartId: string
+  mpPaymentId?: string
+  mpStatus?: string
+}) {
+  const qs = new URLSearchParams({ cart_id: cartId })
+  if (mpPaymentId) qs.set('payment_id', mpPaymentId)
+  if (mpStatus) qs.set('status', mpStatus)
+  const retryHref = `/payment/success?${qs.toString()}`
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+      <div className="max-w-md w-full text-center">
+        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-6">
+          <span className="text-3xl" aria-hidden>⏳</span>
+        </div>
+        <h1 className="text-2xl font-bold mb-1">Estamos confirmando tu pedido</h1>
+        <p className="text-sm text-[var(--color-muted)] mb-6">
+          Tu pago se está procesando. Esto puede tardar unos segundos. <strong>No vuelvas a pagar</strong> —
+          en cuanto se confirme aparecerá tu pedido.
+        </p>
+        <div className="flex flex-col gap-2">
+          <Link href={retryHref} prefetch={false}
+            className="w-full bg-[var(--color-accent)] text-white py-3 rounded-xl text-sm font-semibold no-underline">
+            Revisar de nuevo
+          </Link>
+          <Link href="/account/orders"
+            className="w-full border border-[var(--color-border)] py-3 rounded-xl text-sm font-semibold no-underline text-[var(--color-text)]">
+            Ver mis pedidos
+          </Link>
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-4">
+          Si después de unos minutos no aparece, escríbenos y lo resolvemos.
+        </p>
+      </div>
     </div>
   )
 }
