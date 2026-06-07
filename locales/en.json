@@ -10,6 +10,66 @@
       "activeSeasonal": "Collaboration active"
     }
   },
+  "sellerAcquisition": {
+    "mundial": {
+      "metadata": {
+        "title": "Sell World Cup experiences — Miyagi Sanchez",
+        "description": "Publish tours, food spots, and rentals for the 2026 World Cup in Mexico. No platform commissions and payouts to your own account."
+      },
+      "eyebrow": "World Cup 2026 · Mexico",
+      "heroTitle": "Capture the World Cup's global audience.",
+      "heroLead": "Publish your tours, food spots, and rentals instantly, with no platform commissions. Get ready before demand reaches Mexico City, Guadalajara, and Monterrey.",
+      "trustLine": "Do not take our word for it: ask Claude about miyagisanchez.com/vende/mundial and let it audit the page for you.",
+      "primaryCta": "Start selling",
+      "secondaryCta": "View agent guide",
+      "heroStats": [
+        { "value": "0%", "label": "platform commission" },
+        { "value": "3", "label": "host cities in Mexico" },
+        { "value": "Minutes", "label": "to publish your first listing" }
+      ],
+      "demandTitle": "What visitors are already looking for",
+      "demandItems": [
+        "Neighborhood tours and local experiences",
+        "Must-try food near the stadium",
+        "Rentals, transfers, and day-rate services"
+      ],
+      "proofTitle": "Built for services and rentals, not only products",
+      "proofLead": "We reuse Miyagi's current infrastructure: publishing, payments, scheduling, and agent access. No new backend for this page.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-tools",
+          "title": "Services and rentals",
+          "body": "The onboarding already supports service and rental listings with location, price, or price-on-request."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% commission",
+          "body": "Miyagi charges no platform commission. Your margin stays with you."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Payouts to your account",
+          "body": "Turn on Stripe Connect, MercadoPago, or direct-payment coordination depending on how your shop operates."
+        },
+        {
+          "icon": "iconoir-calendar",
+          "title": "Scheduling when needed",
+          "body": "Connect Cal.com from your shop for experiences with time slots, capacity, or appointments."
+        }
+      ],
+      "stepsTitle": "Publish before kickoff",
+      "steps": [
+        { "title": "Create your shop", "body": "Name, location, and basics so visitors know who is helping them." },
+        { "title": "Upload your experience", "body": "Describe the tour, rental, or service with price, area, photos, and conditions." },
+        { "title": "Share and measure", "body": "Use your link in social, QR, ads, or messages; Clarity records the visit." }
+      ],
+      "agentTitle": "Ready for an agent to read",
+      "agentBody": "The page uses real text, semantic sections, and metadata. Claude, Gemini, or any crawler can explain why a local provider should publish here.",
+      "closingTitle": "The World Cup will not wait. Neither should your listing.",
+      "closingBody": "If you sell experiences, food, transfers, tours, short-term rentals, or local services, start with a service listing and tune it later.",
+      "closingCta": "Publish my service"
+    }
+  },
   "terms": {
     "title": "Terms of use",
     "subtitle": "Basic rules for using Miyagi Sanchez.",
