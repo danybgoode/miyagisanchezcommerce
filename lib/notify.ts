@@ -20,7 +20,7 @@ function ensureVapid(): boolean {
 }
 
 export type NotifyEvent = {
-  kind: 'new_message' | 'offer'
+  kind: 'new_message' | 'offer' | 'order'
   title: string
   body: string
   url: string
