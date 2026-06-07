@@ -227,14 +227,14 @@ export default function CheckoutExperience({
   })
 
   // Manual ("Pago directo") — the buyer does NOT pick a sub-type at checkout.
-  // We just summarize what the seller accepts; all instructions appear on the
-  // order/success page after placing the order. Cash applies only with pickup.
+  // We preview what the seller accepts (method + how it works) so they don't commit
+  // blind; the exact account numbers appear on the order page after placing. Cash
+  // applies only with pickup.
   const isPickup = selectedDelivery?.id === 'local_pickup'
   const isManualPayment = selectedPayment?.kind === 'manual'
-  const manualAccepted = useMemo(
+  const manualMethods = useMemo(
     () => (isManualPayment ? selectedPayment!.sub_options ?? [] : [])
-      .filter(o => o.type !== 'cash' || isPickup)
-      .map(o => o.label),
+      .filter(o => o.type !== 'cash' || isPickup),
     [isManualPayment, selectedPayment, isPickup],
   )
 
@@ -548,12 +548,24 @@ export default function CheckoutExperience({
                     </span>
                   </button>
 
-                  {/* Manual — summarize what the seller accepts. The buyer gets the
-                      full instructions on the order page and pays afterward. */}
-                  {active && option.kind === 'manual' && manualAccepted.length > 0 && (
-                    <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
-                      <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-                        Aceptan: <strong>{manualAccepted.join(' · ')}</strong>. Verás las instrucciones de pago al confirmar tu pedido.
+                  {/* Manual — preview the accepted methods + how each works so the
+                      buyer doesn't commit blind. The exact account numbers (CLABE,
+                      phone) appear on the order page right after placing. */}
+                  {active && option.kind === 'manual' && manualMethods.length > 0 && (
+                    <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)', display: 'grid', gap: 8 }}>
+                      {manualMethods.map(m => (
+                        <div key={m.type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <span aria-hidden style={{ fontSize: 14, lineHeight: 1.4 }}>
+                            {m.type === 'clabe' ? '🏦' : m.type === 'dimo' ? '📱' : '💵'}
+                          </span>
+                          <span style={{ display: 'block' }}>
+                            <strong style={{ fontSize: 12.5, color: 'var(--fg)' }}>{m.label}</strong>
+                            {m.note && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5, marginTop: 1 }}>{m.note}</span>}
+                          </span>
+                        </div>
+                      ))}
+                      <p style={{ fontSize: 11.5, color: 'var(--fg-subtle)', lineHeight: 1.5 }}>
+                        Verás los datos exactos para pagar (CLABE, teléfono) en tu pedido, justo después de confirmarlo.
                       </p>
                     </div>
                   )}
