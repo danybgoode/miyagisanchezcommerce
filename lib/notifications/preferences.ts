@@ -56,36 +56,53 @@ export const CHANNEL_DEFAULTS: Record<Channel, boolean> = {
   telegram: false,
 }
 
-/** Build a fresh grid from the per-channel defaults. */
-function defaultGrid(): Prefs {
-  return EVENT_GROUPS.reduce((acc, g) => {
+// ── Generic, audience-agnostic core ───────────────────────────────────────────
+// One grid-build + overlay engine, shared by both audiences (the seller groups
+// above and the buyer namespace at the bottom of this file). Per LEARNINGS (#5
+// retro): extract the seam once, then project each audience onto it — so a second
+// audience reuses the channel logic verbatim instead of forking the resolver.
+
+/** Build a fresh grid (group → channel → default) for an arbitrary group set. */
+function buildGrid<G extends string>(groups: readonly G[]): Record<G, Record<Channel, boolean>> {
+  return groups.reduce((acc, g) => {
     acc[g] = CHANNELS.reduce((c, ch) => {
       c[ch] = CHANNEL_DEFAULTS[ch]
       return c
     }, {} as Record<Channel, boolean>)
     return acc
-  }, {} as Prefs)
+  }, {} as Record<G, Record<Channel, boolean>>)
 }
 
-/** The default grid: email/push on, telegram opt-in (off). */
-export const DEFAULT_PREFS: Prefs = defaultGrid()
-
-function isEventGroup(v: string): v is EventGroup {
-  return (EVENT_GROUPS as readonly string[]).includes(v)
-}
 function isChannel(v: string): v is Channel {
   return (CHANNELS as readonly string[]).includes(v)
 }
 
-/** Overlay persisted rows on the defaults. Unknown/invalid keys are ignored. */
-export function resolvePrefs(rows: PrefRow[] | null | undefined): Prefs {
-  const prefs = defaultGrid()
+/**
+ * Overlay persisted rows on a fresh default grid for the given group set. Rows
+ * whose group isn't in `groups` (or whose channel is unknown) are ignored — this
+ * is the audience isolation: resolving the buyer grid never reads a seller
+ * `orders` row, and resolving the seller grid never reads a `buyer.*` row.
+ */
+function overlayRows<G extends string>(
+  groups: readonly G[],
+  rows: PrefRow[] | null | undefined,
+): Record<G, Record<Channel, boolean>> {
+  const grid = buildGrid(groups)
+  const isGroup = (v: string): v is G => (groups as readonly string[]).includes(v)
   for (const row of rows ?? []) {
-    if (isEventGroup(row.event_group) && isChannel(row.channel)) {
-      prefs[row.event_group][row.channel] = !!row.enabled
+    if (isGroup(row.event_group) && isChannel(row.channel)) {
+      grid[row.event_group][row.channel] = !!row.enabled
     }
   }
-  return prefs
+  return grid
+}
+
+/** The default grid: email/push on, telegram opt-in (off). */
+export const DEFAULT_PREFS: Prefs = buildGrid(EVENT_GROUPS)
+
+/** Overlay persisted seller rows on the defaults. Unknown/invalid keys ignored. */
+export function resolvePrefs(rows: PrefRow[] | null | undefined): Prefs {
+  return overlayRows(EVENT_GROUPS, rows)
 }
 
 /**
@@ -126,4 +143,122 @@ export const GROUP_COPY: Record<EventGroup, { label: string; summary: string }> 
   offers:   { label: 'Ofertas',      summary: 'Cuando alguien hace una oferta.' },
   payments: { label: 'Pagos',        summary: 'Cuando el comprador avisa que ya pagó.' },
   returns:  { label: 'Devoluciones', summary: 'Cuando un comprador solicita una devolución.' },
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUYER audience (epic #5b) — a second namespace over the SAME tables + channels.
+//
+// Buyer preference groups are stored in `notification_preferences` with an
+// audience-namespaced `event_group` (`buyer.compras` … ) so they never collide
+// with the seller keys (`orders|offers|payments|returns`). A person who is both
+// buyer and seller therefore keeps two independent grids in one table — no new
+// column, no migration. The pure core above (`buildGrid`/`overlayRows`/channel
+// defaults) is reused verbatim; only the group set, the copy, the event map and
+// the **forced-on receipt** are buyer-specific.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const BUYER_EVENT_GROUPS = [
+  'buyer.compras',
+  'buyer.envios',
+  'buyer.ofertas',
+  'buyer.devoluciones',
+] as const
+export type BuyerEventGroup = (typeof BUYER_EVENT_GROUPS)[number]
+
+/** Resolved buyer grid: buyer-group → channel → enabled. */
+export type BuyerPrefs = Record<BuyerEventGroup, Record<Channel, boolean>>
+
+/**
+ * The one cell that can never be turned off: the purchase + payment **receipt**
+ * email. Enforced in the resolver (single source of truth), not just hidden in
+ * the UI — so no caller, API write, or agent can suppress a buyer's receipt.
+ */
+export const BUYER_FORCED_ON: { group: BuyerEventGroup; channel: Channel } = {
+  group: 'buyer.compras',
+  channel: 'email',
+}
+
+export function isBuyerForcedCell(group: BuyerEventGroup, channel: Channel): boolean {
+  return group === BUYER_FORCED_ON.group && channel === BUYER_FORCED_ON.channel
+}
+
+/**
+ * Concrete buyer-facing events → their preference group.
+ *   Compras      — order + payment confirmed (receipt; email forced-on).
+ *   Envíos       — shipped + delivered.
+ *   Ofertas      — the seller's response to the buyer's offer.
+ *   Devoluciones — return request confirmed / accepted / declined.
+ * Sprint 1 routes Envíos / Ofertas / Devoluciones; Compras is wired in Sprint 2
+ * (it fires from the Stripe/MP payment webhooks — off the money-path this sprint).
+ */
+export const BUYER_EVENT_GROUP = {
+  order_confirmed:   'buyer.compras',
+  payment_confirmed: 'buyer.compras',
+  order_shipped:     'buyer.envios',
+  order_delivered:   'buyer.envios',
+  offer_accepted:    'buyer.ofertas',
+  offer_countered:   'buyer.ofertas',
+  offer_declined:    'buyer.ofertas',
+  return_requested:  'buyer.devoluciones',
+  return_accepted:   'buyer.devoluciones',
+  return_declined:   'buyer.devoluciones',
+} as const satisfies Record<string, BuyerEventGroup>
+export type BuyerEventKind = keyof typeof BUYER_EVENT_GROUP
+
+/** Resolve the buyer preference group for a concrete buyer event kind. */
+export function groupForBuyerEvent(kind: BuyerEventKind): BuyerEventGroup {
+  return BUYER_EVENT_GROUP[kind]
+}
+
+/**
+ * Overlay persisted buyer rows on the buyer defaults, then **force the receipt
+ * cell on** unconditionally. Seller rows (group ∉ BUYER_EVENT_GROUPS) are ignored
+ * by `overlayRows` → buyer/seller isolation. Absent rows ⇒ buyer defaults
+ * (email/push on, telegram opt-in off) — no backfill for existing buyers.
+ */
+export function resolveBuyerPrefs(rows: PrefRow[] | null | undefined): BuyerPrefs {
+  const prefs = overlayRows(BUYER_EVENT_GROUPS, rows) as BuyerPrefs
+  prefs[BUYER_FORCED_ON.group][BUYER_FORCED_ON.channel] = true
+  return prefs
+}
+
+/** The default buyer grid (receipt forced on; email/push on; telegram off). */
+export const BUYER_DEFAULT_PREFS: BuyerPrefs = resolveBuyerPrefs(null)
+
+/**
+ * Is `channel` enabled for buyer `group`? The forced receipt cell is always on,
+ * regardless of any stored value; otherwise falls back to the channel default.
+ */
+export function isBuyerChannelEnabled(
+  prefs: BuyerPrefs,
+  group: BuyerEventGroup,
+  channel: Channel,
+): boolean {
+  if (isBuyerForcedCell(group, channel)) return true
+  return prefs[group]?.[channel] ?? CHANNEL_DEFAULTS[channel]
+}
+
+/**
+ * Resolve the buyer's Telegram target for an event (Sprint 2 wires the send):
+ * the linked chat_id when the group is on for Telegram AND a link exists; else
+ * null. Pure, so the dispatcher's linked/unlinked/group-off decision is testable.
+ */
+export function buyerTelegramTarget(
+  prefs: BuyerPrefs,
+  group: BuyerEventGroup,
+  link: TelegramLink,
+): string | null {
+  if (!link) return null
+  return isBuyerChannelEnabled(prefs, group, 'telegram') ? link.chat_id : null
+}
+
+// ── Buyer settings copy (es-MX) ───────────────────────────────────────────────
+// Single source the buyer preference center renders AND the completeness spec
+// checks — so the per-group summary can't drift from what the seam sends.
+
+export const BUYER_GROUP_COPY: Record<BuyerEventGroup, { label: string; summary: string }> = {
+  'buyer.compras':      { label: 'Compras',      summary: 'Confirmación de tu compra y de tu pago.' },
+  'buyer.envios':       { label: 'Envíos',       summary: 'Cuando tu pedido se envía y cuando llega.' },
+  'buyer.ofertas':      { label: 'Ofertas',      summary: 'Cuando el vendedor responde tu oferta.' },
+  'buyer.devoluciones': { label: 'Devoluciones', summary: 'Avances de tus solicitudes de devolución.' },
 }
