@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
-import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE } from '@/lib/manual-payment-state'
+import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundConfirmationToast, refundIssuedBanner } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -667,7 +667,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       setRefundIssued(true)
       setShowInitiateRefund(false)
       setCurrentStatus('refunded')
-      showToast('Reembolso emitido. El comprador fue notificado.', 'success')
+      showToast(refundConfirmationToast(isSpeiOrder), 'success')
     } catch {
       showToast('Sin conexión.', 'error')
     } finally {
@@ -1098,11 +1098,18 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* ── Seller-initiated refund ──────────────────────────────────────────── */}
       {refundIssued && (
-        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+        <div className={`border rounded-xl p-3 mb-5 ${isSpeiOrder ? 'border-amber-200 bg-amber-50/50' : 'border-green-200 bg-green-50/50'}`}>
           <div className="flex items-center gap-2">
-            <span>✓</span>
-            <p className="text-sm font-semibold text-green-800">Reembolso emitido al comprador</p>
+            <span>{isSpeiOrder ? '🏦' : '✓'}</span>
+            <p className={`text-sm font-semibold ${isSpeiOrder ? 'text-amber-800' : 'text-green-800'}`}>
+              {refundIssuedBanner(isSpeiOrder)}
+            </p>
           </div>
+          {isSpeiOrder && (
+            <p className="text-xs text-amber-700 mt-1">
+              Envía la transferencia al comprador para completar el reembolso.
+            </p>
+          )}
         </div>
       )}
 

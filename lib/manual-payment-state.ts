@@ -161,3 +161,20 @@ export function canSellerShip(order: {
   if (!isManualPaymentMethod(method)) return true
   return !!order.payment_received || meta.payment_received === true
 }
+
+// ── Refund language (es-MX, honest) ─────────────────────────────────────────────────
+
+/**
+ * SPEI/cash refunds are *registered* on-platform but the money is sent off-platform
+ * by the seller — never imply it already left. Card/MP refunds are issued instantly.
+ * (S3.4 — copy-only; the full assisted-refund state machine is a later epic.)
+ */
+export function refundConfirmationToast(isManualPay: boolean): string {
+  return isManualPay
+    ? 'Reembolso registrado. Recuerda enviar la transferencia al comprador.'
+    : 'Reembolso emitido. El comprador fue notificado.'
+}
+
+export function refundIssuedBanner(isManualPay: boolean): string {
+  return isManualPay ? 'Reembolso registrado — transferencia pendiente' : 'Reembolso emitido al comprador'
+}

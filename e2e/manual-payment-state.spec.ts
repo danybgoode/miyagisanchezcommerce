@@ -8,6 +8,8 @@ import {
   manualPaymentBadge,
   canSellerShip,
   SHIP_BLOCKED_REASON,
+  refundConfirmationToast,
+  refundIssuedBanner,
   type ManualPaymentState,
 } from '../lib/manual-payment-state'
 
@@ -141,5 +143,19 @@ test.describe('manual-payment-state · ship gate (S2)', () => {
 
   test('the blocked reason is a non-empty es-MX string', () => {
     expect(SHIP_BLOCKED_REASON).toContain('pago')
+  })
+})
+
+test.describe('refund language (S3.4) · honest for manual', () => {
+  test('SPEI/cash refunds never read "emitido" before the transfer is sent', () => {
+    expect(refundConfirmationToast(true)).not.toContain('emitido')
+    expect(refundIssuedBanner(true)).not.toContain('emitido')
+    expect(refundIssuedBanner(true)).toContain('registrado')
+    expect(refundIssuedBanner(true)).toContain('pendiente')
+  })
+
+  test('card/MP refunds still read "emitido" (issued instantly)', () => {
+    expect(refundConfirmationToast(false)).toContain('emitido')
+    expect(refundIssuedBanner(false)).toContain('emitido')
   })
 })
