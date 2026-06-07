@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import EmbedSnippetSection from './EmbedSnippetSection'
 import SupportWidgetSection from './SupportWidgetSection'
+import NotificationPreferences from './NotificationPreferences'
 import { MEXICAN_STATES, MAJOR_MEXICAN_CITIES, CITIES_BY_STATE } from '@/lib/types'
 import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 import { dnsRecordFor } from '@/lib/domain-utils'
@@ -3220,6 +3221,10 @@ export default function ShopSettingsPanel({
               />
             </div>
           </section>
+
+          {/* Granular preference center — channels × event-groups (Telegram inert
+              until Sprint 2). Self-contained island; saves on its own. */}
+          <NotificationPreferences />
 
           {/* ════════════════════════════════════════════════════════════════════
               SECTION 13: Conectar tu sistema (UCP Webhook)

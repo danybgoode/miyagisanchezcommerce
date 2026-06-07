@@ -4,13 +4,14 @@ import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import {
   sendSaleCompletedToSeller,
+  sendNewOrderToSeller,
   sendOrderConfirmedToBuyer,
   sendCoordinatedOrderToBuyer,
   sendCoordinatedOrderToSeller,
   sendPickupOrderToBuyer,
   sendPickupOrderToSeller,
-  getSellerEmail,
 } from '@/lib/email'
+import { dispatchToSeller } from '@/lib/notifications/dispatch'
 import { formatOfferAmount } from '@/lib/offers'
 import { personalizationFromOrderItems, type PersonalizationBlock } from '@/lib/personalization'
 import { markListingPurchased } from '@/lib/offer-state'
@@ -271,35 +272,41 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     }).catch(e => console.error('[email] order confirmed buyer:', e))
   }
 
-  // ── Seller email ──────────────────────────────────────────────────────────
+  // ── Seller notification (orders group: email + push, through the seam) ──────
+  // Default-on → today's email still fires unless "Pedidos → Email" is off. The
+  // closure preserves the existing physical-vs-digital sender choice exactly.
   if (shop.clerk_user_id) {
-    getSellerEmail(shop.clerk_user_id).then(async sellerEmail => {
-      if (!sellerEmail) return
-      if (isPhysical && order) {
-        // Physical order → send richer email with buyer address + order link
-        const { sendNewOrderToSeller } = await import('@/lib/email')
-        return sendNewOrderToSeller({
-          sellerEmail,
-          listingTitle: listing.title,
-          listingUrl,
-          amountPaid: amountFormatted,
-          buyerName,
-          buyerEmail,
-          shippingAddress: shippingAddress ?? null,
-          orderId: order.id,
-          orderUrl: `${listingUrl.replace(/\/l\/.*/, '')}/shop/manage/orders/${order.id}`,
-        })
-      }
-      return sendSaleCompletedToSeller({
-        sellerEmail,
-        listingTitle: listing.title,
-        listingUrl,
-        amountPaid: amountFormatted,
-        buyerName,
-        buyerEmail,
-        isDigital,
-      })
-    }).catch(e => console.error('[email] sale completed seller:', e))
+    void dispatchToSeller(shop.clerk_user_id, {
+      group: 'orders',
+      email: to =>
+        isPhysical && order
+          ? sendNewOrderToSeller({
+              sellerEmail: to,
+              listingTitle: listing.title,
+              listingUrl,
+              amountPaid: amountFormatted,
+              buyerName,
+              buyerEmail,
+              shippingAddress: shippingAddress ?? null,
+              orderId: order.id,
+              orderUrl: `${listingUrl.replace(/\/l\/.*/, '')}/shop/manage/orders/${order.id}`,
+            })
+          : sendSaleCompletedToSeller({
+              sellerEmail: to,
+              listingTitle: listing.title,
+              listingUrl,
+              amountPaid: amountFormatted,
+              buyerName,
+              buyerEmail,
+              isDigital,
+            }),
+      push: {
+        kind: 'order',
+        title: '¡Vendiste!',
+        body: `${amountFormatted} · ${listing.title}`,
+        url: listingUrl,
+      },
+    })
   }
 }
 
@@ -472,63 +479,72 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
         }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
       }
 
-      // ── Seller email ──────────────────────────────────────────────────────
+      // ── Seller notification (orders group: email + push, through the seam) ──
+      // Default-on parity: the same fulfillment-branch email still fires unless
+      // "Pedidos → Email" is off. The closure preserves the exact branch choice.
       if (listingInfo.seller_clerk_id) {
         const sellerOrderUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'}/shop/manage/orders/${medusaOrderId ?? cart_id}`
-        getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
-          if (!sellerEmail) return
-          if (isPickup) {
-            return sendPickupOrderToSeller({
-              sellerEmail,
+        void dispatchToSeller(listingInfo.seller_clerk_id, {
+          group: 'orders',
+          email: to => {
+            if (isPickup) {
+              return sendPickupOrderToSeller({
+                sellerEmail: to,
+                listingTitle: listingInfo.title,
+                listingUrl,
+                amountPaid: amountFormatted,
+                buyerName,
+                buyerEmail,
+                shopName: listingInfo.seller_name,
+                orderUrl: sellerOrderUrl,
+                personalization,
+              })
+            }
+            if (isCoord) {
+              return sendCoordinatedOrderToSeller({
+                sellerEmail: to,
+                listingTitle: listingInfo.title,
+                listingUrl,
+                amountPaid: amountFormatted,
+                buyerName,
+                buyerEmail,
+                shopName: listingInfo.seller_name,
+                orderId: medusaOrderId ?? cart_id,
+                orderUrl: sellerOrderUrl,
+                personalization,
+              })
+            }
+            if (isShipping) {
+              return sendNewOrderToSeller({
+                sellerEmail: to,
+                listingTitle: listingInfo.title,
+                listingUrl,
+                amountPaid: amountFormatted,
+                buyerName,
+                buyerEmail,
+                shippingAddress: null,
+                orderId: medusaOrderId ?? cart_id,
+                orderUrl: sellerOrderUrl,
+                personalization,
+              })
+            }
+            return sendSaleCompletedToSeller({
+              sellerEmail: to,
               listingTitle: listingInfo.title,
               listingUrl,
               amountPaid: amountFormatted,
               buyerName,
               buyerEmail,
-              shopName: listingInfo.seller_name,
-              orderUrl: sellerOrderUrl,
-              personalization,
+              isDigital: false,
             })
-          }
-          if (isCoord) {
-            return sendCoordinatedOrderToSeller({
-              sellerEmail,
-              listingTitle: listingInfo.title,
-              listingUrl,
-              amountPaid: amountFormatted,
-              buyerName,
-              buyerEmail,
-              shopName: listingInfo.seller_name,
-              orderId: medusaOrderId ?? cart_id,
-              orderUrl: sellerOrderUrl,
-              personalization,
-            })
-          }
-          if (isShipping) {
-            const { sendNewOrderToSeller } = require('@/lib/email')
-            return sendNewOrderToSeller({
-              sellerEmail,
-              listingTitle: listingInfo.title,
-              listingUrl,
-              amountPaid: amountFormatted,
-              buyerName,
-              buyerEmail,
-              shippingAddress: null,
-              orderId: medusaOrderId ?? cart_id,
-              orderUrl: sellerOrderUrl,
-              personalization,
-            })
-          }
-          return sendSaleCompletedToSeller({
-            sellerEmail,
-            listingTitle: listingInfo.title,
-            listingUrl,
-            amountPaid: amountFormatted,
-            buyerName,
-            buyerEmail,
-            isDigital: false,
-          })
-        }).catch(e => console.error('[email] medusa seller email:', e))
+          },
+          push: {
+            kind: 'order',
+            title: '¡Vendiste!',
+            body: `${amountFormatted} · ${listingInfo.title}`,
+            url: listingUrl,
+          },
+        })
       }
     }
   }
