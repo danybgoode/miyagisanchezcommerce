@@ -10,6 +10,66 @@
       "activeSeasonal": "Colaboracion activa"
     }
   },
+  "sellerAcquisition": {
+    "mundial": {
+      "metadata": {
+        "title": "Vende experiencias del Mundial — Miyagi Sanchez",
+        "description": "Publica tours, rincones de comida y rentas para el Mundial 2026 en Mexico. Sin comisiones y directo a tu cuenta."
+      },
+      "eyebrow": "Mundial 2026 · Mexico",
+      "heroTitle": "Captura al publico global del Mundial.",
+      "heroLead": "Publica tus tours, rincones de comida y rentas al instante, sin comisiones. Entra antes de que la demanda llegue a CDMX, Guadalajara y Monterrey.",
+      "trustLine": "No nos creas, preguntale a Claude sobre miyagisanchez.com/vende/mundial y deja que audite la pagina por ti.",
+      "primaryCta": "Empieza a vender",
+      "secondaryCta": "Ver guia para agentes",
+      "heroStats": [
+        { "value": "0%", "label": "comision de plataforma" },
+        { "value": "3", "label": "ciudades sede en Mexico" },
+        { "value": "Minutos", "label": "para publicar tu primer anuncio" }
+      ],
+      "demandTitle": "Lo que los visitantes ya estan buscando",
+      "demandItems": [
+        "Tours de barrio y experiencias locales",
+        "Comida imperdible cerca del estadio",
+        "Rentas, traslados y servicios por dia"
+      ],
+      "proofTitle": "Hecho para vender servicios y rentas, no solo productos",
+      "proofLead": "Reusamos la infraestructura actual de Miyagi: publicacion, cobro, agenda y agentes. Sin backend nuevo para esta pagina.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-tools",
+          "title": "Servicios y rentas",
+          "body": "El onboarding ya permite anuncios de servicio y renta, con ubicacion, precio o precio a consultar."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "Miyagi no cobra comision de plataforma. Tu margen se queda contigo."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Cobra a tu cuenta",
+          "body": "Activa Stripe Connect, MercadoPago o coordina pagos directos segun como opera tu tienda."
+        },
+        {
+          "icon": "iconoir-calendar",
+          "title": "Agenda cuando aplique",
+          "body": "Conecta Cal.com desde tu tienda para experiencias con horario, cupo o cita previa."
+        }
+      ],
+      "stepsTitle": "Publica antes del silbatazo",
+      "steps": [
+        { "title": "Crea tu tienda", "body": "Nombre, ubicacion y datos basicos para que el visitante sepa quien le atiende." },
+        { "title": "Sube tu experiencia", "body": "Describe el tour, renta o servicio con precio, zona, fotos y condiciones." },
+        { "title": "Comparte y mide", "body": "Usa tu link en redes, QR, anuncios o mensajes; Clarity registra la visita." }
+      ],
+      "agentTitle": "Listo para que un agente lo lea",
+      "agentBody": "La pagina esta hecha con texto real, secciones semanticas y metadata. Claude, Gemini o cualquier crawler puede explicar por que un proveedor local deberia publicar aqui.",
+      "closingTitle": "El Mundial no espera. Tu anuncio tampoco.",
+      "closingBody": "Si vendes experiencias, comida, traslados, tours, hospedaje temporal o servicios locales, empieza con un anuncio de servicio y ajusta despues.",
+      "closingCta": "Publicar mi servicio"
+    }
+  },
   "terms": {
     "title": "Terminos de uso",
     "subtitle": "Reglas basicas para usar Miyagi Sanchez.",
