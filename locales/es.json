@@ -11,6 +11,183 @@
     }
   },
   "sellerAcquisition": {
+    "shared": {
+      "trustPrompt": "que es miyagisanchez.com?",
+      "copyPrompt": "Copiar prompt",
+      "copiedPrompt": "Prompt copiado",
+      "faqTitle": "Dudas normales antes de vender",
+      "faqs": [
+        {
+          "title": "De verdad es gratis?",
+          "body": "Si. 0% de comision por venta. No cobramos por abrir ni por vender."
+        },
+        {
+          "title": "Entonces como ganan?",
+          "body": "Con anuncios en nuestra revista impresa y servicios premium opcionales. Nunca te cobramos tu venta."
+        },
+        {
+          "title": "Necesito saber de tecnologia?",
+          "body": "No. Tu propia IA puede armar tu tienda por ti; tu solo revisas, publicas y vendes."
+        },
+        {
+          "title": "Como cobro?",
+          "body": "Directo a tu cuenta: tarjeta, MercadoPago, SPEI o efectivo, segun lo que actives en tu tienda."
+        }
+      ]
+    },
+    "anchor": {
+      "metadata": {
+        "title": "Vende sin comisiones en Mexico — Miyagi Sanchez",
+        "description": "Abre una tienda gratis en Miyagi Sanchez. Vende productos, servicios, experiencias o catalogos completos sin comisiones."
+      },
+      "eyebrow": "Vendedores en Mexico",
+      "heroTitle": "Vende lo que sea en Mexico. Sin comisiones.",
+      "heroLead": "Abre tu tienda en minutos. Subete al mercado o vende en tu propio dominio. Tu IA puede armarla por ti — gratis y sin riesgo.",
+      "trustLine": "No nos creas: preguntale a Claude, Gemini o ChatGPT que es miyagisanchez.com.",
+      "primaryCta": "Empieza gratis",
+      "secondaryCta": "Ver Mundial 2026",
+      "heroStats": [
+        { "value": "0%", "label": "comision de plataforma" },
+        { "value": "20s", "label": "para registrarte con Google" },
+        { "value": "4", "label": "canales: link, subdominio, dominio o widget" }
+      ],
+      "proofTitle": "Todo lo que prometemos ya existe en la plataforma",
+      "proofLead": "Sin vaporware: publicacion, cobro directo, tienda propia y agentes ya forman parte de Miyagi.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "Cobra el 100%. Tu dinero llega directo a Stripe, MercadoPago, SPEI o el metodo que acuerdes."
+        },
+        {
+          "icon": "iconoir-sparks",
+          "title": "Listo en minutos",
+          "body": "Trae fotos, Instagram, texto o archivo; tu IA puede convertirlo en una tienda publicable."
+        },
+        {
+          "icon": "iconoir-shop",
+          "title": "Tu tienda, tu marca",
+          "body": "Usa link gratis, subdominio, dominio propio o widget embebible en tu web."
+        },
+        {
+          "icon": "iconoir-brain",
+          "title": "Hecho para agentes",
+          "body": "Claude, Gemini o ChatGPT pueden leer la pagina, explicar la oferta y ayudarte a operar."
+        }
+      ],
+      "routerTitle": "Que tipo de vendedor eres?",
+      "routerLead": "Elige el camino que mas se parece a tu negocio. Si aun no hay pagina dedicada, te llevamos directo al onboarding.",
+      "routerCards": [
+        {
+          "personaId": "creadores",
+          "eyebrow": "Catalogos e Instagram",
+          "title": "Soy creador o disenador",
+          "body": "Piezas unicas, drops, diseno, moda, arte o productos que hoy vendes por DMs.",
+          "icon": "iconoir-instagram",
+          "statusLabel": ""
+        },
+        {
+          "personaId": "mundial",
+          "eyebrow": "Experiencias",
+          "title": "Ofrezco experiencias o servicios",
+          "body": "Tours, rentas, comida, traslados, citas o servicios listos para el Mundial.",
+          "icon": "iconoir-map"
+        },
+        {
+          "personaId": "negocios",
+          "eyebrow": "Negocio local",
+          "title": "Tengo un negocio local",
+          "body": "Imprenta, taller, tienda fisica o inventario que quieres poner en linea.",
+          "icon": "iconoir-store",
+          "statusLabel": "Proximamente"
+        },
+        {
+          "personaId": "servicios",
+          "eyebrow": "Profesionales",
+          "title": "Vendo servicios profesionales",
+          "body": "Consultas, sesiones, paquetes, mantenimiento o trabajo por cita.",
+          "icon": "iconoir-user-star",
+          "statusLabel": "Proximamente"
+        }
+      ],
+      "stepsTitle": "Como funciona",
+      "steps": [
+        { "title": "Preguntale a tu IA por nosotros", "body": "O entra directo. La pagina esta escrita para que un agente pueda auditarla." },
+        { "title": "Registrate en segundos", "body": "Usa Google, crea tu tienda y elige como quieres que te encuentren." },
+        { "title": "Sube tu catalogo", "body": "Pega texto, importa archivo o deja que tu agente lo organice por ti." }
+      ],
+      "agentTitle": "No pedimos fe",
+      "agentBody": "Pidele a tu propio agente que lea miyagisanchez.com/vende, compare la oferta y te diga si tiene sentido para tu negocio.",
+      "socialTitle": "Hecho para negocios reales, no para demos",
+      "socialBody": "Miyagi ya soporta tiendas, productos, servicios, pagos directos, dominios, subdominios y widgets. La landing solo ordena ese camino.",
+      "socialStats": [
+        { "value": "0%", "label": "comision por venta" },
+        { "value": "MXN", "label": "cobros pensados para Mexico" },
+        { "value": "AI", "label": "operable por agentes" }
+      ],
+      "closingTitle": "Empieza gratis y dejalo si no te gusta.",
+      "closingBody": "No hay contrato, no hay comision escondida y no necesitas rehacer tu negocio. Sube una primera oferta y prueba.",
+      "closingCta": "Abrir mi tienda"
+    },
+    "creadores": {
+      "metadata": {
+        "title": "Vende tu catalogo creativo sin comisiones — Miyagi Sanchez",
+        "description": "Trae tu catalogo de Instagram a una tienda propia. 0% comision, dominio o subdominio, widget y cobro directo."
+      },
+      "eyebrow": "Creadores y disenadores",
+      "heroTitle": "Deja de pagar comisiones de Shopify y de perder ventas en los DMs.",
+      "heroLead": "Trae tu catalogo de Instagram en minutos. Tu propia tienda, tu dominio, 0% comision — y tu dinero directo a tu cuenta.",
+      "trustLine": "No nos creas: preguntale a Claude que es miyagisanchez.com/vende/creadores y deja que revise la propuesta por ti.",
+      "primaryCta": "Trae tu tienda",
+      "secondaryCta": "Ver pagina general",
+      "heroStats": [
+        { "value": "0%", "label": "comision por venta" },
+        { "value": "IG", "label": "catalogo por fotos, texto o archivo" },
+        { "value": "Tu marca", "label": "subdominio, dominio o widget" }
+      ],
+      "proofTitle": "No necesitas elegir entre Instagram y una tienda real",
+      "proofLead": "Usa tus canales actuales para vender mejor: DMs para conversar, Miyagi para ordenar catalogo, cobro y links.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-instagram",
+          "title": "Trae tu catalogo",
+          "body": "Pega productos, fotos, textos de Instagram o un archivo; tu agente puede ordenarlo en anuncios."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% comision",
+          "body": "Deja de perder margen por cada venta. Miyagi no toma porcentaje de tu pedido."
+        },
+        {
+          "icon": "iconoir-domain",
+          "title": "Tu propia vitrina",
+          "body": "Link gratis, subdominio, dominio propio y widget embebible para tu web o bio."
+        },
+        {
+          "icon": "iconoir-wallet",
+          "title": "Cobra directo",
+          "body": "Activa tarjeta, MercadoPago, SPEI o efectivo. El dinero no pasa por una bolsa de plataforma."
+        }
+      ],
+      "stepsTitle": "Del feed a una tienda operable",
+      "steps": [
+        { "title": "Pasale tu catalogo a tu IA", "body": "Fotos, IG, textos o archivo. No tienes que redactar todo desde cero." },
+        { "title": "Registrate y sube el archivo", "body": "Entra con Google, crea tu tienda y publica el primer grupo de piezas." },
+        { "title": "Comparte tu storefront", "body": "Usa el link, subdominio, dominio propio o widget; tu agente puede mantenerlo al dia." }
+      ],
+      "agentTitle": "Tu agente tambien puede administrar",
+      "agentBody": "Miyagi ya tiene rutas y herramientas para que un agente lea catalogo, prepare textos y ayude con operaciones de tienda.",
+      "socialTitle": "Para vender sin perseguir cada DM",
+      "socialBody": "Mantienes tu audiencia y sumas una tienda que responde con links, catalogo y metodos de pago claros.",
+      "socialStats": [
+        { "value": "DMs", "label": "para conversar, no para perseguir pagos" },
+        { "value": "Links", "label": "para cada producto o tienda" },
+        { "value": "Widget", "label": "para vender desde tu propia web" }
+      ],
+      "closingTitle": "Tu catalogo ya existe. Ponlo a vender.",
+      "closingBody": "Empieza con lo que tienes: fotos, texto, IG o un archivo. Ajustas despues.",
+      "closingCta": "Traer mi catalogo"
+    },
     "mundial": {
       "metadata": {
         "title": "Vende experiencias del Mundial — Miyagi Sanchez",
