@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { currentUser } from '@clerk/nextjs/server'
+import { db } from '@/lib/supabase'
+import { getBotUsername } from '@/lib/telegram'
+import { genLinkToken, LINK_TOKEN_TTL_MS } from '@/lib/notifications/telegram-link'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+
+/**
+ * Buyer Telegram link control (epic #5b · Sprint 2). The buyer twin of
+ * /api/sell/telegram/link — same clerk-user-scoped flow, since `telegram_links`
+ * is keyed by `clerk_user_id` (one chat per person, shared across audiences).
+ *   GET    → { linked, chatId? } — does this person have a linked chat?
+ *   POST   → mint a single-use, short-TTL token; return its t.me deep link.
+ *   DELETE → disconnect (per-audience safe — Sprint 2 B2.3 hardens this).
+ * Clerk-gated; anonymous → 401. The shared webhook (POST /api/telegram/webhook)
+ * redeems the token and writes telegram_links once the buyer sends /start.
+ */
+
+export async function GET() {
+  const user = await currentUser()
+  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  const { data } = await db
+    .from('telegram_links')
+    .select('chat_id')
+    .eq('clerk_user_id', user.id)
+    .maybeSingle()
+
+  return NextResponse.json({ linked: !!data, chatId: data?.chat_id ?? null })
+}
+
+export async function POST(req: NextRequest) {
+  const user = await currentUser()
+  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  const rl = await checkRateLimit('telegram_link', `${user.id}:${getClientIp(req)}`)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera un momento.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
+
+  const username = await getBotUsername()
+  if (!username) {
+    return NextResponse.json(
+      { error: 'Telegram no está disponible por ahora. Inténtalo más tarde.' },
+      { status: 503 },
+    )
+  }
+
+  const token = genLinkToken()
+  const { error } = await db.from('telegram_link_tokens').insert({
+    token,
+    clerk_user_id: user.id,
+    expires_at: new Date(Date.now() + LINK_TOKEN_TTL_MS).toISOString(),
+  })
+  if (error) {
+    return NextResponse.json({ error: 'No se pudo generar el enlace.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ url: `https://t.me/${username}?start=${token}` })
+}
+
+export async function DELETE() {
+  const user = await currentUser()
+  if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  // NOTE: per-audience-safe unlink lands in B2.3 (only delete the shared row when
+  // no audience still uses Telegram). Until then this is the simple disconnect.
+  const { error } = await db.from('telegram_links').delete().eq('clerk_user_id', user.id)
+  if (error) return NextResponse.json({ error: 'No se pudo desconectar.' }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}
