@@ -12,6 +12,7 @@
 
 import type { Listing, Shop } from '@/lib/types'
 import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
+import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,9 @@ export interface UcpListing {
   // Stock — true unless a Medusa-managed item has sold out (null = unlimited)
   in_stock: boolean
   available_quantity: number | null
+
+  // Event admission metadata, present when the listing carries event attrs.
+  event: ListingEventDetails | null
 
   // Commerce capabilities
   shop: UcpShop
@@ -162,6 +166,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
 
   // ── Trust ───────────────────────────────────────────────────────────────────
   const listingMeta = listing.metadata ?? {}
+  const event = readEventDetails(listing)
   const repuveChecked = !!(listingMeta.repuve)
   const identityRequired = escrowMode === 'required'
 
@@ -178,11 +183,17 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
   // ── Schema.org ──────────────────────────────────────────────────────────────
   const schemaOrg: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': listing.listing_type === 'service' ? 'Service' : 'Product',
+    '@type': event ? 'Event' : listing.listing_type === 'service' ? 'Service' : 'Product',
     name: listing.title,
     description: listing.description,
     url: `${baseUrl}/l/${publicListingId}`,
     image: listing.images?.[0]?.url,
+    startDate: event?.starts_at ?? undefined,
+    location: event?.location_label ? {
+      '@type': 'Place',
+      name: event.venue_name ?? event.location_label,
+      address: event.venue_address ?? undefined,
+    } : undefined,
     offers: hasPrice ? {
       '@type': 'Offer',
       price: (listing.price_cents! / 100).toFixed(2),
@@ -218,6 +229,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
 
     in_stock: inStock,
     available_quantity: listing.available_quantity ?? null,
+    event,
 
     shop: shop ? {
       id: shop.id,

@@ -10,6 +10,7 @@ import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import BuyButton from '@/app/components/BuyButton'
 import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
 import { getCustomFields } from '@/lib/personalization'
+import { readEventDetails } from '@/lib/event-listing'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
@@ -110,6 +111,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status
+  const eventDetails = readEventDetails(listing)
   const shopSettings = (shopMeta?.settings ?? {}) as Record<string, unknown>
   const calcomSettings = shopSettings.calcom as { connected?: boolean; booking_url?: string; event_type_title?: string } | undefined
   const ordersSettings = shopSettings.orders as { processing_time?: string } | undefined
@@ -540,6 +542,29 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                 {repuve!.status === 'sin_reporte' ? 'Sin reporte REPUVE' : 'Con reporte REPUVE'}
               </span>
               {repuve!.folio && <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)', opacity: 0.7 }}>Folio: {repuve!.folio}</span>}
+            </div>
+          </div>
+        )}
+
+        {eventDetails && (
+          <div data-testid="listing-event-details" style={{ background: 'var(--info-soft)', border: '1px solid var(--info)', borderRadius: 'var(--r-lg)', padding: '14px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--info)', marginTop: 1, flexShrink: 0 }} />
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginBottom: 6 }}>Evento</p>
+                {eventDetails.formatted_date && (
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>
+                    {eventDetails.formatted_date}
+                    {eventDetails.formatted_time && <span> · {eventDetails.formatted_time}</span>}
+                  </p>
+                )}
+                {eventDetails.venue_name && (
+                  <p style={{ fontSize: 13, color: 'var(--fg)', marginTop: 4 }}>{eventDetails.venue_name}</p>
+                )}
+                {eventDetails.venue_address && (
+                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{eventDetails.venue_address}</p>
+                )}
+              </div>
             </div>
           </div>
         )}

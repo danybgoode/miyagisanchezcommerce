@@ -121,6 +121,7 @@ export const getShopListings = unstable_cache(
         state: (meta.state as string) ?? null,
         municipio: (meta.municipio as string) ?? null,
         location: (meta.location as string) ?? null,
+        attrs: (meta.attrs as Record<string, unknown> | undefined) ?? {},
         metadata: meta,
         images: (p.images ?? []).map((img: any) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
         tags: (p.tags ?? []).map((t: any) => t.value),
