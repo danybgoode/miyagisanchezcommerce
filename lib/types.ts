@@ -57,6 +57,7 @@ export type SearchParams = {
   state?: string
   municipio?: string
   condition?: string
+  listing_type?: string  // product | service | rental | digital | subscription
   min_price?: string
   max_price?: string
   location?: string

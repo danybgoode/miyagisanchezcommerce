@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { searchListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { listingTypeBadge } from '@/lib/listing-query'
 import { db } from '@/lib/supabase'
 import type { SearchParams } from '@/lib/types'
 import SearchBar from './SearchBar'
 import CategoryChips from '@/app/components/CategoryChips'
+import ListingTypeChips from '@/app/components/ListingTypeChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
 
 function timeAgo(dateStr: string): string {
@@ -56,7 +58,9 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <CategoryChips activeCategory={params.category} className="mb-5" />
+      <CategoryChips activeCategory={params.category} className="mb-3" />
+
+      <ListingTypeChips params={params} className="mb-5" />
 
       <SearchBar
         params={params}
@@ -112,6 +116,11 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                   </p>
                   <p className="t-price" style={{ fontSize: 15 }}>{formatPrice(listing)}</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                    {listingTypeBadge(listing.listing_type) && (
+                      <span className="badge badge-soft" style={{ fontSize: 10, color: 'var(--accent)' }}>
+                        {listingTypeBadge(listing.listing_type)}
+                      </span>
+                    )}
                     {listing.condition && (
                       <span className="badge badge-soft" style={{ fontSize: 10 }}>
                         {conditionLabel(listing.condition)}
