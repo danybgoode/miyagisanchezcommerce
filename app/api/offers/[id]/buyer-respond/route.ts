@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { notify } from '@/lib/notify'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 
 interface BuyerRespondBody {
   action: 'accept-counter' | 'withdraw'
@@ -179,6 +180,10 @@ export async function PATCH(
     }
     // Buyer: accepted — with payment link. "Ofertas" pref-gated (the buyer is
     // signed in here — offer.buyer_clerk_user_id === user.id).
+    const acceptedMsg = buildBuyerMessage('offer_accepted', {
+      listingTitle: listing.title,
+      url: conversationUrl ?? listingUrl,
+    })
     void dispatchToBuyer(
       { clerkUserId: user.id, email: offer.buyer_email },
       {
@@ -196,6 +201,8 @@ export async function PATCH(
             checkoutExpiresAt: checkoutExpires,
             conversationUrl,
           }),
+        push: acceptedMsg.push,
+        telegram: acceptedMsg.telegram,
       },
     )
 

@@ -16,6 +16,7 @@ import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sendOrderShipped } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 import { canSellerShip, SHIP_BLOCKED_REASON } from '@/lib/manual-payment-state'
 
@@ -97,6 +98,7 @@ export async function POST(
     }
 
     if (buyerEmail) {
+      const msg = buildBuyerMessage('order_shipped', { listingTitle, url: `${siteUrl}/account/orders/${id}` })
       void dispatchToBuyer(
         { clerkUserId: buyerClerkId, email: buyerEmail },
         {
@@ -112,6 +114,8 @@ export async function POST(
               estimatedDelivery: null,
               shopName,
             }),
+          push: msg.push,
+          telegram: msg.telegram,
         },
       )
     }
@@ -200,6 +204,7 @@ export async function POST(
   await db.from('marketplace_orders').update({ status: 'shipped', updated_at: new Date().toISOString() }).eq('id', id)
 
   if (buyerEmail) {
+    const msg = buildBuyerMessage('order_shipped', { listingTitle, url: `${siteUrl}/account/orders/${id}` })
     void dispatchToBuyer(
       { clerkUserId: buyerClerkId, email: buyerEmail },
       {
@@ -215,6 +220,8 @@ export async function POST(
             estimatedDelivery: null,
             shopName,
           }),
+        push: msg.push,
+        telegram: msg.telegram,
       },
     )
   }

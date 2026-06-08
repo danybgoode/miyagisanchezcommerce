@@ -9,6 +9,7 @@ import {
   telegramTarget,
   resolveBuyerPrefs,
   isBuyerChannelEnabled,
+  buyerTelegramTarget,
   type EventGroup,
   type BuyerEventGroup,
   type PrefRow,
@@ -116,7 +117,7 @@ export type BuyerEvent = {
   email?: (to: string) => Promise<void>
   /** Web-push payload (optional). */
   push?: NotifyEvent
-  /** Telegram body (HTML) — wired in Sprint 2; ignored (stub no-op) in Sprint 1. */
+  /** Telegram body (HTML) — delivered to the buyer's linked chat if enabled. */
   telegram?: string
 }
 
@@ -132,7 +133,8 @@ export type BuyerEvent = {
  *
  * Signed-in buyers: the receipt email (Compras × email) is forced-on in the
  * resolver, so it always sends; every other cell respects the buyer's prefs.
- * Telegram is a stub no-op until Sprint 2 (no buyer link flow yet).
+ * Telegram delivers to the buyer's linked chat when the group is on for Telegram
+ * (opt-in; silent no-op when unlinked or off).
  */
 export async function dispatchToBuyer(buyer: BuyerRecipient, event: BuyerEvent): Promise<void> {
   const to = buyer.email
@@ -156,7 +158,12 @@ export async function dispatchToBuyer(buyer: BuyerRecipient, event: BuyerEvent):
       await notify(clerkUserId, event.push).catch(e => console.error('[dispatchBuyer] push:', e))
     }
 
-    // Telegram — stub no-op until Sprint 2 (the buyer link flow + send land there).
+    // Telegram — opt-in: only when the group is on for Telegram AND the buyer has
+    // a linked chat. Unlinked / off ⇒ silent no-op (chat read skipped when off).
+    if (event.telegram && isBuyerChannelEnabled(prefs, event.group, 'telegram')) {
+      const chatId = buyerTelegramTarget(prefs, event.group, await readTelegramLink(clerkUserId))
+      if (chatId) await tgSend(chatId, event.telegram).catch(e => console.error('[dispatchBuyer] telegram:', e))
+    }
   } catch (e) {
     console.error('[dispatchBuyer] failed:', e)
   }

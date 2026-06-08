@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, getSellerEmail } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 import { db } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
@@ -83,10 +84,14 @@ export async function PATCH(
         // Medusa orders don't carry the buyer's Clerk id → guest fall-through
         // sends the email as today (buyer pref gating applies to legacy orders).
         const buyerRecipient = { clerkUserId: null, email: buyerEmail }
+        const buyerOrderUrlMedusa = `${siteUrl}/account/orders/${id}`
         if (body.action === 'decline') {
+          const m = buildBuyerMessage('return_declined', { listingTitle, url: buyerOrderUrlMedusa })
           void dispatchToBuyer(buyerRecipient, {
             group: 'buyer.devoluciones',
-            email: to => sendReturnDeclinedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }),
+            email: to => sendReturnDeclinedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrlMedusa }),
+            push: m.push,
+            telegram: m.telegram,
           })
           tg.alert(`❌ Devolución rechazada (Medusa)\n${listingTitle}`).catch(() => {})
         } else {
@@ -95,9 +100,12 @@ export async function PATCH(
           // seller chose a partial amount (full refund omits it).
           const isPartial = body.action === 'partial_refund'
             || (body.action === 'seller_refund' && body.refund_amount_cents != null)
+          const m = buildBuyerMessage('return_accepted', { listingTitle, url: buyerOrderUrlMedusa, refundAmount: refundFormatted, isPartial })
           void dispatchToBuyer(buyerRecipient, {
             group: 'buyer.devoluciones',
-            email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial, sellerNote: body.seller_note?.trim() ?? null, orderUrl: `${siteUrl}/account/orders/${id}` }),
+            email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, isPartial, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrlMedusa }),
+            push: m.push,
+            telegram: m.telegram,
           })
           const alertLabel = body.action === 'seller_refund' ? 'Reembolso emitido por el vendedor' : 'Devolución aceptada'
           tg.alert(`✅ ${alertLabel} (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
@@ -157,9 +165,12 @@ export async function PATCH(
     }
     await db.from('marketplace_return_requests').update({ status: stripeRefundId ? 'refunded' : 'accepted', refund_amount_cents: order.amount_cents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
     const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(order.amount_cents / 100)
+    const m = buildBuyerMessage('return_accepted', { listingTitle: listing.title, url: buyerOrderUrl, refundAmount: refundFormatted, isPartial: false })
     void dispatchToBuyer(returnBuyer, {
       group: 'buyer.devoluciones',
       email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: false, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+      push: m.push,
+      telegram: m.telegram,
     })
     tg.alert(`✅ Devolución aceptada\n${listing.title}${stripeRefundId ? `\n${stripeRefundId}` : ''}`).catch(() => {})
     return NextResponse.json({ status: stripeRefundId ? 'refunded' : 'accepted' })
@@ -176,9 +187,12 @@ export async function PATCH(
     }
     await db.from('marketplace_return_requests').update({ status: 'partial_refund', refund_amount_cents: refundCents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
     const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(refundCents / 100)
+    const m = buildBuyerMessage('return_accepted', { listingTitle: listing.title, url: buyerOrderUrl, refundAmount: refundFormatted, isPartial: true })
     void dispatchToBuyer(returnBuyer, {
       group: 'buyer.devoluciones',
       email: to => sendReturnAcceptedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, refundAmount: refundFormatted, isPartial: true, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+      push: m.push,
+      telegram: m.telegram,
     })
     tg.alert(`🔁 Reembolso parcial\n${listing.title}\n${refundFormatted}`).catch(() => {})
     return NextResponse.json({ status: 'partial_refund' })
@@ -186,9 +200,12 @@ export async function PATCH(
 
   // Decline
   await db.from('marketplace_return_requests').update({ status: 'declined', seller_note: body.seller_note?.trim() || null, updated_at: new Date().toISOString() }).eq('id', requestId)
+  const declinedMsg = buildBuyerMessage('return_declined', { listingTitle: listing.title, url: buyerOrderUrl })
   void dispatchToBuyer(returnBuyer, {
     group: 'buyer.devoluciones',
     email: to => sendReturnDeclinedToBuyer({ buyerEmail: to, buyerName: null, listingTitle: listing.title, shopName: shop.name, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrl }),
+    push: declinedMsg.push,
+    telegram: declinedMsg.telegram,
   })
   tg.alert(`❌ Devolución rechazada\n${listing.title}`).catch(() => {})
   return NextResponse.json({ status: 'declined' })
