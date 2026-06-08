@@ -26,6 +26,16 @@ type DownloadListing = {
   marketplace_shops: { clerk_user_id: string | null } | { clerk_user_id: string | null }[]
 }
 
+type CurrentUser = Awaited<ReturnType<typeof currentUser>>
+
+type MarketplaceOrderRow = {
+  id: string
+  status: string | null
+  buyer_clerk_user_id: string | null
+  buyer_email: string | null
+  metadata: Record<string, unknown> | null
+}
+
 async function resolveDownloadListing(id: string): Promise<DownloadListing | null> {
   const select = 'id, medusa_product_id, listing_type, metadata, status, shop_id, marketplace_shops!inner(clerk_user_id)'
 
@@ -49,21 +59,41 @@ async function resolveDownloadListing(id: string): Promise<DownloadListing | nul
   return (byId as DownloadListing | null) ?? null
 }
 
+function toOrderEvidence(order: MarketplaceOrderRow): DigitalDownloadOrderEvidence {
+  return {
+    id: order.id,
+    status: order.status,
+    buyerClerkUserId: order.buyer_clerk_user_id,
+    buyerEmail: order.buyer_email,
+    medusaOrderId: typeof order.metadata?.medusa_order_id === 'string'
+      ? order.metadata.medusa_order_id
+      : null,
+  }
+}
+
+function getVerifiedBuyerEmails(user: CurrentUser): string[] {
+  return normalizeBuyerEmails(
+    user?.emailAddresses
+      ?.filter(email => email.verification?.status === 'verified')
+      .map(email => email.emailAddress) ?? [],
+  )
+}
+
 async function findPaidBuyerOrder({
   listingId,
   userId,
-  buyerEmails,
+  verifiedBuyerEmails,
 }: {
   listingId: string
   userId: string | null
-  buyerEmails: string[]
+  verifiedBuyerEmails: string[]
 }): Promise<DigitalDownloadOrderEvidence | null> {
   const paidStatuses = [...PAID_DOWNLOAD_ORDER_STATUSES]
 
   if (userId) {
     const { data, error } = await db
       .from('marketplace_orders')
-      .select('id, status')
+      .select('id, status, buyer_clerk_user_id, buyer_email, metadata')
       .eq('listing_id', listingId)
       .eq('buyer_clerk_user_id', userId)
       .in('status', paidStatuses)
@@ -71,21 +101,21 @@ async function findPaidBuyerOrder({
       .maybeSingle()
 
     if (error) console.error('[digital-download] buyer_clerk lookup failed:', error)
-    if (data) return data as DigitalDownloadOrderEvidence
+    if (data) return toOrderEvidence(data as MarketplaceOrderRow)
   }
 
-  if (buyerEmails.length > 0) {
+  if (verifiedBuyerEmails.length > 0) {
     const { data, error } = await db
       .from('marketplace_orders')
-      .select('id, status')
+      .select('id, status, buyer_clerk_user_id, buyer_email, metadata')
       .eq('listing_id', listingId)
-      .in('buyer_email', buyerEmails)
+      .in('buyer_email', verifiedBuyerEmails)
       .in('status', paidStatuses)
       .limit(1)
       .maybeSingle()
 
     if (error) console.error('[digital-download] buyer_email lookup failed:', error)
-    if (data) return data as DigitalDownloadOrderEvidence
+    if (data) return toOrderEvidence(data as MarketplaceOrderRow)
   }
 
   return null
@@ -116,12 +146,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // ── Authorization ─────────────────────────────────────────────────────────
   const shops = listing.marketplace_shops as unknown as { clerk_user_id: string } | { clerk_user_id: string }[]
   const shop = Array.isArray(shops) ? shops[0] : shops
-  const buyerEmails = normalizeBuyerEmails(user?.emailAddresses?.map(email => email.emailAddress) ?? [])
+  const verifiedBuyerEmails = getVerifiedBuyerEmails(user)
   const paidOrder = userId && shop?.clerk_user_id === userId
     ? null
-    : await findPaidBuyerOrder({ listingId: listing.id, userId, buyerEmails })
+    : await findPaidBuyerOrder({ listingId: listing.id, userId, verifiedBuyerEmails })
   const access = resolveDigitalDownloadAccess({
-    actor: { userId, buyerEmails },
+    actor: { userId, verifiedBuyerEmails },
     ownerClerkUserId: shop?.clerk_user_id,
     paidOrder,
   })

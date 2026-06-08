@@ -12,12 +12,15 @@ export type PaidDownloadOrderStatus = typeof PAID_DOWNLOAD_ORDER_STATUSES[number
 
 export interface DigitalDownloadActor {
   userId: string | null
-  buyerEmails: string[]
+  verifiedBuyerEmails: string[]
 }
 
 export interface DigitalDownloadOrderEvidence {
   id: string
   status: string | null
+  buyerClerkUserId: string | null
+  buyerEmail: string | null
+  medusaOrderId: string | null
 }
 
 export interface DigitalDownloadAccess {
@@ -42,6 +45,22 @@ export function isPaidDownloadStatus(status: unknown): status is PaidDownloadOrd
     && (PAID_DOWNLOAD_ORDER_STATUSES as readonly string[]).includes(status)
 }
 
+export function isClerkUserOrderEvidence(
+  actor: DigitalDownloadActor,
+  order: DigitalDownloadOrderEvidence,
+): boolean {
+  return !!actor.userId && order.buyerClerkUserId === actor.userId
+}
+
+export function isVerifiedEmailOrderEvidence(
+  actor: DigitalDownloadActor,
+  order: DigitalDownloadOrderEvidence,
+): boolean {
+  if (!order.medusaOrderId) return false
+  const orderEmails = normalizeBuyerEmails([order.buyerEmail])
+  return orderEmails.some(email => actor.verifiedBuyerEmails.includes(email))
+}
+
 export function resolveDigitalDownloadAccess({
   actor,
   ownerClerkUserId,
@@ -55,7 +74,14 @@ export function resolveDigitalDownloadAccess({
     return { allowed: true, role: 'owner', deniedStatus: null }
   }
 
-  if (paidOrder && isPaidDownloadStatus(paidOrder.status)) {
+  if (
+    paidOrder
+    && isPaidDownloadStatus(paidOrder.status)
+    && (
+      isClerkUserOrderEvidence(actor, paidOrder)
+      || isVerifiedEmailOrderEvidence(actor, paidOrder)
+    )
+  ) {
     return { allowed: true, role: 'buyer', deniedStatus: null }
   }
 
