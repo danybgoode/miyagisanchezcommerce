@@ -8,7 +8,7 @@
  * Query params:
  *   q            - full-text search
  *   category     - autos | inmuebles | electronica | hogar | moda | deportes | servicios | mascotas | herramientas | negocios | otros
- *   listing_type - physical | service | rental | digital | subscription
+ *   listing_type - product | service | rental | digital | subscription
  *   state        - Mexican state name (e.g. "Ciudad de México")
  *   location     - city / neighborhood (partial match)
  *   condition    - new | like_new | good | fair | parts

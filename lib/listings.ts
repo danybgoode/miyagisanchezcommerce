@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import type { Listing, Shop, SearchParams } from './types'
+import { buildQuery } from './listing-query'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -13,22 +14,6 @@ function medusaFetch(path: string, options?: RequestInit) {
       ...(options?.headers ?? {}),
     },
   })
-}
-
-// Build query string from SearchParams, forwarding all supported filter keys.
-function buildQuery(params: SearchParams & { limit?: number | string }): string {
-  const allowed = [
-    'q', 'category', 'state', 'municipio', 'condition', 'min_price', 'max_price',
-    'location', 'sort', 'page', 'limit',
-    'brand', 'year_from', 'year_to', 'km_from', 'km_to', 'transmission', 'fuel',
-    'rooms_min', 'rooms_max', 'surface_min', 'surface_max', 'property_type',
-  ]
-  const sp = new URLSearchParams()
-  for (const key of allowed) {
-    const val = (params as Record<string, string | number | undefined>)[key]
-    if (val != null && val !== '') sp.set(key, String(val))
-  }
-  return sp.toString() ? `?${sp.toString()}` : ''
 }
 
 export async function searchListings(
