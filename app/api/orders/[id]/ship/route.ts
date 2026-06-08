@@ -21,6 +21,7 @@ import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
 import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE    = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -104,6 +105,7 @@ export async function POST(
           // null) → guest fall-through sends the email exactly as today. Buyer
           // pref gating applies where the id is known (legacy path below).
           const buyerClerkId = (order.buyer_clerk_user_id as string | null) ?? null
+          const msg = buildBuyerMessage('order_shipped', { listingTitle, url: `${SITE_URL}/account/orders/${id}` })
           void dispatchToBuyer(
             { clerkUserId: buyerClerkId, email: buyerEmail },
             {
@@ -119,6 +121,8 @@ export async function POST(
                   estimatedDelivery: (data?.estimatedDeliveryDate as string | null) ?? null,
                   shopName,
                 }),
+              push: msg.push,
+              telegram: msg.telegram,
             },
           )
         }
@@ -238,6 +242,7 @@ export async function POST(
 
   if (buyerEmail) {
     // Buyer "Envíos" event — gated by the buyer's prefs (guest → email as today).
+    const msg = buildBuyerMessage('order_shipped', { listingTitle, url: `${SITE_URL}/account/orders/${id}` })
     void dispatchToBuyer(
       { clerkUserId: order.buyer_clerk_user_id ?? null, email: buyerEmail },
       {
@@ -253,6 +258,8 @@ export async function POST(
             estimatedDelivery: shipment.estimatedDeliveryDate,
             shopName,
           }),
+        push: msg.push,
+        telegram: msg.telegram,
       },
     )
   }

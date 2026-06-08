@@ -13,6 +13,7 @@ import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sendOrderDelivered, getSellerEmail } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -243,6 +244,7 @@ export async function PATCH(
       } catch { /* use default */ }
 
       // Buyer "Envíos" event — gated by the buyer's prefs (guest → email as today).
+      const msg = buildBuyerMessage('order_delivered', { listingTitle, url: orderUrl })
       void dispatchToBuyer(
         { clerkUserId: order.buyer_clerk_user_id ?? null, email: order.buyer_email },
         {
@@ -255,6 +257,8 @@ export async function PATCH(
               orderUrl,
               shopName: 'Miyagi Sánchez',
             }),
+          push: msg.push,
+          telegram: msg.telegram,
         },
       )
     }

@@ -3,16 +3,18 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { getBotUsername } from '@/lib/telegram'
 import { genLinkToken, LINK_TOKEN_TTL_MS } from '@/lib/notifications/telegram-link'
-import { audienceTelegramInUse, EVENT_GROUPS, type PrefRow } from '@/lib/notifications/preferences'
+import { audienceTelegramInUse, BUYER_EVENT_GROUPS, type PrefRow } from '@/lib/notifications/preferences'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
 /**
- * Seller Telegram link control (Granular Notifications · Sprint 2).
- *   GET    → { linked, chatId? } — is this seller's Telegram connected?
- *   POST   → mint a single-use, short-TTL token and return its t.me deep link.
- *   DELETE → disconnect (clear the link).
- * Clerk-gated; anonymous → 401. The webhook (POST /api/telegram/webhook) redeems
- * the token and writes telegram_links once the seller sends /start in Telegram.
+ * Buyer Telegram link control (epic #5b · Sprint 2). The buyer twin of
+ * /api/sell/telegram/link — same clerk-user-scoped flow, since `telegram_links`
+ * is keyed by `clerk_user_id` (one chat per person, shared across audiences).
+ *   GET    → { linked, chatId? } — does this person have a linked chat?
+ *   POST   → mint a single-use, short-TTL token; return its t.me deep link.
+ *   DELETE → disconnect (per-audience safe — Sprint 2 B2.3 hardens this).
+ * Clerk-gated; anonymous → 401. The shared webhook (POST /api/telegram/webhook)
+ * redeems the token and writes telegram_links once the buyer sends /start.
  */
 
 export async function GET() {
@@ -65,16 +67,16 @@ export async function DELETE() {
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  // Per-audience-safe unlink (epic #5b): stop the SELLER's Telegram (turn off all
-  // seller-group telegram prefs), then remove the shared chat row ONLY when the
-  // buyer audience doesn't still use Telegram — so the person's buyer Telegram
-  // (if any) keeps working. Symmetric to /api/account/telegram/link DELETE.
+  // Per-audience-safe unlink: stop the BUYER's Telegram (turn off all buyer.*
+  // telegram prefs → default off), then remove the shared chat row ONLY when the
+  // seller audience doesn't still use Telegram. So a buyer+seller person keeps
+  // their seller Telegram working.
   await db
     .from('notification_preferences')
     .delete()
     .eq('clerk_user_id', user.id)
     .eq('channel', 'telegram')
-    .in('event_group', [...EVENT_GROUPS])
+    .in('event_group', [...BUYER_EVENT_GROUPS])
 
   const { data } = await db
     .from('notification_preferences')
@@ -82,7 +84,7 @@ export async function DELETE() {
     .eq('clerk_user_id', user.id)
 
   let rowDeleted = false
-  if (!audienceTelegramInUse((data as PrefRow[] | null) ?? [], 'buyer')) {
+  if (!audienceTelegramInUse((data as PrefRow[] | null) ?? [], 'seller')) {
     const { error } = await db.from('telegram_links').delete().eq('clerk_user_id', user.id)
     if (error) return NextResponse.json({ error: 'No se pudo desconectar.' }, { status: 500 })
     rowDeleted = true

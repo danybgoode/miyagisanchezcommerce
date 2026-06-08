@@ -14,6 +14,7 @@ import {
   BUYER_EVENT_GROUP,
   resolvePrefs,
   isChannelEnabled,
+  audienceTelegramInUse,
   type BuyerEventGroup,
 } from '../lib/notifications/preferences'
 
@@ -175,5 +176,33 @@ test.describe('buyer prefs · settings copy completeness (es-MX)', () => {
     for (const g of Object.keys(BUYER_GROUP_COPY)) {
       expect(BUYER_EVENT_GROUPS).toContain(g as BuyerEventGroup)
     }
+  })
+})
+
+test.describe('dual-audience Telegram · audienceTelegramInUse (S2 unlink safety)', () => {
+  test('detects a seller telegram pref but not a buyer one (and vice-versa)', () => {
+    const sellerOn = [{ event_group: 'orders', channel: 'telegram', enabled: true }]
+    expect(audienceTelegramInUse(sellerOn, 'seller')).toBe(true)
+    expect(audienceTelegramInUse(sellerOn, 'buyer')).toBe(false)
+
+    const buyerOn = [{ event_group: 'buyer.envios', channel: 'telegram', enabled: true }]
+    expect(audienceTelegramInUse(buyerOn, 'buyer')).toBe(true)
+    expect(audienceTelegramInUse(buyerOn, 'seller')).toBe(false)
+  })
+
+  test('only counts ENABLED telegram rows (email/push or disabled don\'t count)', () => {
+    expect(audienceTelegramInUse([{ event_group: 'orders', channel: 'telegram', enabled: false }], 'seller')).toBe(false)
+    expect(audienceTelegramInUse([{ event_group: 'orders', channel: 'email', enabled: true }], 'seller')).toBe(false)
+    expect(audienceTelegramInUse([], 'seller')).toBe(false)
+    expect(audienceTelegramInUse(null, 'buyer')).toBe(false)
+  })
+
+  test('unlink decision: buyer unlink keeps the shared row when the seller still uses Telegram', () => {
+    // After a buyer disconnect we delete buyer.* telegram rows; what remains:
+    const remainingAfterBuyerUnlink = [{ event_group: 'orders', channel: 'telegram', enabled: true }]
+    // → seller still uses it ⇒ DON'T delete the shared telegram_links row.
+    expect(audienceTelegramInUse(remainingAfterBuyerUnlink, 'seller')).toBe(true)
+    // If nothing seller-side remains, the row is safe to delete.
+    expect(audienceTelegramInUse([{ event_group: 'buyer.ofertas', channel: 'email', enabled: true }], 'seller')).toBe(false)
   })
 })

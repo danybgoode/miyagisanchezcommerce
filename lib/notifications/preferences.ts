@@ -262,3 +262,24 @@ export const BUYER_GROUP_COPY: Record<BuyerEventGroup, { label: string; summary:
   'buyer.ofertas':      { label: 'Ofertas',      summary: 'Cuando el vendedor responde tu oferta.' },
   'buyer.devoluciones': { label: 'Devoluciones', summary: 'Avances de tus solicitudes de devolución.' },
 }
+
+// ── Dual-audience Telegram (epic #5b · Sprint 2) ──────────────────────────────
+// `telegram_links` is one shared row per person (PK clerk_user_id). Per-audience
+// "use" is derived from the prefs, not the link: a person uses Telegram for an
+// audience iff they have an enabled telegram pref in that audience's groups. This
+// lets an unlink (buyer or seller) delete the shared row ONLY when no audience
+// still uses it — no schema change.
+
+export type Audience = 'seller' | 'buyer'
+
+/** Does `audience` still have any Telegram-enabled group in these pref rows? */
+export function audienceTelegramInUse(
+  rows: PrefRow[] | null | undefined,
+  audience: Audience,
+): boolean {
+  const groups = new Set<string>(audience === 'seller' ? EVENT_GROUPS : BUYER_EVENT_GROUPS)
+  for (const r of rows ?? []) {
+    if (r.channel === 'telegram' && !!r.enabled && groups.has(r.event_group)) return true
+  }
+  return false
+}

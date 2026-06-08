@@ -11,8 +11,8 @@
 
 import { db } from './supabase'
 import { stripe } from './stripe'
-import { notify } from './notify'
 import { dispatchToBuyer } from './notifications/dispatch'
+import { buildBuyerMessage } from './notifications/buyer-messages'
 import { offerQuality, formatOfferAmount, timeUntil, canAccept, canCounter, canDecline, type OfferStatus } from './offers'
 import {
   sendOfferDeclined, sendOfferCountered, sendOfferAccepted,
@@ -141,8 +141,8 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     return { ok: false, error: 'No autorizado.', httpStatus: 403 }
   }
 
-  // Buyer recipient for "Ofertas" pref gating (guest → email as today). The
-  // existing notify() push stays as-is this sprint; Sprint 2 folds it into the seam.
+  // Buyer recipient for "Ofertas" pref gating (guest → email as today). Email +
+  // push + Telegram all fan out through dispatchToBuyer below (one gated place).
   const offerBuyer = {
     clerkUserId: (offer.buyer_clerk_user_id as string | null) ?? null,
     email: offer.buyer_email as string,
@@ -195,14 +195,12 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     cancelSellerReminders()
     await db.from('marketplace_offers').update({ status: 'declined' }).eq('id', id)
     emitConvEvent('offer_declined', 'system', {}, true).catch(e => console.error('[conv] decline event:', e))
-    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
-      .then(({ data: c }) => {
-        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
-          kind: 'offer', title: 'Oferta rechazada',
-          body: `Tu oferta por "${listing.title}" fue rechazada.`,
-          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
-        }).catch(() => {})
-      })
+    // Buyer "Ofertas" event — email + push + Telegram, all gated by the buyer's
+    // prefs in one place (the standalone notify() push is folded into the seam).
+    const declinedMsg = buildBuyerMessage('offer_declined', {
+      listingTitle: listing.title,
+      url: `https://miyagisanchez.com/l/${listing.id}`,
+    })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
@@ -212,6 +210,8 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
           buyerEmail: to, buyerName: offer.buyer_name,
         }),
+      push: declinedMsg.push,
+      telegram: declinedMsg.telegram,
     })
     return { ok: true, status: 'declined', httpStatus: 200 }
   }
@@ -238,6 +238,10 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     }).eq('id', id)
 
     const conversationUrl = await getConversationUrl()
+    const counteredMsg = buildBuyerMessage('offer_countered', {
+      listingTitle: listing.title,
+      url: conversationUrl ?? `https://miyagisanchez.com/l/${listing.id}`,
+    })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
@@ -256,6 +260,8 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           counterExpiresAt,
           conversationUrl,
         }),
+      push: counteredMsg.push,
+      telegram: counteredMsg.telegram,
     })
 
     sendBuyerCounterExpiryWarning({
@@ -274,14 +280,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
       .catch(e => console.error('[reminders] buyer counter expiry:', e))
 
     emitConvEvent('offer_countered', 'seller', { counter_amount_cents: counterAmountCents, currency: listing.currency, message: counterMessage ?? null }, true).catch(e => console.error('[conv] counter event:', e))
-    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
-      .then(({ data: c }) => {
-        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
-          kind: 'offer', title: 'Nueva contraoferta',
-          body: `${listing.title} — ${formatOfferAmount(counterAmountCents, listing.currency)}`,
-          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
-        }).catch(() => {})
-      })
+    // (buyer push folded into the dispatchToBuyer call above, gated by buyer.ofertas)
     return { ok: true, status: 'countered', httpStatus: 200 }
   }
 
@@ -337,15 +336,13 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     }).eq('id', id)
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: offer.offer_amount_cents, currency: listing.currency }, true).catch(e => console.error('[conv] accept event:', e))
-    db.from('marketplace_conversations').select('buyer_clerk_user_id, id').eq('offer_id', id).maybeSingle()
-      .then(({ data: c }) => {
-        if (c?.buyer_clerk_user_id) notify(c.buyer_clerk_user_id, {
-          kind: 'offer', title: '¡Oferta aceptada!',
-          body: `Completa tu compra de "${listing.title}"`,
-          url: c.id ? `/messages/${c.id}` : '/messages', tag: `offer:${id}`,
-        }).catch(() => {})
-      })
     const conversationUrl = await getConversationUrl()
+    // Buyer "Ofertas" event — email + push + Telegram gated in one place (the
+    // standalone notify() push is folded into the seam).
+    const acceptedMsg = buildBuyerMessage('offer_accepted', {
+      listingTitle: listing.title,
+      url: conversationUrl ?? `${origin}/l/${listing.id}`,
+    })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
@@ -362,6 +359,8 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           checkoutExpiresAt: checkoutExpires,
           conversationUrl,
         }),
+      push: acceptedMsg.push,
+      telegram: acceptedMsg.telegram,
     })
 
     if (checkoutExpires) {
