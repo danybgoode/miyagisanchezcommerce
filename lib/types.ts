@@ -31,6 +31,7 @@ export type Listing = {
   state: string | null
   municipio: string | null
   location: string | null
+  attrs?: Record<string, unknown>
   metadata: Record<string, unknown>
   images: Array<{ url: string; alt?: string }>
   tags: string[]

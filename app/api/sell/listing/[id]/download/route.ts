@@ -1,23 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { getR2DigitalSignedUrl, isR2DigitalConfigured } from '@/lib/r2'
+import {
+  PAID_DOWNLOAD_ORDER_STATUSES,
+  normalizeBuyerEmails,
+  resolveDigitalDownloadAccess,
+  type DigitalDownloadOrderEvidence,
+} from '@/lib/digital-download-access'
 
 const SUPABASE_BUCKET = 'digital-files'
 const SIGNED_URL_EXPIRY_SECS = 3600 // 1 hour
 
+function isUuid(value: string) {
+  return /^[0-9a-f-]{36}$/i.test(value)
+}
+
+type DownloadListing = {
+  id: string
+  medusa_product_id: string | null
+  listing_type: string
+  metadata: Record<string, unknown> | null
+  status: string
+  shop_id: string
+  marketplace_shops: { clerk_user_id: string | null } | { clerk_user_id: string | null }[]
+}
+
+type CurrentUser = Awaited<ReturnType<typeof currentUser>>
+
+type MarketplaceOrderRow = {
+  id: string
+  status: string | null
+  buyer_clerk_user_id: string | null
+  buyer_email: string | null
+  metadata: Record<string, unknown> | null
+}
+
+async function resolveDownloadListing(id: string): Promise<DownloadListing | null> {
+  const select = 'id, medusa_product_id, listing_type, metadata, status, shop_id, marketplace_shops!inner(clerk_user_id)'
+
+  const { data: byMedusa } = await db
+    .from('marketplace_listings')
+    .select(select)
+    .eq('medusa_product_id', id)
+    .neq('status', 'deleted')
+    .maybeSingle()
+
+  if (byMedusa) return byMedusa as DownloadListing
+  if (!isUuid(id)) return null
+
+  const { data: byId } = await db
+    .from('marketplace_listings')
+    .select(select)
+    .eq('id', id)
+    .neq('status', 'deleted')
+    .maybeSingle()
+
+  return (byId as DownloadListing | null) ?? null
+}
+
+function toOrderEvidence(order: MarketplaceOrderRow): DigitalDownloadOrderEvidence {
+  return {
+    id: order.id,
+    status: order.status,
+    buyerClerkUserId: order.buyer_clerk_user_id,
+    buyerEmail: order.buyer_email,
+    medusaOrderId: typeof order.metadata?.medusa_order_id === 'string'
+      ? order.metadata.medusa_order_id
+      : null,
+  }
+}
+
+function getVerifiedBuyerEmails(user: CurrentUser): string[] {
+  return normalizeBuyerEmails(
+    user?.emailAddresses
+      ?.filter(email => email.verification?.status === 'verified')
+      .map(email => email.emailAddress) ?? [],
+  )
+}
+
+async function findPaidBuyerOrder({
+  listingId,
+  userId,
+  verifiedBuyerEmails,
+}: {
+  listingId: string
+  userId: string | null
+  verifiedBuyerEmails: string[]
+}): Promise<DigitalDownloadOrderEvidence | null> {
+  const paidStatuses = [...PAID_DOWNLOAD_ORDER_STATUSES]
+
+  if (userId) {
+    const { data, error } = await db
+      .from('marketplace_orders')
+      .select('id, status, buyer_clerk_user_id, buyer_email, metadata')
+      .eq('listing_id', listingId)
+      .eq('buyer_clerk_user_id', userId)
+      .in('status', paidStatuses)
+      .limit(1)
+      .maybeSingle()
+
+    if (error) console.error('[digital-download] buyer_clerk lookup failed:', error)
+    if (data) return toOrderEvidence(data as MarketplaceOrderRow)
+  }
+
+  if (verifiedBuyerEmails.length > 0) {
+    const { data, error } = await db
+      .from('marketplace_orders')
+      .select('id, status, buyer_clerk_user_id, buyer_email, metadata')
+      .eq('listing_id', listingId)
+      .in('buyer_email', verifiedBuyerEmails)
+      .in('status', paidStatuses)
+      .limit(1)
+      .maybeSingle()
+
+    if (error) console.error('[digital-download] buyer_email lookup failed:', error)
+    if (data) return toOrderEvidence(data as MarketplaceOrderRow)
+  }
+
+  return null
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth()
+  const user = await currentUser()
+  const userId = user?.id ?? null
   const { id } = await params
 
   // ── Fetch listing ─────────────────────────────────────────────────────────
-  const { data: listing } = await db
-    .from('marketplace_listings')
-    .select('id, listing_type, metadata, status, shop_id, marketplace_shops!inner(clerk_user_id)')
-    .eq('id', id)
-    .neq('status', 'deleted')
-    .single()
-
+  const listing = await resolveDownloadListing(id)
   if (!listing) {
     return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   }
@@ -34,18 +144,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // ── Authorization ─────────────────────────────────────────────────────────
-  // Currently: only the shop owner can download (preview mode).
-  // When Stripe webhooks are added (Task #6), also allow verified buyers.
   const shops = listing.marketplace_shops as unknown as { clerk_user_id: string } | { clerk_user_id: string }[]
   const shop = Array.isArray(shops) ? shops[0] : shops
-  const isOwner = userId && shop?.clerk_user_id === userId
+  const verifiedBuyerEmails = getVerifiedBuyerEmails(user)
+  const paidOrder = userId && shop?.clerk_user_id === userId
+    ? null
+    : await findPaidBuyerOrder({ listingId: listing.id, userId, verifiedBuyerEmails })
+  const access = resolveDigitalDownloadAccess({
+    actor: { userId, verifiedBuyerEmails },
+    ownerClerkUserId: shop?.clerk_user_id,
+    paidOrder,
+  })
 
-  if (!isOwner) {
+  if (!access.allowed) {
     // Payment gate: return 402 so the UI can show "Comprar para descargar"
     return NextResponse.json({
       error: 'Compra este producto para obtener el enlace de descarga.',
       code: 'PAYMENT_REQUIRED',
-    }, { status: 402 })
+    }, { status: access.deniedStatus ?? 402 })
   }
 
   // ── Generate signed URL ───────────────────────────────────────────────────

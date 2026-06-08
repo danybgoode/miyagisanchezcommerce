@@ -43,6 +43,38 @@ function AttrText({ label, attrKey, placeholder, attrs, setAttr, maxLength }: {
   )
 }
 
+function AttrDate({ label, attrKey, attrs, setAttr }: {
+  label: string; attrKey: string; attrs: Attrs; setAttr: (k: string, v: string) => void
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[var(--color-text)] mb-1">{label}</label>
+      <input
+        type="date"
+        value={(attrs[attrKey] as string) ?? ''}
+        onChange={e => setAttr(attrKey, e.target.value)}
+        className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+      />
+    </div>
+  )
+}
+
+function AttrTime({ label, attrKey, attrs, setAttr }: {
+  label: string; attrKey: string; attrs: Attrs; setAttr: (k: string, v: string) => void
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[var(--color-text)] mb-1">{label}</label>
+      <input
+        type="time"
+        value={(attrs[attrKey] as string) ?? ''}
+        onChange={e => setAttr(attrKey, e.target.value)}
+        className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+      />
+    </div>
+  )
+}
+
 function AttrNumber({ label, attrKey, placeholder, attrs, setAttr, min, max }: {
   label: string; attrKey: string; placeholder?: string
   attrs: Attrs; setAttr: (k: string, v: string) => void; min?: number; max?: number
@@ -73,7 +105,23 @@ const CLOTHING_SIZES = [
 export function AttrsSection({ category, listingType, attrs, setAttr }: {
   category: string; listingType: ListingType; attrs: Attrs; setAttr: (k: string, v: string) => void
 }) {
-  if (listingType === 'digital' || listingType === 'subscription') return null
+  const eventBlock = (
+    <div className="space-y-3 border border-purple-200 bg-purple-50/60 rounded-xl p-4">
+      <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Detalles del evento</p>
+      <div className="grid grid-cols-2 gap-3">
+        <AttrDate label="Fecha" attrKey="event_date" attrs={attrs} setAttr={setAttr} />
+        <AttrTime label="Hora" attrKey="event_time" attrs={attrs} setAttr={setAttr} />
+        <AttrText label="Recinto" attrKey="venue_name" placeholder="Foro, teatro, salón…" attrs={attrs} setAttr={setAttr} />
+        <AttrText label="Dirección" attrKey="venue_address" placeholder="Calle, colonia, ciudad…" attrs={attrs} setAttr={setAttr} />
+      </div>
+      <p className="text-xs text-[var(--color-muted)]">
+        Opcional. Úsalo cuando este servicio o archivo digital sea una entrada, taller, clase o experiencia con fecha.
+      </p>
+    </div>
+  )
+
+  if (listingType === 'digital') return eventBlock
+  if (listingType === 'subscription') return null
 
   if (category === 'autos') return (
     <div className="space-y-3 border border-amber-200 bg-amber-50/60 rounded-xl p-4">
@@ -160,18 +208,21 @@ export function AttrsSection({ category, listingType, attrs, setAttr }: {
   )
 
   if (category === 'servicios' || listingType === 'service') return (
-    <div className="space-y-3 border border-green-200 bg-green-50/60 rounded-xl p-4">
-      <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Detalles del servicio</p>
-      <div className="grid grid-cols-2 gap-3">
-        <AttrSelect label="Modalidad" attrKey="modality" attrs={attrs} setAttr={setAttr} options={[
-          { value: 'presencial', label: 'Presencial' },
-          { value: 'online', label: 'Online / Remoto' },
-          { value: 'domicilio', label: 'A domicilio' },
-          { value: 'mixto', label: 'Mixto' },
-        ]} />
-        <AttrText label="Duración estimada" attrKey="duration" placeholder="1 hora, 2 hrs…" attrs={attrs} setAttr={setAttr} maxLength={30} />
-        <AttrNumber label="Años de experiencia" attrKey="experience_years" placeholder="5" attrs={attrs} setAttr={setAttr} min={0} max={60} />
+    <div className="space-y-3">
+      <div className="space-y-3 border border-green-200 bg-green-50/60 rounded-xl p-4">
+        <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Detalles del servicio</p>
+        <div className="grid grid-cols-2 gap-3">
+          <AttrSelect label="Modalidad" attrKey="modality" attrs={attrs} setAttr={setAttr} options={[
+            { value: 'presencial', label: 'Presencial' },
+            { value: 'online', label: 'Online / Remoto' },
+            { value: 'domicilio', label: 'A domicilio' },
+            { value: 'mixto', label: 'Mixto' },
+          ]} />
+          <AttrText label="Duración estimada" attrKey="duration" placeholder="1 hora, 2 hrs…" attrs={attrs} setAttr={setAttr} maxLength={30} />
+          <AttrNumber label="Años de experiencia" attrKey="experience_years" placeholder="5" attrs={attrs} setAttr={setAttr} min={0} max={60} />
+        </div>
       </div>
+      {eventBlock}
     </div>
   )
 
