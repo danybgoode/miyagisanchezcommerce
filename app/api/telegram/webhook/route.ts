@@ -81,9 +81,11 @@ export async function POST(req: NextRequest) {
     )
     await db.from('telegram_link_tokens').delete().eq('token', token)
 
+    // Audience-neutral copy — the same chat link serves both the seller portal
+    // and the buyer account (epic #5b), so don't assume "tu tienda".
     await tgSend(
       chatIdStr,
-      '¡Conectado! ✅ Ya puedes recibir aquí los avisos de tu tienda. Elige qué te llega por Telegram en tu configuración.',
+      '¡Conectado! ✅ Aquí recibirás los avisos que actives en tu configuración de Miyagi Sánchez.',
     )
   } catch {
     // Never surface internal errors to Telegram (it would retry). Best-effort ack.
