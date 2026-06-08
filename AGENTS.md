@@ -79,9 +79,9 @@ See [ucp.md](.claude/context/ucp.md) for full UCP/MCP architecture.
 
 Clerk handles all frontend auth. A custom Medusa auth provider at `apps/backend/src/modules/auth-clerk/` validates Clerk JWTs so Medusa can identify customers. Do not remove Clerk, do not build custom auth pages.
 
-### 5. Bilingual — mandatory. Every string needs both locales.
+### 5. es-MX is the default. A defined allow-list of surfaces is bilingual (es/en).
 
-Every user-visible string needs a key in BOTH `locales/en.json` AND `locales/es.json`. Never hardcode English text in `.tsx`. See [conventions.md](.claude/context/conventions.md#bilingual).
+User-facing copy is **es-MX by default** — the seller portal and most pages are Spanish-only. A **defined allow-list of surfaces is genuinely bilingual (es/en)** via the `locales/{es,en}.json` dictionary (~119 keys) + `getDictionary()`: the dictionary-backed public pages (e.g. `app/terminos`), the **sweepstakes** public flow (`app/g/[slug]`, with per-campaign `*_en/*_es` fields + `?lang=en`), and the **embed widget** locale toggle. The gate has two parts: (a) **es-MX copy-completeness** everywhere — no orphan strings, no stray hardcoded English; and (b) on the bilingual allow-list, **both locales present**. Don't make a new surface bilingual by default — extend the allow-list deliberately. Brand names stay as-is (Stripe, MercadoPago, WhatsApp, Cal.com). See [conventions.md](.claude/context/conventions.md#bilingual).
 
 ---
 

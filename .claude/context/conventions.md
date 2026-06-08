@@ -1,18 +1,23 @@
 # Conventions & patterns
 
 <a name="bilingual"></a>
-## Bilingual — mandatory in every PR
+## Language — es-MX default, with a bilingual allow-list
 
-Every user-visible string must have a key in BOTH `locales/en.json` AND `locales/es.json`.
+The site is **es-MX by default** — the seller portal and most pages are Spanish-only. A defined
+allow-list of surfaces is **bilingual (es/en)** via the `locales/{es,en}.json` dictionary (~119
+keys) + `getDictionary()`: the dictionary-backed public pages (e.g. `app/terminos`), the
+sweepstakes public flow (`app/g/[slug]`, `?lang=en`, per-campaign `*_en/*_es`), and the embed
+widget locale toggle. The gate: (a) **es-MX copy-completeness** everywhere — no orphan strings,
+no hardcoded English; (b) on the allow-list, **both `es` + `en` keys present**. Don't make a new
+surface bilingual by default — extend the allow-list deliberately.
 
 ```ts
-// ❌ Never
-<button>Save settings</button>
+// ✅ es-MX (default surfaces)
+<button>Guardar configuración</button>
 
-// ✅ Always
-// locales/en.json: { "settings": { "save": "Save settings" } }
-// locales/es.json: { "settings": { "save": "Guardar configuración" } }
-<button>{ui.save}</button>
+// ✅ bilingual allow-list — via the dictionary
+const dict = await getDictionary(locale) // 'es' | 'en'
+<button>{dict.settings.save}</button>
 ```
 
 **How i18n works**:
