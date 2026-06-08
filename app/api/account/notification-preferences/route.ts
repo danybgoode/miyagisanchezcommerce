@@ -67,12 +67,17 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  // Telegram is only togglable once the buyer links a chat (Sprint 2).
+  // Telegram is only togglable once the buyer links a chat — a channel that can't
+  // deliver can't be enabled. (Mirrors the seller route.)
   if (channel === 'telegram') {
-    return NextResponse.json(
-      { error: 'Conecta Telegram para activar este canal.' },
-      { status: 400 },
-    )
+    const { data: link } = await db
+      .from('telegram_links')
+      .select('chat_id')
+      .eq('clerk_user_id', user.id)
+      .maybeSingle()
+    if (!link) {
+      return NextResponse.json({ error: 'Conecta Telegram para activar este canal.' }, { status: 400 })
+    }
   }
 
   const { error } = await db.from('notification_preferences').upsert(
