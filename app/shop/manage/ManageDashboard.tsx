@@ -91,7 +91,7 @@ function DeleteDialog({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
         <h2 className="font-bold text-base mb-2">¿Eliminar anuncio?</h2>
         <p className="text-sm text-[var(--color-muted)] mb-4">
-          Se eliminará <strong className="text-[var(--color-foreground)]">"{listing.title}"</strong>. Esta acción no se puede deshacer.
+          Se eliminará <strong className="text-[var(--color-foreground)]">{listing.title}</strong>. Esta acción no se puede deshacer.
         </p>
         <div className="flex gap-3 justify-end">
           <button
@@ -251,7 +251,8 @@ export default function ManageDashboard({
   const markPending = (id: string, on: boolean) =>
     setPendingIds(prev => {
       const next = new Set(prev)
-      on ? next.add(id) : next.delete(id)
+      if (on) next.add(id)
+      else next.delete(id)
       return next
     })
 
@@ -382,6 +383,13 @@ export default function ManageDashboard({
               className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
             >
               Sorteos
+            </Link>
+            <span className="text-[var(--color-border)]">·</span>
+            <Link
+              href="/shop/manage/eventos"
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
+            >
+              Eventos
             </Link>
             <span className="text-[var(--color-border)]">·</span>
             <Link

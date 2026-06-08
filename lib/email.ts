@@ -316,6 +316,57 @@ export async function sendSweepstakesConsolation(ctx: {
   await send(ctx.to, `${ui.consolationSubject} — ${ctx.campaignTitle}`, body)
 }
 
+// ── Events: email verification + RSVP confirmation ──────────────────────────
+function formatEventEmailDate(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleString(locale === 'en' ? 'en-US' : 'es-MX', {
+    timeZone: 'America/Mexico_City',
+    dateStyle: 'full',
+    timeStyle: 'short',
+  })
+}
+
+export async function sendEventVerificationCode(ctx: {
+  to: string
+  code: string
+  locale: Locale
+  eventTitle: string
+  eventUrl: string
+}): Promise<void> {
+  const ui = (await getDictionary(ctx.locale)).events.email
+  const body = [
+    h1(ui.verificationTitle),
+    p(ui.verificationIntro),
+    amount(ctx.code, ui.verificationCode, true),
+    table([[ui.event, `<a href="${ctx.eventUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.eventTitle)}</a>`]]),
+    notice(ui.verificationExpiry),
+  ].join('')
+  await send(ctx.to, ui.verificationSubject, body)
+}
+
+export async function sendEventRegistrationConfirmation(ctx: {
+  to: string
+  locale: Locale
+  eventTitle: string
+  eventUrl: string
+  startsAt: string
+  venueName: string
+  venueAddress?: string | null
+}): Promise<void> {
+  const ui = (await getDictionary(ctx.locale)).events.email
+  const venue = ctx.venueAddress ? `${esc(ctx.venueName)}<br>${esc(ctx.venueAddress)}` : esc(ctx.venueName)
+  const body = [
+    h1(ui.confirmationTitle),
+    p(ui.confirmationIntro),
+    table([
+      [ui.event, `<a href="${ctx.eventUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.eventTitle)}</a>`],
+      [ui.date, esc(formatEventEmailDate(ctx.startsAt, ctx.locale))],
+      [ui.venue, venue],
+    ]),
+    cta(ui.viewEvent, ctx.eventUrl),
+  ].join('')
+  await send(ctx.to, `${ui.confirmationSubject} — ${ctx.eventTitle}`, body)
+}
+
 // ── 2. Seller: new offer alert ────────────────────────────────────────────────
 export async function sendNewOfferToSeller(ctx: OfferEmailCtx & { sellerEmail: string }): Promise<void> {
   const subject = `Nueva oferta de ${ctx.buyerName} — ${ctx.listingTitle}`
