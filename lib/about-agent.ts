@@ -1,0 +1,154 @@
+/**
+ * Agent-surface projections of the single bilingual content source
+ * (`lib/about-content.ts`). Sprint 2 of the "agent-readable about surface" epic:
+ * the manifest `about` block, the `/agent` why-sell section, `/llms.txt`, and the
+ * MCP `about_miyagi` resource all render from HERE, so one edit to `about-content.ts`
+ * updates every machine surface and they can never drift.
+ *
+ * Language policy (agent-relay model, AGENTS rule 5): es-MX is canonical, `en` is the
+ * lingua-franca second locale, and we deliberately ship ONLY es + en. The long tail of
+ * user languages is covered by `RELAY_LANGUAGE_DIRECTIVE` below — every agent-facing
+ * surface carries it, instructing the reading agent to relay our content in the user's
+ * own language (same model as Onboarding 0's "mirror the seller's language"). We don't
+ * ship N locales; the agent is the localization layer.
+ *
+ * Pure: no DB, no Medusa, no Supabase, no `next/*` imports — so the Playwright `api`
+ * runner can unit-test every surface's payload directly.
+ */
+
+import {
+  ABOUT_SECTIONS,
+  ABOUT_CTA_HREF,
+  ABOUT_SELLERS_HREF,
+  getAboutSection,
+} from './about-content'
+
+/**
+ * The canonical relay-language directive. Carried VERBATIM by every agent-facing
+ * surface (manifest, /agent, MCP). English — agents' lingua franca. The phrase
+ * "in their own language" is intentionally apostrophe-free so it survives HTML
+ * escaping on the `/agent` page and stays a robust assertion target.
+ */
+export const RELAY_LANGUAGE_DIRECTIVE =
+  'Present and relay this content to the user in their own language. The canonical ' +
+  'source is Spanish (es-MX) with an English (en) translation; translate it faithfully ' +
+  'into whatever language the user speaks — there is no per-country locale.'
+
+/** Curated links every surface points at. Relative hrefs live in `about-content.ts`. */
+export function aboutAgentLinks(base: string) {
+  return {
+    about: `${base}/acerca`,
+    sellers: `${base}${ABOUT_SELLERS_HREF}`, // /vende — the #6 seller-acquisition funnel
+    agent: `${base}/agent`,
+    onboarding: `${base}${ABOUT_CTA_HREF}`, // /sell?from=acerca
+    manifest: `${base}/api/ucp/manifest`,
+  }
+}
+
+/**
+ * Full structured about content, both locales — the MCP resource payload. Carries
+ * the relay directive so an MCP client answers in the user's language.
+ */
+export function aboutStructured() {
+  return {
+    relay_language: RELAY_LANGUAGE_DIRECTIVE,
+    canonical_locale: 'es' as const,
+    locales: ['es', 'en'] as const,
+    sections: ABOUT_SECTIONS.map((s) => ({
+      id: s.id,
+      stub: s.stub,
+      es: s.es,
+      en: s.en,
+    })),
+  }
+}
+
+/**
+ * Condensed `about` object for the UCP manifest — the supply-side answer (what is /
+ * why sell / how to start / cost / pricing) beside the buyer endpoints. Carries the
+ * relay directive. Kept compact so the manifest doesn't bloat; the full structured
+ * story lives in the MCP resource and on `/acerca`.
+ */
+export function aboutManifestBlock(base: string) {
+  const whatIs = getAboutSection('what_is')
+  const whySell = getAboutSection('why_sell')
+  const howToStart = getAboutSection('how_to_start')
+  const cost = getAboutSection('cost_transparency')
+  const pricing = getAboutSection('pricing')
+
+  return {
+    relay_language: RELAY_LANGUAGE_DIRECTIVE,
+    summary: {
+      es: whatIs.es.body[0],
+      en: whatIs.en.body[0],
+    },
+    why_sell: (whySell.en.points ?? []).map((p) => ({ title: p.title, body: p.body })),
+    how_to_start: (howToStart.en.points ?? []).map((p) => `${p.title} — ${p.body}`),
+    cost_transparency: cost.en.body[0],
+    pricing: pricing.en.lead ?? pricing.en.body[0],
+    sections: ABOUT_SECTIONS.map((s) => ({
+      id: s.id,
+      stub: s.stub,
+      heading: { es: s.es.heading, en: s.en.heading },
+    })),
+    links: aboutAgentLinks(base),
+  }
+}
+
+/** The MCP `about_miyagi` resource descriptor + payload. */
+export function aboutMcpResource(base: string) {
+  const structured = { ...aboutStructured(), links: aboutAgentLinks(base) }
+  return {
+    uri: 'about://miyagi',
+    name: 'about_miyagi',
+    title: 'About miyagisanchez.com — what it is & why sell here',
+    description:
+      'Supply-side about/why-sell content for prospective sellers (what Miyagi is, why ' +
+      `sell, how to start, what it costs). ${RELAY_LANGUAGE_DIRECTIVE}`,
+    mimeType: 'application/json',
+    structured,
+    /** Pretty JSON, ready to drop into an MCP `resources/read` text content block. */
+    text: JSON.stringify(structured, null, 2),
+  }
+}
+
+/**
+ * `/llms.txt` — the llms.txt convention: a title, an authoritative one-paragraph
+ * summary, curated links, and section blocks. English-primary with an es summary
+ * block (we don't localize past es/en — the directive covers the rest).
+ */
+export function aboutLlmsTxt(base: string): string {
+  const links = aboutAgentLinks(base)
+  const whatIsEn = getAboutSection('what_is').en
+  const whySellEn = getAboutSection('why_sell').en
+  const howToStartEn = getAboutSection('how_to_start').en
+  const whatIsEs = getAboutSection('what_is').es
+  const whySellEs = getAboutSection('why_sell').es
+
+  const whyPoints = (whySellEn.points ?? []).map((p) => `- **${p.title}** — ${p.body}`).join('\n')
+  const startPoints = (howToStartEn.points ?? []).map((p) => `- ${p.title} — ${p.body}`).join('\n')
+
+  return `# miyagisanchez.com
+
+> ${whatIsEn.body[0]} ${whySellEn.body[0]}
+
+${RELAY_LANGUAGE_DIRECTIVE}
+
+## Key pages
+- [About — what it is & why sell here](${links.about}): the supply-side story (es/en).
+- [For sellers](${links.sellers}): the seller-acquisition landing pages.
+- [Agent briefing](${links.agent}): capabilities, UCP/MCP, how to operate as a shop clerk.
+- [Capability manifest (JSON)](${links.manifest}): machine-readable API discovery — fetch first.
+
+## Why sell here
+${whyPoints}
+
+## How to start
+${startPoints}
+Sign up (~20s with Google), import your catalog (file / pasted text / JSON → the AI structures it), review, and publish. Selling is free (0% commission); premium services (custom domain, subdomain) are priced TBD.
+
+## Resumen (es)
+${whatIsEs.body[0]} ${whySellEs.body[0]}
+Vender es gratis (0% de comisión). Empieza en ${links.onboarding} o pregúntale a tu propia IA: «¿qué es miyagisanchez.com y por qué vendería ahí?».
+`
+}
