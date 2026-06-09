@@ -27,7 +27,7 @@ function secret(): string {
     ?? 'dev-sweepstakes-secret'
 }
 
-function cleanEmail(email: string): string {
+export function cleanEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
@@ -39,20 +39,24 @@ export function hashSweepstakesEmail(email: string): string {
   return createHmac('sha256', secret()).update(cleanEmail(email)).digest('hex')
 }
 
-function hashVerificationCode(campaignId: string, emailHash: string, code: string): string {
-  return createHmac('sha256', secret()).update(`${campaignId}:${emailHash}:${code.trim().toUpperCase()}`).digest('hex')
+export function hashVerificationCode(scopeId: string, emailHash: string, code: string): string {
+  return createHmac('sha256', secret()).update(`${scopeId}:${emailHash}:${code.trim().toUpperCase()}`).digest('hex')
 }
 
-function safeCompare(a: string, b: string): boolean {
+export function safeCompare(a: string, b: string): boolean {
   const ab = Buffer.from(a)
   const bb = Buffer.from(b)
   return ab.length === bb.length && timingSafeEqual(ab, bb)
 }
 
-function makeCode(): string {
+export function makeCode(): string {
   let out = ''
   for (let i = 0; i < 6; i++) out += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]
   return out
+}
+
+export function verificationCodeMatches(scopeId: string, emailHash: string, code: string, expectedHash: string): boolean {
+  return safeCompare(hashVerificationCode(scopeId, emailHash, code), expectedHash)
 }
 
 export function maskEmail(email: string | null | undefined): string {

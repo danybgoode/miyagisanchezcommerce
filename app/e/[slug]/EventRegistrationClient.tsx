@@ -1,0 +1,214 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import type { Dictionary, Locale } from '@/lib/dictionary'
+
+type PublicUi = Dictionary['events']['public']
+type Status = 'open' | 'cancelled' | 'ended' | 'full'
+
+export default function EventRegistrationClient({
+  slug,
+  locale,
+  ui,
+  title,
+  description,
+  formattedDate,
+  venueName,
+  venueAddress,
+  publicUrl,
+  languageHref,
+  status,
+  registeredCount,
+  capacityRemaining,
+}: {
+  slug: string
+  locale: Locale
+  ui: PublicUi
+  title: string
+  description: string | null
+  formattedDate: string
+  venueName: string
+  venueAddress: string | null
+  publicUrl: string
+  languageHref: string
+  status: Status
+  registeredCount: number
+  capacityRemaining: number | null
+}) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState<'registered' | 'already' | null>(null)
+  const [stats, setStats] = useState({ registeredCount, capacityRemaining })
+  const [error, setError] = useState<string | null>(null)
+
+  const disabled = status !== 'open'
+  const errorText = error ? ui.errors[error as keyof typeof ui.errors] ?? ui.errors.unavailable : null
+  const shareText = `${title} ${publicUrl}`
+
+  async function sendCode() {
+    setError(null)
+    if (!email.trim()) { setError('invalid_email'); return }
+    setSending(true)
+    try {
+      const res = await fetch(`/api/events/${encodeURIComponent(slug)}/verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, locale }),
+      })
+      const data = await res.json() as { error?: string; already_registered?: boolean }
+      if (!res.ok) { setError(data.error ?? 'unavailable'); return }
+      if (data.already_registered) {
+        setSuccess('already')
+      } else {
+        setCodeSent(true)
+      }
+    } catch {
+      setError('unavailable')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function submitRegistration(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (!name.trim() || !email.trim() || !code.trim()) { setError('missing_fields'); return }
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/events/${encodeURIComponent(slug)}/registrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, code, locale }),
+      })
+      const data = await res.json() as {
+        error?: string
+        already_registered?: boolean
+        registered_count?: number
+        capacity_remaining?: number | null
+      }
+      if (!res.ok) { setError(data.error ?? 'unavailable'); return }
+      setStats({
+        registeredCount: data.registered_count ?? stats.registeredCount,
+        capacityRemaining: data.capacity_remaining ?? null,
+      })
+      setSuccess(data.already_registered ? 'already' : 'registered')
+    } catch {
+      setError('unavailable')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function copyPublicUrl() {
+    try { await navigator.clipboard.writeText(publicUrl) } catch {}
+  }
+
+  return (
+    <main className="min-h-screen bg-[var(--color-background)]">
+      <div className="max-w-5xl mx-auto px-4 py-6 sm:py-10">
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <Link href="/" className="font-semibold no-underline text-sm">miyagisanchez.com</Link>
+          <Link href={languageHref} className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 no-underline hover:bg-[var(--color-surface-alt)]">
+            {ui.language}
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start">
+          <section>
+            <p className="text-xs uppercase tracking-wide text-[var(--color-muted)] font-semibold mb-3">{ui.eventDate}</p>
+            <h1 data-testid="event-title" className="text-3xl sm:text-5xl font-bold leading-tight">{title}</h1>
+            {description && <p className="text-base text-[var(--color-muted)] leading-7 mt-4">{description}</p>}
+
+            <dl className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="border border-[var(--color-border)] rounded-lg p-4">
+                <dt className="text-xs uppercase tracking-wide text-[var(--color-muted)] font-semibold">{ui.eventDate}</dt>
+                <dd data-testid="event-date" className="mt-2 font-semibold">{formattedDate}</dd>
+              </div>
+              <div className="border border-[var(--color-border)] rounded-lg p-4">
+                <dt className="text-xs uppercase tracking-wide text-[var(--color-muted)] font-semibold">{ui.venue}</dt>
+                <dd data-testid="event-venue" className="mt-2 font-semibold">{venueName}</dd>
+                {venueAddress && <dd className="text-sm text-[var(--color-muted)] mt-1">{venueAddress}</dd>}
+              </div>
+            </dl>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <a className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm no-underline" href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noreferrer">{ui.whatsapp}</a>
+              <button type="button" onClick={copyPublicUrl} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm">{ui.copyLink}</button>
+            </div>
+          </section>
+
+          <section className="border border-[var(--color-border)] rounded-lg p-5 sm:p-6">
+            {success ? (
+              <div data-testid="event-registration-success">
+                <h2 className="text-2xl font-bold">
+                  {success === 'already' ? ui.alreadyRegisteredTitle : ui.successTitle}
+                </h2>
+                <p className="text-sm text-[var(--color-muted)] leading-6 mt-3">{ui.successBody}</p>
+              </div>
+            ) : (
+              <form onSubmit={submitRegistration}>
+                <h2 className="text-2xl font-bold">{ui.registerTitle}</h2>
+
+                {status !== 'open' && (
+                  <p data-testid="event-status" className="mt-3 text-sm rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
+                    {status === 'full' ? ui.full : status === 'cancelled' ? ui.cancelled : ui.ended}
+                  </p>
+                )}
+
+                <div className="mt-5 space-y-4">
+                  <label className="block text-sm font-medium">
+                    {ui.name}
+                    <input data-testid="event-name-input" value={name} onChange={(e) => setName(e.target.value)} disabled={disabled} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    {ui.email}
+                    <div className="mt-1 flex gap-2">
+                      <input data-testid="event-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={disabled} className="min-w-0 flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+                      <button data-testid="event-send-code" type="button" onClick={sendCode} disabled={disabled || sending} className="shrink-0 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm font-semibold disabled:opacity-50">
+                        {sending ? ui.sendingCode : ui.sendCode}
+                      </button>
+                    </div>
+                  </label>
+                  {codeSent && <p data-testid="event-code-sent" className="text-sm text-green-700">{ui.codeSent}</p>}
+                  <label className="block text-sm font-medium">
+                    {ui.code}
+                    <input data-testid="event-code-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} disabled={disabled} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] font-mono tracking-wide" />
+                  </label>
+                </div>
+
+                {errorText && <p data-testid="event-error" className="mt-3 text-sm text-red-600">{errorText}</p>}
+
+                <button data-testid="event-register-submit" disabled={disabled || submitting} className="mt-5 w-full bg-[var(--color-accent)] text-white rounded-lg px-4 py-3 text-sm font-semibold disabled:opacity-50">
+                  {submitting ? ui.submitting : ui.submit}
+                </button>
+              </form>
+            )}
+
+            <div className="mt-6 border-t border-[var(--color-border)] pt-5 grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-[var(--color-muted)]">{ui.registeredCount}</div>
+                <div data-testid="event-registered-count" className="text-2xl font-bold">{stats.registeredCount.toLocaleString(locale === 'en' ? 'en-US' : 'es-MX')}</div>
+              </div>
+              {stats.capacityRemaining != null && (
+                <div>
+                  <div className="text-xs text-[var(--color-muted)]">{ui.capacityRemaining}</div>
+                  <div data-testid="event-capacity-remaining" className="text-2xl font-bold">{stats.capacityRemaining.toLocaleString(locale === 'en' ? 'en-US' : 'es-MX')}</div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-[var(--color-muted)] mt-5">
+              {ui.tosPrefix}{' '}
+              <Link href={`/terminos?lang=${locale}`} className="underline">{ui.tosLink}</Link>
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+  )
+}
