@@ -4,7 +4,11 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
-import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundConfirmationToast, refundIssuedBanner } from '@/lib/manual-payment-state'
+import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundIssuedBanner } from '@/lib/manual-payment-state'
+import {
+  deriveRefundState, refundBadge, refundStateDetail, whoActsNextRefund, canSellerMarkTransferred,
+  type RefundState, type ReturnRequestLike,
+} from '@/lib/refund-state'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -52,6 +56,9 @@ interface OrderDetailProps {
     buyer_reported_paid?: boolean
     buyer_reported_paid_at?: string | null
     manual_payment_state?: string | null
+    // Two-sided refund lifecycle (Delivery & Manual-Money Polish S1).
+    refund_state?: RefundState | null
+    return_request?: ReturnRequestLike | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -563,6 +570,36 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const [initiatingRefund, setInitiatingRefund] = useState(false)
   const [refundIssued, setRefundIssued] = useState(false)
 
+  // Two-sided refund lifecycle (S1). Seed from the normalizer-emitted refund_state
+  // (degrades to deriving from the order's return_request), then advance client-side
+  // as the seller accepts / marks "Ya transferí" and the buyer confirms receipt.
+  const [refundState, setRefundState] = useState<RefundState>(
+    (order.refund_state as RefundState | undefined)
+      ?? deriveRefundState((order.return_request ?? (orderMeta.return_request as ReturnRequestLike | undefined)) ?? null),
+  )
+  const [markingTransfer, setMarkingTransfer] = useState(false)
+
+  async function handleMarkTransferred() {
+    setMarkingTransfer(true)
+    try {
+      // requestId is ignored for Medusa orders — the backend resolves the request from
+      // the order metadata. transfer_sent: aceptado → transferencia_pendiente.
+      const res = await fetch(`/api/orders/${order.id}/return-request/current`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'transfer_sent' }),
+      })
+      const data = await res.json() as { refund_state?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al marcar la transferencia.', 'error'); return }
+      setRefundState((data.refund_state as RefundState) ?? 'transferencia_pendiente')
+      showToast('Marcado como transferido. El comprador debe confirmar que lo recibió.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setMarkingTransfer(false)
+    }
+  }
+
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
     : order.marketplace_listings
@@ -628,12 +665,24 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, seller_note: returnSellerNote.trim() || undefined, refund_amount_cents: refundCents }),
       })
-      const data = await res.json() as { status?: string; error?: string }
+      const data = await res.json() as { status?: string; refund_state?: string; error?: string }
       if (!res.ok) { showToast(data.error ?? 'Error al procesar.', 'error'); return }
+      // Fallback only when the backend didn't echo a state (legacy Supabase path): those
+      // orders refund immediately and never enter the off-platform ladder, so don't infer
+      // `aceptado` for them — only Medusa (order_*) SPEI orders walk the ladder.
+      const newRefundState = (data.refund_state as RefundState | undefined)
+        ?? (action === 'decline' ? 'rechazado' : (order.id.startsWith('order_') && isSpeiOrder) ? 'aceptado' : 'confirmado')
+      setRefundState(newRefundState)
       setReturnRequest(r => r ? { ...r, status: data.status ?? action, seller_note: returnSellerNote.trim() || null } : null)
-      if (data.status === 'refunded' || action === 'accept') setCurrentStatus('refunded')
+      // Only flip the order to "refunded" once the refund is actually confirmed — card
+      // refunds auto-confirm; SPEI/cash stays open until the buyer confirms receipt.
+      if (newRefundState === 'confirmado') setCurrentStatus('refunded')
       showToast(
-        action === 'decline' ? 'Solicitud rechazada.' : 'Reembolso procesado. El comprador fue notificado.',
+        action === 'decline'
+          ? 'Solicitud rechazada.'
+          : newRefundState === 'aceptado'
+            ? 'Reembolso aceptado. Haz la transferencia y marca "Ya transferí".'
+            : 'Reembolso confirmado. El comprador fue notificado.',
         'success',
       )
     } catch {
@@ -664,12 +713,21 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           seller_note: initiateNote.trim() || undefined,
         }),
       })
-      const data = await res.json() as { status?: string; error?: string }
+      const data = await res.json() as { status?: string; refund_state?: string; error?: string }
       if (!res.ok) { showToast(data.error ?? 'Error al emitir el reembolso.', 'error'); return }
+      const newRefundState = (data.refund_state as RefundState | undefined)
+        ?? ((order.id.startsWith('order_') && isSpeiOrder) ? 'aceptado' : 'confirmado')
+      setRefundState(newRefundState)
       setRefundIssued(true)
       setShowInitiateRefund(false)
-      setCurrentStatus('refunded')
-      showToast(refundConfirmationToast(isSpeiOrder), 'success')
+      // SPEI/cash refunds aren't done until the buyer confirms — don't mark refunded yet.
+      if (newRefundState === 'confirmado') setCurrentStatus('refunded')
+      showToast(
+        newRefundState === 'confirmado'
+          ? 'Reembolso emitido. El comprador fue notificado.'
+          : 'Reembolso registrado. Haz la transferencia y marca "Ya transferí".',
+        'success',
+      )
     } catch {
       showToast('Sin conexión.', 'error')
     } finally {
@@ -1118,20 +1176,44 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </section>
       )}
 
-      {/* ── Seller-initiated refund ──────────────────────────────────────────── */}
-      {refundIssued && (
-        <div className={`border rounded-xl p-3 mb-5 ${isSpeiOrder ? 'border-amber-200 bg-amber-50/50' : 'border-green-200 bg-green-50/50'}`}>
-          <div className="flex items-center gap-2">
-            <span>{isSpeiOrder ? '🏦' : '✓'}</span>
-            <p className={`text-sm font-semibold ${isSpeiOrder ? 'text-amber-800' : 'text-green-800'}`}>
-              {refundIssuedBanner(isSpeiOrder)}
+      {/* ── Off-platform (SPEI/cash) refund tracker — two-sided ladder (S1) ─────
+          Gate on the state, not the payment-method heuristic: the mid-states are
+          reachable only via the manual rail backend-side, so the "Ya transferí" action
+          always surfaces; show `confirmado` only on SPEI to avoid a redundant card box. */}
+      {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
+        <div className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span>{refundState === 'confirmado' ? '✓' : '🏦'}</span>
+            <p className={`text-sm font-semibold ${refundState === 'confirmado' ? 'text-green-800' : 'text-amber-800'}`}>
+              {refundBadge(refundState)}
             </p>
           </div>
-          {isSpeiOrder && (
-            <p className="text-xs text-amber-700 mt-1">
-              Envía la transferencia al comprador para completar el reembolso.
-            </p>
+          <p className={`text-xs ${refundState === 'confirmado' ? 'text-green-700' : 'text-amber-700'}`}>
+            {refundStateDetail(refundState)}
+          </p>
+          {canSellerMarkTransferred(refundState) && (
+            <button
+              type="button"
+              onClick={handleMarkTransferred}
+              disabled={markingTransfer}
+              className="mt-3 text-sm font-semibold py-2.5 px-4 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            >
+              {markingTransfer ? 'Marcando…' : '💸 Ya transferí'}
+            </button>
           )}
+          {refundState === 'transferencia_pendiente' && (
+            <p className="text-[11px] text-amber-700 mt-2">{whoActsNextRefund(refundState, 'seller')}</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Seller-initiated refund — card/MP issued banner (instant) ─────────── */}
+      {refundIssued && !isSpeiOrder && (
+        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <p className="text-sm font-semibold text-green-800">{refundIssuedBanner(false)}</p>
+          </div>
         </div>
       )}
 
@@ -1206,7 +1288,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                 {isEscrowOrder && !escrowCaptured
                   ? 'El pago está en custodia y aún no se cobra — se anulará la retención, sin movimiento de dinero.'
                   : isSpeiOrder
-                  ? 'Pago por SPEI/efectivo: deberás devolver el dinero por transferencia. Esto solo registra el reembolso.'
+                  ? 'Pago por SPEI/efectivo: registra el reembolso, haz la transferencia al comprador y márcala como enviada. El comprador confirmará cuando la reciba.'
                   : 'El reembolso se procesa al instante en la tarjeta del comprador (5–10 días hábiles según su banco).'}
               </p>
             </>

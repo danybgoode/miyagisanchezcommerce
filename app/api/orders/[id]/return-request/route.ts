@@ -213,3 +213,62 @@ export async function POST(
 
   return NextResponse.json({ requestId: returnRequest.id }, { status: 201 })
 }
+
+// ── PATCH — buyer confirms receipt of an off-platform (SPEI/cash) refund ──────
+// Closes the two-sided ladder: transferencia_pendiente → confirmado. Only the buyer
+// can close it (the seller's "Ya transferí" is not enough). Medusa-only.
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const { userId, getToken } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  let body: { action?: string }
+  try { body = await req.json() } catch {
+    return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
+  }
+  if (body.action !== 'confirm_receipt') {
+    return NextResponse.json({ error: 'Acción inválida.' }, { status: 422 })
+  }
+  // The off-platform ladder lives on the Medusa order metadata — legacy orders never
+  // reach the buyer-confirm step.
+  if (!id.startsWith('order_')) {
+    return NextResponse.json({ error: 'Esta acción solo está disponible para pedidos recientes.' }, { status: 422 })
+  }
+
+  const clerkJwt = await getToken()
+  if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
+
+  const res = await medusaFetch(`/store/buyer/me/orders/${id}/return-request`, clerkJwt, {
+    method: 'PATCH',
+    body: JSON.stringify({ action: 'confirm_receipt' }),
+  })
+  const data = await res.json() as { refund_state?: string; message?: string }
+  if (!res.ok) return NextResponse.json({ error: data.message ?? 'Error al confirmar el reembolso.' }, { status: res.status })
+
+  // Notify the seller that the buyer confirmed receipt — the refund is now closed
+  // (best-effort, via the seller's Devoluciones preferences).
+  try {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+    const orderRes = await medusaFetch(`/store/buyer/me/orders/${id}`, clerkJwt)
+    if (orderRes.ok) {
+      const orderData = await orderRes.json() as { order?: { marketplace_shops?: { clerk_user_id?: string }; marketplace_listings?: { title?: string } } }
+      const shop = orderData.order?.marketplace_shops
+      const listingTitle = orderData.order?.marketplace_listings?.title ?? 'Producto'
+      if (shop?.clerk_user_id) {
+        const orderUrl = `${siteUrl}/shop/manage/orders/${id}`
+        void dispatchToSeller(shop.clerk_user_id, {
+          group: 'returns',
+          push: { kind: 'order', title: 'Reembolso confirmado por el comprador', body: listingTitle, url: orderUrl },
+          telegram: `✅ <b>Reembolso confirmado por el comprador</b>\n${escapeHtml(listingTitle)}\nLa devolución quedó cerrada.`,
+        })
+      }
+      tg.alert(`✅ Reembolso confirmado por el comprador (Medusa)\n${listingTitle}`).catch(() => {})
+    }
+  } catch { /* non-fatal */ }
+
+  return NextResponse.json({ refund_state: data.refund_state ?? 'confirmado' })
+}

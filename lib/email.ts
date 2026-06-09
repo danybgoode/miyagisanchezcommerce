@@ -944,6 +944,36 @@ export async function sendReturnAcceptedToBuyer(ctx: {
   await send(ctx.buyerEmail, subject, body)
 }
 
+// ── Buyer: off-platform (SPEI/cash) refund transfer sent ─────────────────────
+// The seller marked the transfer as sent. Honest copy — the money was sent by the
+// seller off-platform (not a card refund), so the buyer must confirm receipt to
+// close the refund (lib/refund-state.ts → confirmado). Delivery & Manual-Money S1.
+
+export async function sendRefundTransferSentToBuyer(ctx: {
+  buyerEmail: string
+  buyerName: string | null
+  listingTitle: string
+  shopName: string
+  refundAmount: string | null
+  sellerNote: string | null
+  orderUrl: string
+}): Promise<void> {
+  const subject = `El vendedor envió tu reembolso — ${ctx.listingTitle}`
+
+  const body = [
+    h1('El vendedor envió tu reembolso 💸'),
+    table([
+      ['Producto',  esc(ctx.listingTitle)],
+      ['Vendedor',  esc(ctx.shopName)],
+      ...(ctx.refundAmount ? [['Reembolso', esc(ctx.refundAmount)] as [string, string]] : []),
+    ]),
+    ctx.sellerNote ? [p('Nota del vendedor:'), quote(ctx.sellerNote)].join('') : '',
+    p('Revisa tu cuenta. Cuando confirmes que recibiste el reembolso, márcalo como recibido para cerrar la devolución.'),
+    cta('Confirmar que recibí el reembolso', ctx.orderUrl),
+  ].join('')
+  await send(ctx.buyerEmail, subject, body)
+}
+
 // ── Buyer: return request declined ───────────────────────────────────────────
 
 export async function sendReturnDeclinedToBuyer(ctx: {
