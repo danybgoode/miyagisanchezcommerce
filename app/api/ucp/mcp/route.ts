@@ -40,6 +40,7 @@ import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
+import { getNeighborhoodPulseAgentView } from '@/lib/neighborhood-pulse-agent'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -98,6 +99,18 @@ const TOOLS = [
         brand:        { type: 'string', description: 'Car brand (use with category=autos)' },
         year_from:    { type: 'number', description: 'Car year minimum (use with category=autos)' },
         year_to:      { type: 'number', description: 'Car year maximum (use with category=autos)' },
+      },
+    },
+  },
+  {
+    name: 'get_neighborhood_pulse',
+    description: 'Read the public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. Read-only; use it to understand local context before recommending what to buy.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        community_limit: { type: 'number', minimum: 1, maximum: 24, default: 12, description: 'Number of community items to return' },
+        trending_limit: { type: 'number', minimum: 1, maximum: 20, default: 8, description: 'Number of trending listings to return' },
+        shop_limit: { type: 'number', minimum: 1, maximum: 12, default: 6, description: 'Number of merchant spotlights to return' },
       },
     },
   },
@@ -390,6 +403,46 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
   }).join('\n\n---\n\n')
 
   return { content: [{ type: 'text', text: `Found ${items.length} listings:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items }, null, 2) }] }
+}
+
+async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl: string) {
+  const pulse = await getNeighborhoodPulseAgentView(baseUrl, {
+    itemLimit: Number(args.community_limit ?? 12),
+    listingLimit: Number(args.trending_limit ?? 8),
+    shopLimit: Number(args.shop_limit ?? 6),
+  })
+
+  const community = pulse.community_items.slice(0, 5).map((item) =>
+    `• ${item.caption} — ${item.type_label}, ${item.zone}`,
+  )
+  const listings = pulse.trending_listings.slice(0, 5).map((item) =>
+    `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (${item.shop.name})`,
+  )
+  const shops = pulse.spotlight_shops.slice(0, 5).map((shop) =>
+    `• ${shop.name} — ${shop.tagline} · ${shop.colonia}`,
+  )
+
+  const summary = [
+    '## Pulso del vecindario',
+    '',
+    `**Read-only:** ${pulse._meta.read_only ? 'sí' : 'no'}`,
+    '',
+    '### Aportes de la comunidad',
+    community.length ? community.join('\n') : 'Sin aportes visibles por ahora.',
+    '',
+    '### Tendencias',
+    listings.length ? listings.join('\n') : 'Sin tendencias disponibles por ahora.',
+    '',
+    '### Comercios que destacan',
+    shops.length ? shops.join('\n') : 'Sin comercios destacados por ahora.',
+  ].join('\n')
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      { type: 'text', text: JSON.stringify(pulse, null, 2) },
+    ],
+  }
 }
 
 async function handleGetListing(args: Record<string, unknown>, baseUrl: string) {
@@ -1240,7 +1293,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
+      instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_neighborhood_pulse for local context → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
     }
   }
 
@@ -1258,6 +1311,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
 
     switch (name) {
       case 'search_listings':      return { content: (await handleSearchListings(args, baseUrl)).content }
+      case 'get_neighborhood_pulse': return { content: (await handleGetNeighborhoodPulse(args, baseUrl)).content }
       case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
       case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
       case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }

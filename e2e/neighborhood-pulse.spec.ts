@@ -212,3 +212,84 @@ test.describe('neighborhood pulse · zona grouping', () => {
     expect(grouped[2].items.map((item) => item.id)).toEqual(['fallback'])
   })
 })
+
+test.describe('neighborhood pulse · agent read view', () => {
+  test('UCP route returns read-only community, trending, and spotlight sections', async ({ request }) => {
+    const res = await request.get('/api/ucp/neighborhood-pulse?community_limit=2&trending_limit=2&shop_limit=2')
+    expect(res.ok()).toBeTruthy()
+
+    const data = await res.json() as {
+      community_items?: unknown[]
+      trending_listings?: unknown[]
+      spotlight_shops?: unknown[]
+      _meta?: { view?: string; read_only?: boolean; locale?: string }
+    }
+
+    expect(Array.isArray(data.community_items)).toBe(true)
+    expect(Array.isArray(data.trending_listings)).toBe(true)
+    expect(Array.isArray(data.spotlight_shops)).toBe(true)
+    expect(data._meta).toMatchObject({
+      view: 'neighborhood_pulse',
+      read_only: true,
+      locale: 'es-MX',
+    })
+  })
+
+  test('manifest advertises the read-only UCP route and MCP tool', async ({ request }) => {
+    const res = await request.get('/api/ucp/manifest')
+    expect(res.ok()).toBeTruthy()
+
+    const manifest = await res.json() as {
+      capabilities?: string[]
+      endpoints?: Record<string, { method?: string; url?: string; auth?: string; mcp_tools?: string[] }>
+      endpoints_list?: unknown[]
+    }
+
+    expect(manifest.capabilities).toContain('neighborhood_pulse')
+    expect(manifest.endpoints?.neighborhood_pulse).toMatchObject({
+      method: 'GET',
+      auth: 'none',
+    })
+    expect(manifest.endpoints?.neighborhood_pulse?.url).toContain('/api/ucp/neighborhood-pulse')
+    expect(manifest.endpoints?.mcp?.mcp_tools).toContain('get_neighborhood_pulse')
+  })
+
+  test('MCP pulse tool returns structured read-only pulse data', async ({ request }) => {
+    const res = await request.post('/api/ucp/mcp', {
+      data: {
+        jsonrpc: '2.0',
+        id: 'pulse-smoke',
+        method: 'tools/call',
+        params: {
+          name: 'get_neighborhood_pulse',
+          arguments: {
+            community_limit: 2,
+            trending_limit: 2,
+            shop_limit: 2,
+          },
+        },
+      },
+    })
+    expect(res.ok()).toBeTruthy()
+
+    const rpc = await res.json() as {
+      result?: { content?: Array<{ type?: string; text?: string }> }
+      error?: unknown
+    }
+
+    expect(rpc.error).toBeFalsy()
+    const jsonText = rpc.result?.content?.find((entry) => entry.text?.includes('"community_items"'))?.text
+    expect(jsonText).toBeTruthy()
+
+    const pulse = JSON.parse(jsonText!) as {
+      community_items?: unknown[]
+      trending_listings?: unknown[]
+      spotlight_shops?: unknown[]
+      _meta?: { read_only?: boolean }
+    }
+    expect(Array.isArray(pulse.community_items)).toBe(true)
+    expect(Array.isArray(pulse.trending_listings)).toBe(true)
+    expect(Array.isArray(pulse.spotlight_shops)).toBe(true)
+    expect(pulse._meta?.read_only).toBe(true)
+  })
+})

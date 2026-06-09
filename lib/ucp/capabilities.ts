@@ -39,6 +39,13 @@ export const UCP_ENDPOINTS: UcpEndpoint[] = [
     auth: 'none',
   },
   {
+    id: 'neighborhood_pulse',
+    method: 'GET',
+    path: '/api/ucp/neighborhood-pulse',
+    description: 'Read-only neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention.',
+    auth: 'none',
+  },
+  {
     id: 'checkout_session',
     method: 'POST',
     path: '/api/ucp/checkout-session',
@@ -99,6 +106,7 @@ export const UCP_ENDPOINTS: UcpEndpoint[] = [
 /** MCP buyer/shopping tools (no auth). */
 export const MCP_BUYER_TOOLS = [
   'search_listings',
+  'get_neighborhood_pulse',
   'get_listing',
   'get_checkout_options',
   'create_checkout',
@@ -134,6 +142,7 @@ export const MCP_TOOL_NAMES: string[] = [...MCP_BUYER_TOOLS, ...MCP_SELLER_TOOLS
 export const UCP_CAPABILITIES = [
   'catalog_search',
   'listing_detail',
+  'neighborhood_pulse',
   'make_offer',
   'buy_now_mercadopago',
   'buy_now_stripe',
