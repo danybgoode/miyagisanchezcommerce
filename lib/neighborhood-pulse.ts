@@ -10,6 +10,8 @@ export const NEIGHBORHOOD_PULSE_COPY = {
   emptyBody: 'El feed se llena cuando el equipo aprueba un aporte para web. Mientras tanto, el vecindario sigue tomando forma.',
   fallbackSubmitter: 'Vecino de la comunidad',
   noPhoto: 'Sin foto',
+  trendingTitle: 'Tendencias',
+  trendingIntro: 'Publicaciones con más movimiento reciente en Miyagi.',
 }
 
 const ADMIN_SOCIAL_STATUSES = ['submitted', 'approved', 'placed', 'rejected'] as const satisfies readonly PrintSocialStatus[]

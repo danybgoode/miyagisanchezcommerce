@@ -4,6 +4,7 @@ import {
   isNeighborhoodPulseSocialItem,
   NEIGHBORHOOD_PULSE_COPY,
 } from '../lib/neighborhood-pulse'
+import { rankNeighborhoodListings } from '../lib/neighborhood-rank'
 
 test.describe('neighborhood pulse · moderator web opt-in', () => {
   test('admin social PATCH remains secret-gated', async ({ request }) => {
@@ -75,5 +76,31 @@ test.describe('neighborhood pulse · public feed visibility', () => {
 
     expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.title)
     expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.eyebrow)
+  })
+})
+
+test.describe('neighborhood pulse · trending rank', () => {
+  const now = new Date('2026-06-08T18:00:00.000Z').getTime()
+
+  test('favorites and views outrank pure recency when signal is strong', () => {
+    const ranked = rankNeighborhoodListings([
+      { id: 'new', created_at: '2026-06-08T17:45:00.000Z', views: 0, favorite_count: 0 },
+      { id: 'loved', created_at: '2026-06-01T17:45:00.000Z', views: 20, favorite_count: 4 },
+      { id: 'seen', created_at: '2026-06-07T17:45:00.000Z', views: 30, favorite_count: 0 },
+    ], now)
+
+    expect(ranked.map((item) => item.id)).toEqual(['loved', 'seen', 'new'])
+    expect(ranked[0].trend_score).toBeGreaterThan(ranked[1].trend_score)
+  })
+
+  test('zero-signal listings fall back to recency and tolerate null signals', () => {
+    const ranked = rankNeighborhoodListings([
+      { id: 'old', created_at: '2026-05-01T17:45:00.000Z', views: null, favorite_count: null },
+      { id: 'new', created_at: '2026-06-08T17:45:00.000Z' },
+      { id: 'middle', created_at: '2026-06-07T17:45:00.000Z', views: 0, favorite_count: 0 },
+    ], now)
+
+    expect(ranked.map((item) => item.id)).toEqual(['new', 'middle', 'old'])
+    expect(ranked.every((item) => Number.isFinite(item.trend_score))).toBe(true)
   })
 })

@@ -1,11 +1,17 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import {
   formatPulseDate,
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
 } from '@/lib/neighborhood-pulse'
-import { getNeighborhoodPulseItems } from '@/lib/neighborhood-pulse-server'
+import {
+  getNeighborhoodPulseItems,
+  getTrendingNeighborhoodListings,
+  type NeighborhoodTrendingListing,
+} from '@/lib/neighborhood-pulse-server'
 import type { PrintSocialSubmission } from '@/lib/print'
+import { formatPrice } from '@/lib/listings'
 
 export const metadata: Metadata = {
   title: 'Vecindario',
@@ -71,8 +77,62 @@ function SocialCard({ item }: { item: PrintSocialSubmission }) {
   )
 }
 
+function TrendingStrip({ listings }: { listings: NeighborhoodTrendingListing[] }) {
+  if (listings.length === 0) return null
+
+  return (
+    <section aria-labelledby="vecindario-tendencias" className="mb-8">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h2 id="vecindario-tendencias" className="text-lg font-semibold" style={{ color: 'var(--fg)', letterSpacing: 0 }}>
+            {NEIGHBORHOOD_PULSE_COPY.trendingTitle}
+          </h2>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            {NEIGHBORHOOD_PULSE_COPY.trendingIntro}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {listings.map((listing) => (
+          <Link
+            key={listing.id}
+            href={`/l/${listing.id}`}
+            className="card-tile block w-44 flex-shrink-0 overflow-hidden no-underline sm:w-52"
+          >
+            {listing.images?.[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={listing.images[0].url}
+                alt={listing.images[0].alt ?? listing.title}
+                className="h-28 w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-28 items-center justify-center" style={{ background: 'var(--bg-sunk)' }}>
+                <i className="iconoir-package" style={{ fontSize: 28, color: 'var(--fg-subtle)' }} />
+              </div>
+            )}
+            <div className="p-3">
+              <p className="line-clamp-2 text-sm font-medium leading-snug" style={{ color: 'var(--fg)' }}>
+                {listing.title}
+              </p>
+              <p className="t-price mt-1 text-sm">{formatPrice(listing)}</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                {listing.shop?.name ?? listing.location ?? 'Miyagi'}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default async function NeighborhoodPulsePage() {
-  const items = await getNeighborhoodPulseItems()
+  const [items, trending] = await Promise.all([
+    getNeighborhoodPulseItems(),
+    getTrendingNeighborhoodListings(),
+  ])
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 pb-24">
@@ -87,6 +147,8 @@ export default async function NeighborhoodPulsePage() {
           {NEIGHBORHOOD_PULSE_COPY.intro}
         </p>
       </header>
+
+      <TrendingStrip listings={trending} />
 
       {items.length === 0 ? (
         <section
