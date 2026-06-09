@@ -495,7 +495,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                   )}
                 </button>
                 <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--fg-subtle)', marginTop: 8 }}>
-                  Sin comisiones · El vendedor responde en menos de 24 h
+                  Sin comisiones · El vendedor tiene 48 horas para responder
                 </p>
               </div>
             )}

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
-import { formatOfferAmount, timeUntil } from '@/lib/offers'
+import { formatOfferAmount, timeUntil, offerTurn, type OfferStatus } from '@/lib/offers'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import type { CheckoutProvider } from '@/lib/cart'
 import type { LedgerView } from '@/lib/transaction-ledger'
@@ -257,6 +257,25 @@ function TransactionLedgerCard({ ledger, orderId, role }: {
 
 // ── Offer action bar ──────────────────────────────────────────────────────────
 
+/**
+ * Explicit "whose turn is it" line + live countdown to the CORRECT deadline (C.3) —
+ * derived once from offer status + role via the shared {@link offerTurn} so the panel
+ * never re-infers turn from which buttons render. Pending → expires_at (48h); counter →
+ * counter_expires_at (24h); accepted → checkout_expires_at (24h).
+ */
+function OfferTurnLine({ offer, role }: { offer: ConvOffer; role: 'buyer' | 'seller' }) {
+  const turn = offerTurn({ ...offer, status: offer.status as OfferStatus }, role)
+  if (!turn.line) return null
+  return (
+    <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)', marginBottom: 8 }}>
+      {turn.line}
+      {turn.deadlineIso && (
+        <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}> · Expira en {timeUntil(turn.deadlineIso)}</span>
+      )}
+    </p>
+  )
+}
+
 function OfferActionBar({
   offer, role, listing, checkoutProvider, isSignedIn, onRefresh,
 }: {
@@ -331,6 +350,7 @@ function OfferActionBar({
   if (role === 'buyer' && offer.status === 'pending' && !isExpiredOffer) {
     return (
       <div style={{ padding: '8px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+        <OfferTurnLine offer={offer} role={role} />
         <button
           type="button"
           onClick={() => buyerAction('withdraw')}
@@ -339,18 +359,15 @@ function OfferActionBar({
         >
           Retirar oferta
         </button>
-        {offer.expires_at && (
-          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', marginLeft: 12 }}>
-            Expira en {timeUntil(offer.expires_at)}
-          </span>
-        )}
       </div>
     )
   }
 
   if (role === 'buyer' && offer.status === 'countered' && !isExpiredCounter) {
     return (
-      <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+      <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+        <OfferTurnLine offer={offer} role={role} />
+        <div style={{ display: 'flex', gap: 8 }}>
         <button
           type="button"
           onClick={() => buyerAction('accept-counter')}
@@ -369,6 +386,7 @@ function OfferActionBar({
         >
           Rechazar
         </button>
+        </div>
       </div>
     )
   }
@@ -484,9 +502,9 @@ function SellerActionBar({ offer, onAction, busy }: {
 
   return (
     <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+      <OfferTurnLine offer={offer} role="seller" />
       <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 10 }}>
         Oferta recibida: <strong>{fmt(offer.offer_amount_cents, offer.currency)}</strong>
-        {offer.expires_at && <span style={{ marginLeft: 8 }}>· Expira en {timeUntil(offer.expires_at)}</span>}
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
@@ -611,6 +629,12 @@ export default function ConversationClient({ conversationId, initialConversation
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
   const [transaction, setTransaction] = useState(initialTransaction)
+  // Re-render once a minute so the deadline countdowns (ledger card + offer panel) stay live.
+  const [, setCountdownTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setCountdownTick(t => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
