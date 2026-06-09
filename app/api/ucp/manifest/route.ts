@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { UCP_CAPABILITIES, MCP_TOOL_NAMES } from '@/lib/ucp/capabilities'
+import { aboutManifestBlock } from '@/lib/about-agent'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +38,13 @@ export async function GET(req: NextRequest) {
 
       // Canonical capability slugs — single source of truth in lib/ucp/capabilities.ts.
       capabilities: UCP_CAPABILITIES,
+
+      // Supply-side "about / why-sell" answer for prospective sellers, beside the
+      // buyer endpoints. Rendered from the single content source (lib/about-content.ts
+      // → lib/about-agent.ts); carries the relay-language directive so the reading
+      // agent presents it in the user's own language. See the agent-readable about
+      // surface epic (07).
+      about: aboutManifestBlock(base),
 
       endpoints: {
         catalog: {

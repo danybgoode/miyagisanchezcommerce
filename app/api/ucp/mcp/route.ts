@@ -40,6 +40,7 @@ import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
+import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -342,6 +343,14 @@ const TOOLS = [
         product_id: { type: 'string', description: 'Product id from list_my_listings' },
         status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
       },
+    },
+  },
+  {
+    name: 'about_miyagi',
+    description: `What miyagisanchez.com is and WHY/HOW to sell here — the supply-side story for a prospective seller (what Miyagi is, why sell, how to start, what it costs). Call this when a user asks about the marketplace itself or whether/how to sell on it. ${RELAY_LANGUAGE_DIRECTIVE}`,
+    inputSchema: {
+      type: 'object',
+      properties: {},
     },
   },
 ]
@@ -1233,12 +1242,19 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
 
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
+function handleAboutMiyagi(baseUrl: string) {
+  const resource = aboutMcpResource(baseUrl)
+  // Tool result: the structured story as a JSON text block. The directive is
+  // embedded so the client answers in the user's own language.
+  return { content: [{ type: 'text', text: resource.text }] }
+}
+
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
     return {
       protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
+      capabilities: { tools: {}, resources: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
       instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
     }
@@ -1250,6 +1266,19 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
 
   if (method === 'tools/list') {
     return { tools: TOOLS }
+  }
+
+  // MCP resources — the about/why-sell story as a native resource.
+  if (method === 'resources/list') {
+    const r = aboutMcpResource(baseUrl)
+    return { resources: [{ uri: r.uri, name: r.name, title: r.title, description: r.description, mimeType: r.mimeType }] }
+  }
+
+  if (method === 'resources/read') {
+    const uri = String((params?.uri as string | undefined) ?? '')
+    const r = aboutMcpResource(baseUrl)
+    if (uri !== r.uri) return null // unknown resource → MethodNotFound-style miss
+    return { contents: [{ uri: r.uri, mimeType: r.mimeType, text: r.text }] }
   }
 
   if (method === 'tools/call') {
@@ -1268,6 +1297,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
+      case 'about_miyagi':         return { content: handleAboutMiyagi(baseUrl).content }
       case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
