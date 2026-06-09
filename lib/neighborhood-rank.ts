@@ -17,7 +17,6 @@ export interface NeighborhoodShopRankSignals {
   latest_listing_at?: string | null
   listing_count?: number | null
   view_count?: number | null
-  order_count?: number | null
 }
 
 export interface NeighborhoodShopRanked {
@@ -60,13 +59,11 @@ export function rankNeighborhoodListings<T extends NeighborhoodRankSignals>(
 }
 
 export function neighborhoodShopSpotlightScore(shop: NeighborhoodShopRankSignals, now = Date.now()): number {
-  const orders = positiveNumber(shop.order_count)
   const listings = positiveNumber(shop.listing_count)
   const views = positiveNumber(shop.view_count)
   const latestListing = shop.latest_listing_at ?? shop.created_at
 
-  return Math.log1p(orders) * 14
-    + Math.log1p(listings) * 6
+  return Math.log1p(listings) * 6
     + Math.log1p(views) * 2
     + neighborhoodRecencyScore(latestListing, now) * 6
     + neighborhoodRecencyScore(shop.created_at, now) * 2

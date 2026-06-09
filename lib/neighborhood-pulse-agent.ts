@@ -31,9 +31,6 @@ export type NeighborhoodPulseAgentShop = {
   logo_url: string | null
   url: string
   listing_count: number
-  view_count: number
-  order_count: number
-  spotlight_score: number
 }
 
 export type NeighborhoodPulseAgentView = {
@@ -83,9 +80,6 @@ export async function getNeighborhoodPulseAgentView(
       logo_url: shop.logo_url,
       url: `${baseUrl}/s/${shop.slug}`,
       listing_count: shop.listing_count,
-      view_count: shop.view_count,
-      order_count: shop.order_count,
-      spotlight_score: shop.spotlight_score,
     })),
     _meta: {
       view: 'neighborhood_pulse',

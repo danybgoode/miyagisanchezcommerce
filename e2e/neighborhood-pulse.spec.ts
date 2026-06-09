@@ -127,7 +127,7 @@ test.describe('neighborhood pulse · trending rank', () => {
 test.describe('neighborhood pulse · merchant spotlight', () => {
   const now = new Date('2026-06-08T18:00:00.000Z').getTime()
 
-  test('shop ranking weighs orders, new listings, views, then recency', () => {
+  test('shop ranking weighs new listings, views, then recency', () => {
     const ranked = rankNeighborhoodShops([
       {
         id: 'quiet',
@@ -137,7 +137,6 @@ test.describe('neighborhood pulse · merchant spotlight', () => {
         latest_listing_at: '2026-06-08T17:30:00.000Z',
         listing_count: 1,
         view_count: 1,
-        order_count: 0,
       },
       {
         id: 'busy',
@@ -147,21 +146,19 @@ test.describe('neighborhood pulse · merchant spotlight', () => {
         latest_listing_at: '2026-06-06T17:30:00.000Z',
         listing_count: 3,
         view_count: 40,
-        order_count: 0,
       },
       {
-        id: 'trusted',
-        slug: 'trusted-shop',
-        name: 'Trusted Shop',
+        id: 'older',
+        slug: 'older-shop',
+        name: 'Older Shop',
         created_at: '2026-04-01T10:00:00.000Z',
         latest_listing_at: '2026-06-01T17:30:00.000Z',
         listing_count: 1,
         view_count: 10,
-        order_count: 2,
       },
     ], now)
 
-    expect(ranked.map((shop) => shop.slug)).toEqual(['trusted-shop', 'busy-shop', 'quiet-shop'])
+    expect(ranked.map((shop) => shop.slug)).toEqual(['busy-shop', 'quiet-shop', 'older-shop'])
     expect(ranked.every((shop) => Number.isFinite(shop.spotlight_score))).toBe(true)
   })
 
@@ -175,21 +172,26 @@ test.describe('neighborhood pulse · merchant spotlight', () => {
         name?: string
         tagline?: string
         colonia?: string
-        spotlight_score?: number
+        listing_count?: number
+        [key: string]: unknown
       }>
       _meta?: { view?: string; read_only?: boolean }
     }
+    const serialized = JSON.stringify(data)
 
     expect(Array.isArray(data.shops)).toBe(true)
     expect(data.shops.length).toBeLessThanOrEqual(3)
     expect(data._meta).toMatchObject({ view: 'neighborhood-pulse-spotlight', read_only: true })
+    expect(serialized).not.toContain('spotlight_score')
+    expect(serialized).not.toContain('view_count')
+    expect(serialized).not.toContain('order_count')
 
     for (const shop of data.shops) {
       expect(shop.slug).toBeTruthy()
       expect(shop.name).toBeTruthy()
       expect(shop.tagline).toBeTruthy()
       expect(shop.colonia).toBeTruthy()
-      expect(Number.isFinite(shop.spotlight_score)).toBe(true)
+      expect(Number.isFinite(shop.listing_count)).toBe(true)
     }
   })
 })
@@ -228,6 +230,9 @@ test.describe('neighborhood pulse · agent read view', () => {
     expect(Array.isArray(data.community_items)).toBe(true)
     expect(Array.isArray(data.trending_listings)).toBe(true)
     expect(Array.isArray(data.spotlight_shops)).toBe(true)
+    expect(JSON.stringify(data)).not.toContain('spotlight_score')
+    expect(JSON.stringify(data)).not.toContain('view_count')
+    expect(JSON.stringify(data)).not.toContain('order_count')
     expect(data._meta).toMatchObject({
       view: 'neighborhood_pulse',
       read_only: true,

@@ -26,10 +26,6 @@ export type NeighborhoodSpotlightShop = {
   colonia: string
   logo_url: string | null
   listing_count: number
-  view_count: number
-  order_count: number
-  latest_listing_at: string
-  spotlight_score: number
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -79,21 +75,6 @@ function shopColonia(shop: Shop): string {
   return trimmedString(origin?.colonia)
     || trimmedString(shop.location)
     || NEIGHBORHOOD_PULSE_COPY.spotlightFallbackColonia
-}
-
-function shopOrderCount(shop: Shop): number {
-  const meta = objectValue(shop.metadata)
-  const candidates = [
-    meta?.order_count,
-    meta?.orders_count,
-    meta?.sales_count,
-    objectValue(meta?.stats)?.order_count,
-  ]
-  for (const candidate of candidates) {
-    const n = Number(candidate ?? 0)
-    if (Number.isFinite(n) && n > 0) return n
-  }
-  return 0
 }
 
 export async function getNeighborhoodPulseItems(limit = 24): Promise<PrintSocialSubmission[]> {
@@ -178,7 +159,6 @@ export async function getNeighborhoodSpotlightShops(limit = 6): Promise<Neighbor
     latest_listing_at: string
     listing_count: number
     view_count: number
-    order_count: number
   }>()
 
   for (const listing of candidates) {
@@ -195,7 +175,6 @@ export async function getNeighborhoodSpotlightShops(limit = 6): Promise<Neighbor
         latest_listing_at: listing.created_at,
         listing_count: 1,
         view_count: Math.max(0, Number(listing.views ?? 0)),
-        order_count: shopOrderCount(shop),
         shop,
       })
       continue
@@ -204,7 +183,6 @@ export async function getNeighborhoodSpotlightShops(limit = 6): Promise<Neighbor
     current.latest_listing_at = latestDate(current.latest_listing_at, listing.created_at)
     current.listing_count += 1
     current.view_count += Math.max(0, Number(listing.views ?? 0))
-    current.order_count = Math.max(current.order_count, shopOrderCount(shop))
   }
 
   return rankNeighborhoodShops([...byShop.values()])
@@ -217,9 +195,5 @@ export async function getNeighborhoodSpotlightShops(limit = 6): Promise<Neighbor
       colonia: shopColonia(ranked.shop),
       logo_url: ranked.shop.logo_url,
       listing_count: ranked.listing_count,
-      view_count: ranked.view_count,
-      order_count: ranked.order_count,
-      latest_listing_at: ranked.latest_listing_at,
-      spotlight_score: ranked.spotlight_score,
     }))
 }
