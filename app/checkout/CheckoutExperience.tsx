@@ -6,6 +6,7 @@ import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
+import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '@/lib/checkout-fallback'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
 
@@ -147,6 +148,10 @@ export default function CheckoutExperience({
   const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
   const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
   const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
+  // S3.2 — when quoting dead-ends, the buyer can choose coordinated ("entrega
+  // acordada") delivery to proceed. Reset whenever a fresh quote attempt starts
+  // or the delivery method changes.
+  const [coordinatedFallback, setCoordinatedFallback] = useState(false)
 
   // ── Coupon code ───────────────────────────────────────────────────────────
   // Not offered when an accepted offer is in play (coupons don't stack on offers,
@@ -245,12 +250,32 @@ export default function CheckoutExperience({
     [isManualPayment, selectedPayment, isPickup],
   )
 
+  // S3.2 — coordinated ("entrega acordada") fallback when shipping can't be quoted.
+  const offerCoordinatedFallback = needsShippingRate && shouldOfferCoordinatedFallback({
+    loading: shippingRatesLoading,
+    error: shippingRatesError,
+    ratesCount: shippingRates.length,
+    message: shippingRatesMessage,
+  })
+  const manualPaymentId = pickManualPaymentId(paymentMethods)
+  // Active only when the buyer picked the fallback AND quoting is still failing.
+  const coordinatedActive = offerCoordinatedFallback && coordinatedFallback
+
+  function selectCoordinatedFallback() {
+    setCoordinatedFallback(true)
+    // Coordinated delivery requires "pago directo" — the backend 422s on card + coord.
+    if (selectedPayment?.kind !== 'manual' && manualPaymentId) setSelectedPaymentId(manualPaymentId)
+  }
+
   const canPay = Boolean(
-    selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
+    selectedDelivery && selectedPayment && addressReady && pickupReady &&
+    (coordinatedActive
+      ? selectedPayment.kind === 'manual'
+      : (!needsShippingRate || selectedShippingRate)),
   )
 
   // Reset pickup spot selection + proposed appointment when delivery method changes.
-  useEffect(() => { setSelectedPickupSpotId(null); setPickupDate(''); setPickupWindow('') }, [selectedDeliveryId])
+  useEffect(() => { setSelectedPickupSpotId(null); setPickupDate(''); setPickupWindow(''); setCoordinatedFallback(false) }, [selectedDeliveryId])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -294,6 +319,7 @@ export default function CheckoutExperience({
       setShippingRatesLoading(true)
       setShippingRatesError(null)
       setShippingRatesMessage(null)
+      setCoordinatedFallback(false)
       try {
         const res = await fetch('/api/checkout/shipping-rates', {
           method: 'POST',
@@ -535,6 +561,28 @@ export default function CheckoutExperience({
                       </button>
                     )
                   })}
+
+                  {/* S3.2 — coordinated fallback so a quote failure / timeout isn't a dead end. */}
+                  {offerCoordinatedFallback && (
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <button type="button" onClick={selectCoordinatedFallback} style={optionButtonStyle(coordinatedActive)}>
+                        <span aria-hidden style={radioDot(coordinatedActive)} />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>Entrega acordada</span>
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                            Coordina la entrega directamente con el vendedor. Sin costo de paquetería.
+                          </span>
+                        </span>
+                      </button>
+                      {coordinatedActive && (
+                        <p style={{ fontSize: 11.5, color: 'var(--fg-subtle)', lineHeight: 1.5 }}>
+                          {manualPaymentId
+                            ? 'La entrega acordada se paga con pago directo (SPEI / efectivo); cambiamos tu método de pago.'
+                            : 'Este vendedor no tiene pago directo configurado — escríbele para acordar pago y entrega.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -731,11 +779,11 @@ export default function CheckoutExperience({
             offerAmountCents={offerAmountCents}
             couponCode={appliedCoupon?.code}
             couponDiscountCents={couponDiscountCents}
-            fulfillmentMethod={selectedDelivery?.id ?? 'none'}
+            fulfillmentMethod={coordinatedActive ? 'coord' : (selectedDelivery?.id ?? 'none')}
             pickupSpotId={selectedPickupSpotId ?? undefined}
             pickupAppointment={isPickupDelivery && pickupDate && pickupWindow ? { date: pickupDate, window: pickupWindow } : undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
-            shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
+            shippingQuote={coordinatedActive ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
             disabled={!canPay}
             onStarted={onStarted}
