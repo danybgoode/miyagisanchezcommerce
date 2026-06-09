@@ -35,6 +35,14 @@ export function listingTypeBadge(type: string | null | undefined): string | null
   return type ? (BADGE_LABELS[type] ?? null) : null
 }
 
+// Mobile filter sheet — the apply button's live label (es-MX, singular/plural).
+// `null` (count not yet loaded) → a neutral "Ver resultados"; 0 → "Sin resultados".
+export function resultCountLabel(count: number | null | undefined): string {
+  if (count == null) return 'Ver resultados'
+  if (count <= 0) return 'Sin resultados'
+  return `Ver ${count} ${count === 1 ? 'resultado' : 'resultados'}`
+}
+
 // Build query string from SearchParams, forwarding all supported filter keys.
 export function buildQuery(params: SearchParams & { limit?: number | string }): string {
   const allowed = [

@@ -67,6 +67,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
         initialQ={params.q}
         initialCategory={params.category}
         initialState={params.state}
+        initialTotal={total}
       />
 
       {/* Result count */}

@@ -35,6 +35,25 @@ export async function searchListings(
   return { listings: data.listings ?? [], total: data.total ?? 0, page: data.page ?? page }
 }
 
+// Lightweight total-only count for the mobile filter sheet's live "Ver X
+// resultados". Same backend filter pipeline as searchListings (so the count is
+// exact), but asks for a single row and returns only the total.
+export async function countListings(params: SearchParams): Promise<number> {
+  const qs = buildQuery({ ...params, page: '1', limit: 1 })
+
+  const res = await medusaFetch(`/store/listings${qs}`, {
+    next: { revalidate: 30, tags: ['listings'] },
+  } as RequestInit)
+
+  if (!res.ok) {
+    console.error('[listings] countListings failed', res.status, await res.text())
+    return 0
+  }
+
+  const data = await res.json()
+  return data.total ?? 0
+}
+
 export const getListing = unstable_cache(
   async (id: string): Promise<Listing | null> => {
     const res = await medusaFetch(`/store/listings/${id}`)
