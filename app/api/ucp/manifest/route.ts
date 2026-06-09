@@ -140,6 +140,17 @@ export async function GET(req: NextRequest) {
           note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
           mcp_tools: ['get_store_configuration', 'patch_store_configuration'],
         },
+
+        seller_onboarding: {
+          method: 'GET',
+          url: `${base}/api/ucp/setup-spec`,
+          description: "Onboarding 0 — a prospective seller's own agent reads one published, versioned setup spec + prompt and emits a SINGLE combined setup file (shop profile + store config + catalog) BEFORE the seller signs up. The spec composes the catalog-import and store-config schemas into one shape: { miyagi_setup_version, profile, config, catalog }. The emit prompt is es-MX and instructs the agent to produce all user-facing copy in the seller's own language. Apply path today: the seller signs up and uploads the file via the existing import flow (catalog + settings). Payments, custom domain, and Cal.com stay manual.",
+          auth: 'none',
+          spec_url: `${base}/api/ucp/setup-spec`,
+          docs_url: `${base}/agent`,
+          mcp_tools: ['get_setup_spec'],
+          note: 'Spec only — the guided first-run apply is coming soon; today, apply by signing up and using the import pages.',
+        },
       },
 
       trust_model: {

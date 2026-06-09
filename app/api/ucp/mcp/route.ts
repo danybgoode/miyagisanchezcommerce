@@ -41,6 +41,7 @@ import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
+import { buildSetupSpec } from '@/lib/setup-spec'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -348,6 +349,14 @@ const TOOLS = [
   {
     name: 'about_miyagi',
     description: `What miyagisanchez.com is and WHY/HOW to sell here — the supply-side story for a prospective seller (what Miyagi is, why sell, how to start, what it costs). Call this when a user asks about the marketplace itself or whether/how to sell on it. ${RELAY_LANGUAGE_DIRECTIVE}`,
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_setup_spec',
+    description: "Onboarding 0 — get the published, versioned spec + prompt for emitting ONE combined setup file (shop profile + store config + catalog) so a seller's own agent can prepare a Miyagi Sánchez shop BEFORE signup. Returns the schema shape, both sub-schemas (config blocks + catalog fields), the manual-only sections, an example, and the es-MX emit prompt (which instructs you to produce all user-facing copy in the seller's own language). Apply path today: the seller signs up and uploads the file via the existing import flow. No auth.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1249,6 +1258,13 @@ function handleAboutMiyagi(baseUrl: string) {
   return { content: [{ type: 'text', text: resource.text }] }
 }
 
+function handleGetSetupSpec() {
+  // The full published setup contract: schema shape + both sub-schemas + example +
+  // the es-MX emit prompt (which carries the mirror-the-seller's-language directive).
+  const spec = buildSetupSpec()
+  return { content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }] }
+}
+
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
@@ -1298,6 +1314,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
       case 'about_miyagi':         return { content: handleAboutMiyagi(baseUrl).content }
+      case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
       case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
