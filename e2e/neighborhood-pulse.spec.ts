@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   buildPrintSocialAdminPatch,
+  groupNeighborhoodPulseItems,
   isNeighborhoodPulseSocialItem,
   NEIGHBORHOOD_PULSE_COPY,
   publicSubmitterLabel,
@@ -190,5 +191,24 @@ test.describe('neighborhood pulse · merchant spotlight', () => {
       expect(shop.colonia).toBeTruthy()
       expect(Number.isFinite(shop.spotlight_score)).toBe(true)
     }
+  })
+})
+
+test.describe('neighborhood pulse · zona grouping', () => {
+  test('groups by zona, falls back to Tu comunidad, and keeps newest first within each group', () => {
+    const grouped = groupNeighborhoodPulseItems([
+      { id: 'old-roma', created_at: '2026-06-08T10:00:00.000Z', zone: 'Roma Norte' },
+      { id: 'fallback', created_at: '2026-06-08T12:00:00.000Z', zone: ' ' },
+      { id: 'new-roma', created_at: '2026-06-08T14:00:00.000Z', zone: 'Roma Norte' },
+      { id: 'condesa', created_at: '2026-06-08T13:00:00.000Z', zone: 'Condesa' },
+    ])
+
+    expect(grouped.map((group) => group.zone)).toEqual([
+      'Roma Norte',
+      'Condesa',
+      NEIGHBORHOOD_PULSE_COPY.fallbackZone,
+    ])
+    expect(grouped[0].items.map((item) => item.id)).toEqual(['new-roma', 'old-roma'])
+    expect(grouped[2].items.map((item) => item.id)).toEqual(['fallback'])
   })
 })

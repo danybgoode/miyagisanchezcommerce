@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   formatPulseDate,
+  groupNeighborhoodPulseItems,
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
   publicSubmitterLabel,
@@ -188,6 +189,7 @@ export default async function NeighborhoodPulsePage() {
     getNeighborhoodSpotlightShops(),
     getTrendingNeighborhoodListings(),
   ])
+  const itemGroups = groupNeighborhoodPulseItems(items)
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 pb-24">
@@ -234,9 +236,29 @@ export default async function NeighborhoodPulsePage() {
           </Link>
         </section>
       ) : (
-        <section aria-label="Aportes del vecindario" className="grid gap-4 md:grid-cols-2">
-          {items.map((item) => (
-            <SocialCard key={item.id} item={item} />
+        <section aria-label="Aportes del vecindario" className="grid gap-8">
+          {itemGroups.map((group) => (
+            <section key={group.zone} aria-labelledby={`zona-${group.zone.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <h2
+                    id={`zona-${group.zone.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                    className="text-lg font-semibold leading-tight"
+                    style={{ color: 'var(--fg)', letterSpacing: 0 }}
+                  >
+                    {group.zone}
+                  </h2>
+                  <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+                    {group.items.length === 1 ? '1 aporte reciente' : `${group.items.length} aportes recientes`}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {group.items.map((item) => (
+                  <SocialCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
           ))}
         </section>
       )}

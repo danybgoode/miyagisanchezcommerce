@@ -9,6 +9,7 @@ export const NEIGHBORHOOD_PULSE_COPY = {
   emptyTitle: 'Todavía no hay aportes en línea',
   emptyBody: 'El feed se llena cuando el equipo aprueba un aporte para web. Mientras tanto, el vecindario sigue tomando forma.',
   fallbackSubmitter: 'Vecino de la comunidad',
+  fallbackZone: 'Tu comunidad',
   noPhoto: 'Sin foto',
   spotlightTitle: 'Comercios que destacan',
   spotlightIntro: 'Tiendas con movimiento reciente en Miyagi.',
@@ -39,6 +40,26 @@ export function isNeighborhoodPulseSocialItem(item: { status?: unknown; web_visi
 export function publicSubmitterLabel(item: { submitter_name?: unknown; submitter_email?: unknown }): string {
   const name = typeof item.submitter_name === 'string' ? item.submitter_name.trim() : ''
   return name || NEIGHBORHOOD_PULSE_COPY.fallbackSubmitter
+}
+
+export function groupNeighborhoodPulseItems<T extends { id: string; created_at: string; zone?: string | null }>(
+  items: T[],
+): Array<{ zone: string; items: T[] }> {
+  const sorted = [...items].sort((a, b) => {
+    const dateDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    if (Number.isFinite(dateDiff) && dateDiff !== 0) return dateDiff
+    return a.id.localeCompare(b.id)
+  })
+
+  const groups = new Map<string, T[]>()
+  for (const item of sorted) {
+    const zone = typeof item.zone === 'string' && item.zone.trim()
+      ? item.zone.trim()
+      : NEIGHBORHOOD_PULSE_COPY.fallbackZone
+    groups.set(zone, [...(groups.get(zone) ?? []), item])
+  }
+
+  return [...groups.entries()].map(([zone, groupItems]) => ({ zone, items: groupItems }))
 }
 
 export function printSocialTypeLabel(type: string): string {
