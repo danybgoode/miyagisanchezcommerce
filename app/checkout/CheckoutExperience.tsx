@@ -430,11 +430,8 @@ export default function CheckoutExperience({
           {/* Address form (shipping) */}
           {selectedDelivery?.requires_address && (
             <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
-                <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
-              </div>
-
+              {/* CP-first (S3.1) — the CP leads. It drives the postal-lookup auto-fill,
+                  so name/phone and the rest of the address reveal only once it resolves. */}
               <div>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -449,41 +446,46 @@ export default function CheckoutExperience({
                   {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success)' }}>✓</span>}
                 </div>
                 {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{cpLookupError}</p>}
-                {!cpResolved && !cpLookupError && !address.postal_code?.length && (
+                {!cpResolved && !cpLookupError && (
                   <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
                 )}
               </div>
 
-              {cpResolved && cpResult && (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
-                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
-                        <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
-                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
-                        <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {cpResult.colonias.length > 0 && (
-                    <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
-                      <option value="">Selecciona colonia</option>
-                      {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  )}
-                </>
-              )}
-
               {cpResolved && (
                 <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
+                    <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
+                  </div>
+
+                  {cpResult && (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
+                          <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
+                          <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {cpResult.colonias.length > 0 && (
+                        <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
+                          <option value="">Selecciona colonia</option>
+                          {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      )}
+                    </>
+                  )}
+
                   <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder="Calle" style={inputStyle} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <input value={address.ext_number ?? ''} onChange={e => setAddress({ ...address, ext_number: e.target.value })} placeholder="No. exterior" style={inputStyle} />
