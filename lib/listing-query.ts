@@ -35,6 +35,23 @@ export function listingTypeBadge(type: string | null | undefined): string | null
   return type ? (BADGE_LABELS[type] ?? null) : null
 }
 
+// PDP decision frame — the type-appropriate lead a buyer sees first (S3.1).
+// A service/rental/digital/subscription shouldn't open like a boxed product, so
+// each non-product type leads with its own label + hint + iconoir glyph. `product`
+// returns null (its buy box IS the frame). es-MX; same taxonomy as the chip rail.
+const TYPE_FRAMES: Record<string, { label: string; hint: string; icon: string }> = {
+  service: { label: 'Servicio', hint: 'Solicita o agenda con el vendedor', icon: 'iconoir-calendar' },
+  rental: { label: 'Renta', hint: 'Coordina fechas y disponibilidad', icon: 'iconoir-calendar' },
+  digital: { label: 'Producto digital', hint: 'Entrega automática al instante', icon: 'iconoir-download' },
+  subscription: { label: 'Suscripción', hint: 'Acceso recurrente', icon: 'iconoir-refresh-double' },
+}
+
+export function listingTypeFrame(
+  type: string | null | undefined,
+): { label: string; hint: string; icon: string } | null {
+  return type ? (TYPE_FRAMES[type] ?? null) : null
+}
+
 // Mobile filter sheet — the apply button's live label (es-MX, singular/plural).
 // `null` (count not yet loaded) → a neutral "Ver resultados"; 0 → "Sin resultados".
 export function resultCountLabel(count: number | null | undefined): string {
