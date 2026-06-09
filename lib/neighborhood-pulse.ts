@@ -1,6 +1,16 @@
-import type { PrintSocialStatus } from '@/lib/print'
+import { PRINT_SOCIAL_TYPES, type PrintSocialStatus } from '@/lib/print'
 
 export const NEIGHBORHOOD_PULSE_SOCIAL_STATUSES = ['approved', 'placed'] as const satisfies readonly PrintSocialStatus[]
+
+export const NEIGHBORHOOD_PULSE_COPY = {
+  eyebrow: 'Pulso local',
+  title: 'Vecindario',
+  intro: 'Recomendaciones, reconocimientos y avisos que la comunidad ya compartió con Miyagi.',
+  emptyTitle: 'Todavía no hay aportes en línea',
+  emptyBody: 'El feed se llena cuando el equipo aprueba un aporte para web. Mientras tanto, el vecindario sigue tomando forma.',
+  fallbackSubmitter: 'Vecino de la comunidad',
+  noPhoto: 'Sin foto',
+}
 
 const ADMIN_SOCIAL_STATUSES = ['submitted', 'approved', 'placed', 'rejected'] as const satisfies readonly PrintSocialStatus[]
 
@@ -14,6 +24,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function isNeighborhoodPulseSocialItem(item: { status?: unknown; web_visible?: unknown }): boolean {
   return item.web_visible === true && (NEIGHBORHOOD_PULSE_SOCIAL_STATUSES as readonly string[]).includes(String(item.status))
+}
+
+export function printSocialTypeLabel(type: string): string {
+  return PRINT_SOCIAL_TYPES.find((t) => t.key === type)?.label ?? 'Aporte'
+}
+
+export function formatPulseDate(date: string): string {
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' }).format(parsed)
 }
 
 export function buildPrintSocialAdminPatch(body: unknown): PrintSocialAdminPatchResult {

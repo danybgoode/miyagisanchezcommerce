@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import {
   buildPrintSocialAdminPatch,
   isNeighborhoodPulseSocialItem,
+  NEIGHBORHOOD_PULSE_COPY,
 } from '../lib/neighborhood-pulse'
 
 test.describe('neighborhood pulse · moderator web opt-in', () => {
@@ -55,5 +56,24 @@ test.describe('neighborhood pulse · moderator web opt-in', () => {
     expect(data.toggled_on).toBe(true)
     expect(data.toggled_off).toBe(true)
     expect(data.status_after_toggle).toBe('approved')
+  })
+})
+
+test.describe('neighborhood pulse · public feed visibility', () => {
+  test('feed predicate shows only opted-in approved or placed items', () => {
+    expect(isNeighborhoodPulseSocialItem({ status: 'approved', web_visible: true })).toBe(true)
+    expect(isNeighborhoodPulseSocialItem({ status: 'placed', web_visible: true })).toBe(true)
+    expect(isNeighborhoodPulseSocialItem({ status: 'submitted', web_visible: true })).toBe(false)
+    expect(isNeighborhoodPulseSocialItem({ status: 'rejected', web_visible: true })).toBe(false)
+    expect(isNeighborhoodPulseSocialItem({ status: 'approved', web_visible: false })).toBe(false)
+  })
+
+  test('public feed route renders anonymously', async ({ request }) => {
+    const res = await request.get('/vecindario')
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+
+    expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.title)
+    expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.eyebrow)
   })
 })
