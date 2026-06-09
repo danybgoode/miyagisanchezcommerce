@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const base = `https://${host}`
 
   const body = [
-    'User-agent: *',
+    'User-Agent: *',
     'Allow: /',
     '',
     `Sitemap: ${base}/sitemap.xml`,
