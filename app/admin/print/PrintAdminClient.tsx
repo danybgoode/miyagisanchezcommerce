@@ -401,6 +401,15 @@ function Social({ api }: { api: Api }) {
               <option value="">Sin edición</option>
               {editions.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
             </select>
+            <label className="inline-flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2 py-1 text-xs">
+              <input
+                type="checkbox"
+                checked={s.web_visible === true}
+                onChange={(e) => patch(s.id, { web_visible: e.target.checked })}
+                className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+              />
+              Mostrar en línea
+            </label>
           </div>
         </div>
       ))}
