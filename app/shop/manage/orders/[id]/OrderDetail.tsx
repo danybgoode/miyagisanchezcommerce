@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
 import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundConfirmationToast, refundIssuedBanner } from '@/lib/manual-payment-state'
+import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ interface OrderDetailProps {
     created_at: string
     updated_at: string
     personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment + durable manual-payment lifecycle (curated top-level fields).
     payment_method?: string | null
@@ -810,6 +812,26 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                       </div>
                     ))}
                   </dl>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {(order.event_tickets ?? []).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Boletos de entrada</h3>
+            <div className="space-y-3">
+              {(order.event_tickets ?? []).map((ticket, index) => (
+                <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
+                  <div className="flex items-start gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">Boleto {index + 1}</p>
+                      <p className="text-xs text-[var(--color-muted)] mt-1">{ticket.state === 'redeemed' ? 'Presente' : 'Sin check-in'}</p>
+                      <code className="mt-2 block text-xs break-all bg-[var(--color-surface-alt)] rounded px-2 py-1">{ticket.token}</code>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

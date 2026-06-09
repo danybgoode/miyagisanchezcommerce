@@ -223,6 +223,7 @@ export default function EventsManager({
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Link href={`/e/${event.slug}`} target="_blank" className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.viewPublic}</Link>
+                      <Link href={`/shop/manage/eventos/${event.id}`} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.roster}</Link>
                       <button type="button" onClick={() => copyPublic(event.public_url)} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)]">{ui.copyLink}</button>
                       <a href={`/api/sell/events/${event.id}/qr`} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.downloadQr}</a>
                       <button type="button" onClick={() => { setForm(formFromEvent(event)); setMessage(null); setError(null) }} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)]">{ui.edit}</button>

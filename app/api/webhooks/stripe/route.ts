@@ -24,6 +24,7 @@ import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
+import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -346,6 +347,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   const orderMeta = completed?.metadata ?? {}
   const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
   const isSupportPayment = supportMeta?.kind === 'support' || session.metadata?.checkout_kind === 'support'
+  let eventTickets: Awaited<ReturnType<typeof issuePaidTicketsForOrder>> = []
 
   // 1b. Print-ad placement? Mark the submission paid, send print emails, and skip
   //     the generic product/coordinated flow below (placements aren't shippable orders).
@@ -360,6 +362,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
 
   // 2. Record in Supabase so existing seller/buyer order UIs can find it (idempotent)
   if (medusaOrderId) {
+    eventTickets = await issuePaidTicketsForOrder(medusaOrderId)
     await upsertOrderMirror({
       medusaOrderId,
       cartId: cart_id,
@@ -376,6 +379,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       stripeSessionId: session.id,
       offerId: offer_id ?? null,
       channel: (orderMeta.channel as string | undefined) ?? null,
+      eventTickets,
       shippingQuote: shipping_rate_id ? {
         rate_id: shipping_rate_id,
         carrier: shipping_carrier ?? null,
@@ -450,6 +454,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[email] pickup buyer:', e))
       } else if (isCoord) {
@@ -464,6 +469,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[email] coord buyer:', e))
       } else {
@@ -478,6 +484,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           digitalDownloadUrl: null,
           digitalExpiresAt: null,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
       }
