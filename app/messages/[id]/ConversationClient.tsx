@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
 import { formatOfferAmount, timeUntil, offerTurn, type OfferStatus } from '@/lib/offers'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
+import TrustSignals from '@/app/components/TrustSignals'
 import type { CheckoutProvider } from '@/lib/cart'
 import type { LedgerView } from '@/lib/transaction-ledger'
 import { useConversationStream } from '@/lib/messaging/stream'
@@ -46,6 +47,8 @@ interface Props {
   currentUserId: string
   currentUserEmail?: string
   initialTransaction: ConvTransaction
+  /** Slim trust capsule shown at the negotiation entry (C.5), derived server-side. */
+  trustCapsule: { verified: boolean; paymentProtected: boolean; returnsLabel: string | null }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -625,7 +628,7 @@ function StampChooser({ role, conversationId, onStampSent }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, initialTransaction }: Props) {
+export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, initialTransaction, trustCapsule }: Props) {
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
   const [transaction, setTransaction] = useState(initialTransaction)
@@ -806,6 +809,25 @@ export default function ConversationClient({ conversationId, initialConversation
           <i className="iconoir-arrow-up-right" style={{ fontSize: 14, color: 'var(--fg-muted)', flexShrink: 0 }} />
         </div>
       </Link>
+
+      {/* Trust capsule (C.5) — slim <TrustSignals> at the negotiation entry, so the buyer
+          learns eligibility (verification · pago protegido · devoluciones) BEFORE submitting
+          an offer. Channel-aware (conversations are platform-only today). Renders nothing
+          when the seller has none of the three signals. */}
+      {(trustCapsule.verified || trustCapsule.paymentProtected || !!trustCapsule.returnsLabel) && (
+        <div style={{ flexShrink: 0, padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+          <TrustSignals
+            channel="marketplace"
+            variant="slim"
+            paymentMethods={[]}
+            fulfillmentMethods={[]}
+            processingLabel={null}
+            returnsLabel={trustCapsule.returnsLabel}
+            verified={trustCapsule.verified}
+            paymentProtected={trustCapsule.paymentProtected}
+          />
+        </div>
+      )}
 
       {/* Agent CTA */}
       <div style={{ flexShrink: 0, padding: '8px 16px', background: 'var(--agent-soft)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>

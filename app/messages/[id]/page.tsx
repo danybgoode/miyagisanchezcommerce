@@ -8,6 +8,7 @@ import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { resolveConversationLedger, type ConversationLedger } from '@/lib/conversation-ledger'
 import type { LedgerOffer } from '@/lib/transaction-ledger'
+import { returnsWindowLabel } from '@/lib/trust-signals'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -32,7 +33,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id,
       marketplace_listings ( id, medusa_product_id, title, price_cents, currency, images, status, condition, location, listing_type ),
-      marketplace_shops ( id, name, slug, logo_url, metadata, mp_enabled )
+      marketplace_shops ( id, name, slug, logo_url, verified, metadata, mp_enabled )
     `)
     .eq('id', id)
     .maybeSingle()
@@ -71,6 +72,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     : null
 
   const shopRaw = conv.marketplace_shops as unknown as {
+    verified?: boolean | null
     metadata?: Record<string, unknown> | null
     mp_enabled?: boolean | null
   } | null
@@ -78,6 +80,18 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
   const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
   const checkoutProvider = sellerHasMp ? 'mercadopago' : sellerHasStripe ? 'stripe' : null
+
+  // ── Trust capsule (C.5) — the slim <TrustSignals> shown at the negotiation entry.
+  // Derived server-side from the shop the page already loaded: verification, an online
+  // card rail (⇒ payment protection), and a positive return window. Null-safe — a missing
+  // field simply drops its chip (the capsule renders nothing when all three are absent). ──
+  const shopSettings = (shopRaw?.metadata?.settings ?? {}) as Record<string, unknown>
+  const returnsPolicy = shopSettings.returns_policy as { window?: string } | undefined
+  const trustCapsule = {
+    verified: !!shopRaw?.verified,
+    paymentProtected: sellerHasStripe || sellerHasMp,
+    returnsLabel: returnsWindowLabel(returnsPolicy?.window),
+  }
 
   // Mark as read (fire-and-forget, non-blocking)
   const unreadField = isBuyer ? 'buyer_unread' : 'seller_unread'
@@ -123,6 +137,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         currentUserId={user.id}
         currentUserEmail={user.emailAddresses[0]?.emailAddress ?? ''}
         initialTransaction={initialTransaction}
+        trustCapsule={trustCapsule}
       />
     </div>
   )

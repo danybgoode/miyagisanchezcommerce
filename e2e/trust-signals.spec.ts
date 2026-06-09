@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   selectTrustSignals,
   trustChannelBucket,
+  returnsWindowLabel,
   TRUST_COPY,
   type TrustSignalsInput,
 } from '../lib/trust-signals'
@@ -94,6 +95,20 @@ test.describe('trust-signals · parity-first (every channel shows the same signa
     for (const channel of channels) {
       expect(selectTrustSignals({ ...FULL, channel })).toEqual(base)
     }
+  })
+})
+
+test.describe('trust-signals · returnsWindowLabel', () => {
+  test('maps the positive windows to es-MX labels', () => {
+    expect(returnsWindowLabel('7d')).toBe('7 días')
+    expect(returnsWindowLabel('14d')).toBe('14 días')
+    expect(returnsWindowLabel('30d')).toBe('30 días')
+  })
+  test('returns null for absent / "no returns" / unknown windows', () => {
+    expect(returnsWindowLabel(null)).toBeNull()
+    expect(returnsWindowLabel(undefined)).toBeNull()
+    expect(returnsWindowLabel('')).toBeNull()
+    expect(returnsWindowLabel('none')).toBeNull()
   })
 })
 

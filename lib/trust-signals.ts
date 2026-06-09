@@ -104,6 +104,17 @@ export function selectTrustSignals(input: TrustSignalsInput): TrustSignalVisibil
   }
 }
 
+/**
+ * Map a shop's stored returns-policy window to a positive es-MX label.
+ * Only 7/14/30-day windows surface as a trust signal — "no returns" is never shown
+ * (it's the implicit default; platform protection applies regardless). Mirrors the PDP.
+ * Reusable by Epic D's per-surface trust-input derivation.
+ */
+const RETURNS_WINDOW_LABELS: Record<string, string> = { '7d': '7 días', '14d': '14 días', '30d': '30 días' }
+export function returnsWindowLabel(window?: string | null): string | null {
+  return window ? RETURNS_WINDOW_LABELS[window] ?? null : null
+}
+
 /** es-MX copy for the slim capsule chips. Single source so the spec + UI can't drift. */
 export const TRUST_COPY = {
   verified: 'Vendedor verificado',
