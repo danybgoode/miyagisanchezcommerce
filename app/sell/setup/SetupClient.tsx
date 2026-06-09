@@ -5,10 +5,12 @@ import Link from 'next/link'
 import {
   validateSetup,
   buildSetupPrompt,
+  buildClerkPrompt,
   EXAMPLE_SETUP,
   SETUP_SPEC_VERSION,
   type MiyagiSetupFile,
 } from '@/lib/setup-spec'
+import ConnectAgentPanel from '@/components/ConnectAgentPanel'
 import {
   planSetupApply,
   aggregateSetupReport,
@@ -408,6 +410,77 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
           <Link href="/sell/setup" className="btn btn-secondary no-underline">Intentar de nuevo</Link>
         </div>
       )}
+
+      {/* ── Close the loop: your agent as your shop clerk + what's next (Story 3) ── */}
+      {shopOk && <LoopClose shopSlug={shopSlug} />}
+    </div>
+  )
+}
+
+// ── Post-setup loop-close: clerk prompt + connect-agent + what's next ─────────────
+function LoopClose({ shopSlug }: { shopSlug: string | null }) {
+  const clerkPrompt = buildClerkPrompt()
+  return (
+    <div className="mt-10 pt-6 border-t border-[var(--color-border)] space-y-6">
+      <div className="text-center">
+        <h3 className="text-lg font-bold">Deja que tu agente lleve tu tienda</h3>
+        <p className="text-sm text-[var(--color-muted)] mt-1">
+          Tu tienda ya está creada. Estos dos pasos hacen que tu propio agente la opere de aquí en adelante.
+        </p>
+      </div>
+
+      {/* 1 — the copyable shop-clerk operate-prompt */}
+      <section className="border border-[var(--color-border)] rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h4 className="font-semibold flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
+            Tu agente como tu dependiente
+          </h4>
+          <CopyButton text={clerkPrompt} label="Copiar prompt del dependiente" />
+        </div>
+        <p className="text-sm text-[var(--color-muted)] mb-3">
+          Copia este prompt en tu IA (Claude u otro cliente MCP), junto con tu token de abajo, y tu agente
+          podrá pulir, fijar precios, promover, resurtir y mantener tu tienda — en tu idioma.
+        </p>
+        <textarea
+          readOnly
+          value={clerkPrompt}
+          onFocus={(e) => e.currentTarget.select()}
+          rows={12}
+          className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
+        />
+      </section>
+
+      {/* 2 — the per-shop MCP token + config (reused ConnectAgentPanel) */}
+      <section className="border border-[var(--color-border)] rounded-2xl p-5">
+        <h4 className="font-semibold flex items-center gap-2 mb-3">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
+          Conecta tu agente
+        </h4>
+        <ConnectAgentPanel />
+      </section>
+
+      {/* 3 — what's next */}
+      <section className="rounded-2xl bg-[var(--surface-muted)] p-5">
+        <h4 className="font-semibold mb-2">¿Qué sigue?</h4>
+        <ul className="text-sm text-[var(--color-muted)] space-y-1.5">
+          <li>
+            💳 <strong className="text-[var(--color-foreground)] font-medium">Agrega pagos</strong> — sigue
+            siendo un paso manual. Configúralos en{' '}
+            <Link href="/shop/manage/settings" className="text-[var(--color-accent)] hover:underline">ajustes de tu tienda</Link>.
+          </li>
+          <li>
+            🔗 <strong className="text-[var(--color-foreground)] font-medium">Comparte tu tienda</strong>
+            {shopSlug
+              ? <> — tu enlace público es <Link href={`/s/${shopSlug}`} className="text-[var(--color-accent)] hover:underline">/s/{shopSlug}</Link>.</>
+              : <> desde el panel de tu tienda.</>}
+          </li>
+          <li>
+            🤖 <strong className="text-[var(--color-foreground)] font-medium">Deja que tu agente la lleve</strong> —
+            con el prompt y el token de arriba, tu IA se encarga del día a día.
+          </li>
+        </ul>
+      </section>
     </div>
   )
 }
