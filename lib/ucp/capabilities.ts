@@ -109,6 +109,7 @@ export const MCP_BUYER_TOOLS = [
   'get_buyer_trust',
   'get_support_options',
   'create_support_checkout',
+  'about_miyagi',
 ] as const
 
 /**
