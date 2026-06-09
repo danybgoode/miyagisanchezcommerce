@@ -9,6 +9,11 @@ import {
   deriveRefundState, refundBadge, refundStateDetail, whoActsNextRefund, canSellerMarkTransferred,
   type RefundState, type ReturnRequestLike,
 } from '@/lib/refund-state'
+import {
+  derivePickupAppointmentState, pickupAppointmentBadge, formatPickupAppointment, whoActsNextPickup,
+  canSellerConfirm, canSellerReschedule, PICKUP_WINDOWS,
+  type PickupAppointmentState, type PickupAppointmentLike,
+} from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -59,6 +64,9 @@ interface OrderDetailProps {
     // Two-sided refund lifecycle (Delivery & Manual-Money Polish S1).
     refund_state?: RefundState | null
     return_request?: ReturnRequestLike | null
+    // Pickup propose-and-confirm appointment (S2).
+    pickup_appointment_state?: PickupAppointmentState | null
+    pickup_appointment?: PickupAppointmentLike | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -600,6 +608,40 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  // Pickup propose-and-confirm appointment (S2). Seed from the normalizer-emitted record;
+  // advance client-side as the seller confirms / reschedules.
+  const [pickupAppt, setPickupAppt] = useState<PickupAppointmentLike | null>(
+    (order.pickup_appointment as PickupAppointmentLike | undefined)
+      ?? (orderMeta.pickup_appointment as PickupAppointmentLike | undefined) ?? null,
+  )
+  const [pickupBusy, setPickupBusy] = useState(false)
+  const [reschedOpen, setReschedOpen] = useState(false)
+  const [reschedDate, setReschedDate] = useState('')
+  const [reschedWindow, setReschedWindow] = useState('')
+
+  async function handlePickupAction(action: 'confirm' | 'reschedule') {
+    setPickupBusy(true)
+    try {
+      const body = action === 'reschedule'
+        ? { action, date: reschedDate, window: reschedWindow }
+        : { action }
+      const res = await fetch(`/api/orders/${order.id}/pickup-appointment/manage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as { pickup_appointment?: PickupAppointmentLike; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'No se pudo actualizar la cita.', 'error'); return }
+      if (data.pickup_appointment) setPickupAppt(data.pickup_appointment)
+      setReschedOpen(false); setReschedDate(''); setReschedWindow('')
+      showToast(action === 'confirm' ? 'Cita de recolección confirmada.' : 'Propusiste una nueva hora.', 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setPickupBusy(false)
+    }
+  }
+
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
     : order.marketplace_listings
@@ -996,10 +1038,64 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       )}
 
       {/* ── Delivery method banners ────────────────────────────────────────── */}
+      {/* Pickup propose-and-confirm appointment (S2) — the buyer proposed a slot at
+          checkout; the seller confirms it or counters with another window. */}
+      {isPickupOrder && pickupAppt && !['delivered','completed','refunded'].includes(currentStatus) && (() => {
+        const paState = derivePickupAppointmentState(pickupAppt)
+        const confirmed = paState === 'confirmada'
+        return (
+          <div className={`border rounded-xl p-4 mb-5 ${confirmed ? 'border-green-200 bg-green-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
+            <div className="flex items-center justify-between mb-1">
+              <p className={`text-xs font-semibold uppercase tracking-wide ${confirmed ? 'text-green-700' : 'text-amber-700'}`}>📅 Cita de recolección</p>
+              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${confirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                {pickupAppointmentBadge(paState)}
+              </span>
+            </div>
+            <p className={`text-sm font-semibold ${confirmed ? 'text-green-900' : 'text-amber-900'}`}>{formatPickupAppointment(pickupAppt)}</p>
+            <p className={`text-xs mt-1 ${confirmed ? 'text-green-700' : 'text-amber-700'}`}>{whoActsNextPickup(pickupAppt, 'seller')}</p>
+            {!confirmed && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {canSellerConfirm(pickupAppt) && (
+                  <button type="button" onClick={() => handlePickupAction('confirm')} disabled={pickupBusy}
+                    className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+                    {pickupBusy ? 'Confirmando…' : '✓ Confirmar cita'}
+                  </button>
+                )}
+                {canSellerReschedule(pickupAppt) && (
+                  <button type="button" onClick={() => setReschedOpen(o => !o)} disabled={pickupBusy}
+                    className="text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                    Proponer otra hora
+                  </button>
+                )}
+              </div>
+            )}
+            {reschedOpen && !confirmed && (
+              <div className="grid gap-2 mt-3">
+                <input type="date" value={reschedDate} min={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setReschedDate(e.target.value)}
+                  className="border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white" />
+                <div className="grid gap-1">
+                  {PICKUP_WINDOWS.map(w => (
+                    <button key={w.key} type="button" onClick={() => setReschedWindow(w.key)}
+                      className={`text-left text-sm rounded-lg px-3 py-2 border ${reschedWindow === w.key ? 'border-amber-500 bg-amber-100 font-semibold' : 'border-amber-200 bg-white'}`}>
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => handlePickupAction('reschedule')} disabled={pickupBusy || !reschedDate || !reschedWindow}
+                  className="text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                  {pickupBusy ? 'Enviando…' : 'Enviar propuesta'}
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {isPickupOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
         <div className="border border-amber-200 bg-amber-50/60 rounded-xl p-4 mb-5">
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">📍 Recolección en mano</p>
-          <p className="text-sm text-amber-800 mb-3">El comprador irá a recogerte el artículo. Confírmale el horario y lugar por correo o mensaje.</p>
+          <p className="text-sm text-amber-800 mb-3">El comprador irá a recogerte el artículo{pickupAppt ? '' : '. Confírmale el horario y lugar por correo o mensaje'}. Coordina cualquier detalle por correo si hace falta.</p>
           {order.buyer_email && (
             <a
               href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, escríbeme para coordinar cuándo puedes venir a recoger tu pedido.`}

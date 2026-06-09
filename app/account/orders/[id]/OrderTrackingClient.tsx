@@ -9,6 +9,11 @@ import {
   deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
   type RefundState, type ReturnRequestLike,
 } from '@/lib/refund-state'
+import {
+  derivePickupAppointmentState, pickupAppointmentBadge, formatPickupAppointment,
+  whoActsNextPickup, canBuyerConfirm,
+  type PickupAppointmentState, type PickupAppointmentLike,
+} from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,6 +52,9 @@ interface OrderTrackingProps {
     // Two-sided refund lifecycle (Delivery & Manual-Money Polish S1).
     refund_state?: RefundState | null
     return_request?: ReturnRequestLike | null
+    // Pickup propose-and-confirm appointment (S2).
+    pickup_appointment_state?: PickupAppointmentState | null
+    pickup_appointment?: PickupAppointmentLike | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -276,6 +284,33 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       showToast('Sin conexión. Inténtalo de nuevo.', 'error')
     } finally {
       setConfirmingRefund(false)
+    }
+  }
+
+  // Pickup propose-and-confirm appointment (S2). Seeded from the normalizer-emitted record;
+  // the buyer confirms when the seller has countered with a new window.
+  const [pickupAppt, setPickupAppt] = useState<PickupAppointmentLike | null>(
+    (order.pickup_appointment as PickupAppointmentLike | undefined)
+      ?? (meta.pickup_appointment as PickupAppointmentLike | undefined) ?? null,
+  )
+  const [confirmingPickup, setConfirmingPickup] = useState(false)
+
+  async function handleConfirmPickup() {
+    setConfirmingPickup(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/pickup-appointment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm' }),
+      })
+      const data = await res.json() as { pickup_appointment?: PickupAppointmentLike; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al confirmar la cita.', 'error'); return }
+      if (data.pickup_appointment) setPickupAppt(data.pickup_appointment)
+      showToast('¡Listo! Confirmaste la cita de recolección.', 'success')
+    } catch {
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      setConfirmingPickup(false)
     }
   }
 
@@ -631,6 +666,35 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <p className="text-xs text-green-700 mt-1">El vendedor ya recibió el pago. ¡Gracias por tu compra!</p>
         </section>
       )}
+
+      {/* Pickup propose-and-confirm appointment (S2) — the buyer sees the agreed slot,
+          and confirms when the seller has countered with a new window. */}
+      {pickupAppt && (() => {
+        const paState = derivePickupAppointmentState(pickupAppt)
+        const confirmed = paState === 'confirmada'
+        return (
+          <section className={`border rounded-xl p-4 mb-5 ${confirmed ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className={`font-semibold text-sm ${confirmed ? 'text-green-900' : 'text-amber-900'}`}>📅 Cita de recolección</h2>
+              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${confirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                {pickupAppointmentBadge(paState)}
+              </span>
+            </div>
+            <p className={`text-sm font-semibold ${confirmed ? 'text-green-900' : 'text-amber-900'}`}>{formatPickupAppointment(pickupAppt)}</p>
+            <p className={`text-xs mt-1 ${confirmed ? 'text-green-700' : 'text-amber-700'}`}>{whoActsNextPickup(pickupAppt, 'buyer')}</p>
+            {canBuyerConfirm(pickupAppt) && (
+              <button
+                type="button"
+                onClick={handleConfirmPickup}
+                disabled={confirmingPickup}
+                className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {confirmingPickup ? 'Confirmando…' : '✓ Confirmar esta hora'}
+              </button>
+            )}
+          </section>
+        )
+      })()}
 
       {/* Off-platform (SPEI/cash) refund — buyer confirms receipt (S1). The mid-states
           (aceptado / transferencia_pendiente) are reachable ONLY via the manual rail
