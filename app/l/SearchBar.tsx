@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
 import type { SearchParams, SortOption } from '@/lib/types'
@@ -43,6 +43,8 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
     params.property_type ? params.property_type.split(',').filter(Boolean) : []
   )
+  // Mobile bottom-sheet open/closed (sm+ keeps the inline form, no sheet).
+  const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
   function togglePropertyType(value: string) {
@@ -51,12 +53,89 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
     )
   }
 
+  // Close the sheet on Escape and lock body scroll while it's open.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [open])
+
+  // "Limpiar" — clear every staged filter back to empty/default without
+  // applying (the buyer still taps the apply button to commit). Resets both the
+  // controlled selects and the uncontrolled inputs inside the form.
+  function clearFilters() {
+    setCategory('')
+    setSelectedState('')
+    setSelectedPropertyTypes([])
+    const f = formRef.current
+    if (!f) return
+    f.querySelectorAll('input').forEach(el => {
+      if (el.type === 'submit' || el.type === 'button') return
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false
+      else el.value = ''
+    })
+    f.querySelectorAll('select').forEach(el => {
+      el.value = el.name === 'sort' ? 'reciente' : ''
+    })
+  }
+
   const inputClass = 'border border-white/30 bg-white/20 text-white placeholder-white/70 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white focus:bg-white/30 w-full'
   const labelClass = 'text-white/80 text-xs mb-0.5 block'
   const selectClass = 'border border-white/30 bg-white/20 text-white rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white w-full [&>option]:text-[var(--color-text)] [&>option]:bg-white'
 
   return (
-    <form ref={formRef} method="GET" action="/l" className="rounded-xl p-4 bg-[var(--claim-accent)] mb-6">
+    <>
+      {/* Mobile-only sticky trigger — opens the filter sheet. */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="sm:hidden sticky top-2 z-30 w-full flex items-center justify-center gap-2 bg-[var(--claim-accent)] text-white font-semibold text-sm rounded-xl px-4 py-2.5 mb-4 shadow-sm"
+      >
+        <i className="iconoir-filter-list" /> Filtrar y ordenar
+      </button>
+
+      {/* Mobile-only backdrop behind the sheet. */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className="sm:hidden fixed inset-0 z-40 bg-black/40"
+          aria-hidden="true"
+        />
+      )}
+
+      <form
+        ref={formRef}
+        method="GET"
+        action="/l"
+        className={[
+          'bg-[var(--claim-accent)]',
+          // Mobile: bottom-sheet, slides up when open.
+          'fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 shadow-2xl',
+          'transition-transform duration-300',
+          open ? 'translate-y-0' : 'translate-y-full',
+          // sm+: revert to the inline card (unchanged from S1).
+          'sm:static sm:translate-y-0 sm:max-h-none sm:overflow-visible sm:rounded-xl sm:shadow-none sm:z-auto sm:transition-none sm:mb-6',
+        ].join(' ')}
+      >
+        {/* Sheet header (mobile only). */}
+        <div className="sm:hidden flex items-center justify-between mb-3">
+          <span className="text-white font-semibold text-sm">Filtros</span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Cerrar filtros"
+            className="text-white/80 hover:text-white text-lg leading-none px-1"
+          >
+            <i className="iconoir-xmark" />
+          </button>
+        </div>
+
       {/* Hidden property_type input for checkboxes */}
       {selectedPropertyTypes.length > 0 && (
         <input type="hidden" name="property_type" value={selectedPropertyTypes.join(',')} />
@@ -131,7 +210,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
 
         <button
           type="submit"
-          className="bg-white text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded text-sm hover:bg-white/90 transition-colors shrink-0"
+          className="hidden sm:block bg-white text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded text-sm hover:bg-white/90 transition-colors shrink-0"
         >
           Buscar
         </button>
@@ -310,6 +389,24 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           </div>
         </div>
       )}
+
+      {/* Mobile-only apply bar — pinned to the bottom of the sheet. */}
+      <div className="sm:hidden sticky bottom-0 -mx-4 -mb-4 mt-4 px-4 py-3 bg-[var(--claim-accent)] border-t border-white/20 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="text-white/80 hover:text-white text-sm font-medium shrink-0"
+        >
+          Limpiar
+        </button>
+        <button
+          type="submit"
+          className="flex-1 bg-white text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-lg text-sm hover:bg-white/90 transition-colors"
+        >
+          Ver resultados
+        </button>
+      </div>
     </form>
+    </>
   )
 }
