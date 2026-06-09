@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
+import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ interface OrderTrackingProps {
     buyer_email: string | null
     created_at: string
     personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment ("Pago directo") fields from the Medusa order
     payment_method?: string | null
@@ -459,6 +461,26 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                       <span className="font-medium break-words">{f.value}</span>
                     </div>
                   ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {(order.event_tickets ?? []).length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Boleto de entrada</h3>
+            <div className="space-y-3">
+              {(order.event_tickets ?? []).map((ticket, index) => (
+                <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
+                  <div className="flex items-start gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">Boleto {index + 1}</p>
+                      <p className="text-xs text-[var(--color-muted)] mt-1">{ticket.state === 'redeemed' ? 'Usado en puerta' : 'Listo para presentar en puerta'}</p>
+                      <code className="mt-2 block text-xs break-all bg-[var(--color-surface-alt)] rounded px-2 py-1">{ticket.token}</code>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

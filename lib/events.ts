@@ -12,6 +12,7 @@ import {
   verificationCodeMatches,
 } from '@/lib/sweepstakes'
 import { sendEventRegistrationConfirmation, sendEventVerificationCode } from '@/lib/email'
+import { absoluteTicketQrUrl, ensureFreeRegistrationTicket, ticketFromRegistration } from '@/lib/event-tickets'
 import type { MarketplaceEvent, MarketplaceEventRegistration, MarketplaceEventStats } from '@/lib/events-types'
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
@@ -91,7 +92,13 @@ export async function createOrRefreshEventVerification(input: {
   locale?: string | null
   codeOverride?: string
   sendEmail?: boolean
-}): Promise<{ alreadyRegistered: boolean; capacityFull: boolean; registrationId?: string }> {
+}): Promise<{
+  alreadyRegistered: boolean
+  capacityFull: boolean
+  registrationId?: string
+  ticket_token?: string | null
+  ticket_qr_url?: string | null
+}> {
   const email = cleanEmail(input.email)
   const locale = normalizeLocale(input.locale)
   const emailHash = hashSweepstakesEmail(email)
@@ -104,7 +111,18 @@ export async function createOrRefreshEventVerification(input: {
     .maybeSingle()
 
   if ((existing as MarketplaceEventRegistration | null)?.status === 'registered') {
-    return { alreadyRegistered: true, capacityFull: false, registrationId: (existing as MarketplaceEventRegistration).id }
+    const ticketed = await ensureFreeRegistrationTicket({
+      event: input.event,
+      registration: existing as MarketplaceEventRegistration,
+    })
+    const ticket = ticketFromRegistration(ticketed)
+    return {
+      alreadyRegistered: true,
+      capacityFull: false,
+      registrationId: ticketed.id,
+      ticket_token: ticket?.token ?? null,
+      ticket_qr_url: ticket ? absoluteTicketQrUrl(SITE_URL, ticket.token) : null,
+    }
   }
 
   const stats = await getEventStats(input.event)
@@ -156,6 +174,8 @@ export async function verifyEventRegistration(input: {
   capacityFull?: boolean
   error?: 'invalid_code' | 'capacity_full'
   registration?: MarketplaceEventRegistration
+  ticket_token?: string | null
+  ticket_qr_url?: string | null
   stats?: MarketplaceEventStats
 }> {
   const email = cleanEmail(input.email)
@@ -172,10 +192,14 @@ export async function verifyEventRegistration(input: {
   if (!registration) return { ok: false, error: 'invalid_code' }
 
   if (registration.status === 'registered' && registration.verified_at) {
+    const ticketed = await ensureFreeRegistrationTicket({ event: input.event, registration })
+    const ticket = ticketFromRegistration(ticketed)
     return {
       ok: true,
       alreadyRegistered: true,
-      registration,
+      registration: ticketed,
+      ticket_token: ticket?.token ?? null,
+      ticket_qr_url: ticket ? absoluteTicketQrUrl(SITE_URL, ticket.token) : null,
       stats: await getEventStats(input.event),
     }
   }
@@ -213,13 +237,20 @@ export async function verifyEventRegistration(input: {
 
   if (error || !updated) throw new Error(error?.message ?? 'event registration failed')
 
-  const typed = updated as MarketplaceEventRegistration
+  const typed = await ensureFreeRegistrationTicket({
+    event: input.event,
+    registration: updated as MarketplaceEventRegistration,
+    now,
+  })
+  const ticket = ticketFromRegistration(typed)
   if (input.sendConfirmation !== false) {
     await sendEventRegistrationConfirmation({
       to: email,
       locale,
       eventTitle: input.event.title,
       eventUrl: publicEventUrl(input.event.slug, locale),
+      ticketToken: ticket?.token ?? null,
+      ticketQrUrl: ticket ? absoluteTicketQrUrl(SITE_URL, ticket.token) : null,
       startsAt: input.event.starts_at,
       venueName: input.event.venue_name,
       venueAddress: input.event.venue_address,
@@ -233,6 +264,8 @@ export async function verifyEventRegistration(input: {
   return {
     ok: true,
     registration: typed,
+    ticket_token: ticket?.token ?? null,
+    ticket_qr_url: ticket ? absoluteTicketQrUrl(SITE_URL, ticket.token) : null,
     stats: await getEventStats(input.event),
   }
 }

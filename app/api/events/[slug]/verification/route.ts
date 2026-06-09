@@ -32,7 +32,12 @@ export async function POST(
   try {
     const result = await createOrRefreshEventVerification({ event, email: body.email, locale: body.locale })
     if (result.capacityFull) return NextResponse.json({ error: 'capacity_full' }, { status: 409 })
-    return NextResponse.json({ ok: true, already_registered: result.alreadyRegistered })
+    return NextResponse.json({
+      ok: true,
+      already_registered: result.alreadyRegistered,
+      ticket_token: result.ticket_token ?? null,
+      ticket_qr_url: result.ticket_qr_url ?? null,
+    })
   } catch (e) {
     console.error('[events] verification send failed:', e)
     return NextResponse.json({ error: 'unavailable' }, { status: 500 })

@@ -43,6 +43,7 @@ export default function EventRegistrationClient({
   const [sending, setSending] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<'registered' | 'already' | null>(null)
+  const [ticket, setTicket] = useState<{ token: string | null; qrUrl: string | null }>({ token: null, qrUrl: null })
   const [stats, setStats] = useState({ registeredCount, capacityRemaining })
   const [error, setError] = useState<string | null>(null)
 
@@ -60,9 +61,15 @@ export default function EventRegistrationClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, locale }),
       })
-      const data = await res.json() as { error?: string; already_registered?: boolean }
+      const data = await res.json() as {
+        error?: string
+        already_registered?: boolean
+        ticket_token?: string | null
+        ticket_qr_url?: string | null
+      }
       if (!res.ok) { setError(data.error ?? 'unavailable'); return }
       if (data.already_registered) {
+        setTicket({ token: data.ticket_token ?? null, qrUrl: data.ticket_qr_url ?? null })
         setSuccess('already')
       } else {
         setCodeSent(true)
@@ -88,6 +95,8 @@ export default function EventRegistrationClient({
       const data = await res.json() as {
         error?: string
         already_registered?: boolean
+        ticket_token?: string | null
+        ticket_qr_url?: string | null
         registered_count?: number
         capacity_remaining?: number | null
       }
@@ -96,6 +105,7 @@ export default function EventRegistrationClient({
         registeredCount: data.registered_count ?? stats.registeredCount,
         capacityRemaining: data.capacity_remaining ?? null,
       })
+      setTicket({ token: data.ticket_token ?? null, qrUrl: data.ticket_qr_url ?? null })
       setSuccess(data.already_registered ? 'already' : 'registered')
     } catch {
       setError('unavailable')
@@ -149,6 +159,29 @@ export default function EventRegistrationClient({
                   {success === 'already' ? ui.alreadyRegisteredTitle : ui.successTitle}
                 </h2>
                 <p className="text-sm text-[var(--color-muted)] leading-6 mt-3">{ui.successBody}</p>
+                {ticket.token && (
+                  <div className="mt-5 rounded-lg border border-[var(--color-border)] p-4">
+                    <h3 className="font-semibold">{ui.ticketTitle}</h3>
+                    <p className="text-sm text-[var(--color-muted)] leading-6 mt-2">{ui.ticketBody}</p>
+                    {ticket.qrUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={ticket.qrUrl}
+                        alt={ui.ticketTitle}
+                        className="mt-4 w-40 h-40 border border-[var(--color-border)] rounded-lg"
+                      />
+                    )}
+                    <div className="mt-3 text-xs text-[var(--color-muted)]">{ui.ticketToken}</div>
+                    <code className="mt-1 block break-all text-sm bg-[var(--color-surface-alt)] rounded-lg px-3 py-2">
+                      {ticket.token}
+                    </code>
+                    {ticket.qrUrl && (
+                      <a href={ticket.qrUrl} className="mt-3 inline-flex px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm no-underline">
+                        {ui.downloadTicketQr}
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <form onSubmit={submitRegistration}>

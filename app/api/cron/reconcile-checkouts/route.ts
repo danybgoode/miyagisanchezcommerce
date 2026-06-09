@@ -23,6 +23,7 @@ import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
+import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -125,6 +126,7 @@ export async function GET(req: NextRequest) {
   for (const c of ready) {
     const orderId = await completeMedusaCart(c.cart_id)
     if (!orderId) continue
+    const eventTickets = await issuePaidTicketsForOrder(orderId)
 
     const { created } = await upsertOrderMirror({
       medusaOrderId: orderId,
@@ -143,6 +145,7 @@ export async function GET(req: NextRequest) {
       offerId: c.offer_id,
       stripeSessionId: c.stripe_session_id,
       mpPaymentId: c.mp_payment_id,
+      eventTickets,
     })
 
     // Only run one-time side effects when this run actually created the mirror

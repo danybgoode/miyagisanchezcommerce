@@ -14,6 +14,7 @@
  */
 
 import { db } from '@/lib/supabase'
+import { EVENT_TICKETS_METADATA_KEY, type EventTicket } from '@/lib/event-ticket-state'
 
 export interface OrderMirrorShippingQuote {
   rate_id: string
@@ -47,6 +48,8 @@ export interface OrderMirrorInput {
   mpPaymentId?: string | null
   /** Sales channel of the order (e.g. 'custom_domain') for seller attribution. */
   channel?: string | null
+  /** Event admission tickets copied from Medusa order metadata for roster reads. */
+  eventTickets?: EventTicket[] | null
 }
 
 export interface OrderMirrorResult {
@@ -90,6 +93,7 @@ export async function upsertOrderMirror(input: OrderMirrorInput): Promise<OrderM
       shipping_quote: input.shippingQuote ?? null,
       ...(input.offerId ? { offer_id: input.offerId } : {}),
       ...(input.channel ? { channel: input.channel } : {}),
+      ...(input.eventTickets?.length ? { [EVENT_TICKETS_METADATA_KEY]: input.eventTickets } : {}),
     },
   }
 

@@ -31,6 +31,7 @@ import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
+import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -147,6 +148,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
 
   const medusaOrderId = await completeMedusaCart(cartId)
   if (!medusaOrderId) return
+  const eventTickets = await issuePaidTicketsForOrder(medusaOrderId)
 
   // Print-ad placement? Mark paid, send print emails, skip the generic order flow.
   const isPrintAd = await handlePrintAdPaid({
@@ -173,6 +175,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     shippingAmountCents,
     mpPaymentId: paymentId,
     offerId,
+    eventTickets,
     shippingQuote: meta.shipping_rate_id ? {
       rate_id: meta.shipping_rate_id,
       carrier: meta.shipping_carrier ?? null,
@@ -215,6 +218,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
         buyerEmail: be, buyerName,
         listingTitle: listingInfo.title, listingUrl, amountPaid: amountFormatted,
         shopName: listingInfo.seller_name, isDigital: false,
+        eventTickets,
       }).catch(e => console.error('[mp email] marketplace buyer:', e))
       if (listingInfo.seller_clerk_id) {
         getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
@@ -490,9 +494,11 @@ async function handleMedusaMpPayment({
   const orderMeta = completed?.metadata ?? {}
   const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
   const isSupportPayment = supportMeta?.kind === 'support'
+  let eventTickets: Awaited<ReturnType<typeof issuePaidTicketsForOrder>> = []
 
   // 2. Record in Supabase so the existing order UIs can find it (idempotent)
   if (medusaOrderId) {
+    eventTickets = await issuePaidTicketsForOrder(medusaOrderId)
     await upsertOrderMirror({
       medusaOrderId,
       cartId,
@@ -509,6 +515,7 @@ async function handleMedusaMpPayment({
       mpPaymentId: paymentId,
       offerId: offerId ?? null,
       channel: (orderMeta.channel as string | undefined) ?? null,
+      eventTickets,
       shippingQuote: shippingRateId ? {
         rate_id: shippingRateId,
         carrier: shippingCarrier ?? null,
@@ -574,6 +581,7 @@ async function handleMedusaMpPayment({
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[mp email] pickup buyer:', e))
       } else if (isCoord2) {
@@ -588,6 +596,7 @@ async function handleMedusaMpPayment({
           sellerWhatsapp: listingInfo.seller_whatsapp ?? null,
           orderUrl: orderUrl2,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[mp email] coord buyer:', e))
       } else {
@@ -600,6 +609,7 @@ async function handleMedusaMpPayment({
           shopName: listingInfo.seller_name,
           isDigital: false,
           personalization,
+          eventTickets,
           storeDomain,
         }).catch(e => console.error('[mp email] medusa buyer:', e))
       }

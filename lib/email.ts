@@ -5,6 +5,7 @@
 
 import { Resend } from 'resend'
 import { getDictionary, type Locale } from '@/lib/dictionary'
+import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -138,6 +139,23 @@ function personalizationBlock(blocks?: EmailPersonalization | null): string {
   return `<div style="margin:0 0 20px;padding:12px 14px;background:#f0f0ec;border-left:3px solid #1d6f42;font-size:13px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 6px">Personalización</div>
     ${sections}
+  </div>`
+}
+
+function eventTicketBlock(tickets?: EventTicket[] | null): string {
+  const clean = (tickets ?? []).filter(ticket => ticket.token)
+  if (!clean.length) return ''
+  const rows = clean.map((ticket, index) => `
+    <div style="margin:0 0 10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 4px">Boleto ${index + 1}</div>
+      <code style="display:block;word-break:break-all;background:#ffffff;border:1px solid #e2e2de;border-radius:4px;padding:8px">${esc(ticket.token)}</code>
+      <div style="margin-top:8px"><a href="${SITE}${ticketQrPath(ticket.token)}" style="color:#1d6f42;text-decoration:none;font-weight:600">Descargar QR →</a></div>
+    </div>
+  `).join('')
+  return `<div style="margin:0 0 20px;padding:12px 14px;background:#f0f0ec;border-left:3px solid #1d6f42;font-size:13px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 6px">Boleto de entrada</div>
+    <div style="margin:0 0 8px;color:#6b6b67">El QR contiene este token único. Preséntalo en la puerta.</div>
+    ${rows}
   </div>`
 }
 
@@ -348,6 +366,8 @@ export async function sendEventRegistrationConfirmation(ctx: {
   locale: Locale
   eventTitle: string
   eventUrl: string
+  ticketToken?: string | null
+  ticketQrUrl?: string | null
   startsAt: string
   venueName: string
   venueAddress?: string | null
@@ -361,7 +381,9 @@ export async function sendEventRegistrationConfirmation(ctx: {
       [ui.event, `<a href="${ctx.eventUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.eventTitle)}</a>`],
       [ui.date, esc(formatEventEmailDate(ctx.startsAt, ctx.locale))],
       [ui.venue, venue],
+      ...(ctx.ticketToken ? [[ui.ticketToken, `<code>${esc(ctx.ticketToken)}</code>`] as [string, string]] : []),
     ]),
+    ctx.ticketQrUrl ? cta(ui.downloadTicketQr, ctx.ticketQrUrl) : '',
     cta(ui.viewEvent, ctx.eventUrl),
   ].join('')
   await send(ctx.to, `${ui.confirmationSubject} — ${ctx.eventTitle}`, body)
@@ -667,6 +689,7 @@ export async function sendOrderConfirmedToBuyer(ctx: {
   digitalDownloadUrl?: string | null
   digitalExpiresAt?: string | null
   personalization?: EmailPersonalization | null
+  eventTickets?: EventTicket[] | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -684,6 +707,7 @@ export async function sendOrderConfirmedToBuyer(ctx: {
       ['Pagado',    ctx.amountPaid],
     ]),
     personalizationBlock(ctx.personalization),
+    eventTicketBlock(ctx.eventTickets),
     ctx.isDigital && ctx.digitalDownloadUrl
       ? [
           p('Tu archivo está listo para descargar.'),
@@ -963,6 +987,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
   sellerWhatsapp?: string | null
   orderUrl: string
   personalization?: EmailPersonalization | null
+  eventTickets?: EventTicket[] | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -984,6 +1009,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
       ...(ctx.sellerPhone ? [['Teléfono vendedor', esc(ctx.sellerPhone)] as [string, string]] : []),
     ]),
     personalizationBlock(ctx.personalization),
+    eventTicketBlock(ctx.eventTickets),
     notice('El vendedor tiene hasta <strong>24 horas</strong> para contactarte. Guarda este correo como comprobante de tu compra.', 'info'),
     whatsappUrl
       ? cta('Contactar por WhatsApp', whatsappUrl)
@@ -1041,6 +1067,7 @@ export async function sendPickupOrderToBuyer(ctx: {
   sellerWhatsapp?: string | null
   orderUrl: string
   personalization?: EmailPersonalization | null
+  eventTickets?: EventTicket[] | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
 }): Promise<void> {
@@ -1064,6 +1091,7 @@ export async function sendPickupOrderToBuyer(ctx: {
       ...(ctx.sellerPhone        ? [['Teléfono',     esc(ctx.sellerPhone)]        as [string, string]] : []),
     ]),
     personalizationBlock(ctx.personalization),
+    eventTicketBlock(ctx.eventTickets),
     notice('El vendedor confirmará el horario. Guarda este correo como comprobante de pago.', 'info'),
     whatsappUrl
       ? cta('Coordinar por WhatsApp', whatsappUrl)

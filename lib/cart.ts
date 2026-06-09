@@ -9,6 +9,12 @@
  */
 
 import type { PersonalizationPayload } from './personalization'
+import { readEventDetails } from './event-listing'
+import {
+  EVENT_TICKET_METADATA_KEY,
+  issueTicket,
+  type EventTicket,
+} from './event-ticket-state'
 
 /**
  * The line-item body fragment that carries buyer personalization onto the Medusa
@@ -19,6 +25,26 @@ export function lineItemPersonalizationMetadata(
   personalization?: PersonalizationPayload | null,
 ): { metadata: { personalization: PersonalizationPayload } } | Record<string, never> {
   return personalization?.fields?.length ? { metadata: { personalization } } : {}
+}
+
+function lineItemCheckoutMetadata(input: {
+  personalization?: PersonalizationPayload | null
+  eventTicket?: EventTicket | null
+}): { metadata: Record<string, unknown> } | Record<string, never> {
+  const metadata: Record<string, unknown> = {}
+  if (input.personalization?.fields?.length) metadata.personalization = input.personalization
+  if (input.eventTicket) metadata[EVENT_TICKET_METADATA_KEY] = input.eventTicket
+  return Object.keys(metadata).length ? { metadata } : {}
+}
+
+function eventTicketForProduct(productId: string, metadata: Record<string, unknown> | null | undefined): EventTicket | null {
+  const event = readEventDetails({ attrs: undefined, metadata: metadata ?? {} })
+  if (!event) return null
+  return issueTicket({
+    source: 'paid',
+    subjectId: `cart:${productId}:${Date.now()}`,
+    productId,
+  }).ticket
 }
 
 const MEDUSA_BASE = process.env.NEXT_PUBLIC_MEDUSA_STORE_URL
@@ -223,14 +249,16 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   // 3. Add each item (resolve variant ID on-the-fly if missing)
   for (const lineItem of lineItems) {
     let resolvedVariantId = lineItem.variantId ?? null
+    let productMetadata: Record<string, unknown> | null = null
 
-    if (!resolvedVariantId) {
-      const productRes = await medusaFetch(`/store/products/${lineItem.productId}?fields=variants.id`)
-      if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
-      const { product } = await productRes.json()
-      resolvedVariantId = product?.variants?.[0]?.id ?? null
-      if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
-    }
+    const productRes = await medusaFetch(`/store/products/${lineItem.productId}?fields=variants.id,metadata`)
+    if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
+    const { product } = await productRes.json()
+    productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
+    resolvedVariantId = resolvedVariantId ?? product?.variants?.[0]?.id ?? null
+    if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
+
+    const eventTicket = eventTicketForProduct(lineItem.productId, productMetadata)
 
     const itemRes = await medusaFetch(`/store/carts/${cartId}/line-items`, {
       method: 'POST',
@@ -238,9 +266,9 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       body: JSON.stringify({
         variant_id: resolvedVariantId,
         quantity: 1,
-        // Buyer personalization rides the line-item metadata → flows natively into
-        // the order line item (no custom order plumbing).
-        ...lineItemPersonalizationMetadata(lineItem.personalization),
+        // Buyer personalization + event ticket tokens ride line-item metadata →
+        // order line item metadata natively (no commerce table).
+        ...lineItemCheckoutMetadata({ personalization: lineItem.personalization, eventTicket }),
       }),
     })
     if (!itemRes.ok) {

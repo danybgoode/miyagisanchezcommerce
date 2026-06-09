@@ -45,6 +45,8 @@ export async function POST(
       ok: true,
       already_registered: result.alreadyRegistered === true,
       registration_id: result.registration?.id,
+      ticket_token: result.ticket_token ?? null,
+      ticket_qr_url: result.ticket_qr_url ?? null,
       registered_count: result.stats?.registrations ?? 0,
       capacity_remaining: result.stats?.capacity_remaining ?? null,
     })

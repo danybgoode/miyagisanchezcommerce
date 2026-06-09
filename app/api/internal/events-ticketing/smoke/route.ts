@@ -6,6 +6,7 @@ import {
   uniqueEventSlug,
   verifyEventRegistration,
 } from '@/lib/events'
+import { redeemFreeTicketForSeller } from '@/lib/event-tickets'
 import type { MarketplaceEvent } from '@/lib/events-types'
 
 export const dynamic = 'force-dynamic'
@@ -110,16 +111,37 @@ export async function POST(req: NextRequest) {
       codeOverride: 'EVT999',
       sendEmail: false,
     })
+    const ticketToken = first.ticket_token ?? null
+    const redeemValid = ticketToken
+      ? await redeemFreeTicketForSeller({ token: ticketToken, sellerShopId: shop.id, redeemedBy: 'internal-test' })
+      : { status: 'not_found' as const }
+    const redeemAgain = ticketToken
+      ? await redeemFreeTicketForSeller({ token: ticketToken, sellerShopId: shop.id, redeemedBy: 'internal-test' })
+      : { status: 'not_found' as const }
+    const redeemWrongSeller = ticketToken
+      ? await redeemFreeTicketForSeller({ token: ticketToken, sellerShopId: '00000000-0000-0000-0000-000000000000', redeemedBy: 'internal-test' })
+      : { status: 'not_found' as const }
+    const redeemForged = await redeemFreeTicketForSeller({
+      token: 'tkt_000000000000000000000000000000000000000000000000',
+      sellerShopId: shop.id,
+      redeemedBy: 'internal-test',
+    })
 
     const payload = {
       ok: true,
       event_id: typed.id,
       slug: typed.slug,
       public_url: publicEventUrl(typed.slug),
+      free_ticket_token: ticketToken,
+      free_ticket_qr_payload_is_token: !!ticketToken && ticketToken.startsWith('tkt_'),
       created_event: !!typed.id,
       first_registered: first.ok === true,
       duplicate_idempotent: duplicate.ok === true && duplicate.alreadyRegistered === true,
       capacity_full: blocked.capacityFull === true,
+      redeem_valid: redeemValid.status === 'valid',
+      redeem_again_rejected: redeemAgain.status === 'already_used',
+      redeem_forged_rejected: redeemForged.status === 'not_found',
+      redeem_wrong_seller_rejected: redeemWrongSeller.status === 'wrong_seller',
       registered_count: first.stats?.registrations ?? 0,
     }
 

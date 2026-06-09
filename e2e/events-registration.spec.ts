@@ -14,7 +14,7 @@ test.describe('events and ticketing · email-code registration', () => {
     expect(registration.status()).toBe(404)
   })
 
-  test('secret-gated smoke proves idempotency and capacity closure', async ({ request }) => {
+  test('secret-gated smoke proves idempotency, tickets, and redemption', async ({ request }) => {
     const secret = process.env.EVENTS_TICKETING_SMOKE_SECRET
     test.skip(!secret, 'Set EVENTS_TICKETING_SMOKE_SECRET to run mutating event registration smoke.')
 
@@ -24,14 +24,26 @@ test.describe('events and ticketing · email-code registration', () => {
     })
     expect(res.ok()).toBeTruthy()
     const data = await res.json() as {
+      free_ticket_token: string | null
+      free_ticket_qr_payload_is_token: boolean
       first_registered: boolean
       duplicate_idempotent: boolean
       capacity_full: boolean
+      redeem_valid: boolean
+      redeem_again_rejected: boolean
+      redeem_forged_rejected: boolean
+      redeem_wrong_seller_rejected: boolean
       registered_count: number
     }
+    expect(data.free_ticket_token).toMatch(/^tkt_[a-f0-9]{32,}$/)
+    expect(data.free_ticket_qr_payload_is_token).toBe(true)
     expect(data.first_registered).toBe(true)
     expect(data.duplicate_idempotent).toBe(true)
     expect(data.capacity_full).toBe(true)
+    expect(data.redeem_valid).toBe(true)
+    expect(data.redeem_again_rejected).toBe(true)
+    expect(data.redeem_forged_rejected).toBe(true)
+    expect(data.redeem_wrong_seller_rejected).toBe(true)
     expect(data.registered_count).toBe(1)
   })
 })
