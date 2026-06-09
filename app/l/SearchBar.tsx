@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
+import { buildQuery, resultCountLabel } from '@/lib/listing-query'
 import type { SearchParams, SortOption } from '@/lib/types'
 
 type SearchBarProps = {
@@ -10,6 +11,7 @@ type SearchBarProps = {
   initialCategory?: string
   initialState?: string
   params: SearchParams
+  initialTotal?: number
 }
 
 const SORT_OPTIONS: { value: SortOption | ''; label: string }[] = [
@@ -37,7 +39,7 @@ const PROPERTY_TYPES = [
   { value: 'otro', label: 'Otros' },
 ]
 
-export default function SearchBar({ initialQ, initialCategory, initialState, params }: SearchBarProps) {
+export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
@@ -45,7 +47,31 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
   )
   // Mobile bottom-sheet open/closed (sm+ keeps the inline form, no sheet).
   const [open, setOpen] = useState(false)
+  // Live "Ver X resultados" count — seeded from the SSR total (zero fetch on
+  // open), then re-derived (debounced) as staged filters change.
+  const [count, setCount] = useState<number | null>(initialTotal ?? null)
   const formRef = useRef<HTMLFormElement>(null)
+  const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounced recount: read the form's current values (controlled + uncontrolled),
+  // merge the applied listing_type from the instant rail (not part of this form),
+  // and ask the count endpoint how many results the staged filters would yield.
+  function scheduleRecount() {
+    if (countTimer.current) clearTimeout(countTimer.current)
+    countTimer.current = setTimeout(async () => {
+      const f = formRef.current
+      if (!f) return
+      const obj: Record<string, string> = {}
+      new FormData(f).forEach((v, k) => { if (typeof v === 'string' && v) obj[k] = v })
+      if (params.listing_type) obj.listing_type = params.listing_type
+      try {
+        const res = await fetch(`/api/listings/count${buildQuery(obj as SearchParams)}`)
+        if (res.ok) setCount((await res.json()).total ?? 0)
+      } catch { /* keep the last known count */ }
+    }, 300)
+  }
+
+  useEffect(() => () => { if (countTimer.current) clearTimeout(countTimer.current) }, [])
 
   function togglePropertyType(value: string) {
     setSelectedPropertyTypes(prev =>
@@ -83,6 +109,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
     f.querySelectorAll('select').forEach(el => {
       el.value = el.name === 'sort' ? 'reciente' : ''
     })
+    scheduleRecount()
   }
 
   const inputClass = 'border border-white/30 bg-white/20 text-white placeholder-white/70 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white focus:bg-white/30 w-full'
@@ -113,6 +140,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         ref={formRef}
         method="GET"
         action="/l"
+        onChange={scheduleRecount}
         className={[
           'bg-[var(--claim-accent)]',
           // Mobile: bottom-sheet, slides up when open.
@@ -403,7 +431,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           type="submit"
           className="flex-1 bg-white text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-lg text-sm hover:bg-white/90 transition-colors"
         >
-          Ver resultados
+          {resultCountLabel(count)}
         </button>
       </div>
     </form>
