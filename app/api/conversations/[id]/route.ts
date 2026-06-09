@@ -1,71 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { currentUser, auth } from '@clerk/nextjs/server'
+import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
-import { buildTransactionLedger, type LedgerOffer, type LedgerOrder, type LedgerView } from '@/lib/transaction-ledger'
-
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-/**
- * Resolve the read-only transaction ledger behind a conversation (C.1). Reads the
- * order on EXISTING keys — `marketplace_orders.metadata.offer_id` → the mirror row →
- * `medusa_order_id`, best-effort enriched with the normalized Medusa order so the
- * payment/refund seams see `payment_received` / `buyer_reported_paid` / `return_request`.
- * Never throws and never mutates: any failure degrades to the offer-only view.
- */
-async function resolveLedger(
-  offer: LedgerOffer | null,
-  offerId: string | null,
-  role: 'buyer' | 'seller',
-): Promise<{ ledger: LedgerView; orderId: string | null }> {
-  let order: LedgerOrder | null = null
-  let orderId: string | null = null
-
-  try {
-    if (offerId) {
-      const { data: mirror } = await db
-        .from('marketplace_orders')
-        .select('id, status, metadata')
-        .eq('metadata->>offer_id', offerId)
-        .maybeSingle()
-
-      if (mirror) {
-        const meta = (mirror.metadata ?? {}) as Record<string, unknown>
-        const medusaOrderId = meta.medusa_order_id as string | undefined
-        orderId = medusaOrderId ?? mirror.id
-        order = { status: mirror.status as string | null, metadata: meta }
-
-        // Best-effort enrich with the normalized Medusa order (manual-payment +
-        // refund flags live there, not on the mirror). Failure → mirror-only.
-        if (medusaOrderId) {
-          try {
-            const { getToken } = await auth()
-            const clerkJwt = await getToken()
-            const endpoint = role === 'seller'
-              ? `${MEDUSA_BASE}/store/sellers/me/orders/${medusaOrderId}`
-              : `${MEDUSA_BASE}/store/buyer/me/orders/${medusaOrderId}`
-            const res = await fetch(endpoint, {
-              headers: {
-                'x-publishable-api-key': MEDUSA_PUB_KEY,
-                ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
-              },
-              cache: 'no-store',
-            })
-            if (res.ok) {
-              const { order: medusaOrder } = await res.json() as { order?: Record<string, unknown> }
-              if (medusaOrder) order = { ...order, ...(medusaOrder as LedgerOrder) }
-            }
-          } catch { /* mirror-only */ }
-        }
-      }
-    }
-  } catch { /* offer-only */ }
-
-  const ledger = buildTransactionLedger({ offer, order, role })
-  return { ledger, orderId }
-}
+import { resolveConversationLedger } from '@/lib/conversation-ledger'
+import type { LedgerOffer } from '@/lib/transaction-ledger'
 
 // ── GET — full conversation thread ────────────────────────────────────────────
 
@@ -145,7 +84,7 @@ export async function GET(
         currency: offerWithCurrency.currency,
       }
     : null
-  const { ledger, orderId } = await resolveLedger(ledgerOffer, offerId, role)
+  const { ledger, orderId } = await resolveConversationLedger(ledgerOffer, offerId, role)
 
   return NextResponse.json({
     conversation: { ...conv, marketplace_offers: offerWithCurrency, checkout_provider: checkoutProvider },
