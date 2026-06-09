@@ -1,16 +1,35 @@
 import { db } from '@/lib/supabase'
 import type { PrintSocialSubmission } from '@/lib/print'
 import { getRecentListings } from '@/lib/listings'
-import type { Listing } from '@/lib/types'
-import { rankNeighborhoodListings } from '@/lib/neighborhood-rank'
+import type { Listing, Shop } from '@/lib/types'
+import {
+  rankNeighborhoodListings,
+  rankNeighborhoodShops,
+  type NeighborhoodShopRankSignals,
+} from '@/lib/neighborhood-rank'
 import {
   isNeighborhoodPulseSocialItem,
+  NEIGHBORHOOD_PULSE_COPY,
   NEIGHBORHOOD_PULSE_SOCIAL_STATUSES,
 } from '@/lib/neighborhood-pulse'
 
 export type NeighborhoodTrendingListing = Listing & {
   favorite_count: number
   trend_score: number
+}
+
+export type NeighborhoodSpotlightShop = {
+  id: string
+  slug: string
+  name: string
+  tagline: string
+  colonia: string
+  logo_url: string | null
+  listing_count: number
+  view_count: number
+  order_count: number
+  latest_listing_at: string
+  spotlight_score: number
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -25,6 +44,56 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Pro
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function trimmedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function latestDate(a: string, b: string): string {
+  const at = new Date(a).getTime()
+  const bt = new Date(b).getTime()
+  if (!Number.isFinite(at)) return b
+  if (!Number.isFinite(bt)) return a
+  return bt > at ? b : a
+}
+
+function shopSettings(shop: Shop): Record<string, unknown> {
+  return objectValue(objectValue(shop.metadata)?.settings) ?? {}
+}
+
+function shopTagline(shop: Shop): string {
+  const theme = objectValue(shopSettings(shop).theme)
+  return trimmedString(theme?.tagline)
+    || trimmedString(shop.description)
+    || NEIGHBORHOOD_PULSE_COPY.spotlightFallbackTagline
+}
+
+function shopColonia(shop: Shop): string {
+  const shipping = objectValue(shopSettings(shop).shipping)
+  const origin = objectValue(shipping?.origin_address)
+  return trimmedString(origin?.colonia)
+    || trimmedString(shop.location)
+    || NEIGHBORHOOD_PULSE_COPY.spotlightFallbackColonia
+}
+
+function shopOrderCount(shop: Shop): number {
+  const meta = objectValue(shop.metadata)
+  const candidates = [
+    meta?.order_count,
+    meta?.orders_count,
+    meta?.sales_count,
+    objectValue(meta?.stats)?.order_count,
+  ]
+  for (const candidate of candidates) {
+    const n = Number(candidate ?? 0)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return 0
 }
 
 export async function getNeighborhoodPulseItems(limit = 24): Promise<PrintSocialSubmission[]> {
@@ -78,8 +147,17 @@ async function favoriteCountsForListings(listings: Listing[]): Promise<Map<strin
   return counts
 }
 
+async function recentListingCandidates(limit: number): Promise<Listing[]> {
+  try {
+    return await withTimeout(getRecentListings(limit), 2_500, [])
+  } catch (error) {
+    console.warn('[neighborhood-pulse] catalog unavailable:', error)
+    return []
+  }
+}
+
 export async function getTrendingNeighborhoodListings(limit = 8): Promise<NeighborhoodTrendingListing[]> {
-  const candidates = await withTimeout(getRecentListings(Math.max(limit * 4, 24)), 2_500, [])
+  const candidates = await recentListingCandidates(Math.max(limit * 4, 24))
   if (candidates.length === 0) return []
 
   const favoriteCounts = await favoriteCountsForListings(candidates)
@@ -89,4 +167,59 @@ export async function getTrendingNeighborhoodListings(limit = 8): Promise<Neighb
       favorite_count: favoriteCounts.get(listing.id) ?? 0,
     })),
   ).slice(0, limit)
+}
+
+export async function getNeighborhoodSpotlightShops(limit = 6): Promise<NeighborhoodSpotlightShop[]> {
+  const candidates = await recentListingCandidates(Math.max(limit * 8, 36))
+  if (candidates.length === 0) return []
+
+  const byShop = new Map<string, NeighborhoodShopRankSignals & {
+    shop: Shop
+    latest_listing_at: string
+    listing_count: number
+    view_count: number
+    order_count: number
+  }>()
+
+  for (const listing of candidates) {
+    const shop = listing.shop
+    if (!shop?.slug) continue
+
+    const current = byShop.get(shop.slug)
+    if (!current) {
+      byShop.set(shop.slug, {
+        id: shop.id,
+        slug: shop.slug,
+        name: shop.name,
+        created_at: shop.created_at ?? listing.created_at,
+        latest_listing_at: listing.created_at,
+        listing_count: 1,
+        view_count: Math.max(0, Number(listing.views ?? 0)),
+        order_count: shopOrderCount(shop),
+        shop,
+      })
+      continue
+    }
+
+    current.latest_listing_at = latestDate(current.latest_listing_at, listing.created_at)
+    current.listing_count += 1
+    current.view_count += Math.max(0, Number(listing.views ?? 0))
+    current.order_count = Math.max(current.order_count, shopOrderCount(shop))
+  }
+
+  return rankNeighborhoodShops([...byShop.values()])
+    .slice(0, limit)
+    .map((ranked) => ({
+      id: ranked.id,
+      slug: ranked.slug,
+      name: ranked.name,
+      tagline: shopTagline(ranked.shop),
+      colonia: shopColonia(ranked.shop),
+      logo_url: ranked.shop.logo_url,
+      listing_count: ranked.listing_count,
+      view_count: ranked.view_count,
+      order_count: ranked.order_count,
+      latest_listing_at: ranked.latest_listing_at,
+      spotlight_score: ranked.spotlight_score,
+    }))
 }

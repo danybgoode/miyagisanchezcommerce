@@ -5,7 +5,7 @@ import {
   NEIGHBORHOOD_PULSE_COPY,
   publicSubmitterLabel,
 } from '../lib/neighborhood-pulse'
-import { rankNeighborhoodListings } from '../lib/neighborhood-rank'
+import { rankNeighborhoodListings, rankNeighborhoodShops } from '../lib/neighborhood-rank'
 
 test.describe('neighborhood pulse · moderator web opt-in', () => {
   test('admin social PATCH remains secret-gated', async ({ request }) => {
@@ -120,5 +120,75 @@ test.describe('neighborhood pulse · trending rank', () => {
 
     expect(ranked.map((item) => item.id)).toEqual(['new', 'middle', 'old'])
     expect(ranked.every((item) => Number.isFinite(item.trend_score))).toBe(true)
+  })
+})
+
+test.describe('neighborhood pulse · merchant spotlight', () => {
+  const now = new Date('2026-06-08T18:00:00.000Z').getTime()
+
+  test('shop ranking weighs orders, new listings, views, then recency', () => {
+    const ranked = rankNeighborhoodShops([
+      {
+        id: 'quiet',
+        slug: 'quiet-shop',
+        name: 'Quiet Shop',
+        created_at: '2026-06-01T10:00:00.000Z',
+        latest_listing_at: '2026-06-08T17:30:00.000Z',
+        listing_count: 1,
+        view_count: 1,
+        order_count: 0,
+      },
+      {
+        id: 'busy',
+        slug: 'busy-shop',
+        name: 'Busy Shop',
+        created_at: '2026-05-01T10:00:00.000Z',
+        latest_listing_at: '2026-06-06T17:30:00.000Z',
+        listing_count: 3,
+        view_count: 40,
+        order_count: 0,
+      },
+      {
+        id: 'trusted',
+        slug: 'trusted-shop',
+        name: 'Trusted Shop',
+        created_at: '2026-04-01T10:00:00.000Z',
+        latest_listing_at: '2026-06-01T17:30:00.000Z',
+        listing_count: 1,
+        view_count: 10,
+        order_count: 2,
+      },
+    ], now)
+
+    expect(ranked.map((shop) => shop.slug)).toEqual(['trusted-shop', 'busy-shop', 'quiet-shop'])
+    expect(ranked.every((shop) => Number.isFinite(shop.spotlight_score))).toBe(true)
+  })
+
+  test('spotlight route is public, read-only, and returns shop cards', async ({ request }) => {
+    const res = await request.get('/api/neighborhood-pulse/spotlight?limit=3')
+    expect(res.ok()).toBeTruthy()
+
+    const data = await res.json() as {
+      shops: Array<{
+        slug?: string
+        name?: string
+        tagline?: string
+        colonia?: string
+        spotlight_score?: number
+      }>
+      _meta?: { view?: string; read_only?: boolean }
+    }
+
+    expect(Array.isArray(data.shops)).toBe(true)
+    expect(data.shops.length).toBeLessThanOrEqual(3)
+    expect(data._meta).toMatchObject({ view: 'neighborhood-pulse-spotlight', read_only: true })
+
+    for (const shop of data.shops) {
+      expect(shop.slug).toBeTruthy()
+      expect(shop.name).toBeTruthy()
+      expect(shop.tagline).toBeTruthy()
+      expect(shop.colonia).toBeTruthy()
+      expect(Number.isFinite(shop.spotlight_score)).toBe(true)
+    }
   })
 })
