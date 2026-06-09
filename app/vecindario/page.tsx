@@ -4,6 +4,7 @@ import {
   formatPulseDate,
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
+  publicSubmitterLabel,
 } from '@/lib/neighborhood-pulse'
 import {
   getNeighborhoodPulseItems,
@@ -16,10 +17,6 @@ import { formatPrice } from '@/lib/listings'
 export const metadata: Metadata = {
   title: 'Vecindario',
   description: 'El pulso local de recomendaciones, reconocimientos y avisos compartidos por la comunidad Miyagi.',
-}
-
-function submitterName(item: PrintSocialSubmission) {
-  return item.submitter_name || item.submitter_email || NEIGHBORHOOD_PULSE_COPY.fallbackSubmitter
 }
 
 function SocialCard({ item }: { item: PrintSocialSubmission }) {
@@ -70,7 +67,7 @@ function SocialCard({ item }: { item: PrintSocialSubmission }) {
         )}
 
         <p className="mt-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>
-          {submitterName(item)}
+          {publicSubmitterLabel(item)}
         </p>
       </div>
     </article>

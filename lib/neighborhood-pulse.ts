@@ -32,6 +32,11 @@ export function isNeighborhoodPulseSocialItem(item: { status?: unknown; web_visi
   return item.web_visible === true && (NEIGHBORHOOD_PULSE_SOCIAL_STATUSES as readonly string[]).includes(String(item.status))
 }
 
+export function publicSubmitterLabel(item: { submitter_name?: unknown; submitter_email?: unknown }): string {
+  const name = typeof item.submitter_name === 'string' ? item.submitter_name.trim() : ''
+  return name || NEIGHBORHOOD_PULSE_COPY.fallbackSubmitter
+}
+
 export function printSocialTypeLabel(type: string): string {
   return PRINT_SOCIAL_TYPES.find((t) => t.key === type)?.label ?? 'Aporte'
 }

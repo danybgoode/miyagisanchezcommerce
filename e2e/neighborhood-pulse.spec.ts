@@ -3,6 +3,7 @@ import {
   buildPrintSocialAdminPatch,
   isNeighborhoodPulseSocialItem,
   NEIGHBORHOOD_PULSE_COPY,
+  publicSubmitterLabel,
 } from '../lib/neighborhood-pulse'
 import { rankNeighborhoodListings } from '../lib/neighborhood-rank'
 
@@ -76,6 +77,12 @@ test.describe('neighborhood pulse · public feed visibility', () => {
 
     expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.title)
     expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.eyebrow)
+  })
+
+  test('public submitter label never falls back to email', () => {
+    expect(publicSubmitterLabel({ submitter_name: 'Ana López', submitter_email: 'ana@example.com' })).toBe('Ana López')
+    expect(publicSubmitterLabel({ submitter_name: '  ', submitter_email: 'ana@example.com' })).toBe(NEIGHBORHOOD_PULSE_COPY.fallbackSubmitter)
+    expect(publicSubmitterLabel({ submitter_email: 'ana@example.com' })).toBe(NEIGHBORHOOD_PULSE_COPY.fallbackSubmitter)
   })
 })
 
