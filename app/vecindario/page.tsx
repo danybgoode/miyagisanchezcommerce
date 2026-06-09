@@ -140,12 +140,20 @@ export default async function NeighborhoodPulsePage() {
         <p className="text-xs font-semibold uppercase" style={{ color: 'var(--accent)', letterSpacing: 0 }}>
           {NEIGHBORHOOD_PULSE_COPY.eyebrow}
         </p>
-        <h1 className="mt-1 text-3xl font-bold leading-tight" style={{ color: 'var(--fg)', letterSpacing: 0 }}>
-          {NEIGHBORHOOD_PULSE_COPY.title}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--fg-muted)' }}>
-          {NEIGHBORHOOD_PULSE_COPY.intro}
-        </p>
+        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--fg)', letterSpacing: 0 }}>
+              {NEIGHBORHOOD_PULSE_COPY.title}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--fg-muted)' }}>
+              {NEIGHBORHOOD_PULSE_COPY.intro}
+            </p>
+          </div>
+          <Link href="/comunidad/nuevo" className="btn btn-primary btn-sm w-fit">
+            <i className="iconoir-megaphone" style={{ fontSize: 14 }} />
+            {NEIGHBORHOOD_PULSE_COPY.contributeCta}
+          </Link>
+        </div>
       </header>
 
       <TrendingStrip listings={trending} />
@@ -163,6 +171,10 @@ export default async function NeighborhoodPulsePage() {
           <p className="mx-auto mt-2 max-w-md text-sm leading-6" style={{ color: 'var(--fg-muted)' }}>
             {NEIGHBORHOOD_PULSE_COPY.emptyBody}
           </p>
+          <Link href="/comunidad/nuevo" className="btn btn-primary btn-sm mt-5">
+            <i className="iconoir-megaphone" style={{ fontSize: 14 }} />
+            {NEIGHBORHOOD_PULSE_COPY.contributeCta}
+          </Link>
         </section>
       ) : (
         <section aria-label="Aportes del vecindario" className="grid gap-4 md:grid-cols-2">

@@ -79,6 +79,17 @@ test.describe('neighborhood pulse · public feed visibility', () => {
   })
 })
 
+test.describe('neighborhood pulse · entry loop', () => {
+  test('feed HTML exposes the contribution CTA', async ({ request }) => {
+    const res = await request.get('/vecindario')
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+
+    expect(html).toContain(NEIGHBORHOOD_PULSE_COPY.contributeCta)
+    expect(html).toContain('href="/comunidad/nuevo"')
+  })
+})
+
 test.describe('neighborhood pulse · trending rank', () => {
   const now = new Date('2026-06-08T18:00:00.000Z').getTime()
 

@@ -15,6 +15,7 @@ import CartButton from '@/app/components/CartButton'
 import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
 import { getDictionary } from '@/lib/dictionary'
 import { getShop } from '@/lib/listings'
+import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import './globals.css'
 
@@ -242,6 +243,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
                   </Link>
 
+                  <Link
+                    href="/vecindario"
+                    className="icon-btn"
+                    title={NEIGHBORHOOD_PULSE_COPY.navLabel}
+                    aria-label={NEIGHBORHOOD_PULSE_COPY.navLabel}
+                  >
+                    <i className="iconoir-community" style={{ fontSize: 22 }} />
+                  </Link>
+
                   {/* Cart */}
                   <CartButton />
 
@@ -287,6 +297,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       className="hover:text-[var(--fg)]"
                     >
                       Explorar
+                    </Link>
+                    <Link
+                      href="/vecindario"
+                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
+                      className="hover:text-[var(--fg)]"
+                    >
+                      {NEIGHBORHOOD_PULSE_COPY.navLabel}
                     </Link>
                     <Link
                       href="/agent"
@@ -389,6 +406,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             >
               <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
               <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+              <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
               <Link href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
               <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
               <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">

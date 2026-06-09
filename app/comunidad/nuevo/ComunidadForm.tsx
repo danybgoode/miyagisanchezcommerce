@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { PRINT_SOCIAL_TYPES, type PrintSocialType } from '@/lib/print'
+import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 
 export default function ComunidadForm() {
   const [type, setType] = useState<PrintSocialType>('saludo')
@@ -47,9 +48,15 @@ export default function ComunidadForm() {
         <p className="text-sm text-[var(--color-muted)] mb-6">
           Miyagi revisará tu aporte y podría aparecer en la próxima edición impresa de tu colonia.
         </p>
-        <Link href="/comunidad/mis-aportes" className="inline-block bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold no-underline mb-3">
-          Ver mis aportes
-        </Link>
+        <div className="mb-3 flex flex-col items-center justify-center gap-2 sm:flex-row">
+          <Link href="/vecindario" className="inline-flex items-center gap-2 bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold no-underline">
+            <i className="iconoir-community" style={{ fontSize: 15 }} />
+            {NEIGHBORHOOD_PULSE_COPY.viewFeedCta}
+          </Link>
+          <Link href="/comunidad/mis-aportes" className="inline-block border border-[var(--color-border)] px-5 py-2 rounded-lg text-sm font-semibold no-underline">
+            Ver mis aportes
+          </Link>
+        </div>
         <div>
           <button onClick={() => location.reload()} className="text-sm text-[var(--color-muted)]">Enviar otro</button>
         </div>

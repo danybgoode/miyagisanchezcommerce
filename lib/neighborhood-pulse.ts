@@ -12,6 +12,10 @@ export const NEIGHBORHOOD_PULSE_COPY = {
   noPhoto: 'Sin foto',
   trendingTitle: 'Tendencias',
   trendingIntro: 'Publicaciones con más movimiento reciente en Miyagi.',
+  contributeCta: 'Comparte con tu colonia',
+  navLabel: 'Vecindario',
+  mobileNavLabel: 'Barrio',
+  viewFeedCta: 'Ver vecindario',
 }
 
 const ADMIN_SOCIAL_STATUSES = ['submitted', 'approved', 'placed', 'rejected'] as const satisfies readonly PrintSocialStatus[]
