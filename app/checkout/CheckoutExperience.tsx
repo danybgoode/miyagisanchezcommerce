@@ -7,6 +7,7 @@ import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
 import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '@/lib/checkout-fallback'
+import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
 
@@ -315,38 +316,50 @@ export default function CheckoutExperience({
   useEffect(() => {
     if (!needsShippingRate || !addressReady) return
     const controller = new AbortController()
+    let cancelled = false
+    // S3.3 — bound the quote so "Cotizando…" can't spin forever on a hung carrier.
+    const QUOTE_TIMEOUT_MS = 9_000
     const timeout = window.setTimeout(async () => {
       setShippingRatesLoading(true)
       setShippingRatesError(null)
       setShippingRatesMessage(null)
       setCoordinatedFallback(false)
       try {
-        const res = await fetch('/api/checkout/shipping-rates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            items?.length
-              ? { items: items.map(i => i.productId), address }
-              : { listingId, address },
-          ),
-          signal: controller.signal,
-        })
+        const res = await raceWithTimeout(
+          fetch('/api/checkout/shipping-rates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              items?.length
+                ? { items: items.map(i => i.productId), address }
+                : { listingId, address },
+            ),
+            signal: controller.signal,
+          }),
+          QUOTE_TIMEOUT_MS,
+        )
         const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string; message?: string } | null
+        if (cancelled) return
         if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envío.')
         const rates = data?.rates ?? []
         setShippingRates(rates)
         setSelectedShippingRateId(rates[0]?.id ?? null)
         if (rates.length === 0) setShippingRatesMessage(data?.message ?? 'Las paqueterías no tienen cobertura para ese destino.')
       } catch (err) {
-        if (controller.signal.aborted) return
+        if (isTimeoutError(err)) controller.abort() // cancel the hung request
+        if (cancelled) return
         setShippingRates([])
         setSelectedShippingRateId(null)
-        setShippingRatesError(err instanceof Error ? err.message : 'No se pudo cotizar el envío.')
+        setShippingRatesError(
+          isTimeoutError(err)
+            ? 'El envío tardó demasiado en cotizar. Puedes coordinar la entrega con el vendedor.'
+            : err instanceof Error ? err.message : 'No se pudo cotizar el envío.',
+        )
       } finally {
-        if (!controller.signal.aborted) setShippingRatesLoading(false)
+        if (!cancelled) setShippingRatesLoading(false)
       }
     }, 450)
-    return () => { controller.abort(); window.clearTimeout(timeout) }
+    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout) }
   }, [needsShippingRate, addressReady, listingId, items, address])
 
   // ── Loading / error states ─────────────────────────────────────────────────
