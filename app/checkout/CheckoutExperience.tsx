@@ -7,6 +7,7 @@ import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
+import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -129,6 +130,9 @@ export default function CheckoutExperience({
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
+  // Pickup appointment (S2.1) — the buyer proposes a date + time window.
+  const [pickupDate, setPickupDate] = useState('')
+  const [pickupWindow, setPickupWindow] = useState('')
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
   const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
@@ -202,8 +206,11 @@ export default function CheckoutExperience({
     address.name?.trim() && address.line1?.trim() && address.ext_number?.trim() && address.state_code?.trim() && address.postal_code?.trim(),
   )
   const needsShippingRate = selectedDelivery?.id === 'shipping' && !!selectedDelivery.requires_address
-  const needsPickupSpot = selectedDelivery?.id === 'local_pickup' && !!selectedDelivery.requires_pickup_spot
-  const pickupReady = !needsPickupSpot || !!selectedPickupSpotId
+  const isPickupDelivery = selectedDelivery?.id === 'local_pickup'
+  const needsPickupSpot = isPickupDelivery && !!selectedDelivery.requires_pickup_spot
+  // Local pickup is now a real appointment: the buyer must propose a date + window.
+  const appointmentReady = !isPickupDelivery || (!!pickupDate && !!pickupWindow)
+  const pickupReady = (!needsPickupSpot || !!selectedPickupSpotId) && appointmentReady
 
   const selectedShippingRate = useMemo(
     () => shippingRates.find(r => r.id === selectedShippingRateId) ?? null,
@@ -242,8 +249,8 @@ export default function CheckoutExperience({
     selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
   )
 
-  // Reset pickup spot selection when delivery method changes.
-  useEffect(() => { setSelectedPickupSpotId(null) }, [selectedDeliveryId])
+  // Reset pickup spot selection + proposed appointment when delivery method changes.
+  useEffect(() => { setSelectedPickupSpotId(null); setPickupDate(''); setPickupWindow('') }, [selectedDeliveryId])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -388,6 +395,35 @@ export default function CheckoutExperience({
                   </button>
                 )
               })}
+            </div>
+          )}
+
+          {/* Pickup appointment (S2.1) — propose a date + time window instead of an
+              external scheduling link. The seller confirms or reschedules after placing. */}
+          {selectedDelivery?.id === 'local_pickup' && (
+            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>¿Cuándo quieres recogerlo?</p>
+              <input
+                type="date"
+                value={pickupDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setPickupDate(e.target.value)}
+                style={inputStyle}
+              />
+              <div style={{ display: 'grid', gap: 8 }}>
+                {PICKUP_WINDOWS.map(w => {
+                  const active = pickupWindow === w.key
+                  return (
+                    <button key={w.key} type="button" onClick={() => setPickupWindow(w.key)} style={optionButtonStyle(active)}>
+                      <span aria-hidden style={radioDot(active)} />
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>{w.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                Propones la hora; el vendedor la confirma o sugiere otra.
+              </p>
             </div>
           )}
 
@@ -695,6 +731,7 @@ export default function CheckoutExperience({
             couponDiscountCents={couponDiscountCents}
             fulfillmentMethod={selectedDelivery?.id ?? 'none'}
             pickupSpotId={selectedPickupSpotId ?? undefined}
+            pickupAppointment={isPickupDelivery && pickupDate && pickupWindow ? { date: pickupDate, window: pickupWindow } : undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
             shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
             originDomain={originDomain}

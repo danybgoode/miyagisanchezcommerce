@@ -138,6 +138,8 @@ export interface StartCheckoutParams {
   fulfillmentMethod?: CheckoutFulfillmentMethod
   /** Optional selected pickup spot ID/name from seller settings */
   pickupSpotId?: string
+  /** Local pickup: the buyer's proposed appointment (date + time window) */
+  pickupAppointment?: { date: string; window: string }
   /** Shipping address collected before redirecting to the payment rail */
   shippingAddress?: CheckoutShippingAddress
   /** Buyer-selected live Envia quote */
@@ -192,7 +194,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, personalization, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, shippingAddress, shippingQuote, escrow,
+    offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, pickupAppointment, shippingAddress, shippingQuote, escrow,
     originDomain,
     support,
     suppressManualEmail,
@@ -290,6 +292,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(offerId ? { offer_id: offerId } : {}),
       ...(fulfillmentMethod ? { fulfillment_method: fulfillmentMethod } : {}),
       ...(pickupSpotId ? { pickup_spot_id: pickupSpotId } : {}),
+      ...(pickupAppointment ? { pickup_appointment: pickupAppointment } : {}),
       ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
       ...(escrow ? { escrow: true } : {}),
       ...(originDomain ? { origin_domain: originDomain } : {}),
