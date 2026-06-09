@@ -40,6 +40,8 @@ interface CheckoutPayButtonProps {
   couponDiscountCents?: number
   fulfillmentMethod?: CheckoutFulfillmentMethod
   pickupSpotId?: string
+  /** Local pickup: the buyer's proposed appointment (date + time window). */
+  pickupAppointment?: { date: string; window: string }
   shippingAddress?: CheckoutShippingAddress
   shippingQuote?: CheckoutShippingQuote
   originDomain?: string
@@ -61,6 +63,7 @@ export default function CheckoutPayButton({
   couponDiscountCents,
   fulfillmentMethod,
   pickupSpotId,
+  pickupAppointment,
   shippingAddress,
   shippingQuote,
   originDomain,
@@ -103,6 +106,7 @@ export default function CheckoutPayButton({
         clerkJwt,
         fulfillmentMethod,
         pickupSpotId,
+        pickupAppointment,
         shippingAddress,
         shippingQuote,
         originDomain,
