@@ -110,6 +110,7 @@ export const MCP_BUYER_TOOLS = [
   'get_support_options',
   'create_support_checkout',
   'about_miyagi',
+  'get_setup_spec',
 ] as const
 
 /**
@@ -144,6 +145,7 @@ export const UCP_CAPABILITIES = [
   'support_widget',      // Buy Me a Coffee-style guest support contributions
   'mcp_server',
   'seller_configuration', // get/patch_store_configuration (token-scoped, Sprint 4)
+  'seller_onboarding',    // Onboarding 0 — published setup spec + emit prompt (get_setup_spec)
 ] as const
 
 /** Build absolute endpoint URLs for a given request base (e.g. https://miyagisanchez.com). */
