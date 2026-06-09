@@ -632,8 +632,12 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         </section>
       )}
 
-      {/* Off-platform (SPEI/cash) refund — buyer confirms receipt (S1) */}
-      {isSpeiOrder && ['aceptado', 'transferencia_pendiente', 'confirmado'].includes(refundState) && (
+      {/* Off-platform (SPEI/cash) refund — buyer confirms receipt (S1). The mid-states
+          (aceptado / transferencia_pendiente) are reachable ONLY via the manual rail
+          backend-side, so gate on the state itself — not the payment-method heuristic —
+          so the buyer can always confirm; show `confirmado` only on SPEI to avoid a
+          redundant box on a card refund. */}
+      {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
         <section className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
           <div className="flex items-center gap-2 mb-1">
             <span>{refundState === 'confirmado' ? '✓' : '💸'}</span>

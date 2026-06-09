@@ -667,8 +667,11 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       })
       const data = await res.json() as { status?: string; refund_state?: string; error?: string }
       if (!res.ok) { showToast(data.error ?? 'Error al procesar.', 'error'); return }
+      // Fallback only when the backend didn't echo a state (legacy Supabase path): those
+      // orders refund immediately and never enter the off-platform ladder, so don't infer
+      // `aceptado` for them — only Medusa (order_*) SPEI orders walk the ladder.
       const newRefundState = (data.refund_state as RefundState | undefined)
-        ?? (action === 'decline' ? 'rechazado' : isSpeiOrder ? 'aceptado' : 'confirmado')
+        ?? (action === 'decline' ? 'rechazado' : (order.id.startsWith('order_') && isSpeiOrder) ? 'aceptado' : 'confirmado')
       setRefundState(newRefundState)
       setReturnRequest(r => r ? { ...r, status: data.status ?? action, seller_note: returnSellerNote.trim() || null } : null)
       // Only flip the order to "refunded" once the refund is actually confirmed — card
@@ -712,7 +715,8 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       })
       const data = await res.json() as { status?: string; refund_state?: string; error?: string }
       if (!res.ok) { showToast(data.error ?? 'Error al emitir el reembolso.', 'error'); return }
-      const newRefundState = (data.refund_state as RefundState | undefined) ?? (isSpeiOrder ? 'aceptado' : 'confirmado')
+      const newRefundState = (data.refund_state as RefundState | undefined)
+        ?? ((order.id.startsWith('order_') && isSpeiOrder) ? 'aceptado' : 'confirmado')
       setRefundState(newRefundState)
       setRefundIssued(true)
       setShowInitiateRefund(false)
@@ -1172,8 +1176,11 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </section>
       )}
 
-      {/* ── Off-platform (SPEI/cash) refund tracker — two-sided ladder (S1) ───── */}
-      {isSpeiOrder && ['aceptado', 'transferencia_pendiente', 'confirmado'].includes(refundState) && (
+      {/* ── Off-platform (SPEI/cash) refund tracker — two-sided ladder (S1) ─────
+          Gate on the state, not the payment-method heuristic: the mid-states are
+          reachable only via the manual rail backend-side, so the "Ya transferí" action
+          always surfaces; show `confirmado` only on SPEI to avoid a redundant card box. */}
+      {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
         <div className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
           <div className="flex items-center gap-2 mb-1">
             <span>{refundState === 'confirmado' ? '✓' : '🏦'}</span>
