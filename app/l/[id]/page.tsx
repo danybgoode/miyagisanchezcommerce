@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
@@ -216,6 +217,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // Personalization fields configured by the seller (Medusa product metadata).
   const customFields = getCustomFields(listing.metadata)
   const images = listing.images ?? []
+  // PDP decision frame (S3.1) — leads the page with a type-appropriate label/hint.
+  // null for `product` (the buy box is its frame). Same taxonomy as the chip rail.
+  const typeFrame = listingTypeFrame(listing.listing_type)
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -426,6 +430,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             </span>
           )}
         </div>
+
+        {/* ── Type frame (S3.1) — leads with a decision frame matching the listing
+            type, so a service/rental/digital good isn't presented like a boxed
+            product. `product` has no frame (its buy box leads). ──────────────── */}
+        {typeFrame && (
+          <div
+            data-testid="pdp-type-frame"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--accent-soft)', borderRadius: 'var(--r-md)', marginBottom: 14 }}
+          >
+            <i className={typeFrame.icon} style={{ fontSize: 18, color: 'var(--accent)', flexShrink: 0 }} />
+            <div className="min-w-0">
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{typeFrame.label}</p>
+              <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{typeFrame.hint}</p>
+            </div>
+          </div>
+        )}
 
         {/* Price */}
         <div style={{ marginBottom: (processingLabel || returnsLabel) ? 10 : 16 }}>
