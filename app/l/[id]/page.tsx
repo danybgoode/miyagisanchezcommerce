@@ -18,6 +18,7 @@ import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
 import SellerTrustCard from '@/app/components/SellerTrustCard'
+import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
@@ -482,33 +483,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* Order info pills */}
-        {(processingLabel || returnsLabel) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-            {processingLabel && (
-              <span style={{ fontSize: 12, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <i className="iconoir-box" style={{ fontSize: 11 }} />
-                Lista en {processingLabel}
-              </span>
-            )}
-            {returnsLabel && (
-              <span style={{ fontSize: 12, background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <i className="iconoir-undo" style={{ fontSize: 11 }} />
-                Devoluciones: {returnsLabel}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* ── Seller trust card — MOBILE position (S3.2) ───────────────────────
-            On a phone the trust block leads, above payment/fulfillment, so the
-            buyer judges the seller before the transaction detail. Desktop renders
-            the same card lower (hidden md:block below). ──────────────────────── */}
-        {sellerTrustCard && <div className="md:hidden">{sellerTrustCard}</div>}
-
-        {(paymentMethods.length > 0 || fulfillmentMethods.length > 0 || (!hasBuyablePrice && isClaimed)) && (
-          <div data-testid="pdp-methods" style={{ marginBottom: 16, padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
-            {!hasBuyablePrice && isClaimed && (
+        {/* ── Trust signals (S2 · C.4) ─────────────────────────────────────────
+            Order-info pills + payment/fulfillment methods, extracted to the shared
+            channel-aware <TrustSignals>. Marketplace renders byte-for-byte as before
+            (parity-first). The mobile <SellerTrustCard> (S3.2) rides the `interstitial`
+            slot so its position between pills and methods box is preserved. Epic D wires
+            this same component into ChannelLayout / embed. ─────────────────────────── */}
+        <TrustSignals
+          channel="marketplace"
+          variant="full"
+          paymentMethods={paymentMethods}
+          fulfillmentMethods={fulfillmentMethods}
+          processingLabel={processingLabel}
+          returnsLabel={returnsLabel}
+          interstitial={sellerTrustCard ? <div className="md:hidden">{sellerTrustCard}</div> : null}
+          consultCta={!hasBuyablePrice && isClaimed ? (
+            <>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <i className="iconoir-message-text" style={{ fontSize: 18, color: 'var(--accent)', marginTop: 1 }} />
                 <div>
@@ -518,46 +508,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   </p>
                 </div>
               </div>
-            )}
-            {!hasBuyablePrice && isClaimed && (
               <div style={{ marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
               </div>
-            )}
-            {paymentMethods.length > 0 && (
-              <div style={{ marginBottom: fulfillmentMethods.length > 0 ? 12 : 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Métodos disponibles</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
-                  {paymentMethods.map(method => (
-                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
-                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
-                      <div className="min-w-0">
-                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
-                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {fulfillmentMethods.length > 0 && (
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Entrega y disponibilidad</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
-                  {fulfillmentMethods.map(method => (
-                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
-                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
-                      <div className="min-w-0">
-                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
-                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            </>
+          ) : null}
+        />
 
         {/* ── Badges ──────────────────────────────────────────────────────────── */}
         {isDigital && digitalFile && (
