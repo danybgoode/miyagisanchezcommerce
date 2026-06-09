@@ -191,6 +191,8 @@ export interface PrintSocialSubmission {
   body: string | null
   photos: string[]
   zone: string | null
+  /** Explicit moderator opt-in for the online Neighborhood Pulse feed. Missing/null reads as false. */
+  web_visible?: boolean | null
   status: PrintSocialStatus
   source: 'community' | 'editor'
   admin_notes: string | null

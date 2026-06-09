@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useState, useEffect, useRef, Suspense } from 'react'
+import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 
 // Badge dot for unread counts
 function UnreadDot({ show }: { show: boolean }) {
@@ -222,11 +223,18 @@ function TabBarInner() {
             exitDelay={0} enterDelay={105} collapsed={searchOpen}
           />
 
-          {/* Tab 1 — Mensajes */}
+          {/* Tab 1 — Vecindario */}
+          <TabItem
+            href="/vecindario" icon="iconoir-community" label={NEIGHBORHOOD_PULSE_COPY.mobileNavLabel}
+            active={isActive('/vecindario')}
+            exitDelay={20} enterDelay={90} collapsed={searchOpen}
+          />
+
+          {/* Tab 2 — Mensajes */}
           <TabItem
             href={messagesHref} icon="iconoir-chat-bubble" label="Mensajes"
             active={pathname.startsWith('/messages')}
-            exitDelay={20} enterDelay={70} collapsed={searchOpen}
+            exitDelay={40} enterDelay={70} collapsed={searchOpen}
             hasUnread={hasUnread && !pathname.startsWith('/messages')}
           />
 
@@ -256,20 +264,20 @@ function TabBarInner() {
             <i className="iconoir-plus" style={{ fontSize: 20 }} />
           </Link>
 
-          {/* Tab 2 — Favoritos */}
+          {/* Tab 3 — Favoritos */}
           <TabItem
             href={favHref} icon="iconoir-heart" label="Favoritos"
             active={pathname.startsWith('/account/favorites')}
-            exitDelay={70} enterDelay={20} collapsed={searchOpen}
+            exitDelay={80} enterDelay={20} collapsed={searchOpen}
           />
 
-          {/* Tab 3 — Perfil (exits last, enters first) */}
+          {/* Tab 4 — Perfil (exits last, enters first) */}
           <TabItem
             href={profileHref}
             icon="iconoir-user"
             label={isSignedIn ? 'Perfil' : 'Entrar'}
             active={(isActive('/account') && !pathname.startsWith('/account/favorites')) || isActive('/sign-in')}
-            exitDelay={105} enterDelay={0} collapsed={searchOpen}
+            exitDelay={115} enterDelay={0} collapsed={searchOpen}
           />
         </nav>
 
