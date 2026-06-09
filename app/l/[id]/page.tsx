@@ -17,6 +17,7 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
+import SellerTrustCard from '@/app/components/SellerTrustCard'
 import SubscriptionSection from './SubscriptionSection'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
@@ -53,13 +54,6 @@ function timeAgo(dateStr: string): string {
   const months = Math.floor(days / 30)
   if (months < 12) return `Hace ${months} mes${months > 1 ? 'es' : ''}`
   return `Hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? 's' : ''}`
-}
-
-function whatsappUrl(raw: string, title: string): string {
-  const digits = raw.replace(/\D/g, '')
-  const full = digits.startsWith('52') ? digits : `52${digits}`
-  const text = encodeURIComponent(`Hola, vi tu anuncio "${title}" en miyagisanchez.com y me interesa. ¿Sigue disponible?`)
-  return `https://wa.me/${full}?text=${text}`
 }
 
 function formatCents(cents: number, currency: string): string {
@@ -162,7 +156,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     ? storedTiers
     : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
   const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
-  const shopHasScheduling = !!bookingUrl
   const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
   const hasDirectContact = !!(whatsappPhone || visiblePhone || contactEmail || bookingUrl)
   const paymentMethods = [
@@ -356,6 +349,26 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     </Link>
   ) : null
 
+  // Seller trust block (S3.2) — built once, dual-rendered: mobile-only above the
+  // payment/fulfillment methods box (so the buyer judges who they're buying from
+  // first), desktop-only in its original position below. Same `md:hidden` /
+  // `hidden md:block` idiom as `ctaButtons`.
+  const sellerTrustCard = listing.shop ? (
+    <SellerTrustCard
+      shop={listing.shop}
+      onChannel={onChannel}
+      isClaimed={isClaimed}
+      listingTitle={listing.title}
+      whatsappPhone={whatsappPhone}
+      visiblePhone={visiblePhone}
+      contactEmail={contactEmail}
+      bookingUrl={bookingUrl}
+      bookingText={bookingText}
+      agendarLabel={agendarLabel}
+      pickupSpots={pickupSpots}
+    />
+  ) : null
+
   return (
     /* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid */
     <div
@@ -487,8 +500,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Seller trust card — MOBILE position (S3.2) ───────────────────────
+            On a phone the trust block leads, above payment/fulfillment, so the
+            buyer judges the seller before the transaction detail. Desktop renders
+            the same card lower (hidden md:block below). ──────────────────────── */}
+        {sellerTrustCard && <div className="md:hidden">{sellerTrustCard}</div>}
+
         {(paymentMethods.length > 0 || fulfillmentMethods.length > 0 || (!hasBuyablePrice && isClaimed)) && (
-          <div style={{ marginBottom: 16, padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
+          <div data-testid="pdp-methods" style={{ marginBottom: 16, padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
             {!hasBuyablePrice && isClaimed && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <i className="iconoir-message-text" style={{ fontSize: 18, color: 'var(--accent)', marginTop: 1 }} />
@@ -636,106 +655,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {/* ── Seller card ──────────────────────────────────────────────────────── */}
-        {listing.shop && (
-          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
-            <Link href={onChannel ? '/' : `/s/${listing.shop.slug}`} className="no-underline block">
-              <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {listing.shop.logo_url ? (
-                    <img src={listing.shop.logo_url as unknown as string} alt={listing.shop.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <i className="iconoir-shop" style={{ fontSize: 20, color: 'var(--accent)' }} />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>
-                      {listing.shop.verified && <span style={{ color: 'var(--accent)', marginRight: 3 }}>✓</span>}
-                      {listing.shop.name}
-                    </span>
-                  </div>
-                  {listing.shop.location && (
-                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 1 }}>
-                      <i className="iconoir-map-pin" style={{ fontSize: 11, verticalAlign: 'middle', marginRight: 2 }} />
-                      {listing.shop.location}
-                    </p>
-                  )}
-                </div>
-                <i className="iconoir-arrow-right" style={{ fontSize: 16, color: 'var(--fg-subtle)', flexShrink: 0 }} />
-              </div>
-            </Link>
-
-            {/* Contact */}
-            {(whatsappPhone || visiblePhone || contactEmail) && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {whatsappPhone && (
-                    <a
-                      href={whatsappUrl(whatsappPhone, listing.title)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-lg no-underline"
-                      style={{ width: '100%', justifyContent: 'center', background: 'var(--provider-whatsapp)', color: 'var(--fg-inverse)', borderRadius: 'var(--r-pill)' }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                      Contactar por WhatsApp
-                    </a>
-                  )}
-                  {visiblePhone && (
-                    <a href={`tel:${visiblePhone}`} className="btn btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
-                      <i className="iconoir-phone" style={{ fontSize: 16 }} />
-                      Llamar al vendedor
-                    </a>
-                  )}
-                  {contactEmail && (
-                    <a href={`mailto:${contactEmail}?subject=${encodeURIComponent(`Consulta por ${listing.title}`)}`} className="btn btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
-                      <i className="iconoir-mail" style={{ fontSize: 16 }} />
-                      Enviar correo
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Scheduling */}
-            {shopHasScheduling && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
-                <a href={bookingUrl!} target="_blank" rel="noopener noreferrer" className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
-                  <i className="iconoir-calendar" style={{ fontSize: 16 }} />
-                  {bookingText ?? agendarLabel.replace(/^[^\s]+\s/, '')}
-                  <i className="iconoir-arrow-up-right" style={{ fontSize: 12, opacity: 0.6 }} />
-                </a>
-              </div>
-            )}
-
-            {pickupSpots.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Recoger en tienda</p>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {pickupSpots.slice(0, 3).map((spot, index) => (
-                    <div key={`${spot.name ?? 'punto'}-${index}`} style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                      <strong style={{ color: 'var(--fg)' }}>{spot.name ?? `Punto ${index + 1}`}</strong>
-                      {spot.address && <span> · {spot.address}</span>}
-                      {spot.instructions && <p style={{ marginTop: 2 }}>{spot.instructions}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Claim nudge */}
-            {!isClaimed && (
-              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', background: 'var(--bg-sunk)' }}>
-                <Link href={`/s/${listing.shop.slug}/claim`} style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
-                  ¿Es tuya esta tienda? Reclamar gratis →
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
+        {/* ── Seller trust card — DESKTOP position (S3.2) ──────────────────────
+            Original in-flow slot below the methods box. On mobile the same card
+            renders higher (md:hidden above); here it's desktop-only. ─────────── */}
+        {sellerTrustCard && <div className="hidden md:block">{sellerTrustCard}</div>}
 
         {bundleItems.length > 1 && listing.shop && (
           <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
