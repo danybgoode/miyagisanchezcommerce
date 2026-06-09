@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
-import { formatOfferAmount, timeUntil } from '@/lib/offers'
+import { formatOfferAmount, timeUntil, offerTurn, type OfferStatus } from '@/lib/offers'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import type { CheckoutProvider } from '@/lib/cart'
+import type { LedgerView } from '@/lib/transaction-ledger'
 import { useConversationStream } from '@/lib/messaging/stream'
 import { ensurePushSubscription } from '@/lib/push-client'
 
@@ -35,6 +36,8 @@ interface Conversation {
   checkout_provider?: CheckoutProvider | null
 }
 
+interface ConvTransaction { ledger: LedgerView; orderId: string | null }
+
 interface Props {
   conversationId: string
   initialConversation: Conversation
@@ -42,6 +45,7 @@ interface Props {
   role: 'buyer' | 'seller'
   currentUserId: string
   currentUserEmail?: string
+  initialTransaction: ConvTransaction
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -174,7 +178,103 @@ function renderSystemText(type: string, meta: Record<string, unknown>, currency:
   }
 }
 
+// ── Transaction ledger card (C.2) ───────────────────────────────────────────────
+// Read-only durable card: shows the ONE shared order/payment/refund state behind the
+// conversation. Actions are DEEP-LINKS to the existing order page — no payment/refund
+// mutation happens in chat (the in-chat read-only invariant). Updates over the existing
+// Realtime refresh (the GET re-projects the ledger).
+
+const ROW_DOT_COLOR: Record<'done' | 'current' | 'pending', string> = {
+  done:    'var(--success)',
+  current: 'var(--accent)',
+  pending: 'var(--fg-subtle)',
+}
+
+function TransactionLedgerCard({ ledger, orderId, role }: {
+  ledger: LedgerView
+  orderId: string | null
+  role: 'buyer' | 'seller'
+}) {
+  if (ledger.isEmpty) return null
+
+  const orderHref = orderId
+    ? role === 'seller' ? `/shop/manage/orders/${orderId}` : `/account/orders/${orderId}`
+    : null
+  const showAction = !!ledger.action && !!orderHref
+
+  return (
+    <div style={{ flexShrink: 0, padding: '12px 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+      {/* Headline: badge + who-acts-next */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--fg)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '3px 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {ledger.badge}
+        </span>
+        {ledger.whoActsNext && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}>
+            {ledger.whoActsNext}
+            {ledger.deadlineIso && (
+              <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> · Expira en {timeUntil(ledger.deadlineIso)}</span>
+            )}
+          </span>
+        )}
+      </div>
+
+      {ledger.detail && (
+        <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 6 }}>{ledger.detail}</p>
+      )}
+
+      {/* Timeline */}
+      {ledger.timeline.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>
+          {ledger.timeline.map((row, i) => (
+            <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: ROW_DOT_COLOR[row.status], flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: row.status === 'current' ? 700 : 500, color: row.status === 'pending' ? 'var(--fg-subtle)' : 'var(--fg-muted)' }}>
+                {row.label}
+              </span>
+              {i < ledger.timeline.length - 1 && (
+                <span style={{ width: 14, height: 1, background: 'var(--border)', margin: '0 2px' }} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Read-only action — deep-links to the order page */}
+      {showAction && (
+        <Link
+          href={orderHref!}
+          className="no-underline"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}
+        >
+          {ledger.action!.label}
+          <i className="iconoir-arrow-up-right" style={{ fontSize: 14 }} />
+        </Link>
+      )}
+    </div>
+  )
+}
+
 // ── Offer action bar ──────────────────────────────────────────────────────────
+
+/**
+ * Explicit "whose turn is it" line + live countdown to the CORRECT deadline (C.3) —
+ * derived once from offer status + role via the shared {@link offerTurn} so the panel
+ * never re-infers turn from which buttons render. Pending → expires_at (48h); counter →
+ * counter_expires_at (24h); accepted → checkout_expires_at (24h).
+ */
+function OfferTurnLine({ offer, role }: { offer: ConvOffer; role: 'buyer' | 'seller' }) {
+  const turn = offerTurn({ ...offer, status: offer.status as OfferStatus }, role)
+  if (!turn.line) return null
+  return (
+    <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)', marginBottom: 8 }}>
+      {turn.line}
+      {turn.deadlineIso && (
+        <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}> · Expira en {timeUntil(turn.deadlineIso)}</span>
+      )}
+    </p>
+  )
+}
 
 function OfferActionBar({
   offer, role, listing, checkoutProvider, isSignedIn, onRefresh,
@@ -250,6 +350,7 @@ function OfferActionBar({
   if (role === 'buyer' && offer.status === 'pending' && !isExpiredOffer) {
     return (
       <div style={{ padding: '8px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+        <OfferTurnLine offer={offer} role={role} />
         <button
           type="button"
           onClick={() => buyerAction('withdraw')}
@@ -258,18 +359,15 @@ function OfferActionBar({
         >
           Retirar oferta
         </button>
-        {offer.expires_at && (
-          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', marginLeft: 12 }}>
-            Expira en {timeUntil(offer.expires_at)}
-          </span>
-        )}
       </div>
     )
   }
 
   if (role === 'buyer' && offer.status === 'countered' && !isExpiredCounter) {
     return (
-      <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+      <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+        <OfferTurnLine offer={offer} role={role} />
+        <div style={{ display: 'flex', gap: 8 }}>
         <button
           type="button"
           onClick={() => buyerAction('accept-counter')}
@@ -288,6 +386,7 @@ function OfferActionBar({
         >
           Rechazar
         </button>
+        </div>
       </div>
     )
   }
@@ -403,9 +502,9 @@ function SellerActionBar({ offer, onAction, busy }: {
 
   return (
     <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+      <OfferTurnLine offer={offer} role="seller" />
       <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 10 }}>
         Oferta recibida: <strong>{fmt(offer.offer_amount_cents, offer.currency)}</strong>
-        {offer.expires_at && <span style={{ marginLeft: 8 }}>· Expira en {timeUntil(offer.expires_at)}</span>}
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
@@ -526,9 +625,16 @@ function StampChooser({ role, conversationId, onStampSent }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ConversationClient({ conversationId, initialConversation, initialEvents, role }: Props) {
+export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, initialTransaction }: Props) {
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
+  const [transaction, setTransaction] = useState(initialTransaction)
+  // Re-render once a minute so the deadline countdowns (ledger card + offer panel) stay live.
+  const [, setCountdownTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setCountdownTick(t => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -558,9 +664,10 @@ export default function ConversationClient({ conversationId, initialConversation
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`/api/conversations/${conversationId}`)
-      const data = await res.json() as { conversation: typeof conv; events: typeof events }
+      const data = await res.json() as { conversation: typeof conv; events: typeof events; transaction?: ConvTransaction }
       setConv(data.conversation)
       setEvents(data.events)
+      if (data.transaction) setTransaction(data.transaction)
     } catch {
       // silent
     }
@@ -712,6 +819,9 @@ export default function ConversationClient({ conversationId, initialConversation
           {role === 'buyer' ? 'Enviar agente' : 'Configurar'}
         </Link>
       </div>
+
+      {/* Transaction ledger card (C.2) — durable shared state, read-only */}
+      <TransactionLedgerCard ledger={transaction.ledger} orderId={transaction.orderId} role={role} />
 
       {/* Events scroll area */}
       <div

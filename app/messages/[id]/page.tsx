@@ -6,6 +6,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { resolveConversationLedger, type ConversationLedger } from '@/lib/conversation-ledger'
+import type { LedgerOffer } from '@/lib/transaction-ledger'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -88,6 +90,21 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     checkout_provider: checkoutProvider,
   }
 
+  // ── Transaction ledger (C.1/C.2) — seed the durable card for the first render ──
+  const role = isBuyer ? 'buyer' : 'seller'
+  const ledgerOffer: LedgerOffer | null = offerWithCurrency
+    ? {
+        status: offerWithCurrency.status as LedgerOffer['status'],
+        offer_amount_cents: offerWithCurrency.offer_amount_cents,
+        counter_amount_cents: offerWithCurrency.counter_amount_cents,
+        expires_at: offerWithCurrency.expires_at,
+        counter_expires_at: offerWithCurrency.counter_expires_at,
+        checkout_expires_at: offerWithCurrency.checkout_expires_at,
+        currency: offerWithCurrency.currency,
+      }
+    : null
+  const initialTransaction = await resolveConversationLedger(ledgerOffer, offerId, role)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 72px)' }}>
       {/* Back nav */}
@@ -105,6 +122,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         role={isBuyer ? 'buyer' : 'seller'}
         currentUserId={user.id}
         currentUserEmail={user.emailAddresses[0]?.emailAddress ?? ''}
+        initialTransaction={initialTransaction}
       />
     </div>
   )
