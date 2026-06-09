@@ -20,6 +20,7 @@ export type BuyerMessageKind =
   | 'return_requested'
   | 'return_accepted'
   | 'return_declined'
+  | 'refund_transfer_sent'
 
 export const BUYER_MESSAGE_KINDS: readonly BuyerMessageKind[] = [
   'order_shipped',
@@ -30,6 +31,7 @@ export const BUYER_MESSAGE_KINDS: readonly BuyerMessageKind[] = [
   'return_requested',
   'return_accepted',
   'return_declined',
+  'refund_transfer_sent',
 ] as const
 
 export type BuyerMessageParams = {
@@ -104,6 +106,21 @@ export function buildBuyerMessage(kind: BuyerMessageKind, p: BuyerMessageParams)
       return {
         push: { kind: 'order', title: 'Devolución rechazada', body: p.listingTitle, url: p.url },
         telegram: `🚫 <b>Tu solicitud de devolución fue rechazada</b>\n${t}\nRevisa los detalles en Miyagi Sánchez.`,
+      }
+    case 'refund_transfer_sent':
+      // Off-platform (SPEI/cash) rail: the seller marked the transfer as sent. The buyer
+      // must confirm receipt to close the refund (lib/refund-state.ts → confirmado).
+      return {
+        push: {
+          kind: 'order',
+          title: 'El vendedor envió tu reembolso 💸',
+          body: p.refundAmount ? `${p.listingTitle} — ${p.refundAmount}. Confirma cuando lo recibas.` : `${p.listingTitle}. Confirma cuando lo recibas.`,
+          url: p.url,
+        },
+        telegram:
+          `💸 <b>El vendedor envió tu reembolso</b>\n${t}` +
+          (p.refundAmount ? `\nReembolso: ${escapeHtml(p.refundAmount)}` : '') +
+          `\nConfírmalo cuando lo recibas en Miyagi Sánchez.`,
       }
   }
 }

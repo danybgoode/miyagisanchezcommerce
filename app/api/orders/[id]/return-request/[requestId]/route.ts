@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, getSellerEmail } from '@/lib/email'
+import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, sendRefundTransferSentToBuyer, getSellerEmail } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
@@ -43,7 +43,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
-  if (!['accept', 'partial_refund', 'decline', 'seller_refund'].includes(body.action ?? '')) {
+  if (!['accept', 'partial_refund', 'decline', 'seller_refund', 'transfer_sent'].includes(body.action ?? '')) {
     return NextResponse.json({ error: 'Acción inválida.' }, { status: 422 })
   }
 
@@ -54,7 +54,7 @@ export async function PATCH(
     const clerkJwt = await getToken()
     if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-    // Map partial_refund → accept with refund_amount_cents. seller_refund passes through.
+    // Map partial_refund → accept with refund_amount_cents. seller_refund + transfer_sent pass through.
     const medusaAction = body.action === 'partial_refund' ? 'accept' : body.action
 
     const res = await medusaFetch(`/store/sellers/me/orders/${id}/return-request`, clerkJwt, {
@@ -65,7 +65,10 @@ export async function PATCH(
         note: body.seller_note,
       }),
     })
-    const data = await res.json() as { refunded?: boolean; refund_status?: string; refund_amount_cents?: number; message?: string }
+    const data = await res.json() as {
+      refunded?: boolean; accepted?: boolean; refund_status?: string; refund_state?: string
+      refund_amount_cents?: number; return_request?: { refund_amount_cents?: number }; message?: string
+    }
     if (!res.ok) return NextResponse.json({ error: data.message ?? 'Error al procesar la devolución.' }, { status: res.status })
 
     // Send emails (best-effort)
@@ -78,7 +81,7 @@ export async function PATCH(
         const listingTitle = (listings?.title as string) ?? 'Producto'
         const buyerEmail   = (order.buyer_email as string) ?? ''
         const shopName     = 'Tu tienda'
-        const refundAmountCents = data.refund_amount_cents ?? 0
+        const refundAmountCents = data.refund_amount_cents ?? data.return_request?.refund_amount_cents ?? 0
         const refundFormatted   = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(refundAmountCents / 100)
 
         // Medusa orders don't carry the buyer's Clerk id → guest fall-through
@@ -94,6 +97,24 @@ export async function PATCH(
             telegram: m.telegram,
           })
           tg.alert(`❌ Devolución rechazada (Medusa)\n${listingTitle}`).catch(() => {})
+        } else if (body.action === 'transfer_sent') {
+          // Off-platform (SPEI/cash) rail: seller marked the transfer sent → ask the
+          // buyer to confirm receipt. This is the buyer's actionable cue (honest email).
+          const m = buildBuyerMessage('refund_transfer_sent', { listingTitle, url: buyerOrderUrlMedusa, refundAmount: refundFormatted })
+          void dispatchToBuyer(buyerRecipient, {
+            group: 'buyer.devoluciones',
+            email: to => sendRefundTransferSentToBuyer({ buyerEmail: to, buyerName: null, listingTitle, shopName, refundAmount: refundFormatted, sellerNote: body.seller_note?.trim() ?? null, orderUrl: buyerOrderUrlMedusa }),
+            push: m.push,
+            telegram: m.telegram,
+          })
+          tg.alert(`💸 Transferencia de reembolso enviada (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
+        } else if (data.refund_state === 'aceptado') {
+          // SPEI/cash accept → aceptado: the seller agreed but the money has NOT been
+          // sent yet. Send an honest push/Telegram only — NO card "aparecerá en tu
+          // cuenta en 5–10 días" email. The actionable email goes out at transfer_sent.
+          const m = buildBuyerMessage('return_accepted', { listingTitle, url: buyerOrderUrlMedusa, refundAmount: refundFormatted, isPartial: false })
+          void dispatchToBuyer(buyerRecipient, { group: 'buyer.devoluciones', push: m.push, telegram: m.telegram })
+          tg.alert(`✅ Devolución aceptada — transferencia pendiente (Medusa)\n${listingTitle}\nReembolso: ${refundFormatted}`).catch(() => {})
         } else {
           // accept, partial_refund, and seller_refund all issue a refund to the buyer.
           // For seller_refund the client only sends refund_amount_cents when the
@@ -113,13 +134,17 @@ export async function PATCH(
       }
     } catch { /* non-fatal */ }
 
-    return NextResponse.json({ status: data.refund_status ?? (body.action === 'decline' ? 'declined' : 'accepted') })
+    return NextResponse.json({
+      status: data.refund_status ?? (body.action === 'decline' ? 'declined' : 'accepted'),
+      refund_state: data.refund_state,
+    })
   }
 
   // ── Legacy Supabase path ──────────────────────────────────────────────────
-  // Seller-initiated refunds are only supported for Medusa orders (the live source).
-  if (body.action === 'seller_refund') {
-    return NextResponse.json({ error: 'El reembolso directo solo está disponible para pedidos recientes.' }, { status: 422 })
+  // Seller-initiated refunds + the off-platform transfer ladder are only supported
+  // for Medusa orders (the live source).
+  if (body.action === 'seller_refund' || body.action === 'transfer_sent') {
+    return NextResponse.json({ error: 'Esta acción solo está disponible para pedidos recientes.' }, { status: 422 })
   }
 
   const { data: returnReq } = await db
