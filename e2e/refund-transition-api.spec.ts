@@ -23,3 +23,12 @@ test.describe('refund transitions · seller PATCH (S1.2) · auth gate', () => {
     expect(res.status()).toBe(401)
   })
 })
+
+test.describe('refund transitions · buyer PATCH (S1.3) · auth gate', () => {
+  test('buyer "confirm_receipt" (Recibí el reembolso) rejects anonymous with 401', async ({ request }) => {
+    const res = await request.patch(`/api/orders/${ORDER}/return-request`, {
+      data: { action: 'confirm_receipt' },
+    })
+    expect(res.status()).toBe(401)
+  })
+})

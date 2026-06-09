@@ -5,6 +5,10 @@ import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
+import {
+  deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
+  type RefundState, type ReturnRequestLike,
+} from '@/lib/refund-state'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -40,6 +44,9 @@ interface OrderTrackingProps {
     buyer_reported_paid?: boolean
     buyer_reported_paid_at?: string | null
     manual_payment_state?: string | null
+    // Two-sided refund lifecycle (Delivery & Manual-Money Polish S1).
+    refund_state?: RefundState | null
+    return_request?: ReturnRequestLike | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -244,6 +251,33 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const [returnDesc, setReturnDesc] = useState('')
   const [submittingReturn, setSubmittingReturn] = useState(false)
   const [returnRequest, setReturnRequest] = useState<{ id: string; status: string; reason: string; description?: string | null; seller_note?: string | null } | null>(null)
+
+  // Two-sided refund lifecycle (S1). Seeded from the normalizer-emitted refund_state,
+  // advanced client-side when the buyer confirms receipt of an off-platform refund.
+  const [refundState, setRefundState] = useState<RefundState>(
+    (order.refund_state as RefundState | undefined)
+      ?? deriveRefundState((order.return_request ?? (meta.return_request as ReturnRequestLike | undefined)) ?? null),
+  )
+  const [confirmingRefund, setConfirmingRefund] = useState(false)
+
+  async function handleConfirmRefund() {
+    setConfirmingRefund(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/return-request`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm_receipt' }),
+      })
+      const data = await res.json() as { refund_state?: string; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'Error al confirmar el reembolso.', 'error'); return }
+      setRefundState((data.refund_state as RefundState) ?? 'confirmado')
+      showToast('¡Gracias! Confirmaste el reembolso. La devolución quedó cerrada.', 'success')
+    } catch {
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      setConfirmingRefund(false)
+    }
+  }
 
   const listing  = Array.isArray(order.marketplace_listings) ? order.marketplace_listings[0] : order.marketplace_listings
   const shop     = Array.isArray(order.marketplace_shops)    ? order.marketplace_shops[0]    : order.marketplace_shops
@@ -595,6 +629,31 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <p className="text-sm font-semibold text-green-800">Pago liberado al vendedor</p>
           </div>
           <p className="text-xs text-green-700 mt-1">El vendedor ya recibió el pago. ¡Gracias por tu compra!</p>
+        </section>
+      )}
+
+      {/* Off-platform (SPEI/cash) refund — buyer confirms receipt (S1) */}
+      {isSpeiOrder && ['aceptado', 'transferencia_pendiente', 'confirmado'].includes(refundState) && (
+        <section className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span>{refundState === 'confirmado' ? '✓' : '💸'}</span>
+            <h2 className={`font-semibold text-sm ${refundState === 'confirmado' ? 'text-green-900' : 'text-amber-900'}`}>
+              {refundBadge(refundState)}
+            </h2>
+          </div>
+          <p className={`text-xs ${refundState === 'confirmado' ? 'text-green-700' : 'text-amber-700'}`}>
+            {whoActsNextRefund(refundState, 'buyer')}
+          </p>
+          {canBuyerConfirmReceipt(refundState) && (
+            <button
+              type="button"
+              onClick={handleConfirmRefund}
+              disabled={confirmingRefund}
+              className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {confirmingRefund ? 'Confirmando…' : '✓ Recibí el reembolso'}
+            </button>
+          )}
         </section>
       )}
 

@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, sendRefundTransferSentToBuyer, getSellerEmail } from '@/lib/email'
+import { sendReturnAcceptedToBuyer, sendReturnDeclinedToBuyer, sendRefundTransferSentToBuyer } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'

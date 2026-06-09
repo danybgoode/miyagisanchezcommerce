@@ -27,7 +27,7 @@ test.describe('refund-state · derivation', () => {
   })
 
   test('seller declined → rechazado', () => {
-    expect(deriveRefundState({ status: 'declined', seller_action: 'declined' } as any)).toBe('rechazado')
+    expect(deriveRefundState({ status: 'declined' })).toBe('rechazado')
   })
 
   test('card refund executed → confirmado (auto)', () => {
