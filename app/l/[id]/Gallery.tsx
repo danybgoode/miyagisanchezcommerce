@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, type ReactNode, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { wrapIndex, indexFromScroll } from '@/lib/gallery'
 
 type GalleryImage = { url: string; alt?: string | null }
@@ -46,6 +46,7 @@ export default function Gallery({
 }) {
   const count = images.length
   const [active, setActive] = useState(0)
+  const [lightbox, setLightbox] = useState(false)
   const trackRef = useRef<HTMLDivElement>(null)
 
   const go = useCallback((i: number) => setActive(wrapIndex(i, count)), [count])
@@ -120,10 +121,14 @@ export default function Gallery({
               key={i}
               src={img.url}
               alt={img.alt ?? `${title} — imagen ${i + 1} de ${count}`}
+              onClick={() => {
+                setActive(i)
+                setLightbox(true)
+              }}
               loading={i === 0 ? 'eager' : 'lazy'}
               fetchPriority={i === 0 ? 'high' : undefined}
               decoding={i === 0 ? undefined : 'async'}
-              style={{ ...MAIN_IMG, scrollSnapAlign: 'start', flexShrink: 0 }}
+              style={{ ...MAIN_IMG, scrollSnapAlign: 'start', flexShrink: 0, cursor: 'zoom-in' }}
             />
           ))}
         </div>
@@ -132,11 +137,12 @@ export default function Gallery({
         <img
           src={images[active].url}
           alt={images[active].alt ?? `${title} — imagen ${active + 1} de ${count}`}
+          onClick={() => setLightbox(true)}
           fetchPriority={active === 0 ? 'high' : undefined}
           decoding={active === 0 ? undefined : 'async'}
           data-testid="gallery-main-desktop"
           className="hidden md:block md:rounded-xl"
-          style={MAIN_IMG}
+          style={{ ...MAIN_IMG, cursor: 'zoom-in' }}
         />
 
         {/* DESKTOP — prev / next arrows */}
@@ -209,6 +215,137 @@ export default function Gallery({
           </button>
         ))}
       </div>
+
+      {/* Lightbox — lazy-mounted only when opened (zero cost until used). */}
+      {lightbox && (
+        <Lightbox
+          images={images}
+          title={title}
+          index={active}
+          setIndex={go}
+          onClose={() => {
+            setLightbox(false)
+            scrollToSlide(active)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+const lbArrow = (side: 'left' | 'right'): CSSProperties => ({
+  position: 'absolute',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  ...(side === 'left' ? { left: 12 } : { right: 12 }),
+  width: 44,
+  height: 44,
+  borderRadius: '50%',
+  border: 'none',
+  background: 'rgba(255,255,255,0.12)',
+  color: '#fff',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  zIndex: 2,
+})
+
+function Lightbox({
+  images,
+  title,
+  index,
+  setIndex,
+  onClose,
+}: {
+  images: GalleryImage[]
+  title: string
+  index: number
+  setIndex: (i: number) => void
+  onClose: () => void
+}) {
+  const count = images.length
+  const touchX = useRef<number | null>(null)
+
+  // Lock background scroll while open; restore the previous value on close (the
+  // scroll position is preserved — overflow:hidden doesn't move it).
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  // Modal keyboard: Esc closes; ←/→ navigate.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft') setIndex(index - 1)
+      else if (e.key === 'ArrowRight') setIndex(index + 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [index, setIndex, onClose])
+
+  return (
+    <div
+      data-testid="gallery-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Imagen ${index + 1} de ${count}`}
+      onClick={onClose}
+      onTouchStart={(e) => {
+        touchX.current = e.touches[0].clientX
+      }}
+      onTouchEnd={(e) => {
+        if (touchX.current == null) return
+        const dx = e.changedTouches[0].clientX - touchX.current
+        if (Math.abs(dx) > 40) setIndex(dx < 0 ? index + 1 : index - 1)
+        touchX.current = null
+      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <button type="button" aria-label="Cerrar" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer', zIndex: 2 }}>
+        <i className="iconoir-xmark" style={{ fontSize: 24 }} />
+      </button>
+
+      <img
+        src={images[index].url}
+        alt={images[index].alt ?? `${title} — imagen ${index + 1} de ${count}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain', display: 'block' }}
+      />
+
+      {count > 1 && (
+        <>
+          <button
+            type="button"
+            aria-label="Imagen anterior"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIndex(index - 1)
+            }}
+            style={lbArrow('left')}
+          >
+            <i className="iconoir-nav-arrow-left" style={{ fontSize: 28 }} />
+          </button>
+          <button
+            type="button"
+            aria-label="Imagen siguiente"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIndex(index + 1)
+            }}
+            style={lbArrow('right')}
+          >
+            <i className="iconoir-nav-arrow-right" style={{ fontSize: 28 }} />
+          </button>
+          <div style={{ position: 'absolute', bottom: 20, left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
+            {index + 1} / {count}
+          </div>
+        </>
+      )}
     </div>
   )
 }
