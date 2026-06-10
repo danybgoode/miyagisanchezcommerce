@@ -65,7 +65,17 @@ export default async function EmbedShopPage({
     `/l/${id}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
 
   return (
-    <ChannelLayout shopName={shop.name} accentColor={accent} logoUrl={shop.logo_url ?? null} domain="">
+    <ChannelLayout
+      shopName={shop.name}
+      accentColor={accent}
+      logoUrl={shop.logo_url ?? null}
+      domain=""
+      trust={
+        // Epic D / D.2 — the embed shell carries the same platform-assurance strip.
+        // paymentProtected suppressed (the shell's lead line carries that assurance).
+        <TrustSignals variant="slim" channel="embed" {...trust} paymentProtected={false} />
+      }
+    >
       <div style={{ '--shop-accent': accent } as React.CSSProperties}>
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* Shop heading */}

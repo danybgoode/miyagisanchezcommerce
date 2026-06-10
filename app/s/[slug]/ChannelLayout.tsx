@@ -13,10 +13,18 @@ interface Props {
   accentColor: string
   logoUrl: string | null
   domain: string
+  /**
+   * Cross-channel trust parity (#3c · Epic D / D.2): an optional discreet
+   * platform-assurance slot rendered above the page content. Callers pass Epic C's
+   * slim `<TrustSignals>` node; this shell wraps it with the subtle es-MX
+   * "Pago seguro · Compra protegida" lead line. Additive — when absent, no strip
+   * renders, so existing white-label renders are unchanged.
+   */
+  trust?: ReactNode
   children: ReactNode
 }
 
-export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, children }: Props) {
+export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, trust, children }: Props) {
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -57,6 +65,18 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
 
       {/* ── Page content ──────────────────────────────────────────────────── */}
       <main className="flex-1 bg-[var(--surface-channel)]">
+        {/* Platform-assurance strip (Epic D / D.2) — discreet, not platform nav. */}
+        {trust && (
+          <div className="border-b" style={{ borderColor: 'rgba(0,0,0,0.06)', background: 'rgba(0,0,0,0.015)' }}>
+            <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-x-3 gap-y-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--embed-fg-muted)' }}>
+                <i className="iconoir-shield-check" style={{ fontSize: 13 }} />
+                Pago seguro · Compra protegida
+              </span>
+              {trust}
+            </div>
+          </div>
+        )}
         {children}
       </main>
 
