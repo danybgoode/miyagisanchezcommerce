@@ -12,6 +12,9 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
 import { PRESETS, parseLocation, detectSchedulingService, generateHex32 } from '@/lib/shop-settings/helpers'
 import { sectionIdsFor } from '@/lib/shop-settings/taxonomy'
+import { SectionTitle } from './_components/SectionTitle'
+import { ToggleSwitch } from './_components/ToggleSwitch'
+import { Toast, type ToastState } from './_components/Toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -300,71 +303,8 @@ const ENVIA_CARRIERS = [
 ]
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)] mb-3">
-      {children}
-    </h2>
-  )
-}
-
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-  description,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  label: string
-  description?: string
-  disabled?: boolean
-}) {
-  return (
-    <label className={`flex items-center justify-between gap-4 py-3 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        {description && <div className="text-xs text-[var(--color-muted)]">{description}</div>}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => !disabled && onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-          checked ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
-            checked ? 'translate-x-4' : 'translate-x-0'
-          }`}
-        />
-      </button>
-    </label>
-  )
-}
-
-interface ToastState { message: string; type: 'success' | 'error' }
-
-function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-        toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-      }`}
-    >
-      <span>{toast.type === 'success' ? '✓' : '⚠'}</span>
-      <span>{toast.message}</span>
-      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100">×</button>
-    </div>
-  )
-}
+// SectionTitle, ToggleSwitch, Toast (+ ToastState) moved to ./_components/ —
+// imported above so extracted sections reuse the same presentational primitives.
 
 function SoonBadge() {
   return (
