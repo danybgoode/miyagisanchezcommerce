@@ -26,11 +26,12 @@ const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
 const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
 const Pagos           = dynamic(() => import('../_sections/Pagos'))
 const Canal           = dynamic(() => import('../_sections/Canal'))
+const Agentes         = dynamic(() => import('../_sections/Agentes'))
 
 /** Slugs that have been lifted out of the monolith. */
 const EXTRACTED = new Set([
   'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
-  'pagos', 'canal',
+  'pagos', 'canal', 'agentes',
 ])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
@@ -146,6 +147,12 @@ export default async function SettingsSectionPage({
           custom_domain_verified: (shopData as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
           support: st.support ?? null,
           accent: st.theme?.accent_color ?? null,
+        }} />
+      case 'agentes':
+        return <Agentes initial={{
+          ucp_webhook_url: (shopData as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url ?? null,
+          ucp_webhook_secret: (shopData as unknown as { ucp_webhook_secret: string | null }).ucp_webhook_secret ?? null,
+          agent_token_set: agentTokenSet,
         }} />
       default:
         return null

@@ -51,4 +51,17 @@ test.describe('shop-settings · Sprint 3 money/domain/agent extractions (browser
     await expect(page.getByPlaceholder('tutienda.mx')).toBeVisible()
     await expect(page.getByRole('button', { name: /Guardar cambios/ })).toBeVisible()
   })
+
+  test('Agentes renders webhook + agent-token + MCP config snippet', async ({ page }) => {
+    await open(page, 'agentes')
+    const section = page.locator('#webhook')
+    await expect(section).toBeVisible()
+    await expect(section.getByText('Conectar tu sistema')).toBeVisible()
+    await expect(section.getByText('URL de notificación')).toBeVisible()
+    await expect(section.getByText('Token para tu agente (MCP)')).toBeVisible()
+    // The agent-token issue affordance + the ready-to-paste MCP config block.
+    await expect(section.getByRole('button', { name: /token de agente|Regenerar token/ })).toBeVisible()
+    await expect(section.getByText('Conecta tu agente')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Guardar cambios/ })).toBeVisible()
+  })
 })
