@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, formatPrice } from '@/lib/listings'
+import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
@@ -70,7 +71,11 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listing = await getListing(listingId)
   if (!listing) notFound()
 
-  const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
+  // Last-line money-path guard: /checkout is directly URL-reachable (the deep-link
+  // target of checkoutHopHref/signInHopHref), so an unclaimed (gem) shop must be
+  // redirected away even though the PDP no longer links here. Shared predicate —
+  // see lib/claim.ts (same one the PDP + offers route + checkout-session use).
+  const isClaimed = isShopClaimed(listing.shop)
   if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/l/${listing.id}`)
 
   const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
