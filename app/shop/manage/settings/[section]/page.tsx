@@ -5,6 +5,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
 import { stripShopSecrets } from '@/lib/shop-settings/safe-metadata'
+import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
 } from '@/lib/shop-settings/types'
@@ -23,10 +24,12 @@ const Envios          = dynamic(() => import('../_sections/Envios'))
 const Citas           = dynamic(() => import('../_sections/Citas'))
 const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
 const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
+const Pagos           = dynamic(() => import('../_sections/Pagos'))
 
 /** Slugs that have been lifted out of the monolith. */
 const EXTRACTED = new Set([
   'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
+  'pagos',
 ])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
@@ -124,6 +127,17 @@ export default async function SettingsSectionPage({
         return <Pedidos initial={(st.orders ?? null) as OrdersSettings | null} />
       case 'notificaciones':
         return <Notificaciones initial={(st.notifications ?? null) as NotificationsSettings | null} />
+      case 'pagos':
+        return <Pagos
+          stripeError={stripeError}
+          mpError={mpError}
+          initial={{
+            stripe: stripeSettings,
+            mercadopago: { connected: !!mpSettings?.connected, enabled: mpSettings?.enabled !== false, live_mode: mpSettings?.live_mode },
+            checkout: (st.checkout ?? null) as PagosInitial['checkout'],
+            local_pickup: st.shipping?.local_pickup,
+          }}
+        />
       default:
         return null
     }
