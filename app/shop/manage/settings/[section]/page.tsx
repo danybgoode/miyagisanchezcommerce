@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
+import { stripShopSecrets } from '@/lib/shop-settings/safe-metadata'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
 } from '@/lib/shop-settings/types'
@@ -71,17 +72,7 @@ export default async function SettingsSectionPage({
   const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
   // Strip secrets before metadata reaches the client component:
   // MercadoPago tokens + the hashed MCP agent token (never needs to leave the server).
-  const safeMetadata = (() => {
-    let m = (shop.metadata ?? null) as Record<string, any> | null
-    if (m && ('ucp_agent_token_hash' in m || 'ucp_agent_token_created_at' in m)) {
-      const { ucp_agent_token_hash: _h, ucp_agent_token_created_at: _c, ...rest } = m
-      m = rest
-    }
-    const mp = (m?.settings as any)?.mercadopago
-    if (!mp) return m
-    const { access_token: _a, refresh_token: _r, ...safeMp } = mp
-    return { ...m, settings: { ...(m as any).settings, mercadopago: safeMp } }
-  })()
+  const safeMetadata = stripShopSecrets(shop.metadata as Record<string, any> | null)
   const agentTokenSet = !!(meta?.ucp_agent_token_hash)
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
