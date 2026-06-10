@@ -24,6 +24,16 @@ export function detectSchedulingService(url: string): string {
   return 'Cita en línea'
 }
 
+/** Carriers offered through the Envia.com fulfillment provider (Envíos section). */
+export const ENVIA_CARRIERS = [
+  { id: 'dhl', label: 'DHL' },
+  { id: 'fedex', label: 'FedEx' },
+  { id: 'estafeta', label: 'Estafeta' },
+  { id: 'ups', label: 'UPS' },
+  { id: 'redpack', label: 'Redpack' },
+  { id: 'paquetexpress', label: 'Paquetexpress' },
+]
+
 /** 32-byte hex secret (used to mint the agent webhook secret). */
 export function generateHex32(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(32)))
