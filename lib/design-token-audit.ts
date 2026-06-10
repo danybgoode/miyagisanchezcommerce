@@ -126,6 +126,12 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'native color input state needs a concrete hex value (extracted from ShopSettings monolith)',
   },
   {
+    path: 'app/shop/manage/settings/_sections/Canal.tsx',
+    literal: '#1d6f42',
+    contains: "initial.accent ?? '#1d6f42'",
+    reason: 'accent fallback serialized into the support-widget/embed iframe markup (extracted from ShopSettings monolith)',
+  },
+  {
     path: 'app/shop/manage/settings/page.tsx',
     literal: '#1d6f42',
     contains: "themeSettings.accent_color !== '#1d6f42'",
