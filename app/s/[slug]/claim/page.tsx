@@ -26,7 +26,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
               <p className="font-bold text-[var(--color-text)]">{shop.name}</p>
               <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com/s/{slug}</p>
             </div>
-            <span className="ml-auto text-xs font-semibold bg-[var(--accent)] text-[var(--fg-inverse)] px-2 py-0.5 rounded">
+            <span className="ml-auto text-xs font-semibold bg-[var(--accent)] text-[color:var(--fg-inverse)] px-2 py-0.5 rounded">
               Reclamada
             </span>
           </div>
@@ -44,7 +44,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
                 </p>
                 <a
                   href="https://dashboard.despachobonsai.com/dashboard/commerce"
-                  className="inline-block text-sm font-semibold bg-[var(--accent)] !text-[var(--fg-inverse)] px-4 py-2 rounded no-underline hover:bg-[var(--accent-hover)] transition-colors"
+                  className="btn btn-primary"
                 >
                   Ir a mi panel de ventas →
                 </a>

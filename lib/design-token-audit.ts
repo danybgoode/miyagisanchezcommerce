@@ -227,6 +227,40 @@ export function findRawHexLiteralOffendersInSourceFiles(files: SourceFile[]) {
   return offenders
 }
 
+// The "invisible accent button" defect: an element that sets `bg-[var(--accent)]`
+// alongside an *untyped* `text-[var(--fg-inverse)]`. In Tailwind v4 the untyped
+// arbitrary text value is ambiguous (color vs font-size) so the colour rule never
+// emits — anchors then inherit `:where(a){color:var(--accent)}` and render the label
+// green-on-green. The fix is the `.btn .btn-primary` primitive (plain CSS) for
+// buttons, or the typed `text-[color:var(--fg-inverse)]` hint for chips/badges; both
+// clear this guard. (Seller bug sweep S3, 2026-06-10.)
+const invisibleAccentBgClass = 'bg-[var(--accent)]'
+const untypedInverseTextClass = 'text-[var(--fg-inverse)]'
+
+export async function findInvisibleAccentButtonOffenders(repoRoot: string) {
+  return findInvisibleAccentButtonOffendersInSourceFiles(await readSourceFiles(repoRoot))
+}
+
+export function findInvisibleAccentButtonOffendersInSourceFiles(files: SourceFile[]) {
+  const offenders: RawColorOffense[] = []
+
+  for (const file of files) {
+    if (isGuardExcluded(file.filePath)) continue
+    file.content.split('\n').forEach((line, index) => {
+      if (line.includes(invisibleAccentBgClass) && line.includes(untypedInverseTextClass)) {
+        offenders.push({
+          filePath: file.filePath,
+          lineNumber: index + 1,
+          literal: `${invisibleAccentBgClass} + ${untypedInverseTextClass}`,
+          line,
+        })
+      }
+    })
+  }
+
+  return offenders
+}
+
 export function formatOffense(offense: RawColorOffense) {
   return `${offense.filePath}:${offense.lineNumber}: ${offense.literal} in ${offense.line.trim()}`
 }
