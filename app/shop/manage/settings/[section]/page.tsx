@@ -2,9 +2,20 @@ import { redirect, notFound } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import Link from 'next/link'
-import ShopSettingsPanel from '../ShopSettings'
+import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
+import type { ReturnsPolicySettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
+
+// Per-section extraction registry. Extracted sections render from their own
+// component and code-split into their own chunk; every other slug falls back to
+// the ShopSettings monolith. Both are loaded via next/dynamic, so an extracted
+// route (e.g. /settings/politicas) never ships the monolith's chunk.
+const ShopSettingsPanel = dynamic(() => import('../ShopSettings'))
+const Devoluciones = dynamic(() => import('../_sections/Devoluciones'))
+
+/** Slugs that have been lifted out of the monolith. */
+const EXTRACTED = new Set(['politicas'])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
   const { section } = await params
@@ -75,7 +86,12 @@ export default async function SettingsSectionPage({
         <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>{pageTitle}</h1>
       </div>
 
-      {/* Render the focused section from ShopSettings */}
+      {/* Extracted section → its own chunk; otherwise the monolith fallback. */}
+      {EXTRACTED.has(section) ? (
+        section === 'politicas' ? (
+          <Devoluciones initial={(settings.returns_policy ?? null) as ReturnsPolicySettings | null} />
+        ) : null
+      ) : (
       <ShopSettingsPanel
         stripeError={stripeError}
         mpError={mpError}
@@ -101,6 +117,7 @@ export default async function SettingsSectionPage({
           custom_domain_verified: (shop as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
         }}
       />
+      )}
     </div>
   )
 }
