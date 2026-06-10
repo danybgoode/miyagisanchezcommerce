@@ -26,13 +26,16 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export async function POST(req: NextRequest) {
+  // Unconfigured secret ⇒ nothing can authenticate (401, not 500) — keeps the
+  // gate fail-closed and behaviourally identical on previews without the env.
   const sharedSecret = process.env.CLAIM_JWT_SECRET
-  if (!sharedSecret || !INTERNAL_SECRET) {
-    console.error('[claim/complete] CLAIM_JWT_SECRET or MEDUSA_INTERNAL_SECRET missing')
-    return NextResponse.json({ error: 'Configuración incompleta en el servidor.' }, { status: 500 })
-  }
-  if (req.headers.get('x-claim-secret') !== sharedSecret) {
+  if (!sharedSecret) console.error('[claim/complete] CLAIM_JWT_SECRET missing')
+  if (!sharedSecret || req.headers.get('x-claim-secret') !== sharedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (!INTERNAL_SECRET) {
+    console.error('[claim/complete] MEDUSA_INTERNAL_SECRET missing')
+    return NextResponse.json({ error: 'Configuración incompleta en el servidor.' }, { status: 500 })
   }
 
   let body: { token?: string; clerk_user_id?: string }
