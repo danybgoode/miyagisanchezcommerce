@@ -29,6 +29,15 @@ test.describe('pdp · interactive gallery (browser)', () => {
     test.skip(n < 2, 'listing has <2 photos — nothing to step through')
   })
 
+  test('exactly one main surface shows per viewport — no stacked duplicate (S1.1 regression)', async ({ page }) => {
+    // Desktop Chrome: the single active image shows; the mobile swipe-track is hidden.
+    // Guards the inline-`display`-beats-`md:hidden` bug that rendered both, stacked.
+    await expect(mainImg(page)).toBeVisible()
+    const track = page.getByTestId('gallery-track-mobile')
+    await expect(track).toBeAttached() // present in the DOM (so toBeHidden can't pass vacuously)…
+    await expect(track).toBeHidden()   // …but display:none on desktop, not stacked over the active image
+  })
+
   test('thumbnail, arrow and ←/→ swap the main image (S1.1)', async ({ page }) => {
     const first = await mainImg(page).getAttribute('src')
 

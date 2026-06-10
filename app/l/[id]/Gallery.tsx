@@ -6,7 +6,12 @@ import { wrapIndex, indexFromScroll } from '@/lib/gallery'
 type GalleryImage = { url: string; alt?: string | null }
 
 // Shared 4/3 image box — keeps every surface CLS-free (matches the old static markup).
-const MAIN_IMG: CSSProperties = { width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }
+// NOTE: no `display` here on purpose. The mobile track / desktop image / dots are
+// shown-and-hidden per breakpoint via Tailwind classes (`md:hidden` / `hidden md:block`),
+// and an inline `display` would beat those classes (inline wins over a class) — rendering
+// both the swipe-track AND the single active image on every viewport, stacked. `display`
+// is set only on the non-toggled surfaces (placeholder, single image, slides).
+const MAIN_IMG: CSSProperties = { width: '100%', aspectRatio: '4/3', objectFit: 'cover' }
 
 const arrowStyle = (side: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
@@ -77,7 +82,7 @@ export default function Gallery({
           src={images[0].url}
           alt={title}
           fetchPriority="high"
-          style={{ ...MAIN_IMG, borderRadius: 'var(--r-lg)' }}
+          style={{ ...MAIN_IMG, display: 'block', borderRadius: 'var(--r-lg)' }}
           className="md:rounded-xl"
         />
         {overlay}
@@ -109,8 +114,9 @@ export default function Gallery({
         {/* MOBILE — native scroll-snap track (swipe) */}
         <div
           ref={trackRef}
-          className="hide-scrollbar md:hidden"
-          style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}
+          data-testid="gallery-track-mobile"
+          className="hide-scrollbar flex md:hidden"
+          style={{ overflowX: 'auto', scrollSnapType: 'x mandatory' }}
           onScroll={(e) => {
             const el = e.currentTarget
             setActive(indexFromScroll(el.scrollLeft, el.clientWidth, count))
@@ -128,7 +134,7 @@ export default function Gallery({
               loading={i === 0 ? 'eager' : 'lazy'}
               fetchPriority={i === 0 ? 'high' : undefined}
               decoding={i === 0 ? undefined : 'async'}
-              style={{ ...MAIN_IMG, scrollSnapAlign: 'start', flexShrink: 0, cursor: 'zoom-in' }}
+              style={{ ...MAIN_IMG, display: 'block', scrollSnapAlign: 'start', flexShrink: 0, cursor: 'zoom-in' }}
             />
           ))}
         </div>
@@ -155,8 +161,8 @@ export default function Gallery({
 
         {/* MOBILE — dots */}
         <div
-          className="md:hidden"
-          style={{ position: 'absolute', bottom: 6, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 2, pointerEvents: 'none' }}
+          className="flex md:hidden"
+          style={{ position: 'absolute', bottom: 6, left: 0, right: 0, justifyContent: 'center', gap: 2, pointerEvents: 'none' }}
         >
           {images.map((_, i) => (
             <button
