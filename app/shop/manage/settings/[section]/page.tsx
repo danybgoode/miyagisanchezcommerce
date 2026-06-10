@@ -4,7 +4,9 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
-import type { ReturnsPolicySettings } from '@/lib/shop-settings/types'
+import type {
+  ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
+} from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
 // Per-section extraction registry. Extracted sections render from their own
@@ -12,10 +14,19 @@ import type { Metadata } from 'next'
 // the ShopSettings monolith. Both are loaded via next/dynamic, so an extracted
 // route (e.g. /settings/politicas) never ships the monolith's chunk.
 const ShopSettingsPanel = dynamic(() => import('../ShopSettings'))
-const Devoluciones = dynamic(() => import('../_sections/Devoluciones'))
+const Devoluciones    = dynamic(() => import('../_sections/Devoluciones'))
+const Perfil          = dynamic(() => import('../_sections/Perfil'))
+const Diseno          = dynamic(() => import('../_sections/Diseno'))
+const Negociacion     = dynamic(() => import('../_sections/Negociacion'))
+const Envios          = dynamic(() => import('../_sections/Envios'))
+const Citas           = dynamic(() => import('../_sections/Citas'))
+const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
+const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
 
 /** Slugs that have been lifted out of the monolith. */
-const EXTRACTED = new Set(['politicas'])
+const EXTRACTED = new Set([
+  'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
+])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
   const { section } = await params
@@ -47,9 +58,14 @@ export default async function SettingsSectionPage({
     .maybeSingle()
 
   if (!shop) redirect('/sell')
+  // Narrowed alias — `shop` loses its non-null narrowing inside the nested
+  // renderExtracted() closure, so capture it here where it's known non-null.
+  const shopData = shop
 
   const meta = shop.metadata as Record<string, unknown> | null
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
+  // Typed view of the settings tree for the extracted sections (each reads only its slice).
+  const st = settings as SettingsTree
   const stripeSettings = settings.stripe as { account_id?: string; charges_enabled?: boolean; onboarding_complete?: boolean } | undefined
   const calcomSettings = settings.calcom as { connected?: boolean; username?: string; event_type_title?: string; booking_url?: string } | undefined
   const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
@@ -71,6 +87,57 @@ export default async function SettingsSectionPage({
 
   const pageTitle = sectionTitle(section)
 
+  // Each extracted section receives only the slice of the settings tree it owns.
+  function renderExtracted() {
+    switch (section) {
+      case 'politicas':
+        return <Devoluciones initial={(st.returns_policy ?? null) as ReturnsPolicySettings | null} />
+      case 'perfil':
+        return <Perfil initial={{
+          name: shopData.name,
+          description: (shopData as unknown as { description: string | null }).description ?? '',
+          location: (shopData as unknown as { location: string | null }).location,
+        }} />
+      case 'diseno':
+        return <Diseno initial={{
+          name: shopData.name,
+          logo_url: (shopData as unknown as { logo_url: string | null }).logo_url ?? null,
+          theme: st.theme ?? null,
+          preset: st.preset ?? null,
+          escrow_mode: st.checkout?.escrow_mode ?? null,
+          show_phone: st.checkout?.show_phone ?? null,
+          phone: st.checkout?.phone ?? null,
+          whatsapp_cta: st.checkout?.whatsapp_cta ?? null,
+          local_pickup: st.shipping?.local_pickup ?? null,
+        }} />
+      case 'negociacion':
+        return <Negociacion initial={(st.offers ?? null) as OffersSettings | null} />
+      case 'envios':
+        return <Envios initial={{
+          checkout: st.checkout
+            ? { show_phone: st.checkout.show_phone, phone: st.checkout.phone, whatsapp_cta: st.checkout.whatsapp_cta, show_email: st.checkout.show_email }
+            : null,
+          whatsapp: st.theme?.social?.whatsapp ?? null,
+          shipping: st.shipping ?? null,
+          scheduling_links: st.scheduling?.links ?? [],
+        }} />
+      case 'citas':
+        return <Citas initial={{
+          scheduling_links: st.scheduling?.links ?? [],
+          calcom_connected: !!(shopRow.calcom_api_key && calcomSettings?.connected),
+          calcom_username: calcomSettings?.username ?? null,
+          calcom_event_type_title: calcomSettings?.event_type_title ?? null,
+          calcom_booking_url: calcomSettings?.booking_url ?? null,
+        }} />
+      case 'pedidos':
+        return <Pedidos initial={(st.orders ?? null) as OrdersSettings | null} />
+      case 'notificaciones':
+        return <Notificaciones initial={(st.notifications ?? null) as NotificationsSettings | null} />
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Back nav */}
@@ -88,9 +155,7 @@ export default async function SettingsSectionPage({
 
       {/* Extracted section → its own chunk; otherwise the monolith fallback. */}
       {EXTRACTED.has(section) ? (
-        section === 'politicas' ? (
-          <Devoluciones initial={(settings.returns_policy ?? null) as ReturnsPolicySettings | null} />
-        ) : null
+        renderExtracted()
       ) : (
       <ShopSettingsPanel
         stripeError={stripeError}
