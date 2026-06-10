@@ -8,6 +8,7 @@ import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { isShopClaimed } from '@/lib/claim'
 import BuyButton from '@/app/components/BuyButton'
 import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
 import { getCustomFields } from '@/lib/personalization'
@@ -93,8 +94,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   const isSignedIn = !!clerkUser
   const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id
-  // Medusa-backed sellers always have an id; legacy "pending:" shops are unclaimed scraped entries
-  const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
+  // A shop is claimed only when it has a real owner (non-empty clerk_user_id that
+  // isn't the legacy `pending:` placeholder). Gem-imported shops have
+  // clerk_user_id = null and must stay contact-only — the previous check keyed off
+  // shop.id (always present for a Medusa seller) so a null owner read as *claimed*
+  // and the whole CTA tree rendered. Single source of truth: lib/claim.ts
+  // (shared with the offers route + checkout-session). When false, the existing
+  // showBuyerActions/showBuyButtons cascade hides Buy/Offer/Cart/Bundle and the
+  // SellerTrustCard surfaces contact options + the "Reclamar" nudge instead.
+  const isClaimed = isShopClaimed(listing.shop)
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
   const isDigital = listing.listing_type === 'digital'
   // Print-ad placements are bought through the ad builder (which captures the ad
