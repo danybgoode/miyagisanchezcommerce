@@ -2,28 +2,24 @@ import { redirect, notFound } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import Link from 'next/link'
-import ShopSettingsPanel from '../ShopSettings'
+import dynamic from 'next/dynamic'
+import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
+import type { ReturnsPolicySettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
-const SECTION_TITLES: Record<string, string> = {
-  perfil:         'Perfil de tienda',
-  pagos:          'Métodos de pago',
-  envios:         'Envíos y entrega',
-  negociacion:    'Negociación y ofertas',
-  citas:          'Citas y agendas',
-  notificaciones: 'Notificaciones',
-  diseno:         'Diseño y marca',
-  agentes:        'Agentes e integraciones',
-  canal:          'Canal propio',
-  pedidos:        'Gestión de pedidos',
-  politicas:      'Política de devoluciones',
-}
+// Per-section extraction registry. Extracted sections render from their own
+// component and code-split into their own chunk; every other slug falls back to
+// the ShopSettings monolith. Both are loaded via next/dynamic, so an extracted
+// route (e.g. /settings/politicas) never ships the monolith's chunk.
+const ShopSettingsPanel = dynamic(() => import('../ShopSettings'))
+const Devoluciones = dynamic(() => import('../_sections/Devoluciones'))
 
-const VALID_SECTIONS = new Set(Object.keys(SECTION_TITLES))
+/** Slugs that have been lifted out of the monolith. */
+const EXTRACTED = new Set(['politicas'])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
   const { section } = await params
-  const title = SECTION_TITLES[section]
+  const title = sectionTitle(section)
   return { title: title ? `${title} — Configuración` : 'Configuración' }
 }
 
@@ -35,7 +31,7 @@ export default async function SettingsSectionPage({
   searchParams: Promise<Record<string, string>>
 }) {
   const [{ section }, sp] = await Promise.all([params, searchParams])
-  if (!VALID_SECTIONS.has(section)) notFound()
+  if (!isValidSection(section)) notFound()
 
   const stripeError = sp.stripe === 'error' ? (sp.reason ?? 'Error desconocido al conectar Stripe.') : null
   const mpError = sp.mp === 'error' ? (sp.reason ?? 'Error desconocido al conectar Mercado Pago.') : null
@@ -73,7 +69,7 @@ export default async function SettingsSectionPage({
   const agentTokenSet = !!(meta?.ucp_agent_token_hash)
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
-  const sectionTitle = SECTION_TITLES[section]
+  const pageTitle = sectionTitle(section)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -87,10 +83,15 @@ export default async function SettingsSectionPage({
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
           Configuración
         </Link>
-        <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>{sectionTitle}</h1>
+        <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>{pageTitle}</h1>
       </div>
 
-      {/* Render the focused section from ShopSettings */}
+      {/* Extracted section → its own chunk; otherwise the monolith fallback. */}
+      {EXTRACTED.has(section) ? (
+        section === 'politicas' ? (
+          <Devoluciones initial={(settings.returns_policy ?? null) as ReturnsPolicySettings | null} />
+        ) : null
+      ) : (
       <ShopSettingsPanel
         stripeError={stripeError}
         mpError={mpError}
@@ -116,6 +117,7 @@ export default async function SettingsSectionPage({
           custom_domain_verified: (shop as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
         }}
       />
+      )}
     </div>
   )
 }

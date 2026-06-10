@@ -2,109 +2,27 @@ import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import Link from 'next/link'
+import { orderedSections, MANUAL_KEYS } from '@/lib/shop-settings/taxonomy'
 
 export const metadata = { title: 'Configuración — Miyagi Sánchez' }
 
 // ── Section definitions ────────────────────────────────────────────────────────
+// Sourced from the one canonical taxonomy (lib/shop-settings/taxonomy.ts).
+// Adapted to the card-render shape this grid already uses (key/title), so the
+// JSX below is unchanged. `cardTitle` is the index-card label (only "Devoluciones"
+// differs from the focused-page heading). MANUAL_KEYS — sections needing a live
+// handshake (OAuth / money / domain / webhook) — also comes from the map.
 
-const SECTIONS = [
-  {
-    key: 'perfil',
-    icon: 'iconoir-shop',
-    title: 'Perfil de tienda',
-    desc: 'Nombre, descripción, ubicación, logo y banner.',
-    color: 'var(--accent)',
-    bg: 'var(--accent-soft)',
-  },
-  {
-    key: 'pagos',
-    icon: 'iconoir-credit-card',
-    title: 'Métodos de pago',
-    desc: 'Stripe Connect, Mercado Pago y transferencia SPEI.',
-    color: 'var(--provider-mercadopago)',
-    bg: 'var(--provider-mercadopago-soft)',
-  },
-  {
-    key: 'envios',
-    icon: 'iconoir-delivery-truck',
-    title: 'Envíos y entrega',
-    desc: 'Recolección local, dirección de origen y etiquetas con Envia.com.',
-    color: 'var(--warning)',
-    bg: 'var(--warning-soft)',
-  },
-  {
-    key: 'negociacion',
-    icon: 'iconoir-message-text',
-    title: 'Negociación y ofertas',
-    desc: 'Nivel de confianza mínimo y negociación automática A2A.',
-    color: 'var(--info)',
-    bg: 'var(--info-soft)',
-  },
-  {
-    key: 'citas',
-    icon: 'iconoir-calendar',
-    title: 'Citas y agendas',
-    desc: 'Integración con Cal.com para agendar visitas y pruebas.',
-    color: 'var(--fg)',
-    bg: 'var(--bg-sunk)',
-  },
-  {
-    key: 'notificaciones',
-    icon: 'iconoir-bell',
-    title: 'Notificaciones',
-    desc: 'Qué correos recibes y cuándo.',
-    color: 'var(--warning)',
-    bg: 'var(--warning-soft)',
-  },
-  {
-    key: 'diseno',
-    icon: 'iconoir-colour-filter',
-    title: 'Diseño y marca',
-    desc: 'Color de acento, redes sociales y tagline.',
-    color: 'var(--energy)',
-    bg: 'var(--energy-soft)',
-  },
-  {
-    key: 'agentes',
-    icon: 'iconoir-sparks',
-    title: 'Agentes e integraciones',
-    desc: 'Webhook UCP, prompts para agentes y API de comercio.',
-    color: 'var(--agent)',
-    bg: 'var(--agent-soft)',
-  },
-  {
-    key: 'canal',
-    icon: 'iconoir-internet',
-    title: 'Canal propio',
-    desc: 'Dominio personalizado y configuración de tienda federada.',
-    color: 'var(--accent)',
-    bg: 'var(--accent-soft)',
-  },
-  {
-    key: 'pedidos',
-    icon: 'iconoir-box',
-    title: 'Gestión de pedidos',
-    desc: 'Tiempos de procesamiento, confirmación y ventanas de despacho.',
-    color: 'var(--fg)',
-    bg: 'var(--bg-sunk)',
-  },
-  {
-    key: 'politicas',
-    icon: 'iconoir-undo',
-    title: 'Devoluciones',
-    desc: 'Define tu política de devoluciones. Se muestra en cada anuncio.',
-    color: 'var(--fg)',
-    bg: 'var(--bg-sunk)',
-  },
-] as const
+const SECTIONS = orderedSections().map((s) => ({
+  key: s.slug,
+  icon: s.icon,
+  title: s.cardTitle,
+  desc: s.desc,
+  color: s.color,
+  bg: s.bg,
+}))
 
 // ── Completion helpers (rough check per section) ──────────────────────────────
-
-// Sections whose completion needs a live handshake a config file can't grant
-// (OAuth / money / domain / webhook secret). When not done, we surface a
-// "still needs a manual step" hint instead of leaving them blank — this is what
-// the importer flags too (see MANUAL_SECTIONS in lib/settings-import.ts).
-const MANUAL_KEYS = new Set(['pagos', 'citas', 'canal', 'agentes'])
 
 function completedSections(shop: {
   name: string; description: string | null
