@@ -120,6 +120,12 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'native color input state needs a concrete hex value',
   },
   {
+    path: 'app/shop/manage/settings/_sections/Diseno.tsx',
+    literal: '#1d6f42',
+    contains: "t.accent_color ?? '#1d6f42'",
+    reason: 'native color input state needs a concrete hex value (extracted from ShopSettings monolith)',
+  },
+  {
     path: 'app/shop/manage/settings/page.tsx',
     literal: '#1d6f42',
     contains: "themeSettings.accent_color !== '#1d6f42'",
