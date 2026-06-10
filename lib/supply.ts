@@ -326,6 +326,99 @@ export function googleLocalToSupplyItem(result: GoogleLocalResult, defaults: Bat
   }
 }
 
+// ── Medusa import mappers (pure — unit-tested, keep next-free) ────────────────
+// The import hop creates REAL Medusa sellers + products (the storefront's only
+// read model) and mirrors them to Supabase afterwards. These mappers define
+// that translation in one testable place.
+
+export interface UnclaimedSellerBody {
+  name: string
+  slug?: string
+  description?: string | null
+  location?: string | null
+  logo_url?: string | null
+  source: string
+  source_url?: string | null
+  metadata: Record<string, unknown>
+}
+
+export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
+  const shopSourceUrl = item.shop_source_url ?? item.source_url
+  return {
+    name: (item.shop_name?.trim() || 'Vendedor sin reclamar').slice(0, 80),
+    ...(item.shop_slug ? { slug: item.shop_slug } : {}),
+    description: item.shop_description,
+    location: item.shop_location ?? item.location,
+    logo_url: item.shop_logo_url,
+    source: 'scraped',
+    source_url: shopSourceUrl,
+    metadata: {
+      ...(item.shop_metadata ?? {}),
+      supply: {
+        batch_id: item.batch_id,
+        item_id: item.id,
+        source_platform: item.source_platform,
+        unclaimed: true,
+      },
+    },
+  }
+}
+
+export interface MedusaProductImportBody {
+  seller_slug: string
+  title: string
+  description: string | null
+  price_cents: number | null
+  currency: string
+  condition: string | null
+  listing_type: string
+  category: string | null
+  state: string | null
+  municipio: string | null
+  location: string | null
+  status: 'published' | 'draft'
+  images: Array<{ url: string; alt?: string }>
+  tags: string[]
+  metadata: Record<string, unknown>
+}
+
+export function supplyItemToProductBody(
+  item: SupplyItem,
+  sellerSlug: string,
+  targetStatus: string,
+): MedusaProductImportBody {
+  return {
+    seller_slug: sellerSlug,
+    title: (item.listing_title ?? '').trim().slice(0, 100),
+    description: item.listing_description,
+    price_cents: item.price_cents,
+    currency: item.currency || 'MXN',
+    condition: item.listing_type === 'product' ? item.condition : null,
+    listing_type: item.listing_type || 'product',
+    category: item.category,
+    state: item.state,
+    municipio: item.municipio,
+    location: item.location,
+    // Legacy batches say 'active'; Medusa products are 'published' | 'draft'.
+    status: targetStatus === 'draft' ? 'draft' : 'published',
+    images: item.images ?? [],
+    tags: item.tags ?? [],
+    metadata: {
+      ...(item.listing_metadata ?? {}),
+      original_source_url: item.source_url,
+      source_platform: item.source_platform,
+      source_url: item.source_url,
+      supply: {
+        batch_id: item.batch_id,
+        item_id: item.id,
+        source_id: item.source_id,
+        quality_score: item.quality_score,
+        unclaimed_shop: true,
+      },
+    },
+  }
+}
+
 export async function refreshBatchCounts(batchId: string) {
   const { data } = await db
     .from('supply_items')
