@@ -36,16 +36,29 @@ async function handlePost(req: NextRequest) {
   const despachoBonsaiUrl = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
   const claimUrl = `${despachoBonsaiUrl}/onboarding/claim?token=${token}`
 
-  // Upsert a pending claim in Supabase
-  await db.from('marketplace_claims').upsert(
-    {
-      shop_id: shopId,
-      clerk_user_id: `pending:${email}`,
-      status: 'pending',
-      message: message ?? null,
-    },
-    { onConflict: 'shop_id,clerk_user_id' }
-  )
+  // Upsert a pending claim in Supabase. marketplace_claims.shop_id is a UUID
+  // FK to marketplace_shops — the claim page passes the MEDUSA seller id, so
+  // resolve the mirror row first (the old direct upsert silently errored).
+  let claimShopId: string | null = shopId
+  if (shopId.startsWith('sel_')) {
+    const { data: mirror } = await db
+      .from('marketplace_shops')
+      .select('id')
+      .contains('metadata', { medusa_seller_id: shopId })
+      .maybeSingle()
+    claimShopId = (mirror?.id as string | undefined) ?? null
+  }
+  if (claimShopId) {
+    await db.from('marketplace_claims').upsert(
+      {
+        shop_id: claimShopId,
+        clerk_user_id: `pending:${email}`,
+        status: 'pending',
+        message: message ?? null,
+      },
+      { onConflict: 'shop_id,clerk_user_id' }
+    )
+  }
 
   const resendApiKey = process.env.RESEND_API_KEY
   if (resendApiKey) {
