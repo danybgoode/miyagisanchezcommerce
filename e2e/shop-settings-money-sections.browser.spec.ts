@@ -39,4 +39,16 @@ test.describe('shop-settings · Sprint 3 money/domain/agent extractions (browser
     await expect(page.locator('#spei').getByText('Transferencia SPEI (CLABE)')).toBeVisible()
     await expect(page.getByRole('button', { name: /Guardar cambios/ })).toBeVisible()
   })
+
+  test('Canal bundles custom domain + support (apoyo) + embed (widget)', async ({ page }) => {
+    await open(page, 'canal')
+    await expect(page.locator('#canal')).toBeVisible()
+    await expect(page.locator('#apoyo')).toBeVisible()
+    await expect(page.locator('#widget')).toBeVisible()
+    await expect(page.locator('#canal').getByText('Canal Propio')).toBeVisible()
+    await expect(page.getByText('Tu URL gratis')).toBeVisible()
+    // The domain entry input (custom-domain flow) is present.
+    await expect(page.getByPlaceholder('tutienda.mx')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Guardar cambios/ })).toBeVisible()
+  })
 })

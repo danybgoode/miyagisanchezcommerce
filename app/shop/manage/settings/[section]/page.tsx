@@ -25,11 +25,12 @@ const Citas           = dynamic(() => import('../_sections/Citas'))
 const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
 const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
 const Pagos           = dynamic(() => import('../_sections/Pagos'))
+const Canal           = dynamic(() => import('../_sections/Canal'))
 
 /** Slugs that have been lifted out of the monolith. */
 const EXTRACTED = new Set([
   'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
-  'pagos',
+  'pagos', 'canal',
 ])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
@@ -138,6 +139,14 @@ export default async function SettingsSectionPage({
             local_pickup: st.shipping?.local_pickup,
           }}
         />
+      case 'canal':
+        return <Canal initial={{
+          slug: (shopData as unknown as { slug: string }).slug,
+          custom_domain: (shopData as unknown as { custom_domain: string | null }).custom_domain ?? null,
+          custom_domain_verified: (shopData as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
+          support: st.support ?? null,
+          accent: st.theme?.accent_color ?? null,
+        }} />
       default:
         return null
     }
