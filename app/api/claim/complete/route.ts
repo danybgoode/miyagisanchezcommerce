@@ -96,19 +96,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo reclamar la tienda' }, { status: 502 })
   }
 
-  // ── 2. Claim the Supabase mirror row (non-fatal) ───────────────────────────
-  const { error: mirrorErr } = await db
+  // ── 2+3. Mirror row + pending-claim bookkeeping (both non-fatal) ───────────
+  // marketplace_claims.shop_id is a UUID FK to the MIRROR row, so resolve it
+  // once and use it for both updates.
+  const { data: mirrorRow } = await db
     .from('marketplace_shops')
-    .update({ clerk_user_id: clerkUserId, updated_at: new Date().toISOString() })
+    .select('id')
     .contains('metadata', { medusa_seller_id: sellerId })
-    .is('clerk_user_id', null)
-  if (mirrorErr) console.error('[claim/complete] mirror claim failed (non-fatal):', mirrorErr)
+    .maybeSingle()
 
-  // ── 3. Approve the pending claim record (non-fatal) ────────────────────────
-  await db
-    .from('marketplace_claims')
-    .update({ status: 'approved' })
-    .eq('shop_id', payload.shopId)
+  if (mirrorRow) {
+    const { error: mirrorErr } = await db
+      .from('marketplace_shops')
+      .update({ clerk_user_id: clerkUserId, updated_at: new Date().toISOString() })
+      .eq('id', mirrorRow.id)
+      .is('clerk_user_id', null)
+    if (mirrorErr) console.error('[claim/complete] mirror claim failed (non-fatal):', mirrorErr)
+
+    await db
+      .from('marketplace_claims')
+      .update({ status: 'approved' })
+      .eq('shop_id', mirrorRow.id)
+  } else {
+    console.error('[claim/complete] no mirror row for seller', sellerId, '(non-fatal)')
+  }
 
   // ── 4. Shop page stops showing "Sin reclamar" without waiting out ISR ──────
   revalidateTag('shops', 'default')
