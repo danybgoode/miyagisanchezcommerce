@@ -4,6 +4,8 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
+import { stripShopSecrets } from '@/lib/shop-settings/safe-metadata'
+import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
 } from '@/lib/shop-settings/types'
@@ -22,10 +24,14 @@ const Envios          = dynamic(() => import('../_sections/Envios'))
 const Citas           = dynamic(() => import('../_sections/Citas'))
 const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
 const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
+const Pagos           = dynamic(() => import('../_sections/Pagos'))
+const Canal           = dynamic(() => import('../_sections/Canal'))
+const Agentes         = dynamic(() => import('../_sections/Agentes'))
 
 /** Slugs that have been lifted out of the monolith. */
 const EXTRACTED = new Set([
   'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
+  'pagos', 'canal', 'agentes',
 ])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
@@ -71,17 +77,7 @@ export default async function SettingsSectionPage({
   const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
   // Strip secrets before metadata reaches the client component:
   // MercadoPago tokens + the hashed MCP agent token (never needs to leave the server).
-  const safeMetadata = (() => {
-    let m = (shop.metadata ?? null) as Record<string, any> | null
-    if (m && ('ucp_agent_token_hash' in m || 'ucp_agent_token_created_at' in m)) {
-      const { ucp_agent_token_hash: _h, ucp_agent_token_created_at: _c, ...rest } = m
-      m = rest
-    }
-    const mp = (m?.settings as any)?.mercadopago
-    if (!mp) return m
-    const { access_token: _a, refresh_token: _r, ...safeMp } = mp
-    return { ...m, settings: { ...(m as any).settings, mercadopago: safeMp } }
-  })()
+  const safeMetadata = stripShopSecrets(shop.metadata as Record<string, any> | null)
   const agentTokenSet = !!(meta?.ucp_agent_token_hash)
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
@@ -133,6 +129,31 @@ export default async function SettingsSectionPage({
         return <Pedidos initial={(st.orders ?? null) as OrdersSettings | null} />
       case 'notificaciones':
         return <Notificaciones initial={(st.notifications ?? null) as NotificationsSettings | null} />
+      case 'pagos':
+        return <Pagos
+          stripeError={stripeError}
+          mpError={mpError}
+          initial={{
+            stripe: stripeSettings,
+            mercadopago: { connected: !!mpSettings?.connected, enabled: mpSettings?.enabled !== false, live_mode: mpSettings?.live_mode },
+            checkout: (st.checkout ?? null) as PagosInitial['checkout'],
+            local_pickup: st.shipping?.local_pickup,
+          }}
+        />
+      case 'canal':
+        return <Canal initial={{
+          slug: (shopData as unknown as { slug: string }).slug,
+          custom_domain: (shopData as unknown as { custom_domain: string | null }).custom_domain ?? null,
+          custom_domain_verified: (shopData as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
+          support: st.support ?? null,
+          accent: st.theme?.accent_color ?? null,
+        }} />
+      case 'agentes':
+        return <Agentes initial={{
+          ucp_webhook_url: (shopData as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url ?? null,
+          ucp_webhook_secret: (shopData as unknown as { ucp_webhook_secret: string | null }).ucp_webhook_secret ?? null,
+          agent_token_set: agentTokenSet,
+        }} />
       default:
         return null
     }
