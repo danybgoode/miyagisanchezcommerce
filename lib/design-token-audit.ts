@@ -114,12 +114,6 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/ShopSettings.tsx',
-    literal: '#1d6f42',
-    contains: "t.accent_color ?? '#1d6f42'",
-    reason: 'native color input state needs a concrete hex value',
-  },
-  {
     path: 'app/shop/manage/settings/_sections/Diseno.tsx',
     literal: '#1d6f42',
     contains: "t.accent_color ?? '#1d6f42'",
