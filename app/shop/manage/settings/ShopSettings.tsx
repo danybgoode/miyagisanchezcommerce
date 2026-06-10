@@ -10,6 +10,8 @@ import { toEnviaStateCode, ESTADOS } from '@/lib/mx-locations'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
+import { PRESETS, parseLocation, detectSchedulingService, generateHex32 } from '@/lib/shop-settings/helpers'
+import { sectionIdsFor } from '@/lib/shop-settings/taxonomy'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -160,78 +162,8 @@ export interface ShopSettingsData {
   } | null
 }
 
-// ── Preset definitions ────────────────────────────────────────────────────────
-
-interface Preset {
-  key: string
-  icon: string
-  label: string
-  description: string
-  settings: NonNullable<NonNullable<ShopSettingsData['metadata']>['settings']>
-}
-
-const PRESETS: Preset[] = [
-  {
-    key: 'basico',
-    icon: '🛒',
-    label: 'Tienda general',
-    description: 'Ropa, hogar, artículos del día a día. Sin retención de fondos.',
-    settings: {
-      checkout: { escrow_mode: 'off', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true },
-    },
-  },
-  {
-    key: 'protegido',
-    icon: '🛡️',
-    label: 'Con garantía',
-    description: 'El comprador activa la protección si lo desea. Recomendado para electrónica usada.',
-    settings: {
-      checkout: { escrow_mode: 'optional', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true },
-    },
-  },
-  {
-    key: 'alto_valor',
-    icon: '💎',
-    label: 'Artículos de valor',
-    description: 'Joyería, coleccionables, electrónica cara. Compra Protegida siempre activa.',
-    settings: {
-      checkout: { escrow_mode: 'required', show_phone: false, whatsapp_cta: false },
-      shipping: { local_pickup: false },
-    },
-  },
-  {
-    key: 'vehiculos',
-    icon: '🚗',
-    label: 'Vehículos',
-    description: 'Autos, motos, camiones. Pago protegido obligatorio + verificación REPUVE.',
-    settings: {
-      checkout: { escrow_mode: 'required', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true },
-    },
-  },
-  {
-    key: 'inmuebles',
-    icon: '🏠',
-    label: 'Inmuebles',
-    description: 'Venta y renta de propiedades. Depósito protegido para reserva.',
-    settings: {
-      checkout: { escrow_mode: 'required', show_phone: true, whatsapp_cta: true },
-      shipping: { local_pickup: true },
-    },
-  },
-  {
-    key: 'digital',
-    icon: '💻',
-    label: 'Digital / Cursos',
-    description: 'Archivos, plantillas, cursos, licencias. Entrega automática.',
-    settings: {
-      checkout: { escrow_mode: 'off', show_phone: false, whatsapp_cta: false },
-      shipping: { local_pickup: false },
-    },
-  },
-]
+// Preset definitions + pure helpers (parseLocation / detectSchedulingService /
+// generateHex32) now live in lib/shop-settings/helpers.ts — imported above.
 
 // ── Navigation groups ─────────────────────────────────────────────────────────
 
@@ -284,27 +216,8 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-// ── URL slug → section IDs mapping ────────────────────────────────────────────
-// The settings index links to /shop/manage/settings/[slug] (e.g. "pagos").
-// ShopSettings renders sections with their own IDs (e.g. "proteccion", "stripe").
-// This map converts the URL slug to the section IDs that should be visible.
-
-const SLUG_TO_SECTION_IDS: Record<string, string[]> = {
-  perfil:         ['perfil'],
-  pagos:          ['proteccion', 'stripe', 'mercadopago', 'spei'],
-  envios:         ['comunicacion', 'envios'],
-  negociacion:    ['ofertas'],
-  citas:          ['citas'],
-  notificaciones: ['notificaciones'],
-  diseno:         ['apariencia', 'tipo'],
-  agentes:        ['webhook'],
-  canal:          ['canal', 'apoyo', 'widget'],
-  apoyo:          ['apoyo'],
-  widget:         ['widget'],
-  pedidos:        ['pedidos'],
-  politicas:      ['politicas'],
-  bundles:        ['bundles'],
-}
+// URL slug → internal section IDs now comes from the canonical taxonomy
+// (lib/shop-settings/taxonomy.ts → sectionIdsFor), imported above.
 
 // ── Escrow options ────────────────────────────────────────────────────────────
 
@@ -374,28 +287,8 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function parseLocation(loc: string | null): { city: string; state: string } {
-  if (!loc) return { city: '', state: '' }
-  const parts = loc.split(', ')
-  if (parts.length >= 2) return { city: parts[0], state: parts.slice(1).join(', ') }
-  return { city: '', state: parts[0] }
-}
-
-function detectSchedulingService(url: string): string {
-  if (url.includes('cal.com'))              return 'Cal.com'
-  if (url.includes('calendly.com'))         return 'Calendly'
-  if (url.includes('acuityscheduling.com')) return 'Acuity'
-  if (url.includes('tidycal.com'))          return 'TidyCal'
-  if (url.includes('google.com/calendar'))  return 'Google Calendar'
-  return 'Cita en línea'
-}
-
-function generateHex32(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-    .map(b => b.toString(16).padStart(2, '0')).join('')
-}
+// parseLocation / detectSchedulingService / generateHex32 moved to
+// lib/shop-settings/helpers.ts — imported above.
 
 const ENVIA_CARRIERS = [
   { id: 'dhl', label: 'DHL' },
@@ -1541,7 +1434,7 @@ export default function ShopSettingsPanel({
   )
 
   // ── When rendered from a section page, auto-scroll to first visible section ──
-  const focusSectionIds = focusSection ? (SLUG_TO_SECTION_IDS[focusSection] ?? [focusSection]) : []
+  const focusSectionIds = focusSection ? sectionIdsFor(focusSection) : []
 
   useEffect(() => {
     if (focusSectionIds.length > 0) {
