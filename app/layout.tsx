@@ -13,8 +13,10 @@ import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import CartButton from '@/app/components/CartButton'
 import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import TrustSignals from '@/app/components/TrustSignals'
 import { getDictionary } from '@/lib/dictionary'
 import { getShop } from '@/lib/listings'
+import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import './globals.css'
@@ -381,6 +383,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               accentColor={channelAccent}
               logoUrl={channelShop.logo_url ?? null}
               domain={channelDomain}
+              trust={
+                // Epic D / D.2 — slim trust chips beside the assurance lead line the
+                // shell renders. paymentProtected is suppressed here (the lead line
+                // "Pago seguro · Compra protegida" already carries that assurance).
+                <TrustSignals
+                  variant="slim"
+                  channel={channel === 'custom' ? 'custom_domain' : 'subdomain'}
+                  {...deriveShopTrustInputs(channelShop.metadata as Record<string, unknown> | null, channelShop.verified)}
+                  paymentProtected={false}
+                />
+              }
             >
               {children}
             </ChannelLayout>
