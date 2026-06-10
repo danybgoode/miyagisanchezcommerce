@@ -228,7 +228,7 @@ function FirstRunApply() {
               type="button"
               onClick={() => review(pasteText, 'paste')}
               disabled={!pasteText.trim()}
-              className="bg-[var(--accent)] text-[var(--fg-inverse)] px-5 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary"
             >
               Revisar
             </button>
@@ -264,7 +264,7 @@ function FirstRunApply() {
               type="button"
               onClick={runApply}
               disabled={applying || (validRows.length === 0 && configBlocks.length === 0)}
-              className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary"
             >
               {applying ? `Creando ${progress.done}/${progress.total}…` : 'Crear mi tienda y catálogo'}
             </button>

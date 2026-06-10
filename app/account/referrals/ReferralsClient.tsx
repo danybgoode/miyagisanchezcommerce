@@ -73,7 +73,7 @@ export default function ReferralsClient({
                 {copied ? '¡Copiado!' : 'Copiar'}
               </button>
             </div>
-            <button onClick={share} className="mt-3 w-full px-4 py-2 text-sm font-semibold rounded-lg bg-[var(--accent)] text-[var(--fg-inverse)] hover:opacity-90">
+            <button onClick={share} className="btn btn-primary mt-3 w-full">
               Compartir
             </button>
             <p className="text-xs text-[var(--color-muted)] mt-3">
