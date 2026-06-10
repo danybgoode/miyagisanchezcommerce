@@ -243,7 +243,7 @@ const lbArrow = (side: 'left' | 'right'): CSSProperties => ({
   borderRadius: '50%',
   border: 'none',
   background: 'rgba(255,255,255,0.12)',
-  color: '#fff',
+  color: 'var(--fg-inverse)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -306,7 +306,7 @@ function Lightbox({
       }}
       style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
-      <button type="button" aria-label="Cerrar" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer', zIndex: 2 }}>
+      <button type="button" aria-label="Cerrar" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--fg-inverse)', cursor: 'pointer', zIndex: 2 }}>
         <i className="iconoir-xmark" style={{ fontSize: 24 }} />
       </button>
 
