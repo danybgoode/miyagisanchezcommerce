@@ -14,7 +14,19 @@ import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
  * passes the already-configured <PlatformThemeToggle> so this component needs
  * no theme-specific props (slot pattern).
  */
-export default function CuentaMenu({ themeSlot }: { themeSlot: React.ReactNode }) {
+export default function CuentaMenu({
+  themeSlot,
+  themeEligible,
+}: {
+  themeSlot: React.ReactNode
+  /**
+   * Whether the platform theme toggle applies on this surface. When false the
+   * toggle itself renders `null`, so we skip the whole Tema row rather than
+   * leave an orphan label with no control — matches the toggle's prior
+   * "absent where it doesn't work" behavior.
+   */
+  themeEligible: boolean
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +91,9 @@ export default function CuentaMenu({ themeSlot }: { themeSlot: React.ReactNode }
         >
           {ACCOUNT_MENU_ITEMS.map(item => {
             if (item.kind === 'theme') {
+              // Skip the row entirely where the toggle can't apply (it would
+              // render null → an orphan "Tema" label with no control).
+              if (!themeEligible) return null
               return (
                 <div
                   key={item.key}

@@ -257,6 +257,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu */}
                   <Show when="signed-in">
                     <CuentaMenu
+                      themeEligible={platformThemeEligible}
                       themeSlot={
                         <PlatformThemeToggle
                           labels={themeToggleLabels}
@@ -348,6 +349,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         Publicar
                       </Link>
                       <CuentaMenu
+                        themeEligible={platformThemeEligible}
                         themeSlot={
                           <PlatformThemeToggle
                             labels={themeToggleLabels}
