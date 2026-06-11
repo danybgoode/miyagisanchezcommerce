@@ -711,7 +711,7 @@ async function handleCustomDomainSubscriptionComplete(session: Stripe.Checkout.S
     const { plan } = (await planRes.json()) as { plan?: { id: string } }
     if (!plan?.id) throw new Error('plan not found')
 
-    await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
+    const subRes = await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -732,8 +732,16 @@ async function handleCustomDomainSubscriptionComplete(session: Stripe.Checkout.S
         metadata: { kind: CUSTOM_DOMAIN_CHECKOUT_KIND, shop_id: shopId },
       }),
     })
+    if (!subRes.ok) throw new Error(`subscription create ${subRes.status}`)
   } catch (e) {
+    // Money-path safety (S3 carryover nit): the seller PAID but isn't entitled,
+    // and Stripe won't retry (this handler returns 200). Alert operationally so
+    // the activation can be repaired by hand.
     console.error('[custom-domain sub] Medusa activation failed:', e)
+    tg.alert(
+      `🚨 Dominio propio PAGADO pero NO activado — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nStripe sub: ${stripeSubscriptionId}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
   }
 
   // Clear any prior lapse flag so the re-add-payment prompt disappears.
