@@ -68,7 +68,7 @@ test.describe('platform seasonal theme engine', () => {
     expect(theme.cssVars['--accent']).toBe('#1d6f42')
     expect(theme.logo.desktop).toBe('Miyagi Sanchez')
     expect(theme.logo.compact).toBe('MS')
-    expect(theme.tagline.es).toBe('Infraestructura de comercio')
+    expect(theme.tagline.es).toBe('Abre tu tienda, compra y vende')
     expect(theme.bgPattern).toBe('none')
 
     expect(isSeasonalThemeActive({

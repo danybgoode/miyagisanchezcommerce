@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 
-export const alt = 'Miyagi Sánchez — Infraestructura de comercio'
+export const alt = 'Miyagi Sánchez — Abre tu tienda, compra y vende'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -94,12 +94,12 @@ export default function OGImage() {
             marginBottom: 64,
           }}
         >
-          Infraestructura de comercio · Comisión: 0%
+          Compra y vende de todo en México · Sin comisiones
         </div>
 
         {/* Pill badges */}
         <div style={{ display: 'flex', gap: 16 }}>
-          {['Marketplace', 'Dominio propio', 'API agentic', '0% comisión'].map((label) => (
+          {['Marketplace', 'Segundamano', 'Tu propia tienda', '0% comisión'].map((label) => (
             <div
               key={label}
               style={{
