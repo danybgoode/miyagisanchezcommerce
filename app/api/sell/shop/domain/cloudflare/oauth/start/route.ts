@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
-  const ent = await resolveDomainEntitlement((shop as unknown as { metadata?: unknown } | null)?.metadata)
+  const ent = await resolveDomainEntitlement(
+    (shop as unknown as { metadata?: unknown } | null)?.metadata,
+    { sellerClerkId: user.id },
+  )
   if (!ent.entitled) {
     return NextResponse.json(
       { error: 'El dominio propio es una función premium.', paywall: true },

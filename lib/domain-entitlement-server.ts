@@ -17,19 +17,31 @@ import {
   readDomainGrant,
   type DomainEntitlement,
 } from '@/lib/domain-entitlement'
+import { hasActiveCustomDomainSubscription } from '@/lib/domain-subscription'
 
 /**
  * Resolve a shop's custom-domain entitlement from its `metadata` JSONB.
- * `hasActiveSubscription` is a Sprint-2 hook (no paid plan exists yet in S1).
+ *
+ * Sprint 2 wires the paid path: pass `sellerClerkId` and this resolves the
+ * seller's Medusa custom-domain subscription (the source of truth) to feed the
+ * deriver's `hasActiveSubscription`. Callers that have already computed it (or a
+ * unit test) may pass `hasActiveSubscription` directly to skip the lookup.
  */
 export async function resolveDomainEntitlement(
   metadata: unknown,
-  opts?: { hasActiveSubscription?: boolean },
+  opts?: { sellerClerkId?: string; hasActiveSubscription?: boolean },
 ): Promise<DomainEntitlement> {
   const paywallEnabled = await isEnabled('domain.paywall_enabled')
-  return deriveDomainEntitlement({
-    paywallEnabled,
-    grant: readDomainGrant(metadata),
-    hasActiveSubscription: opts?.hasActiveSubscription,
-  })
+
+  // Skip the subscription lookup entirely when the paywall is off (everyone
+  // ungated) or a grant already entitles — saves a backend round-trip on the
+  // common path; the deriver's precedence (flag → grant → subscription) makes
+  // the result identical either way.
+  const grant = readDomainGrant(metadata)
+  let hasActiveSubscription = opts?.hasActiveSubscription
+  if (hasActiveSubscription === undefined && paywallEnabled && !grant && opts?.sellerClerkId) {
+    hasActiveSubscription = await hasActiveCustomDomainSubscription(opts.sellerClerkId)
+  }
+
+  return deriveDomainEntitlement({ paywallEnabled, grant, hasActiveSubscription })
 }

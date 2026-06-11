@@ -25,6 +25,7 @@ import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
+import { CUSTOM_DOMAIN_CHECKOUT_KIND } from '@/lib/domain-subscription'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -112,7 +113,11 @@ export async function POST(req: NextRequest) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
       if (session.mode === 'subscription') {
-        await handleSubscriptionCheckoutComplete(session)
+        if (session.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+          await handleCustomDomainSubscriptionComplete(session)
+        } else {
+          await handleSubscriptionCheckoutComplete(session)
+        }
       } else {
         await handleCheckoutComplete(session)
       }
@@ -664,6 +669,84 @@ async function handleAccountUpdated(account: Stripe.Account) {
       },
     },
   }).eq('id', shop.id)
+}
+
+// ── Custom-domain subscription: checkout.session.completed ────────────────────
+// (epic 07 · custom-domain-paywall S2). The PLATFORM is the payee — no transfer.
+// Activates a Medusa Subscription (subscriber = seller), which flips the Sprint-1
+// entitlement seam on. Recorded ONLY in Medusa (the source of truth) — no
+// marketplace_subscriptions row (that table is listing-scoped).
+async function handleCustomDomainSubscriptionComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id
+  const stripeSubscriptionId = session.subscription as string | null
+  if (!shopId || !sellerClerkId || !stripeSubscriptionId) {
+    console.error('[custom-domain sub] missing metadata/subscription:', session.id)
+    return
+  }
+
+  const sellerEmail = session.customer_details?.email?.toLowerCase().trim() ?? ''
+
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  type SubWithPeriod = { current_period_start: number; current_period_end: number }
+  const _sub = stripeSub as unknown as SubWithPeriod
+  const periodStart = new Date(_sub.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_sub.current_period_end   * 1000).toISOString()
+  const stripePriceId = stripeSub.items.data[0]?.price?.id
+
+  // Resolve the platform plan by its Stripe price, then activate the Medusa sub.
+  try {
+    if (!stripePriceId) throw new Error('no price on subscription')
+    const planRes = await fetch(
+      `${MEDUSA_BASE}/store/sellers/subscription-plans/by-stripe-price?stripe_price_id=${encodeURIComponent(stripePriceId)}`,
+      { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
+    )
+    if (!planRes.ok) throw new Error(`plan lookup ${planRes.status}`)
+    const { plan } = (await planRes.json()) as { plan?: { id: string } }
+    if (!plan?.id) throw new Error('plan not found')
+
+    await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
+      },
+      body: JSON.stringify({
+        plan_id: plan.id,
+        seller_id: shopId, // subscriber's shop (denormalized; entitlement keys off clerk id)
+        clerk_user_id: sellerClerkId,
+        buyer_email: sellerEmail || `${sellerClerkId}@seller.miyagisanchez.com`,
+        status: 'active',
+        payment_method: 'stripe',
+        stripe_subscription_id: stripeSubscriptionId,
+        stripe_customer_id: session.customer as string | null,
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
+        metadata: { kind: CUSTOM_DOMAIN_CHECKOUT_KIND, shop_id: shopId },
+      }),
+    })
+  } catch (e) {
+    console.error('[custom-domain sub] Medusa activation failed:', e)
+  }
+
+  // Clear any prior lapse flag so the re-add-payment prompt disappears.
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    const meta = (shop?.metadata ?? {}) as Record<string, unknown>
+    if (meta.custom_domain_lapsed) {
+      delete meta.custom_domain_lapsed
+      await db.from('marketplace_shops').update({ metadata: meta }).eq('id', shopId)
+    }
+  } catch (e) {
+    console.error('[custom-domain sub] clear lapse flag failed:', e)
+  }
+
+  tg.alert(`✅ Dominio propio activado\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
 }
 
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────

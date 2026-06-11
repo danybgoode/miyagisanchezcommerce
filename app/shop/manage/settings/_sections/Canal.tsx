@@ -24,6 +24,7 @@ import SupportWidgetSection from '../SupportWidgetSection'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
+import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
@@ -99,12 +100,19 @@ export interface CanalInitial {
    * section is unchanged when the paywall flag is off / the seller is entitled.
    */
   domain_entitled?: boolean
+  /**
+   * Custom-domain paywall (S2). True when a previously-active custom-domain
+   * subscription lapsed (cancel / past_due) and the domain was disconnected —
+   * shows a "re-activate to restore your domain" prompt on the upsell.
+   */
+  domain_lapsed?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
   const { save, saving, toast, dismissToast, isDirty, markDirty } = useSettingsSave()
   const mark = markDirty
   const accentColor = initial.accent ?? '#1d6f42'
+  const domainLapsed = initial.domain_lapsed ?? false
 
   // ── Own channel — custom domain ────────────────────────────────────────────
   const [shopSlug, setShopSlug]                     = useState(initial.slug ?? '')
@@ -137,6 +145,24 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [cfSuccess, setCfSuccess]                   = useState(false)
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Custom-domain paywall — buy the subscription (epic: custom-domain-paywall, S2) ──
+  const [subscribing, setSubscribing]               = useState(false)
+  const [subscribeError, setSubscribeError]         = useState<string | null>(null)
+
+  async function handleActivateDomain() {
+    setSubscribing(true); setSubscribeError(null)
+    try {
+      const res = await fetch('/api/sell/shop/domain/subscribe', { method: 'POST' })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) { setSubscribeError(data.error ?? 'No se pudo iniciar el pago.'); return }
+      window.location.href = data.url
+    } catch {
+      setSubscribeError('Sin conexión. Intenta de nuevo.')
+    } finally {
+      setSubscribing(false)
+    }
+  }
 
   // ── Own channel — support widget ───────────────────────────────────────────
   const supportSettings = coerceSupportSettings(initial.support)
@@ -527,22 +553,33 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
               </div>
               <p className="text-sm font-semibold mb-1.5">Dominio propio</p>
+              <p className="text-base font-bold mb-1.5">{CUSTOM_DOMAIN_PRICE_LABEL.es}</p>
               <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
                 Conecta tu propio dominio (tutienda.com) para que tu tienda viva en tu marca, con SSL e
-                infraestructura nuestra y sin miyagisanchez.com en la URL. Es una función premium del
-                marketplace.
+                infraestructura nuestra y sin miyagisanchez.com en la URL. Se renueva cada año; puedes
+                cancelar cuando quieras. Tu <strong>URL gratis</strong> y tu <strong>subdominio</strong>
+                {' '}(arriba) siguen siendo gratis.
               </p>
-              <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
-                Estamos habilitando la activación de esta función. Mientras tanto, escríbenos para
-                conectarlo. Tu <strong>URL gratis</strong> y tu <strong>subdominio</strong> (arriba) siguen
-                disponibles sin costo.
-              </p>
-              <a
-                href="mailto:soporte@miyagisanchez.com?subject=Quiero%20activar%20mi%20dominio%20propio"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:underline no-underline"
+              {domainLapsed && (
+                <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
+                  <p className="text-xs text-amber-700">
+                    Tu suscripción al dominio propio terminó y tu dominio se desconectó. Tu tienda sigue
+                    activa en tu URL gratis y tu subdominio. Vuelve a activarla para reconectar tu dominio.
+                  </p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleActivateDomain}
+                disabled={subscribing}
+                className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-60 transition-colors"
               >
-                Quiero mi dominio propio →
-              </a>
+                {subscribing
+                  ? <><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
+                  : (domainLapsed ? 'Reactivar dominio propio →' : 'Activar dominio propio →')}
+              </button>
+              {subscribeError && <p className="mt-2 text-xs text-red-600">⚠ {subscribeError}</p>}
             </div>
           ) : (
           <>

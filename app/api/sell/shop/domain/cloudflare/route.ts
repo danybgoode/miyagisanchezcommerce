@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
   if (!shop) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
 
   // Paywall: provisioning DNS for a custom domain is a premium SKU (flag on).
-  const ent = await resolveDomainEntitlement((shop as unknown as { metadata: unknown }).metadata)
+  const ent = await resolveDomainEntitlement(
+    (shop as unknown as { metadata: unknown }).metadata,
+    { sellerClerkId: user.id },
+  )
   if (!ent.entitled) {
     return NextResponse.json(
       { error: 'El dominio propio es una función premium. Conéctalo desde Ajustes → Canal.', paywall: true },

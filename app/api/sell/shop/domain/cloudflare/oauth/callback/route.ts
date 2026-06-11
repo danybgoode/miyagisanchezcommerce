@@ -89,7 +89,10 @@ export async function GET(req: NextRequest) {
 
   // Paywall: this is the real DNS-mutation boundary — refuse for a non-entitled
   // shop (flag on) before writing any Cloudflare record.
-  const ent = await resolveDomainEntitlement((shop as unknown as { metadata?: unknown } | null)?.metadata)
+  const ent = await resolveDomainEntitlement(
+    (shop as unknown as { metadata?: unknown } | null)?.metadata,
+    { sellerClerkId: clerkUserId },
+  )
   if (!ent.entitled) return popupClose('error', 'El dominio propio es una función premium.')
 
   const domain = (shop as unknown as { custom_domain?: string | null } | null)?.custom_domain

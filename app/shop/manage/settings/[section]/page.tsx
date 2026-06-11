@@ -65,7 +65,7 @@ export default async function SettingsSectionPage({
   // only section with the domain connect form). When not entitled (flag on, no
   // grant/subscription), Canal renders the upsell instead of the connect form.
   const domainEntitled = section === 'canal'
-    ? (await resolveDomainEntitlement(shop.metadata)).entitled
+    ? (await resolveDomainEntitlement(shop.metadata, { sellerClerkId: user.id })).entitled
     : true
 
   const meta = shop.metadata as Record<string, unknown> | null
@@ -148,6 +148,7 @@ export default async function SettingsSectionPage({
           support: st.support ?? null,
           accent: st.theme?.accent_color ?? null,
           domain_entitled: domainEntitled,
+          domain_lapsed: section === 'canal' && !!(meta?.custom_domain_lapsed),
         }} />
       case 'agentes':
         return <Agentes initial={{
