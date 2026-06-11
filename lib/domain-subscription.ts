@@ -27,6 +27,9 @@ const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 export const CUSTOM_DOMAIN_CHECKOUT_KIND = 'custom_domain'
 
 export type CustomDomainSubscription = {
+  /** Backend-computed liveness: true for the backend's LIVE_STATUSES, which
+   *  INCLUDE `past_due` as a deliberate grace window (not just active/trialing).
+   *  Source of truth is the Medusa route; don't re-derive it here. */
   active: boolean
   stripe_price_id: string | null
   price_cents: number | null
