@@ -82,8 +82,8 @@ const DEFAULT_LOGO: PlatformThemeLogo = {
 }
 
 const DEFAULT_TAGLINE = {
-  es: 'Infraestructura de comercio',
-  en: 'Commerce infrastructure',
+  es: 'Abre tu tienda, compra y vende',
+  en: 'Open your shop, buy, and sell',
 }
 
 export const ACTIVE_PLATFORM_THEME_MANIFEST: PlatformThemeManifest = {
