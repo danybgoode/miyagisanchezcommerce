@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
@@ -59,6 +60,13 @@ export default async function SettingsSectionPage({
   // Narrowed alias — `shop` loses its non-null narrowing inside the nested
   // renderExtracted() closure, so capture it here where it's known non-null.
   const shopData = shop
+
+  // Custom-domain paywall: resolve entitlement only for the Canal section (the
+  // only section with the domain connect form). When not entitled (flag on, no
+  // grant/subscription), Canal renders the upsell instead of the connect form.
+  const domainEntitled = section === 'canal'
+    ? (await resolveDomainEntitlement(shop.metadata)).entitled
+    : true
 
   const meta = shop.metadata as Record<string, unknown> | null
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
@@ -139,6 +147,7 @@ export default async function SettingsSectionPage({
           custom_domain_verified: (shopData as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
           support: st.support ?? null,
           accent: st.theme?.accent_color ?? null,
+          domain_entitled: domainEntitled,
         }} />
       case 'agentes':
         return <Agentes initial={{

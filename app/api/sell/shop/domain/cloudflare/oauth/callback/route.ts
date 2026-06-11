@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/supabase'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 
 const CF_TOKEN_URL = 'https://dash.cloudflare.com/oauth2/token'
 const CF_API = 'https://api.cloudflare.com/client/v4'
@@ -80,11 +81,16 @@ export async function GET(req: NextRequest) {
   // ── Get shop domain ───────────────────────────────────────────────────────
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id, custom_domain')
+    .select('id, custom_domain, metadata')
     .eq('clerk_user_id', clerkUserId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
+
+  // Paywall: this is the real DNS-mutation boundary — refuse for a non-entitled
+  // shop (flag on) before writing any Cloudflare record.
+  const ent = await resolveDomainEntitlement((shop as unknown as { metadata?: unknown } | null)?.metadata)
+  if (!ent.entitled) return popupClose('error', 'El dominio propio es una función premium.')
 
   const domain = (shop as unknown as { custom_domain?: string | null } | null)?.custom_domain
   if (!domain) return popupClose('error', 'No encontramos tu dominio guardado. Guarda el dominio primero.')

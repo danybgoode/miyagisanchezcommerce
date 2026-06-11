@@ -93,6 +93,12 @@ export interface CanalInitial {
   support?: SettingsTree['support'] | null
   /** Brand accent — feeds the support widget + embed preview. */
   accent?: string | null
+  /**
+   * Custom-domain paywall (epic: custom-domain-paywall, S1). False ⇒ render the
+   * premium upsell instead of the connect form. Defaults true (ungated) so the
+   * section is unchanged when the paywall flag is off / the seller is entitled.
+   */
+  domain_entitled?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
@@ -508,6 +514,38 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
             )}
           </div>
 
+          {/* ══ Custom-domain paywall (epic: custom-domain-paywall, S1) ═══════
+              The connect steps below are the premium SKU. When the shop is not
+              entitled (flag on, no grandfather/comp grant, no subscription) we
+              render the upsell instead — the free shop URL / subdomain section
+              above stays fully available. Defaults to entitled (unchanged) when
+              the prop is absent or the paywall flag is off. */}
+          {!(initial.domain_entitled ?? true) ? (
+            <div className="border border-[var(--color-border)] rounded-xl p-5 bg-[var(--color-surface-alt)]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🌐</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
+              </div>
+              <p className="text-sm font-semibold mb-1.5">Dominio propio</p>
+              <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
+                Conecta tu propio dominio (tutienda.com) para que tu tienda viva en tu marca, con SSL e
+                infraestructura nuestra y sin miyagisanchez.com en la URL. Es una función premium del
+                marketplace.
+              </p>
+              <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
+                Estamos habilitando la activación de esta función. Mientras tanto, escríbenos para
+                conectarlo. Tu <strong>URL gratis</strong> y tu <strong>subdominio</strong> (arriba) siguen
+                disponibles sin costo.
+              </p>
+              <a
+                href="mailto:soporte@miyagisanchez.com?subject=Quiero%20activar%20mi%20dominio%20propio"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:underline no-underline"
+              >
+                Quiero mi dominio propio →
+              </a>
+            </div>
+          ) : (
+          <>
           {/* ══ STEP 1 — Enter domain ════════════════════════════════════════ */}
           <div className="flex gap-2 items-start">
             <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${savedDomain ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
@@ -984,6 +1022,8 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                 )}
               </div>
             </div>
+          )}
+          </>
           )}
 
         </div>

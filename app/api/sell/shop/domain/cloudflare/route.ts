@@ -13,6 +13,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { getDomainConfig } from '@/lib/vercel-domains'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 
 const CF_API = 'https://api.cloudflare.com/client/v4'
 
@@ -57,13 +58,22 @@ export async function POST(req: NextRequest) {
   // Verify the shop belongs to this user and get the saved domain
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id, custom_domain')
+    .select('id, custom_domain, metadata')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
 
   if (!shop) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
+
+  // Paywall: provisioning DNS for a custom domain is a premium SKU (flag on).
+  const ent = await resolveDomainEntitlement((shop as unknown as { metadata: unknown }).metadata)
+  if (!ent.entitled) {
+    return NextResponse.json(
+      { error: 'El dominio propio es una función premium. Conéctalo desde Ajustes → Canal.', paywall: true },
+      { status: 402 },
+    )
+  }
 
   const domain = (shop as unknown as { custom_domain: string | null }).custom_domain
   if (!domain) {
