@@ -448,7 +448,9 @@ export default function ManageDashboard({
       <PrintEditionCard />
 
       {/* ── Listings ────────────────────────────────────────────────────────── */}
-      <div>
+      {/* #anuncios — the SellerNav "Anuncios" entry jumps here (the dashboard is
+          the listings surface; there is no separate listings route). */}
+      <div id="anuncios" style={{ scrollMarginTop: 80 }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">
             Mis anuncios ({listings.length})
