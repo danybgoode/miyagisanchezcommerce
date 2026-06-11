@@ -25,7 +25,13 @@ import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
-import { CUSTOM_DOMAIN_CHECKOUT_KIND } from '@/lib/domain-subscription'
+import {
+  CUSTOM_DOMAIN_CHECKOUT_KIND,
+  setCustomDomainSubscriptionStatus,
+} from '@/lib/domain-subscription'
+import { removeDomainFromProject } from '@/lib/vercel-domains'
+import { SHOP_DOMAINS_TAG } from '@/lib/custom-domain'
+import { revalidateTag } from 'next/cache'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -848,6 +854,17 @@ async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Sessi
 // ── customer.subscription.updated ─────────────────────────────────────────────
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  // Custom-domain paywall (S2.2): sync the Medusa status (the entitlement source
+  // of truth). The domain is only released by customer.subscription.deleted.
+  if (subscription.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+    const map: Record<string, 'active' | 'trialing' | 'past_due' | 'canceled'> = {
+      active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'past_due', canceled: 'canceled',
+    }
+    const mapped = map[subscription.status]
+    if (mapped) await setCustomDomainSubscriptionStatus(subscription.id, mapped)
+    return
+  }
+
   type SubWithPeriod = { current_period_start: number; current_period_end: number }
   const _s = subscription as unknown as SubWithPeriod
   const periodStart = new Date(_s.current_period_start * 1000).toISOString()
@@ -867,9 +884,63 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 // ── customer.subscription.deleted ─────────────────────────────────────────────
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  // Custom-domain paywall (S2.2): a definitive cancel flips entitlement off and
+  // releases the domain → the shop reverts to its free subdomain + slug.
+  if (subscription.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+    await setCustomDomainSubscriptionStatus(subscription.id, 'canceled')
+    await releaseCustomDomainForShop(subscription.metadata?.shop_id)
+    return
+  }
+
   await db.from('marketplace_subscriptions')
     .update({ status: 'canceled', updated_at: new Date().toISOString() })
     .eq('stripe_subscription_id', subscription.id)
+}
+
+/**
+ * Lapse cleanup (S2.2): release the seller's custom domain from Vercel, null it
+ * in Supabase, and stamp `metadata.custom_domain_lapsed` so Canal shows the
+ * "re-activate to restore your domain" prompt. The free subdomain + slug are
+ * untouched (the shop stays reachable). Best-effort — a Vercel hiccup must never
+ * fail the webhook (Stripe would retry the whole event).
+ */
+async function releaseCustomDomainForShop(shopId: string | undefined) {
+  if (!shopId) return
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('custom_domain, metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+
+    const domain = (shop as { custom_domain?: string | null } | null)?.custom_domain
+    if (domain) {
+      try {
+        await removeDomainFromProject(domain)
+      } catch (err) {
+        console.error('[custom-domain lapse] Vercel removeDomain failed:', err)
+      }
+    }
+
+    const meta = ((shop as { metadata?: Record<string, unknown> } | null)?.metadata ?? {}) as Record<string, unknown>
+    meta.custom_domain_lapsed = { at: new Date().toISOString() }
+
+    await db
+      .from('marketplace_shops')
+      .update({
+        custom_domain: null,
+        custom_domain_verified: false,
+        custom_domain_vercel_ok: false,
+        metadata: meta,
+      })
+      .eq('id', shopId)
+
+    // Drop the reverse lookup so the platform stops redirecting to the now-dead host.
+    revalidateTag(SHOP_DOMAINS_TAG, 'default')
+    tg.alert(`🔻 Dominio propio desconectado (suscripción cancelada)\nShop: ${shopId}\nDominio: ${domain ?? '—'}`)
+  } catch (e) {
+    console.error('[custom-domain lapse] release failed:', e)
+  }
 }
 
 // ── invoice.payment_succeeded ─────────────────────────────────────────────────
@@ -880,6 +951,14 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 
   // Update billing period on the subscription
   const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+
+  // Custom-domain paywall (S2.2): a successful renewal (or recovery from past_due)
+  // keeps the Medusa sub active. No seller transfer — the platform is the payee.
+  if (stripeSub.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+    await setCustomDomainSubscriptionStatus(stripeSubscriptionId, 'active')
+    return
+  }
+
   type SubWithPeriod = { current_period_start: number; current_period_end: number }
   const _sp = stripeSub as unknown as SubWithPeriod
   const periodStart = new Date(_sp.current_period_start * 1000).toISOString()
@@ -936,6 +1015,20 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const stripeSubscriptionId = (invoice as unknown as Record<string, unknown>).subscription as string | undefined
   if (!stripeSubscriptionId) return
+
+  // Custom-domain paywall (S2.2): a failed renewal marks the Medusa sub past_due,
+  // which is a GRACE state — entitlement stays live + the domain stays connected
+  // while Stripe retries. Only customer.subscription.deleted disconnects.
+  try {
+    const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    if (sub.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+      await setCustomDomainSubscriptionStatus(stripeSubscriptionId, 'past_due')
+      tg.alert(`⚠️ Pago fallido en dominio propio (en gracia)\nSubscription: ${stripeSubscriptionId}`)
+      return
+    }
+  } catch (e) {
+    console.error('[custom-domain lapse] payment_failed lookup error:', e)
+  }
 
   await db.from('marketplace_subscriptions')
     .update({ status: 'past_due', updated_at: new Date().toISOString() })
