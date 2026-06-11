@@ -353,7 +353,7 @@ const TOOLS = [
   },
   {
     name: 'get_domain_entitlement',
-    description: "SELLER TOOL. Check whether YOUR OWN shop may connect a custom domain (the platform's paid SKU). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / active subscription / not entitled), the annual price, and — when not entitled — that the campaign coupon `miyagisan` comps the first year. The subdomain and free shop URL are always free regardless. Use before start_domain_subscription.",
+    description: "SELLER TOOL. Check whether YOUR OWN shop may connect a custom domain (the platform's paid SKU). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / active subscription / not entitled), the annual price, and — when not entitled — that the campaign coupon `miyagisan` covers the first year free. The subdomain and free shop URL are always free regardless. Use before start_domain_subscription.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1282,7 +1282,7 @@ async function handleGetDomainEntitlement(authHeader?: string | null) {
   const summary = ent.entitled
     ? `✅ ${shop.name ?? 'Tu tienda'} puede conectar un dominio propio (motivo: ${ent.reason}).`
     : `🔒 El dominio propio es una función premium (${CUSTOM_DOMAIN_PRICE_LABEL.es}). Tu tienda aún no está habilitada. ` +
-      `El cupón “${CAMPAIGN_COUPON_CODE}” comps el primer año (sujeto a disponibilidad). El subdominio y tu URL gratis siempre son gratis. ` +
+      `El cupón “${CAMPAIGN_COUPON_CODE}” cubre gratis el primer año (sujeto a disponibilidad). El subdominio y tu URL gratis siempre son gratis. ` +
       `Usa start_domain_subscription para activar.`
 
   return {

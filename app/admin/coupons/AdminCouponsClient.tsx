@@ -197,7 +197,7 @@ export default function AdminCouponsClient({
       <div className="border border-[var(--color-border)] rounded-xl p-5 mb-8 bg-[var(--color-surface-alt,#fafaf8)]">
         <h2 className="font-semibold mb-1">Cupón de campaña — Dominio propio</h2>
         <p className="text-xs text-[var(--color-muted)] mb-4">
-          <strong>{CAMPAIGN_COUPON_CODE}</strong> comps el primer año del dominio propio (100% de descuento,
+          <strong>{CAMPAIGN_COUPON_CODE}</strong> cubre gratis el primer año del dominio propio (100% de descuento,
           luego se renueva al precio normal). Tope de {campaign?.cap ?? 100} canjes — el 101.° se rechaza.
         </p>
         {campaign?.exists ? (
