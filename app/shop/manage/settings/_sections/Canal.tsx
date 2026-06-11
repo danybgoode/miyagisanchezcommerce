@@ -146,14 +146,20 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── Custom-domain paywall — buy the subscription (epic: custom-domain-paywall, S2) ──
+  // ── Custom-domain paywall — buy the subscription (epic: custom-domain-paywall, S2/S3) ──
   const [subscribing, setSubscribing]               = useState(false)
   const [subscribeError, setSubscribeError]         = useState<string | null>(null)
+  const [domainCoupon, setDomainCoupon]             = useState('') // S3: campaign coupon (miyagisan)
 
   async function handleActivateDomain() {
     setSubscribing(true); setSubscribeError(null)
     try {
-      const res = await fetch('/api/sell/shop/domain/subscribe', { method: 'POST' })
+      const coupon = domainCoupon.trim()
+      const res = await fetch('/api/sell/shop/domain/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(coupon ? { coupon } : {}),
+      })
       const data = await res.json() as { url?: string; error?: string }
       if (!res.ok || !data.url) { setSubscribeError(data.error ?? 'No se pudo iniciar el pago.'); return }
       window.location.href = data.url
@@ -569,6 +575,20 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   </p>
                 </div>
               )}
+              {/* Campaign coupon (epic: custom-domain-paywall, S3) — miyagisan comps year 1. */}
+              <div className="mb-3">
+                <label className="block text-[11px] font-medium text-[var(--color-muted)] mb-1">
+                  ¿Tienes un cupón?
+                </label>
+                <input
+                  type="text"
+                  value={domainCoupon}
+                  onChange={(e) => { setDomainCoupon(e.target.value); if (subscribeError) setSubscribeError(null) }}
+                  placeholder="Código de cupón (opcional)"
+                  autoCapitalize="characters"
+                  className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handleActivateDomain}

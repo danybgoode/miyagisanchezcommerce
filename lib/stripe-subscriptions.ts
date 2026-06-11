@@ -51,6 +51,14 @@ export async function createSubscriptionPrice(
 /**
  * Creates a Stripe Checkout Session in subscription mode.
  * Returns the checkout URL to redirect the buyer to.
+ *
+ * `promotionCodeId` (optional) applies a Stripe Promotion Code as a discount —
+ * used by the custom-domain campaign coupon (`miyagisan`, 100% off the first
+ * year). When a discount is applied the caller also passes
+ * `paymentMethodCollection: 'if_required'` so a $0 first invoice collects NO
+ * card (the free year is a real gift; the subscription lapses gracefully at
+ * renewal if no card is added). The non-coupon path is unchanged (no discount,
+ * card always collected).
  */
 export async function createSubscriptionCheckout({
   priceId,
@@ -58,12 +66,16 @@ export async function createSubscriptionCheckout({
   cancelUrl,
   metadata,
   buyerEmail,
+  promotionCodeId,
+  paymentMethodCollection,
 }: {
   priceId: string
   successUrl: string
   cancelUrl: string
   metadata: Record<string, string>
   buyerEmail?: string
+  promotionCodeId?: string
+  paymentMethodCollection?: 'always' | 'if_required'
 }): Promise<string> {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -73,6 +85,8 @@ export async function createSubscriptionCheckout({
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata,
+    ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
+    ...(paymentMethodCollection ? { payment_method_collection: paymentMethodCollection } : {}),
   })
   return session.url!
 }

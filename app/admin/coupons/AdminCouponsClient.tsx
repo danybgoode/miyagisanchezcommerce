@@ -1,6 +1,20 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { CAMPAIGN_COUPON_CODE, formatRedemptionCount } from '@/lib/domain-coupon'
+
+/** Structural mirror of CampaignCouponStatus (server type lives in a server-only
+ *  module; we keep the shape local so this client component stays client-safe). */
+export interface CampaignCoupon {
+  exists: boolean
+  code: string
+  redeemed: number
+  cap: number
+  remaining: number
+  active: boolean
+  coupon_id: string | null
+  promotion_code_id: string | null
+}
 
 type DiscountType = 'percentage' | 'fixed'
 
@@ -37,15 +51,51 @@ export default function AdminCouponsClient({
   secret,
   initialCoupons,
   initialSettings,
+  initialCampaign,
 }: {
   secret: string
   initialCoupons: Coupon[]
   initialSettings: ReferralSettings
+  initialCampaign?: CampaignCoupon | null
 }) {
   const q = `?secret=${encodeURIComponent(secret)}`
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Campaign coupon (custom-domain paywall S3): miyagisan, 100% off year 1, cap 100.
+  const [campaign, setCampaign] = useState<CampaignCoupon | null>(initialCampaign ?? null)
+  const [campaignBusy, setCampaignBusy] = useState(false)
+  const [campaignMsg, setCampaignMsg] = useState<string | null>(null)
+
+  const refreshCampaign = useCallback(async () => {
+    setCampaignBusy(true); setCampaignMsg(null)
+    try {
+      const res = await fetch(`/api/admin/domain-coupon${q}`, { cache: 'no-store' })
+      const data = await res.json() as { status?: CampaignCoupon; error?: string }
+      if (!res.ok || !data.status) throw new Error(data.error ?? 'No se pudo leer el cupón.')
+      setCampaign(data.status)
+    } catch (e) {
+      setCampaignMsg(e instanceof Error ? e.message : 'Error al leer el cupón.')
+    } finally {
+      setCampaignBusy(false)
+    }
+  }, [q])
+
+  async function mintCampaign() {
+    setCampaignBusy(true); setCampaignMsg(null)
+    try {
+      const res = await fetch(`/api/admin/domain-coupon${q}`, { method: 'POST' })
+      const data = await res.json() as { status?: CampaignCoupon; error?: string }
+      if (!res.ok || !data.status) throw new Error(data.error ?? 'No se pudo crear el cupón.')
+      setCampaign(data.status)
+      setCampaignMsg('Cupón listo ✓')
+    } catch (e) {
+      setCampaignMsg(e instanceof Error ? e.message : 'Error al crear el cupón.')
+    } finally {
+      setCampaignBusy(false)
+    }
+  }
 
   // Referral reward config
   const [enabled, setEnabled] = useState(initialSettings.enabled)
@@ -142,6 +192,49 @@ export default function AdminCouponsClient({
         Códigos redimibles en la compra de anuncios impresos (tienda <strong>miyagiprints</strong>).
         Sirven para promociones de plataforma y como recompensa de referidos.
       </p>
+
+      {/* Campaign coupon — custom-domain paywall S3 (miyagisan: 100% off year 1, cap 100) */}
+      <div className="border border-[var(--color-border)] rounded-xl p-5 mb-8 bg-[var(--color-surface-alt,#fafaf8)]">
+        <h2 className="font-semibold mb-1">Cupón de campaña — Dominio propio</h2>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          <strong>{CAMPAIGN_COUPON_CODE}</strong> comps el primer año del dominio propio (100% de descuento,
+          luego se renueva al precio normal). Tope de {campaign?.cap ?? 100} canjes — el 101.° se rechaza.
+        </p>
+        {campaign?.exists ? (
+          <div className="flex items-baseline gap-3 mb-3">
+            <span className="text-3xl font-bold tabular-nums">
+              {formatRedemptionCount(campaign.redeemed, campaign.cap)}
+            </span>
+            <span className="text-xs text-[var(--color-muted)]">
+              canjes · quedan {campaign.remaining} ·{' '}
+              <span className={campaign.active ? 'text-green-600' : 'text-amber-600'}>
+                {campaign.active ? 'activo' : 'agotado / inactivo'}
+              </span>
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--color-muted)] mb-3">Aún no se ha creado el cupón en Stripe.</p>
+        )}
+        <div className="flex gap-2 items-center">
+          <button
+            type="button"
+            onClick={mintCampaign}
+            disabled={campaignBusy}
+            className="text-xs px-4 py-2 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
+          >
+            {campaignBusy ? 'Procesando…' : campaign?.exists ? 'Asegurar cupón' : 'Crear cupón'}
+          </button>
+          <button
+            type="button"
+            onClick={refreshCampaign}
+            disabled={campaignBusy}
+            className="text-xs px-4 py-2 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] disabled:opacity-60"
+          >
+            Actualizar
+          </button>
+          {campaignMsg && <span className="text-xs text-[var(--color-muted)]">{campaignMsg}</span>}
+        </div>
+      </div>
 
       {/* Referral reward config */}
       <form onSubmit={saveConfig} className="border border-[var(--color-border)] rounded-xl p-5 mb-8 bg-[var(--color-surface-alt,#fafaf8)]">
