@@ -4,18 +4,16 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
-import { stripShopSecrets } from '@/lib/shop-settings/safe-metadata'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
 } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
-// Per-section extraction registry. Extracted sections render from their own
-// component and code-split into their own chunk; every other slug falls back to
-// the ShopSettings monolith. Both are loaded via next/dynamic, so an extracted
-// route (e.g. /settings/politicas) never ships the monolith's chunk.
-const ShopSettingsPanel = dynamic(() => import('../ShopSettings'))
+// Per-section registry. Every section now lives in its own component, code-split
+// into its own chunk via next/dynamic (the 4,200-line monolith was deleted in
+// Sprint 4). `isValidSection()` gates the route to exactly these slugs, so the
+// switch in renderExtracted() is total — there is no fallback.
 const Devoluciones    = dynamic(() => import('../_sections/Devoluciones'))
 const Perfil          = dynamic(() => import('../_sections/Perfil'))
 const Diseno          = dynamic(() => import('../_sections/Diseno'))
@@ -27,12 +25,6 @@ const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
 const Pagos           = dynamic(() => import('../_sections/Pagos'))
 const Canal           = dynamic(() => import('../_sections/Canal'))
 const Agentes         = dynamic(() => import('../_sections/Agentes'))
-
-/** Slugs that have been lifted out of the monolith. */
-const EXTRACTED = new Set([
-  'politicas', 'perfil', 'diseno', 'negociacion', 'envios', 'citas', 'pedidos', 'notificaciones',
-  'pagos', 'canal', 'agentes',
-])
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
   const { section } = await params
@@ -75,9 +67,9 @@ export default async function SettingsSectionPage({
   const stripeSettings = settings.stripe as { account_id?: string; charges_enabled?: boolean; onboarding_complete?: boolean } | undefined
   const calcomSettings = settings.calcom as { connected?: boolean; username?: string; event_type_title?: string; booking_url?: string } | undefined
   const mpSettings = settings.mercadopago as { connected?: boolean; enabled?: boolean; live_mode?: boolean } | undefined
-  // Strip secrets before metadata reaches the client component:
-  // MercadoPago tokens + the hashed MCP agent token (never needs to leave the server).
-  const safeMetadata = stripShopSecrets(shop.metadata as Record<string, any> | null)
+  // Each extracted section receives only the curated slice it owns (never the raw
+  // metadata tree), so secrets — MercadoPago tokens + the hashed MCP agent token —
+  // never reach the client. agentTokenSet exposes only the boolean presence.
   const agentTokenSet = !!(meta?.ucp_agent_token_hash)
   const shopRow = shop as unknown as { calcom_api_key: string | null }
 
@@ -174,36 +166,8 @@ export default async function SettingsSectionPage({
         <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>{pageTitle}</h1>
       </div>
 
-      {/* Extracted section → its own chunk; otherwise the monolith fallback. */}
-      {EXTRACTED.has(section) ? (
-        renderExtracted()
-      ) : (
-      <ShopSettingsPanel
-        stripeError={stripeError}
-        mpError={mpError}
-        activeSection={section}
-        initial={{
-          name: shop.name,
-          description: (shop as unknown as { description: string | null }).description ?? '',
-          location: (shop as unknown as { location: string | null }).location,
-          logo_url: (shop as unknown as { logo_url: string | null }).logo_url,
-          mp_enabled: (shop as unknown as { mp_enabled: boolean | null }).mp_enabled ?? true,
-          ucp_webhook_url: (shop as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url ?? null,
-          ucp_webhook_secret: (shop as unknown as { ucp_webhook_secret: string | null }).ucp_webhook_secret ?? null,
-          agent_token_set: agentTokenSet,
-          calcom_connected: !!(shopRow.calcom_api_key && calcomSettings?.connected),
-          calcom_username: calcomSettings?.username ?? null,
-          calcom_event_type_title: calcomSettings?.event_type_title ?? null,
-          calcom_booking_url: calcomSettings?.booking_url ?? null,
-          stripe: stripeSettings,
-          mercadopago: { connected: !!mpSettings?.connected, enabled: mpSettings?.enabled !== false, live_mode: mpSettings?.live_mode },
-          metadata: safeMetadata as NonNullable<typeof shop.metadata> | null,
-          slug: (shop as unknown as { slug: string }).slug,
-          custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain ?? null,
-          custom_domain_verified: (shop as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
-        }}
-      />
-      )}
+      {/* Every section renders from its own code-split component. */}
+      {renderExtracted()}
     </div>
   )
 }

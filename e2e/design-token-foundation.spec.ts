@@ -6,6 +6,8 @@ import {
   auditDocumentedContrastPairs,
   findArbitraryHexClassOffenders,
   findArbitraryHexClassOffendersInSourceFiles,
+  findInvisibleAccentButtonOffenders,
+  findInvisibleAccentButtonOffendersInSourceFiles,
   findRawHexLiteralOffenders,
   findRawHexLiteralOffendersInSourceFiles,
   formatContrastResult,
@@ -61,6 +63,29 @@ test.describe('design-token foundation', () => {
     expect(offenders.map(formatOffense)).toEqual([
       'app/components/CartButton.tsx:1: bg-[#ff0000] in export function Demo() { return <span className="bg-[#ff0000]">x</span> }',
     ])
+  })
+
+  test('customer-facing source has no invisible accent buttons (bg-[var(--accent)] + untyped text-[var(--fg-inverse)])', async () => {
+    const offenders = await findInvisibleAccentButtonOffenders(repoRoot)
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
+  test('negative fixture: an invisible accent button goes red; the .btn-primary and typed-hint fixes stay green', () => {
+    const broken = findInvisibleAccentButtonOffendersInSourceFiles([{
+      filePath: 'app/components/CartButton.tsx',
+      content: '<a className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2">Comprar</a>',
+    }])
+    expect(broken.map(formatOffense)).toEqual([
+      'app/components/CartButton.tsx:1: bg-[var(--accent)] + text-[var(--fg-inverse)] in <a className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2">Comprar</a>',
+    ])
+
+    // Both prescribed fixes clear the guard: the .btn-primary primitive (buttons)
+    // and the typed text-[color:var(--fg-inverse)] hint (chips/badges).
+    const fixed = findInvisibleAccentButtonOffendersInSourceFiles([
+      { filePath: 'app/a.tsx', content: '<a className="btn btn-primary">Comprar</a>' },
+      { filePath: 'app/b.tsx', content: '<span className="bg-[var(--accent)] text-[color:var(--fg-inverse)]">1</span>' },
+    ])
+    expect(fixed.map(formatOffense)).toEqual([])
   })
 
   test('allowlist fixture: fixed-format/generated contexts stay green', () => {

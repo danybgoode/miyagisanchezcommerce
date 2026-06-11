@@ -1,14 +1,15 @@
 /**
  * The ONE canonical shop-settings section taxonomy.
  *
- * Before this, the slug→section mapping lived in three places that could drift:
- *   1. `[section]/page.tsx` `SECTION_TITLES` (slug → page heading + valid set)
- *   2. `settings/page.tsx` `SECTIONS` cards + `MANUAL_KEYS` (index grid)
- *   3. `ShopSettings.tsx` `SLUG_TO_SECTION_IDS` (slug → internal section ids the
- *      monolith reveals)
+ * Both surfaces that name sections derive from `SECTIONS` below:
+ *   1. `[section]/page.tsx` — slug → page heading + the valid-slug set.
+ *   2. `settings/page.tsx` — the index grid cards + `MANUAL_KEYS`.
  *
- * They now all derive from `SECTIONS` below. Next-free + pure, so a Playwright
- * `api` spec can assert completeness for free.
+ * (A third source, the monolith's `SLUG_TO_SECTION_IDS` slug→internal-id map, was
+ * removed in Sprint 4 when `ShopSettings.tsx` was deleted — there are no internal
+ * sub-sections left, only one component per slug.)
+ *
+ * Next-free + pure, so a Playwright `api` spec can assert completeness for free.
  */
 
 export type SectionGroup = 'tienda' | 'pagos' | 'ventas' | 'canal' | 'integraciones'
@@ -26,8 +27,6 @@ export interface SectionDef {
   color: string
   bg: string
   group: SectionGroup
-  /** Internal `ShopSettings` section ids this slug reveals (the monolith fallback). */
-  sectionIds: string[]
   /**
    * Needs a live handshake a config file can't grant (OAuth / money / domain /
    * webhook secret). The index surfaces a "still needs a manual step" hint and the
@@ -47,7 +46,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--accent)',
     bg: 'var(--accent-soft)',
     group: 'tienda',
-    sectionIds: ['perfil'],
     manual: false,
   },
   {
@@ -59,7 +57,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--provider-mercadopago)',
     bg: 'var(--provider-mercadopago-soft)',
     group: 'pagos',
-    sectionIds: ['proteccion', 'stripe', 'mercadopago', 'spei'],
     manual: true,
   },
   {
@@ -71,7 +68,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--warning)',
     bg: 'var(--warning-soft)',
     group: 'ventas',
-    sectionIds: ['comunicacion', 'envios'],
     manual: false,
   },
   {
@@ -83,7 +79,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--info)',
     bg: 'var(--info-soft)',
     group: 'ventas',
-    sectionIds: ['ofertas'],
     manual: false,
   },
   {
@@ -95,7 +90,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--fg)',
     bg: 'var(--bg-sunk)',
     group: 'ventas',
-    sectionIds: ['citas'],
     manual: true,
   },
   {
@@ -107,7 +101,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--warning)',
     bg: 'var(--warning-soft)',
     group: 'integraciones',
-    sectionIds: ['notificaciones'],
     manual: false,
   },
   {
@@ -119,7 +112,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--energy)',
     bg: 'var(--energy-soft)',
     group: 'tienda',
-    sectionIds: ['apariencia', 'tipo'],
     manual: false,
   },
   {
@@ -131,7 +123,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--agent)',
     bg: 'var(--agent-soft)',
     group: 'integraciones',
-    sectionIds: ['webhook'],
     manual: true,
   },
   {
@@ -143,7 +134,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--accent)',
     bg: 'var(--accent-soft)',
     group: 'canal',
-    sectionIds: ['canal', 'apoyo', 'widget'],
     manual: true,
   },
   {
@@ -155,7 +145,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--fg)',
     bg: 'var(--bg-sunk)',
     group: 'ventas',
-    sectionIds: ['pedidos'],
     manual: false,
   },
   {
@@ -167,7 +156,6 @@ export const SECTIONS: SectionDef[] = [
     color: 'var(--fg)',
     bg: 'var(--bg-sunk)',
     group: 'ventas',
-    sectionIds: ['politicas'],
     manual: false,
   },
 ]
@@ -194,15 +182,6 @@ export function isValidSection(slug: string): boolean {
 
 export function isManual(slug: string): boolean {
   return BY_SLUG.get(slug)?.manual ?? false
-}
-
-/**
- * Internal `ShopSettings` section ids a slug reveals. Falls back to `[slug]` for
- * the identity sub-section aliases (apoyo / widget / bundles) the monolith also
- * accepts — byte-for-byte with the old `SLUG_TO_SECTION_IDS[slug] ?? [slug]`.
- */
-export function sectionIdsFor(slug: string): string[] {
-  return BY_SLUG.get(slug)?.sectionIds ?? [slug]
 }
 
 /** Slugs that still need a manual step (was `MANUAL_KEYS` in the index page). */

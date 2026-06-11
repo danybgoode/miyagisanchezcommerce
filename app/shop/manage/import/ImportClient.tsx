@@ -228,7 +228,7 @@ function Uploader() {
             type="button"
             onClick={handleExtract}
             disabled={extracting || !pasteText.trim() || pasteText.length > EXTRACT_CHAR_LIMIT}
-            className="bg-[var(--accent)] text-[var(--fg-inverse)] px-5 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary"
           >
             {extracting ? 'Extrayendo…' : 'Extraer productos'}
           </button>
@@ -305,7 +305,7 @@ function Uploader() {
                   type="button"
                   disabled={importing || !!report || validCount === 0}
                   onClick={() => runImport(validRows.map((s) => s.row))}
-                  className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-primary"
                 >
                   {importing
                     ? `Procesando ${progress.done}/${progress.total}…`
@@ -507,7 +507,7 @@ export default function ImportClient() {
       <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-5">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--fg-inverse)] text-xs font-bold">1</span>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[color:var(--fg-inverse)] text-xs font-bold">1</span>
             Copilot de catálogo
           </h2>
           <CopyButton text={prompt} label="Copiar prompt" />
@@ -534,7 +534,7 @@ export default function ImportClient() {
       {/* ── Step 2: Schema reference ────────────────────────────────────────── */}
       <section className="border border-[var(--border)] rounded-2xl p-5 mb-5">
         <h2 className="font-semibold flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--fg-inverse)] text-xs font-bold">2</span>
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[color:var(--fg-inverse)] text-xs font-bold">2</span>
           Qué campos lleva cada producto
         </h2>
         <p className="text-sm text-[var(--color-muted)] mb-3">
@@ -572,7 +572,7 @@ export default function ImportClient() {
       <section className="border border-[var(--border)] rounded-2xl p-5 mb-5">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--fg-inverse)] text-xs font-bold">3</span>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-[color:var(--fg-inverse)] text-xs font-bold">3</span>
             Ejemplo de archivo
           </h2>
           <CopyButton text={exampleJson} label="Copiar ejemplo" />

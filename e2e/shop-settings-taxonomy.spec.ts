@@ -5,7 +5,6 @@ import {
   sectionTitle,
   isValidSection,
   isManual,
-  sectionIdsFor,
   MANUAL_KEYS,
 } from '../lib/shop-settings/taxonomy'
 import {
@@ -16,11 +15,12 @@ import {
 } from '../lib/shop-settings/helpers'
 
 /**
- * Shop Settings refactor · Sprint 1.1 — the canonical taxonomy + pure helpers.
- * Before this, slug→section data lived in three places that could drift (the
- * index cards, the [section] page titles, and the monolith's SLUG_TO_SECTION_IDS).
- * They now all derive from ONE map; this spec is the guard that the map stays
- * complete + the moved helpers keep their behavior. Pure; no network/auth.
+ * Shop Settings refactor · the canonical taxonomy + pure helpers.
+ * Before the refactor, slug→section data lived in three places that could drift
+ * (the index cards, the [section] page titles, and the monolith's
+ * SLUG_TO_SECTION_IDS). The monolith + that internal-id map were removed in
+ * Sprint 4; index + route now derive from this ONE map. This spec guards that the
+ * map stays complete + the moved helpers keep their behavior. Pure; no network/auth.
  */
 
 // The 11 slugs the settings index links to and the [section] route accepts.
@@ -34,13 +34,12 @@ test.describe('shop-settings-taxonomy · canonical map', () => {
     expect(orderedSections().map((s) => s.slug)).toEqual(SLUGS)
   })
 
-  test('every slug resolves to a def with a title + ≥1 internal section id', () => {
+  test('every slug resolves to a def with a title', () => {
     for (const slug of SLUGS) {
       const def = sectionDef(slug)
       expect(def, slug).toBeTruthy()
       expect(sectionTitle(slug), slug).toBeTruthy()
       expect(isValidSection(slug), slug).toBe(true)
-      expect(sectionIdsFor(slug).length, slug).toBeGreaterThan(0)
     }
   })
 
@@ -54,22 +53,6 @@ test.describe('shop-settings-taxonomy · canonical map', () => {
     expect([...MANUAL_KEYS].sort()).toEqual(['agentes', 'canal', 'citas', 'pagos'])
     expect(isManual('pagos')).toBe(true)
     expect(isManual('perfil')).toBe(false)
-  })
-
-  test('preserves the non-identity slug→section-id fan-out (was SLUG_TO_SECTION_IDS)', () => {
-    expect(sectionIdsFor('pagos')).toEqual(['proteccion', 'stripe', 'mercadopago', 'spei'])
-    expect(sectionIdsFor('envios')).toEqual(['comunicacion', 'envios'])
-    expect(sectionIdsFor('diseno')).toEqual(['apariencia', 'tipo'])
-    expect(sectionIdsFor('canal')).toEqual(['canal', 'apoyo', 'widget'])
-    expect(sectionIdsFor('negociacion')).toEqual(['ofertas'])
-  })
-
-  test('falls back to [slug] for the identity sub-section aliases', () => {
-    // apoyo/widget/bundles were identity mappings in SLUG_TO_SECTION_IDS — the
-    // `?? [slug]` fallback reproduces them byte-for-byte.
-    expect(sectionIdsFor('apoyo')).toEqual(['apoyo'])
-    expect(sectionIdsFor('widget')).toEqual(['widget'])
-    expect(sectionIdsFor('bundles')).toEqual(['bundles'])
   })
 
   test('politicas keeps its distinct card label vs page heading', () => {

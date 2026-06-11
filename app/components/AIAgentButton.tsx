@@ -13,7 +13,15 @@ Once you've reviewed them, you'll be able to search listings, make offers, and h
 
 ¿Qué estás buscando? / What are you looking for today?`
 
-export default function AIAgentButton() {
+/**
+ * `icon`       — bare ✨ icon button (legacy; no longer mounted after the
+ *                Nav & Settings Reorg one-agent-entry cleanup).
+ * `affordance` — a labeled "Agente IA" pill (sparks + text), the single agent
+ *                entry that sits inline with the centered desktop search.
+ */
+type Variant = 'icon' | 'affordance'
+
+export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant } = {}) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -127,14 +135,42 @@ export default function AIAgentButton() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="icon-btn"
-        title="Comprar con IA / Buy with AI"
-        style={{ color: 'var(--agent)' }}
-      >
-        <i className="iconoir-sparks" style={{ fontSize: 22 }} />
-      </button>
+      {variant === 'affordance' ? (
+        <button
+          onClick={() => setOpen(true)}
+          title="Comprar con IA / Buy with AI"
+          aria-label="Agente IA"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            height: 34,
+            padding: '0 12px',
+            borderRadius: 'var(--r-pill)',
+            background: 'var(--agent-soft)',
+            color: 'var(--agent)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: 'var(--font-sans)',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          <i className="iconoir-sparks" style={{ fontSize: 16 }} />
+          Agente IA
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="icon-btn"
+          title="Comprar con IA / Buy with AI"
+          style={{ color: 'var(--agent)' }}
+        >
+          <i className="iconoir-sparks" style={{ fontSize: 22 }} />
+        </button>
+      )}
       {sheet}
     </>
   )
