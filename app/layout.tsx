@@ -267,6 +267,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       }
                     />
                   </Show>
+
+                  {/* Signed-out has no Cuenta menu — keep the standalone theme toggle
+                      (self-hides on ineligible paths). */}
+                  <Show when="signed-out">
+                    <PlatformThemeToggle
+                      labels={themeToggleLabels}
+                      variant="mobile"
+                      initialEligible={platformThemeEligible}
+                    />
+                  </Show>
                 </div>
 
                 {/* ── DESKTOP LAYOUT: brand · centered search + agent · nav ── */}
@@ -361,6 +371,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       <UserButton />
                     </Show>
                     <Show when="signed-out">
+                      {/* No Cuenta menu when signed out — keep the standalone toggle
+                          (self-hides on ineligible paths). */}
+                      <PlatformThemeToggle
+                        labels={themeToggleLabels}
+                        variant="desktop"
+                        initialEligible={platformThemeEligible}
+                      />
                       <Link href="/sell" className="btn btn-primary btn-sm">
                         Publicar gratis
                       </Link>
