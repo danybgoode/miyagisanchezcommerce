@@ -119,4 +119,32 @@ test.describe('domain connect/provision routes · auth boundary', () => {
     const res = await request.get('/api/sell/shop/domain/cloudflare/oauth/start', { maxRedirects: 0 })
     expect(res.status()).toBe(401)
   })
+
+  // Sprint 2: the buy route is also auth-gated (a checkout can't be started
+  // anonymously). Live card purchase is owed to Daniel (sprint-2.md smoke).
+  test('POST /api/sell/shop/domain/subscribe rejects anonymous', async ({ request }) => {
+    const res = await request.post('/api/sell/shop/domain/subscribe')
+    expect(res.status()).toBe(401)
+  })
+})
+
+/**
+ * Sprint 2 — the lapse contract expressed through the pure deriver. The webhook
+ * flips the Medusa subscription status; entitlement is derived from whether an
+ * active subscription remains. So "active ⇒ entitled, lapsed ⇒ not entitled
+ * (flag on, no grant)" is exactly the deriver's subscription/none branches.
+ */
+test.describe('domain-entitlement · S2 subscription lifecycle', () => {
+  test('paid + active ⇒ entitled; lapsed (no active sub) + flag on ⇒ NOT entitled', () => {
+    // bought + active → hasActiveSubscription true
+    expect(deriveDomainEntitlement({ paywallEnabled: true, grant: null, hasActiveSubscription: true }).entitled).toBe(true)
+    // canceled lapse → hasActiveSubscription false → reverts to free addressing (gated)
+    expect(deriveDomainEntitlement({ paywallEnabled: true, grant: null, hasActiveSubscription: false })).toEqual({
+      entitled: false, reason: 'none',
+    })
+  })
+
+  test('a grandfathered shop survives a lapse (grant outranks subscription)', () => {
+    expect(deriveDomainEntitlement({ paywallEnabled: true, grant: GRANDFATHER, hasActiveSubscription: false }).entitled).toBe(true)
+  })
 })
