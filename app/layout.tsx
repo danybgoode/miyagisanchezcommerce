@@ -20,6 +20,7 @@ import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
+import { isSellerModePath } from '@/lib/seller-mode'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -115,6 +116,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // White-label = no platform chrome (embed iframe OR a live custom domain).
   const whiteLabel = isEmbed || isChannel
+
+  // Seller-mode shell (/shop/manage/*): also drop the buyer chrome — the nested
+  // app/shop/manage/layout.tsx renders a seller-distinct shell in this suppressed
+  // space. This mirrors the whiteLabel branch and composes with it: a manage page
+  // on a custom domain/subdomain is already whiteLabel, so the nested layout
+  // defers to ChannelLayout and never double-suppresses or stacks two shells.
+  const sellerMode = isSellerModePath(platformPath)
+  // Buyer chrome (header, footer, MobileTabBar, theme-spot canvas) renders only
+  // when neither suppression applies.
+  const showBuyerChrome = !whiteLabel && !sellerMode
+
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
   const dict = await getDictionary('es')
   const themeToggleLabels = dict.platformTheme.toggle
@@ -154,7 +166,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </head>
         <body>
           <CartProvider>
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
           {/* ── Sticky header ── */}
           <div
@@ -419,8 +431,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {children}
             </ChannelLayout>
           ) : (
-            <main className={!whiteLabel ? 'platform-main-shell' : undefined}>
-              {!whiteLabel && (
+            <main className={showBuyerChrome ? 'platform-main-shell' : undefined}>
+              {showBuyerChrome && (
                 <>
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-a" />
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-b" />
@@ -431,7 +443,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           )}
           <ReferralAttribution />
 
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
           <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
