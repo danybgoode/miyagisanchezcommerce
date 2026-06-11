@@ -22,15 +22,23 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
- * network error, flag absent). For a kill-switch the safe default is `true`
- * (the feature keeps working if the flag service is down).
+ * network error, flag absent).
+ *
+ * Two polarities live here — both fail-open, but to opposite values:
+ *  - KILL-SWITCH (`checkout.stripe_enabled`): default `true`. The feature keeps
+ *    working if the flag service is down (disabling is the deliberate action).
+ *  - ENABLEMENT (`domain.paywall_enabled`): default `false`. The gate stays OFF
+ *    (today's free custom-domain behavior) if Flagsmith is unreachable — so a
+ *    flag outage can never trap a seller behind a paywall. Enabling is the
+ *    deliberate action (flip on in Flagsmith once the grandfather backfill ran).
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
+  'domain.paywall_enabled': false,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY

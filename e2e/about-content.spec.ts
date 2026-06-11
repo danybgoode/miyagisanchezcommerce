@@ -10,8 +10,9 @@ import {
 } from '../lib/about-content'
 
 const LOCALES: AboutLocale[] = ['es', 'en']
-const STUB_IDS = ['founder', 'pricing'] as const
-const GROUNDED_IDS = ['what_is', 'why_sell', 'how_to_start', 'cost_transparency', 'philosophy'] as const
+// custom-domain-paywall S2.3: `pricing` is now grounded (real $499/yr price).
+const STUB_IDS = ['founder'] as const
+const GROUNDED_IDS = ['what_is', 'why_sell', 'how_to_start', 'cost_transparency', 'pricing', 'philosophy'] as const
 
 test.describe('about-content · single bilingual source', () => {
   test('section ids cover exactly the seven sections, in order, no dupes', () => {
@@ -44,12 +45,23 @@ test.describe('about-content · single bilingual source', () => {
     }
   })
 
-  test('founder + pricing are flagged stubs; the five grounded sections are not', () => {
+  test('founder is the only flagged stub; the six grounded sections are not', () => {
     for (const id of STUB_IDS) {
       expect(getAboutSection(id).stub, `${id} should be a stub`).toBe(true)
     }
     for (const id of GROUNDED_IDS) {
       expect(getAboutSection(id).stub, `${id} should be grounded`).toBe(false)
+    }
+  })
+
+  test('pricing section publishes the real custom-domain price in both locales', () => {
+    const pricing = getAboutSection('pricing')
+    expect(pricing.stub, 'pricing must be grounded').toBe(false)
+    for (const locale of LOCALES) {
+      const text = aboutCopy(pricing, locale).body.join(' ')
+      expect(text, `${locale} pricing mentions the annual price`).toContain('$499')
+      expect(text, `${locale} pricing mentions the monthly equivalent`).toContain('$42')
+      expect(text.toLowerCase(), `${locale} pricing no longer says coming soon`).not.toMatch(/próximamente|coming soon/)
     }
   })
 
