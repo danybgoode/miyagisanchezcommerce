@@ -245,14 +245,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </div>
                   </form>
 
-                  {/* Sell icon */}
-                  <Link
-                    href="/sell"
-                    className="icon-btn accent"
-                    title="Publicar anuncio"
-                  >
-                    <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
-                  </Link>
+                  {/* Sell icon — publish action when signed in, the /vende pitch when signed out */}
+                  <Show when="signed-in">
+                    <Link
+                      href="/sell"
+                      className="icon-btn accent"
+                      title="Publicar anuncio"
+                    >
+                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    </Link>
+                  </Show>
+                  <Show when="signed-out">
+                    <Link
+                      href="/vende"
+                      className="icon-btn accent"
+                      title="Vende gratis"
+                    >
+                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    </Link>
+                  </Show>
 
                   <Link
                     href="/vecindario"
@@ -390,7 +401,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         variant="desktop"
                         initialEligible={platformThemeEligible}
                       />
-                      <Link href="/sell" className="btn btn-primary btn-sm">
+                      <Link href="/vende" className="btn btn-primary btn-sm">
                         Publicar gratis
                       </Link>
                       <Link
@@ -453,7 +464,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
               <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
               <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
-              <Link href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
+              <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
               <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
               <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
                 Agent API
