@@ -2,23 +2,23 @@
  * POST /api/sell/shop/domain/subscribe
  *
  * Start a Stripe checkout for the custom-domain subscription SKU (epic 07 ·
- * custom-domain-paywall, Sprint 2). The PLATFORM is the payee (no connected
- * account, no 97% transfer) — `createSubscriptionCheckout` runs on the platform
- * Stripe account. On payment the webhook activates a Medusa Subscription
+ * custom-domain-paywall). The PLATFORM is the payee (no connected account, no
+ * 97% transfer). On payment the webhook activates a Medusa Subscription
  * (subscriber = seller), which flips the Sprint-1 entitlement seam on.
+ *
+ * Sprint 3: accepts an optional `{ coupon }` in the body — the campaign coupon
+ * `miyagisan` comps the first year (capped at 100; the 101st is refused with a
+ * clear message). The shared `startCustomDomainCheckout` builder owns the plan
+ * lookup + coupon resolution so the agent (MCP) path can't drift.
  *
  * Auth required (seller session). Returns `{ url }` to redirect to Stripe.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
-import { createSubscriptionCheckout } from '@/lib/stripe-subscriptions'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { detectChannel } from '@/lib/channel'
-import {
-  getCustomDomainSubscription,
-  CUSTOM_DOMAIN_CHECKOUT_KIND,
-} from '@/lib/domain-subscription'
+import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 
 export async function POST(req: NextRequest) {
   const user = await currentUser()
@@ -37,6 +37,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Optional coupon code from the body (campaign coupon `miyagisan`).
+  let couponCode: string | null = null
+  try {
+    const body = (await req.json()) as { coupon?: unknown }
+    if (typeof body?.coupon === 'string') couponCode = body.coupon
+  } catch {
+    // No / empty body — straight (paid) checkout.
+  }
+
   // The seller's first shop (same lookup the domain route uses).
   const { data: shop } = await db
     .from('marketplace_shops')
@@ -49,36 +58,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
   }
 
-  // Resolve the platform plan (price id) + short-circuit if already subscribed.
-  const sub = await getCustomDomainSubscription(user.id)
-  if (sub.active) {
-    return NextResponse.json(
-      { error: 'Ya tienes una suscripción activa al dominio propio.', alreadyActive: true },
-      { status: 409 },
-    )
-  }
-  if (!sub.stripe_price_id) {
-    return NextResponse.json(
-      { error: 'El plan de dominio propio aún no está disponible. Intenta más tarde.' },
-      { status: 422 },
-    )
-  }
-
-  const buyerEmail = user.emailAddresses?.[0]?.emailAddress
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
-
-  const url = await createSubscriptionCheckout({
-    priceId: sub.stripe_price_id,
-    successUrl: `${origin}/shop/manage/settings/canal?domain=activated`,
-    cancelUrl: `${origin}/shop/manage/settings/canal?domain=cancelled`,
-    buyerEmail,
-    metadata: {
-      kind: CUSTOM_DOMAIN_CHECKOUT_KIND,
-      shop_id: shop.id,
-      seller_clerk_id: user.id,
-      channel: detectChannel(req),
-    },
+  const result = await startCustomDomainCheckout({
+    shopId: shop.id,
+    sellerClerkId: user.id,
+    buyerEmail: user.emailAddresses?.[0]?.emailAddress,
+    channel: detectChannel(req),
+    couponCode,
   })
 
-  return NextResponse.json({ url })
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, ...(result.alreadyActive ? { alreadyActive: true } : {}) },
+      { status: result.status },
+    )
+  }
+
+  return NextResponse.json({ url: result.url })
 }

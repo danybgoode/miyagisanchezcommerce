@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import AdminCouponsClient, { type Coupon } from './AdminCouponsClient'
 import { getReferralSettings } from '@/lib/referrals'
+import { getCampaignCouponStatus, type CampaignCouponStatus } from '@/lib/domain-coupon-server'
 
 export const metadata = { title: 'Cupones de plataforma — Admin' }
 
@@ -32,5 +33,20 @@ export default async function AdminCouponsPage({ searchParams }: { searchParams:
 
   const initialSettings = await getReferralSettings()
 
-  return <AdminCouponsClient secret={secret} initialCoupons={initialCoupons} initialSettings={initialSettings} />
+  // Campaign coupon (custom-domain paywall S3) — live n/100 status, best-effort.
+  let initialCampaign: CampaignCouponStatus | null = null
+  try {
+    initialCampaign = await getCampaignCouponStatus()
+  } catch {
+    // Non-fatal — the client can mint / refresh.
+  }
+
+  return (
+    <AdminCouponsClient
+      secret={secret}
+      initialCoupons={initialCoupons}
+      initialSettings={initialSettings}
+      initialCampaign={initialCampaign}
+    />
+  )
 }

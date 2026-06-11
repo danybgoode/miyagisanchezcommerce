@@ -127,6 +127,8 @@ export const MCP_SELLER_TOOLS = [
   'list_my_listings',
   'update_listing',
   'set_listing_status',
+  'get_domain_entitlement',     // custom-domain paywall S3 (token-scoped)
+  'start_domain_subscription',  // custom-domain paywall S3 (token-scoped)
 ] as const
 
 /** Every MCP tool name, in discovery order. */
@@ -146,6 +148,7 @@ export const UCP_CAPABILITIES = [
   'mcp_server',
   'seller_configuration', // get/patch_store_configuration (token-scoped, Sprint 4)
   'seller_onboarding',    // Onboarding 0 — published setup spec + emit prompt (get_setup_spec)
+  'seller_domain_subscription', // custom-domain paywall S3 — entitlement + checkout/coupon over MCP (token-scoped)
 ] as const
 
 /** Build absolute endpoint URLs for a given request base (e.g. https://miyagisanchez.com). */
