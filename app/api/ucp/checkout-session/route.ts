@@ -26,6 +26,7 @@ import { toUcpListing } from '@/lib/ucp/schema'
 import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
+import { isShopClaimed } from '@/lib/claim'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
@@ -228,7 +229,7 @@ export async function POST(req: NextRequest) {
   const currency   = listing.currency ?? 'MXN'
   const hasPrice   = priceCents != null && priceCents > 0
   const isDigital  = listing.listing_type === 'digital'
-  const isClaimed  = !!(shop?.clerk_user_id && !shop.clerk_user_id.startsWith('pending:'))
+  const isClaimed  = isShopClaimed(shop)
 
   // ── Shop signals ──────────────────────────────────────────────────────────
   const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
