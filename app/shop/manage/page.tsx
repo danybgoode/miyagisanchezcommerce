@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+import { filterOutDeleted, DELETED_STATUS } from '@/lib/listing-lifecycle'
 import ManageDashboard from './ManageDashboard'
 
 export const metadata = {
@@ -59,7 +60,28 @@ export default async function ManagePage() {
     ? await productsRes.json() as { listings?: MedusaListingForManage[] }
     : { listings: [] }
 
-  const listings = (productsData.listings ?? []).map((listing) => ({
+  // Deploy-lag safety: until the backend native soft-delete is live, a deleted
+  // product may still come back from Medusa as a draft. Hide anything the mirror
+  // already marks 'deleted' — and exclude it from the resync below so we never
+  // clobber that 'deleted' back to 'draft' (which would resurrect it in the edit
+  // guard). Once soft-delete deploys, Medusa omits the product → this set is
+  // empty → no-op. (LEARNINGS → frontend degrades gracefully in the lag window.)
+  let deletedIds = new Set<string>()
+  if (shopMirror?.id) {
+    const { data: deletedRows } = await db
+      .from('marketplace_listings')
+      .select('medusa_product_id')
+      .eq('shop_id', shopMirror.id)
+      .eq('status', DELETED_STATUS)
+    deletedIds = new Set(
+      (deletedRows ?? [])
+        .map((row) => row.medusa_product_id as string | null)
+        .filter((id): id is string => !!id),
+    )
+  }
+
+  const listings = filterOutDeleted(
+    (productsData.listings ?? []).map((listing) => ({
     id: listing.id,
     title: listing.title,
     price_cents: listing.price_cents,
@@ -74,7 +96,9 @@ export default async function ManagePage() {
       ...(image.alt ? { alt: image.alt } : {}),
     })),
     created_at: listing.created_at,
-  }))
+  })),
+    deletedIds,
+  )
 
   if (shopMirror?.id) {
     await Promise.all(
