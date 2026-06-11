@@ -25,6 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { isShopClaimed } from '@/lib/claim'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
@@ -677,7 +678,7 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     }
   } catch { /* listings stays empty */ }
 
-  const isClaimed = !!(seller.clerk_user_id && !String(seller.clerk_user_id).startsWith('pending:'))
+  const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
   const profile = [
     `# ${seller.name}${seller.verified ? ' ✓ verificado' : ''}`,
