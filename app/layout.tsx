@@ -20,6 +20,7 @@ import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
+import { isSellerModePath } from '@/lib/seller-mode'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -115,6 +116,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // White-label = no platform chrome (embed iframe OR a live custom domain).
   const whiteLabel = isEmbed || isChannel
+
+  // Seller-mode shell (/shop/manage/*): also drop the buyer chrome — the nested
+  // app/shop/manage/layout.tsx renders a seller-distinct shell in this suppressed
+  // space. This mirrors the whiteLabel branch and composes with it: a manage page
+  // on a custom domain/subdomain is already whiteLabel, so the nested layout
+  // defers to ChannelLayout and never double-suppresses or stacks two shells.
+  const sellerMode = isSellerModePath(platformPath)
+  // Buyer chrome (header, footer, MobileTabBar, theme-spot canvas) renders only
+  // when neither suppression applies.
+  const showBuyerChrome = !whiteLabel && !sellerMode
+
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
   const dict = await getDictionary('es')
   const themeToggleLabels = dict.platformTheme.toggle
@@ -154,7 +166,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </head>
         <body>
           <CartProvider>
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
           {/* ── Sticky header ── */}
           <div
@@ -233,14 +245,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </div>
                   </form>
 
-                  {/* Sell icon */}
-                  <Link
-                    href="/sell"
-                    className="icon-btn accent"
-                    title="Publicar anuncio"
-                  >
-                    <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
-                  </Link>
+                  {/* Sell icon — publish action when signed in, the /vende pitch when signed out */}
+                  <Show when="signed-in">
+                    <Link
+                      href="/sell"
+                      className="icon-btn accent"
+                      title="Publicar anuncio"
+                    >
+                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    </Link>
+                  </Show>
+                  <Show when="signed-out">
+                    <Link
+                      href="/vende"
+                      className="icon-btn accent"
+                      title="Vende gratis"
+                    >
+                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    </Link>
+                  </Show>
 
                   <Link
                     href="/vecindario"
@@ -378,7 +401,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         variant="desktop"
                         initialEligible={platformThemeEligible}
                       />
-                      <Link href="/sell" className="btn btn-primary btn-sm">
+                      <Link href="/vende" className="btn btn-primary btn-sm">
                         Publicar gratis
                       </Link>
                       <Link
@@ -419,8 +442,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {children}
             </ChannelLayout>
           ) : (
-            <main className={!whiteLabel ? 'platform-main-shell' : undefined}>
-              {!whiteLabel && (
+            <main className={showBuyerChrome ? 'platform-main-shell' : undefined}>
+              {showBuyerChrome && (
                 <>
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-a" />
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-b" />
@@ -431,7 +454,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           )}
           <ReferralAttribution />
 
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
           <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
@@ -441,7 +464,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
               <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
               <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
-              <Link href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
+              <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
               <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
               <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
                 Agent API

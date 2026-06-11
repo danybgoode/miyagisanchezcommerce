@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { getRecentListings, formatPrice, conditionLabel } from '@/lib/listings'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
+import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -46,6 +47,43 @@ export default async function HomePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
       <CategoryChips className="mb-6" />
+
+      {/* Vecindario entry — keeps the community feed reachable after it left the tab bar */}
+      <Link
+        href="/vecindario"
+        data-testid="vecindario-feed-entry"
+        className="card-tile no-underline block mb-6"
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14 }}
+      >
+        <div
+          style={{
+            flexShrink: 0,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--bg-sunk)',
+          }}
+        >
+          <i className="iconoir-community" style={{ fontSize: 24, color: 'var(--accent)' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
+            {NEIGHBORHOOD_PULSE_COPY.eyebrow}
+          </p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
+            {NEIGHBORHOOD_PULSE_COPY.navLabel}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {NEIGHBORHOOD_PULSE_COPY.intro}
+          </p>
+        </div>
+        <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+          {NEIGHBORHOOD_PULSE_COPY.viewFeedCta} →
+        </span>
+      </Link>
 
       {/* Recent listings */}
       {recent.length > 0 && (
