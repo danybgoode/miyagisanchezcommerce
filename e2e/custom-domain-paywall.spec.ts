@@ -4,6 +4,15 @@ import {
   readDomainGrant,
   type DomainGrant,
 } from '../lib/domain-entitlement'
+import {
+  CAMPAIGN_COUPON_CODE,
+  CAMPAIGN_COUPON_CAP,
+  isCampaignCode,
+  normalizeCouponCode,
+  couponRedeemable,
+  couponRefusalReason,
+  formatRedemptionCount,
+} from '../lib/domain-coupon'
 
 /**
  * Custom-domain paywall · Sprint 1 (Gate + entitlement).
@@ -146,5 +155,130 @@ test.describe('domain-entitlement · S2 subscription lifecycle', () => {
 
   test('a grandfathered shop survives a lapse (grant outranks subscription)', () => {
     expect(deriveDomainEntitlement({ paywallEnabled: true, grant: GRANDFATHER, hasActiveSubscription: false }).entitled).toBe(true)
+  })
+})
+
+/**
+ * Sprint 3 — campaign coupon `miyagisan` (100% off year 1, capped at 100) + the
+ * agent (UCP/MCP) surface for the domain SKU.
+ *
+ * Layer 1 (PURE): the cap-of-100 decision logic in lib/domain-coupon.ts —
+ *   matching, the redeemable boundary (99 ok / 100 refused / 101 refused), and
+ *   the display counter — unit-tested directly, no Stripe, no network. This is
+ *   the authoritative-cap mirror of Stripe's own max_redemptions rule.
+ * Layer 2 (DISCOVERY/AUTH): the MCP server lists the two new shop-scoped tools,
+ *   an unauthenticated tools/call is refused (Unauthorized), the manifest
+ *   advertises the new capability, and the admin coupon route is secret-gated.
+ *
+ * NOT covered here (owed to Daniel — sprint-3.md smoke): the live coupon
+ * redemption ($0 first-year subscription → connect domain), the admin counter
+ * moving, and the no-card year-end lapse — all need real Stripe events + a Clerk
+ * seller session. The new MCP/manifest/admin assertions are CI-vs-preview
+ * authoritative (these routes return the OLD shape on prod until this deploys).
+ */
+test.describe('domain-coupon · campaign code matching', () => {
+  test('isCampaignCode matches miyagisan, trims + lowercases', () => {
+    expect(isCampaignCode('miyagisan')).toBe(true)
+    expect(isCampaignCode('  MIYAGISAN  ')).toBe(true)
+    expect(isCampaignCode('MiYaGiSaN')).toBe(true)
+    expect(isCampaignCode('otro')).toBe(false)
+    expect(isCampaignCode('')).toBe(false)
+    expect(isCampaignCode(null)).toBe(false)
+    expect(isCampaignCode(undefined)).toBe(false)
+    expect(normalizeCouponCode(' MIYAGISAN ')).toBe(CAMPAIGN_COUPON_CODE)
+  })
+})
+
+test.describe('domain-coupon · cap-of-100 boundary', () => {
+  const cap = CAMPAIGN_COUPON_CAP // 100
+
+  test('redeemable up to but not including the cap (99 ok, 100 refused, 101 refused)', () => {
+    expect(couponRedeemable({ active: true, timesRedeemed: 0, maxRedemptions: cap })).toBe(true)
+    expect(couponRedeemable({ active: true, timesRedeemed: 99, maxRedemptions: cap })).toBe(true)
+    // the 100th redemption has happened ⇒ the 101st is refused
+    expect(couponRedeemable({ active: true, timesRedeemed: 100, maxRedemptions: cap })).toBe(false)
+    expect(couponRedeemable({ active: true, timesRedeemed: 101, maxRedemptions: cap })).toBe(false)
+  })
+
+  test('an inactive coupon is never redeemable, even below the cap', () => {
+    expect(couponRedeemable({ active: false, timesRedeemed: 0, maxRedemptions: cap })).toBe(false)
+  })
+
+  test('couponRefusalReason: unknown code, exhausted, or null (proceed)', () => {
+    const live = { active: true, timesRedeemed: 0, maxRedemptions: cap }
+    const full = { active: true, timesRedeemed: cap, maxRedemptions: cap }
+    expect(couponRefusalReason('otro', live)).toBe('unknown')
+    expect(couponRefusalReason('miyagisan', live)).toBeNull()
+    // the 101st: campaign code but exhausted
+    expect(couponRefusalReason('miyagisan', full)).toBe('exhausted')
+    expect(couponRefusalReason('miyagisan', { active: false, timesRedeemed: 0, maxRedemptions: cap })).toBe('exhausted')
+  })
+
+  test('formatRedemptionCount renders the n/cap counter', () => {
+    expect(formatRedemptionCount(0, cap)).toBe('0/100')
+    expect(formatRedemptionCount(7, cap)).toBe('7/100')
+    expect(formatRedemptionCount(100, cap)).toBe('100/100')
+    expect(formatRedemptionCount(0)).toBe('0/100') // default cap
+  })
+})
+
+test.describe('domain SKU · agent (MCP/manifest) surface', () => {
+  async function mcp(request: import('@playwright/test').APIRequestContext, method: string, params?: unknown) {
+    const res = await request.post('/api/ucp/mcp', {
+      data: { jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) },
+      headers: { 'Content-Type': 'application/json' },
+    })
+    return res
+  }
+
+  test('tools/list advertises the two new shop-scoped domain tools', async ({ request }) => {
+    const res = await mcp(request, 'tools/list')
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    const names = (body.result?.tools ?? []).map((t: { name: string }) => t.name)
+    expect(names).toContain('get_domain_entitlement')
+    expect(names).toContain('start_domain_subscription')
+  })
+
+  test('get_domain_entitlement without a shop token is refused (shop-scoped)', async ({ request }) => {
+    const res = await mcp(request, 'tools/call', { name: 'get_domain_entitlement', arguments: {} })
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    const text = (body.result?.content ?? []).map((c: { text?: string }) => c.text ?? '').join('\n')
+    expect(text).toContain('Unauthorized')
+  })
+
+  test('start_domain_subscription without a shop token is refused (shop-scoped)', async ({ request }) => {
+    const res = await mcp(request, 'tools/call', { name: 'start_domain_subscription', arguments: { coupon: 'miyagisan' } })
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    const text = (body.result?.content ?? []).map((c: { text?: string }) => c.text ?? '').join('\n')
+    expect(text).toContain('Unauthorized')
+  })
+
+  test('the manifest advertises the seller_domain_subscription capability + tools', async ({ request }) => {
+    const res = await request.get('/api/ucp/manifest')
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    expect(body.capabilities).toContain('seller_domain_subscription')
+    const tools = body.endpoints?.seller_domain_subscription?.mcp_tools ?? []
+    expect(tools).toContain('get_domain_entitlement')
+    expect(tools).toContain('start_domain_subscription')
+    // MCP_TOOL_NAMES (single source) also lists them.
+    expect(body.endpoints?.mcp?.mcp_tools ?? []).toEqual(
+      expect.arrayContaining(['get_domain_entitlement', 'start_domain_subscription']),
+    )
+  })
+})
+
+test.describe('admin · domain campaign coupon route is secret-gated', () => {
+  test('GET /api/admin/domain-coupon rejects without the secret (401)', async ({ request }) => {
+    const res = await request.get('/api/admin/domain-coupon')
+    expect(res.status()).toBe(401)
+  })
+
+  test('POST /api/admin/domain-coupon rejects without the secret (401)', async ({ request }) => {
+    const res = await request.post('/api/admin/domain-coupon')
+    expect(res.status()).toBe(401)
   })
 })
