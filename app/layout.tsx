@@ -52,12 +52,12 @@ const SPLASH_SCREENS = [
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Miyagi Sánchez — Infraestructura de comercio',
+    default: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     template: '%s | Miyagi Sánchez',
   },
   description:
-    'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
-  keywords: ['marketplace', 'vender online', 'sin comisiones', 'México', 'comprar y vender'],
+    'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
+  keywords: ['marketplace México', 'segundamano', 'comprar y vender', 'vender sin comisiones', 'abrir tienda online', 'eventos', 'México'],
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
@@ -69,15 +69,15 @@ export const metadata: Metadata = {
     locale: 'es_MX',
     url: BASE_URL,
     siteName: 'Miyagi Sánchez',
-    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    title: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     description:
-      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
+      'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    title: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     description:
-      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic.',
+      'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
     site: '@miyagisanchez',
   },
   robots: {
