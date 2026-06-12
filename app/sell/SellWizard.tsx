@@ -734,7 +734,7 @@ function StepListing({
                   : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
               }`}
             >
-              <span className="text-lg leading-none">{cat.icon}</span>
+              <i className={`iconoir-${cat.icon} leading-none`} style={{ fontSize: 18 }} aria-hidden />
               <span className="leading-tight">{cat.label}</span>
             </button>
           ))}

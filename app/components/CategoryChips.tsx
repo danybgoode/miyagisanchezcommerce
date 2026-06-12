@@ -14,7 +14,7 @@ export default function CategoryChips({ activeCategory, className }: Props) {
         href="/l"
         className={`chip${!activeCategory ? ' is-selected' : ''}`}
       >
-        <span>🛍️</span>
+        <i className="iconoir-view-grid" aria-hidden />
         <span>Todo</span>
       </Link>
 
@@ -24,7 +24,7 @@ export default function CategoryChips({ activeCategory, className }: Props) {
           href={`/l?category=${cat.key}`}
           className={`chip${cat.key === activeCategory ? ' is-selected' : ''}`}
         >
-          <span>{cat.icon}</span>
+          <i className={`iconoir-${cat.icon}`} aria-hidden />
           <span>{cat.label}</span>
         </Link>
       ))}

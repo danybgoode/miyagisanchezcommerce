@@ -61,7 +61,7 @@ export default function SellerTrustCard({
           <div className="flex-1 min-w-0">
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>
-                {shop.verified && <span style={{ color: 'var(--accent)', marginRight: 3 }}>✓</span>}
+                {shop.verified && <i className="iconoir-badge-check" style={{ color: 'var(--accent)', marginRight: 3, verticalAlign: 'middle' }} aria-hidden />}
                 {shop.name}
               </span>
             </div>
