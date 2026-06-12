@@ -12,8 +12,9 @@ import { CATEGORIES } from '../lib/types'
 // the live home grid shows real listings whose user-authored titles may legibly
 // contain an emoji, and that's not "the homepage's emoji language".
 
-// The Iconoir name shape: lowercase words joined by hyphens (e.g. `smartphone-device`).
-const ICONOIR_NAME = /^[a-z][a-z-]*[a-z]$/
+// The Iconoir name shape: lowercase words joined by hyphens, digits allowed
+// (e.g. `smartphone-device`, `360-view`) — never an emoji.
+const ICONOIR_NAME = /^[a-z][a-z0-9-]*[a-z0-9]$/
 
 // The category/chrome emoji that used to live in CATEGORIES + the "Todo" chip.
 const REMOVED_DESIGN_EMOJI = [
