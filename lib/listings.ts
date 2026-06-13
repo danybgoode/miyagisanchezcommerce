@@ -1,6 +1,14 @@
 import { unstable_cache } from 'next/cache'
 import type { Listing, Shop, SearchParams } from './types'
+import { CATEGORIES } from './types'
 import { buildQuery } from './listing-query'
+import {
+  pickFeatured,
+  curateGrid,
+  liveCategoryCounts,
+  GRID_SIZE,
+  type CategoryCount,
+} from './home-curation'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -169,6 +177,58 @@ export async function getRecentListings(limit = 8): Promise<Listing[]> {
   const data = await res.json()
   return data.listings ?? []
 }
+
+// ── Homepage Polish — Dirección B · Sprint 2: curated Selección + Categorías ──
+// The curation/count *logic* lives in the next-free `lib/home-curation.ts` seam
+// (unit-tested by `e2e/home-curation.spec.ts`); these are the thin Medusa-reading
+// wrappers. One cached pool feeds both featured + grid so they stay consistent.
+
+// A small pool of the freshest listings, curated down on read. Cached so
+// getFeaturedListing + getCuratedListings share a single fetch per request window.
+const getCuratedPool = unstable_cache(
+  async (): Promise<Listing[]> => {
+    const res = await medusaFetch('/store/listings?sort=reciente&limit=24', {
+      next: { revalidate: 60, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.listings ?? []
+  },
+  ['curated-pool'],
+  { revalidate: 60, tags: ['listings'] },
+)
+
+/** The Selección featured pick (pinned-first, else freshest qualifying); null when none. */
+export async function getFeaturedListing(): Promise<Listing | null> {
+  const pool = await getCuratedPool()
+  return pickFeatured(pool, Date.now())
+}
+
+/** The Selección grid — n qualifying listings, excluding the featured card. */
+export async function getCuratedListings(n = GRID_SIZE): Promise<Listing[]> {
+  const pool = await getCuratedPool()
+  const now = Date.now()
+  const featured = pickFeatured(pool, now)
+  return curateGrid(pool, now, n, featured?.id)
+}
+
+/**
+ * Live category counts for the "Categorías con vida" module — builds on
+ * countListings (one cheap total-only call per category), drops empty categories.
+ * Cached ~5 min behind the listings tag.
+ */
+export const getCategoryCounts = unstable_cache(
+  async (): Promise<CategoryCount[]> => {
+    const totals = await Promise.all(
+      CATEGORIES.map(c => countListings({ category: c.key })),
+    )
+    const counts: Record<string, number> = {}
+    CATEGORIES.forEach((c, i) => { counts[c.key] = totals[i] })
+    return liveCategoryCounts(counts)
+  },
+  ['category-counts'],
+  { revalidate: 300, tags: ['listings'] },
+)
 
 export function formatPrice(listing: Listing): string {
   if (listing.price_cents == null) return 'Precio a consultar'
