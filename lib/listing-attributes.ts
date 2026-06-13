@@ -42,6 +42,8 @@ export interface AttrField {
   maxLength?: number
   /** Appended after the value in the specs table, e.g. 'km', 'm²'. */
   unit?: string
+  /** Apply es-MX thousands grouping to large-magnitude numbers (km, m²). Years/counts stay ungrouped. */
+  group?: boolean
   /** Overrides `label` for the specs-table row only (capture keeps `label`). */
   specLabel?: string
 }
@@ -81,7 +83,7 @@ export const CATEGORY_GROUPS: Record<string, AttrGroup> = {
       { key: 'make', label: 'Marca', type: 'text', placeholder: 'Toyota, Honda, VW…' },
       { key: 'model', label: 'Modelo', type: 'text', placeholder: 'Corolla, Civic…' },
       { key: 'year', label: 'Año', type: 'number', placeholder: '2020', min: 1900, max: new Date().getFullYear() + 1 },
-      { key: 'km', label: 'Kilómetros', type: 'number', placeholder: '45 000', min: 0, unit: 'km', specLabel: 'Kilometraje' },
+      { key: 'km', label: 'Kilómetros', type: 'number', placeholder: '45 000', min: 0, unit: 'km', group: true, specLabel: 'Kilometraje' },
       { key: 'fuel_type', label: 'Combustible', type: 'select', options: [
         { value: 'gasolina', label: 'Gasolina' },
         { value: 'diesel', label: 'Diésel' },
@@ -109,7 +111,7 @@ export const CATEGORY_GROUPS: Record<string, AttrGroup> = {
         { value: 'oficina', label: 'Oficina' },
         { value: 'bodega', label: 'Bodega' },
       ] },
-      { key: 'area_m2', label: 'Superficie m²', type: 'number', placeholder: '65', min: 1, unit: 'm²', specLabel: 'Superficie' },
+      { key: 'area_m2', label: 'Superficie m²', type: 'number', placeholder: '65', min: 1, unit: 'm²', group: true, specLabel: 'Superficie' },
       { key: 'bedrooms', label: 'Recámaras', type: 'number', placeholder: '3', min: 0, max: 20 },
       { key: 'bathrooms', label: 'Baños', type: 'number', placeholder: '2', min: 0, max: 20 },
       { key: 'parking_spots', label: 'Estacionamientos', type: 'number', placeholder: '1', min: 0, max: 10 },
@@ -187,14 +189,25 @@ export const GENERIC_FIELDS: AttrField[] = [
 ]
 
 /**
- * The spec field set for a category, or [] when the category is uncurated.
- * Mirrors what the capture form renders (paneled categories → their fields;
- * generic categories → brand/color).
+ * The spec field set for a listing, or [] when nothing applies. MUST mirror the
+ * selection logic in app/sell/AttrsSection.tsx (capture & specs must not drift):
+ * the capture form keys off BOTH category and listing type — e.g. ANY `service`
+ * listing gets the service panel even when its category is `cursos`/`hogar` — so
+ * the spec derivation has to use the same inputs or captured values disappear.
+ * The event/admission block (digital + dated services) is intentionally excluded
+ * — it has its own PDP surface, not the generic specs table.
  */
-export function attributeSchema(category: string | null | undefined): AttrField[] {
-  if (!category) return []
-  if (CATEGORY_GROUPS[category]) return CATEGORY_GROUPS[category].fields
-  if (GENERIC_CATEGORIES.includes(category)) return GENERIC_FIELDS
+export function attributeSchema(
+  category: string | null | undefined,
+  listingType?: string | null,
+): AttrField[] {
+  if (listingType === 'digital' || listingType === 'subscription') return []
+  // Product-paneled categories take precedence over the service fallback.
+  if (category && ['autos', 'inmuebles', 'moda', 'electronica'].includes(category)) {
+    return CATEGORY_GROUPS[category].fields
+  }
+  if (category === 'servicios' || listingType === 'service') return CATEGORY_GROUPS.servicios.fields
+  if (category && GENERIC_CATEGORIES.includes(category)) return GENERIC_FIELDS
   return []
 }
 
@@ -213,12 +226,11 @@ function formatValue(field: AttrField, raw: unknown): string {
   if (field.options) {
     const slug = String(raw)
     str = field.options.find(o => o.value === slug)?.label ?? slug
-  } else if (typeof raw === 'number') {
-    str = field.type === 'number' ? raw.toLocaleString('es-MX') : String(raw)
   } else {
+    // Large-magnitude numbers (km, m²) get es-MX thousands grouping; years and
+    // counts render plain so a year never shows as "2,020".
     const s = String(raw).trim()
-    // numeric strings render with es-MX grouping for number fields
-    if (field.type === 'number' && /^\d+(\.\d+)?$/.test(s)) {
+    if (field.type === 'number' && field.group && /^\d+(\.\d+)?$/.test(s)) {
       str = Number(s).toLocaleString('es-MX')
     } else {
       str = s
@@ -238,9 +250,9 @@ export interface Spec {
  * values are skipped — a listing with no specs yields [].
  */
 export function listingSpecs(
-  listing: Pick<Listing, 'category' | 'metadata'> & { attrs?: Record<string, unknown> },
+  listing: Pick<Listing, 'category' | 'listing_type' | 'metadata'> & { attrs?: Record<string, unknown> },
 ): Spec[] {
-  const schema = attributeSchema(listing.category)
+  const schema = attributeSchema(listing.category, listing.listing_type)
   if (schema.length === 0) return []
 
   const metadata = (listing.metadata ?? {}) as Record<string, unknown>

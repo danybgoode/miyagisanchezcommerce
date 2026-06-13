@@ -55,10 +55,10 @@ test.describe('listingSpecs', () => {
       'Marca', 'Año', 'Kilometraje', 'Combustible', 'Transmisión', 'Color',
     ])
     const byLabel = Object.fromEntries(specs.map(s => [s.label, s.value]))
-    expect(byLabel['Kilometraje']).toBe('45,000 km')
+    expect(byLabel['Kilometraje']).toBe('45,000 km')       // km grouped
     expect(byLabel['Combustible']).toBe('Gasolina')        // value slug → label
     expect(byLabel['Transmisión']).toBe('Automático')
-    expect(byLabel['Año']).toBe('2,020')
+    expect(byLabel['Año']).toBe('2020')                    // years never grouped
   })
 
   test('inmuebles: superficie carries m² unit; tipo resolves label', () => {
@@ -79,6 +79,26 @@ test.describe('listingSpecs', () => {
       { label: 'Marca', value: 'IKEA' },
       { label: 'Color', value: 'Roble' },
     ])
+  })
+
+  test('service listing OUTSIDE servicios category still gets service specs', () => {
+    // AttrsSection renders the service panel for ANY listingType==='service'
+    // (e.g. a class under `cursos`); specs must mirror that, not the generic schema.
+    const l = listing('cursos', { modality: 'online', duration: '2 hrs', experience_years: '5' })
+    l.listing_type = 'service'
+    const byLabel = Object.fromEntries(listingSpecs(l).map(s => [s.label, s.value]))
+    expect(byLabel['Modalidad']).toBe('Online / Remoto')
+    expect(byLabel['Duración estimada']).toBe('2 hrs')
+    expect(byLabel['Años de experiencia']).toBe('5 años')
+  })
+
+  test('digital / subscription listings expose no generic specs (event block is separate)', () => {
+    const d = listing('cursos', { event_date: '2026-07-01' })
+    d.listing_type = 'digital'
+    expect(listingSpecs(d)).toEqual([])
+    const s = listing('comunidad', { brand: 'X' })
+    s.listing_type = 'subscription'
+    expect(listingSpecs(s)).toEqual([])
   })
 
   test('listing with no attrs yields no specs (no empty table)', () => {
@@ -106,7 +126,7 @@ test.describe('UCP catalog exposes labeled specs (AGENTS rule #3)', () => {
     expect(Array.isArray(ucp.specs)).toBe(true)
     const byLabel = Object.fromEntries(ucp.specs.map(s => [s.label, s.value]))
     expect(byLabel['Marca']).toBe('Honda')
-    expect(byLabel['Año']).toBe('2,019')
+    expect(byLabel['Año']).toBe('2019')
   })
 
   test('listing without attrs has an empty specs array', () => {
