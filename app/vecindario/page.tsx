@@ -2,13 +2,16 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   formatPulseDate,
+  groupNeighborhoodPulseItems,
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
   publicSubmitterLabel,
 } from '@/lib/neighborhood-pulse'
 import {
   getNeighborhoodPulseItems,
+  getNeighborhoodSpotlightShops,
   getTrendingNeighborhoodListings,
+  type NeighborhoodSpotlightShop,
   type NeighborhoodTrendingListing,
 } from '@/lib/neighborhood-pulse-server'
 import type { PrintSocialSubmission } from '@/lib/print'
@@ -125,11 +128,68 @@ function TrendingStrip({ listings }: { listings: NeighborhoodTrendingListing[] }
   )
 }
 
+function MerchantSpotlightStrip({ shops }: { shops: NeighborhoodSpotlightShop[] }) {
+  if (shops.length === 0) return null
+
+  return (
+    <section aria-labelledby="vecindario-comercios" className="mb-8">
+      <div className="mb-3">
+        <h2 id="vecindario-comercios" className="text-lg font-semibold" style={{ color: 'var(--fg)', letterSpacing: 0 }}>
+          {NEIGHBORHOOD_PULSE_COPY.spotlightTitle}
+        </h2>
+        <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+          {NEIGHBORHOOD_PULSE_COPY.spotlightIntro}
+        </p>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {shops.map((shop) => (
+          <Link
+            key={shop.slug}
+            href={`/s/${shop.slug}`}
+            className="card-tile block w-64 flex-shrink-0 p-4 no-underline sm:w-72"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: 'var(--bg-sunk)' }}>
+                {shop.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={shop.logo_url} alt={shop.name} className="h-full w-full object-cover" />
+                ) : (
+                  <i className="iconoir-shop" style={{ fontSize: 24, color: 'var(--fg-subtle)' }} />
+                )}
+              </div>
+              <div className="min-w-0">
+                <h3 className="line-clamp-1 text-base font-semibold leading-tight" style={{ color: 'var(--fg)', letterSpacing: 0 }}>
+                  {shop.name}
+                </h3>
+                <p className="mt-1 line-clamp-2 text-sm leading-5" style={{ color: 'var(--fg-muted)' }}>
+                  {shop.tagline}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="badge badge-soft">
+                {shop.colonia}
+              </span>
+              <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                {shop.listing_count === 1 ? '1 anuncio reciente' : `${shop.listing_count} anuncios recientes`}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default async function NeighborhoodPulsePage() {
-  const [items, trending] = await Promise.all([
+  const [items, spotlightShops, trending] = await Promise.all([
     getNeighborhoodPulseItems(),
+    getNeighborhoodSpotlightShops(),
     getTrendingNeighborhoodListings(),
   ])
+  const itemGroups = groupNeighborhoodPulseItems(items)
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 pb-24">
@@ -153,6 +213,8 @@ export default async function NeighborhoodPulsePage() {
         </div>
       </header>
 
+      <MerchantSpotlightStrip shops={spotlightShops} />
+
       <TrendingStrip listings={trending} />
 
       {items.length === 0 ? (
@@ -174,9 +236,29 @@ export default async function NeighborhoodPulsePage() {
           </Link>
         </section>
       ) : (
-        <section aria-label="Aportes del vecindario" className="grid gap-4 md:grid-cols-2">
-          {items.map((item) => (
-            <SocialCard key={item.id} item={item} />
+        <section aria-label="Aportes del vecindario" className="grid gap-8">
+          {itemGroups.map((group, gi) => (
+            <section key={group.zone} aria-labelledby={`zona-${gi}`}>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <h2
+                    id={`zona-${gi}`}
+                    className="text-lg font-semibold leading-tight"
+                    style={{ color: 'var(--fg)', letterSpacing: 0 }}
+                  >
+                    {group.zone}
+                  </h2>
+                  <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+                    {group.items.length === 1 ? '1 aporte reciente' : `${group.items.length} aportes recientes`}
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {group.items.map((item) => (
+                  <SocialCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
           ))}
         </section>
       )}

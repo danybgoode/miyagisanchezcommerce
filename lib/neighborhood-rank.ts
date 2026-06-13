@@ -9,6 +9,20 @@ export interface NeighborhoodRanked {
   trend_score: number
 }
 
+export interface NeighborhoodShopRankSignals {
+  id: string
+  slug: string
+  name: string
+  created_at: string
+  latest_listing_at?: string | null
+  listing_count?: number | null
+  view_count?: number | null
+}
+
+export interface NeighborhoodShopRanked {
+  spotlight_score: number
+}
+
 function positiveNumber(value: unknown): number {
   const n = Number(value ?? 0)
   return Number.isFinite(n) && n > 0 ? n : 0
@@ -41,5 +55,37 @@ export function rankNeighborhoodListings<T extends NeighborhoodRankSignals>(
       const dateDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       if (Number.isFinite(dateDiff) && dateDiff !== 0) return dateDiff
       return a.id.localeCompare(b.id)
+    })
+}
+
+export function neighborhoodShopSpotlightScore(shop: NeighborhoodShopRankSignals, now = Date.now()): number {
+  const listings = positiveNumber(shop.listing_count)
+  const views = positiveNumber(shop.view_count)
+  const latestListing = shop.latest_listing_at ?? shop.created_at
+
+  return Math.log1p(listings) * 6
+    + Math.log1p(views) * 2
+    + neighborhoodRecencyScore(latestListing, now) * 6
+    + neighborhoodRecencyScore(shop.created_at, now) * 2
+}
+
+export function rankNeighborhoodShops<T extends NeighborhoodShopRankSignals>(
+  shops: T[],
+  now = Date.now(),
+): Array<T & NeighborhoodShopRanked> {
+  return shops
+    .map((shop) => ({ ...shop, spotlight_score: neighborhoodShopSpotlightScore(shop, now) }))
+    .sort((a, b) => {
+      const scoreDiff = b.spotlight_score - a.spotlight_score
+      if (Math.abs(scoreDiff) > 0.0001) return scoreDiff
+
+      const latestA = new Date(a.latest_listing_at ?? a.created_at).getTime()
+      const latestB = new Date(b.latest_listing_at ?? b.created_at).getTime()
+      const latestDiff = latestB - latestA
+      if (Number.isFinite(latestDiff) && latestDiff !== 0) return latestDiff
+
+      const nameDiff = a.name.localeCompare(b.name, 'es')
+      if (nameDiff !== 0) return nameDiff
+      return a.slug.localeCompare(b.slug)
     })
 }

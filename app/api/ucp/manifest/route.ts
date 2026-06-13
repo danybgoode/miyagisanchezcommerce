@@ -77,6 +77,18 @@ export async function GET(req: NextRequest) {
           auth: 'none',
         },
 
+        neighborhood_pulse: {
+          method: 'GET',
+          url: `${base}/api/ucp/neighborhood-pulse`,
+          description: 'Read-only neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention.',
+          auth: 'none',
+          params: {
+            community_limit: '1–24 community items (default 12)',
+            trending_limit: '1–20 trending listings (default 8)',
+            shop_limit: '1–12 merchant spotlights (default 6)',
+          },
+        },
+
         checkout_mercadopago: {
           method: 'POST',
           url: `${base}/api/mp/checkout`,
