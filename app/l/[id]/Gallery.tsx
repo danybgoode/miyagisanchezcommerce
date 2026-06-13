@@ -13,6 +13,22 @@ type GalleryImage = { url: string; alt?: string | null }
 // is set only on the non-toggled surfaces (placeholder, single image, slides).
 const MAIN_IMG: CSSProperties = { width: '100%', aspectRatio: '4/3', objectFit: 'cover' }
 
+// Glass corner control (back / share) — same chrome as the arrows: translucent black +
+// the --fg-inverse token (NOT a raw white hex, which the design-token guard would reject).
+const cornerBtn: CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: '50%',
+  border: 'none',
+  background: 'rgba(0,0,0,0.45)',
+  backdropFilter: 'blur(6px)',
+  color: 'var(--fg-inverse)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
 const arrowStyle = (side: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '50%',
@@ -52,9 +68,41 @@ export default function Gallery({
   const count = images.length
   const [active, setActive] = useState(0)
   const [lightbox, setLightbox] = useState(false)
+  const [copied, setCopied] = useState(false)
   const trackRef = useRef<HTMLDivElement>(null)
 
   const go = useCallback((i: number) => setActive(wrapIndex(i, count)), [count])
+
+  // Clear the "Enlace copiado" timer if we unmount first (the back button can navigate
+  // away immediately) so we never setState on an unmounted island.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+
+  const copyLink = useCallback(async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard blocked — nothing to do */ }
+  }, [])
+
+  // S2.3 — share via the native OS sheet, falling back to copy-link with a brief
+  // confirmation. Client-only + feature-detected. A user-dismissed share (AbortError) is
+  // a no-op; any OTHER share rejection falls back to copy so the button is never dead.
+  const share = useCallback(async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : ''
+    if (!url) return
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title, url })
+      } catch (err) {
+        if ((err as Error)?.name !== 'AbortError') await copyLink(url)
+      }
+      return
+    }
+    await copyLink(url)
+  }, [title, copyLink])
 
   // Scroll the mobile track to a slide (dot taps + lightbox-close sync).
   const scrollToSlide = useCallback((i: number) => {
@@ -186,6 +234,33 @@ export default function Gallery({
               />
             </button>
           ))}
+        </div>
+
+        {/* S2.3 — back + share (top-left). Top-right / bottom-left stay free for the
+            page's `overlay` (favorite + views). Glass chrome reuses `cornerBtn`. */}
+        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6, zIndex: 6 }}>
+          <button type="button" aria-label="Volver" data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
+            <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
+          </button>
+          <button type="button" aria-label="Compartir" data-testid="gallery-share" onClick={share} style={cornerBtn}>
+            <i className={copied ? 'iconoir-check' : 'iconoir-share-android'} style={{ fontSize: 18 }} />
+          </button>
+          {copied && (
+            <span
+              data-testid="gallery-copied"
+              style={{ alignSelf: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)', whiteSpace: 'nowrap' }}
+            >
+              Enlace copiado
+            </span>
+          )}
+        </div>
+
+        {/* S2.3 — "N / total" counter, bound to the active image (bottom-right). */}
+        <div
+          data-testid="gallery-counter"
+          style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 6, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)' }}
+        >
+          {active + 1} / {count}
         </div>
 
         {overlay}

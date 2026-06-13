@@ -27,6 +27,7 @@ import CollapsibleDescription from './CollapsibleDescription'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
+import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
 import type { Metadata } from 'next'
@@ -209,6 +210,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       .maybeSingle()
     isFavorited = !!fav
   }
+
+  // S2.2 liveness — how many people saved this listing (same join as above, count-only).
+  // Threshold-gated at render so 0–1 saves never show (see lib/pdp-liveness.ts).
+  const { count: saveCount } = await db
+    .from('marketplace_favorites')
+    .select('id, marketplace_listings!inner(medusa_product_id)', { count: 'exact', head: true })
+    .eq('marketplace_listings.medusa_product_id', id)
 
   const activeDeal = await getActiveDealForBuyer(id, clerkUser?.id)
   const agreedDealCents = activeDeal?.status === 'accepted_unpaid' && activeDeal.dealPriceCents ? activeDeal.dealPriceCents : null
@@ -559,6 +567,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* Title + meta */}
         <h1 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}>{listing.title}</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {/* S2.2 liveness — "Nuevo" badge for the first 48h (redesign-gated). */}
+          {redesign && isNewListing(listing.created_at) && (
+            <span data-testid="pdp-new-badge" style={{ fontSize: 12, fontWeight: 700, background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
+              Nuevo
+            </span>
+          )}
           {listing.condition && (
             <span style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
               {conditionLabel(listing.condition)}
@@ -568,6 +582,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {listing.location && (
             <span style={{ fontSize: 12, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 3 }}>
               <i className="iconoir-map-pin" style={{ fontSize: 11 }} />{listing.location}
+            </span>
+          )}
+          {/* S2.2 liveness — "X personas lo guardaron", threshold-gated (redesign-only). */}
+          {redesign && shouldShowSaveCount(saveCount) && (
+            <span data-testid="pdp-save-count" style={{ fontSize: 12, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <i className="iconoir-heart" style={{ fontSize: 11 }} />{saveCountLabel(saveCount!)}
             </span>
           )}
         </div>
@@ -610,11 +630,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* ── "Pago protegido" cue beside the price (S1.4) ─────────────────────
-            Reuses the shared slim trust capsule so the protection signal resolves the
-            buyer's doubt the moment they see the cost — not buried in the methods grid.
-            `returnsLabel={null}` here so the returns chip stays only on the methods box
-            below (no duplicate). Redesign-gated. ─────────────────────────────────── */}
+        {/* ── Confidence capsule beside the price (S1.4 + S2.1 · finding #7) ────
+            Reuses the shared slim trust capsule so the buyer resolves trust the moment
+            they see the cost — not buried in the methods grid below. S2.1 adds the
+            `devoluciones` signal here (verificado · pago protegido · devoluciones), so the
+            full TrustSignals block below drops its returns pill in the redesign layout
+            (`returnsLabel={redesign ? null : …}`) — the signal moves UP, no duplicate
+            (symmetric to how S1.4 lifted protección). Redesign-gated.
+            DEFERRED (no live source — stated in PR): seller rating/reseñas, response time,
+            and a track-record `ventas` count (the only source is legacy `marketplace_orders`
+            via `lib/ucp/identity.ts`, which undercounts Medusa-order sellers). ──────────── */}
         {redesign && (
           <div style={{ marginBottom: 14 }}>
             <TrustSignals
@@ -623,7 +648,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               paymentMethods={[]}
               fulfillmentMethods={[]}
               processingLabel={null}
-              returnsLabel={null}
+              returnsLabel={returnsLabel}
               verified={listing.shop?.verified}
               paymentProtected={sellerHasStripe || sellerHasMp}
             />
@@ -648,14 +673,17 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             channel-aware <TrustSignals>. Marketplace renders byte-for-byte as before
             (parity-first). The mobile <SellerTrustCard> (S3.2) rides the `interstitial`
             slot so its position between pills and methods box is preserved. Epic D wires
-            this same component into ChannelLayout / embed. ─────────────────────────── */}
+            this same component into ChannelLayout / embed.
+            S2.1: `returnsLabel={redesign ? null : returnsLabel}` — in the redesign layout
+            returns lives in the confidence capsule above (no duplicate); the legacy path
+            keeps the pill here so flipping `pdp_redesign` off renders unchanged. ───────── */}
         <TrustSignals
           channel="marketplace"
           variant="full"
           paymentMethods={paymentMethods}
           fulfillmentMethods={fulfillmentMethods}
           processingLabel={processingLabel}
-          returnsLabel={returnsLabel}
+          returnsLabel={redesign ? null : returnsLabel}
           interstitial={sellerTrustCard ? <div className="md:hidden">{sellerTrustCard}</div> : null}
           consultCta={!hasBuyablePrice && isClaimed ? (
             <>

@@ -58,6 +58,20 @@ test.describe('pdp · interactive gallery (browser)', () => {
     await expect(mainImg(page)).not.toHaveAttribute('src', afterArrow ?? '')
   })
 
+  test('counter shows "1 / N" and advances with the active image; back + share present (S2.3)', async ({ page }) => {
+    const counter = page.getByTestId('gallery-counter')
+    await expect(counter).toBeVisible()
+    await expect(counter).toHaveText(/^1 \/ \d+$/) // starts at the first photo
+
+    // Next arrow advances the active image → the counter tracks it.
+    await page.getByRole('button', { name: 'Imagen siguiente' }).first().click()
+    await expect(counter).toHaveText(/^2 \/ \d+$/)
+
+    // Back + share controls are present (share fires native sheet or copy fallback).
+    await expect(page.getByTestId('gallery-back')).toBeVisible()
+    await expect(page.getByTestId('gallery-share')).toBeVisible()
+  })
+
   test('tap main image opens the lightbox; Esc closes it (S1.2)', async ({ page }) => {
     await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0) // not mounted until opened
 
