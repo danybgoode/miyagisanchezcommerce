@@ -14,6 +14,7 @@ import type { Listing, Shop } from '@/lib/types'
 import { isShopClaimed } from '@/lib/claim'
 import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
+import { listingSpecs, type Spec } from '@/lib/listing-attributes'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,10 @@ export interface UcpListing {
 
   // Trust + safety signals (key differentiator vs. Craigslist/FB Marketplace)
   trust: UcpTrust
+
+  // Labeled, scannable per-category specs (talla, material, año, km…), derived
+  // from the category attribute schema. Empty when the listing carries none.
+  specs: Spec[]
 
   // Domain-specific metadata (cars → brand/year/km, real estate → rooms/surface, etc.)
   metadata: Record<string, unknown>
@@ -270,6 +275,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
       identity_required: identityRequired,
     },
 
+    specs: listingSpecs(listing),
     metadata: listingMeta,
     personalization_fields: getCustomFields(listingMeta),
     schema_org: schemaOrg,

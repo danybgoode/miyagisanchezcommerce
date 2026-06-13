@@ -18,6 +18,8 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
+import SpecsTable from './SpecsTable'
+import { listingSpecs } from '@/lib/listing-attributes'
 import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
@@ -660,7 +662,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
             description keeps its original lower position (`hidden md:block` below).
             Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
-        {redesign && <div className="md:hidden" data-testid="pdp-specs-slot" />}
+        {redesign && (
+          <div className="md:hidden" data-testid="pdp-specs-slot">
+            <SpecsTable rows={listingSpecs(listing)} />
+          </div>
+        )}
         {redesign && listing.description && (
           <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
@@ -806,6 +812,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
         {bundleItems.length > 1 && listing.shop && (
           <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
+        )}
+
+        {/* ── Especificaciones (S3.3 · finding #7) ────────────────────────────────
+            Desktop copy of the scannable specs table (mobile copy rides the specs
+            slot higher up). Redesign-gated so the kill-switch reverts cleanly; the
+            table renders nothing when the listing has no structured attributes. */}
+        {redesign && (
+          <div className="hidden md:block">
+            <SpecsTable rows={listingSpecs(listing)} />
+          </div>
         )}
 
         {/* ── Description ──────────────────────────────────────────────────────── */}
