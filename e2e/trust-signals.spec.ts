@@ -88,6 +88,38 @@ test.describe('trust-signals · slim variant (the negotiation capsule)', () => {
   })
 })
 
+test.describe('trust-signals · S2.1 confidence capsule (returns moves up, no duplicate)', () => {
+  // The redesign PDP feeds the returns window to the SLIM capsule beside the price and
+  // passes `returnsLabel={null}` to the FULL block below, so the signal moves up rather
+  // than rendering twice. These assert that contract against the real selector inputs the
+  // page passes (verificado · pago protegido · devoluciones in one place).
+  const WINDOW = '14 días'
+
+  test('slim capsule fed a window surfaces the returns chip alongside verified + protection', () => {
+    const v = selectTrustSignals({
+      channel: 'marketplace',
+      variant: 'slim',
+      hasPayment: false,
+      hasFulfillment: false,
+      processingLabel: null,
+      returnsLabel: WINDOW,
+      verified: true,
+      paymentProtected: true,
+    })
+    expect(v.showReturnsPill).toBe(true)
+    expect(v.showVerified).toBe(true)
+    expect(v.showProtection).toBe(true)
+  })
+
+  test('full block fed null returns does NOT render the returns pill (no duplicate)', () => {
+    const v = selectTrustSignals({ ...FULL, returnsLabel: null })
+    expect(v.showReturnsPill).toBe(false)
+    // …while the rest of the full block is untouched.
+    expect(v.showPaymentGrid).toBe(true)
+    expect(v.showProcessingPill).toBe(true)
+  })
+})
+
 test.describe('trust-signals · parity-first (every channel shows the same signals for now)', () => {
   test('marketplace, custom_domain, subdomain, embed render identically in C.4', () => {
     const channels: TrustSignalsInput['channel'][] = ['marketplace', 'custom_domain', 'subdomain', 'embed']

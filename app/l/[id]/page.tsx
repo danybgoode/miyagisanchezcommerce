@@ -610,11 +610,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* ── "Pago protegido" cue beside the price (S1.4) ─────────────────────
-            Reuses the shared slim trust capsule so the protection signal resolves the
-            buyer's doubt the moment they see the cost — not buried in the methods grid.
-            `returnsLabel={null}` here so the returns chip stays only on the methods box
-            below (no duplicate). Redesign-gated. ─────────────────────────────────── */}
+        {/* ── Confidence capsule beside the price (S1.4 + S2.1 · finding #7) ────
+            Reuses the shared slim trust capsule so the buyer resolves trust the moment
+            they see the cost — not buried in the methods grid below. S2.1 adds the
+            `devoluciones` signal here (verificado · pago protegido · devoluciones), so the
+            full TrustSignals block below drops its returns pill in the redesign layout
+            (`returnsLabel={redesign ? null : …}`) — the signal moves UP, no duplicate
+            (symmetric to how S1.4 lifted protección). Redesign-gated.
+            DEFERRED (no live source — stated in PR): seller rating/reseñas, response time,
+            and a track-record `ventas` count (the only source is legacy `marketplace_orders`
+            via `lib/ucp/identity.ts`, which undercounts Medusa-order sellers). ──────────── */}
         {redesign && (
           <div style={{ marginBottom: 14 }}>
             <TrustSignals
@@ -623,7 +628,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               paymentMethods={[]}
               fulfillmentMethods={[]}
               processingLabel={null}
-              returnsLabel={null}
+              returnsLabel={returnsLabel}
               verified={listing.shop?.verified}
               paymentProtected={sellerHasStripe || sellerHasMp}
             />
@@ -648,14 +653,17 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             channel-aware <TrustSignals>. Marketplace renders byte-for-byte as before
             (parity-first). The mobile <SellerTrustCard> (S3.2) rides the `interstitial`
             slot so its position between pills and methods box is preserved. Epic D wires
-            this same component into ChannelLayout / embed. ─────────────────────────── */}
+            this same component into ChannelLayout / embed.
+            S2.1: `returnsLabel={redesign ? null : returnsLabel}` — in the redesign layout
+            returns lives in the confidence capsule above (no duplicate); the legacy path
+            keeps the pill here so flipping `pdp_redesign` off renders unchanged. ───────── */}
         <TrustSignals
           channel="marketplace"
           variant="full"
           paymentMethods={paymentMethods}
           fulfillmentMethods={fulfillmentMethods}
           processingLabel={processingLabel}
-          returnsLabel={returnsLabel}
+          returnsLabel={redesign ? null : returnsLabel}
           interstitial={sellerTrustCard ? <div className="md:hidden">{sellerTrustCard}</div> : null}
           consultCta={!hasBuyablePrice && isClaimed ? (
             <>
