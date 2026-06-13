@@ -139,8 +139,9 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
     <>
       {variant === 'search' ? (
         <button
+          type="button"
           onClick={() => setOpen(true)}
-          title="Comprar con IA / Buy with AI"
+          title="Comprar con IA"
           aria-label="Agente IA"
           style={{
             position: 'absolute',
@@ -164,6 +165,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
         </button>
       ) : variant === 'affordance' ? (
         <button
+          type="button"
           onClick={() => setOpen(true)}
           title="Comprar con IA / Buy with AI"
           aria-label="Agente IA"
@@ -190,6 +192,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
         </button>
       ) : (
         <button
+          type="button"
           onClick={() => setOpen(true)}
           className="icon-btn"
           title="Comprar con IA / Buy with AI"
