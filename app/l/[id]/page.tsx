@@ -22,9 +22,13 @@ import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import Gallery from './Gallery'
+import StickyBuyBar from './StickyBuyBar'
+import CollapsibleDescription from './CollapsibleDescription'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
+import { isEnabled } from '@/lib/flags'
+import { derivePdpBarMode } from '@/lib/pdp-bar'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -224,6 +228,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // null for `product` (the buy box is its frame). Same taxonomy as the chip rail.
   const typeFrame = listingTypeFrame(listing.listing_type)
 
+  // PDP redesign kill-switch (epic 01). Default ENABLED (fail-open `true` in
+  // lib/flags.ts) — flipping it OFF in Flagsmith reverts the whole product page to
+  // the previous layout instantly. Every redesign delta below branches on this.
+  const redesign = await isEnabled('pdp_redesign')
+
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
     variantId: null,
@@ -359,6 +368,122 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     </Link>
   ) : null
 
+  // ══ PDP redesign · action region (S1.1 + S1.3) ══════════════════════════════
+  // `derivePdpBarMode` picks exactly ONE mode, so an offer-status banner can never
+  // stack on top of the buy buttons (the reported bug) and the `buy` mode has one
+  // dominant primary CTA. Built independently from `ctaButtons` so flipping
+  // `pdp_redesign` OFF renders the previous bar byte-for-byte (`ctaButtons` is
+  // untouched). Both the desktop inline block and the mobile StickyBuyBar render
+  // this same content.
+  const barMode = derivePdpBarMode({
+    showBuyButtons,
+    isPrintPlacement,
+    activeDealStatus: activeDeal?.status ?? null,
+  })
+
+  // Primary purchase CTA — shared by `buy` and `offer_accepted`. Mirrors the buy
+  // logic in `ctaButtons` (personalization → offer-checkout → signed-in → signed-out),
+  // with the no-online-payment fallback.
+  const redesignPrimaryCta = hasAnyPayment ? (
+    customFields.length > 0 ? (
+      <PersonalizationBuyBox
+        listingId={listing.id}
+        defs={customFields}
+        isSignedIn={isSignedIn}
+        customDomain={customDomain}
+        priceLabel={effectivePrice}
+        offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
+      />
+    ) : agreedDealCents && activeDeal ? (
+      <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+    ) : isSignedIn ? (
+      <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+        Comprar ahora — {effectivePrice}
+      </Link>
+    ) : (
+      <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+        Inicia sesión para comprar
+      </Link>
+    )
+  ) : (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+      Contacta al vendedor para pagar
+    </div>
+  )
+
+  // "Preguntar" demoted to a light text link below the primary/secondary actions (S1.3).
+  const redesignAskLink = <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} label="Preguntar" variant="link" />
+
+  const redesignBarContent = (
+    <div data-testid="pdp-action-bar" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {barMode === 'offer_accepted' && (
+        <>
+          {agreedDealCents && (
+            <div style={{ padding: 12, background: 'var(--success-soft)', border: '1.5px solid var(--success)', borderRadius: 'var(--r-lg)' }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}>Tu precio acordado</p>
+              <p style={{ fontSize: 22, fontWeight: 800 }}>{formatOfferAmount(agreedDealCents, activeDealCurrency)}</p>
+              {listing.price_cents && (
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
+              )}
+            </div>
+          )}
+          {redesignPrimaryCta}
+          {activeDeal?.conversationId && (
+            <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
+              <i className="iconoir-message-text" style={{ fontSize: 16 }} />
+              Ver conversación
+            </Link>
+          )}
+          {redesignAskLink}
+        </>
+      )}
+      {barMode === 'offer_pending' && (
+        <>
+          <div style={{ padding: 12, background: 'var(--warning-soft)', border: '1.5px solid var(--warning)', borderRadius: 'var(--r-lg)' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}>Tu oferta está pendiente</p>
+            {activeDeal?.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Oferta enviada: {formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+          </div>
+          {redesignAskLink}
+        </>
+      )}
+      {barMode === 'offer_countered' && (
+        <>
+          <div style={{ padding: 12, background: 'var(--info-soft)', border: '1.5px solid var(--info)', borderRadius: 'var(--r-lg)' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}>El vendedor hizo una contraoferta</p>
+            {activeDeal?.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+            {activeDeal?.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
+          </div>
+          {redesignAskLink}
+        </>
+      )}
+      {barMode === 'print_placement' && (
+        <>
+          <Link
+            href={printEditionId ? `/sell/print/${printEditionId}` : '/shop/manage'}
+            className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+            style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
+          >
+            🗞️ Diseña tu anuncio impreso
+          </Link>
+          {redesignAskLink}
+        </>
+      )}
+      {barMode === 'buy' && (
+        <>
+          {redesignPrimaryCta}
+          {hasBuyablePrice && (
+            <MakeOfferButton
+              listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
+              buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
+              isSignedIn={isSignedIn}
+            />
+          )}
+          {redesignAskLink}
+        </>
+      )}
+    </div>
+  )
+
   // Seller trust block (S3.2) — built once, dual-rendered: mobile-only above the
   // payment/fulfillment methods box (so the buyer judges who they're buying from
   // first), desktop-only in its original position below. Same `md:hidden` /
@@ -380,9 +505,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   ) : null
 
   return (
-    /* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid */
+    /* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid.
+       Redesign (S1.1): drop the fixed mobile `pb-[120px]` — StickyBuyBar renders a
+       measured spacer matching the bar's real height instead, so content is never clipped. */
     <div
-      className="max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12"
+      className={redesign ? 'max-w-[640px] md:max-w-[960px] mx-auto md:px-6 md:pb-12' : 'max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12'}
     >
       {/* ── Desktop 2-col grid ──────────────────────────────────────────────── */}
       <div className="md:grid md:gap-10 md:[grid-template-columns:46%_1fr]">
@@ -483,6 +610,39 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
+        {/* ── "Pago protegido" cue beside the price (S1.4) ─────────────────────
+            Reuses the shared slim trust capsule so the protection signal resolves the
+            buyer's doubt the moment they see the cost — not buried in the methods grid.
+            `returnsLabel={null}` here so the returns chip stays only on the methods box
+            below (no duplicate). Redesign-gated. ─────────────────────────────────── */}
+        {redesign && (
+          <div style={{ marginBottom: 14 }}>
+            <TrustSignals
+              channel="marketplace"
+              variant="slim"
+              paymentMethods={[]}
+              fulfillmentMethods={[]}
+              processingLabel={null}
+              returnsLabel={null}
+              verified={listing.shop?.verified}
+              paymentProtected={sellerHasStripe || sellerHasMp}
+            />
+          </div>
+        )}
+
+        {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
+            ABOVE the payment/methods box and seller card (identify → trust → cost →
+            act). Duplicate-render idiom — these are `md:hidden`; the full desktop
+            description keeps its original lower position (`hidden md:block` below).
+            Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
+        {redesign && <div className="md:hidden" data-testid="pdp-specs-slot" />}
+        {redesign && listing.description && (
+          <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
+            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
+            <CollapsibleDescription text={listing.description} />
+          </div>
+        )}
+
         {/* ── Trust signals (S2 · C.4) ─────────────────────────────────────────
             Order-info pills + payment/fulfillment methods, extracted to the shared
             channel-aware <TrustSignals>. Marketplace renders byte-for-byte as before
@@ -567,7 +727,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* ── Desktop inline CTAs (buy now + make offer) ─────────────────────── */}
         {showBuyButtons && (
           <div className="hidden md:block" style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
-            {ctaButtons}
+            {redesign ? redesignBarContent : ctaButtons}
           </div>
         )}
 
@@ -621,8 +781,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
 
         {/* ── Description ──────────────────────────────────────────────────────── */}
+        {/* Redesign (S1.2): this original lower copy becomes DESKTOP-only — mobile
+            shows the collapsible description higher up (above payment/seller). When
+            the kill-switch is off it renders for all viewports, exactly as before. */}
         {listing.description && (
-          <div style={{ marginBottom: 20 }}>
+          <div className={redesign ? 'hidden md:block' : undefined} style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
           </div>
@@ -670,25 +833,32 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       {/* ── Sticky CTA bar — mobile only ────────────────────────────────────────
           Hidden on desktop (md+); desktop shows CTAs inline above seller card.
           Only shown for physical/service products. Digital + subscriptions render
-          their CTAs inline because they have extra context (tiers, file info). */}
-      {showBuyButtons && (
-        <div
-          className="md:hidden"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 80,
-            background: 'var(--bg-elevated)',
-            borderTop: '1px solid var(--border)',
-            padding: '12px 16px',
-            paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          {ctaButtons}
-        </div>
+          their CTAs inline because they have extra context (tiers, file info).
+          Redesign (S1.1): StickyBuyBar measures the bar's real height and reserves a
+          matching in-flow spacer, so the variable-height bar never clips content.
+          `barMode !== 'hidden'` is equivalent to `showBuyButtons` (see derivePdpBarMode). */}
+      {redesign ? (
+        barMode !== 'hidden' && <StickyBuyBar>{redesignBarContent}</StickyBuyBar>
+      ) : (
+        showBuyButtons && (
+          <div
+            className="md:hidden"
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 80,
+              background: 'var(--bg-elevated)',
+              borderTop: '1px solid var(--border)',
+              padding: '12px 16px',
+              paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+              backdropFilter: 'blur(20px)',
+            }}
+          >
+            {ctaButtons}
+          </div>
+        )
       )}
     </div>
   )
