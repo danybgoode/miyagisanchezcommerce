@@ -269,7 +269,7 @@ export default async function HomePage() {
         <section className="mb-6" data-testid="home-offer-alert" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {offerAlerts.map(alert => (
             <Link
-              key={alert.offerId}
+              key={`${alert.perspective}-${alert.offerId}`}
               href={alert.href}
               className="card-tile no-underline"
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12 }}
