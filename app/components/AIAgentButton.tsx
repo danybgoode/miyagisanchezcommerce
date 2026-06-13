@@ -18,8 +18,10 @@ Once you've reviewed them, you'll be able to search listings, make offers, and h
  *                Nav & Settings Reorg one-agent-entry cleanup).
  * `affordance` — a labeled "Agente IA" pill (sparks + text), the single agent
  *                entry that sits inline with the centered desktop search.
+ * `search`     — a compact sparks button, absolutely pinned to the right edge of
+ *                a `position:relative` search input (mobile header). Same sheet.
  */
-type Variant = 'icon' | 'affordance'
+type Variant = 'icon' | 'affordance' | 'search'
 
 export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant } = {}) {
   const [open, setOpen] = useState(false)
@@ -135,7 +137,32 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
 
   return (
     <>
-      {variant === 'affordance' ? (
+      {variant === 'search' ? (
+        <button
+          onClick={() => setOpen(true)}
+          title="Comprar con IA / Buy with AI"
+          aria-label="Agente IA"
+          style={{
+            position: 'absolute',
+            right: 6,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 26,
+            height: 26,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--agent)',
+            cursor: 'pointer',
+            lineHeight: 1,
+          }}
+        >
+          <i className="iconoir-sparks" style={{ fontSize: 17 }} />
+        </button>
+      ) : variant === 'affordance' ? (
         <button
           onClick={() => setOpen(true)}
           title="Comprar con IA / Buy with AI"
