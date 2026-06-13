@@ -20,6 +20,8 @@
 import { notFound } from 'next/navigation'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import TrustSignals from '@/app/components/TrustSignals'
+import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import type { Metadata } from 'next'
 
 export const revalidate = 120
@@ -52,20 +54,47 @@ export default async function EmbedShopPage({
   const theme = (settings.theme ?? {}) as { accent_color?: string | null; tagline?: string | null }
   const accent = theme.accent_color ?? 'var(--accent)'
 
+  // Cross-channel trust parity (#3c · Epic D / D.1): the embed grid renders the same
+  // ✓ Verificado badge + payment / returns / pickup signals as the marketplace shop
+  // page, via Epic C's presentational <TrustSignals> fed by the shared shop-level deriver.
+  const trust = deriveShopTrustInputs(shop.metadata as Record<string, unknown> | null, shop.verified)
+
   // Buy breaks out of the iframe to our own origin (Clerk can't run framed).
   // Carry the embed key through for attribution where present.
   const listingHref = (id: string) =>
     `/l/${id}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
 
   return (
-    <ChannelLayout shopName={shop.name} accentColor={accent} logoUrl={shop.logo_url ?? null} domain="">
+    <ChannelLayout
+      shopName={shop.name}
+      accentColor={accent}
+      logoUrl={shop.logo_url ?? null}
+      domain=""
+      trust={
+        // Epic D / D.2 — the embed shell carries the same platform-assurance strip.
+        // paymentProtected suppressed (the shell's lead line carries that assurance).
+        <TrustSignals variant="slim" channel="embed" {...trust} paymentProtected={false} />
+      }
+    >
       <div style={{ '--shop-accent': accent } as React.CSSProperties}>
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* Shop heading */}
           <div className="mb-5">
-            <h1 className="text-lg font-bold leading-tight" style={{ color: 'var(--embed-fg)' }}>{shop.name}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg font-bold leading-tight" style={{ color: 'var(--embed-fg)' }}>{shop.name}</h1>
+              {shop.verified && (
+                <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium inline-flex items-center gap-1" style={{ backgroundColor: accent }}>
+                  <i className="iconoir-badge-check" aria-hidden /> Verificado
+                </span>
+              )}
+            </div>
             {theme.tagline && <p className="text-sm text-[var(--embed-fg-muted)] mt-0.5 italic">&ldquo;{theme.tagline}&rdquo;</p>}
             <p className="text-xs text-[var(--embed-fg-subtle)] mt-1">{listings.length} anuncios</p>
+          </div>
+
+          {/* Trust parity (D.1): payment / returns / pickup signals — Epic C's <TrustSignals>. */}
+          <div className="mb-5">
+            <TrustSignals channel="embed" {...trust} />
           </div>
 
           {listings.length === 0 ? (

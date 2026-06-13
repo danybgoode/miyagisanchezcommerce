@@ -2,12 +2,13 @@
 
 This guide defines the canonical CSV/import shape for the Miyagi Sánchez supply acquisition workflow at `/supply?secret=...`.
 
-The workflow stages external marketplace supply into `supply_batches` and `supply_items`, then imports approved rows into:
+The workflow stages external marketplace supply into `supply_batches` and `supply_items` (Supabase), then imports approved rows into **Medusa — the storefront's only read model**:
 
-- `marketplace_shops`
-- `marketplace_listings`
+- an **unclaimed Medusa seller** per shop (`clerk_user_id: null`, `source: 'scraped'`) via `POST /internal/sellers` — renders live at `/s/[slug]` with the "Sin reclamar" badge + claim CTA
+- a **Medusa product** per listing via `POST /internal/seller-products` (published, linked to the seller, surfaced in marketplace search)
+- plus a Supabase **mirror** row in `marketplace_shops` / `marketplace_listings` (conversations, offers, `mschz.org` short links — never rendered directly)
 
-Imported shops are unclaimed, unverified, and marked as scraped supply.
+Imported shops are unclaimed, unverified, and marked as scraped supply. A real seller claims one free via `/s/[slug]/claim` → email → despachobonsai sign-in → `POST /api/claim/complete` transfers the Medusa seller (and mirror) to their Clerk identity.
 
 ## Canonical CSV Columns
 
@@ -139,47 +140,44 @@ All supply endpoints require `x-admin-secret` or `?secret=`.
 - `GET /api/supply/items?batchId=...`
 - `PATCH /api/supply/items`
 - `POST /api/supply/import`
+- `POST /api/supply/upload` — multipart `file=<image>` → `{ url }`. Hosts a local photo (R2, Supabase Storage fallback) so you can use it as `image_url` when staging, or attach it to a listing after import. No Clerk login needed — same secret as the rest.
 
 ## Import Target Shape
 
-Shop insert/upsert shape:
+Per approved item the importer (see `lib/supply.ts` mappers — unit-tested in `e2e/supply-gem-import.spec.ts`):
+
+1. **Resolves/creates the Medusa seller** — `POST /internal/sellers` (idempotent on `source_url`):
 
 ```ts
 {
-  slug,
-  name,
-  description,
-  location,
-  logo_url,
-  clerk_user_id: null,
+  name,                      // shop_name, fallback 'Vendedor sin reclamar'
+  slug,                      // shop_slug when present; backend de-dupes
+  description, location, logo_url,
   source: 'scraped',
-  source_url,
-  verified: false,
+  source_url,                // shop_source_url ?? source_url
   metadata: { supply: { batch_id, item_id, source_platform, unclaimed: true } }
 }
+// → clerk_user_id stays NULL until claimed
 ```
 
-Listing insert shape:
+2. **Creates the Medusa product** — `POST /internal/seller-products`:
 
 ```ts
 {
-  shop_id,
-  title,
-  description,
-  price_cents,
-  currency: 'MXN',
-  condition,
-  listing_type,
-  category,
-  state,
-  municipio,
-  location,
-  images,
+  seller_slug,
+  title,                     // capped 100 chars
+  description, price_cents, currency,
+  condition,                 // product listings only
+  listing_type, category,    // category = Medusa category handle
+  state, municipio, location,
+  status,                    // batch target 'active' → 'published'; 'draft' → 'draft'
+  images,                    // hosted URLs pass through as-is
   tags,
-  status,
-  source: 'scraped',
-  source_platform,
-  source_url,
-  metadata: { original_source_url, supply: { batch_id, item_id, source_id, quality_score, unclaimed_shop: true } }
+  metadata: { original_source_url, source_platform, source_url,
+              supply: { batch_id, item_id, source_id, quality_score, unclaimed_shop: true } }
 }
 ```
+
+3. **Mirrors both to Supabase** (`marketplace_shops` with `metadata.medusa_seller_id`, `marketplace_listings` with `medusa_product_id` + a minted `short_code`). Mirror failures are non-fatal — the shop still renders; only conversations/offers/short links degrade.
+
+`supply_items.imported_shop_id` / `imported_listing_id` store the **mirror row UUIDs**; the Medusa ids live in the mirror rows' metadata.

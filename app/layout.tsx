@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
+import CuentaMenu from '@/app/components/CuentaMenu'
 import DesktopUnreadBadge from '@/app/components/DesktopUnreadBadge'
 import PlatformBrand from '@/app/components/PlatformBrand'
 import PlatformThemeScript from '@/app/components/PlatformThemeScript'
@@ -13,10 +14,13 @@ import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import CartButton from '@/app/components/CartButton'
 import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import TrustSignals from '@/app/components/TrustSignals'
 import { getDictionary } from '@/lib/dictionary'
 import { getShop } from '@/lib/listings'
+import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
+import { isSellerModePath } from '@/lib/seller-mode'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -48,12 +52,12 @@ const SPLASH_SCREENS = [
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Miyagi Sánchez — Infraestructura de comercio',
+    default: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     template: '%s | Miyagi Sánchez',
   },
   description:
-    'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
-  keywords: ['marketplace', 'vender online', 'sin comisiones', 'México', 'comprar y vender'],
+    'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
+  keywords: ['marketplace México', 'segundamano', 'comprar y vender', 'vender sin comisiones', 'abrir tienda online', 'eventos', 'México'],
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
@@ -65,15 +69,15 @@ export const metadata: Metadata = {
     locale: 'es_MX',
     url: BASE_URL,
     siteName: 'Miyagi Sánchez',
-    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    title: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     description:
-      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic. Hecho para México.',
+      'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Miyagi Sánchez — Infraestructura de comercio',
+    title: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
     description:
-      'Publica, vende y cobra sin comisiones. Marketplace · dominio propio · widget · API agentic.',
+      'El nuevo punto de encuentro para comprar y vender de todo en México. Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
     site: '@miyagisanchez',
   },
   robots: {
@@ -112,6 +116,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // White-label = no platform chrome (embed iframe OR a live custom domain).
   const whiteLabel = isEmbed || isChannel
+
+  // Seller-mode shell (/shop/manage/*): also drop the buyer chrome — the nested
+  // app/shop/manage/layout.tsx renders a seller-distinct shell in this suppressed
+  // space. This mirrors the whiteLabel branch and composes with it: a manage page
+  // on a custom domain/subdomain is already whiteLabel, so the nested layout
+  // defers to ChannelLayout and never double-suppresses or stacks two shells.
+  const sellerMode = isSellerModePath(platformPath)
+  // Buyer chrome (header, footer, MobileTabBar, theme-spot canvas) renders only
+  // when neither suppression applies.
+  const showBuyerChrome = !whiteLabel && !sellerMode
+
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
   const dict = await getDictionary('es')
   const themeToggleLabels = dict.platformTheme.toggle
@@ -151,7 +166,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </head>
         <body>
           <CartProvider>
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
           {/* ── Sticky header ── */}
           <div
@@ -190,11 +205,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   <PlatformBrand variant="mobile" />
 
-                  {/* Search bar — hidden in PWA standalone (search is in bottom tab bar) */}
+                  {/* Search bar — persistent on every surface (PWA included) */}
                   <form
                     action="/l"
                     method="GET"
-                    className="pwa-search-hide"
                     style={{ flex: 1, minWidth: 0 }}
                   >
                     <div style={{ position: 'relative' }}>
@@ -221,27 +235,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                           background: 'var(--bg-sunk)',
                           border: '1px solid var(--border)',
                           borderRadius: 'var(--r-pill)',
-                          padding: '0 10px 0 28px',
+                          padding: '0 34px 0 28px',
                           fontSize: 13,
                           fontFamily: 'var(--font-sans)',
                           color: 'var(--fg)',
                           outline: 'none',
                         }}
                       />
+                      {/* In-search agent affordance — same sheet as the desktop AIAgentButton */}
+                      <AIAgentButton variant="search" />
                     </div>
                   </form>
 
-                  {/* Fills the space left by hidden search bar in PWA mode */}
-                  <div className="pwa-spacer" />
-
-                  {/* Sell icon */}
-                  <Link
-                    href="/sell"
-                    className="icon-btn accent"
-                    title="Publicar anuncio"
-                  >
-                    <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
-                  </Link>
+                  {/* Sell affordance — publish action when signed in, the labeled "Vende" pitch when signed out */}
+                  <Show when="signed-in">
+                    <Link
+                      href="/sell"
+                      className="icon-btn accent"
+                      title="Publicar anuncio"
+                    >
+                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    </Link>
+                  </Show>
+                  <Show when="signed-out">
+                    <Link href="/vende" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
+                      Vende
+                    </Link>
+                  </Show>
 
                   <Link
                     href="/vecindario"
@@ -255,63 +275,94 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {/* Cart */}
                   <CartButton />
 
-                  {/* AI Agent button (client component) */}
-                  <AIAgentButton />
-
-                  <PlatformThemeToggle
-                    labels={themeToggleLabels}
-                    variant="mobile"
-                    initialEligible={platformThemeEligible}
-                  />
-
-                  {/* Profile link — browser only; PWA tab bar handles this */}
+                  {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu */}
                   <Show when="signed-in">
-                    <Link
-                      href="/account"
-                      className="icon-btn pwa-search-hide"
-                      title="Mi cuenta"
-                      aria-label="Mi cuenta"
-                    >
-                      <i className="iconoir-user" style={{ fontSize: 22 }} />
-                    </Link>
+                    <CuentaMenu
+                      themeEligible={platformThemeEligible}
+                      themeSlot={
+                        <PlatformThemeToggle
+                          labels={themeToggleLabels}
+                          variant="desktop"
+                          initialEligible={platformThemeEligible}
+                        />
+                      }
+                    />
+                  </Show>
+
+                  {/* Signed-out has no Cuenta menu — keep the standalone theme toggle
+                      (self-hides on ineligible paths). */}
+                  <Show when="signed-out">
+                    <PlatformThemeToggle
+                      labels={themeToggleLabels}
+                      variant="mobile"
+                      initialEligible={platformThemeEligible}
+                    />
                   </Show>
                 </div>
 
-                {/* ── DESKTOP LAYOUT: full wordmark + nav ── */}
+                {/* ── DESKTOP LAYOUT: brand · centered search + agent · nav ── */}
                 <div
                   className="hidden md:flex"
-                  style={{ alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 16 }}
+                  style={{ alignItems: 'center', width: '100%', gap: 16 }}
                 >
                   <PlatformBrand variant="desktop" />
 
-                  {/* Desktop nav */}
+                  {/* Centered persistent search + the single agent affordance */}
+                  <div
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 8,
+                      minWidth: 0,
+                    }}
+                  >
+                    <form action="/l" method="GET" style={{ flex: 1, maxWidth: 440, minWidth: 0 }}>
+                      <div style={{ position: 'relative' }}>
+                        <i
+                          className="iconoir-search"
+                          style={{
+                            position: 'absolute',
+                            left: 11,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: 15,
+                            color: 'var(--fg-subtle)',
+                            pointerEvents: 'none',
+                            lineHeight: 1,
+                          }}
+                        />
+                        <input
+                          name="q"
+                          type="search"
+                          placeholder="¿Qué estás buscando?"
+                          style={{
+                            width: '100%',
+                            height: 38,
+                            background: 'var(--bg-sunk)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--r-pill)',
+                            padding: '0 12px 0 32px',
+                            fontSize: 13,
+                            fontFamily: 'var(--font-sans)',
+                            color: 'var(--fg)',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </form>
+                    <AIAgentButton variant="affordance" />
+                  </div>
+
+                  {/* Right nav */}
                   <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <PlatformThemeToggle
-                      labels={themeToggleLabels}
-                      variant="desktop"
-                      initialEligible={platformThemeEligible}
-                    />
-                    <Link
-                      href="/l"
-                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                      className="hover:text-[var(--fg)]"
-                    >
-                      Explorar
-                    </Link>
                     <Link
                       href="/vecindario"
                       style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                       className="hover:text-[var(--fg)]"
                     >
                       {NEIGHBORHOOD_PULSE_COPY.navLabel}
-                    </Link>
-                    <Link
-                      href="/agent"
-                      style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                      className="hover:text-[var(--fg)]"
-                      title="AI Agent briefing"
-                    >
-                      <i className="iconoir-sparks" style={{ fontSize: 15, verticalAlign: 'middle' }} />
                     </Link>
                     <Show when="signed-in">
                       <Link
@@ -323,39 +374,32 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         <i className="iconoir-chat-bubble" style={{ fontSize: 15, verticalAlign: 'middle' }} />
                         <DesktopUnreadBadge />
                       </Link>
-                      <Link
-                        href="/account/favorites"
-                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                        className="hover:text-[var(--fg)]"
-                        title="Favoritos"
-                      >
-                        <i className="iconoir-heart" style={{ fontSize: 15, verticalAlign: 'middle' }} />
-                      </Link>
                       <CartButton />
-                      <Link
-                        href="/shop/manage"
-                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
-                        className="hover:text-[var(--fg)]"
-                      >
-                        Mi tienda
-                      </Link>
                       <Link href="/sell" className="btn btn-primary btn-sm">
                         <i className="iconoir-plus" style={{ fontSize: 14 }} />
                         Publicar
                       </Link>
-                      <Link
-                        href="/account"
-                        style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-                        className="hover:text-[var(--fg)]"
-                        title="Mi cuenta"
-                      >
-                        <i className="iconoir-user" style={{ fontSize: 15 }} />
-                        Mi cuenta
-                      </Link>
+                      <CuentaMenu
+                        themeEligible={platformThemeEligible}
+                        themeSlot={
+                          <PlatformThemeToggle
+                            labels={themeToggleLabels}
+                            variant="desktop"
+                            initialEligible={platformThemeEligible}
+                          />
+                        }
+                      />
                       <UserButton />
                     </Show>
                     <Show when="signed-out">
-                      <Link href="/sell" className="btn btn-primary btn-sm">
+                      {/* No Cuenta menu when signed out — keep the standalone toggle
+                          (self-hides on ineligible paths). */}
+                      <PlatformThemeToggle
+                        labels={themeToggleLabels}
+                        variant="desktop"
+                        initialEligible={platformThemeEligible}
+                      />
+                      <Link href="/vende" className="btn btn-primary btn-sm">
                         Publicar gratis
                       </Link>
                       <Link
@@ -381,12 +425,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               accentColor={channelAccent}
               logoUrl={channelShop.logo_url ?? null}
               domain={channelDomain}
+              trust={
+                // Epic D / D.2 — slim trust chips beside the assurance lead line the
+                // shell renders. paymentProtected is suppressed here (the lead line
+                // "Pago seguro · Compra protegida" already carries that assurance).
+                <TrustSignals
+                  variant="slim"
+                  channel={channel === 'custom' ? 'custom_domain' : 'subdomain'}
+                  {...deriveShopTrustInputs(channelShop.metadata as Record<string, unknown> | null, channelShop.verified)}
+                  paymentProtected={false}
+                />
+              }
             >
               {children}
             </ChannelLayout>
           ) : (
-            <main className={!whiteLabel ? 'platform-main-shell' : undefined}>
-              {!whiteLabel && (
+            <main className={showBuyerChrome ? 'platform-main-shell' : undefined}>
+              {showBuyerChrome && (
                 <>
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-a" />
                   <span aria-hidden className="platform-theme-spot platform-theme-spot-b" />
@@ -397,9 +452,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           )}
           <ReferralAttribution />
 
-          {!whiteLabel && (
+          {showBuyerChrome && (
           <>
-          <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
+          {/* Footer — visible on mobile too (S3.3) so the links + Términos aren't dead-ended on phones */}
+          <footer data-testid="site-footer" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
               className="app-shell"
               style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
@@ -407,11 +463,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
               <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
               <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
-              <Link href="/sell" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
+              <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
               <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
               <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
-                <i className="iconoir-sparks" style={{ fontSize: 11 }} /> Agent API
+                Agent API
               </Link>
+              <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Términos</Link>
             </div>
           </footer>
 

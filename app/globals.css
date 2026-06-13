@@ -1061,16 +1061,8 @@ html[data-platform-theme] .platform-theme-spot {
   .pwa-only { display: flex !important; }
 }
 
-/* Hide header search bar in PWA — search lives in the bottom tab bar */
-@media (display-mode: standalone) and (max-width: 767px) {
-  .pwa-search-hide { display: none !important; }
-}
-
-/* Flex spacer that appears only in PWA mode to fill the gap left by the hidden search bar */
-.pwa-spacer { display: none; }
-@media (display-mode: standalone) and (max-width: 767px) {
-  .pwa-spacer { display: block; flex: 1; }
-}
+/* Cuenta hub menu — row hover */
+.cuenta-menu-item:hover { background: var(--bg-sunk); }
 
 /* Push main content above the tab bar — only needed in PWA standalone on mobile */
 @media (display-mode: standalone) and (max-width: 767px) {

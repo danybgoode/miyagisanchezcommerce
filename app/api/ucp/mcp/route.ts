@@ -25,11 +25,16 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { isShopClaimed } from '@/lib/claim'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
+import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
+import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
+import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
@@ -41,6 +46,8 @@ import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import { getNeighborhoodPulseAgentView } from '@/lib/neighborhood-pulse-agent'
+import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
+import { buildSetupSpec } from '@/lib/setup-spec'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -355,6 +362,40 @@ const TOOLS = [
         product_id: { type: 'string', description: 'Product id from list_my_listings' },
         status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
       },
+    },
+  },
+  {
+    name: 'get_domain_entitlement',
+    description: "SELLER TOOL. Check whether YOUR OWN shop may connect a custom domain (the platform's paid SKU). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / active subscription / not entitled), the annual price, and — when not entitled — that the campaign coupon `miyagisan` covers the first year free. The subdomain and free shop URL are always free regardless. Use before start_domain_subscription.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'start_domain_subscription',
+    description: "SELLER TOOL. Start the Stripe checkout to subscribe YOUR OWN shop to the custom-domain SKU ($499 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Optionally pass a `coupon` (e.g. `miyagisan`) to comp the first year — capped at 100 redemptions; an exhausted/invalid coupon is refused with a clear message and no checkout is created. Returns a Stripe checkout URL the seller opens to pay (or, with a valid 100%-off coupon, to confirm at $0). Entitlement flips on automatically once checkout completes.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coupon: { type: 'string', description: 'Optional campaign coupon code (e.g. miyagisan) to comp the first year' },
+      },
+    },
+  },
+  {
+    name: 'about_miyagi',
+    description: `What miyagisanchez.com is and WHY/HOW to sell here — the supply-side story for a prospective seller (what Miyagi is, why sell, how to start, what it costs). Call this when a user asks about the marketplace itself or whether/how to sell on it. ${RELAY_LANGUAGE_DIRECTIVE}`,
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_setup_spec',
+    description: "Onboarding 0 — get the published, versioned spec + prompt for emitting ONE combined setup file (shop profile + store config + catalog) so a seller's own agent can prepare a Miyagi Sánchez shop BEFORE signup. Returns the schema shape, both sub-schemas (config blocks + catalog fields), the manual-only sections, an example, and the es-MX emit prompt (which instructs you to produce all user-facing copy in the seller's own language). Apply path today: the seller signs up and uploads the file via the existing import flow. No auth.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
     },
   },
 ]
@@ -712,7 +753,7 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     }
   } catch { /* listings stays empty */ }
 
-  const isClaimed = !!(seller.clerk_user_id && !String(seller.clerk_user_id).startsWith('pending:'))
+  const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
   const profile = [
     `# ${seller.name}${seller.verified ? ' ✓ verificado' : ''}`,
@@ -1284,14 +1325,90 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   return { content: [{ type: 'text', text: `✅ Anuncio ${status === 'active' ? 'activado' : 'pausado'}.` }] }
 }
 
+// ── Custom-domain paywall (epic 07 · S3) — seller-agent domain SKU tools ──────
+
+async function handleGetDomainEntitlement(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const ent = await resolveDomainEntitlement(shop.metadata, { sellerClerkId: shop.clerk_user_id })
+  const summary = ent.entitled
+    ? `✅ ${shop.name ?? 'Tu tienda'} puede conectar un dominio propio (motivo: ${ent.reason}).`
+    : `🔒 El dominio propio es una función premium (${CUSTOM_DOMAIN_PRICE_LABEL.es}). Tu tienda aún no está habilitada. ` +
+      `El cupón “${CAMPAIGN_COUPON_CODE}” cubre gratis el primer año (sujeto a disponibilidad). El subdominio y tu URL gratis siempre son gratis. ` +
+      `Usa start_domain_subscription para activar.`
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      {
+        type: 'text',
+        text: JSON.stringify(
+          {
+            entitled: ent.entitled,
+            reason: ent.reason,
+            price_label: CUSTOM_DOMAIN_PRICE_LABEL.es,
+            campaign_coupon: CAMPAIGN_COUPON_CODE,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  }
+}
+
+async function handleStartDomainSubscription(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const couponCode = typeof args.coupon === 'string' ? args.coupon : null
+  const result = await startCustomDomainCheckout({
+    shopId: shop.id,
+    sellerClerkId: shop.clerk_user_id,
+    channel: 'api',
+    couponCode,
+  })
+
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: result.error }] }
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text:
+          `Abre este enlace para activar tu dominio propio${couponCode ? ` con el cupón “${couponCode}”` : ''}:\n${result.url}\n\n` +
+          'La habilitación se activa automáticamente al completar el checkout.',
+      },
+      { type: 'text', text: JSON.stringify({ checkout_url: result.url }, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
+
+function handleAboutMiyagi(baseUrl: string) {
+  const resource = aboutMcpResource(baseUrl)
+  // Tool result: the structured story as a JSON text block. The directive is
+  // embedded so the client answers in the user's own language.
+  return { content: [{ type: 'text', text: resource.text }] }
+}
+
+function handleGetSetupSpec() {
+  // The full published setup contract: schema shape + both sub-schemas + example +
+  // the es-MX emit prompt (which carries the mirror-the-seller's-language directive).
+  const spec = buildSetupSpec()
+  return { content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }] }
+}
 
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
     return {
       protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
+      capabilities: { tools: {}, resources: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
       instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_neighborhood_pulse for local context → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
     }
@@ -1303,6 +1420,19 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
 
   if (method === 'tools/list') {
     return { tools: TOOLS }
+  }
+
+  // MCP resources — the about/why-sell story as a native resource.
+  if (method === 'resources/list') {
+    const r = aboutMcpResource(baseUrl)
+    return { resources: [{ uri: r.uri, name: r.name, title: r.title, description: r.description, mimeType: r.mimeType }] }
+  }
+
+  if (method === 'resources/read') {
+    const uri = String((params?.uri as string | undefined) ?? '')
+    const r = aboutMcpResource(baseUrl)
+    if (uri !== r.uri) return null // unknown resource → MethodNotFound-style miss
+    return { contents: [{ uri: r.uri, mimeType: r.mimeType, text: r.text }] }
   }
 
   if (method === 'tools/call') {
@@ -1322,6 +1452,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
       case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
       case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
+      case 'about_miyagi':         return { content: handleAboutMiyagi(baseUrl).content }
+      case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
       case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
       case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
       case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
@@ -1330,6 +1462,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'list_my_listings':          return { content: (await handleListMyListings(authHeader)).content }
       case 'update_listing':            return { content: (await handleUpdateListing(args, authHeader)).content }
       case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
+      case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       default:                     return null  // will become MethodNotFound error
     }
   }

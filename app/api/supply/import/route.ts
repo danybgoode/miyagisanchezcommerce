@@ -1,69 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
-import { refreshBatchCounts, slugify, type SupplyItem } from '@/lib/supply'
+import {
+  refreshBatchCounts,
+  supplyItemToSellerBody,
+  supplyItemToProductBody,
+  type SupplyItem,
+} from '@/lib/supply'
+import {
+  ensureUnclaimedShopMirror,
+  syncSupabaseListingMirror,
+  type MedusaSellerForMirror,
+} from '@/lib/provisioning'
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 function checkSecret(req: NextRequest): boolean {
   const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
   return secret === process.env.ADMIN_SECRET
 }
 
-async function uniqueShopSlug(name: string) {
-  const base = slugify(name, 40) || 'tienda'
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const suffix = Math.random().toString(36).slice(2, 6)
-    const slug = `${base}-${suffix}`
-    const { data } = await db.from('marketplace_shops').select('id').eq('slug', slug).maybeSingle()
-    if (!data) return slug
-  }
-  return `${base}-${Date.now().toString(36)}`
+function internalFetch(path: string, body: unknown) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-internal-secret': INTERNAL_SECRET,
+    },
+    body: JSON.stringify(body),
+  })
 }
 
-async function resolveShop(item: SupplyItem) {
-  const shopSourceUrl = item.shop_source_url ?? item.source_url
-  if (shopSourceUrl) {
-    const { data: existing } = await db
-      .from('marketplace_shops')
-      .select('id, slug')
-      .eq('source_url', shopSourceUrl)
-      .maybeSingle()
+type MedusaSeller = MedusaSellerForMirror & {
+  clerk_user_id: string | null
+  source?: string | null
+  source_url?: string | null
+}
 
-    if (existing) return existing
+/**
+ * Resolve the item's shop to a REAL Medusa seller (the storefront's only read
+ * model) — created unclaimed (clerk_user_id NULL) when new, idempotent on
+ * source_url — then make sure the Supabase mirror row exists (conversations /
+ * offers / short links read the mirror; non-fatal when it fails).
+ */
+async function resolveSeller(item: SupplyItem): Promise<{ seller: MedusaSeller; mirrorId: string | null }> {
+  const res = await internalFetch('/internal/sellers', supplyItemToSellerBody(item))
+  const data = await res.json().catch(() => ({})) as { seller?: MedusaSeller; message?: string }
+  if (!res.ok || !data.seller) {
+    throw new Error(`Seller create failed (${res.status}): ${data.message ?? 'no data'}`)
   }
 
-  const shopName = item.shop_name?.trim() || 'Vendedor sin reclamar'
-  const slug = await uniqueShopSlug(shopName)
-  const { data: created, error } = await db
-    .from('marketplace_shops')
-    .insert({
-      slug,
-      name: shopName.slice(0, 80),
-      description: item.shop_description,
-      location: item.shop_location ?? item.location,
-      logo_url: item.shop_logo_url,
-      clerk_user_id: null,
-      source: 'scraped',
-      source_url: shopSourceUrl,
-      verified: false,
-      metadata: {
-        ...(item.shop_metadata ?? {}),
-        supply: {
-          batch_id: item.batch_id,
-          item_id: item.id,
-          source_platform: item.source_platform,
-          unclaimed: true,
-        },
-      },
-    })
-    .select('id, slug')
-    .single()
+  const mirrorId = await ensureUnclaimedShopMirror(data.seller).catch((e) => {
+    console.error('[supply/import] shop mirror failed (non-fatal):', e)
+    return null
+  })
 
-  if (error || !created) throw new Error(`Shop insert failed: ${error?.message ?? 'no data'}`)
-  return created
+  return { seller: data.seller, mirrorId }
 }
 
 export async function POST(req: NextRequest) {
   if (!checkSecret(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (!INTERNAL_SECRET) {
+    return NextResponse.json({ error: 'MEDUSA_INTERNAL_SECRET is not configured' }, { status: 500 })
   }
 
   const body = await req.json().catch(() => null) as {
@@ -132,49 +134,49 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      const shop = await resolveShop(item)
-      const { data: listing, error: listingErr } = await db
-        .from('marketplace_listings')
-        .insert({
-          shop_id: shop.id,
-          title: item.listing_title.trim().slice(0, 100),
-          description: item.listing_description,
-          price_cents: item.price_cents,
-          currency: item.currency || 'MXN',
-          condition: item.listing_type === 'product' ? item.condition : null,
-          listing_type: item.listing_type || 'product',
-          category: item.category,
-          state: item.state,
-          municipio: item.municipio,
-          location: item.location,
-          images: item.images ?? [],
-          tags: item.tags ?? [],
+      const { seller, mirrorId } = await resolveSeller(item)
+
+      // ── Create the REAL listing: a Medusa product linked to the seller ────
+      const productBody = supplyItemToProductBody(item, seller.slug, targetStatus)
+      const productRes = await internalFetch('/internal/seller-products', productBody)
+      const productData = await productRes.json().catch(() => ({})) as { product_id?: string; message?: string }
+      if (!productRes.ok || !productData.product_id) {
+        throw new Error(`Listing create failed (${productRes.status}): ${productData.message ?? 'no data'}`)
+      }
+
+      // ── Mirror the listing (short-code mint + conversations/offers) ───────
+      let mirrorListingId: string | null = null
+      if (mirrorId) {
+        mirrorListingId = await syncSupabaseListingMirror(mirrorId, {
+          id: productData.product_id,
+          title: productBody.title,
+          description: productBody.description,
+          price_cents: productBody.price_cents,
+          currency: productBody.currency,
+          condition: productBody.condition,
+          listing_type: productBody.listing_type,
+          category: productBody.category,
+          state: productBody.state,
+          municipio: productBody.municipio,
+          location: productBody.location,
+          images: productBody.images,
+          tags: productBody.tags,
           status: targetStatus,
+          metadata: productBody.metadata,
           source: 'scraped',
           source_platform: item.source_platform,
           source_url: item.source_url,
-          metadata: {
-            ...(item.listing_metadata ?? {}),
-            original_source_url: item.source_url,
-            supply: {
-              batch_id: item.batch_id,
-              item_id: item.id,
-              source_id: item.source_id,
-              quality_score: item.quality_score,
-              unclaimed_shop: true,
-            },
-          },
-        })
-        .select('id')
-        .single()
-
-      if (listingErr || !listing) throw new Error(`Listing insert failed: ${listingErr?.message ?? 'no data'}`)
+        }).catch((e) => {
+          console.error('[supply/import] listing mirror failed (non-fatal):', e)
+          return null
+        }) ?? null
+      }
 
       imported++
       await db.from('supply_items').update({
         status: 'imported',
-        imported_shop_id: shop.id,
-        imported_listing_id: listing.id,
+        imported_shop_id: mirrorId,
+        imported_listing_id: mirrorListingId,
         imported_at: new Date().toISOString(),
         error_message: null,
       }).eq('id', item.id)
@@ -185,6 +187,12 @@ export async function POST(req: NextRequest) {
         error_message: err instanceof Error ? err.message : String(err),
       }).eq('id', item.id)
     }
+  }
+
+  // Fresh shops/listings should show up without waiting out the ISR window.
+  if (imported > 0) {
+    revalidateTag('shops', 'default')
+    revalidateTag('listings', 'default')
   }
 
   const counts = await refreshBatchCounts(batch.id)

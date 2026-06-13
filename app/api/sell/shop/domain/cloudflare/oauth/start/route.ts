@@ -19,6 +19,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
+import { db } from '@/lib/supabase'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import crypto from 'crypto'
 
 const CF_OAUTH_AUTHORIZE = 'https://dash.cloudflare.com/oauth2/auth'
@@ -26,6 +28,26 @@ const CF_OAUTH_AUTHORIZE = 'https://dash.cloudflare.com/oauth2/auth'
 export async function GET(req: NextRequest) {
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  // Paywall: don't send a non-entitled seller into the OAuth flow (it would only
+  // 402 at the callback). The callback gate is the real guarantee; this is UX.
+  const { data: shop } = await db
+    .from('marketplace_shops')
+    .select('metadata')
+    .eq('clerk_user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const ent = await resolveDomainEntitlement(
+    (shop as unknown as { metadata?: unknown } | null)?.metadata,
+    { sellerClerkId: user.id },
+  )
+  if (!ent.entitled) {
+    return NextResponse.json(
+      { error: 'El dominio propio es una función premium.', paywall: true },
+      { status: 402 },
+    )
+  }
 
   const clientId = process.env.CLOUDFLARE_CLIENT_ID
   if (!clientId) {

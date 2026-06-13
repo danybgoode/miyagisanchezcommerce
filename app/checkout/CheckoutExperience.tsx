@@ -6,7 +6,10 @@ import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
+import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '@/lib/checkout-fallback'
+import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
+import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -129,6 +132,9 @@ export default function CheckoutExperience({
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
+  // Pickup appointment (S2.1) — the buyer proposes a date + time window.
+  const [pickupDate, setPickupDate] = useState('')
+  const [pickupWindow, setPickupWindow] = useState('')
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
   const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
 
@@ -143,6 +149,10 @@ export default function CheckoutExperience({
   const [shippingRatesLoading, setShippingRatesLoading] = useState(false)
   const [shippingRatesError, setShippingRatesError] = useState<string | null>(null)
   const [shippingRatesMessage, setShippingRatesMessage] = useState<string | null>(null)
+  // S3.2 — when quoting dead-ends, the buyer can choose coordinated ("entrega
+  // acordada") delivery to proceed. Reset whenever a fresh quote attempt starts
+  // or the delivery method changes.
+  const [coordinatedFallback, setCoordinatedFallback] = useState(false)
 
   // ── Coupon code ───────────────────────────────────────────────────────────
   // Not offered when an accepted offer is in play (coupons don't stack on offers,
@@ -202,8 +212,11 @@ export default function CheckoutExperience({
     address.name?.trim() && address.line1?.trim() && address.ext_number?.trim() && address.state_code?.trim() && address.postal_code?.trim(),
   )
   const needsShippingRate = selectedDelivery?.id === 'shipping' && !!selectedDelivery.requires_address
-  const needsPickupSpot = selectedDelivery?.id === 'local_pickup' && !!selectedDelivery.requires_pickup_spot
-  const pickupReady = !needsPickupSpot || !!selectedPickupSpotId
+  const isPickupDelivery = selectedDelivery?.id === 'local_pickup'
+  const needsPickupSpot = isPickupDelivery && !!selectedDelivery.requires_pickup_spot
+  // Local pickup is now a real appointment: the buyer must propose a date + window.
+  const appointmentReady = !isPickupDelivery || (!!pickupDate && !!pickupWindow)
+  const pickupReady = (!needsPickupSpot || !!selectedPickupSpotId) && appointmentReady
 
   const selectedShippingRate = useMemo(
     () => shippingRates.find(r => r.id === selectedShippingRateId) ?? null,
@@ -238,12 +251,32 @@ export default function CheckoutExperience({
     [isManualPayment, selectedPayment, isPickup],
   )
 
+  // S3.2 — coordinated ("entrega acordada") fallback when shipping can't be quoted.
+  const offerCoordinatedFallback = needsShippingRate && shouldOfferCoordinatedFallback({
+    loading: shippingRatesLoading,
+    error: shippingRatesError,
+    ratesCount: shippingRates.length,
+    message: shippingRatesMessage,
+  })
+  const manualPaymentId = pickManualPaymentId(paymentMethods)
+  // Active only when the buyer picked the fallback AND quoting is still failing.
+  const coordinatedActive = offerCoordinatedFallback && coordinatedFallback
+
+  function selectCoordinatedFallback() {
+    setCoordinatedFallback(true)
+    // Coordinated delivery requires "pago directo" — the backend 422s on card + coord.
+    if (selectedPayment?.kind !== 'manual' && manualPaymentId) setSelectedPaymentId(manualPaymentId)
+  }
+
   const canPay = Boolean(
-    selectedDelivery && selectedPayment && addressReady && pickupReady && (!needsShippingRate || selectedShippingRate),
+    selectedDelivery && selectedPayment && addressReady && pickupReady &&
+    (coordinatedActive
+      ? selectedPayment.kind === 'manual'
+      : (!needsShippingRate || selectedShippingRate)),
   )
 
-  // Reset pickup spot selection when delivery method changes.
-  useEffect(() => { setSelectedPickupSpotId(null) }, [selectedDeliveryId])
+  // Reset pickup spot selection + proposed appointment when delivery method changes.
+  useEffect(() => { setSelectedPickupSpotId(null); setPickupDate(''); setPickupWindow(''); setCoordinatedFallback(false) }, [selectedDeliveryId])
 
   // ── CP-first lookup ────────────────────────────────────────────────────────
   function handleCpChange(value: string) {
@@ -283,37 +316,50 @@ export default function CheckoutExperience({
   useEffect(() => {
     if (!needsShippingRate || !addressReady) return
     const controller = new AbortController()
+    let cancelled = false
+    // S3.3 — bound the quote so "Cotizando…" can't spin forever on a hung carrier.
+    const QUOTE_TIMEOUT_MS = 9_000
     const timeout = window.setTimeout(async () => {
       setShippingRatesLoading(true)
       setShippingRatesError(null)
       setShippingRatesMessage(null)
+      setCoordinatedFallback(false)
       try {
-        const res = await fetch('/api/checkout/shipping-rates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            items?.length
-              ? { items: items.map(i => i.productId), address }
-              : { listingId, address },
-          ),
-          signal: controller.signal,
-        })
+        const res = await raceWithTimeout(
+          fetch('/api/checkout/shipping-rates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              items?.length
+                ? { items: items.map(i => i.productId), address }
+                : { listingId, address },
+            ),
+            signal: controller.signal,
+          }),
+          QUOTE_TIMEOUT_MS,
+        )
         const data = await res.json().catch(() => null) as { rates?: ShippingRate[]; error?: string; message?: string } | null
+        if (cancelled) return
         if (!res.ok) throw new Error(data?.error ?? 'No se pudo cotizar el envío.')
         const rates = data?.rates ?? []
         setShippingRates(rates)
         setSelectedShippingRateId(rates[0]?.id ?? null)
         if (rates.length === 0) setShippingRatesMessage(data?.message ?? 'Las paqueterías no tienen cobertura para ese destino.')
       } catch (err) {
-        if (controller.signal.aborted) return
+        if (isTimeoutError(err)) controller.abort() // cancel the hung request
+        if (cancelled) return
         setShippingRates([])
         setSelectedShippingRateId(null)
-        setShippingRatesError(err instanceof Error ? err.message : 'No se pudo cotizar el envío.')
+        setShippingRatesError(
+          isTimeoutError(err)
+            ? 'El envío tardó demasiado en cotizar. Puedes coordinar la entrega con el vendedor.'
+            : err instanceof Error ? err.message : 'No se pudo cotizar el envío.',
+        )
       } finally {
-        if (!controller.signal.aborted) setShippingRatesLoading(false)
+        if (!cancelled) setShippingRatesLoading(false)
       }
     }, 450)
-    return () => { controller.abort(); window.clearTimeout(timeout) }
+    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout) }
   }, [needsShippingRate, addressReady, listingId, items, address])
 
   // ── Loading / error states ─────────────────────────────────────────────────
@@ -391,14 +437,40 @@ export default function CheckoutExperience({
             </div>
           )}
 
+          {/* Pickup appointment (S2.1) — propose a date + time window instead of an
+              external scheduling link. The seller confirms or reschedules after placing. */}
+          {selectedDelivery?.id === 'local_pickup' && (
+            <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>¿Cuándo quieres recogerlo?</p>
+              <input
+                type="date"
+                value={pickupDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setPickupDate(e.target.value)}
+                style={inputStyle}
+              />
+              <div style={{ display: 'grid', gap: 8 }}>
+                {PICKUP_WINDOWS.map(w => {
+                  const active = pickupWindow === w.key
+                  return (
+                    <button key={w.key} type="button" onClick={() => setPickupWindow(w.key)} style={optionButtonStyle(active)}>
+                      <span aria-hidden style={radioDot(active)} />
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>{w.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                Propones la hora; el vendedor la confirma o sugiere otra.
+              </p>
+            </div>
+          )}
+
           {/* Address form (shipping) */}
           {selectedDelivery?.requires_address && (
             <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
-                <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
-              </div>
-
+              {/* CP-first (S3.1) — the CP leads. It drives the postal-lookup auto-fill,
+                  so name/phone and the rest of the address reveal only once it resolves. */}
               <div>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -413,41 +485,46 @@ export default function CheckoutExperience({
                   {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success)' }}>✓</span>}
                 </div>
                 {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{cpLookupError}</p>}
-                {!cpResolved && !cpLookupError && !address.postal_code?.length && (
+                {!cpResolved && !cpLookupError && (
                   <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
                 )}
               </div>
 
-              {cpResolved && cpResult && (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
-                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
-                        <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
-                      <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
-                        <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {cpResult.colonias.length > 0 && (
-                    <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
-                      <option value="">Selecciona colonia</option>
-                      {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  )}
-                </>
-              )}
-
               {cpResolved && (
                 <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
+                    <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
+                  </div>
+
+                  {cpResult && (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
+                          <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
+                          <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {cpResult.colonias.length > 0 && (
+                        <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
+                          <option value="">Selecciona colonia</option>
+                          {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      )}
+                    </>
+                  )}
+
                   <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder="Calle" style={inputStyle} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <input value={address.ext_number ?? ''} onChange={e => setAddress({ ...address, ext_number: e.target.value })} placeholder="No. exterior" style={inputStyle} />
@@ -497,6 +574,28 @@ export default function CheckoutExperience({
                       </button>
                     )
                   })}
+
+                  {/* S3.2 — coordinated fallback so a quote failure / timeout isn't a dead end. */}
+                  {offerCoordinatedFallback && (
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <button type="button" onClick={selectCoordinatedFallback} style={optionButtonStyle(coordinatedActive)}>
+                        <span aria-hidden style={radioDot(coordinatedActive)} />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>Entrega acordada</span>
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                            Coordina la entrega directamente con el vendedor. Sin costo de paquetería.
+                          </span>
+                        </span>
+                      </button>
+                      {coordinatedActive && (
+                        <p style={{ fontSize: 11.5, color: 'var(--fg-subtle)', lineHeight: 1.5 }}>
+                          {manualPaymentId
+                            ? 'La entrega acordada se paga con pago directo (SPEI / efectivo); cambiamos tu método de pago.'
+                            : 'Este vendedor no tiene pago directo configurado — escríbele para acordar pago y entrega.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -693,10 +792,11 @@ export default function CheckoutExperience({
             offerAmountCents={offerAmountCents}
             couponCode={appliedCoupon?.code}
             couponDiscountCents={couponDiscountCents}
-            fulfillmentMethod={selectedDelivery?.id ?? 'none'}
+            fulfillmentMethod={coordinatedActive ? 'coord' : (selectedDelivery?.id ?? 'none')}
             pickupSpotId={selectedPickupSpotId ?? undefined}
+            pickupAppointment={isPickupDelivery && pickupDate && pickupWindow ? { date: pickupDate, window: pickupWindow } : undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
-            shippingQuote={needsShippingRate ? selectedShippingQuote : undefined}
+            shippingQuote={coordinatedActive ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
             disabled={!canPay}
             onStarted={onStarted}

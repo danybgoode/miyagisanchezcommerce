@@ -7,6 +7,7 @@ import { computeTrustScore, levelToMinScore, type TrustLevel } from '@/lib/ucp/i
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { tg, escapeHtml } from '@/lib/telegram'
 import { dispatchToSeller } from '@/lib/notifications/dispatch'
+import { isShopClaimed } from '@/lib/claim'
 
 interface CreateOfferBody {
   listingId: string
@@ -132,6 +133,19 @@ export async function POST(req: NextRequest) {
   if (!listing) {
     return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
   }
+
+  // ── Claim gate ────────────────────────────────────────────────────────────
+  // An unclaimed (gem-imported) shop has no owner to receive the offer — so
+  // reject BEFORE any insert or email. Otherwise the buyer would get a
+  // misleading "oferta enviada" while the ownerless shop is never notified and
+  // the offer silently dies. Single source of truth: lib/claim.ts.
+  if (!isShopClaimed(listing.marketplace_shops as unknown as { clerk_user_id: string | null })) {
+    return NextResponse.json(
+      { error: 'Esta tienda aún no está reclamada — contáctala directamente.' },
+      { status: 409 },
+    )
+  }
+
   const mirrorListingId = listing.id
   if (listing.status !== 'active') {
     return NextResponse.json({ error: 'Este anuncio ya no está disponible.' }, { status: 409 })

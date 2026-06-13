@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { UCP_CAPABILITIES, MCP_TOOL_NAMES } from '@/lib/ucp/capabilities'
+import { aboutManifestBlock } from '@/lib/about-agent'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +38,13 @@ export async function GET(req: NextRequest) {
 
       // Canonical capability slugs — single source of truth in lib/ucp/capabilities.ts.
       capabilities: UCP_CAPABILITIES,
+
+      // Supply-side "about / why-sell" answer for prospective sellers, beside the
+      // buyer endpoints. Rendered from the single content source (lib/about-content.ts
+      // → lib/about-agent.ts); carries the relay-language directive so the reading
+      // agent presents it in the user's own language. See the agent-readable about
+      // surface epic (07).
+      about: aboutManifestBlock(base),
 
       endpoints: {
         catalog: {
@@ -143,6 +151,26 @@ export async function GET(req: NextRequest) {
           auth: 'authorization_bearer_shop_token',
           note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
           mcp_tools: ['get_store_configuration', 'patch_store_configuration'],
+        },
+
+        seller_domain_subscription: {
+          method: 'POST',
+          url: `${base}/api/ucp/mcp`,
+          description: "A seller's own agent can check its custom-domain entitlement and start the domain subscription (the platform's paid SKU, $499 MXN/yr) via the MCP tools get_domain_entitlement and start_domain_subscription. Pass an optional coupon (e.g. miyagisan) to comp the first year, capped at 100 redemptions. Returns a Stripe checkout URL; entitlement flips on once checkout completes. The subdomain and free shop URL stay free.",
+          auth: 'authorization_bearer_shop_token',
+          note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
+          mcp_tools: ['get_domain_entitlement', 'start_domain_subscription'],
+        },
+
+        seller_onboarding: {
+          method: 'GET',
+          url: `${base}/api/ucp/setup-spec`,
+          description: "Onboarding 0 — a prospective seller's own agent reads one published, versioned setup spec + prompt and emits a SINGLE combined setup file (shop profile + store config + catalog) BEFORE the seller signs up. The spec composes the catalog-import and store-config schemas into one shape: { miyagi_setup_version, profile, config, catalog }. The emit prompt is es-MX and instructs the agent to produce all user-facing copy in the seller's own language. Apply path today: the seller signs up and uploads the file via the existing import flow (catalog + settings). Payments, custom domain, and Cal.com stay manual.",
+          auth: 'none',
+          spec_url: `${base}/api/ucp/setup-spec`,
+          docs_url: `${base}/agent`,
+          mcp_tools: ['get_setup_spec'],
+          note: 'Spec only — the guided first-run apply is coming soon; today, apply by signing up and using the import pages.',
         },
       },
 

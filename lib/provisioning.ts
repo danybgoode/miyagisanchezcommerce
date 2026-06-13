@@ -44,6 +44,10 @@ export interface ListingForMirror {
   tags?: string[]
   status?: string | null
   metadata?: Record<string, unknown> | null
+  // Provenance (supply-imported listings) — also powers source_url dup detection.
+  source?: string | null
+  source_platform?: string | null
+  source_url?: string | null
 }
 
 interface SupabaseShopMirror {
@@ -170,6 +174,62 @@ export async function ensureSupabaseShopMirror(
   return data as SupabaseShopMirror
 }
 
+/**
+ * Mirror an UNCLAIMED (supply-imported) Medusa seller into marketplace_shops.
+ * Unlike ensureSupabaseShopMirror there is no Clerk user — the row keeps
+ * clerk_user_id NULL until the claim flow transfers it. Keyed by
+ * metadata.medusa_seller_id, falling back to the slug. Returns the mirror row
+ * id, or null on failure (mirror is non-fatal — the storefront renders from
+ * Medusa; only conversations/offers/short links degrade).
+ */
+export async function ensureUnclaimedShopMirror(
+  seller: MedusaSellerForMirror & { source?: string | null; source_url?: string | null },
+): Promise<string | null> {
+  const { data: byMedusaId } = await db
+    .from('marketplace_shops')
+    .select('id')
+    .contains('metadata', { medusa_seller_id: seller.id })
+    .maybeSingle()
+  if (byMedusaId) return byMedusaId.id as string
+
+  const { data: bySlug } = await db
+    .from('marketplace_shops')
+    .select('id, metadata')
+    .eq('slug', seller.slug)
+    .maybeSingle()
+
+  if (bySlug) {
+    await db
+      .from('marketplace_shops')
+      .update({ metadata: medusaMetadata((bySlug.metadata ?? {}) as Record<string, unknown>, seller.id) })
+      .eq('id', bySlug.id)
+    return bySlug.id as string
+  }
+
+  const { data, error } = await db
+    .from('marketplace_shops')
+    .insert({
+      slug: seller.slug,
+      name: seller.name,
+      description: seller.description ?? null,
+      location: seller.location ?? null,
+      logo_url: seller.logo_url ?? null,
+      clerk_user_id: null,
+      verified: seller.verified ?? false,
+      source: seller.source ?? 'scraped',
+      source_url: seller.source_url ?? null,
+      metadata: medusaMetadata(seller.metadata ?? {}, seller.id),
+    })
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[provisioning] unclaimed shop mirror insert failed:', error)
+    return null
+  }
+  return (data?.id as string | undefined) ?? null
+}
+
 export async function syncSupabaseListingMirror(
   shopId: string,
   listing: ListingForMirror,
@@ -213,6 +273,9 @@ export async function syncSupabaseListingMirror(
     status: listing.status ?? 'active',
     metadata,
     updated_at: new Date().toISOString(),
+    ...(listing.source !== undefined ? { source: listing.source } : {}),
+    ...(listing.source_platform !== undefined ? { source_platform: listing.source_platform } : {}),
+    ...(listing.source_url !== undefined ? { source_url: listing.source_url } : {}),
   }
 
   if (existing) {

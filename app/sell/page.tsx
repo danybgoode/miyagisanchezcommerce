@@ -2,6 +2,31 @@ import { currentUser, auth } from '@clerk/nextjs/server'
 import Link from 'next/link'
 import SellWizard from './SellWizard'
 
+// First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
+// users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
+// fallback right below it.
+function AgentSetupNudge() {
+  return (
+    <Link
+      href="/sell/setup"
+      className="block no-underline rounded-2xl border border-[var(--color-border)] bg-[var(--surface-muted)] p-4 mb-5 hover:border-[var(--color-accent)] transition-colors"
+    >
+      <div className="flex items-start gap-3">
+        <span className="text-2xl leading-none">✨</span>
+        <div>
+          <p className="font-semibold text-[var(--fg)] text-sm">
+            ¿Tu agente ya armó tu tienda? Pégala aquí.
+          </p>
+          <p className="text-xs text-[var(--color-muted)] mt-0.5">
+            Si tu IA generó un archivo de configuración, créala con catálogo en un solo paso —
+            sin llenar el formulario. <span className="text-[var(--color-accent)] font-medium">Abrir →</span>
+          </p>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 export const metadata = {
   title: 'Publicar anuncio — Miyagi Sánchez',
   description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
@@ -117,6 +142,7 @@ export default async function SellPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      {!existingShop && <AgentSetupNudge />}
       <SellWizard existingShop={existingShop} />
     </div>
   )

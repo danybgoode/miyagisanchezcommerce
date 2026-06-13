@@ -11,6 +11,7 @@
  */
 
 import type { Listing, Shop } from '@/lib/types'
+import { isShopClaimed } from '@/lib/claim'
 import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 
@@ -159,7 +160,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
   // ── Actions ─────────────────────────────────────────────────────────────────
   const hasPrice = listing.price_cents != null && listing.price_cents > 0
   const isDigital = listing.listing_type === 'digital'
-  const isClaimed = !!(shop?.clerk_user_id && !shop.clerk_user_id.startsWith('pending:'))
+  const isClaimed = isShopClaimed(shop)
 
   const buyNow = hasPrice && isClaimed && inStock && (hasMp || hasStripe)
   const makeOffer = hasPrice && !isDigital && isClaimed && inStock

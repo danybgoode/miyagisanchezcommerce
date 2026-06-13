@@ -319,12 +319,12 @@ export default function ManageDashboard({
 
       {/* ── Shop header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 mb-8">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight">{shop.name}</h1>
           {shop.location && (
             <p className="text-sm text-[var(--color-muted)] mt-0.5">📍 {shop.location}</p>
           )}
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 overflow-x-auto hide-scrollbar [&>*]:shrink-0">
             <Link
               href={`/s/${shop.slug}`}
               className="text-xs text-[var(--color-accent)] hover:underline no-underline"
@@ -423,7 +423,7 @@ export default function ManageDashboard({
           </Link>
           <Link
             href="/sell"
-            className="bg-[var(--accent)] text-[var(--fg-inverse)] px-4 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--accent-hover)] transition-colors"
+            className="btn btn-primary"
           >
             + Nuevo anuncio
           </Link>
@@ -448,7 +448,9 @@ export default function ManageDashboard({
       <PrintEditionCard />
 
       {/* ── Listings ────────────────────────────────────────────────────────── */}
-      <div>
+      {/* #anuncios — the SellerNav "Anuncios" entry jumps here (the dashboard is
+          the listings surface; there is no separate listings route). */}
+      <div id="anuncios" style={{ scrollMarginTop: 80 }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">
             Mis anuncios ({listings.length})
@@ -466,7 +468,7 @@ export default function ManageDashboard({
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/sell"
-                className="inline-block bg-[var(--accent)] text-[var(--fg-inverse)] px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--accent-hover)] transition-colors"
+                className="btn btn-primary"
               >
                 Publicar primer anuncio
               </Link>

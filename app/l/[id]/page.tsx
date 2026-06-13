@@ -8,6 +8,7 @@ import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { isShopClaimed } from '@/lib/claim'
 import BuyButton from '@/app/components/BuyButton'
 import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
 import { getCustomFields } from '@/lib/personalization'
@@ -18,7 +19,9 @@ import AskSellerButton from '@/app/components/AskSellerButton'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import SellerBundleSection from '@/app/components/SellerBundleSection'
 import SellerTrustCard from '@/app/components/SellerTrustCard'
+import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
+import Gallery from './Gallery'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
@@ -91,8 +94,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   const isSignedIn = !!clerkUser
   const isOwnListing = !!clerkUser && listing.shop?.clerk_user_id === clerkUser.id
-  // Medusa-backed sellers always have an id; legacy "pending:" shops are unclaimed scraped entries
-  const isClaimed = !!(listing.shop?.id && !listing.shop.clerk_user_id?.startsWith('pending:'))
+  // A shop is claimed only when it has a real owner (non-empty clerk_user_id that
+  // isn't the legacy `pending:` placeholder). Gem-imported shops have
+  // clerk_user_id = null and must stay contact-only — the previous check keyed off
+  // shop.id (always present for a Medusa seller) so a null owner read as *claimed*
+  // and the whole CTA tree rendered. Single source of truth: lib/claim.ts
+  // (shared with the offers route + checkout-session). When false, the existing
+  // showBuyerActions/showBuyButtons cascade hides Buy/Offer/Cart/Bundle and the
+  // SellerTrustCard surfaces contact options + the "Reclamar" nudge instead.
+  const isClaimed = isShopClaimed(listing.shop)
   const digitalFile = listing.metadata?.digital_file as { name?: string; size?: number; label?: string } | undefined
   const isDigital = listing.listing_type === 'digital'
   // Print-ad placements are bought through the ad builder (which captures the ad
@@ -381,36 +391,27 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <div className="md:col-start-1 md:row-start-1">
         {/* Sticky wrapper — desktop only */}
         <div className="md:sticky md:top-[72px]">
-          {/* ── Image gallery ───────────────────────────────────────────── */}
-          <div style={{ position: 'relative' }}>
-            {images.length === 0 ? (
-              <div style={{ width: '100%', aspectRatio: '4/3', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
-              </div>
-            ) : images.length === 1 ? (
-              <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', borderRadius: 'var(--r-lg)' }} className="md:rounded-xl" />
-            ) : (
-              <div>
-                <img src={images[0].url} alt={listing.title} style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} className="md:rounded-xl" />
-                <div style={{ display: 'flex', gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }} className="hide-scrollbar md:rounded-b-xl">
-                  {images.slice(1).map((img, i) => (
-                    <img key={i} src={img.url} alt="" style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, flexShrink: 0, opacity: 0.85 }} />
-                  ))}
+          {/* ── Image gallery (client island; rest of PDP stays a Server
+               Component). The FavoriteButton + views badge ride along as an
+               `overlay` slot so they stay pinned over the image. ──────────── */}
+          <Gallery
+            images={images}
+            title={listing.title}
+            overlay={
+              <>
+                {/* Favorite button overlay */}
+                <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+                  <FavoriteButton listingId={listing.id} initialFavorited={isFavorited} isSignedIn={isSignedIn} />
                 </div>
-              </div>
-            )}
 
-            {/* Favorite button overlay */}
-            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
-              <FavoriteButton listingId={listing.id} initialFavorited={isFavorited} isSignedIn={isSignedIn} />
-            </div>
-
-            {/* Views badge */}
-            <div style={{ position: 'absolute', bottom: images.length > 1 ? 76 : 12, left: 12, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <i className="iconoir-eye" style={{ fontSize: 12, color: 'var(--fg-inverse)' }} />
-              <span style={{ fontSize: 11, color: 'var(--fg-inverse)', fontWeight: 500 }}>{listing.views}</span>
-            </div>
-          </div>
+                {/* Views badge */}
+                <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <i className="iconoir-eye" style={{ fontSize: 12, color: 'var(--fg-inverse)' }} />
+                  <span style={{ fontSize: 11, color: 'var(--fg-inverse)', fontWeight: 500 }}>{listing.views}</span>
+                </div>
+              </>
+            }
+          />
         </div>
       </div>
 
@@ -482,33 +483,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
         </div>
 
-        {/* Order info pills */}
-        {(processingLabel || returnsLabel) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-            {processingLabel && (
-              <span style={{ fontSize: 12, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <i className="iconoir-box" style={{ fontSize: 11 }} />
-                Lista en {processingLabel}
-              </span>
-            )}
-            {returnsLabel && (
-              <span style={{ fontSize: 12, background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <i className="iconoir-undo" style={{ fontSize: 11 }} />
-                Devoluciones: {returnsLabel}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* ── Seller trust card — MOBILE position (S3.2) ───────────────────────
-            On a phone the trust block leads, above payment/fulfillment, so the
-            buyer judges the seller before the transaction detail. Desktop renders
-            the same card lower (hidden md:block below). ──────────────────────── */}
-        {sellerTrustCard && <div className="md:hidden">{sellerTrustCard}</div>}
-
-        {(paymentMethods.length > 0 || fulfillmentMethods.length > 0 || (!hasBuyablePrice && isClaimed)) && (
-          <div data-testid="pdp-methods" style={{ marginBottom: 16, padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
-            {!hasBuyablePrice && isClaimed && (
+        {/* ── Trust signals (S2 · C.4) ─────────────────────────────────────────
+            Order-info pills + payment/fulfillment methods, extracted to the shared
+            channel-aware <TrustSignals>. Marketplace renders byte-for-byte as before
+            (parity-first). The mobile <SellerTrustCard> (S3.2) rides the `interstitial`
+            slot so its position between pills and methods box is preserved. Epic D wires
+            this same component into ChannelLayout / embed. ─────────────────────────── */}
+        <TrustSignals
+          channel="marketplace"
+          variant="full"
+          paymentMethods={paymentMethods}
+          fulfillmentMethods={fulfillmentMethods}
+          processingLabel={processingLabel}
+          returnsLabel={returnsLabel}
+          interstitial={sellerTrustCard ? <div className="md:hidden">{sellerTrustCard}</div> : null}
+          consultCta={!hasBuyablePrice && isClaimed ? (
+            <>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <i className="iconoir-message-text" style={{ fontSize: 18, color: 'var(--accent)', marginTop: 1 }} />
                 <div>
@@ -518,46 +508,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   </p>
                 </div>
               </div>
-            )}
-            {!hasBuyablePrice && isClaimed && (
               <div style={{ marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
               </div>
-            )}
-            {paymentMethods.length > 0 && (
-              <div style={{ marginBottom: fulfillmentMethods.length > 0 ? 12 : 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Métodos disponibles</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
-                  {paymentMethods.map(method => (
-                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
-                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
-                      <div className="min-w-0">
-                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
-                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {fulfillmentMethods.length > 0 && (
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Entrega y disponibilidad</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8 }}>
-                  {fulfillmentMethods.map(method => (
-                    <div key={method.label} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)' }}>
-                      <i className={method.icon} style={{ fontSize: 15, color: 'var(--accent)', flexShrink: 0 }} />
-                      <div className="min-w-0">
-                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{method.label}</p>
-                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{method.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            </>
+          ) : null}
+        />
 
         {/* ── Badges ──────────────────────────────────────────────────────────── */}
         {isDigital && digitalFile && (

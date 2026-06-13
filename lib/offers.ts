@@ -107,6 +107,77 @@ export function timeAgo(iso: string): string {
   return `hace ${days}d`
 }
 
+// ── Turn-owner + deadline (negotiation "whose turn is it") ──────────────────────
+
+export type OfferRole = 'buyer' | 'seller'
+
+export interface OfferTurn {
+  /** Whose-turn / state line (es-MX). */
+  line: string
+  /** The deadline ISO to count down against with {@link timeUntil}, or null when none. */
+  deadlineIso: string | null
+}
+
+const OFFER_STATUS_LABEL: Record<OfferStatus, string> = {
+  pending:   'Oferta enviada',
+  countered: 'Contraoferta',
+  accepted:  'Oferta aceptada',
+  declined:  'Oferta rechazada',
+  expired:   'Oferta expirada',
+  withdrawn: 'Oferta retirada',
+  paid:      'Compra realizada',
+}
+
+/** Short badge label for an offer status (es-MX). */
+export function offerStatusLabel(status: OfferStatus): string {
+  return OFFER_STATUS_LABEL[status]
+}
+
+/**
+ * Derive whose turn it is in a negotiation and which deadline applies — the single
+ * source of truth for the chat offer panel AND the transaction-ledger negotiation
+ * row, so the UI never re-infers "te toca" from which buttons happen to render.
+ *
+ * Deadlines (read-time expiry; no cron): a pending offer runs against `expires_at`
+ * (48h for the seller to respond); a counter against `counter_expires_at` (24h for
+ * the buyer); an accepted offer against `checkout_expires_at` (24h for the buyer to pay).
+ */
+export function offerTurn(
+  offer: {
+    status: OfferStatus
+    expires_at: string
+    counter_expires_at?: string | null
+    checkout_expires_at?: string | null
+  },
+  role: OfferRole,
+): OfferTurn {
+  const now = Date.now()
+  const past = (iso: string | null | undefined) => !!iso && new Date(iso).getTime() < now
+
+  switch (offer.status) {
+    case 'pending':
+      if (past(offer.expires_at)) return { line: 'Oferta expirada', deadlineIso: null }
+      return role === 'seller'
+        ? { line: 'Te toca responder', deadlineIso: offer.expires_at }
+        : { line: 'Esperando al vendedor', deadlineIso: offer.expires_at }
+    case 'countered':
+      if (past(offer.counter_expires_at)) return { line: 'Contraoferta expirada', deadlineIso: null }
+      return role === 'buyer'
+        ? { line: 'Te toca responder', deadlineIso: offer.counter_expires_at ?? null }
+        : { line: 'Esperando tu respuesta', deadlineIso: offer.counter_expires_at ?? null }
+    case 'accepted':
+      if (past(offer.checkout_expires_at)) return { line: 'Trato expirado', deadlineIso: null }
+      return role === 'buyer'
+        ? { line: 'Te toca pagar', deadlineIso: offer.checkout_expires_at ?? null }
+        : { line: 'Esperando el pago del comprador', deadlineIso: offer.checkout_expires_at ?? null }
+    case 'paid':      return { line: 'Compra realizada', deadlineIso: null }
+    case 'declined':  return { line: 'Oferta rechazada', deadlineIso: null }
+    case 'withdrawn': return { line: 'Oferta retirada', deadlineIso: null }
+    case 'expired':   return { line: 'Oferta expirada', deadlineIso: null }
+    default:          return { line: '', deadlineIso: null }
+  }
+}
+
 // ── Anchors ───────────────────────────────────────────────────────────────────
 
 export const OFFER_ANCHORS = [

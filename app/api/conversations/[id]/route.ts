@@ -3,6 +3,8 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { resolveConversationLedger } from '@/lib/conversation-ledger'
+import type { LedgerOffer } from '@/lib/transaction-ledger'
 
 // ── GET — full conversation thread ────────────────────────────────────────────
 
@@ -69,9 +71,25 @@ export async function GET(
 
   // Read-marking is now explicit via POST .../read (decoupled from polling).
 
+  // ── Transaction ledger (C.1) — read-only projection of the linked order's state ──
+  const role = isBuyer ? 'buyer' : 'seller'
+  const ledgerOffer: LedgerOffer | null = offerWithCurrency
+    ? {
+        status: offerWithCurrency.status as LedgerOffer['status'],
+        offer_amount_cents: offerWithCurrency.offer_amount_cents,
+        counter_amount_cents: offerWithCurrency.counter_amount_cents,
+        expires_at: offerWithCurrency.expires_at,
+        counter_expires_at: offerWithCurrency.counter_expires_at,
+        checkout_expires_at: offerWithCurrency.checkout_expires_at,
+        currency: offerWithCurrency.currency,
+      }
+    : null
+  const { ledger, orderId } = await resolveConversationLedger(ledgerOffer, offerId, role)
+
   return NextResponse.json({
     conversation: { ...conv, marketplace_offers: offerWithCurrency, checkout_provider: checkoutProvider },
     events: eventsResult.data ?? [],
-    role: isBuyer ? 'buyer' : 'seller',
+    role,
+    transaction: { ledger, orderId },
   })
 }

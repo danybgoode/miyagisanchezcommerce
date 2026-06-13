@@ -19,6 +19,7 @@ import {
   DomainConflictError,
 } from '@/lib/vercel-domains'
 import { CNAME_TARGET, APEX_A_RECORD, isApexDomain } from '@/lib/domain-utils'
+import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import dns from 'dns/promises'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -26,12 +27,30 @@ import dns from 'dns/promises'
 async function getShopForUser(clerkUserId: string) {
   const { data } = await db
     .from('marketplace_shops')
-    .select('id, slug, custom_domain, custom_domain_verified, custom_domain_vercel_ok')
+    .select('id, slug, custom_domain, custom_domain_verified, custom_domain_vercel_ok, metadata')
     .eq('clerk_user_id', clerkUserId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
   return data
+}
+
+/**
+ * Custom-domain paywall gate (epic: custom-domain-paywall, S1). Connecting a
+ * domain is a premium SKU — when the rollout flag is on and the shop is not
+ * entitled (no grandfather/comp grant, no active subscription), refuse with 402
+ * before any Vercel/Cloudflare/DB write. Returns a 402 NextResponse to short-
+ * circuit, or null when the shop may proceed. Applied to the connect/provision
+ * paths only; DELETE (removal) is intentionally always allowed — it moves away
+ * from the gated state and is the escape hatch a lapsed seller needs.
+ */
+async function paywallBlock(metadata: unknown, sellerClerkId: string): Promise<NextResponse | null> {
+  const ent = await resolveDomainEntitlement(metadata, { sellerClerkId })
+  if (ent.entitled) return null
+  return NextResponse.json(
+    { error: 'El dominio propio es una función premium. Conéctalo desde Ajustes → Canal.', paywall: true },
+    { status: 402 },
+  )
 }
 
 /**
@@ -104,6 +123,10 @@ export async function POST(req: NextRequest) {
 
   const shop = await getShopForUser(user.id)
   if (!shop) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
+
+  // Paywall: refuse to connect a domain for a non-entitled shop (flag on).
+  const blocked = await paywallBlock(shop.metadata, user.id)
+  if (blocked) return blocked
 
   // Check if another shop already claimed this domain
   const { data: existing } = await db
