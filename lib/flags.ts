@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -35,10 +35,14 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled'
  *    (today's free custom-domain behavior) if Flagsmith is unreachable — so a
  *    flag outage can never trap a seller behind a paywall. Enabling is the
  *    deliberate action (flip on in Flagsmith once the grandfather backfill ran).
+ *  - KILL-SWITCH (`pdp_redesign`): default `true`. The "decide, then act" PDP
+ *    redesign (epic 01) stays live if Flagsmith is down; flipping it OFF reverts
+ *    the whole product page to the previous layout instantly (the deliberate act).
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'domain.paywall_enabled': false,
+  'pdp_redesign': true,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
