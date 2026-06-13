@@ -237,12 +237,12 @@ export default async function NeighborhoodPulsePage() {
         </section>
       ) : (
         <section aria-label="Aportes del vecindario" className="grid gap-8">
-          {itemGroups.map((group) => (
-            <section key={group.zone} aria-labelledby={`zona-${group.zone.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+          {itemGroups.map((group, gi) => (
+            <section key={group.zone} aria-labelledby={`zona-${gi}`}>
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
                   <h2
-                    id={`zona-${group.zone.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                    id={`zona-${gi}`}
                     className="text-lg font-semibold leading-tight"
                     style={{ color: 'var(--fg)', letterSpacing: 0 }}
                   >

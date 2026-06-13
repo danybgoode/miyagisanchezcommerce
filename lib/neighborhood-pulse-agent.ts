@@ -48,9 +48,13 @@ export async function getNeighborhoodPulseAgentView(
   baseUrl: string,
   options: { itemLimit?: number; listingLimit?: number; shopLimit?: number } = {},
 ): Promise<NeighborhoodPulseAgentView> {
-  const itemLimit = Math.min(Math.max(1, Number(options.itemLimit ?? 12)), 24)
-  const listingLimit = Math.min(Math.max(1, Number(options.listingLimit ?? 8)), 20)
-  const shopLimit = Math.min(Math.max(1, Number(options.shopLimit ?? 6)), 12)
+  const clampLimit = (value: unknown, fallback: number, max: number): number => {
+    const n = Number(value)
+    return Number.isFinite(n) ? Math.min(Math.max(1, Math.floor(n)), max) : fallback
+  }
+  const itemLimit = clampLimit(options.itemLimit, 12, 24)
+  const listingLimit = clampLimit(options.listingLimit, 8, 20)
+  const shopLimit = clampLimit(options.shopLimit, 6, 12)
 
   const [items, trending, spotlight] = await Promise.all([
     getNeighborhoodPulseItems(itemLimit),

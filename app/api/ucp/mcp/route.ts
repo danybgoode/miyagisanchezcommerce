@@ -466,7 +466,7 @@ async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl
   const summary = [
     '## Pulso del vecindario',
     '',
-    `**Read-only:** ${pulse._meta.read_only ? 'sí' : 'no'}`,
+    `**Solo lectura:** ${pulse._meta.read_only ? 'sí' : 'no'}`,
     '',
     '### Aportes de la comunidad',
     community.length ? community.join('\n') : 'Sin aportes visibles por ahora.',
