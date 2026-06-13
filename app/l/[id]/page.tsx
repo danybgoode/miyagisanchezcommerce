@@ -23,6 +23,7 @@ import { listingSpecs } from '@/lib/listing-attributes'
 import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
+import ServiceHero from './ServiceHero'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
@@ -242,6 +243,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // lib/flags.ts) — flipping it OFF in Flagsmith reverts the whole product page to
   // the previous layout instantly. Every redesign delta below branches on this.
   const redesign = await isEnabled('pdp_redesign')
+
+  // ══ Per-type heroes (S4) ════════════════════════════════════════════════════
+  // A service leads with scheduling (S4.1) — not the boxed buy/offer bar — so when
+  // `serviceLed`, the generic buy bar + bundle + generic specs/description are
+  // suppressed and ServiceHero owns the action region. All redesign-gated, so the
+  // kill-switch reverts to the old layout. (rentalLed is added in S4.2.)
+  const isService = listing.listing_type === 'service'
+  const serviceLed = redesign && isService && showBuyerActions
+  const suppressGenericBar = serviceLed
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -657,17 +667,32 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
+            service attrs + description. Leads the page for service listings, so the
+            generic specs table + description duplicates below are suppressed
+            (`!serviceLed`) to avoid repeating the same content. ───────────────── */}
+        {serviceLed && (
+          <ServiceHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            bookingText={bookingText}
+            inclusions={listingSpecs(listing)}
+            description={listing.description}
+          />
+        )}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
             description keeps its original lower position (`hidden md:block` below).
             Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
-        {redesign && (
+        {redesign && !serviceLed && (
           <div className="md:hidden" data-testid="pdp-specs-slot">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
         )}
-        {redesign && listing.description && (
+        {redesign && !serviceLed && listing.description && (
           <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <CollapsibleDescription text={listing.description} />
@@ -759,7 +784,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
 
         {/* ── Desktop inline CTAs (buy now + make offer) ─────────────────────── */}
-        {showBuyButtons && (
+        {showBuyButtons && !suppressGenericBar && (
           <div className="hidden md:block" style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
             {redesign ? redesignBarContent : ctaButtons}
           </div>
@@ -810,15 +835,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             renders higher (md:hidden above); here it's desktop-only. ─────────── */}
         {sellerTrustCard && <div className="hidden md:block">{sellerTrustCard}</div>}
 
-        {bundleItems.length > 1 && listing.shop && (
+        {bundleItems.length > 1 && listing.shop && !suppressGenericBar && (
           <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
         )}
 
         {/* ── Especificaciones (S3.3 · finding #7) ────────────────────────────────
             Desktop copy of the scannable specs table (mobile copy rides the specs
             slot higher up). Redesign-gated so the kill-switch reverts cleanly; the
-            table renders nothing when the listing has no structured attributes. */}
-        {redesign && (
+            table renders nothing when the listing has no structured attributes.
+            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye". */}
+        {redesign && !serviceLed && (
           <div className="hidden md:block">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
@@ -827,8 +853,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* ── Description ──────────────────────────────────────────────────────── */}
         {/* Redesign (S1.2): this original lower copy becomes DESKTOP-only — mobile
             shows the collapsible description higher up (above payment/seller). When
-            the kill-switch is off it renders for all viewports, exactly as before. */}
-        {listing.description && (
+            the kill-switch is off it renders for all viewports, exactly as before.
+            Suppressed for serviceLed — the description is shown in ServiceHero's
+            "Qué incluye" block instead. */}
+        {listing.description && !serviceLed && (
           <div className={redesign ? 'hidden md:block' : undefined} style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
@@ -882,7 +910,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           matching in-flow spacer, so the variable-height bar never clips content.
           `barMode !== 'hidden'` is equivalent to `showBuyButtons` (see derivePdpBarMode). */}
       {redesign ? (
-        barMode !== 'hidden' && <StickyBuyBar>{redesignBarContent}</StickyBuyBar>
+        barMode !== 'hidden' && !suppressGenericBar && <StickyBuyBar>{redesignBarContent}</StickyBuyBar>
       ) : (
         showBuyButtons && (
           <div
