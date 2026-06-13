@@ -235,17 +235,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                           background: 'var(--bg-sunk)',
                           border: '1px solid var(--border)',
                           borderRadius: 'var(--r-pill)',
-                          padding: '0 10px 0 28px',
+                          padding: '0 34px 0 28px',
                           fontSize: 13,
                           fontFamily: 'var(--font-sans)',
                           color: 'var(--fg)',
                           outline: 'none',
                         }}
                       />
+                      {/* In-search agent affordance — same sheet as the desktop AIAgentButton */}
+                      <AIAgentButton variant="search" />
                     </div>
                   </form>
 
-                  {/* Sell icon — publish action when signed in, the /vende pitch when signed out */}
+                  {/* Sell affordance — publish action when signed in, the labeled "Vende" pitch when signed out */}
                   <Show when="signed-in">
                     <Link
                       href="/sell"
@@ -256,12 +258,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </Link>
                   </Show>
                   <Show when="signed-out">
-                    <Link
-                      href="/vende"
-                      className="icon-btn accent"
-                      title="Vende gratis"
-                    >
-                      <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
+                    <Link href="/vende" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
+                      Vende
                     </Link>
                   </Show>
 
@@ -456,7 +454,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
           {showBuyerChrome && (
           <>
-          <footer className="hidden md:block" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
+          {/* Footer — visible on mobile too (S3.3) so the links + Términos aren't dead-ended on phones */}
+          <footer data-testid="site-footer" style={{ borderTop: '1px solid var(--border)', marginTop: 64 }}>
             <div
               className="app-shell"
               style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
@@ -469,6 +468,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
                 Agent API
               </Link>
+              <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Términos</Link>
             </div>
           </footer>
 

@@ -12,7 +12,12 @@ import { isRecentForBadge } from '@/lib/home-curation'
 import type { Listing } from '@/lib/types'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
-import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
+import {
+  NEIGHBORHOOD_PULSE_COPY,
+  printSocialTypeLabel,
+  publicSubmitterLabel,
+} from '@/lib/neighborhood-pulse'
+import { getNeighborhoodPulseItems } from '@/lib/neighborhood-pulse-server'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -27,10 +32,11 @@ export default async function HomePage() {
   // One timestamp for both the featured pick and the grid so their selection is
   // atomic (no 14-day-cutoff divergence between the two reads).
   const now = Date.now()
-  const [featured, grid, categories, user] = await Promise.all([
+  const [featured, grid, categories, pulse, user] = await Promise.all([
     getFeaturedListing(now),
     getCuratedListings(4, now),
     getCategoryCounts(),
+    getNeighborhoodPulseItems(2), // S3.4 live strip — same approved source as /vecindario, degrades to []
     currentUser(),
   ])
 
@@ -57,44 +63,128 @@ export default async function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
-      <CategoryChips className="mb-6" />
-
-      {/* Vecindario entry — keeps the community feed reachable after it left the tab bar */}
-      <Link
-        href="/vecindario"
-        data-testid="vecindario-feed-entry"
-        className="card-tile no-underline block mb-6"
-        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14 }}
-      >
+      {/* S3.1 — Value-prop ribbon (signed-out only): one-line orientation in place of a hero */}
+      {!isSignedIn && (
         <div
+          data-testid="home-ribbon"
+          className="mb-6"
           style={{
-            flexShrink: 0,
-            width: 44,
-            height: 44,
-            borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--bg-sunk)',
+            gap: 8,
+            flexWrap: 'wrap',
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--selva-100)',
+            borderRadius: 'var(--r-sm)',
+            padding: '9px 14px',
           }}
         >
-          <i className="iconoir-community" style={{ fontSize: 24, color: 'var(--accent)' }} />
+          <i className="iconoir-shield-check" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
+          <span style={{ fontSize: 13, color: 'var(--fg)' }}>
+            Compra y vende en México — gratis, protegido y con ofertas.
+          </span>
+          <Link href="/acerca" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Cómo funciona →
+          </Link>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
-            {NEIGHBORHOOD_PULSE_COPY.eyebrow}
-          </p>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
-            {NEIGHBORHOOD_PULSE_COPY.navLabel}
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {NEIGHBORHOOD_PULSE_COPY.intro}
-          </p>
-        </div>
-        <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-          {NEIGHBORHOOD_PULSE_COPY.viewFeedCta} →
-        </span>
-      </Link>
+      )}
+
+      <CategoryChips className="mb-6" />
+
+      {/* S3.4 — Vecindario live strip: 1–2 real approved pulse items from the same source as
+          /vecindario. Empty → the original banner. The "Ver vecindario →" link keeps the
+          data-testid so the nav-entry-points spec stays green. */}
+      {pulse.length > 0 ? (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {NEIGHBORHOOD_PULSE_COPY.eyebrow}
+            </p>
+            <Link
+              href="/vecindario"
+              data-testid="vecindario-feed-entry"
+              style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              {NEIGHBORHOOD_PULSE_COPY.viewFeedCta} →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pulse.map(item => (
+              <div
+                key={item.id}
+                className="card-tile"
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14 }}
+              >
+                <div
+                  style={{
+                    flexShrink: 0,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--bg-sunk)',
+                  }}
+                >
+                  <i
+                    className={item.type === 'evento' ? 'iconoir-bell' : 'iconoir-star'}
+                    style={{ fontSize: 20, color: 'var(--accent)' }}
+                    aria-hidden
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span className="badge badge-soft" style={{ color: 'var(--accent)', fontSize: 10 }}>
+                    {printSocialTypeLabel(item.type)}
+                  </span>
+                  <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.4, margin: '6px 0 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {item.caption || item.body}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {[publicSubmitterLabel(item), item.zone, timeAgo(item.created_at)].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <Link
+          href="/vecindario"
+          data-testid="vecindario-feed-entry"
+          className="card-tile no-underline block mb-6"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14 }}
+        >
+          <div
+            style={{
+              flexShrink: 0,
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--bg-sunk)',
+            }}
+          >
+            <i className="iconoir-community" style={{ fontSize: 24, color: 'var(--accent)' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
+              {NEIGHBORHOOD_PULSE_COPY.eyebrow}
+            </p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
+              {NEIGHBORHOOD_PULSE_COPY.navLabel}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {NEIGHBORHOOD_PULSE_COPY.intro}
+            </p>
+          </div>
+          <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+            {NEIGHBORHOOD_PULSE_COPY.viewFeedCta} →
+          </span>
+        </Link>
+      )}
 
       {/* Selección de la semana — a curated pick + grid, price as the loudest element */}
       {seleccion.length > 0 && (
@@ -249,8 +339,36 @@ export default async function HomePage() {
         <div className="text-center py-16" style={{ color: 'var(--fg-muted)' }}>
           <i className="iconoir-shop" style={{ fontSize: 48, color: 'var(--fg-subtle)', display: 'block', marginBottom: 12 }} />
           <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>El marketplace está tomando forma</p>
-          <p style={{ fontSize: 14 }}>Las primeras publicaciones aparecerán aquí pronto.</p>
+          <p style={{ fontSize: 14, marginBottom: 16 }}>Las primeras publicaciones aparecerán aquí pronto.</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Link href="/vende" className="btn btn-primary btn-sm">Publica lo primero</Link>
+            <Link href="/vecindario" className="btn btn-secondary btn-sm">Pasea por el vecindario</Link>
+          </div>
         </div>
+      )}
+
+      {/* S3.3 — Terminal CTA (signed-out): a clear next action so the bottom isn't a dead end */}
+      {!isSignedIn && seleccion.length > 0 && (
+        <section
+          className="mb-4"
+          style={{
+            textAlign: 'center',
+            padding: '28px 16px',
+            borderTop: '1px solid var(--border)',
+            marginTop: 8,
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 4 }}>
+            Únete a la comunidad
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
+            Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Link href="/sign-up" className="btn btn-primary">Crear cuenta</Link>
+            <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
+          </div>
+        </section>
       )}
     </div>
   )
