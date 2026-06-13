@@ -79,22 +79,26 @@ export type SearchParams = {
   property_type?: string  // comma-separated: "casa,departamento"
 }
 
+// `icon` is an Iconoir glyph name (composed as `iconoir-${icon}` by renderers).
+// All names verified to exist in the Iconoir build loaded in app/layout.tsx
+// (handoff/HANDOFF.md §3). `mascotas` is provisional `fish` — Iconoir has no
+// paw/dog/cat glyph. Keep these as bare names, never emoji.
 export const CATEGORIES = [
-  { key: 'autos', label: 'Autos y motos', icon: '🚗' },
-  { key: 'inmuebles', label: 'Inmuebles', icon: '🏠' },
-  { key: 'electronica', label: 'Electrónica', icon: '📱' },
-  { key: 'hogar', label: 'Hogar y jardín', icon: '🪴' },
-  { key: 'moda', label: 'Moda y ropa', icon: '👗' },
-  { key: 'deportes', label: 'Deportes', icon: '⚽' },
-  { key: 'servicios', label: 'Servicios', icon: '🔧' },
-  { key: 'mascotas', label: 'Mascotas', icon: '🐾' },
-  { key: 'herramientas', label: 'Herramientas', icon: '🔨' },
-  { key: 'negocios', label: 'Negocios B2B', icon: '🏭' },
+  { key: 'autos', label: 'Autos y motos', icon: 'car' },
+  { key: 'inmuebles', label: 'Inmuebles', icon: 'home' },
+  { key: 'electronica', label: 'Electrónica', icon: 'smartphone-device' },
+  { key: 'hogar', label: 'Hogar y jardín', icon: 'sofa' },
+  { key: 'moda', label: 'Moda y ropa', icon: 'shirt' },
+  { key: 'deportes', label: 'Deportes', icon: 'basketball' },
+  { key: 'servicios', label: 'Servicios', icon: 'wrench' },
+  { key: 'mascotas', label: 'Mascotas', icon: 'fish' },
+  { key: 'herramientas', label: 'Herramientas', icon: 'hammer' },
+  { key: 'negocios', label: 'Negocios B2B', icon: 'building' },
   // Digital creator categories
-  { key: 'cursos', label: 'Cursos y talleres', icon: '🎓' },
-  { key: 'comunidad', label: 'Membresía / comunidad', icon: '👥' },
-  { key: 'creatividad', label: 'Arte y diseño', icon: '🎨' },
-  { key: 'otros', label: 'Otros', icon: '📦' },
+  { key: 'cursos', label: 'Cursos y talleres', icon: 'graduation-cap' },
+  { key: 'comunidad', label: 'Membresía / comunidad', icon: 'group' },
+  { key: 'creatividad', label: 'Arte y diseño', icon: 'palette' },
+  { key: 'otros', label: 'Otros', icon: 'package' },
 ] as const
 
 export type CategoryKey = typeof CATEGORIES[number]['key']

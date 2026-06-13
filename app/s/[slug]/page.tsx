@@ -160,8 +160,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold leading-tight">{shop.name}</h1>
                 {shop.verified && (
-                  <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: accent }}>
-                    ✓ Verificado
+                  <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium inline-flex items-center gap-1" style={{ backgroundColor: accent }}>
+                    <i className="iconoir-badge-check" aria-hidden /> Verificado
                   </span>
                 )}
                 {!shop.clerk_user_id && (

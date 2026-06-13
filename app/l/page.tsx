@@ -136,7 +136,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                     {listing.shop && (
                       <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {listing.shop.verified && <span style={{ color: 'var(--accent)' }}>✓ </span>}
+                        {listing.shop.verified && <i className="iconoir-badge-check" style={{ color: 'var(--accent)', marginRight: 3, verticalAlign: 'middle' }} aria-hidden />}
                         {listing.shop.name}
                       </p>
                     )}

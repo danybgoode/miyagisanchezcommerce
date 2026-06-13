@@ -190,7 +190,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           >
             <option value="">Todas las categorías</option>
             {CATEGORIES.map(cat => (
-              <option key={cat.key} value={cat.key}>{cat.icon} {cat.label}</option>
+              <option key={cat.key} value={cat.key}>{cat.label}</option>
             ))}
           </select>
         </div>
