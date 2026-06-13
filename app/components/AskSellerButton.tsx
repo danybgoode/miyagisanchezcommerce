@@ -7,10 +7,17 @@ export default function AskSellerButton({
   listingId,
   isSignedIn,
   label = 'Preguntar al vendedor',
+  variant = 'button',
 }: {
   listingId: string
   isSignedIn: boolean
   label?: string
+  /**
+   * `'button'` (default) — the full dark CTA, unchanged for every existing caller.
+   * `'link'` — a light, centered text link, for the PDP redesign two-action bar
+   * (S1.3) where "Preguntar" is demoted below the primary buy / offer actions.
+   */
+  variant?: 'button' | 'link'
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -41,6 +48,36 @@ export default function AskSellerButton({
     } finally {
       setLoading(false)
     }
+  }
+
+  if (variant === 'link') {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <button
+          type="button"
+          onClick={askSeller}
+          disabled={loading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            background: 'none',
+            border: 'none',
+            padding: '4px 8px',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--fg-muted)',
+            textDecoration: 'underline',
+          }}
+        >
+          <i className="iconoir-message-text" style={{ fontSize: 14 }} />
+          {loading ? 'Abriendo...' : label}
+        </button>
+        {error && <p style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
+      </div>
+    )
   }
 
   return (
