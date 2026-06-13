@@ -73,21 +73,36 @@ export default function Gallery({
 
   const go = useCallback((i: number) => setActive(wrapIndex(i, count)), [count])
 
+  // Clear the "Enlace copiado" timer if we unmount first (the back button can navigate
+  // away immediately) so we never setState on an unmounted island.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+
+  const copyLink = useCallback(async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard blocked — nothing to do */ }
+  }, [])
+
   // S2.3 — share via the native OS sheet, falling back to copy-link with a brief
-  // confirmation. Client-only + feature-detected; a user-cancelled share is a no-op.
+  // confirmation. Client-only + feature-detected. A user-dismissed share (AbortError) is
+  // a no-op; any OTHER share rejection falls back to copy so the button is never dead.
   const share = useCallback(async () => {
     const url = typeof window !== 'undefined' ? window.location.href : ''
     if (!url) return
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try { await navigator.share({ title, url }) } catch { /* user dismissed the sheet */ }
+      try {
+        await navigator.share({ title, url })
+      } catch (err) {
+        if ((err as Error)?.name !== 'AbortError') await copyLink(url)
+      }
       return
     }
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard blocked — nothing to do */ }
-  }, [title])
+    await copyLink(url)
+  }, [title, copyLink])
 
   // Scroll the mobile track to a slide (dot taps + lightbox-close sync).
   const scrollToSlide = useCallback((i: number) => {
