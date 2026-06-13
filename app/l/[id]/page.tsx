@@ -35,6 +35,7 @@ import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liv
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
 import { toRatePeriod } from '@/lib/rental-pricing'
+import { digitalFileInfo, digitalSpecs } from '@/lib/digital-delivery'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -263,6 +264,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const rentalPeriod = toRatePeriod(rentalAttrs.rate_period)
   const rentalLed = redesign && isRental && showBuyerActions && hasBuyablePrice
   const suppressGenericBar = serviceLed || rentalLed
+  // Digital (S4.3) leads with an "entrega al instante" banner; specs reinterpreted
+  // as formato · tamaño. Digital already renders its buy inline (excluded from the
+  // offer bar), so digitalLed only governs the hero banner + spec reinterpretation.
+  const digitalLed = redesign && isDigital
+  const digitalInfo = digitalLed ? digitalFileInfo(digitalFile) : null
+  const digitalSpecRows = digitalLed ? digitalSpecs(digitalFile, listing.metadata) : []
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -709,6 +716,41 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           />
         )}
 
+        {/* ── Digital hero (S4.3) — "entrega al instante" banner leads the page
+            (file name + size + format), with specs reinterpreted as formato ·
+            tamaño · (licencia/compatibilidad/incluye when stored). Replaces the
+            lower generic digital badge for digitalLed. No envío/devoluciones/oferta. */}
+        {digitalLed && (
+          <div data-testid="pdp-digital-hero" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--agent-soft)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: digitalSpecRows.length ? 12 : 0 }}>
+              <i className="iconoir-flash" style={{ fontSize: 22, color: 'var(--agent)', flexShrink: 0, marginTop: 1 }} />
+              <div className="min-w-0">
+                <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--agent)' }}>Entrega al instante</p>
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                  Recibes el archivo en cuanto se confirma el pago.
+                </p>
+                {digitalInfo?.name && (
+                  <p style={{ fontSize: 12, color: 'var(--fg)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <i className="iconoir-page" style={{ fontSize: 12, marginRight: 4 }} />
+                    {digitalInfo.name}
+                    {digitalInfo.sizeLabel && <span style={{ color: 'var(--fg-muted)' }}> · {digitalInfo.sizeLabel}</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+            {digitalSpecRows.length > 0 && (
+              <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+                {digitalSpecRows.map(spec => (
+                  <div key={spec.label} style={{ display: 'contents' }}>
+                    <dt style={{ fontSize: 13, color: 'var(--fg-muted)' }}>{spec.label}</dt>
+                    <dd style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{spec.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
@@ -762,7 +804,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         />
 
         {/* ── Badges ──────────────────────────────────────────────────────────── */}
-        {isDigital && digitalFile && (
+        {/* digitalLed promotes this to the hero banner above, so it renders here
+            only on the legacy (kill-switch off) path. */}
+        {isDigital && digitalFile && !digitalLed && (
           <div className="flex items-center gap-2" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
             <i className="iconoir-pc-mouse" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
             <div className="flex-1 min-w-0">
@@ -890,7 +934,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {returnsLabel && (
+        {/* Digital goods have no returns surface (S4.3 — no envío/devoluciones). */}
+        {returnsLabel && !digitalLed && (
           <div style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Política de devoluciones</h2>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
