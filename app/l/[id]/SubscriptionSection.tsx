@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { groupTiersByPlan, hasBothIntervals, tierAnnualSaving } from '@/lib/subscription-pricing'
 
 export interface SubscriptionTier {
   id: string
@@ -48,6 +49,29 @@ export default function SubscriptionSection({
   const [selectedTierId, setSelectedTierId] = useState(
     tiers.find(t => t.is_highlighted)?.id ?? tiers[0]?.id ?? '',
   )
+
+  // S4.4 — mensual/anual toggle. Only shown when the seller offers BOTH a monthly
+  // and an annual tier; otherwise the section behaves exactly as before (all tiers
+  // shown, no toggle). The exact annual saving comes from the pure pricing seam.
+  const groups = useMemo(() => groupTiersByPlan(tiers), [tiers])
+  const showToggle = useMemo(() => hasBothIntervals(tiers), [tiers])
+  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>(
+    () => (tiers.find(t => t.is_highlighted) ?? tiers[0])?.interval ?? 'month',
+  )
+  const visibleTiers = showToggle ? tiers.filter(t => t.interval === billingInterval) : tiers
+
+  function switchInterval(next: 'month' | 'year') {
+    setBillingInterval(next)
+    // Keep the buyer on the same plan across the toggle when possible.
+    const curGroup = groups.find(g => g.monthly?.id === selectedTierId || g.annual?.id === selectedTierId)
+    const target = next === 'year' ? curGroup?.annual : curGroup?.monthly
+    const fallback = tiers.find(t => t.interval === next && t.is_highlighted) ?? tiers.find(t => t.interval === next)
+    const nextId = (target ?? fallback)?.id
+    if (nextId) setSelectedTierId(nextId)
+  }
+
+  const selectedSaving = tierAnnualSaving(groups, selectedTierId)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -152,10 +176,37 @@ export default function SubscriptionSection({
         </p>
       </div>
 
+      {/* S4.4 — mensual / anual toggle (only when both intervals exist) */}
+      {showToggle && (
+        <div className="px-5 pb-3">
+          <div data-testid="subscription-interval-toggle" className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5 bg-[var(--color-surface-alt)]">
+            <button
+              type="button"
+              onClick={() => switchInterval('month')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${billingInterval === 'month' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
+            >
+              Mensual
+            </button>
+            <button
+              type="button"
+              onClick={() => switchInterval('year')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${billingInterval === 'year' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
+            >
+              Anual
+            </button>
+          </div>
+          {billingInterval === 'year' && selectedSaving && (
+            <p data-testid="subscription-annual-saving" className="text-xs text-green-600 font-medium mt-2">
+              Ahorras {formatPrice(selectedSaving.savingCents, currency)} al año ({selectedSaving.savingPct}%)
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Tier cards */}
-      {tiers.length > 0 && (
-        <div className={`px-4 pb-4 grid gap-3 ${tiers.length === 1 ? 'grid-cols-1' : tiers.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-          {tiers.map(tier => {
+      {visibleTiers.length > 0 && (
+        <div className={`px-4 pb-4 grid gap-3 ${visibleTiers.length === 1 ? 'grid-cols-1' : visibleTiers.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {visibleTiers.map(tier => {
             const isSelected = tier.id === selectedTierId
             return (
               <button
