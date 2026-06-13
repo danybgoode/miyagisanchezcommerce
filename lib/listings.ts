@@ -198,16 +198,18 @@ const getCuratedPool = unstable_cache(
   { revalidate: 60, tags: ['listings'] },
 )
 
+// `now` is injectable so the page can pass ONE timestamp to both featured + grid:
+// computing it independently in each could, at the exact 14-day cutoff, let a
+// listing be the featured pick in one call yet not be excluded by the other.
 /** The Selección featured pick (pinned-first, else freshest qualifying); null when none. */
-export async function getFeaturedListing(): Promise<Listing | null> {
+export async function getFeaturedListing(now = Date.now()): Promise<Listing | null> {
   const pool = await getCuratedPool()
-  return pickFeatured(pool, Date.now())
+  return pickFeatured(pool, now)
 }
 
 /** The Selección grid — n qualifying listings, excluding the featured card. */
-export async function getCuratedListings(n = GRID_SIZE): Promise<Listing[]> {
+export async function getCuratedListings(n = GRID_SIZE, now = Date.now()): Promise<Listing[]> {
   const pool = await getCuratedPool()
-  const now = Date.now()
   const featured = pickFeatured(pool, now)
   return curateGrid(pool, now, n, featured?.id)
 }

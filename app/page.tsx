@@ -24,9 +24,12 @@ function timeAgo(dateStr: string): string {
 }
 
 export default async function HomePage() {
+  // One timestamp for both the featured pick and the grid so their selection is
+  // atomic (no 14-day-cutoff divergence between the two reads).
+  const now = Date.now()
   const [featured, grid, categories, user] = await Promise.all([
-    getFeaturedListing(),
-    getCuratedListings(4),
+    getFeaturedListing(now),
+    getCuratedListings(4, now),
     getCategoryCounts(),
     currentUser(),
   ])
@@ -51,7 +54,6 @@ export default async function HomePage() {
     )
   }
   const isSignedIn = !!user
-  const now = Date.now()
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
