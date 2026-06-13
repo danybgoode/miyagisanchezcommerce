@@ -5,10 +5,13 @@ import {
   getFeaturedListing,
   getCuratedListings,
   getCategoryCounts,
+  getShopListings,
   formatPrice,
   conditionLabel,
 } from '@/lib/listings'
 import { isRecentForBadge } from '@/lib/home-curation'
+import { getRecentFavorites, type RecentFavorite } from '@/lib/home-favorites'
+import { deriveOfferAlerts, type OfferAlertInput, type OfferAlert } from '@/lib/home-offer-alert'
 import type { Listing } from '@/lib/types'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
@@ -26,6 +29,33 @@ function timeAgo(dateStr: string): string {
   if (mins < 60) return `Hace ${mins} min`
   const hrs = Math.floor(mins / 60)
   return `Hace ${hrs} h`
+}
+
+// Price label for the retoma rail (RecentFavorite carries cents + currency, not a Listing).
+function priceLabel(cents: number | null, currency: string): string {
+  if (cents == null) return 'Precio a consultar'
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
+}
+
+// Supabase returns a to-one join as an object, but the generated types widen it to an
+// array — normalize to the single row either way.
+function one<T>(v: T | T[] | null | undefined): T | null {
+  return Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
+}
+
+// The shape of the listing join on an offer row (to-one, possibly array-wrapped).
+type OfferShop = { name?: string | null }
+type OfferListing = {
+  title?: string | null
+  currency?: string | null
+  marketplace_shops?: OfferShop | OfferShop[] | null
+}
+type OfferRow = {
+  id: string
+  offer_amount_cents: number
+  status: OfferAlertInput['status']
+  expires_at: string
+  marketplace_listings?: OfferListing | OfferListing[] | null
 }
 
 export default async function HomePage() {
@@ -61,6 +91,104 @@ export default async function HomePage() {
   }
   const isSignedIn = !!user
 
+  // ── Signed-in modules (Sprint 4) ───────────────────────────────────────────
+  // Recognise the returning user. Every read is null-safe (`?? []`) so these ship
+  // independent of one another and of S4.4 (no price-drop badge in v1).
+  let recentFavorites: RecentFavorite[] = []
+  let offerAlerts: OfferAlert[] = []
+  let hasShop = false
+  let sellerSnapshot: { shopName: string; visitas: number; ofertasNuevas: number } | null = null
+
+  if (user) {
+    // Resolve the user's shop from the Supabase mirror — one cheap call, no Clerk JWT,
+    // same lookup as app/shop/manage/offers/page.tsx.
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('id, slug, name')
+      .eq('clerk_user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    hasShop = !!shop
+
+    const [favs, buyerOffersRes, sellerOffersRes] = await Promise.all([
+      getRecentFavorites(user.id, 3),
+      db
+        .from('marketplace_offers')
+        .select('id, offer_amount_cents, status, expires_at, marketplace_listings!inner(title, currency, marketplace_shops(name))')
+        .eq('buyer_clerk_user_id', user.id)
+        .eq('status', 'pending')
+        .order('expires_at', { ascending: true })
+        .limit(10),
+      shop
+        ? db
+            .from('marketplace_offers')
+            .select('id, offer_amount_cents, status, expires_at, marketplace_listings!inner(title, currency)')
+            .eq('shop_id', shop.id)
+            .eq('status', 'pending')
+            .order('expires_at', { ascending: true })
+            .limit(10)
+        : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    ])
+    recentFavorites = favs
+
+    const buyerOffers = (buyerOffersRes.data ?? []) as unknown as OfferRow[]
+    const sellerOffers = (sellerOffersRes.data ?? []) as unknown as OfferRow[]
+
+    // Resolve conversation ids so each alert deep-links to its thread.
+    const offerIds = [...buyerOffers, ...sellerOffers].map(o => o.id)
+    let convByOfferId: Record<string, string> = {}
+    if (offerIds.length > 0) {
+      const { data: convs } = await db
+        .from('marketplace_conversations')
+        .select('id, offer_id')
+        .in('offer_id', offerIds)
+      convByOfferId = Object.fromEntries(
+        (convs ?? []).filter(c => c.offer_id).map(c => [c.offer_id as string, c.id as string]),
+      )
+    }
+
+    const alertInputs: OfferAlertInput[] = [
+      ...buyerOffers.map((o): OfferAlertInput => {
+        const listing = one(o.marketplace_listings)
+        return {
+          offerId: o.id,
+          conversationId: convByOfferId[o.id] ?? null,
+          perspective: 'buyer',
+          status: o.status,
+          expiresAt: o.expires_at,
+          amountCents: o.offer_amount_cents,
+          currency: listing?.currency ?? 'MXN',
+          listingTitle: listing?.title ?? 'Anuncio',
+          shopName: one(listing?.marketplace_shops)?.name ?? null,
+        }
+      }),
+      ...sellerOffers.map((o): OfferAlertInput => {
+        const listing = one(o.marketplace_listings)
+        return {
+          offerId: o.id,
+          conversationId: convByOfferId[o.id] ?? null,
+          perspective: 'seller',
+          status: o.status,
+          expiresAt: o.expires_at,
+          amountCents: o.offer_amount_cents,
+          currency: listing?.currency ?? 'MXN',
+          listingTitle: listing?.title ?? 'Anuncio',
+          shopName: null,
+        }
+      }),
+    ]
+    offerAlerts = deriveOfferAlerts(alertInputs, now)
+
+    // Seller snapshot (S4.3): visitas = sum of the shop's listing views (cached read);
+    // ofertas nuevas = pending offers we already fetched for the alert.
+    if (shop) {
+      const shopListings = await getShopListings(shop.slug)
+      const visitas = shopListings.reduce((sum, l) => sum + (l.views ?? 0), 0)
+      sellerSnapshot = { shopName: shop.name, visitas, ofertasNuevas: sellerOffers.length }
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
       {/* S3.1 — Value-prop ribbon (signed-out only): one-line orientation in place of a hero */}
@@ -87,6 +215,91 @@ export default async function HomePage() {
             Cómo funciona →
           </Link>
         </div>
+      )}
+
+      {/* S4.1 — "Retoma donde te quedaste" rail (signed-in): newest 3 favorites, the first
+          content module. No price-drop badge in v1 (deferred). Hidden when empty. */}
+      {recentFavorites.length > 0 && (
+        <section className="mb-6" data-testid="home-retoma-rail">
+          <div className="flex items-center justify-between mb-3">
+            <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
+              Retoma donde te quedaste
+            </h2>
+            <Link href="/account/favorites" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              Favoritos →
+            </Link>
+          </div>
+          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+            {recentFavorites.map(fav => (
+              <Link
+                key={fav.medusaId}
+                href={`/l/${fav.medusaId}`}
+                className="card-tile no-underline"
+                style={{ flex: '0 0 auto', width: 150 }}
+              >
+                {fav.imageUrl ? (
+                  <img src={fav.imageUrl} alt={fav.title} className="w-full object-cover" style={{ aspectRatio: '1 / 1' }} />
+                ) : (
+                  <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>
+                    <i className="iconoir-package" style={{ fontSize: 32, color: 'var(--fg-subtle)' }} />
+                  </div>
+                )}
+                <div className="p-2">
+                  <p className="t-price" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--accent)' }}>
+                    {priceLabel(fav.priceCents, fav.currency)}
+                  </p>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '3px 0 0' }}>
+                    {fav.title}
+                  </p>
+                  {(fav.location || fav.condition) && (
+                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                      {[fav.location, conditionLabel(fav.condition as Listing['condition'])].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* S4.2 — Pending-offer alert (signed-in): ≤2 actionable offers, nothing when none.
+          The "is-actionable / max 2 / buyer-vs-seller" logic is in lib/home-offer-alert.ts. */}
+      {offerAlerts.length > 0 && (
+        <section className="mb-6" data-testid="home-offer-alert" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {offerAlerts.map(alert => (
+            <Link
+              key={alert.offerId}
+              href={alert.href}
+              className="card-tile no-underline"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12 }}
+            >
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: 'var(--promo-soft)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className={alert.icon} style={{ fontSize: 20, color: 'var(--promo)' }} aria-hidden />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {alert.title}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {alert.subtitle}
+                </p>
+              </div>
+              <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>Ver →</span>
+            </Link>
+          ))}
+        </section>
       )}
 
       <CategoryChips className="mb-6" />
@@ -369,6 +582,62 @@ export default async function HomePage() {
             <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
           </div>
         </section>
+      )}
+
+      {/* S4.3 — Seller block (signed-in): a shop snapshot when the user sells, else a minimal
+          recruit card. Sits at the bottom in place of the signed-out terminal CTA. */}
+      {isSignedIn && (
+        hasShop && sellerSnapshot ? (
+          <section
+            className="mb-4"
+            data-testid="home-seller-snapshot"
+            style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 20 }}
+          >
+            <div className="card-tile" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16 }}>
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--accent-soft)',
+                }}
+              >
+                <i className="iconoir-shop" style={{ fontSize: 22, color: 'var(--accent)' }} aria-hidden />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Tu tienda esta semana</p>
+                <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
+                  {sellerSnapshot.visitas} visita{sellerSnapshot.visitas === 1 ? '' : 's'} · {sellerSnapshot.ofertasNuevas} oferta{sellerSnapshot.ofertasNuevas === 1 ? '' : 's'} nueva{sellerSnapshot.ofertasNuevas === 1 ? '' : 's'}
+                </p>
+              </div>
+              <Link href="/sell" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
+                Publicar otro
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <section
+            className="mb-4"
+            data-testid="home-seller-recruit"
+            style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 20 }}
+          >
+            <div className="card-tile" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>¿Vendes algo?</p>
+                <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
+                  Abre tu tienda gratis y empieza a vender en minutos.
+                </p>
+              </div>
+              <Link href="/vende" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
+                Abre tu tienda
+              </Link>
+            </div>
+          </section>
+        )
       )}
     </div>
   )
