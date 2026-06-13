@@ -24,6 +24,7 @@ import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import ServiceHero from './ServiceHero'
+import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
@@ -33,6 +34,7 @@ import { formatOfferAmount } from '@/lib/offers'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
+import { toRatePeriod } from '@/lib/rental-pricing'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -251,7 +253,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // kill-switch reverts to the old layout. (rentalLed is added in S4.2.)
   const isService = listing.listing_type === 'service'
   const serviceLed = redesign && isService && showBuyerActions
-  const suppressGenericBar = serviceLed
+  // Rentals (S4.2) lead with a date-range picker → exact total (días × precio +
+  // depósito). The rate is `price_cents` per `rate_period`; the deposit is a peso
+  // amount captured in `metadata.attrs.deposit` (× 100 → cents). Both default
+  // safely (deposit 0, period día) so a rental with no capture still works.
+  const isRental = listing.listing_type === 'rental'
+  const rentalAttrs = (listing.metadata?.attrs ?? {}) as Record<string, unknown>
+  const rentalDepositCents = Math.max(0, Math.round((Number(rentalAttrs.deposit) || 0) * 100))
+  const rentalPeriod = toRatePeriod(rentalAttrs.rate_period)
+  const rentalLed = redesign && isRental && showBuyerActions && hasBuyablePrice
+  const suppressGenericBar = serviceLed || rentalLed
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -679,6 +690,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingText={bookingText}
             inclusions={listingSpecs(listing)}
             description={listing.description}
+          />
+        )}
+
+        {/* ── Rental hero (S4.2) — date-range picker → exact total (días × precio +
+            depósito). Leads for rental listings; the generic buy/offer bar is
+            suppressed (`rentalLed` ⊂ suppressGenericBar). ──────────────────────── */}
+        {rentalLed && (
+          <RentalBooking
+            listingId={listing.id}
+            dailyRateCents={listing.price_cents!}
+            depositCents={rentalDepositCents}
+            period={rentalPeriod}
+            currency={listing.currency}
+            isSignedIn={isSignedIn}
+            customDomain={customDomain}
+            bookingUrl={bookingUrl}
           />
         )}
 

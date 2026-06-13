@@ -178,6 +178,28 @@ export const EVENT_FIELDS: AttrField[] = [
   { key: 'venue_address', label: 'Dirección', type: 'text', placeholder: 'Calle, colonia, ciudad…' },
 ]
 
+/**
+ * Rental pricing capture (S4.2) — deposit + rate period. These are PRICING inputs
+ * the rental PDP's date picker reads (`metadata.attrs.deposit` in MXN pesos,
+ * `metadata.attrs.rate_period`), NOT product specs, so they're rendered as their
+ * own capture panel and intentionally EXCLUDED from `attributeSchema`/`listingSpecs`
+ * (the specs table) — the deposit + total live in the RentalBooking block instead.
+ */
+export const RENTAL_FIELDS: AttrField[] = [
+  { key: 'rate_period', label: 'El precio es por', type: 'select', options: [
+    { value: 'dia', label: 'Día' },
+    { value: 'semana', label: 'Semana' },
+    { value: 'mes', label: 'Mes' },
+  ] },
+  { key: 'deposit', label: 'Depósito reembolsable (MXN)', type: 'number', placeholder: '0', min: 0 },
+]
+
+export const RENTAL_GROUP: AttrGroup = {
+  title: 'Renta: precio y depósito',
+  panelClass: 'border-teal-200 bg-teal-50/60',
+  fields: RENTAL_FIELDS,
+}
+
 /** Categories that show only a generic brand/color capture (and specs). */
 export const GENERIC_CATEGORIES = [
   'hogar', 'herramientas', 'deportes', 'mascotas', 'negocios', 'cursos', 'creatividad', 'comunidad', 'otros',
