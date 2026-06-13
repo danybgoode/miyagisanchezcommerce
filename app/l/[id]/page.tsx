@@ -27,6 +27,7 @@ import CollapsibleDescription from './CollapsibleDescription'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
+import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
 import type { Metadata } from 'next'
@@ -209,6 +210,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       .maybeSingle()
     isFavorited = !!fav
   }
+
+  // S2.2 liveness — how many people saved this listing (same join as above, count-only).
+  // Threshold-gated at render so 0–1 saves never show (see lib/pdp-liveness.ts).
+  const { count: saveCount } = await db
+    .from('marketplace_favorites')
+    .select('id, marketplace_listings!inner(medusa_product_id)', { count: 'exact', head: true })
+    .eq('marketplace_listings.medusa_product_id', id)
 
   const activeDeal = await getActiveDealForBuyer(id, clerkUser?.id)
   const agreedDealCents = activeDeal?.status === 'accepted_unpaid' && activeDeal.dealPriceCents ? activeDeal.dealPriceCents : null
@@ -559,6 +567,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* Title + meta */}
         <h1 style={{ fontWeight: 700, fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}>{listing.title}</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {/* S2.2 liveness — "Nuevo" badge for the first 48h (redesign-gated). */}
+          {redesign && isNewListing(listing.created_at) && (
+            <span data-testid="pdp-new-badge" style={{ fontSize: 12, fontWeight: 700, background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
+              Nuevo
+            </span>
+          )}
           {listing.condition && (
             <span style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
               {conditionLabel(listing.condition)}
@@ -568,6 +582,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {listing.location && (
             <span style={{ fontSize: 12, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 3 }}>
               <i className="iconoir-map-pin" style={{ fontSize: 11 }} />{listing.location}
+            </span>
+          )}
+          {/* S2.2 liveness — "X personas lo guardaron", threshold-gated (redesign-only). */}
+          {redesign && shouldShowSaveCount(saveCount) && (
+            <span data-testid="pdp-save-count" style={{ fontSize: 12, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <i className="iconoir-heart" style={{ fontSize: 11 }} />{saveCountLabel(saveCount!)}
             </span>
           )}
         </div>
