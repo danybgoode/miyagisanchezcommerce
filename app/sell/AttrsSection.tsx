@@ -5,6 +5,7 @@ import {
   EVENT_FIELDS,
   GENERIC_CATEGORIES,
   GENERIC_FIELDS,
+  RENTAL_GROUP,
   type AttrField,
 } from '@/lib/listing-attributes'
 
@@ -92,24 +93,38 @@ export function AttrsSection({ category, listingType, attrs, setAttr }: {
   if (listingType === 'digital') return eventBlock
   if (listingType === 'subscription') return null
 
-  // Product-paneled categories take precedence over the service fallback.
-  if (['autos', 'inmuebles', 'moda', 'electronica'].includes(category)) {
-    return panel(CATEGORY_GROUPS[category])
-  }
+  // The category attribute panel (independent of the rental pricing panel below).
+  const categoryContent = (() => {
+    // Product-paneled categories take precedence over the service fallback.
+    if (['autos', 'inmuebles', 'moda', 'electronica'].includes(category)) {
+      return panel(CATEGORY_GROUPS[category])
+    }
+    // Services get their own panel + the optional event block.
+    if (category === 'servicios' || listingType === 'service') {
+      return (
+        <div className="space-y-3">
+          {panel(CATEGORY_GROUPS.servicios)}
+          {eventBlock}
+        </div>
+      )
+    }
+    if (GENERIC_CATEGORIES.includes(category)) {
+      return <FieldGrid fields={GENERIC_FIELDS} attrs={attrs} setAttr={setAttr} />
+    }
+    return null
+  })()
 
-  // Services get their own panel + the optional event block.
-  if (category === 'servicios' || listingType === 'service') {
+  // Rentals (S4.2) lead with a pricing panel — rate period + deposit — that the
+  // PDP date picker reads to compute the exact total. Shown above whatever
+  // category panel applies (a rented car still captures its vehicle specs).
+  if (listingType === 'rental') {
     return (
       <div className="space-y-3">
-        {panel(CATEGORY_GROUPS.servicios)}
-        {eventBlock}
+        {panel(RENTAL_GROUP)}
+        {categoryContent}
       </div>
     )
   }
 
-  if (GENERIC_CATEGORIES.includes(category)) {
-    return <FieldGrid fields={GENERIC_FIELDS} attrs={attrs} setAttr={setAttr} />
-  }
-
-  return null
+  return categoryContent
 }

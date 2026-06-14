@@ -23,6 +23,8 @@ import { listingSpecs } from '@/lib/listing-attributes'
 import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
+import ServiceHero from './ServiceHero'
+import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
@@ -32,6 +34,8 @@ import { formatOfferAmount } from '@/lib/offers'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
+import { toRatePeriod } from '@/lib/rental-pricing'
+import { digitalFileInfo, digitalSpecs } from '@/lib/digital-delivery'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -242,6 +246,30 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // lib/flags.ts) — flipping it OFF in Flagsmith reverts the whole product page to
   // the previous layout instantly. Every redesign delta below branches on this.
   const redesign = await isEnabled('pdp_redesign')
+
+  // ══ Per-type heroes (S4) ════════════════════════════════════════════════════
+  // A service leads with scheduling (S4.1) — not the boxed buy/offer bar — so when
+  // `serviceLed`, the generic buy bar + bundle + generic specs/description are
+  // suppressed and ServiceHero owns the action region. All redesign-gated, so the
+  // kill-switch reverts to the old layout. (rentalLed is added in S4.2.)
+  const isService = listing.listing_type === 'service'
+  const serviceLed = redesign && isService && showBuyerActions
+  // Rentals (S4.2) lead with a date-range picker → exact total (días × precio +
+  // depósito). The rate is `price_cents` per `rate_period`; the deposit is a peso
+  // amount captured in `metadata.attrs.deposit` (× 100 → cents). Both default
+  // safely (deposit 0, period día) so a rental with no capture still works.
+  const isRental = listing.listing_type === 'rental'
+  const rentalAttrs = (listing.metadata?.attrs ?? {}) as Record<string, unknown>
+  const rentalDepositCents = Math.max(0, Math.round((Number(rentalAttrs.deposit) || 0) * 100))
+  const rentalPeriod = toRatePeriod(rentalAttrs.rate_period)
+  const rentalLed = redesign && isRental && showBuyerActions && hasBuyablePrice
+  const suppressGenericBar = serviceLed || rentalLed
+  // Digital (S4.3) leads with an "entrega al instante" banner; specs reinterpreted
+  // as formato · tamaño. Digital already renders its buy inline (excluded from the
+  // offer bar), so digitalLed only governs the hero banner + spec reinterpretation.
+  const digitalLed = redesign && isDigital
+  const digitalInfo = digitalLed ? digitalFileInfo(digitalFile) : null
+  const digitalSpecRows = digitalLed ? digitalSpecs(digitalFile, listing.metadata) : []
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -657,17 +685,82 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
+            service attrs + description. Leads the page for service listings, so the
+            generic specs table + description duplicates below are suppressed
+            (`!serviceLed`) to avoid repeating the same content. ───────────────── */}
+        {serviceLed && (
+          <ServiceHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            bookingText={bookingText}
+            inclusions={listingSpecs(listing)}
+            description={listing.description}
+          />
+        )}
+
+        {/* ── Rental hero (S4.2) — date-range picker → exact total (días × precio +
+            depósito). Leads for rental listings; the generic buy/offer bar is
+            suppressed (`rentalLed` ⊂ suppressGenericBar). ──────────────────────── */}
+        {rentalLed && (
+          <RentalBooking
+            listingId={listing.id}
+            dailyRateCents={listing.price_cents!}
+            depositCents={rentalDepositCents}
+            period={rentalPeriod}
+            currency={listing.currency}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+          />
+        )}
+
+        {/* ── Digital hero (S4.3) — "entrega al instante" banner leads the page
+            (file name + size + format), with specs reinterpreted as formato ·
+            tamaño · (licencia/compatibilidad/incluye when stored). Replaces the
+            lower generic digital badge for digitalLed. No envío/devoluciones/oferta. */}
+        {digitalLed && (
+          <div data-testid="pdp-digital-hero" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--agent-soft)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: digitalSpecRows.length ? 12 : 0 }}>
+              <i className="iconoir-flash" style={{ fontSize: 22, color: 'var(--agent)', flexShrink: 0, marginTop: 1 }} />
+              <div className="min-w-0">
+                <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--agent)' }}>Entrega al instante</p>
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
+                  Recibes el archivo en cuanto se confirma el pago.
+                </p>
+                {digitalInfo?.name && (
+                  <p style={{ fontSize: 12, color: 'var(--fg)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <i className="iconoir-page" style={{ fontSize: 12, marginRight: 4 }} />
+                    {digitalInfo.name}
+                    {digitalInfo.sizeLabel && <span style={{ color: 'var(--fg-muted)' }}> · {digitalInfo.sizeLabel}</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+            {digitalSpecRows.length > 0 && (
+              <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+                {digitalSpecRows.map(spec => (
+                  <div key={spec.label} style={{ display: 'contents' }}>
+                    <dt style={{ fontSize: 13, color: 'var(--fg-muted)' }}>{spec.label}</dt>
+                    <dd style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{spec.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
             description keeps its original lower position (`hidden md:block` below).
             Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
-        {redesign && (
+        {redesign && !serviceLed && (
           <div className="md:hidden" data-testid="pdp-specs-slot">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
         )}
-        {redesign && listing.description && (
+        {redesign && !serviceLed && listing.description && (
           <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <CollapsibleDescription text={listing.description} />
@@ -710,7 +803,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         />
 
         {/* ── Badges ──────────────────────────────────────────────────────────── */}
-        {isDigital && digitalFile && (
+        {/* digitalLed promotes this to the hero banner above, so it renders here
+            only on the legacy (kill-switch off) path. */}
+        {isDigital && digitalFile && !digitalLed && (
           <div className="flex items-center gap-2" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
             <i className="iconoir-pc-mouse" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
             <div className="flex-1 min-w-0">
@@ -759,7 +854,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
 
         {/* ── Desktop inline CTAs (buy now + make offer) ─────────────────────── */}
-        {showBuyButtons && (
+        {showBuyButtons && !suppressGenericBar && (
           <div className="hidden md:block" style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
             {redesign ? redesignBarContent : ctaButtons}
           </div>
@@ -787,6 +882,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               isSignedIn={isSignedIn}
               buyerDisplayName={clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') : undefined}
               buyerUserEmail={clerkUser?.emailAddresses[0]?.emailAddress}
+              redesign={redesign}
             />
           </div>
         )}
@@ -810,15 +906,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             renders higher (md:hidden above); here it's desktop-only. ─────────── */}
         {sellerTrustCard && <div className="hidden md:block">{sellerTrustCard}</div>}
 
-        {bundleItems.length > 1 && listing.shop && (
+        {bundleItems.length > 1 && listing.shop && !suppressGenericBar && (
           <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
         )}
 
         {/* ── Especificaciones (S3.3 · finding #7) ────────────────────────────────
             Desktop copy of the scannable specs table (mobile copy rides the specs
             slot higher up). Redesign-gated so the kill-switch reverts cleanly; the
-            table renders nothing when the listing has no structured attributes. */}
-        {redesign && (
+            table renders nothing when the listing has no structured attributes.
+            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye". */}
+        {redesign && !serviceLed && (
           <div className="hidden md:block">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
@@ -827,15 +924,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* ── Description ──────────────────────────────────────────────────────── */}
         {/* Redesign (S1.2): this original lower copy becomes DESKTOP-only — mobile
             shows the collapsible description higher up (above payment/seller). When
-            the kill-switch is off it renders for all viewports, exactly as before. */}
-        {listing.description && (
+            the kill-switch is off it renders for all viewports, exactly as before.
+            Suppressed for serviceLed — the description is shown in ServiceHero's
+            "Qué incluye" block instead. */}
+        {listing.description && !serviceLed && (
           <div className={redesign ? 'hidden md:block' : undefined} style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
             <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
           </div>
         )}
 
-        {returnsLabel && (
+        {/* Digital goods have no returns surface (S4.3 — no envío/devoluciones). */}
+        {returnsLabel && !digitalLed && (
           <div style={{ marginBottom: 20 }}>
             <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Política de devoluciones</h2>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
@@ -882,7 +982,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           matching in-flow spacer, so the variable-height bar never clips content.
           `barMode !== 'hidden'` is equivalent to `showBuyButtons` (see derivePdpBarMode). */}
       {redesign ? (
-        barMode !== 'hidden' && <StickyBuyBar>{redesignBarContent}</StickyBuyBar>
+        barMode !== 'hidden' && !suppressGenericBar && <StickyBuyBar>{redesignBarContent}</StickyBuyBar>
       ) : (
         showBuyButtons && (
           <div

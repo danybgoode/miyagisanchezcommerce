@@ -15,6 +15,7 @@ import { isShopClaimed } from '@/lib/claim'
 import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 import { listingSpecs, type Spec } from '@/lib/listing-attributes'
+import { toRatePeriod, type RatePeriod } from '@/lib/rental-pricing'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,11 @@ export interface UcpListing {
 
   // Event admission metadata, present when the listing carries event attrs.
   event: ListingEventDetails | null
+
+  // Rental pricing semantics (S4.2) — present for rental listings so an agent
+  // reads `price` as the rate PER this period (plus a refundable deposit), rather
+  // than quoting the per-period rate as the full price. null for non-rentals.
+  rental: { rate_period: RatePeriod; deposit_cents: number } | null
 
   // Commerce capabilities
   shop: UcpShop
@@ -173,6 +179,13 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
   // ── Trust ───────────────────────────────────────────────────────────────────
   const listingMeta = listing.metadata ?? {}
   const event = readEventDetails(listing)
+  // Rental pricing semantics — rate period + refundable deposit (pesos → cents),
+  // read from the same metadata.attrs the PDP date picker uses (S4.2).
+  const rentalAttrs = (listingMeta.attrs ?? {}) as Record<string, unknown>
+  const rental = listing.listing_type === 'rental' ? {
+    rate_period: toRatePeriod(rentalAttrs.rate_period),
+    deposit_cents: Math.max(0, Math.round((Number(rentalAttrs.deposit) || 0) * 100)),
+  } : null
   const repuveChecked = !!(listingMeta.repuve)
   const identityRequired = escrowMode === 'required'
 
@@ -236,6 +249,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     in_stock: inStock,
     available_quantity: listing.available_quantity ?? null,
     event,
+    rental,
 
     shop: shop ? {
       id: shop.id,
