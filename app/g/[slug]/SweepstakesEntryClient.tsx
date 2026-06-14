@@ -50,9 +50,25 @@ export default function SweepstakesEntryClient({
   const [error, setError] = useState<string | null>(null)
   const [ticketCount, setTicketCount] = useState<number | null>(null)
 
+  // Tick the countdown once a second, but only while the tab is visible — a hidden/
+  // backgrounded tab needn't re-render. Resync the clock immediately on return.
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
+    let timer: number | undefined
+
+    function start() {
+      if (timer === undefined) timer = window.setInterval(() => setNow(Date.now()), 1000)
+    }
+    function stop() {
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
+    function onVisibility() {
+      if (document.visibilityState === 'visible') { setNow(Date.now()); start() }
+      else stop()
+    }
+
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility) }
   }, [])
 
   const target = endsAt ? new Date(endsAt).getTime() : now

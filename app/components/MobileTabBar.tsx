@@ -105,12 +105,15 @@ export default function MobileTabBar() {
   const [hidden, setHidden]       = useState(false)
   const lastY = useRef(0)
 
-  // Poll unread count every 60s (lightweight count; in-conversation is realtime)
+  // Poll unread count every 150s, but only while the tab is visible — a hidden/
+  // backgrounded tab generates no invocations (in-conversation delivery is realtime;
+  // this is just the global badge). Refetch immediately when the tab returns.
   useEffect(() => {
     if (!isSignedIn) { setHasUnread(false); return }
     let cancelled = false
 
     async function checkUnread() {
+      if (document.visibilityState !== 'visible') return
       try {
         const res = await fetch('/api/conversations/unread')
         const data = await res.json() as { unread: number }
@@ -118,9 +121,18 @@ export default function MobileTabBar() {
       } catch { /* silent */ }
     }
 
+    function onVisibility() {
+      if (document.visibilityState === 'visible') checkUnread()
+    }
+
     checkUnread()
-    const id = setInterval(checkUnread, 60_000)
-    return () => { cancelled = true; clearInterval(id) }
+    const id = setInterval(checkUnread, 150_000)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [isSignedIn])
 
   // Contextual hide — get out of the way of content and the keyboard.
