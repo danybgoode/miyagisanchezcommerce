@@ -27,6 +27,8 @@ import SubscriptionSection from './SubscriptionSection'
 import ServiceHero from './ServiceHero'
 import AutoHero from './AutoHero'
 import InmuebleHero from './InmuebleHero'
+import EventHero from './EventHero'
+import { eventHeroModel } from '@/lib/event-hero'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
@@ -293,6 +295,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // icon row is a SUMMARY — the full property specs table (incl. tipo/amueblado)
   // stays below, so nothing is hidden and the generic specs are NOT suppressed.
   const inmuebleLed = redesign && listing.category === 'inmuebles'
+  // Events / boletos (S5.3) lead with the event block (fecha · hora · lugar ·
+  // dirección) and relabel the buy CTA to "Comprar boleto" — a ticket is a
+  // buyable product; the webhooks issue the ticket on payment. The QR is reached
+  // via a link to the buyer's order surface (the inline QR isn't cleanly
+  // resolvable from the PDP read — see lib/event-hero.ts); aforo / tiers /
+  // quantity are deferred (no live source). The lower event block is suppressed.
+  const eventLed = redesign && !!eventDetails
+  const eventModel = eventLed ? eventHeroModel() : null
+  const buyNowLabel = eventModel ? `${eventModel.buyLabel} — ${effectivePrice}` : `Comprar ahora — ${effectivePrice}`
+  const signInBuyLabel = eventModel ? eventModel.signInLabel : 'Inicia sesión para comprar'
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -459,11 +471,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
     ) : isSignedIn ? (
       <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-        Comprar ahora — {effectivePrice}
+        {buyNowLabel}
       </Link>
     ) : (
       <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-        Inicia sesión para comprar
+        {signInBuyLabel}
       </Link>
     )
   ) : (
@@ -800,6 +812,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           />
         )}
 
+        {/* ── Event hero (S5.3) — fecha · hora · lugar · dirección lead the page;
+            the buy CTA below is relabeled "Comprar boleto"; a light "Ver mi
+            boleto" link points at the order surface that renders the QR. The
+            lower event block is suppressed for `eventLed` (no duplicate). ─────── */}
+        {eventLed && eventDetails && <EventHero eventDetails={eventDetails} />}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
@@ -881,7 +899,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {eventDetails && (
+        {eventDetails && !eventLed && (
           <div data-testid="listing-event-details" style={{ background: 'var(--info-soft)', border: '1px solid var(--info)', borderRadius: 'var(--r-lg)', padding: '14px', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--info)', marginTop: 1, flexShrink: 0 }} />
