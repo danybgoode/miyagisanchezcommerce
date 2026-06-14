@@ -7,6 +7,7 @@ import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
 import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
 } from '@/lib/shortlink'
+import { isLikelyListingId, isLikelyShopSlug } from '@/lib/route-shape'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -245,6 +246,38 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (req.nextUrl.pathname.startsWith('/embed/')) {
     headers.set('x-miyagi-embed', '1')
     return NextResponse.next({ request: { headers } })
+  }
+
+  // ── Cheap, cached 404 for clearly-malformed listing/shop URLs ─────────────
+  // Scanners hammering dead/junk paths (`/l/.env`, `/s/wp-login.php`, …) were the
+  // #1 source of `/_not-found` function invocations + Fluid Active CPU (epic 09 ·
+  // cost reduction S2.2). A segment that can't be shaped like a real Medusa
+  // product id / shop slug can never resolve, so we 404 it HERE — before the page
+  // function is invoked — and attach a long edge-cache header so repeat hits are
+  // served by the CDN, not the function. Single-segment only (`/l/x`, `/s/x`), so
+  // the `/l` index and `/s/[slug]/claim` sub-route pass through untouched.
+  // Well-formed-but-deleted ids/slugs (and retired-slug 301s) are NOT caught here
+  // — they flow to the page, which 404s/redirects them normally. The page guards
+  // share these same lib/route-shape predicates (defense-in-depth + channel hosts).
+  const platformPath = req.nextUrl.pathname
+  const listingSeg = /^\/l\/([^/]+)\/?$/.exec(platformPath)
+  const shopSeg = /^\/s\/([^/]+)\/?$/.exec(platformPath)
+  if (
+    (listingSeg && !isLikelyListingId(listingSeg[1])) ||
+    (shopSeg && !isLikelyShopSlug(shopSeg[1]))
+  ) {
+    return new NextResponse(
+      '<!doctype html><html><head><title>Not found</title></head><body><p>Not found.</p></body></html>',
+      {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          // s-maxage caches at the CDN edge only (not browsers); a malformed URL
+          // never becomes valid, so a long TTL is safe and serves repeats for free.
+          'Cache-Control': 'public, s-maxage=86400',
+        },
+      },
+    )
   }
 
   // ── Standard platform routing ────────────────────────────────────────────

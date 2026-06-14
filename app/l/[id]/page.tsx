@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
@@ -36,6 +37,7 @@ import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
+  if (!isLikelyListingId(id)) return { title: 'Anuncio no encontrado' }
   const listing = await getListing(id)
   if (!listing) return { title: 'Anuncio no encontrado' }
   // Canonical follows the seller's live custom domain when set, so the product
@@ -76,6 +78,14 @@ function formatCents(cents: number, currency: string): string {
 
 export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Short-circuit junk URLs BEFORE any Medusa fetch (epic 09 · cost reduction
+  // S2.2): a clearly-malformed id can never be a real product, so 404 it without
+  // paying a Store API round-trip. A well-formed-but-deleted id passes here and
+  // 404s cleanly below via getListing → notFound(). On platform hosts middleware
+  // already 404s these (with a cache header) before the function is invoked; this
+  // guard also covers custom-domain / subdomain channels, where /l/[id] passes
+  // through middleware untouched.
+  if (!isLikelyListingId(id)) notFound()
   const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
   if (!listing) notFound()
 
