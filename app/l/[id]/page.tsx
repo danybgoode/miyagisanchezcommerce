@@ -25,6 +25,11 @@ import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import ServiceHero from './ServiceHero'
+import AutoHero from './AutoHero'
+import InmuebleHero from './InmuebleHero'
+import EventHero from './EventHero'
+import { eventHeroModel } from '@/lib/event-hero'
+import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
@@ -280,6 +285,32 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const digitalLed = redesign && isDigital
   const digitalInfo = digitalLed ? digitalFileInfo(digitalFile) : null
   const digitalSpecRows = digitalLed ? digitalSpecs(digitalFile, listing.metadata) : []
+  // Autos (S5.1) lead with the REPUVE verification anchor + the vehicle spec set
+  // (the buyer's fraud anxiety first), with a primary "Agendar prueba de manejo".
+  // The buy/offer bar stays available below (a car is buyable), so this is a
+  // reorder: when `autoLed` the lower REPUVE badge + generic specs table are
+  // suppressed so nothing duplicates. AutoHero owns the autos specs.
+  const autoLed = redesign && listing.category === 'autos'
+  // Inmuebles (S5.2) lead with a glanceable icon spec row (rec · baños · m² ·
+  // estac.) + an approximate-zone map link + a primary "Agendar visita". The
+  // icon row is a SUMMARY — the full property specs table (incl. tipo/amueblado)
+  // stays below, so nothing is hidden and the generic specs are NOT suppressed.
+  const inmuebleLed = redesign && listing.category === 'inmuebles'
+  // Events / boletos (S5.3) lead with the event block (fecha · hora · lugar ·
+  // dirección) and relabel the buy CTA to "Comprar boleto" — a ticket is a
+  // buyable product; the webhooks issue the ticket on payment. The QR is reached
+  // via a link to the buyer's order surface (the inline QR isn't cleanly
+  // resolvable from the PDP read — see lib/event-hero.ts); aforo / tiers /
+  // quantity are deferred (no live source). The lower event block is suppressed.
+  const eventLed = redesign && !!eventDetails
+  const eventModel = eventLed ? eventHeroModel() : null
+  const buyNowLabel = eventModel ? `${eventModel.buyLabel} — ${effectivePrice}` : `Comprar ahora — ${effectivePrice}`
+  const signInBuyLabel = eventModel ? eventModel.signInLabel : 'Inicia sesión para comprar'
+  // Unclaimed (S5.4) — gem-imported shop with no owner. Buy/Offer/Cart already
+  // suppressed via isShopClaimed (no gating change); this only leads the page with
+  // an honest "aún no reclamada" notice. SellerTrustCard already carries the
+  // contact options + the claim nudge below.
+  const unclaimedLed = redesign && !isClaimed && !!listing.shop?.slug
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -446,11 +477,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
     ) : isSignedIn ? (
       <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-        Comprar ahora — {effectivePrice}
+        {buyNowLabel}
       </Link>
     ) : (
       <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-        Inicia sesión para comprar
+        {signInBuyLabel}
       </Link>
     )
   ) : (
@@ -695,6 +726,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Unclaimed notice (S5.4) — honest "aún no reclamada" lead for a
+            gem-imported shop with no owner. Buy/Offer/Cart already suppressed via
+            isShopClaimed (no gating change); SellerTrustCard below carries contact
+            + the claim nudge. ──────────────────────────────────────────────────── */}
+        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} />}
+
         {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
             service attrs + description. Leads the page for service listings, so the
             generic specs table + description duplicates below are suppressed
@@ -760,12 +797,46 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Autos hero (S5.1) — REPUVE verification anchor + vehicle specs lead
+            the page, with a primary "Agendar prueba de manejo". Owns the autos
+            specs, so the lower REPUVE badge + generic specs table below are
+            suppressed for `autoLed` (no duplicate). The buy/offer bar stays. ──── */}
+        {autoLed && (
+          <AutoHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            repuve={repuve}
+            specs={listingSpecs(listing)}
+          />
+        )}
+
+        {/* ── Inmuebles hero (S5.2) — icon spec row + approximate-zone map +
+            primary "Agendar visita". Additive summary; the full property specs
+            table stays below (not suppressed). ──────────────────────────────── */}
+        {inmuebleLed && (
+          <InmuebleHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            attrs={(listing.attrs ?? listing.metadata?.attrs) as Record<string, unknown> | undefined}
+            location={listing.location}
+          />
+        )}
+
+        {/* ── Event hero (S5.3) — fecha · hora · lugar · dirección lead the page;
+            the buy CTA below is relabeled "Comprar boleto"; a light "Ver mi
+            boleto" link points at the order surface that renders the QR. The
+            lower event block is suppressed for `eventLed` (no duplicate). ─────── */}
+        {eventLed && eventDetails && <EventHero eventDetails={eventDetails} />}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
             description keeps its original lower position (`hidden md:block` below).
-            Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
-        {redesign && !serviceLed && (
+            Specs slot is an empty anchor for Sprint 3's scannable specs table.
+            Suppressed for `autoLed` — AutoHero already shows the vehicle specs. ─── */}
+        {redesign && !serviceLed && !autoLed && (
           <div className="md:hidden" data-testid="pdp-specs-slot">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
@@ -828,7 +899,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {showRepuve && (
+        {showRepuve && !autoLed && (
           <div className="flex items-center gap-2" style={{ background: repuve!.status === 'sin_reporte' ? 'var(--success-soft)' : 'var(--danger-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
             <i className={repuve!.status === 'sin_reporte' ? 'iconoir-check-circle' : 'iconoir-warning-triangle'} style={{ fontSize: 18, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }} />
             <div>
@@ -840,7 +911,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {eventDetails && (
+        {eventDetails && !eventLed && (
           <div data-testid="listing-event-details" style={{ background: 'var(--info-soft)', border: '1px solid var(--info)', borderRadius: 'var(--r-lg)', padding: '14px', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--info)', marginTop: 1, flexShrink: 0 }} />
@@ -924,8 +995,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             Desktop copy of the scannable specs table (mobile copy rides the specs
             slot higher up). Redesign-gated so the kill-switch reverts cleanly; the
             table renders nothing when the listing has no structured attributes.
-            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye". */}
-        {redesign && !serviceLed && (
+            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye".
+            Suppressed for autoLed — its specs live in the AutoHero block above. */}
+        {redesign && !serviceLed && !autoLed && (
           <div className="hidden md:block">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
