@@ -44,7 +44,9 @@ export default function RentalBooking({
   isSignedIn: boolean
   bookingUrl: string | null
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  // Today in Mexico City (not UTC) — a UTC `today` rolls to tomorrow after ~18:00
+  // local (UTC-6), which would block a same-day check-in. en-CA renders YYYY-MM-DD.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
 
@@ -128,7 +130,8 @@ export default function RentalBooking({
         </div>
       ) : (
         <div
-          aria-disabled
+          role="button"
+          aria-disabled="true"
           className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm"
           style={{ background: 'var(--bg-sunk)', color: 'var(--fg-subtle)', cursor: 'not-allowed' }}
         >
