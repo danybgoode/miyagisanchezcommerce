@@ -133,4 +133,18 @@ test.describe('UCP catalog exposes labeled specs (AGENTS rule #3)', () => {
     const ucp = toUcpListing(listing('otros', {}), 'https://miyagisanchez.com')
     expect(ucp.specs).toEqual([])
   })
+
+  test('rental exposes its pricing semantics (rate_period + deposit) so an agent does not quote the per-period rate as the full price (S4.2)', () => {
+    const l = listing('herramientas', { rate_period: 'semana', deposit: '2000' })
+    l.listing_type = 'rental'
+    const ucp = toUcpListing(l, 'https://miyagisanchez.com')
+    expect(ucp.rental).toEqual({ rate_period: 'semana', deposit_cents: 200000 }) // pesos → cents
+  })
+
+  test('rental with no captured period/deposit defaults safely; non-rentals carry no rental block', () => {
+    const r = listing('otros', {})
+    r.listing_type = 'rental'
+    expect(toUcpListing(r, 'https://miyagisanchez.com').rental).toEqual({ rate_period: 'dia', deposit_cents: 0 })
+    expect(toUcpListing(listing('otros', {}), 'https://miyagisanchez.com').rental).toBeNull()
+  })
 })

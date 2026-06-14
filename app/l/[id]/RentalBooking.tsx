@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
+import AskSellerButton from '@/app/components/AskSellerButton'
 import {
   computeRentalTotal,
   nightsBetween,
@@ -16,12 +16,16 @@ import {
  *
  * A rental leads with this date-range picker instead of the boxed buy/offer bar:
  * pick check-in / check-out → the EXACT total (`días × precio + depósito`) appears
- * beside the price and on the primary "Reservar · $total" action. The deposit is
- * shown up front, before any date is picked. All the math is the pure
- * `lib/rental-pricing.ts` seam, so the displayed totals are spec-proven exact.
+ * beside the price as an ESTIMATE. The deposit is shown up front, before any date
+ * is picked. All the math is the pure `lib/rental-pricing.ts` seam, so the
+ * displayed estimate is spec-proven exact.
  *
- * No money mutation: "Reservar" reuses the existing checkout hop, carrying the
- * chosen dates as context; `booking_url` (if any) is a secondary availability link.
+ * No money mutation: a rental is fulfilled by coordination (fulfillment = coord),
+ * and the generic /checkout charges a single unit of `price_cents` — it does NOT
+ * honor the date range or deposit — so "Reservar estas fechas" opens a conversation
+ * with the seller to confirm dates, the total, and the deposit/payment, rather than
+ * sending the buyer to a checkout that would contradict the shown total.
+ * `booking_url` (if any) is a secondary availability link.
  */
 export default function RentalBooking({
   listingId,
@@ -30,7 +34,6 @@ export default function RentalBooking({
   period,
   currency,
   isSignedIn,
-  customDomain,
   bookingUrl,
 }: {
   listingId: string
@@ -39,7 +42,6 @@ export default function RentalBooking({
   period: RatePeriod
   currency: string
   isSignedIn: boolean
-  customDomain: string | null
   bookingUrl: string | null
 }) {
   const today = new Date().toISOString().slice(0, 10)
@@ -49,9 +51,6 @@ export default function RentalBooking({
   const nights = nightsBetween(checkIn, checkOut)
   const price = computeRentalTotal({ rateCents: dailyRateCents, depositCents, nights, period })
   const hasRange = price.units > 0
-
-  const reservePath = `/checkout?listingId=${listingId}${checkIn ? `&checkin=${checkIn}` : ''}${checkOut ? `&checkout=${checkOut}` : ''}`
-  const reserveHref = isSignedIn ? checkoutHopHref(reservePath, customDomain) : signInHopHref(reservePath, customDomain)
 
   return (
     <div data-testid="pdp-rental-booking" style={{ marginBottom: 20, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
@@ -111,22 +110,22 @@ export default function RentalBooking({
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-            <span style={{ fontWeight: 700 }}>Total</span>
+            <span style={{ fontWeight: 700 }}>Total estimado</span>
             <span data-testid="pdp-rental-total" style={{ fontWeight: 800 }}>{formatRentalCents(price.totalCents, currency)}</span>
           </div>
         </div>
       )}
 
-      {/* Primary action */}
+      {/* Primary action — coordinate the reservation with the seller (a rental is
+          fulfilled by coordination; the generic checkout would mischarge a single
+          unit and ignore the deposit, so we don't send the buyer there). */}
       {hasRange ? (
-        <a
-          href={reserveHref}
-          data-testid="pdp-rental-reservar"
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
-          style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
-        >
-          Reservar · {formatRentalCents(price.totalCents, currency)}
-        </a>
+        <div data-testid="pdp-rental-reservar">
+          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" />
+          <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
+            Coordinarás el cobro y el depósito con el vendedor.
+          </p>
+        </div>
       ) : (
         <div
           aria-disabled

@@ -711,7 +711,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             period={rentalPeriod}
             currency={listing.currency}
             isSignedIn={isSignedIn}
-            customDomain={customDomain}
             bookingUrl={bookingUrl}
           />
         )}
@@ -883,6 +882,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               isSignedIn={isSignedIn}
               buyerDisplayName={clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') : undefined}
               buyerUserEmail={clerkUser?.emailAddresses[0]?.emailAddress}
+              redesign={redesign}
             />
           </div>
         )}

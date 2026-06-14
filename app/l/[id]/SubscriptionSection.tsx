@@ -24,6 +24,7 @@ interface SubscriptionSectionProps {
   isSignedIn: boolean  // buyer is authenticated
   buyerDisplayName?: string  // pre-filled from Clerk (authenticated users)
   buyerUserEmail?: string    // pre-filled from Clerk (authenticated users)
+  redesign?: boolean   // S4.4 — gate the mensual/anual toggle on the pdp_redesign kill-switch
 }
 
 function formatPrice(cents: number, currency: string): string {
@@ -45,16 +46,19 @@ export default function SubscriptionSection({
   isSignedIn,
   buyerDisplayName,
   buyerUserEmail,
+  redesign,
 }: SubscriptionSectionProps) {
   const [selectedTierId, setSelectedTierId] = useState(
     tiers.find(t => t.is_highlighted)?.id ?? tiers[0]?.id ?? '',
   )
 
-  // S4.4 — mensual/anual toggle. Only shown when the seller offers BOTH a monthly
-  // and an annual tier; otherwise the section behaves exactly as before (all tiers
-  // shown, no toggle). The exact annual saving comes from the pure pricing seam.
+  // S4.4 — mensual/anual toggle. Gated on the pdp_redesign kill-switch AND only
+  // shown when the seller offers BOTH a monthly and an annual tier; otherwise the
+  // section behaves exactly as before (all tiers shown, no toggle), so flipping
+  // the flag OFF reverts cleanly. The exact annual saving comes from the pure seam.
   const groups = useMemo(() => groupTiersByPlan(tiers), [tiers])
-  const showToggle = useMemo(() => hasBothIntervals(tiers), [tiers])
+  const bothIntervals = useMemo(() => hasBothIntervals(tiers), [tiers])
+  const showToggle = !!redesign && bothIntervals
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>(
     () => (tiers.find(t => t.is_highlighted) ?? tiers[0])?.interval ?? 'month',
   )
