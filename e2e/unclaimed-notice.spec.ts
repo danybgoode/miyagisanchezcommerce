@@ -24,6 +24,6 @@ test.describe('unclaimed-notice · honest notice + claim (S5.4)', () => {
   })
 
   test('claim label is the gratis nudge', () => {
-    expect(unclaimedNoticeModel('x').claimLabel).toBe('¿Es tuya esta tienda? Recláma gratis')
+    expect(unclaimedNoticeModel('x').claimLabel).toBe('¿Es tuya esta tienda? Reclama gratis')
   })
 })

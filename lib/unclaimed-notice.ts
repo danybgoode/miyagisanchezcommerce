@@ -31,6 +31,6 @@ export function unclaimedNoticeModel(shopSlug: string): UnclaimedNoticeModel {
     title: 'Tienda aún no reclamada',
     body: 'Este anuncio se importó y la tienda todavía no tiene dueño en Miyagi Sánchez. Puedes contactar directamente para preguntar por el artículo. La compra protegida y las ofertas en línea se activan cuando el dueño reclame la tienda.',
     claimHref: `/s/${shopSlug}/claim`,
-    claimLabel: '¿Es tuya esta tienda? Recláma gratis',
+    claimLabel: '¿Es tuya esta tienda? Reclama gratis',
   }
 }
