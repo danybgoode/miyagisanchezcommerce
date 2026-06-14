@@ -29,6 +29,7 @@ import AutoHero from './AutoHero'
 import InmuebleHero from './InmuebleHero'
 import EventHero from './EventHero'
 import { eventHeroModel } from '@/lib/event-hero'
+import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
@@ -305,6 +306,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const eventModel = eventLed ? eventHeroModel() : null
   const buyNowLabel = eventModel ? `${eventModel.buyLabel} — ${effectivePrice}` : `Comprar ahora — ${effectivePrice}`
   const signInBuyLabel = eventModel ? eventModel.signInLabel : 'Inicia sesión para comprar'
+  // Unclaimed (S5.4) — gem-imported shop with no owner. Buy/Offer/Cart already
+  // suppressed via isShopClaimed (no gating change); this only leads the page with
+  // an honest "aún no reclamada" notice. SellerTrustCard already carries the
+  // contact options + the claim nudge below.
+  const unclaimedLed = redesign && !isClaimed && !!listing.shop?.slug
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -719,6 +725,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             />
           </div>
         )}
+
+        {/* ── Unclaimed notice (S5.4) — honest "aún no reclamada" lead for a
+            gem-imported shop with no owner. Buy/Offer/Cart already suppressed via
+            isShopClaimed (no gating change); SellerTrustCard below carries contact
+            + the claim nudge. ──────────────────────────────────────────────────── */}
+        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} />}
 
         {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
             service attrs + description. Leads the page for service listings, so the
