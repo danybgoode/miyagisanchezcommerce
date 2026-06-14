@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
+import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { getSlugRedirect } from '@/lib/slug-redirect'
 import ClaimButton from './ClaimButton'
@@ -12,6 +13,7 @@ export const revalidate = 120   // re-render shop page at most every 2 minutes
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
+  if (!isLikelyShopSlug(slug)) return { title: 'Tienda no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
@@ -68,6 +70,13 @@ function SocialLinks({ social }: { social: Social }) {
 
 export default async function ShopPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  // Short-circuit junk URLs BEFORE any Medusa fetch (epic 09 · cost reduction
+  // S2.2): a clearly-malformed slug can be neither a live nor a retired shop
+  // (retired slugs obey the same format), so 404 it without a Store API call or a
+  // redirect lookup. A well-formed-but-deleted slug passes here and 404s / 301s
+  // cleanly below. On platform hosts middleware 404s these (with a cache header)
+  // before the function is invoked; this guard is defense-in-depth.
+  if (!isLikelyShopSlug(slug)) notFound()
   const shop = await getShop(slug)
   if (!shop) {
     // The shop may have been renamed — 301 a retired slug to its current one for
