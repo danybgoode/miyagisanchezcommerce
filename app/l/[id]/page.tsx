@@ -25,6 +25,7 @@ import SellerTrustCard from '@/app/components/SellerTrustCard'
 import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import ServiceHero from './ServiceHero'
+import AutoHero from './AutoHero'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
@@ -280,6 +281,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const digitalLed = redesign && isDigital
   const digitalInfo = digitalLed ? digitalFileInfo(digitalFile) : null
   const digitalSpecRows = digitalLed ? digitalSpecs(digitalFile, listing.metadata) : []
+  // Autos (S5.1) lead with the REPUVE verification anchor + the vehicle spec set
+  // (the buyer's fraud anxiety first), with a primary "Agendar prueba de manejo".
+  // The buy/offer bar stays available below (a car is buyable), so this is a
+  // reorder: when `autoLed` the lower REPUVE badge + generic specs table are
+  // suppressed so nothing duplicates. AutoHero owns the autos specs.
+  const autoLed = redesign && listing.category === 'autos'
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -760,12 +767,27 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* ── Autos hero (S5.1) — REPUVE verification anchor + vehicle specs lead
+            the page, with a primary "Agendar prueba de manejo". Owns the autos
+            specs, so the lower REPUVE badge + generic specs table below are
+            suppressed for `autoLed` (no duplicate). The buy/offer bar stays. ──── */}
+        {autoLed && (
+          <AutoHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            repuve={repuve}
+            specs={listingSpecs(listing)}
+          />
+        )}
+
         {/* ── Reorder by intent (S1.2): on MOBILE the specs slot + description sit
             ABOVE the payment/methods box and seller card (identify → trust → cost →
             act). Duplicate-render idiom — these are `md:hidden`; the full desktop
             description keeps its original lower position (`hidden md:block` below).
-            Specs slot is an empty anchor for Sprint 3's scannable specs table. ───── */}
-        {redesign && !serviceLed && (
+            Specs slot is an empty anchor for Sprint 3's scannable specs table.
+            Suppressed for `autoLed` — AutoHero already shows the vehicle specs. ─── */}
+        {redesign && !serviceLed && !autoLed && (
           <div className="md:hidden" data-testid="pdp-specs-slot">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
@@ -828,7 +850,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {showRepuve && (
+        {showRepuve && !autoLed && (
           <div className="flex items-center gap-2" style={{ background: repuve!.status === 'sin_reporte' ? 'var(--success-soft)' : 'var(--danger-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
             <i className={repuve!.status === 'sin_reporte' ? 'iconoir-check-circle' : 'iconoir-warning-triangle'} style={{ fontSize: 18, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }} />
             <div>
@@ -924,8 +946,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             Desktop copy of the scannable specs table (mobile copy rides the specs
             slot higher up). Redesign-gated so the kill-switch reverts cleanly; the
             table renders nothing when the listing has no structured attributes.
-            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye". */}
-        {redesign && !serviceLed && (
+            Suppressed for serviceLed — its specs live in ServiceHero's "Qué incluye".
+            Suppressed for autoLed — its specs live in the AutoHero block above. */}
+        {redesign && !serviceLed && !autoLed && (
           <div className="hidden md:block">
             <SpecsTable rows={listingSpecs(listing)} />
           </div>
