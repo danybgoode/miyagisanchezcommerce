@@ -26,6 +26,7 @@ import TrustSignals from '@/app/components/TrustSignals'
 import SubscriptionSection from './SubscriptionSection'
 import ServiceHero from './ServiceHero'
 import AutoHero from './AutoHero'
+import InmuebleHero from './InmuebleHero'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
 import StickyBuyBar from './StickyBuyBar'
@@ -287,6 +288,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // reorder: when `autoLed` the lower REPUVE badge + generic specs table are
   // suppressed so nothing duplicates. AutoHero owns the autos specs.
   const autoLed = redesign && listing.category === 'autos'
+  // Inmuebles (S5.2) lead with a glanceable icon spec row (rec · baños · m² ·
+  // estac.) + an approximate-zone map link + a primary "Agendar visita". The
+  // icon row is a SUMMARY — the full property specs table (incl. tipo/amueblado)
+  // stays below, so nothing is hidden and the generic specs are NOT suppressed.
+  const inmuebleLed = redesign && listing.category === 'inmuebles'
 
   const currentBundleItem = showBuyButtons && listing.shop ? {
     productId: listing.id,
@@ -778,6 +784,19 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingUrl={bookingUrl}
             repuve={repuve}
             specs={listingSpecs(listing)}
+          />
+        )}
+
+        {/* ── Inmuebles hero (S5.2) — icon spec row + approximate-zone map +
+            primary "Agendar visita". Additive summary; the full property specs
+            table stays below (not suppressed). ──────────────────────────────── */}
+        {inmuebleLed && (
+          <InmuebleHero
+            listingId={listing.id}
+            isSignedIn={isSignedIn}
+            bookingUrl={bookingUrl}
+            attrs={(listing.attrs ?? listing.metadata?.attrs) as Record<string, unknown> | undefined}
+            location={listing.location}
           />
         )}
 
