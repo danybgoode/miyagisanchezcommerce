@@ -411,6 +411,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               customDomain={customDomain}
               priceLabel={effectivePrice}
               offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
+              buyNowLabel={eventModel ? buyNowLabel : undefined}
+              signInBuyLabel={eventModel ? signInBuyLabel : undefined}
             />
           ) : agreedDealCents && activeDeal ? (
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
@@ -475,6 +477,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         customDomain={customDomain}
         priceLabel={effectivePrice}
         offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
+        buyNowLabel={eventModel ? buyNowLabel : undefined}
+        signInBuyLabel={eventModel ? signInBuyLabel : undefined}
       />
     ) : agreedDealCents && activeDeal ? (
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
