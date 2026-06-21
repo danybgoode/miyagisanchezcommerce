@@ -13,6 +13,7 @@ import { isShopClaimed } from '@/lib/claim'
 import BuyButton from '@/app/components/BuyButton'
 import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
 import { getCustomFields } from '@/lib/personalization'
+import { ensureUrlProtocol } from '@/lib/url'
 import { readEventDetails } from '@/lib/event-listing'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
@@ -170,9 +171,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     : null
   const contactEmail = checkoutSettings?.show_email ? checkoutSettings.contact_email ?? null : null
   const schedulingLinks = (schedulingSettings?.links ?? []).filter((link): link is { label?: string; url: string } => !!link.url)
-  const bookingUrl = calcomSettings?.connected && calcomSettings.booking_url
-    ? calcomSettings.booking_url
-    : schedulingLinks[0]?.url ?? null
+  const bookingUrl = ensureUrlProtocol(
+    calcomSettings?.connected && calcomSettings.booking_url
+      ? calcomSettings.booking_url
+      : schedulingLinks[0]?.url
+  )
   const bookingText = calcomSettings?.event_type_title ?? schedulingLinks[0]?.label ?? null
   const pickupSpots = shippingSettings?.local_pickup ? (shippingSettings.pickup_spots ?? []) : []
   const PROCESSING_LABELS: Record<string, string> = { '1d': '1 día hábil', '1-3d': '1–3 días hábiles', '3-5d': '3–5 días hábiles', '1-2w': '1–2 semanas' }
