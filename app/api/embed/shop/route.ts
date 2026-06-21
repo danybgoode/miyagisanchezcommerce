@@ -16,12 +16,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveEmbedShop, embedKeyFromRequest } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, x-miyagi-embed-key',
-  'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+  'Cache-Control': storefrontCacheControl(CACHE.LISTING),
 }
 
 export async function OPTIONS() {

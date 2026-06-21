@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 import type { Listing } from '@/lib/types'
 
 const MAX_LIMIT = 50
@@ -37,7 +38,7 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+  'Cache-Control': storefrontCacheControl(CACHE.CATALOG),
 }
 
 export async function OPTIONS() {
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
 
   const res = await fetch(`${MEDUSA_BASE}/store/listings?${forwardParams.toString()}`, {
     headers: { 'x-publishable-api-key': PUB_KEY },
-    next: { revalidate: 30 } as RequestInit['next'],
+    next: { revalidate: CACHE.CATALOG } as RequestInit['next'],
   })
 
   if (!res.ok) {

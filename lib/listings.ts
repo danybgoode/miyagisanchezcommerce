@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
+import { CACHE } from './cache-policy'
 import { buildQuery } from './listing-query'
 import {
   pickFeatured,
@@ -31,7 +32,7 @@ export async function searchListings(
   const qs = buildQuery({ ...params, page: String(page), limit: 24 })
 
   const res = await medusaFetch(`/store/listings${qs}`, {
-    next: { revalidate: 30, tags: ['listings'] },
+    next: { revalidate: CACHE.CATALOG, tags: ['listings'] },
   } as RequestInit)
 
   if (!res.ok) {
@@ -50,7 +51,7 @@ export async function countListings(params: SearchParams): Promise<number> {
   const qs = buildQuery({ ...params, page: '1', limit: 1 })
 
   const res = await medusaFetch(`/store/listings${qs}`, {
-    next: { revalidate: 30, tags: ['listings'] },
+    next: { revalidate: CACHE.CATALOG, tags: ['listings'] },
   } as RequestInit)
 
   if (!res.ok) {
@@ -82,7 +83,7 @@ export const getListing = unstable_cache(
     return listing
   },
   ['listing'],
-  { revalidate: 60, tags: ['listings'] },
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
 export const getShop = unstable_cache(
@@ -93,13 +94,13 @@ export const getShop = unstable_cache(
     return data.seller ?? null
   },
   ['shop'],
-  { revalidate: 120, tags: ['shops'] },
+  { revalidate: CACHE.SHOP, tags: ['shops'] },
 )
 
 export const getShopListings = unstable_cache(
   async (sellerSlug: string): Promise<Listing[]> => {
     const res = await medusaFetch(`/store/sellers/${sellerSlug}/products`, {
-      next: { revalidate: 60, tags: ['listings'] },
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
     } as RequestInit)
     if (!res.ok) return []
     const data = await res.json()
@@ -166,12 +167,12 @@ export const getShopListings = unstable_cache(
     })
   },
   ['shop-listings'],
-  { revalidate: 60, tags: ['listings'] },
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
 export async function getRecentListings(limit = 8): Promise<Listing[]> {
   const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
-    next: { revalidate: 60, tags: ['listings'] },
+    next: { revalidate: CACHE.LISTING, tags: ['listings'] },
   } as RequestInit)
   if (!res.ok) return []
   const data = await res.json()
@@ -188,14 +189,14 @@ export async function getRecentListings(limit = 8): Promise<Listing[]> {
 const getCuratedPool = unstable_cache(
   async (): Promise<Listing[]> => {
     const res = await medusaFetch('/store/listings?sort=reciente&limit=24', {
-      next: { revalidate: 60, tags: ['listings'] },
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
     } as RequestInit)
     if (!res.ok) return []
     const data = await res.json()
     return data.listings ?? []
   },
   ['curated-pool'],
-  { revalidate: 60, tags: ['listings'] },
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
 // `now` is injectable so the page can pass ONE timestamp to both featured + grid:
@@ -229,7 +230,7 @@ export const getCategoryCounts = unstable_cache(
     return liveCategoryCounts(counts)
   },
   ['category-counts'],
-  { revalidate: 300, tags: ['listings'] },
+  { revalidate: CACHE.CATEGORY, tags: ['listings'] },
 )
 
 export function formatPrice(listing: Listing): string {
