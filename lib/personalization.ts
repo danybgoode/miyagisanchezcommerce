@@ -273,3 +273,20 @@ export const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   long_text: 'Texto largo',
   select: 'Lista de opciones',
 }
+
+/**
+ * Resolve the buy-box CTA labels. A personalizable product normally reads
+ * "Comprar ahora — $precio"; when it's *also* an event (which already computes
+ * its own "Comprar boleto — $precio" labels upstream), the caller passes an
+ * override so the CTA matches the event framing above it. Absent an override,
+ * returns the unchanged default strings (S1.2).
+ */
+export function personalizationBuyLabels(
+  priceLabel: string,
+  override?: { buyNowLabel?: string; signInBuyLabel?: string },
+): { buyNow: string; signIn: string } {
+  return {
+    buyNow: override?.buyNowLabel ?? `Comprar ahora — ${priceLabel}`,
+    signIn: override?.signInBuyLabel ?? 'Inicia sesión para comprar',
+  }
+}

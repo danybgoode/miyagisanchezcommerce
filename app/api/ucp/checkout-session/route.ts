@@ -27,6 +27,7 @@ import { readPersonalization, validatePersonalization, getCustomFields, type Per
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { isShopClaimed } from '@/lib/claim'
+import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
@@ -364,8 +365,9 @@ export async function POST(req: NextRequest) {
   const hasCalcom = !!(calcomSettings.connected && calcomSettings.booking_url)
   const hasSchedulingLinks = schedulingLinks.length > 0
   const hasSchedule = hasCalcom || hasSchedulingLinks
-  // Prefer API-connected booking URL; fall back to first manual link
-  const scheduleBookingUrl = calcomSettings.booking_url || schedulingLinks[0]?.url || undefined
+  // Prefer API-connected booking URL; fall back to first manual link.
+  // Normalize a scheme-less seller-typed link so agents get a fully-qualified URL.
+  const scheduleBookingUrl = ensureUrlProtocol(calcomSettings.booking_url || schedulingLinks[0]?.url) ?? undefined
   const scheduleLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo'
     : listing.category === 'inmuebles' ? '🏠 Agendar visita'
     : listing.listing_type === 'service' ? '🕐 Agendar cita'

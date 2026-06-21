@@ -7,6 +7,7 @@ import {
   buildPersonalizationPayload,
   validatePersonalization,
   stashPersonalization,
+  personalizationBuyLabels,
 } from '@/lib/personalization'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import PersonalizationFields, { type PersonalizationFieldsHandle } from './PersonalizationFields'
@@ -27,6 +28,8 @@ export default function PersonalizationBuyBox({
   customDomain,
   priceLabel,
   offerId,
+  buyNowLabel,
+  signInBuyLabel,
 }: {
   listingId: string
   defs: CustomFieldDef[]
@@ -35,6 +38,10 @@ export default function PersonalizationBuyBox({
   priceLabel: string
   /** Present when buying at an accepted-offer price. */
   offerId?: string
+  /** Override the default "Comprar ahora — $precio" CTA (e.g. an event's "Comprar boleto"). */
+  buyNowLabel?: string
+  /** Override the default signed-out CTA to match `buyNowLabel`. */
+  signInBuyLabel?: string
 }) {
   const router = useRouter()
   const fieldsRef = useRef<PersonalizationFieldsHandle>(null)
@@ -44,6 +51,10 @@ export default function PersonalizationBuyBox({
 
   const checkoutPath = `/checkout?listingId=${encodeURIComponent(listingId)}`
     + (offerId ? `&offerId=${encodeURIComponent(offerId)}` : '')
+
+  // Default "Comprar ahora — $precio" / "Inicia sesión…", overridden for an
+  // event listing that's also personalized (so the CTA reads "Comprar boleto").
+  const labels = personalizationBuyLabels(priceLabel, { buyNowLabel, signInBuyLabel })
 
   function onChange(id: string, value: string) {
     setValues(prev => ({ ...prev, [id]: value }))
@@ -90,9 +101,9 @@ export default function PersonalizationBuyBox({
         {loading ? (
           <span className="animate-spin inline-block">⟳</span>
         ) : isSignedIn ? (
-          <>Comprar ahora — {priceLabel}</>
+          <>{labels.buyNow}</>
         ) : (
-          <>Inicia sesión para comprar</>
+          <>{labels.signIn}</>
         )}
       </button>
     </div>

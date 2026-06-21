@@ -28,6 +28,7 @@ import { toUcpListing } from '@/lib/ucp/schema'
 import { isShopClaimed } from '@/lib/claim'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
+import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
@@ -787,7 +788,7 @@ async function getShopCalcom(listingId: string): Promise<{
     return {
       apiKey: calcomApiKey,
       eventTypeId: calcomSettings.event_type_id,
-      bookingUrl: calcomSettings.booking_url ?? '',
+      bookingUrl: ensureUrlProtocol(calcomSettings.booking_url) ?? '',
       listing: { title: listing.title, category: listing.category },
     }
   } catch {
@@ -808,7 +809,7 @@ async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: 
     const schedulingMeta = ((shopMeta.settings as Record<string, unknown> | undefined)?.scheduling ?? {}) as { links?: Array<{ label: string; url: string }> }
     const firstLink = schedulingMeta.links?.[0]
     if (!firstLink?.url) return null
-    return { bookingUrl: firstLink.url, label: firstLink.label || 'Reservas en línea', title: listing.title }
+    return { bookingUrl: ensureUrlProtocol(firstLink.url) ?? firstLink.url, label: firstLink.label || 'Reservas en línea', title: listing.title }
   } catch {
     return null
   }
