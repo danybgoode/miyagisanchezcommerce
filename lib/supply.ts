@@ -150,7 +150,11 @@ export function canonicalSourceUrl(value: string | null | undefined): string | n
   if (!value?.trim()) return null
   const raw = value.trim()
   try {
-    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`)
+    // Match http(s):// case-insensitively — a bare startsWith('http') misses
+    // `HTTP://…` and false-positives a scheme-less host that merely starts with
+    // "http" (e.g. `httpbin.org`), which then throws in `new URL()` and falls
+    // through to the un-canonicalized raw value.
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
     const host = url.hostname.replace(/^www\./, '').toLowerCase()
     url.hash = ''
     if (host === 'google.com' || host === 'maps.google.com') {
