@@ -21,8 +21,9 @@ import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  // Shop IDENTITY (slug, name, verified, logo, accent) → the SHOP window (changes rarely).
   'Access-Control-Allow-Headers': 'Content-Type, x-miyagi-embed-key',
-  'Cache-Control': storefrontCacheControl(CACHE.LISTING),
+  'Cache-Control': storefrontCacheControl(CACHE.SHOP),
 }
 
 export async function OPTIONS() {
