@@ -275,10 +275,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {/* Cart */}
                   <CartButton />
 
-                  {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu */}
+                  {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu.
+                      Mobile-header instance: drop the Favoritos row in the installed PWA bar
+                      (the bottom tab carries it there); it stays in the menu on mobile web. */}
                   <Show when="signed-in">
                     <CuentaMenu
                       themeEligible={platformThemeEligible}
+                      hideFavoritesInPwa
                       themeSlot={
                         <PlatformThemeToggle
                           labels={themeToggleLabels}

@@ -1061,6 +1061,15 @@ html[data-platform-theme] .platform-theme-spot {
   .pwa-only { display: flex !important; }
 }
 
+/* PWA-hidden elements: the mirror of .pwa-only — visible everywhere EXCEPT the
+   installed standalone bar, where the bottom tab now carries the action. Used to
+   drop the duplicate Favoritos row from the Cuenta menu only in PWA standalone
+   (it stays in the menu on desktop + mobile web). `!important` so it beats the
+   element's own inline `display` (PWA Liquid-Glass Nav Polish S1.1). */
+@media (display-mode: standalone) and (max-width: 767px) {
+  .pwa-hidden { display: none !important; }
+}
+
 /* Cuenta hub menu — row hover */
 .cuenta-menu-item:hover { background: var(--bg-sunk); }
 

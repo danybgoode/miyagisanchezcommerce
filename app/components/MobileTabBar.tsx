@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useState, useEffect, useRef } from 'react'
 import {
-  LABEL_MODE, shouldHideTabBar, nextTabBarHidden, type LabelMode,
+  LABEL_MODE, shouldHideTabBar, nextTabBarHidden,
+  BOTTOM_TABS, resolveBottomTabHref, isBottomTabActive, type LabelMode,
 } from '@/lib/tabbar-visibility'
 
 // Badge dot for unread counts
@@ -167,14 +168,6 @@ export default function MobileTabBar() {
   // Bar is removed entirely on full-screen flows (PDP / checkout / conversation / publish).
   if (shouldHideTabBar(pathname)) return null
 
-  function isActive(href: string) {
-    if (href === '/') return pathname === '/'
-    return pathname.startsWith(href)
-  }
-
-  const profileHref  = isSignedIn ? '/account' : '/sign-in'
-  const messagesHref = isSignedIn ? '/messages' : '/sign-in'
-
   return (
     <div
       className="pwa-only"
@@ -197,7 +190,9 @@ export default function MobileTabBar() {
         pointerEvents: hidden ? 'none' : 'auto',
       }}
     >
-      {/* ── Main pill — Inicio · Explorar · ⊕ Vender · Mensajes · Cuenta ── */}
+      {/* ── Main pill — Inicio · Mensajes · ⊕ Vender · Favoritos · Perfil ──
+          Rendered from BOTTOM_TABS (lib/tabbar-visibility) so the set/order is
+          the single source the api spec also reads. */}
       <nav
         className="glass-liquid"
         style={{
@@ -209,56 +204,49 @@ export default function MobileTabBar() {
           padding: '0 4px',
         }}
       >
-        {/* Inicio */}
-        <TabItem
-          href="/" icon="iconoir-home-simple" label="Inicio"
-          active={isActive('/')} labelMode={LABEL_MODE}
-        />
+        {BOTTOM_TABS.map(tab => {
+          const href   = resolveBottomTabHref(tab, !!isSignedIn)
+          const active = isBottomTabActive(tab.key, pathname)
 
-        {/* Explorar → listings */}
-        <TabItem
-          href="/l" icon="iconoir-search" label="Explorar"
-          active={isActive('/l')} labelMode={LABEL_MODE}
-        />
+          // Center publish FAB → /sell (the fattest, raised target).
+          if (tab.kind === 'fab') {
+            return (
+              <Link
+                key={tab.key}
+                href={href}
+                className="tab-press-center"
+                aria-label={tab.label}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
+                  color: 'var(--fg-inverse)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 14px -4px rgba(29,111,66,0.55)',
+                }}
+              >
+                <i className={tab.icon} style={{ fontSize: 20 }} />
+              </Link>
+            )
+          }
 
-        {/* Center publish FAB → /sell */}
-        <Link
-          href="/sell"
-          className="tab-press-center"
-          aria-label="Vender"
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            color: 'var(--fg-inverse)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none',
-            flexShrink: 0,
-            boxShadow: '0 4px 14px -4px rgba(29,111,66,0.55)',
-          }}
-        >
-          <i className="iconoir-plus" style={{ fontSize: 20 }} />
-        </Link>
-
-        {/* Mensajes */}
-        <TabItem
-          href={messagesHref} icon="iconoir-chat-bubble" label="Mensajes"
-          active={pathname.startsWith('/messages')}
-          hasUnread={hasUnread && !pathname.startsWith('/messages')}
-          labelMode={LABEL_MODE}
-        />
-
-        {/* Cuenta */}
-        <TabItem
-          href={profileHref}
-          icon="iconoir-user"
-          label={isSignedIn ? 'Cuenta' : 'Entrar'}
-          active={isActive('/account') || isActive('/sign-in')}
-          labelMode={LABEL_MODE}
-        />
+          return (
+            <TabItem
+              key={tab.key}
+              href={href}
+              icon={tab.icon}
+              label={tab.label}
+              active={active}
+              hasUnread={tab.unread ? hasUnread && !active : false}
+              labelMode={LABEL_MODE}
+            />
+          )
+        })}
       </nav>
     </div>
   )
