@@ -14,11 +14,16 @@
  * Unlike `lib/supply.ts` `canonicalSourceUrl`, this preserves the path/query —
  * a booking link's path is meaningful and must not be stripped.
  *
+ * The scheme test matches `http(s)://` case-insensitively (not a bare
+ * `startsWith('http')`, which both misses `HTTPS://…` and false-positives a
+ * scheme-less domain that merely starts with "http" — e.g. `httpbin.org` —
+ * leaving it protocol-less and broken).
+ *
  * @returns the scheme-qualified URL, or `null` for empty/whitespace input
  *   (so callers fall back cleanly to "no link").
  */
 export function ensureUrlProtocol(value: string | null | undefined): string | null {
   const raw = value?.trim()
   if (!raw) return null
-  return raw.startsWith('http') ? raw : `https://${raw}`
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
 }

@@ -18,6 +18,14 @@ test.describe('ensureUrlProtocol · normalize scheme-less booking_url (S1.1)', (
     expect(ensureUrlProtocol('http://calendly.com/shop')).toBe('http://calendly.com/shop')
   })
 
+  test('prepends https:// to a scheme-less domain that merely starts with "http" (no false positive)', () => {
+    expect(ensureUrlProtocol('httpbin.org/foo')).toBe('https://httpbin.org/foo')
+  })
+
+  test('recognizes an uppercase scheme (does not double-prepend)', () => {
+    expect(ensureUrlProtocol('HTTPS://cal.com/shop')).toBe('HTTPS://cal.com/shop')
+  })
+
   test('trims surrounding whitespace before deciding', () => {
     expect(ensureUrlProtocol('  cal.com/foo  ')).toBe('https://cal.com/foo')
   })
