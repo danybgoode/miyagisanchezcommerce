@@ -48,7 +48,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
   function addSchedulingLink() {
     const url = newLinkUrl.trim()
     if (!url) return
-    if (!url.startsWith('http')) { showToast('URL inválida — debe comenzar con https://', 'error'); return }
+    if (!/^https?:\/\//i.test(url)) { showToast('URL inválida — debe comenzar con https://', 'error'); return }
     const label = newLinkLabel.trim() || detectSchedulingService(url)
     setSchedulingLinks(prev => [...prev, { label, url }])
     setNewLinkUrl('')
