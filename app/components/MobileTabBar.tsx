@@ -190,12 +190,26 @@ export default function MobileTabBar() {
         pointerEvents: hidden ? 'none' : 'auto',
       }}
     >
+      {/* Row: the main pill flexes to fill, the detached search circle sits to
+          its right (mockup layout). Both glass surfaces ride the same hide
+          transform on the wrapper above, so they slide/spring together. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          height: 56,
+          width: '100%',
+        }}
+      >
       {/* ── Main pill — Inicio · Mensajes · ⊕ Vender · Favoritos · Perfil ──
           Rendered from BOTTOM_TABS (lib/tabbar-visibility) so the set/order is
           the single source the api spec also reads. */}
       <nav
         className="glass-liquid"
         style={{
+          flex: 1,
+          minWidth: 0,
           height: 56,
           borderRadius: 28,
           display: 'flex',
@@ -248,6 +262,29 @@ export default function MobileTabBar() {
           )
         })}
       </nav>
+
+        {/* Detached liquid-glass search control. Opens the bottom-sheet search in
+            S2.1; until then it navigates to /l (search one tap away — never a dead
+            control on prod between sprint merges). */}
+        <Link
+          href="/l"
+          className="glass-liquid search-circle-btn"
+          aria-label="Buscar"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            textDecoration: 'none',
+            color: 'var(--fg)',
+          }}
+        >
+          <i className="iconoir-search" style={{ fontSize: 22 }} />
+        </Link>
+      </div>
     </div>
   )
 }
