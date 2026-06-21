@@ -11,7 +11,7 @@
  * relative* link (`miyagisanchez.com/l/...cal.com...`) instead of the real
  * calendar. Prepend `https://` when no scheme is present.
  *
- * Unlike `lib/supply.ts` `canonicalSourceUrl`, this preserves the path/query —
+ * Unlike `canonicalSourceUrl` (below), this preserves the path/query —
  * a booking link's path is meaningful and must not be stripped.
  *
  * The scheme test matches `http(s)://` case-insensitively (not a bare
@@ -26,4 +26,38 @@ export function ensureUrlProtocol(value: string | null | undefined): string | nu
   const raw = value?.trim()
   if (!raw) return null
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+}
+
+/**
+ * Canonicalize an imported listing's source URL for dedup — lowercase host,
+ * strip `www.`/hash/(usually)query/trailing-slash, with MercadoLibre item-id and
+ * Google-Maps special cases. Lives here (pure, dependency-free) so both the
+ * server import path (`lib/supply.ts`) and the client paste UI (`SupplyClient`)
+ * share one implementation instead of re-inlining it.
+ *
+ * The scheme test matches `http(s)://` case-insensitively for the same reason as
+ * `ensureUrlProtocol`: a bare `startsWith('http')` false-positives a scheme-less
+ * host that merely starts with "http" (`httpbin.org` → throws in `new URL()` →
+ * falls through to the un-canonicalized raw value) and misses uppercase schemes.
+ */
+export function canonicalSourceUrl(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null
+  const raw = value.trim()
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+    const host = url.hostname.replace(/^www\./, '').toLowerCase()
+    url.hash = ''
+    if (host === 'google.com' || host === 'maps.google.com') {
+      url.hostname = host
+      return url.toString()
+    }
+    url.search = ''
+    const mlItem = url.pathname.match(/\/(MLM-\d+[^/]*)/i)
+    if (host.endsWith('mercadolibre.com.mx') && mlItem) {
+      return `${url.protocol}//${host}/${mlItem[1]}`
+    }
+    return `${url.protocol}//${host}${url.pathname}`.replace(/\/$/, '')
+  } catch {
+    return raw
+  }
 }

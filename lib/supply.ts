@@ -1,4 +1,5 @@
 import { db } from './supabase'
+import { canonicalSourceUrl } from './url'
 
 export const SUPPLY_SOURCE_OPTIONS = [
   'mercadolibre',
@@ -146,31 +147,10 @@ export function slugify(text: string, max = 48): string {
     .slice(0, max)
 }
 
-export function canonicalSourceUrl(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null
-  const raw = value.trim()
-  try {
-    // Match http(s):// case-insensitively — a bare startsWith('http') misses
-    // `HTTP://…` and false-positives a scheme-less host that merely starts with
-    // "http" (e.g. `httpbin.org`), which then throws in `new URL()` and falls
-    // through to the un-canonicalized raw value.
-    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
-    const host = url.hostname.replace(/^www\./, '').toLowerCase()
-    url.hash = ''
-    if (host === 'google.com' || host === 'maps.google.com') {
-      url.hostname = host
-      return url.toString()
-    }
-    url.search = ''
-    const mlItem = url.pathname.match(/\/(MLM-\d+[^/]*)/i)
-    if (host.endsWith('mercadolibre.com.mx') && mlItem) {
-      return `${url.protocol}//${host}/${mlItem[1]}`
-    }
-    return `${url.protocol}//${host}${url.pathname}`.replace(/\/$/, '')
-  } catch {
-    return raw
-  }
-}
+// Canonicalization moved to the pure, dependency-free `lib/url.ts` so the client
+// paste UI can reuse it without bundling this module's Supabase import. Re-exported
+// here for back-compat with existing `lib/supply` importers + the usage below.
+export { canonicalSourceUrl }
 
 export function describeUrlSupport(source: string, mode: string): string {
   if (source === 'mercadolibre' && mode === 'direct_urls') {

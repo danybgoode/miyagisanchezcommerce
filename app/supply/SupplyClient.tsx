@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CATEGORIES } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
 import type { SupplyBatch, SupplyItem } from '@/lib/supply'
+import { canonicalSourceUrl, ensureUrlProtocol } from '@/lib/url'
 
 type SchemaCheck = { table: string; role: string; ok: boolean; error: string | null }
 type ProviderStatus = {
@@ -103,21 +104,10 @@ const SOURCE_CATEGORY_HINTS: Record<string, string[]> = {
   google_local: ['servicios', 'negocios', 'deportes'],
 }
 
+// Shares the one canonicalizer in lib/url.ts (was a re-inlined copy that drifted
+// its own scheme-predicate bug). `?? value.trim()` keeps the old empty-input shape.
 function cleanUrlForDisplay(value: string) {
-  try {
-    const url = new URL(value.startsWith('http') ? value : `https://${value}`)
-    url.hostname = url.hostname.replace(/^www\./, '').toLowerCase()
-    url.hash = ''
-    if (url.hostname === 'google.com' || url.hostname === 'maps.google.com') return url.toString()
-    url.search = ''
-    const mlItem = url.pathname.match(/\/(MLM-\d+[^/]*)/i)
-    if (url.hostname.endsWith('mercadolibre.com.mx') && mlItem) {
-      return `${url.protocol}//${url.hostname}/${mlItem[1]}`
-    }
-    return `${url.protocol}//${url.hostname}${url.pathname}`.replace(/\/$/, '')
-  } catch {
-    return value.trim()
-  }
+  return canonicalSourceUrl(value) ?? value.trim()
 }
 
 function parseCsvLine(line: string) {
@@ -179,7 +169,7 @@ function parseRows(text: string): ParsedRow[] {
     return {
       source_url: url,
       title: titleFromUrl(url),
-      shop_name: new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, ''),
+      shop_name: new URL(ensureUrlProtocol(url) ?? `https://${url}`).hostname.replace(/^www\./, ''),
     }
   })
 }

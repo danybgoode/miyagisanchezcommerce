@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { canonicalSourceUrl } from '../lib/supply'
+import { canonicalSourceUrl } from '../lib/url'
 
 /**
  * canonicalSourceUrl normalizes an imported listing's source URL for dedup.
- * These cover the scheme-predicate fix (was `startsWith('http')`, now
- * `/^https?:\/\//i`) — the false-positive class shared with `lib/url.ts`.
+ * Relocated to the pure `lib/url.ts` (shared by the server import path and the
+ * client paste UI). These cover the scheme-predicate fix (was `startsWith('http')`,
+ * now `/^https?:\/\//i`) — the same false-positive class as `ensureUrlProtocol`.
  */
 test.describe('canonicalSourceUrl · scheme predicate (supply dedup)', () => {
   test('canonicalizes a scheme-less host that merely starts with "http" (was returned raw)', () => {
