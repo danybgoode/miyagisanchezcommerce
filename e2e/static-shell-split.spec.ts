@@ -54,14 +54,21 @@ test.describe('static-shell split · channels unbroken', () => {
   })
 
   test('a white-label /embed path still suppresses platform chrome', async ({ request }) => {
-    const res = await request.get('/embed/s/__smoke__', {
-      headers: { Accept: 'text/html' },
-      maxRedirects: 0,
-    })
-    // Framable anywhere (the embed surface), and NOT carrying the platform search.
-    const csp = res.headers()['content-security-policy'] ?? ''
-    expect(csp).toContain('frame-ancestors')
-    const html = await res.text()
-    expect(html).not.toContain(SEARCH_MARKER)
+    // The embed surface is framable on ANY slug (next.config sets the CSP per-path).
+    const framable = await request.get('/embed/s/__smoke__', { headers: { Accept: 'text/html' } })
+    expect((framable.headers()['content-security-policy'] ?? '')).toContain('frame-ancestors')
+
+    // Prove suppression on a REAL embed storefront (not a 404): derive a live slug from
+    // the public catalog and assert the platform header's search box is absent — i.e. the
+    // route-group split did not regress the `(shell)` white-label branch. Skip if the env
+    // has no active listings (mirrors embed-shop.spec.ts).
+    const cat = await request.get('/api/ucp/catalog?limit=1')
+    expect(cat.ok()).toBeTruthy()
+    const slug = (await cat.json())?.items?.[0]?.shop?.slug
+    test.skip(!slug, 'no active listings in this environment')
+
+    const shop = await request.get(`/embed/s/${slug}`, { headers: { Accept: 'text/html' } })
+    expect(shop.ok()).toBeTruthy()
+    expect(await shop.text()).not.toContain(SEARCH_MARKER)
   })
 })

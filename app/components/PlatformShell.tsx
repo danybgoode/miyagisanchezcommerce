@@ -18,9 +18,9 @@ import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
  * chrome from one source.
  *
  * It reads NO request headers and NO `currentUser()` — it's static-able. The platform
- * seasonal-theme boot script lives in the root `<head>` (it self-gates on pathname +
- * origin-scoped localStorage). `platformThemeEligible` only gates whether the theme
- * TOGGLE surfaces in the account menu, matching the old layout's behavior.
+ * seasonal-theme boot script is emitted by the `(site)`/`(shell)` layouts (path-gated),
+ * not here. `platformThemeEligible` only gates whether the theme TOGGLE surfaces in the
+ * account menu, matching the old layout's behavior.
  */
 export default async function PlatformShell({
   platformThemeEligible,
