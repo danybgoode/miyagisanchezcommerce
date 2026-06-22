@@ -20,6 +20,10 @@ test.describe('home-personalization · pure helpers', () => {
     expect(priceLabel(null, 'MXN')).toBe('Precio a consultar')
     // Honors the row's own currency.
     expect(priceLabel(2500, 'USD')).toContain('25')
+    // A malformed currency from the wire must NOT throw (would blank the home render) —
+    // it degrades to a plain amount (cross-review hardening).
+    expect(() => priceLabel(150000, 'not-a-currency')).not.toThrow()
+    expect(priceLabel(150000, 'not-a-currency')).toContain('1,500')
   })
 
   test('favoriteConditionLabel maps known conditions, degrades safely', () => {

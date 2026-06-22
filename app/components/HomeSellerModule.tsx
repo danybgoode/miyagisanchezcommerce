@@ -18,7 +18,10 @@ export default function HomeSellerModule() {
   const which = sellerModule({ hasShop: data.hasShop, sellerSnapshot: data.sellerSnapshot })
 
   if (which === 'snapshot' && data.sellerSnapshot) {
-    const snap = data.sellerSnapshot
+    // Defensive: the wire contract sends numbers, but a missing field would otherwise
+    // render "undefined visita(s)" — coerce to 0.
+    const visitas = data.sellerSnapshot.visitas ?? 0
+    const ofertasNuevas = data.sellerSnapshot.ofertasNuevas ?? 0
     return (
       <section
         className="mb-4"
@@ -43,7 +46,7 @@ export default function HomeSellerModule() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Tu tienda esta semana</p>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-              {snap.visitas} visita{snap.visitas === 1 ? '' : 's'} · {snap.ofertasNuevas} oferta{snap.ofertasNuevas === 1 ? '' : 's'} nueva{snap.ofertasNuevas === 1 ? '' : 's'}
+              {visitas} visita{visitas === 1 ? '' : 's'} · {ofertasNuevas} oferta{ofertasNuevas === 1 ? '' : 's'} nueva{ofertasNuevas === 1 ? '' : 's'}
             </p>
           </div>
           <Link href="/sell" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>

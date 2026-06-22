@@ -30,7 +30,13 @@ export interface HomePersonalization {
  */
 export function priceLabel(cents: number | null, currency: string): string {
   if (cents == null) return 'Precio a consultar'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
+  try {
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
+  } catch {
+    // A malformed/missing currency code from the wire would throw a RangeError and blank
+    // the whole client render — degrade to a plain amount instead.
+    return new Intl.NumberFormat('es-MX').format(cents / 100)
+  }
 }
 
 /**

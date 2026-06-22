@@ -35,11 +35,17 @@ export default function HomePersonalizationProvider({
 }: {
   children: React.ReactNode
 }) {
-  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth()
   const [data, setData] = useState<HomePersonalization | null>(null)
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return
+    if (!isLoaded) return
+    // Clear on sign-out, and clear before each (re)fetch so a sign-out or account switch
+    // never leaks the previous user's favorites/offers/seller stats while the new fetch
+    // is in flight (or after signing out entirely). `userId` in the deps re-runs this on
+    // an account switch (isSignedIn stays true, so it alone wouldn't).
+    setData(null)
+    if (!isSignedIn) return
 
     let cancelled = false
     ;(async () => {
@@ -63,7 +69,7 @@ export default function HomePersonalizationProvider({
     return () => {
       cancelled = true
     }
-  }, [isLoaded, isSignedIn, getToken])
+  }, [isLoaded, isSignedIn, userId, getToken])
 
   return (
     <HomePersonalizationContext.Provider value={{ data }}>

@@ -42,14 +42,26 @@ test.describe('home-personalization · islands (browser)', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
-    // A signed-in homepage shows at most one seller module (snapshot XOR recruit) once the
+    // A signed-in homepage shows exactly one seller module (snapshot XOR recruit) once the
     // island fetch resolves — the deterministic signal independent of the buyer's favorites
-    // /offers (which may be empty). CORS-degraded on a non-prod origin, so allow either: a
-    // hydrated module, or none (owed-to-Daniel on prod). Never a false pass — when present,
-    // it's exactly one.
+    // /offers (which may be empty).
     const sellerModules = page.locator(
       '[data-testid="home-seller-snapshot"], [data-testid="home-seller-recruit"]',
     )
+
+    // STRICT (MS_TEST_PERSONALIZATION_STRICT=1) — run where the endpoint is expected to work
+    // (prod origin, valid keys). Requires the island to actually hydrate, so a broken
+    // endpoint / token / CORS / provider bug FAILS here. This is the gate for Daniel's prod
+    // smoke (codex cross-review should-fix: don't let a broken hydration silently pass).
+    if (process.env.MS_TEST_PERSONALIZATION_STRICT === '1') {
+      await expect(sellerModules).toHaveCount(1)
+      await expect(sellerModules.first()).toBeVisible()
+      return
+    }
+
+    // DEFAULT (CI/preview) — the S3 endpoint's CORS allows the prod origin only, so on a
+    // preview the fetch degrades to nothing. Allow either: a hydrated module, or none — but
+    // never a false pass (when present, it's exactly one). Set STRICT on prod to gate it.
     const count = await sellerModules.count()
     expect(count).toBeLessThanOrEqual(1)
     if (count === 1) {
