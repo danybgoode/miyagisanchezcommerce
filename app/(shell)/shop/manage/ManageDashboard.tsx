@@ -3,6 +3,7 @@
 import { useState, useTransition, useCallback } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
+import { pendingSummaryText } from '@/lib/seller-pending-summary'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -313,6 +314,7 @@ export default function ManageDashboard({
   const totalViews = listings.reduce((s, l) => s + (l.views ?? 0), 0)
   const activeCount = listings.filter(l => l.status === 'active').length
   const pausedCount = listings.filter(l => l.status === 'paused').length
+  const pendingSummary = pendingSummaryText(pendingOrdersCount, pendingOffersCount)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -324,94 +326,26 @@ export default function ManageDashboard({
           {shop.location && (
             <p className="text-sm text-[var(--color-muted)] mt-0.5">📍 {shop.location}</p>
           )}
-          <div className="flex items-center gap-3 mt-2 overflow-x-auto hide-scrollbar [&>*]:shrink-0">
+          {/* Navigation lives in the SellerNav rail (lib/seller-nav.ts) — the
+              dashboard header keeps only the public-shop link + a compact
+              pending-work signal (the Pedidos/Ofertas badges' replacement). */}
+          <div className="mt-2 flex flex-col gap-1">
             <Link
               href={`/s/${shop.slug}`}
-              className="text-xs text-[var(--color-accent)] hover:underline no-underline"
+              className="text-xs text-[var(--color-accent)] hover:underline no-underline w-fit"
               target="_blank"
             >
               Ver tienda pública ↗
             </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/orders"
-              className="relative text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline inline-flex items-center gap-1"
-            >
-              Pedidos
-              {pendingOrdersCount > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                  {pendingOrdersCount}
-                </span>
-              )}
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/offers"
-              className="relative text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline inline-flex items-center gap-1"
-            >
-              Ofertas
-              {pendingOffersCount > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                  {pendingOffersCount}
-                </span>
-              )}
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/subscriptions"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Suscripciones
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/content"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Contenido
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/promotions"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Cupones
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/sweepstakes"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Sorteos
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/eventos"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Eventos
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/analytics"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Analíticas
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/settings"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Configuración
-            </Link>
-            <span className="text-[var(--color-border)]">·</span>
-            <Link
-              href="/shop/manage/import"
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-            >
-              Importar catálogo
-            </Link>
+            {pendingSummary && (
+              <Link
+                href="/shop/manage/orders"
+                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline inline-flex items-center gap-1.5 w-fit"
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
+                {pendingSummary}
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">
