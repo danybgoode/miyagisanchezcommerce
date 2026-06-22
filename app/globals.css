@@ -183,7 +183,7 @@
   --glass-fill:        color-mix(in oklch, var(--papel-0) 62%, transparent);
   --glass-fill-warm:   color-mix(in oklch, var(--papel-50) 72%, transparent);
   --glass-fill-deep:   color-mix(in oklch, var(--papel-900) 8%, transparent);
-  --glass-fill-liquid: rgba(249, 249, 247, 0.76); /* iOS 26 tab bar — translucent enough to refract the feed, opaque enough for legible icons */
+  --glass-fill-liquid: rgba(249, 249, 247, 0.50); /* iOS-26 liquid glass — matches the handoff .glass-surface (very translucent; the blur+saturate carry legibility) */
   --glass-tint-accent: color-mix(in oklch, var(--selva-500) 16%, transparent);
   --glass-tint-energy: color-mix(in oklch, var(--jamaica-500) 14%, transparent);
   --glass-tint-agent:  color-mix(in oklch, var(--anil-500) 18%, transparent);
@@ -201,14 +201,23 @@
   --glass-blur-deep: 36px;
 
   /* Liquid-glass (the floating PWA tab bar + its detached search circle + the
-     seller nav). Tunable in ONE place so the iOS-26 look can be dialed on-device
-     without per-component hardcoding (PWA Liquid-Glass Nav Polish S1.3). Light
-     mode is the focus this sprint; dark inherits these (roughly correct) and
-     overrides only --glass-fill-liquid below. */
-  --glass-blur-liquid:   34px;   /* richer frost */
-  --glass-sat-liquid:    200%;   /* vivid refraction of colorful content */
-  --glass-bright-liquid: 1.07;   /* lifts the glass off busy backgrounds */
-  --glass-specular:      rgba(255, 255, 255, 0.85); /* crisp top highlight — the "wet" edge */
+     seller nav). Values match the handoff `.glass-surface` recipe
+     (handoff/Liquid-Glass-Navbars-(standalone).html). Tunable in ONE place so the
+     iOS-26 look can be dialed without per-component hardcoding (PWA Liquid-Glass
+     Nav Polish S1.3). Dark overrides --glass-fill-liquid + the box-shadow below. */
+  --glass-blur-liquid:   32px;
+  --glass-sat-liquid:    180%;
+  --glass-bright-liquid: 1.018;
+  --glass-specular:      rgba(255, 255, 255, 0.78); /* top specular edge */
+
+  /* Active-tab capsule (the "Etsy signature move" — a brighter inner glass pane
+     on the selected tab). Tokenized so light/dark both read right; the bar's
+     ActivePill consumes these. */
+  --glass-capsule-fill: rgba(255, 255, 255, 0.68);
+  --glass-capsule-stroke:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -0.5px 0 rgba(26, 26, 24, 0.06),
+    0 0 0 0.5px rgba(26, 26, 24, 0.06);
 
   /* ─── Elevation ─── */
   --shadow-1:
@@ -332,11 +341,18 @@
   --accent-soft:   rgba(78, 146, 112, 0.12);
   --glass-fill:        rgba(28, 28, 23, 0.55);
   --glass-fill-warm:   rgba(36, 36, 30, 0.6);
-  --glass-fill-liquid: rgba(22, 22, 18, 0.78);
+  --glass-fill-liquid: rgba(20, 20, 15, 0.56); /* handoff dark .glass-surface */
   --glass-stroke:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     inset 0 -1px 0 rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(255, 255, 255, 0.06);
+  /* Active-tab capsule (dark) — handoff dark .tab-btn.active::before. */
+  --glass-capsule-fill: rgba(50, 50, 44, 0.75);
+  --glass-capsule-stroke:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.06),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.4),
+    0 0 0 0.5px rgba(255, 255, 255, 0.06);
 }
 
 /* ============================================================================
@@ -492,13 +508,25 @@ html, body {
     blur(var(--glass-blur-liquid)) saturate(var(--glass-sat-liquid)) brightness(var(--glass-bright-liquid));
   backdrop-filter:
     blur(var(--glass-blur-liquid)) saturate(var(--glass-sat-liquid)) brightness(var(--glass-bright-liquid));
+  /* Handoff `.glass-surface` recipe — the edge-refraction ring simulates real
+     glass thickness at the rounded corners. */
   box-shadow:
-    inset 0 1px 0 var(--glass-specular),          /* crisp specular top edge */
-    inset 1px 0 0 rgba(255, 255, 255, 0.30),
-    inset -1px 0 0 rgba(255, 255, 255, 0.30),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.16),     /* faint lower edge → thick-glass depth */
-    0 12px 32px -8px rgba(26, 26, 24, 0.20),       /* soft floating shadow */
-    0 0 0 1px rgba(26, 26, 24, 0.07);              /* hairline containment */
+    inset 0 1px 0 var(--glass-specular),          /* top specular */
+    inset 0 -0.5px 0 rgba(26, 26, 24, 0.05),      /* bottom rim */
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.28), /* edge refraction ring */
+    0 0 0 0.5px rgba(26, 26, 24, 0.08),            /* outer hairline */
+    0 4px 16px -4px rgba(26, 26, 24, 0.14),        /* near float shadow */
+    0 16px 40px -16px rgba(26, 26, 24, 0.12);      /* deep float shadow */
+}
+:root[data-mode="dark"] .glass-liquid {
+  /* Handoff dark `.glass-surface` — fill comes from --glass-fill-liquid (dark). */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.3),
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.08), /* edge refraction — subtle in dark */
+    0 0 0 0.5px rgba(255, 255, 255, 0.07),
+    0 4px 16px -4px rgba(0, 0, 0, 0.35),
+    0 16px 40px -16px rgba(0, 0, 0, 0.30);
 }
 
 .glass-soft {

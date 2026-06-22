@@ -37,11 +37,12 @@ function ActivePill({ active }: { active: boolean }) {
       aria-hidden
       style={{
         position: 'absolute',
-        inset: 0,
-        borderRadius: 10,
-        background: 'var(--accent-soft)',
+        inset: '7px 0',                         // handoff .tab-btn.active::before
+        borderRadius: 18,
+        background: 'var(--glass-capsule-fill)', // brighter inner glass pane (light/dark tokenized)
+        boxShadow: 'var(--glass-capsule-stroke)',
         opacity: active ? 1 : 0,
-        transform: active ? 'scale(1)' : 'scale(0.65)',
+        transform: active ? 'scaleX(1) scaleY(1)' : 'scaleX(0.75) scaleY(0.8)',
         transition: `opacity 200ms ${EASE_OUT}, transform 300ms ${SPRING}`,
         pointerEvents: 'none',
       }}
@@ -72,25 +73,36 @@ function TabItem({
       aria-label={label}
       style={{
         position: 'relative',
+        flex: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 2,
+        gap: 3,
         textDecoration: 'none',
         color: active ? 'var(--accent)' : 'var(--fg-muted)',
         fontFamily: 'var(--font-sans)',
         fontSize: 10,
-        fontWeight: active ? 600 : 500,
-        padding: '4px 6px',
-        borderRadius: 12,
+        fontWeight: 600,
+        padding: '0 6px',
+        borderRadius: 24,
         minWidth: 44,
-        height: 48,
+        height: '100%',
       }}
     >
       <ActivePill active={active} />
       <div style={{ position: 'relative' }}>
-        <i className={icon} style={{ fontSize: 22, position: 'relative', zIndex: 1 }} />
+        <i
+          className={icon}
+          style={{
+            fontSize: 22,
+            position: 'relative',
+            zIndex: 1,
+            // Active icon lifts slightly (handoff .tab-btn.active .tab-icon).
+            transform: active ? 'translateY(-1px)' : 'none',
+            transition: `transform 200ms ${SPRING}`,
+          }}
+        />
         <UnreadDot show={!!hasUnread} />
       </div>
       {showLabel && <span style={{ position: 'relative', zIndex: 1 }}>{label}</span>}
@@ -177,7 +189,7 @@ export default function MobileTabBar() {
         left: '50%',
         width: 'calc(100% - 24px)',
         maxWidth: 480,
-        height: 56,
+        height: 64,
         zIndex: 100,
         // Slide off-screen + fade when hidden (scroll-down / keyboard up).
         transform: hidden
@@ -197,8 +209,8 @@ export default function MobileTabBar() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          height: 56,
+          gap: 8,
+          height: 64,
           width: '100%',
         }}
       >
@@ -210,12 +222,12 @@ export default function MobileTabBar() {
         style={{
           flex: 1,
           minWidth: 0,
-          height: 56,
-          borderRadius: 28,
+          height: 64,
+          borderRadius: 32,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-around',
-          padding: '0 4px',
+          gap: 2,
+          padding: '0 8px',
         }}
       >
         {BOTTOM_TABS.map(tab => {
@@ -231,8 +243,8 @@ export default function MobileTabBar() {
                 className="tab-press-center"
                 aria-label={tab.label}
                 style={{
-                  width: 42,
-                  height: 42,
+                  width: 46,
+                  height: 46,
                   borderRadius: '50%',
                   background: 'var(--accent)',
                   color: 'var(--fg-inverse)',
@@ -241,10 +253,11 @@ export default function MobileTabBar() {
                   justifyContent: 'center',
                   textDecoration: 'none',
                   flexShrink: 0,
-                  boxShadow: '0 4px 14px -4px rgba(29,111,66,0.55)',
+                  // handoff .tab-fab
+                  boxShadow: '0 4px 12px -2px rgba(29,111,66,0.50), inset 0 1px 0 rgba(255,255,255,0.2)',
                 }}
               >
-                <i className={tab.icon} style={{ fontSize: 20 }} />
+                <i className={tab.icon} style={{ fontSize: 24 }} />
               </Link>
             )
           }
@@ -271,15 +284,15 @@ export default function MobileTabBar() {
           className="glass-liquid search-circle-btn"
           aria-label="Buscar"
           style={{
-            width: 56,
-            height: 56,
+            width: 60,
+            height: 60,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             textDecoration: 'none',
-            color: 'var(--fg)',
+            color: 'var(--fg-muted)',
           }}
         >
           <i className="iconoir-search" style={{ fontSize: 22 }} />
