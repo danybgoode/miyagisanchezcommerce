@@ -11,6 +11,9 @@ import type { Listing } from '@/lib/types'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import FavoritesProvider from '@/app/components/FavoritesProvider'
+import HomePersonalizationProvider from '@/app/components/HomePersonalizationProvider'
+import HomeRetomaOffers from '@/app/components/HomeRetomaOffers'
+import HomeSellerModule from '@/app/components/HomeSellerModule'
 import {
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
@@ -60,6 +63,7 @@ export default async function HomePage() {
   const seleccion: Listing[] = [...(featured ? [featured] : []), ...grid]
 
   return (
+    <HomePersonalizationProvider>
     <div className="max-w-6xl mx-auto px-4 py-4">
       {/* Value-prop ribbon: one-line orientation in place of a hero. Shown to everyone
           now that the page is static (no auth branch). */}
@@ -85,6 +89,11 @@ export default async function HomePage() {
           Cómo funciona →
         </Link>
       </div>
+
+      {/* S4 — signed-in personalization islands (top slot): retoma rail + offer alerts.
+          Hydrate client-side from the S3 Cloud Run endpoint; render nothing otherwise so
+          the static page is unchanged for signed-out/loading visitors. */}
+      <HomeRetomaOffers />
 
       <CategoryChips className="mb-6" />
 
@@ -338,6 +347,10 @@ export default async function HomePage() {
         </div>
       )}
 
+      {/* S4 — signed-in personalization island (bottom slot): seller snapshot or recruit.
+          Same client-island hydration; nothing for signed-out/loading visitors. */}
+      <HomeSellerModule />
+
       {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Shown to
           everyone now (static page, no auth branch); signed-in islands can refine in S4. */}
       {seleccion.length > 0 && (
@@ -363,5 +376,6 @@ export default async function HomePage() {
         </section>
       )}
     </div>
+    </HomePersonalizationProvider>
   )
 }
