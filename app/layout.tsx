@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import PlatformThemeScript from '@/app/components/PlatformThemeScript'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import './globals.css'
@@ -84,17 +83,15 @@ export const viewport: Viewport = {
  * (marketplace-static-shell epic S1). The dynamic `(shell)` tree keeps the per-request
  * chrome decision. URLs are unchanged — route groups produce no URL segment.
  *
- * The platform seasonal-theme boot script stays here in `<head>` (kept unconditional so
- * it runs `beforeInteractive`): it self-gates on `location.pathname` + origin-scoped
- * localStorage, so it is a no-op on ineligible paths and on white-label origins.
+ * The platform seasonal-theme boot script is emitted by the `(site)`/`(shell)` layouts
+ * (gated on path eligibility) rather than here, so it stays absent on ineligible pages
+ * (e.g. /terminos) — the static root has no path to gate on.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
       <html lang="es" suppressHydrationWarning>
         <head>
-          <PlatformThemeScript />
-
           {/* Space Grotesk — display + body */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

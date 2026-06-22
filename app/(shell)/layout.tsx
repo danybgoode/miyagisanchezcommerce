@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import PlatformShell from '@/app/components/PlatformShell'
+import PlatformThemeScript from '@/app/components/PlatformThemeScript'
 import ReferralAttribution from '@/app/components/ReferralAttribution'
 import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
@@ -52,6 +53,10 @@ export default async function ShellLayout({ children }: { children: React.ReactN
 
   return (
     <>
+      {/* Seasonal-theme boot script (beforeInteractive) — only on eligible platform
+          pages (`/l*`, `/agent`), never white-label/embed/ineligible. The static root
+          can't gate by path, so it's emitted here where eligibility is known. */}
+      {platformThemeEligible && <PlatformThemeScript />}
       {isChannel && channelShop ? (
         <ChannelLayout
           shopName={channelShop.name}

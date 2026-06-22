@@ -1,4 +1,5 @@
 import PlatformShell from '@/app/components/PlatformShell'
+import PlatformThemeScript from '@/app/components/PlatformThemeScript'
 import ReferralAttribution from '@/app/components/ReferralAttribution'
 
 /**
@@ -15,6 +16,9 @@ import ReferralAttribution from '@/app/components/ReferralAttribution'
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      {/* Homepage `/` is always theme-eligible — emit the beforeInteractive boot script
+          here (the static root can't gate by path). */}
+      <PlatformThemeScript />
       <PlatformShell platformThemeEligible>{children}</PlatformShell>
       <ReferralAttribution />
     </>
