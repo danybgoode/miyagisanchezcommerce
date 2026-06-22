@@ -29,7 +29,7 @@ const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
  * (hidden via a translate transform when closed) so the trigger in MobileTabBar
  * can call `inputRef.current.focus()` synchronously inside the tap handler —
  * the iOS keyboard only raises from a real, already-present element (WebKit
- * #279904, also why the input carries `touch-action: auto`). Rendered as a
+ * bug 279904, also why the input carries `touch-action: auto`). Rendered as a
  * sibling of the bar so it doesn't ride the bar's keyboard auto-hide transform.
  */
 export default function SearchSheet({
@@ -151,7 +151,7 @@ export default function SearchSheet({
               style={{
                 width: '100%',
                 height: 46,
-                // WebKit #279904: `touch-action: auto` keeps the synchronous tap
+                // WebKit bug 279904: `touch-action: auto` keeps the synchronous tap
                 // focus reliably raising the keyboard inside the PWA.
                 touchAction: 'auto',
                 background: 'var(--bg-base)',

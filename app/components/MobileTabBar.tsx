@@ -282,7 +282,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
 
         {/* Detached liquid-glass search control — opens the bottom-sheet search
             (S2.1). focus() runs SYNCHRONOUSLY in the tap handler so iOS raises the
-            keyboard on the tap itself (WebKit #279904); the sheet's input is always
+            keyboard on the tap itself (WebKit bug 279904); the sheet's input is always
             mounted (sibling below), so the ref is live at tap time. */}
         <button
           type="button"
