@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * PWA bottom bar (Nav & Settings Reorg — Sprint 1) — real-browser, ANONYMOUS.
+ * PWA bottom bar (PWA Liquid-Glass Nav Polish — Sprint 1) — real-browser, ANONYMOUS.
  *
  * The bar is gated behind `@media (display-mode: standalone) and (max-width: 767px)`
  * (`.pwa-only`). `display-mode` is NOT an emulatable media feature in headless
@@ -10,12 +10,13 @@ import { test, expect, type Page } from '@playwright/test'
  * satisfy that gate. The media gate itself is trivial, separately-trusted CSS — this
  * spec uses a phone viewport + a test-only `display:flex` override to FORCE the bar
  * visible, then asserts the React render + the hide-on-scroll JS (the parts an API
- * call can't see). The genuine PWA-standalone install + real-device keyboard hide
- * stay owed to Daniel.
+ * call can't see). The genuine PWA-standalone install, the real-device keyboard hide,
+ * the PWA-only Favoritos dedup, and the device glass look stay owed to Daniel.
  *
- * Covers Story 1.1 (exactly 4 tabs + FAB; the search circle / Favoritos / Vecindario
- * gone) and Story 1.2's hide-on-scroll + route-hide. The scroll *decision* is also
- * unit-tested in `tabbar-visibility.spec.ts`; here we prove the wiring renders it.
+ * Covers S1.1 (the reordered set Inicio · Mensajes · ⊕ Vender · Favoritos · Perfil,
+ * Explorar gone) + S1.2 (the detached search control present) and the hide-on-scroll +
+ * route-hide. The set/order *decision* is also unit-tested in `tabbar-visibility.spec.ts`;
+ * here we prove the wiring renders it.
  *
  * Render/scroll target `/terminos`: the bar is layout-level (identical on every page)
  * and that page is anonymous with no catalog dependency, so the test is deterministic
@@ -29,30 +30,30 @@ async function gotoWithBarForced(page: Page, path: string) {
 }
 
 test.describe('PWA bottom bar (standalone)', () => {
-  test('renders exactly 4 tabs + the publish FAB, nothing removed', async ({ page }) => {
+  test('renders the reordered set + the detached search control', async ({ page }) => {
     await gotoWithBarForced(page, '/terminos')
 
     const bar = page.locator('.pwa-only')
     await expect(bar).toBeVisible()
 
-    // The four destinations + the FAB are present (by accessible name).
-    for (const name of ['Inicio', 'Explorar', 'Mensajes', 'Vender']) {
+    // The four tabs + the FAB + the detached search control are present (by name).
+    for (const name of ['Inicio', 'Mensajes', 'Vender', 'Favoritos', 'Perfil', 'Buscar']) {
       await expect(bar.getByRole('link', { name, exact: true })).toBeVisible()
     }
-    // Cuenta (signed-out → "Entrar").
-    await expect(
-      bar.getByRole('link', { name: 'Cuenta', exact: true })
-        .or(bar.getByRole('link', { name: 'Entrar', exact: true })),
-    ).toBeVisible()
 
-    // Removed in this sprint: the detached search circle, Favoritos, Vecindario.
-    await expect(bar.getByRole('button', { name: 'Buscar' })).toHaveCount(0)
-    await expect(bar.getByRole('link', { name: 'Favoritos' })).toHaveCount(0)
-    await expect(bar.getByRole('link', { name: /vecindario/i })).toHaveCount(0)
+    // Gone this sprint: the Explorar tab (search moved to the detached control).
+    await expect(bar.getByRole('link', { name: 'Explorar' })).toHaveCount(0)
+    // No "Cuenta"/"Entrar" tab anymore — it's "Perfil" now.
+    await expect(bar.getByRole('link', { name: 'Cuenta', exact: true })).toHaveCount(0)
 
-    // FAB points at the publish flow.
+    // FAB → publish flow; the search control → /l (interim; S2.1 opens the sheet).
     await expect(bar.getByRole('link', { name: 'Vender', exact: true }))
       .toHaveAttribute('href', '/sell')
+    await expect(bar.getByRole('link', { name: 'Buscar', exact: true }))
+      .toHaveAttribute('href', '/l')
+    // Auth-gated tabs point at sign-in while signed out.
+    await expect(bar.getByRole('link', { name: 'Favoritos', exact: true }))
+      .toHaveAttribute('href', '/sign-in')
   })
 
   test('hides on scroll-down and springs back on scroll-up', async ({ page }) => {

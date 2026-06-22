@@ -17,6 +17,7 @@ import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
 export default function CuentaMenu({
   themeSlot,
   themeEligible,
+  hideFavoritesInPwa = false,
 }: {
   themeSlot: React.ReactNode
   /**
@@ -26,6 +27,14 @@ export default function CuentaMenu({
    * "absent where it doesn't work" behavior.
    */
   themeEligible: boolean
+  /**
+   * Drop the Favoritos row in the installed PWA standalone bar (where the bottom
+   * tab now carries it — PWA Liquid-Glass Nav Polish S1.1). The row is tagged
+   * `.pwa-hidden` (a CSS-only hide under `display-mode: standalone`), so it stays
+   * visible on desktop and mobile web. Pass `true` on the mobile-header instance
+   * only; the desktop instance leaves it default (there is no bottom tab there).
+   */
+  hideFavoritesInPwa?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -115,13 +124,16 @@ export default function CuentaMenu({
                 </div>
               )
             }
+            // The bottom PWA tab carries Favoritos in standalone → hide the dup
+            // row there (CSS-only; stays on desktop + mobile web).
+            const pwaHidden = hideFavoritesInPwa && item.key === 'favorites'
             return (
               <Link
                 key={item.key}
                 href={item.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="cuenta-menu-item"
+                className={pwaHidden ? 'cuenta-menu-item pwa-hidden' : 'cuenta-menu-item'}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

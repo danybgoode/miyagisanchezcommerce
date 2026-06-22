@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { shouldHideTabBar, nextTabBarHidden, LABEL_MODE } from '../lib/tabbar-visibility'
+import {
+  shouldHideTabBar, nextTabBarHidden, LABEL_MODE,
+  BOTTOM_TABS, resolveBottomTabHref, isBottomTabActive,
+} from '../lib/tabbar-visibility'
 
 /**
  * PWA bottom-bar visibility — pure logic (api gate, no browser). The MobileTabBar
@@ -56,5 +59,71 @@ test.describe('tabbar · nextTabBarHidden', () => {
 test.describe('tabbar · LABEL_MODE', () => {
   test('defaults to icons-only', () => {
     expect(LABEL_MODE).toBe('icons-only')
+  })
+})
+
+test.describe('tabbar · BOTTOM_TABS (set + order)', () => {
+  test('renders exactly Inicio · Mensajes · ⊕ Vender · Favoritos · Perfil, in order', () => {
+    // The deliberate S1.1 order (partial revert of the 2026-06-11 nav-reorg).
+    expect(BOTTOM_TABS.map(t => t.key)).toEqual([
+      'home', 'messages', 'sell', 'favorites', 'profile',
+    ])
+    // No Explorar/search tab — search left the bar for the detached control.
+    expect(BOTTOM_TABS.find(t => t.key === 'sell')?.kind).toBe('fab')
+    expect(BOTTOM_TABS.filter(t => t.kind === 'tab')).toHaveLength(4)
+  })
+
+  test('signed-in hrefs and es-MX aria-labels', () => {
+    const byKey = Object.fromEntries(BOTTOM_TABS.map(t => [t.key, t]))
+    expect(byKey.home.href).toBe('/')
+    expect(byKey.messages.href).toBe('/messages')
+    expect(byKey.sell.href).toBe('/sell')
+    expect(byKey.favorites.href).toBe('/account/favorites')
+    expect(byKey.profile.href).toBe('/account')
+    expect(byKey.profile.label).toBe('Perfil')
+    expect(byKey.favorites.label).toBe('Favoritos')
+    // Only Mensajes carries the global unread dot.
+    expect(BOTTOM_TABS.filter(t => t.unread).map(t => t.key)).toEqual(['messages'])
+  })
+})
+
+test.describe('tabbar · resolveBottomTabHref', () => {
+  const byKey = Object.fromEntries(BOTTOM_TABS.map(t => [t.key, t]))
+
+  test('auth-gated tabs fall back to /sign-in when signed out', () => {
+    expect(resolveBottomTabHref(byKey.messages, false)).toBe('/sign-in')
+    expect(resolveBottomTabHref(byKey.favorites, false)).toBe('/sign-in')
+    expect(resolveBottomTabHref(byKey.profile, false)).toBe('/sign-in')
+  })
+
+  test('signed-in keeps the real destination; un-gated tabs never change', () => {
+    expect(resolveBottomTabHref(byKey.favorites, true)).toBe('/account/favorites')
+    expect(resolveBottomTabHref(byKey.home, false)).toBe('/')   // no signedOutHref
+    expect(resolveBottomTabHref(byKey.sell, false)).toBe('/sell')
+  })
+})
+
+test.describe('tabbar · isBottomTabActive', () => {
+  test('home is active only on the exact root', () => {
+    expect(isBottomTabActive('home', '/')).toBe(true)
+    expect(isBottomTabActive('home', '/l')).toBe(false)
+  })
+
+  test('favorites and profile do not both light up on the favorites subtree', () => {
+    expect(isBottomTabActive('favorites', '/account/favorites')).toBe(true)
+    expect(isBottomTabActive('profile', '/account/favorites')).toBe(false) // its own tab
+    expect(isBottomTabActive('profile', '/account')).toBe(true)
+    expect(isBottomTabActive('profile', '/account/orders')).toBe(true)
+  })
+
+  test('no tab owns the /sign-in interstitial (several auth-gated tabs route there)', () => {
+    expect(isBottomTabActive('profile', '/sign-in')).toBe(false)
+    expect(isBottomTabActive('favorites', '/sign-in')).toBe(false)
+    expect(isBottomTabActive('messages', '/sign-in')).toBe(false)
+  })
+
+  test('messages is active across the whole section', () => {
+    expect(isBottomTabActive('messages', '/messages')).toBe(true)
+    expect(isBottomTabActive('messages', '/account')).toBe(false)
   })
 })
