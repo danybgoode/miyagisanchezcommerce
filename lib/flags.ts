@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -38,11 +38,16 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *  - KILL-SWITCH (`pdp_redesign`): default `true`. The "decide, then act" PDP
  *    redesign (epic 01) stays live if Flagsmith is down; flipping it OFF reverts
  *    the whole product page to the previous layout instantly (the deliberate act).
+ *  - ENABLEMENT (`events.quantity_enabled`): default `false`. Buying >1 admission
+ *    for one event in a single checkout (epic 10). Default OFF ⇒ quantity capped
+ *    at 1 (today's behavior) — a flag outage can never let an unverified money/
+ *    door path go live. Flip ON once Daniel's live buy-N → N-QR → door smoke passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'domain.paywall_enabled': false,
   'pdp_redesign': true,
+  'events.quantity_enabled': false,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY

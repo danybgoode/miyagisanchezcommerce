@@ -31,8 +31,11 @@ interface CheckoutPayButtonProps {
   personalization?: PersonalizationPayload | null
   items?: CartItem[]
   sellerId?: string
+  /** Subtotal already reflecting quantity (N × unit) — drives the CTA total only. */
   amountCents: number
   currency: string
+  /** Event admissions: units sent to the cart line item (default 1). */
+  quantity?: number
   offerId?: string
   offerAmountCents?: number
   couponCode?: string
@@ -57,6 +60,7 @@ export default function CheckoutPayButton({
   sellerId,
   amountCents,
   currency,
+  quantity,
   offerId,
   offerAmountCents,
   couponCode,
@@ -94,6 +98,7 @@ export default function CheckoutPayButton({
       const result = await startCheckout({
         productId: listingId,
         personalization,
+        quantity,
         items: items?.map(item => ({ productId: item.productId, variantId: item.variantId, personalization: item.personalization })),
         sellerId,
         provider,

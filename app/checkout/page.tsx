@@ -4,6 +4,8 @@ import { currentUser } from '@clerk/nextjs/server'
 import { getListing, formatPrice } from '@/lib/listings'
 import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
+import { isEnabled } from '@/lib/flags'
+import { clampTicketQuantity } from '@/lib/ticket-quantity'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
 
@@ -11,6 +13,8 @@ type SearchParams = {
   listingId?: string
   offerId?: string
   provider?: CheckoutProvider
+  /** Event admissions: how many tickets to buy (clamped to remaining seats). */
+  qty?: string
   /** Tenant custom domain the buyer hopped from (own-channel checkout). */
   origin?: string
 }
@@ -66,7 +70,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -92,6 +96,13 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const image = listing.images?.[0]?.url ?? null
   const isOfferCheckout = !!offerPriceCents
   const isDigital = listing.listing_type === 'digital'
+
+  // Event admissions: buy N in one checkout (kill-switch + aforo clamped). An
+  // accepted-offer checkout is always a single unit. Defaults to 1 elsewhere.
+  const quantityEnabled = await isEnabled('events.quantity_enabled')
+  const quantity = isOfferCheckout
+    ? 1
+    : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
 
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
@@ -122,7 +133,10 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
                   {listing.price_cents && <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Original: <span style={{ textDecoration: 'line-through' }}>{formatPrice(listing)}</span></p>}
                 </div>
               ) : (
-                <p style={{ fontSize: 22, fontWeight: 800, marginTop: 8 }}>{formatCents(amountCents, listing.currency)}</p>
+                <p style={{ fontSize: 22, fontWeight: 800, marginTop: 8 }}>
+                  {formatCents(amountCents, listing.currency)}
+                  {quantity > 1 && <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-muted)' }}> × {quantity}</span>}
+                </p>
               )}
             </div>
           </div>
@@ -133,6 +147,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           sellerId={listing.shop!.id}
           amountCents={amountCents}
           currency={listing.currency}
+          quantity={quantity}
           listingType={listing.listing_type}
           isDigital={isDigital}
           offerId={params.offerId}

@@ -86,6 +86,7 @@ export default function CheckoutExperience({
   currency,
   offerId,
   offerAmountCents,
+  quantity = 1,
   listingType = 'product',
   isDigital = false,
   originDomain,
@@ -94,15 +95,22 @@ export default function CheckoutExperience({
   sellerId: string
   listingId?: string
   items?: CartItem[]
+  /** Unit price (single-item path) or bundle subtotal. */
   amountCents: number
   currency: string
   offerId?: string
   offerAmountCents?: number
+  /** Event admissions: units for the single-item path (default 1). */
+  quantity?: number
   listingType?: string
   isDigital?: boolean
   originDomain?: string
   onStarted?: () => void
 }) {
+  // Single-item event admissions can be N units; the bundle path keeps quantity 1
+  // (each bundle item carries its own). itemsCents drives the coupon base, the
+  // summary subtotal, and the CTA total so all three reflect N × unit.
+  const itemsCents = amountCents * Math.max(1, Math.floor(quantity) || 1)
   // ── Fetch checkout options from Medusa (single source of truth) ───────────
   const [options, setOptions] = useState<CheckoutOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -170,7 +178,7 @@ export default function CheckoutExperience({
     setCouponValidating(true)
     setCouponError(null)
     try {
-      const qs = new URLSearchParams({ sellerId, code, itemsCents: String(amountCents) })
+      const qs = new URLSearchParams({ sellerId, code, itemsCents: String(itemsCents) })
       const res = await fetch(`/api/checkout/validate-coupon?${qs}`)
       const data = await res.json() as { valid?: boolean; code?: string; discount_cents?: number; message?: string }
       if (!res.ok || !data.valid) {
@@ -234,7 +242,7 @@ export default function CheckoutExperience({
       }
     : undefined
   const totalCents = computeCheckoutTotal({
-    itemsCents: amountCents,
+    itemsCents,
     couponDiscountCents,
     shippingCents: selectedShippingRate?.amountCents ?? 0,
   })
@@ -680,8 +688,8 @@ export default function CheckoutExperience({
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? `Artículos (${items.length})` : 'Producto'}</span>
-            <strong>{formatCents(amountCents, currency)}</strong>
+            <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? `Artículos (${items.length})` : quantity > 1 ? `Boletos (${quantity})` : 'Producto'}</span>
+            <strong>{formatCents(itemsCents, currency)}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
             <span style={{ color: 'var(--fg-muted)' }}>Entrega</span>
@@ -786,8 +794,9 @@ export default function CheckoutExperience({
             personalization={personalization}
             items={items}
             sellerId={sellerId}
-            amountCents={amountCents}
+            amountCents={itemsCents}
             currency={currency}
+            quantity={quantity}
             offerId={offerId}
             offerAmountCents={offerAmountCents}
             couponCode={appliedCoupon?.code}
