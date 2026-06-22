@@ -6,6 +6,7 @@ import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity } from '@/lib/ticket-quantity'
+import { readEventDetails } from '@/lib/event-listing'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
 
@@ -97,9 +98,12 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const isOfferCheckout = !!offerPriceCents
   const isDigital = listing.listing_type === 'digital'
 
-  // Event admissions: buy N in one checkout (kill-switch + aforo clamped). An
-  // accepted-offer checkout is always a single unit. Defaults to 1 elsewhere.
-  const quantityEnabled = await isEnabled('events.quantity_enabled')
+  // Event admissions: buy N in one checkout (kill-switch + aforo clamped). Scoped
+  // to EVENT listings only — buy-N is an admissions feature, so a crafted ?qty=N
+  // on a non-event product still checks out a single unit. An accepted-offer
+  // checkout is always a single unit too. Defaults to 1 everywhere else.
+  const isEventListing = !!readEventDetails(listing)
+  const quantityEnabled = (await isEnabled('events.quantity_enabled')) && isEventListing
   const quantity = isOfferCheckout
     ? 1
     : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })

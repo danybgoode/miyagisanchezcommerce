@@ -11,10 +11,18 @@
  * at 1 — today's behavior — regardless of how many seats remain.
  */
 
+/**
+ * Sane ceiling for an event whose inventory is NOT tracked (`available == null`):
+ * without it the cap would be unbounded and unit × qty could overflow money math.
+ * This is a guard for the untracked edge only — a tracked event's real aforo is
+ * never capped here (a per-order cap below aforo is explicitly deferred).
+ */
+export const MAX_TICKETS_PER_ORDER = 20
+
 export interface TicketQuantityCtx {
   /** Remaining seats from Medusa `manage_inventory` (`null` ⇒ not inventory-tracked). */
   available?: number | null
-  /** Resolved `events.quantity_enabled` flag. */
+  /** Resolved `events.quantity_enabled` flag AND the listing being an event. */
   enabled: boolean
 }
 
@@ -29,7 +37,7 @@ function toInt(value: unknown): number {
  */
 export function ticketQuantityCap(ctx: TicketQuantityCtx): number {
   if (!ctx.enabled) return 1
-  if (ctx.available == null) return Number.MAX_SAFE_INTEGER
+  if (ctx.available == null) return MAX_TICKETS_PER_ORDER
   return Math.max(1, toInt(ctx.available))
 }
 

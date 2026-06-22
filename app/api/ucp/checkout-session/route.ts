@@ -30,6 +30,7 @@ import { isShopClaimed } from '@/lib/claim'
 import { ensureUrlProtocol } from '@/lib/url'
 import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity, ticketTotalLabel } from '@/lib/ticket-quantity'
+import { readEventDetails } from '@/lib/event-listing'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
@@ -244,9 +245,11 @@ export async function POST(req: NextRequest) {
   const isClaimed  = isShopClaimed(shop)
 
   // Event admissions: an agent can request N tickets (surface parity, AGENTS #3).
-  // Clamped to the kill-switch + remaining seats. An accepted offer is 1 unit.
-  // Issuance for the agent path is deferred (see the `quantity` note on the type).
-  const quantityEnabled = await isEnabled('events.quantity_enabled')
+  // Scoped to EVENT listings + clamped to the kill-switch + remaining seats. An
+  // accepted offer is 1 unit. Issuance for the agent path is deferred (see the
+  // `quantity` note on the type).
+  const isEventListing = !!readEventDetails(listing)
+  const quantityEnabled = (await isEnabled('events.quantity_enabled')) && isEventListing
   const quantity = isOfferPrice
     ? 1
     : clampTicketQuantity(body.quantity ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
@@ -293,16 +296,17 @@ export async function POST(req: NextRequest) {
 
   // ── Build payment options ─────────────────────────────────────────────────
 
-  // Quantity rides the instant checkout URLs as a query param (forward-compat:
-  // honored once agent-path issuance is wired through the Medusa cart).
-  const qtyParam = quantity > 1 ? `?quantity=${quantity}` : ''
+  // NOTE: quantity is echoed on the session (below) but NOT appended to the
+  // instant checkout URLs — those endpoints build a raw 1-unit Stripe/MP session
+  // (no Medusa cart), so a quantity param there would be a misleading no-op.
+  // Real agent buy-N rides the deferred issuance follow-up.
 
   // 1. MercadoPago
   let mpCheckoutUrl: string | undefined
   if (mpAvailable) {
     // Pre-generate MP preference lazily — we return the POST endpoint + params instead
     // (avoids burning an MP API call on every session request)
-    mpCheckoutUrl = `${baseUrl}/api/mp/checkout${qtyParam}`
+    mpCheckoutUrl = `${baseUrl}/api/mp/checkout`
   }
 
   const mpOption: PaymentOption = {
@@ -327,7 +331,7 @@ export async function POST(req: NextRequest) {
     available: stripeAvailable,
     instant:   true,
     escrow_compatible: escrowMode !== 'off',
-    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout${qtyParam}` : undefined,
+    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout` : undefined,
     ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
   }
 

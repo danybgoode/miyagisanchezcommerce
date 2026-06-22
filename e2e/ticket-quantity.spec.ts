@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { clampTicketQuantity, ticketQuantityCap, ticketTotalLabel } from '../lib/ticket-quantity'
+import { clampTicketQuantity, ticketQuantityCap, ticketTotalLabel, MAX_TICKETS_PER_ORDER } from '../lib/ticket-quantity'
 
 /**
  * Events: quantity selector · S1.2 — the pure clamp/cap/label seam shared by the
@@ -38,9 +38,10 @@ test.describe('ticket-quantity · cap + clamp', () => {
     expect(ticketQuantityCap({ available: 0, enabled: true })).toBe(1)
   })
 
-  test('untracked inventory (null) is unbounded but ≥ 1 when enabled', () => {
-    expect(ticketQuantityCap({ available: null, enabled: true })).toBe(Number.MAX_SAFE_INTEGER)
-    expect(clampTicketQuantity(50, { available: null, enabled: true })).toBe(50)
+  test('untracked inventory (null) caps at the sane per-order ceiling (no overflow)', () => {
+    expect(ticketQuantityCap({ available: null, enabled: true })).toBe(MAX_TICKETS_PER_ORDER)
+    expect(clampTicketQuantity(5, { available: null, enabled: true })).toBe(5)
+    expect(clampTicketQuantity(9999, { available: null, enabled: true })).toBe(MAX_TICKETS_PER_ORDER)
   })
 })
 
