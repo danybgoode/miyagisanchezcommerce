@@ -10,6 +10,13 @@
       "activeSeasonal": "Collaboration active"
     }
   },
+  "pwaSearch": {
+    "placeholder": "What are you looking for?",
+    "recentTitle": "Recent searches",
+    "suggestedTitle": "Suggestions",
+    "close": "Close",
+    "clear": "Clear"
+  },
   "sellerAcquisition": {
     "shared": {
       "trustPrompt": "what is miyagisanchez.com?",

@@ -476,7 +476,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </footer>
 
           {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
-          <MobileTabBar />
+          <MobileTabBar search={dict.pwaSearch} />
           </>
           )}
           <CartDrawer />
