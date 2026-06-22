@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { useFavoritesContext } from '@/app/components/FavoritesProvider'
@@ -33,14 +33,19 @@ export default function FavoriteButton({
   const favorites = useFavoritesContext()
   const [favorited, setFavorited] = useState(initialFavorited)
   const [loading, setLoading] = useState(false)
+  // Once we've taken ownership of the state (hydrated from the provider, or the user
+  // toggled), the provider must never re-sync over it — otherwise a successful toggle
+  // would snap back to the provider's now-stale fetched set.
+  const ownedRef = useRef(false)
 
-  // Heart-state hydration on the static homepage: when a FavoritesProvider is mounted
-  // and has loaded, reflect the user's favorites client-side (no server seeding). A
-  // pending optimistic toggle isn't clobbered — only sync while not loading.
+  // Heart-state hydration on the static homepage: reflect the user's favorites
+  // client-side (no server seeding) EXACTLY ONCE, when the FavoritesProvider first
+  // becomes ready. After that, the toggle owns the state.
   useEffect(() => {
-    if (!favorites?.ready || loading) return
+    if (ownedRef.current || !favorites?.ready) return
+    ownedRef.current = true
     setFavorited(initialFavorited || favorites.isFavorited(listingId))
-  }, [favorites?.ready, favorites, listingId, initialFavorited, loading])
+  }, [favorites, listingId, initialFavorited])
 
   const iconSize = size === 'sm' ? 18 : 22
   const btnSize  = size === 'sm' ? 32 : 40
@@ -54,6 +59,8 @@ export default function FavoriteButton({
       return
     }
 
+    // The user now owns this heart — block any later provider hydration from clobbering it.
+    ownedRef.current = true
     setLoading(true)
     const optimistic = !favorited
     setFavorited(optimistic)
