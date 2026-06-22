@@ -94,6 +94,12 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       headers.set('x-miyagi-domain', hostname.split(':')[0].toLowerCase())
       headers.set('x-miyagi-shop-slug', slug)
 
+      // Homepage → render the shop landing page (transparent rewrite, slug never
+      // exposed). LOAD-BEARING for the static-marketplace-shell split: the bare `/`
+      // route is owned solely by the static `app/(site)/page.tsx`, while channel
+      // homepages are rewritten to `/s/[slug]` — which lands in the dynamic
+      // `app/(shell)/` tree and renders the white-label ChannelLayout. So the two
+      // layouts never contend for `/`, and `/` can be a static CDN asset.
       if (path === '/') {
         const url = req.nextUrl.clone()
         url.pathname = `/s/${slug}`
@@ -211,7 +217,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       headers.set('x-miyagi-shop-slug', slug)
 
       // Homepage → render the shop landing page, keeping the custom domain in
-      // the address bar (transparent rewrite, slug never exposed).
+      // the address bar (transparent rewrite, slug never exposed). Same load-bearing
+      // role as the subdomain rewrite above: it keeps channel homepages off the bare
+      // `/` route so `app/(site)/page.tsx` can stay a static CDN asset while this
+      // request renders the dynamic white-label `(shell)` tree.
       if (path === '/') {
         const url = req.nextUrl.clone()
         url.pathname = `/s/${slug}`
