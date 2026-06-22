@@ -28,6 +28,8 @@ import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { isShopClaimed } from '@/lib/claim'
 import { ensureUrlProtocol } from '@/lib/url'
+import { isEnabled } from '@/lib/flags'
+import { clampTicketQuantity, ticketTotalLabel } from '@/lib/ticket-quantity'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
@@ -80,6 +82,15 @@ interface UcpCheckoutSession {
     currency:          string
     formatted:         string
     is_offer_price:    boolean
+  } | null
+  // Event admissions: how many units the agent requested (clamped to the
+  // kill-switch + remaining seats) and the resulting line total. `quantity` is 1
+  // for everything else. NOTE: agent-initiated ticket *issuance* is not yet wired
+  // (the agent checkout endpoints don't open a Medusa cart) — surface parity only.
+  quantity:            number
+  line_total: {
+    amount_cents:      number
+    formatted:         string
   } | null
   payment_options:     PaymentOption[]
   recommended_method:  PaymentMethodKey | null
@@ -178,7 +189,7 @@ export async function POST(req: NextRequest) {
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
 
-  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown }
+  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown; quantity?: number }
   try {
     body = await req.json()
   } catch {
@@ -232,6 +243,15 @@ export async function POST(req: NextRequest) {
   const isDigital  = listing.listing_type === 'digital'
   const isClaimed  = isShopClaimed(shop)
 
+  // Event admissions: an agent can request N tickets (surface parity, AGENTS #3).
+  // Clamped to the kill-switch + remaining seats. An accepted offer is 1 unit.
+  // Issuance for the agent path is deferred (see the `quantity` note on the type).
+  const quantityEnabled = await isEnabled('events.quantity_enabled')
+  const quantity = isOfferPrice
+    ? 1
+    : clampTicketQuantity(body.quantity ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
+  const lineTotalCents = hasPrice ? priceCents! * quantity : null
+
   // ── Shop signals ──────────────────────────────────────────────────────────
   const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
   const hasMp          = sellerHasMpConnected(shopMeta as Record<string, unknown> | null)
@@ -273,12 +293,16 @@ export async function POST(req: NextRequest) {
 
   // ── Build payment options ─────────────────────────────────────────────────
 
+  // Quantity rides the instant checkout URLs as a query param (forward-compat:
+  // honored once agent-path issuance is wired through the Medusa cart).
+  const qtyParam = quantity > 1 ? `?quantity=${quantity}` : ''
+
   // 1. MercadoPago
   let mpCheckoutUrl: string | undefined
   if (mpAvailable) {
     // Pre-generate MP preference lazily — we return the POST endpoint + params instead
     // (avoids burning an MP API call on every session request)
-    mpCheckoutUrl = `${baseUrl}/api/mp/checkout`
+    mpCheckoutUrl = `${baseUrl}/api/mp/checkout${qtyParam}`
   }
 
   const mpOption: PaymentOption = {
@@ -303,7 +327,7 @@ export async function POST(req: NextRequest) {
     available: stripeAvailable,
     instant:   true,
     escrow_compatible: escrowMode !== 'off',
-    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout` : undefined,
+    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout${qtyParam}` : undefined,
     ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
   }
 
@@ -427,6 +451,11 @@ export async function POST(req: NextRequest) {
       currency,
       formatted:     formatMxn(priceCents!, currency),
       is_offer_price: isOfferPrice,
+    } : null,
+    quantity,
+    line_total: lineTotalCents != null ? {
+      amount_cents: lineTotalCents,
+      formatted:    ticketTotalLabel(priceCents!, quantity, currency),
     } : null,
     payment_options:    allOptions,
     recommended_method: recommended,
