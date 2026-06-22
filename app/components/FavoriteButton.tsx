@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
+import { useFavoritesContext } from '@/app/components/FavoritesProvider'
 
 interface FavoriteButtonProps {
   listingId: string
   initialFavorited?: boolean
-  isSignedIn: boolean
+  /**
+   * Server-seeded signed-in flag. Optional: when omitted (the static homepage, which
+   * can't read auth server-side), the Clerk client `useAuth()` resolves it.
+   */
+  isSignedIn?: boolean
   size?: 'sm' | 'md'
   className?: string
 }
@@ -14,14 +20,32 @@ interface FavoriteButtonProps {
 export default function FavoriteButton({
   listingId,
   initialFavorited = false,
-  isSignedIn,
+  isSignedIn: isSignedInProp,
   size = 'md',
   className = '',
 }: FavoriteButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { isSignedIn: clerkSignedIn } = useAuth()
+  // Prefer the server-seeded prop (PDP/grid in the dynamic tree); fall back to the
+  // Clerk client when omitted (the static homepage).
+  const isSignedIn = isSignedInProp ?? !!clerkSignedIn
+  const favorites = useFavoritesContext()
   const [favorited, setFavorited] = useState(initialFavorited)
   const [loading, setLoading] = useState(false)
+  // Once we've taken ownership of the state (hydrated from the provider, or the user
+  // toggled), the provider must never re-sync over it — otherwise a successful toggle
+  // would snap back to the provider's now-stale fetched set.
+  const ownedRef = useRef(false)
+
+  // Heart-state hydration on the static homepage: reflect the user's favorites
+  // client-side (no server seeding) EXACTLY ONCE, when the FavoritesProvider first
+  // becomes ready. After that, the toggle owns the state.
+  useEffect(() => {
+    if (ownedRef.current || !favorites?.ready) return
+    ownedRef.current = true
+    setFavorited(initialFavorited || favorites.isFavorited(listingId))
+  }, [favorites, listingId, initialFavorited])
 
   const iconSize = size === 'sm' ? 18 : 22
   const btnSize  = size === 'sm' ? 32 : 40
@@ -35,6 +59,8 @@ export default function FavoriteButton({
       return
     }
 
+    // The user now owns this heart — block any later provider hydration from clobbering it.
+    ownedRef.current = true
     setLoading(true)
     const optimistic = !favorited
     setFavorited(optimistic)

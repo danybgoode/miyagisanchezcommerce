@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Show, UserButton } from '@clerk/nextjs'
+import { UserButton } from '@clerk/nextjs'
+import AuthShow from '@/app/components/AuthShow'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
 import CuentaMenu from '@/app/components/CuentaMenu'
@@ -126,7 +127,7 @@ export default async function PlatformShell({
               </span>
 
               {/* Sell affordance — publish action when signed in, the labeled "Vende" pitch when signed out */}
-              <Show when="signed-in">
+              <AuthShow when="signed-in">
                 <Link
                   href="/sell"
                   className="icon-btn accent"
@@ -134,12 +135,12 @@ export default async function PlatformShell({
                 >
                   <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
                 </Link>
-              </Show>
-              <Show when="signed-out">
+              </AuthShow>
+              <AuthShow when="signed-out">
                 <Link href="/vende" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
                   Vende
                 </Link>
-              </Show>
+              </AuthShow>
 
               <Link
                 href="/vecindario"
@@ -156,7 +157,7 @@ export default async function PlatformShell({
               {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu.
                   Mobile-header instance: drop the Favoritos row in the installed PWA bar
                   (the bottom tab carries it there); it stays in the menu on mobile web. */}
-              <Show when="signed-in">
+              <AuthShow when="signed-in">
                 <CuentaMenu
                   themeEligible={platformThemeEligible}
                   hideFavoritesInPwa
@@ -168,17 +169,17 @@ export default async function PlatformShell({
                     />
                   }
                 />
-              </Show>
+              </AuthShow>
 
               {/* Signed-out has no Cuenta menu — keep the standalone theme toggle
                   (self-hides on ineligible paths). */}
-              <Show when="signed-out">
+              <AuthShow when="signed-out">
                 <PlatformThemeToggle
                   labels={themeToggleLabels}
                   variant="mobile"
                   initialEligible={platformThemeEligible}
                 />
-              </Show>
+              </AuthShow>
             </div>
 
             {/* ── DESKTOP LAYOUT: brand · centered search + agent · nav ── */}
@@ -245,7 +246,7 @@ export default async function PlatformShell({
                 >
                   {NEIGHBORHOOD_PULSE_COPY.navLabel}
                 </Link>
-                <Show when="signed-in">
+                <AuthShow when="signed-in">
                   <Link
                     href="/messages"
                     style={{ position: 'relative', fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
@@ -271,8 +272,8 @@ export default async function PlatformShell({
                     }
                   />
                   <UserButton />
-                </Show>
-                <Show when="signed-out">
+                </AuthShow>
+                <AuthShow when="signed-out">
                   {/* No Cuenta menu when signed out — keep the standalone toggle
                       (self-hides on ineligible paths). */}
                   <PlatformThemeToggle
@@ -290,7 +291,7 @@ export default async function PlatformShell({
                   >
                     Iniciar sesión
                   </Link>
-                </Show>
+                </AuthShow>
               </nav>
             </div>
 
