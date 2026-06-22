@@ -19,7 +19,7 @@
 
 import { notFound } from 'next/navigation'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
-import ChannelLayout from '@/app/s/[slug]/ChannelLayout'
+import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import type { Metadata } from 'next'

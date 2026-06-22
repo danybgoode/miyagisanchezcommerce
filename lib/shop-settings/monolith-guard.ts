@@ -29,7 +29,7 @@ export type MonolithOffense = {
 }
 
 /** The settings surface root, relative to the repo root. */
-export const SETTINGS_DIR = 'app/shop/manage/settings'
+export const SETTINGS_DIR = 'app/(shell)/shop/manage/settings'
 
 /**
  * Line cap for any single settings component. The largest extracted section after
