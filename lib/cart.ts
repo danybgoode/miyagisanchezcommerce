@@ -116,8 +116,11 @@ export interface StartCheckoutParams {
   variantId?: string | null
   /** Buyer-entered personalization for the single-item path → line-item metadata */
   personalization?: PersonalizationPayload | null
+  /** Units for the single-item path (event admissions, default 1). Clamped to
+   *  the listing's available_quantity upstream (lib/ticket-quantity.ts). */
+  quantity?: number
   /** Multi-item bundle (CartDrawer — all items must be same seller) */
-  items?: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null }>
+  items?: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null; quantity?: number }>
   /** Pass seller ID to skip the expensive server-side scan */
   sellerId?: string
   provider: CheckoutProvider
@@ -192,7 +195,7 @@ export interface StartCheckoutResult {
  */
 export async function startCheckout(params: StartCheckoutParams): Promise<StartCheckoutResult> {
   const {
-    productId, variantId, personalization, items, sellerId,
+    productId, variantId, personalization, quantity, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
     offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, pickupAppointment, shippingAddress, shippingQuote, escrow,
     originDomain,
@@ -204,11 +207,11 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
 
   // Normalise to array — single-item path is the same as multi-item with one entry
-  const lineItems: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null }> =
+  const lineItems: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null; quantity?: number }> =
     items && items.length > 0
       ? items
       : productId
-        ? [{ productId, variantId, personalization }]
+        ? [{ productId, variantId, personalization, quantity }]
         : []
 
   if (lineItems.length === 0) throw new Error('No items to checkout')
@@ -267,7 +270,9 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       headers: authHeaders,
       body: JSON.stringify({
         variant_id: resolvedVariantId,
-        quantity: 1,
+        // Default 1; event admissions can buy N (clamped to available_quantity
+        // upstream). The backend issuance loop mints one ticket PER UNIT.
+        quantity: Math.max(1, Math.floor(Number(lineItem.quantity ?? 1)) || 1),
         // Buyer personalization + event ticket tokens ride line-item metadata →
         // order line item metadata natively (no commerce table).
         ...lineItemCheckoutMetadata({ personalization: lineItem.personalization, eventTicket }),

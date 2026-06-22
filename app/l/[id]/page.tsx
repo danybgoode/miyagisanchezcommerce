@@ -29,7 +29,9 @@ import ServiceHero from './ServiceHero'
 import AutoHero from './AutoHero'
 import InmuebleHero from './InmuebleHero'
 import EventHero from './EventHero'
+import EventBuyBox from './EventBuyBox'
 import { eventHeroModel } from '@/lib/event-hero'
+import { ticketQuantityCap } from '@/lib/ticket-quantity'
 import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
@@ -307,6 +309,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // quantity are deferred (no live source). The lower event block is suppressed.
   const eventLed = redesign && !!eventDetails
   const eventModel = eventLed ? eventHeroModel() : null
+  // Event admissions: how many tickets the buyer may pick (kill-switch + aforo).
+  // cap <= 1 ⇒ no stepper (today's single-ticket <Link>); cap > 1 ⇒ EventBuyBox.
+  const ticketQtyEnabled = eventModel ? await isEnabled('events.quantity_enabled') : false
+  const ticketCap = eventModel
+    ? ticketQuantityCap({ available: listing.available_quantity, enabled: ticketQtyEnabled })
+    : 1
   const buyNowLabel = eventModel ? `${eventModel.buyLabel} — ${effectivePrice}` : `Comprar ahora — ${effectivePrice}`
   const signInBuyLabel = eventModel ? eventModel.signInLabel : 'Inicia sesión para comprar'
   // Unclaimed (S5.4) — gem-imported shop with no owner. Buy/Offer/Cart already
@@ -482,6 +490,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       />
     ) : agreedDealCents && activeDeal ? (
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+    ) : eventModel && ticketCap > 1 ? (
+      // Paid event with > 1 seat (flag ON) → quantity stepper threads &qty=N.
+      <EventBuyBox
+        listingId={listing.id}
+        unitCents={listing.price_cents!}
+        currency={listing.currency}
+        cap={ticketCap}
+        isSignedIn={isSignedIn}
+        customDomain={customDomain}
+        buyLabelPrefix={eventModel.buyLabel}
+        signInLabel={signInBuyLabel}
+      />
     ) : isSignedIn ? (
       <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
         {buyNowLabel}
