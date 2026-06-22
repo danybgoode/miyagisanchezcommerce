@@ -11,6 +11,7 @@
     }
   },
   "pwaSearch": {
+    "title": "Search",
     "placeholder": "What are you looking for?",
     "recentTitle": "Recent searches",
     "suggestedTitle": "Suggestions",

@@ -10,6 +10,7 @@ import {
 // Copy is threaded from layout's getDictionary() (es by default) so the strings
 // live in locales/{es,en}.json (AGENTS rule #5), not hardcoded here.
 export type SearchSheetCopy = {
+  title: string
   placeholder: string
   recentTitle: string
   suggestedTitle: string
@@ -42,6 +43,12 @@ export default function SearchSheet({
 }) {
   const router = useRouter()
   const [recents, setRecents] = useState<string[]>([])
+
+  // On close: blur the field so the iOS keyboard dismisses and focus never stays
+  // trapped inside the now-inert offscreen sheet (cross-review: a11y + keyboard).
+  useEffect(() => {
+    if (!open) inputRef.current?.blur()
+  }, [open, inputRef])
 
   // On each open: refresh recents from storage, lock body scroll, close on Esc.
   useEffect(() => {
@@ -105,8 +112,11 @@ export default function SearchSheet({
         className="pwa-only glass-liquid"
         role="dialog"
         aria-modal={open || undefined}
-        aria-label={copy.recentTitle}
-        aria-hidden={open ? undefined : true}
+        aria-label={copy.title}
+        // While closed the sheet is offscreen but its input stays mounted (for the
+        // synchronous focus on open) — `inert` removes it from tab order + the a11y
+        // tree and moves focus out, so nothing is trapped behind it (cross-review).
+        inert={!open}
         style={{
           position: 'fixed',
           left: '50%',
