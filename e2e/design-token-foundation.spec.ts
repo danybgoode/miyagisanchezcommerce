@@ -95,7 +95,7 @@ test.describe('design-token foundation', () => {
       { filePath: 'lib/platform-theme.ts', content: 'export const CORE_ACCENT = "#1d6f42"' },
       { filePath: 'lib/settings-import.ts', content: "export const EXAMPLE_CONFIG = { profile: { accent_color: '#1d6f42' } }" },
       { filePath: 'app/opengraph-image.tsx', content: 'export const color = "#ff0000"' },
-      { filePath: 'app/admin/page.tsx', content: 'export const color = "#ff0000"' },
+      { filePath: 'app/(shell)/admin/page.tsx', content: 'export const color = "#ff0000"' },
       { filePath: 'app/style-sandbox/page.tsx', content: 'export const color = "#ff0000"' },
     ]
 

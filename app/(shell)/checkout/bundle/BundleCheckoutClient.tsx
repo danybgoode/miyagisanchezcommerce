@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useCart } from '@/app/components/CartContext'
-import CheckoutExperience from '@/app/checkout/CheckoutExperience'
+import CheckoutExperience from '@/app/(shell)/checkout/CheckoutExperience'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

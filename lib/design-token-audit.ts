@@ -41,7 +41,7 @@ const arbitraryHexClassPattern = /(?:bg|text|border|from|to|via|fill|stroke|ring
 const rawHexPattern = /#[0-9a-fA-F]{3,8}\b/g
 
 export const guardExcludedPrefixes = [
-  'app/admin/',
+  'app/(shell)/admin/',
   'app/api/',
   'app/style-sandbox/',
 ]
@@ -53,9 +53,10 @@ export const guardExcludedFiles = new Set([
   'app/globals.css',
   'app/icon.svg',
   'app/layout.tsx',
+  'app/(shell)/layout.tsx',
   'app/opengraph-image.tsx',
-  'app/shop/manage/PrintAdBlock.tsx',
-  'app/shop/manage/PrintAdPreview.tsx',
+  'app/(shell)/shop/manage/PrintAdBlock.tsx',
+  'app/(shell)/shop/manage/PrintAdPreview.tsx',
   'lib/email.ts',
   'lib/design-token-audit.ts',
   'lib/platform-theme.ts',
@@ -66,67 +67,67 @@ export const guardExcludedFiles = new Set([
 
 export const allowedLiteralRules: AllowedLiteralRule[] = [
   {
-    path: 'app/shop/manage/settings/EmbedSnippetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/EmbedSnippetSection.tsx',
     literal: '#111',
     contains: "accent && accent !== '#111'",
     reason: 'embed snippet data-accent default is serialized for third-party hosts',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#1d6f42',
     contains: "accent || '#1d6f42'",
     reason: 'support-widget preview serializes a fallback accent into iframe markup',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#111',
     contains: "accent && accent !== '#111'",
     reason: 'support-widget snippet data-accent default is serialized for third-party hosts',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#fbfaf7',
     contains: '#fbfaf7',
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#26231f',
     contains: '#26231f',
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#eeece8',
     contains: '#eeece8',
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#dedbd4',
     contains: '#dedbd4',
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/SupportWidgetSection.tsx',
+    path: 'app/(shell)/shop/manage/settings/SupportWidgetSection.tsx',
     literal: '#f0efeb',
     contains: '#f0efeb',
     reason: 'self-contained iframe preview cannot depend on parent CSS vars',
   },
   {
-    path: 'app/shop/manage/settings/_sections/Diseno.tsx',
+    path: 'app/(shell)/shop/manage/settings/_sections/Diseno.tsx',
     literal: '#1d6f42',
     contains: "t.accent_color ?? '#1d6f42'",
     reason: 'native color input state needs a concrete hex value (extracted from ShopSettings monolith)',
   },
   {
-    path: 'app/shop/manage/settings/_sections/Canal.tsx',
+    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
     literal: '#1d6f42',
     contains: "initial.accent ?? '#1d6f42'",
     reason: 'accent fallback serialized into the support-widget/embed iframe markup (extracted from ShopSettings monolith)',
   },
   {
-    path: 'app/shop/manage/settings/page.tsx',
+    path: 'app/(shell)/shop/manage/settings/page.tsx',
     literal: '#1d6f42',
     contains: "themeSettings.accent_color !== '#1d6f42'",
     reason: 'setup-completion check compares saved data against the core accent default',
