@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
+import { useFavoritesContext } from '@/app/components/FavoritesProvider'
 
 interface FavoriteButtonProps {
   listingId: string
   initialFavorited?: boolean
-  isSignedIn: boolean
+  /**
+   * Server-seeded signed-in flag. Optional: when omitted (the static homepage, which
+   * can't read auth server-side), the Clerk client `useAuth()` resolves it.
+   */
+  isSignedIn?: boolean
   size?: 'sm' | 'md'
   className?: string
 }
@@ -14,14 +20,27 @@ interface FavoriteButtonProps {
 export default function FavoriteButton({
   listingId,
   initialFavorited = false,
-  isSignedIn,
+  isSignedIn: isSignedInProp,
   size = 'md',
   className = '',
 }: FavoriteButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { isSignedIn: clerkSignedIn } = useAuth()
+  // Prefer the server-seeded prop (PDP/grid in the dynamic tree); fall back to the
+  // Clerk client when omitted (the static homepage).
+  const isSignedIn = isSignedInProp ?? !!clerkSignedIn
+  const favorites = useFavoritesContext()
   const [favorited, setFavorited] = useState(initialFavorited)
   const [loading, setLoading] = useState(false)
+
+  // Heart-state hydration on the static homepage: when a FavoritesProvider is mounted
+  // and has loaded, reflect the user's favorites client-side (no server seeding). A
+  // pending optimistic toggle isn't clobbered — only sync while not loading.
+  useEffect(() => {
+    if (!favorites?.ready || loading) return
+    setFavorited(initialFavorited || favorites.isFavorited(listingId))
+  }, [favorites?.ready, favorites, listingId, initialFavorited, loading])
 
   const iconSize = size === 'sm' ? 18 : 22
   const btnSize  = size === 'sm' ? 32 : 40

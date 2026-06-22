@@ -1,4 +1,6 @@
+import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/supabase'
+import { CACHE } from '@/lib/cache-policy'
 import type { PrintSocialSubmission } from '@/lib/print'
 import { getRecentListings } from '@/lib/listings'
 import type { Listing, Shop } from '@/lib/types'
@@ -77,24 +79,32 @@ function shopColonia(shop: Shop): string {
     || NEIGHBORHOOD_PULSE_COPY.spotlightFallbackColonia
 }
 
-export async function getNeighborhoodPulseItems(limit = 24): Promise<PrintSocialSubmission[]> {
-  const { data, error } = await db
-    .from('print_social_submissions')
-    .select('*')
-    .in('status', [...NEIGHBORHOOD_PULSE_SOCIAL_STATUSES])
-    .eq('web_visible', true)
-    .order('created_at', { ascending: false })
-    .limit(limit)
+// Cached so the (now-static) marketplace homepage has no uncached read forcing a
+// per-request render — a coarse approved community feed, tolerant of ~5 min lag, so
+// it rides the CATEGORY window from the lib/cache-policy.ts SSOT. /vecindario benefits
+// too (behavior-preserving). Keyed on `limit` so each caller's slice caches separately.
+export const getNeighborhoodPulseItems = unstable_cache(
+  async (limit = 24): Promise<PrintSocialSubmission[]> => {
+    const { data, error } = await db
+      .from('print_social_submissions')
+      .select('*')
+      .in('status', [...NEIGHBORHOOD_PULSE_SOCIAL_STATUSES])
+      .eq('web_visible', true)
+      .order('created_at', { ascending: false })
+      .limit(limit)
 
-  if (error) {
-    console.warn('[neighborhood-pulse] feed unavailable:', error.message)
-    return []
-  }
+    if (error) {
+      console.warn('[neighborhood-pulse] feed unavailable:', error.message)
+      return []
+    }
 
-  return ((data ?? []) as PrintSocialSubmission[])
-    .filter(isNeighborhoodPulseSocialItem)
-    .slice(0, limit)
-}
+    return ((data ?? []) as PrintSocialSubmission[])
+      .filter(isNeighborhoodPulseSocialItem)
+      .slice(0, limit)
+  },
+  ['neighborhood-pulse-items'],
+  { revalidate: CACHE.CATEGORY, tags: ['pulse'] },
+)
 
 async function favoriteCountsForListings(listings: Listing[]): Promise<Map<string, number>> {
   const medusaIds = listings.map((listing) => listing.id).filter(Boolean)
