@@ -114,7 +114,12 @@ test.describe('tabbar · isBottomTabActive', () => {
     expect(isBottomTabActive('profile', '/account/favorites')).toBe(false) // its own tab
     expect(isBottomTabActive('profile', '/account')).toBe(true)
     expect(isBottomTabActive('profile', '/account/orders')).toBe(true)
-    expect(isBottomTabActive('profile', '/sign-in')).toBe(true)
+  })
+
+  test('no tab owns the /sign-in interstitial (several auth-gated tabs route there)', () => {
+    expect(isBottomTabActive('profile', '/sign-in')).toBe(false)
+    expect(isBottomTabActive('favorites', '/sign-in')).toBe(false)
+    expect(isBottomTabActive('messages', '/sign-in')).toBe(false)
   })
 
   test('messages is active across the whole section', () => {

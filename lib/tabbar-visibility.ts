@@ -66,9 +66,12 @@ export function resolveBottomTabHref(tab: BottomTab, isSignedIn: boolean): strin
  *   - home: exact `/` only
  *   - messages: anything under `/messages`
  *   - favorites: anything under `/account/favorites`
- *   - profile: `/account[...]` (but NOT the favorites subtree, which is its own
- *     tab) or the sign-in surface
+ *   - profile: `/account[...]` (but NOT the favorites subtree, which is its own tab)
  *   - sell: the publish flow (the bar is hidden there, so this is for completeness)
+ *
+ * `/sign-in` is deliberately owned by NO tab: several auth-gated tabs (Favoritos,
+ * Perfil, Mensajes) all route there when signed out, so highlighting any one of
+ * them on that transient interstitial would be arbitrary/misleading.
  */
 export function isBottomTabActive(key: BottomTabKey, pathname: string): boolean {
   switch (key) {
@@ -78,7 +81,7 @@ export function isBottomTabActive(key: BottomTabKey, pathname: string): boolean 
     case 'sell':      return pathname === '/sell' || pathname.startsWith('/sell/')
     case 'profile':
       if (pathname.startsWith('/account/favorites')) return false
-      return pathname === '/account' || pathname.startsWith('/account/') || pathname.startsWith('/sign-in')
+      return pathname === '/account' || pathname.startsWith('/account/')
     default:          return false
   }
 }
