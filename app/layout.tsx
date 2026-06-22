@@ -205,10 +205,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   <PlatformBrand variant="mobile" />
 
-                  {/* Search bar — persistent on every surface (PWA included) */}
+                  {/* Search bar — stays on mobile web, but HIDDEN in the installed
+                      PWA standalone, where the bottom-sheet search is the single
+                      primary control (PWA Liquid-Glass Nav Polish S2.2). Desktop
+                      search is a separate block below and is untouched. */}
                   <form
                     action="/l"
                     method="GET"
+                    className="pwa-hidden"
                     style={{ flex: 1, minWidth: 0 }}
                   >
                     <div style={{ position: 'relative' }}>
@@ -246,6 +250,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       <AIAgentButton variant="search" />
                     </div>
                   </form>
+
+                  {/* PWA standalone only: the header search (and its in-search agent
+                      button) is hidden above, so fill the freed space and re-surface
+                      the agent as a top-bar icon — exactly one search + one agent
+                      affordance in every mode, no dead space. */}
+                  <div className="pwa-only" aria-hidden="true" style={{ flex: 1 }} />
+                  <span className="pwa-only">
+                    <AIAgentButton variant="icon" />
+                  </span>
 
                   {/* Sell affordance — publish action when signed in, the labeled "Vende" pitch when signed out */}
                   <Show when="signed-in">
@@ -476,7 +489,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </footer>
 
           {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
-          <MobileTabBar />
+          <MobileTabBar search={dict.pwaSearch} />
           </>
           )}
           <CartDrawer />

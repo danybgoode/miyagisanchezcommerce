@@ -8,6 +8,7 @@ import {
   LABEL_MODE, shouldHideTabBar, nextTabBarHidden,
   BOTTOM_TABS, resolveBottomTabHref, isBottomTabActive, type LabelMode,
 } from '@/lib/tabbar-visibility'
+import SearchSheet, { type SearchSheetCopy } from '@/app/components/SearchSheet'
 
 // Badge dot for unread counts
 function UnreadDot({ show }: { show: boolean }) {
@@ -110,12 +111,14 @@ function TabItem({
   )
 }
 
-export default function MobileTabBar() {
+export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
   const pathname = usePathname()
   const { isSignedIn } = useUser()
 
   const [hasUnread, setHasUnread] = useState(false)
   const [hidden, setHidden]       = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const lastY = useRef(0)
 
   // Poll unread count every 150s, but only while the tab is visible — a hidden/
@@ -181,6 +184,7 @@ export default function MobileTabBar() {
   if (shouldHideTabBar(pathname)) return null
 
   return (
+    <>
     <div
       className="pwa-only"
       style={{
@@ -276,13 +280,17 @@ export default function MobileTabBar() {
         })}
       </nav>
 
-        {/* Detached liquid-glass search control. Opens the bottom-sheet search in
-            S2.1; until then it navigates to /l (search one tap away — never a dead
-            control on prod between sprint merges). */}
-        <Link
-          href="/l"
+        {/* Detached liquid-glass search control — opens the bottom-sheet search
+            (S2.1). focus() runs SYNCHRONOUSLY in the tap handler so iOS raises the
+            keyboard on the tap itself (WebKit bug 279904); the sheet's input is always
+            mounted (sibling below), so the ref is live at tap time. */}
+        <button
+          type="button"
+          onClick={() => { searchInputRef.current?.focus(); setSearchOpen(true) }}
           className="glass-liquid search-circle-btn"
           aria-label="Buscar"
+          aria-haspopup="dialog"
+          aria-expanded={searchOpen}
           style={{
             width: 60,
             height: 60,
@@ -291,13 +299,24 @@ export default function MobileTabBar() {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            textDecoration: 'none',
+            border: 'none',
+            cursor: 'pointer',
             color: 'var(--fg-muted)',
           }}
         >
           <i className="iconoir-search" style={{ fontSize: 22 }} />
-        </Link>
+        </button>
       </div>
-    </div>
+      </div>
+
+      {/* Bottom-sheet search — a SIBLING of the bar wrapper so it does NOT ride
+          the bar's keyboard auto-hide transform when the field is focused. */}
+      <SearchSheet
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        inputRef={searchInputRef}
+        copy={search}
+      />
+    </>
   )
 }
