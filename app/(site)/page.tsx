@@ -342,7 +342,15 @@ export default async function HomePage() {
           <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>El marketplace está tomando forma</p>
           <p style={{ fontSize: 14, marginBottom: 16 }}>Las primeras publicaciones aparecerán aquí pronto.</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/vende" className="btn btn-primary btn-sm">Publica lo primero</Link>
+            {/* Recruit CTA is auth-aware: signed-out → /vende pitch (prerenders into the
+                static HTML), signed-in → /sell publish wizard. Both via the client AuthShow,
+                so no headers() and / stays static. (Empty-state path — marketplace non-empty today.) */}
+            <AuthShow when="signed-out">
+              <Link href="/vende" className="btn btn-primary btn-sm">Publica lo primero</Link>
+            </AuthShow>
+            <AuthShow when="signed-in">
+              <Link href="/sell" className="btn btn-primary btn-sm">Publica lo primero</Link>
+            </AuthShow>
             <Link href="/vecindario" className="btn btn-secondary btn-sm">Pasea por el vecindario</Link>
           </div>
         </div>
