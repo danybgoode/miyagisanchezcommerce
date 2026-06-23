@@ -1,5 +1,6 @@
 import type { Listing } from './types'
 import { CATEGORIES } from './types'
+import { CACHE } from './cache-policy'
 
 /**
  * Homepage Polish — Dirección B · Sprint 2: the curation + category-count logic,
@@ -7,6 +8,12 @@ import { CATEGORIES } from './types'
  * (`e2e/home-curation.spec.ts`) proves the rules without network/auth. The cached
  * Medusa wrappers in `lib/listings.ts` (`getCuratedListings`, `getFeaturedListing`,
  * `getCategoryCounts`) import these — this module never imports `next/*`.
+ *
+ * Sprint 3 (S3.1) adds a deterministic per-ISR-window shuffle of the UNPINNED grid
+ * remainder (`windowSeed` + `seededShuffle`, threaded into `curateGrid`): the order
+ * is stable within a revalidate window (so the static `/` HTML serves everyone with
+ * no hydration mismatch) yet rotates across windows. Pinned/admin-ordered items and
+ * the featured pick stay fixed.
  */
 
 /** Curation window: an unpinned listing older than this is excluded (cold-start, not recency). */
@@ -15,6 +22,50 @@ export const MAX_AGE_DAYS = 14
 export const RECENT_HOURS = 48
 /** Default Selección grid size. */
 export const GRID_SIZE = 4
+/**
+ * The ISR revalidate window in ms — locked to the page's `revalidate = 60` via the
+ * cache-policy SSOT (`CACHE.LISTING`, seconds). The per-window shuffle seed buckets
+ * time by this, so the rotation cadence == the homepage's ISR cadence.
+ */
+export const REVALIDATE_MS = CACHE.LISTING * 1000
+
+/**
+ * The current ISR time-bucket — `floor(now / REVALIDATE_MS)`. Stable within a
+ * revalidate window (same value for every render of the same static HTML, so no
+ * hydration mismatch) and increments at each window boundary (so the shuffle
+ * rotates). This is the deterministic seed for `seededShuffle`.
+ */
+export function windowSeed(now: number): number {
+  return Math.floor(now / REVALIDATE_MS)
+}
+
+/** Deterministic 32-bit PRNG (mulberry32). Same seed ⇒ same stream — no global state. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * A non-mutating, seeded Fisher–Yates shuffle: returns a new array, leaves the input
+ * untouched, and is fully determined by `seed` (same seed ⇒ identical permutation,
+ * different seed ⇒ a different one). Used to rotate the unpinned grid remainder per
+ * ISR window.
+ */
+export function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
+  const out = arr.slice()
+  const rand = mulberry32(seed)
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
 
 const DAY_MS = 86_400_000
 const HOUR_MS = 3_600_000
@@ -79,17 +130,27 @@ export function pickFeatured(listings: Listing[], now: number): Listing | null {
 /**
  * The curated grid: qualifying listings, pinned-first then freshest, excluding the
  * featured card (`excludeId`) so it never appears twice, sliced to `n`.
+ *
+ * When `seed` is given (S3.1), the **pinned** items keep their admin order at the
+ * front, but the **unpinned remainder is shuffled by `seed`** instead of sorted by
+ * freshness — so the auto-filled slots rotate per ISR window (the page passes
+ * `windowSeed(now)`) while pins stay fixed. Without a `seed`, the legacy
+ * freshest-first order is preserved unchanged.
  */
 export function curateGrid(
   listings: Listing[],
   now: number,
   n = GRID_SIZE,
   excludeId?: string,
+  seed?: number,
 ): Listing[] {
-  return listings
-    .filter(l => isQualifying(l, now) && l.id !== excludeId)
-    .sort(byPinnedThenFresh)
-    .slice(0, n)
+  const qualifying = listings.filter(l => isQualifying(l, now) && l.id !== excludeId)
+  if (seed === undefined) {
+    return qualifying.sort(byPinnedThenFresh).slice(0, n)
+  }
+  const pinned = qualifying.filter(isPinned).sort(byPinnedThenFresh)
+  const unpinned = seededShuffle(qualifying.filter(l => !isPinned(l)), seed)
+  return [...pinned, ...unpinned].slice(0, n)
 }
 
 /** Whether a listing is young enough to show its timestamp badge (< RECENT_HOURS). */
