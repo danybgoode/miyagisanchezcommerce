@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 
 interface Subscription {
   id: string
@@ -107,11 +108,7 @@ export default function SubscriptionsClient({
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       {/* Nav */}
-      <div className="flex items-center gap-3 text-sm">
-        <a href="/shop/manage" className="text-[var(--color-accent)] hover:underline">← Mi tienda</a>
-        <span className="text-[var(--color-muted)]">/</span>
-        <span className="text-[var(--color-text)] font-medium">Suscripciones</span>
-      </div>
+      <SellerBreadcrumb />
 
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Suscripciones</h1>

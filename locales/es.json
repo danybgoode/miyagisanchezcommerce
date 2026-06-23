@@ -439,7 +439,7 @@
   },
   "sweepstakes": {
     "seller": {
-      "breadcrumbHome": "Mi tienda",
+      "breadcrumbHome": "Resumen",
       "breadcrumbCurrent": "Sorteos",
       "title": "Sorteos",
       "subtitle": "Crea campanas con entrada verificada, QR y sorteo automatico.",
@@ -556,7 +556,7 @@
   },
   "events": {
     "seller": {
-      "breadcrumbHome": "Mi tienda",
+      "breadcrumbHome": "Resumen",
       "breadcrumbCurrent": "Eventos",
       "title": "Eventos",
       "subtitle": "Crea eventos gratis con RSVP por email y pagina publica.",

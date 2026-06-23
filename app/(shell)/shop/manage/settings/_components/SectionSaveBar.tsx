@@ -8,8 +8,6 @@
  * can't drift across the 7 sections.
  */
 
-import Link from 'next/link'
-
 export function SectionSaveBar({
   saving,
   isDirty,
@@ -22,10 +20,8 @@ export function SectionSaveBar({
   return (
     <>
       {/* ── Save button ───────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-24">
-        <Link href="/shop/manage" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
-          ← Volver al panel
-        </Link>
+      {/* The top-of-page breadcrumb (<SellerBreadcrumb>) now owns the back affordance. */}
+      <div className="flex items-center justify-end mb-24">
         <button
           type="button"
           onClick={onSave}

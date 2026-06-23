@@ -1,8 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import type { PagosInitial } from '../_sections/Pagos'
@@ -165,14 +165,7 @@ export default async function SettingsSectionPage({
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Back nav */}
       <div style={{ marginBottom: 20 }}>
-        <Link
-          href="/shop/manage/settings"
-          style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-          className="hover:text-[var(--fg)]"
-        >
-          <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
-          Configuración
-        </Link>
+        <SellerBreadcrumb extra={pageTitle ? [{ label: pageTitle, href: null }] : undefined} />
         <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>{pageTitle}</h1>
       </div>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import Link from 'next/link'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 
 type DiscountType = 'percentage' | 'fixed'
 
@@ -118,11 +118,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-2 mb-1 text-xs text-[var(--color-muted)]">
-        <Link href="/shop/manage" className="hover:underline no-underline">Mi tienda</Link>
-        <span>/</span>
-        <span>Cupones</span>
-      </div>
+      <SellerBreadcrumb className="mb-1" />
       <h1 className="text-2xl font-bold mb-1">Cupones de descuento</h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         Crea códigos promocionales para {shopName}. Los compradores los aplican al pagar.
