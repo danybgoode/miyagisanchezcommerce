@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { pendingSummaryText } from '../lib/seller-pending-summary'
+import { pendingSummary, pendingSummaryText } from '../lib/seller-pending-summary'
 
 /**
  * Pending-summary line (api gate, no browser). When seller-nav-consolidation S1.2
@@ -33,5 +33,32 @@ test.describe('seller-pending-summary · pendingSummaryText', () => {
     expect(pendingSummaryText(Number.NaN, 0)).toBeNull()
     expect(pendingSummaryText(-5, 0)).toBeNull()
     expect(pendingSummaryText(2.9, 0)).toBe('2 pedidos pendientes')
+  })
+})
+
+test.describe('seller-pending-summary · pendingSummary (routing)', () => {
+  test('null when nothing is pending', () => {
+    expect(pendingSummary(0, 0)).toBeNull()
+  })
+
+  test('each segment routes to its own section (offers → /offers, not /orders)', () => {
+    expect(pendingSummary(0, 1)).toEqual({
+      segments: [{ text: '1 oferta', href: '/shop/manage/offers' }],
+      suffix: 'pendiente',
+    })
+    expect(pendingSummary(2, 0)).toEqual({
+      segments: [{ text: '2 pedidos', href: '/shop/manage/orders' }],
+      suffix: 'pendientes',
+    })
+  })
+
+  test('both present — orders first, offers second, combined plural suffix', () => {
+    expect(pendingSummary(2, 1)).toEqual({
+      segments: [
+        { text: '2 pedidos', href: '/shop/manage/orders' },
+        { text: '1 oferta', href: '/shop/manage/offers' },
+      ],
+      suffix: 'pendientes',
+    })
   })
 })

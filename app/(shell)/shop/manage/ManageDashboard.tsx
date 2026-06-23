@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition, useCallback } from 'react'
+import { Fragment, useState, useTransition, useCallback } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
-import { pendingSummaryText } from '@/lib/seller-pending-summary'
+import { pendingSummary as buildPendingSummary } from '@/lib/seller-pending-summary'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -314,7 +314,7 @@ export default function ManageDashboard({
   const totalViews = listings.reduce((s, l) => s + (l.views ?? 0), 0)
   const activeCount = listings.filter(l => l.status === 'active').length
   const pausedCount = listings.filter(l => l.status === 'paused').length
-  const pendingSummary = pendingSummaryText(pendingOrdersCount, pendingOffersCount)
+  const pendingSummary = buildPendingSummary(pendingOrdersCount, pendingOffersCount)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -338,13 +338,18 @@ export default function ManageDashboard({
               Ver tienda pública ↗
             </Link>
             {pendingSummary && (
-              <Link
-                href="/shop/manage/orders"
-                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline inline-flex items-center gap-1.5 w-fit"
-              >
+              <span className="text-xs text-[var(--color-muted)] inline-flex items-center gap-1.5 w-fit">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
-                {pendingSummary}
-              </Link>
+                {pendingSummary.segments.map((seg, i) => (
+                  <Fragment key={seg.href}>
+                    {i > 0 && <span className="text-[var(--color-border)]">·</span>}
+                    <Link href={seg.href} className="hover:text-[var(--color-foreground)] no-underline">
+                      {seg.text}
+                    </Link>
+                  </Fragment>
+                ))}
+                <span>{pendingSummary.suffix}</span>
+              </span>
             )}
           </div>
         </div>
