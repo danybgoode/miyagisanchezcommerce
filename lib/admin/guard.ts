@@ -1,4 +1,5 @@
 import 'server-only'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { isAdminUser } from '@/lib/admin/identity'
@@ -108,7 +109,10 @@ export function withAdmin<R extends Request = Request, C = unknown>(
     const bodyClone = audited ? req.clone() : null
     const res = await handler(req, context)
     if (audited && res.status < 400) {
-      void recordAdminAudit(req, bodyClone)
+      // `after()` registers the write with the platform's `waitUntil`, so the
+      // audit row is guaranteed to land even though it runs post-response — a
+      // bare fire-and-forget would be killed when the serverless fn suspends.
+      after(() => recordAdminAudit(req, bodyClone))
     }
     return res
   }
