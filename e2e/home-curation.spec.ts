@@ -4,6 +4,7 @@ import {
   isQualifying,
   pickFeatured,
   curateGrid,
+  featuredRank,
   isRecentForBadge,
   liveCategoryCounts,
   MAX_AGE_DAYS,
@@ -110,6 +111,50 @@ test.describe('home-curation · featured + grid', () => {
     const pool = Array.from({ length: 8 }, (_, i) =>
       makeListing({ id: `g${i}`, created_at: new Date(NOW - (i + 1) * HOUR).toISOString() }))
     expect(curateGrid(pool, NOW, 4).length).toBe(4)
+  })
+})
+
+test.describe('home-curation · featured_rank (admin order)', () => {
+  // Two pins, OLDER one ranked first → rank must beat created_at within the pin group.
+  const pinRank1Old = makeListing({
+    id: 'pin-rank-1',
+    created_at: new Date(NOW - 100 * DAY).toISOString(),
+    metadata: { featured: true, featured_rank: 1 },
+  })
+  const pinRank2New = makeListing({
+    id: 'pin-rank-2',
+    created_at: new Date(NOW - 50 * DAY).toISOString(),
+    metadata: { featured: true, featured_rank: 2 },
+  })
+
+  test('featuredRank reads the metadata; non-pins / unranked → Infinity', () => {
+    expect(featuredRank(pinRank1Old)).toBe(1)
+    expect(featuredRank(fresh)).toBe(Infinity)
+    expect(featuredRank(pinnedStale)).toBe(Infinity) // pinned but no rank
+  })
+
+  test('a lower featured_rank sorts first, regardless of created_at', () => {
+    expect(pickFeatured([pinRank2New, pinRank1Old], NOW)?.id).toBe('pin-rank-1')
+    expect(curateGrid([pinRank2New, pinRank1Old], NOW).map(l => l.id)).toEqual(['pin-rank-1', 'pin-rank-2'])
+  })
+
+  test('the lowest-rank pin is the featured pick; the next-rank leads the grid', () => {
+    const pool = [fresh, pinRank2New, pinRank1Old]
+    const featured = pickFeatured(pool, NOW)
+    expect(featured?.id).toBe('pin-rank-1')
+    expect(curateGrid(pool, NOW, 4, featured?.id)[0].id).toBe('pin-rank-2')
+  })
+
+  test('an unranked pin falls back to fresh order, but still beats unpinned', () => {
+    // pinnedStale has no rank (Infinity) → sorts after ranked pins, before unpinned fresh.
+    const pool = [fresh, pinnedStale, pinRank1Old]
+    expect(curateGrid(pool, NOW).map(l => l.id)).toEqual(['pin-rank-1', 'pinned', 'fresh'])
+  })
+
+  test('unpinned ordering is unchanged (freshest first)', () => {
+    const a = makeListing({ id: 'a', created_at: new Date(NOW - 1 * DAY).toISOString() })
+    const b = makeListing({ id: 'b', created_at: new Date(NOW - 3 * DAY).toISOString() })
+    expect(curateGrid([b, a], NOW).map(l => l.id)).toEqual(['a', 'b'])
   })
 })
 

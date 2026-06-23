@@ -14,9 +14,9 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'audit', 'tenants', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'referrals', 'audit', 'tenants', 'scraping',
     ])
   })
 
@@ -24,6 +24,13 @@ test.describe('admin · ADMIN_SECTIONS registry', () => {
     const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
     expect(byKey.tenants?.href).toBe('/admin/tenants')
     expect(byKey.tenants?.external).toBeUndefined()
+  })
+
+  test('Homepage Selección registers the curation screen (internal, med-risk)', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.seleccion?.href).toBe('/admin/seleccion')
+    expect(byKey.seleccion?.external).toBeUndefined()
+    expect(byKey.seleccion?.risk).toBe('med')
   })
 
   test('S2.2 registers the re-homed supply, extracted vecindario, and referrals sections', () => {

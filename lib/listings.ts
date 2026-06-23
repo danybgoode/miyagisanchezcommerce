@@ -179,6 +179,21 @@ export async function getRecentListings(limit = 8): Promise<Listing[]> {
   return data.listings ?? []
 }
 
+/**
+ * Candidate listings for the `/admin/seleccion` curation screen — the freshest
+ * pool the admin can pin from. Tagged `listings` so a pin write (`revalidateTag`)
+ * refreshes it. v1 surfaces the freshest `limit`; pinning a product older than
+ * that needs the search follow-up noted in sprint-2.md.
+ */
+export async function getSeleccionCandidates(limit = 50): Promise<Listing[]> {
+  const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
+    next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+  } as RequestInit)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.listings ?? []
+}
+
 // ── Homepage Polish — Dirección B · Sprint 2: curated Selección + Categorías ──
 // The curation/count *logic* lives in the next-free `lib/home-curation.ts` seam
 // (unit-tested by `e2e/home-curation.spec.ts`); these are the thin Medusa-reading
