@@ -7,9 +7,9 @@
  * URL — so the nav can't drift from the routes or the test. Modeled on
  * `lib/seller-nav.ts`.
  *
- * Sprint 1 lists only the sections that exist today (Coupons, Print) plus the
- * external scraper link-out. Later sprints append supply / vecindario /
- * referrals / tenants / audit as those sections land.
+ * Sprint 1 listed Coupons, Print, and the external scraper link-out. S2.2
+ * appends Supply (re-homed), Vecindario (extracted from Print), and Referrals;
+ * S2.3 appends Audit; S3 appends Tenants.
  */
 
 export type AdminRisk = 'low' | 'med' | 'high'
@@ -35,7 +35,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   {
     key: 'coupons',
     label: 'Cupones',
-    description: 'Cupones de plataforma y configuración de referidos.',
+    description: 'Cupones de plataforma para el checkout de anuncios.',
     href: '/admin/coupons',
     icon: 'iconoir-percentage-circle',
     risk: 'med',
@@ -46,6 +46,30 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     description: 'Revisa y aprueba anuncios para la edición impresa.',
     href: '/admin/print',
     icon: 'iconoir-printer',
+    risk: 'med',
+  },
+  {
+    key: 'supply',
+    label: 'Importar oferta',
+    description: 'Importa catálogo de gemas a Medusa (CSV y revisión).',
+    href: '/admin/supply',
+    icon: 'iconoir-import',
+    risk: 'med',
+  },
+  {
+    key: 'vecindario',
+    label: 'Vecindario',
+    description: 'Modera los aportes de la comunidad y su visibilidad en línea.',
+    href: '/admin/vecindario',
+    icon: 'iconoir-community',
+    risk: 'low',
+  },
+  {
+    key: 'referrals',
+    label: 'Referidos',
+    description: 'Configura la recompensa por referir (monto, vigencia).',
+    href: '/admin/referrals',
+    icon: 'iconoir-gift',
     risk: 'med',
   },
   {

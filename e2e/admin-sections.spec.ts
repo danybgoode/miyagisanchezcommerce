@@ -14,8 +14,17 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the S1 sections (Cupones, Edición impresa, Scraping)', () => {
-    expect(ADMIN_SECTIONS.map(s => s.label)).toEqual(['Cupones', 'Edición impresa', 'Scraping'])
+  test('lists the sections in order (S1 + S2.2 re-homed/extracted/new)', () => {
+    expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
+      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'scraping',
+    ])
+  })
+
+  test('S2.2 registers the re-homed supply, extracted vecindario, and referrals sections', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.supply?.href).toBe('/admin/supply')
+    expect(byKey.vecindario?.href).toBe('/admin/vecindario')
+    expect(byKey.referrals?.href).toBe('/admin/referrals')
   })
 
   test('internal entries target an /admin/* route; external entries are absolute URLs', () => {
@@ -72,5 +81,22 @@ test.describe('admin · S1 structural invariants', () => {
   test('the orphaned AdminScrapeClient is gone (anti-resurrection)', () => {
     const files = readdirSync(ADMIN_DIR)
     expect(files).not.toContain('AdminScrapeClient.tsx')
+  })
+})
+
+test.describe('admin · S2.2 structural invariants', () => {
+  test('Vecindario moderation moved out of Print into its own section', () => {
+    const print = readFileSync(`${ADMIN_DIR}/print/PrintAdminClient.tsx`, 'utf8')
+    // The "Mostrar en línea" web_visible toggle now lives only in Vecindario.
+    expect(print).not.toContain('Mostrar en línea')
+    expect(print).not.toContain('/social')
+    const vecindario = readFileSync(`${ADMIN_DIR}/vecindario/VecindarioAdminClient.tsx`, 'utf8')
+    expect(vecindario).toContain('Mostrar en línea')
+  })
+
+  test('supply is re-homed under the admin shell (no top-level page component)', () => {
+    const files = readdirSync(`${ADMIN_DIR}/supply`)
+    expect(files).toContain('SupplyClient.tsx')
+    expect(files).toContain('page.tsx')
   })
 })
