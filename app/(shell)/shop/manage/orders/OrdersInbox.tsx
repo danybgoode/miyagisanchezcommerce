@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -203,18 +204,11 @@ export default function OrdersInbox({
     <div className="max-w-2xl mx-auto px-4 py-8">
 
       {/* Breadcrumb */}
-      <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
-        <Link href="/shop/manage" className="hover:text-[var(--color-text)] no-underline">Mi tienda</Link>
-        <span>›</span>
-        <span>Pedidos</span>
-      </nav>
+      <SellerBreadcrumb className="mb-6" />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">Pedidos</h1>
-        <Link href="/shop/manage" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline">
-          ← Panel
-        </Link>
       </div>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         {initialOrders.length} pedido{initialOrders.length !== 1 ? 's' : ''} en total

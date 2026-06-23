@@ -1,5 +1,7 @@
 'use client'
 
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
+
 interface AnalyticsData {
   mrr: number
   arr: number
@@ -45,11 +47,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       {/* Nav */}
-      <div className="flex items-center gap-3 text-sm">
-        <a href="/shop/manage" className="text-[var(--color-accent)] hover:underline">← Mi tienda</a>
-        <span className="text-[var(--color-muted)]">/</span>
-        <span className="text-[var(--color-text)] font-medium">Analíticas</span>
-      </div>
+      <SellerBreadcrumb />
 
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Analíticas de suscripciones</h1>

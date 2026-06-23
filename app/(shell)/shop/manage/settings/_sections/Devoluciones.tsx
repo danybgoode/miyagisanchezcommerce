@@ -9,7 +9,6 @@
  */
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '../_components/Toast'
 import { SectionTitle } from '../_components/SectionTitle'
@@ -181,10 +180,8 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
       </section>
 
       {/* ── Save button ───────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-24">
-        <Link href="/shop/manage" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
-          ← Volver al panel
-        </Link>
+      {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
+      <div className="flex items-center justify-end mb-24">
         <button
           type="button"
           onClick={handleSave}

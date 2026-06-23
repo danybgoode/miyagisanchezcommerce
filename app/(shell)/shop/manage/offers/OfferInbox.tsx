@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
   canAccept, canCounter, canDecline, isExpired,
   formatOfferAmount, offerQuality, timeAgo, timeUntil,
@@ -395,11 +396,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
     <div className="max-w-2xl mx-auto px-4 py-8">
 
       {/* Breadcrumb */}
-      <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
-        <Link href="/shop/manage" className="hover:text-[var(--color-foreground)] no-underline">Mi tienda</Link>
-        <span>›</span>
-        <span>Ofertas</span>
-      </nav>
+      <SellerBreadcrumb className="mb-6" />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -411,10 +408,6 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
             </p>
           )}
         </div>
-        <Link href="/shop/manage"
-          className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
-          ← Panel
-        </Link>
       </div>
 
       {/* Response time nudge */}

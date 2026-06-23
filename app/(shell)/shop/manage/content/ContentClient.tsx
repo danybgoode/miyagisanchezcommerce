@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 
 interface ContentItem {
   id: string
@@ -111,11 +112,7 @@ export default function ContentClient({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-      <div className="flex items-center gap-3 text-sm">
-        <a href="/shop/manage" className="text-[var(--color-accent)] hover:underline">← Mi tienda</a>
-        <span className="text-[var(--color-muted)]">/</span>
-        <span className="text-[var(--color-text)] font-medium">Contenido exclusivo</span>
-      </div>
+      <SellerBreadcrumb />
 
       <div className="flex items-start justify-between gap-4">
         <div>

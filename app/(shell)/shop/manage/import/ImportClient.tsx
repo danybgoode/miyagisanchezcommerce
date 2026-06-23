@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
   buildCopilotPrompt,
   CATALOG_IMPORT_FIELDS,
@@ -478,12 +479,7 @@ export default function ImportClient() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-6">
-        <Link
-          href="/shop/manage"
-          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline"
-        >
-          ← Mi tienda
-        </Link>
+        <SellerBreadcrumb />
         <h1 className="text-2xl font-bold leading-tight mt-2">Importar catálogo</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
           Trae toda tu tienda en minutos. Pega tu texto y deja que la IA lo arme, o sube un archivo que

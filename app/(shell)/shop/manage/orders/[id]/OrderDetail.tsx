@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
 import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundIssuedBanner } from '@/lib/manual-payment-state'
@@ -832,13 +833,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     <div className="max-w-2xl mx-auto px-4 py-8">
 
       {/* Breadcrumb */}
-      <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
-        <Link href="/shop/manage" className="hover:text-[var(--color-text)] no-underline">Mi tienda</Link>
-        <span>›</span>
-        <Link href="/shop/manage/orders" className="hover:text-[var(--color-text)] no-underline">Pedidos</Link>
-        <span>›</span>
-        <span className="font-mono text-[10px]">{order.id.slice(0, 8)}…</span>
-      </nav>
+      <SellerBreadcrumb className="mb-6" extra={[{ label: `${order.id.slice(0, 8)}…`, href: null }]} />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6">
@@ -860,10 +855,6 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <p className="text-xs text-[var(--color-muted)] font-mono">{order.id}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">{formatDate(order.created_at)}</p>
         </div>
-        <Link href="/shop/manage/orders"
-          className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline flex-shrink-0">
-          ← Pedidos
-        </Link>
       </div>
 
       {/* Status stepper */}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import Link from 'next/link'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { orderedSections, MANUAL_KEYS } from '@/lib/shop-settings/taxonomy'
 
 export const metadata = { title: 'Configuración — Miyagi Sánchez' }
@@ -109,10 +110,7 @@ export default async function SettingsIndexPage() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <Link href="/shop/manage" style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 12 }} className="hover:text-[var(--fg)]">
-          <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
-          Mi tienda
-        </Link>
+        <SellerBreadcrumb className="mb-3" />
         <h1 style={{ fontWeight: 700, fontSize: 24 }}>Configuración</h1>
         <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginTop: 4 }}>
           {done.size} de {SECTIONS.filter(s => !('soon' in s && s.soon)).length} secciones configuradas

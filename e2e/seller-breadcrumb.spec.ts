@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { sellerBreadcrumbTrail } from '../lib/seller-nav'
 
 /**
@@ -71,5 +74,37 @@ test.describe('sellerBreadcrumbTrail · off-surface', () => {
     expect(sellerBreadcrumbTrail('/account')).toEqual([{ label: 'Resumen', href: null }])
     expect(sellerBreadcrumbTrail('/')).toEqual([{ label: 'Resumen', href: null }])
     expect(sellerBreadcrumbTrail('')).toEqual([{ label: 'Resumen', href: null }])
+  })
+})
+
+/**
+ * Anti-erosion guard (same idiom as the raw-color / monolith guards): once every
+ * `/shop/manage/*` section renders <SellerBreadcrumb>, no bespoke back-link may
+ * reappear. Scans the source tree and fails CI if any banned affordance returns.
+ */
+const repoRoot = fileURLToPath(new URL('..', import.meta.url))
+const MANAGE_DIR = join(repoRoot, 'app', '(shell)', 'shop', 'manage')
+const BANNED_BACKLINKS = ['← Panel', '← Mi tienda', '← Volver al panel', '← Pedidos']
+
+function tsxFiles(dir: string): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...tsxFiles(full))
+    else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts')) out.push(full)
+  }
+  return out
+}
+
+test.describe('seller breadcrumb · anti-erosion guard', () => {
+  test('no bespoke back-link affordance remains under app/(shell)/shop/manage', () => {
+    const offenders: string[] = []
+    for (const file of tsxFiles(MANAGE_DIR)) {
+      const src = readFileSync(file, 'utf8')
+      for (const banned of BANNED_BACKLINKS) {
+        if (src.includes(banned)) offenders.push(`${file.replace(MANAGE_DIR, 'manage')} → "${banned}"`)
+      }
+    }
+    expect(offenders, `bespoke back-links must use <SellerBreadcrumb>:\n${offenders.join('\n')}`).toEqual([])
   })
 })
