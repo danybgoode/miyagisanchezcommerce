@@ -92,3 +92,47 @@ export function activeSellerNavHref(pathname: string): string | null {
   }
   return best?.href ?? null
 }
+
+/** One crumb in a seller breadcrumb trail. `href: null` = the current page (not a link). */
+export interface SellerCrumb {
+  label: string
+  href: string | null
+}
+
+const DASHBOARD_HREF = '/shop/manage'
+
+/** The nav entry whose route owns this pathname (canonical label lookup). */
+function activeSellerNavEntry(pathname: string): SellerNavEntry | null {
+  const href = activeSellerNavHref(pathname)
+  if (!href) return null
+  for (const group of SELLER_NAV) {
+    for (const entry of group.entries) {
+      if (entry.href === href) return entry
+    }
+  }
+  return null
+}
+
+/**
+ * The "Resumen / <Section>" breadcrumb trail for a `/shop/manage*` pathname,
+ * derived from the same nav SSOT as the rail — so the section label is always the
+ * canonical rail label and the two can't drift. On the dashboard (or off the
+ * seller surface) it returns the single Resumen crumb.
+ *
+ * `extra` appends deeper crumbs after the section (e.g. an order id, or a settings
+ * sub-section title). The LAST crumb of the returned trail always has `href: null`
+ * (it's the current page); every crumb before it keeps its link.
+ */
+export function sellerBreadcrumbTrail(pathname: string, extra: SellerCrumb[] = []): SellerCrumb[] {
+  const trail: SellerCrumb[] = [{ label: 'Resumen', href: DASHBOARD_HREF }]
+  const entry = activeSellerNavEntry(pathname)
+  // Skip the Resumen/Anuncios entries that share the dashboard pathname — they'd
+  // just duplicate the home crumb.
+  if (entry && hrefPath(entry.href) !== DASHBOARD_HREF) {
+    trail.push({ label: entry.label, href: hrefPath(entry.href) })
+  }
+  trail.push(...extra)
+  // The page you're on is never a link.
+  trail[trail.length - 1] = { ...trail[trail.length - 1], href: null }
+  return trail
+}
