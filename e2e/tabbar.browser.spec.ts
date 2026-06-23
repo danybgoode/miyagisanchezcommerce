@@ -33,24 +33,28 @@ test.describe('PWA bottom bar (standalone)', () => {
   test('renders the reordered set + the detached search control', async ({ page }) => {
     await gotoWithBarForced(page, '/terminos')
 
-    const bar = page.locator('.pwa-only')
+    // .pwa-only is shared by the search sheet + shell; target the bar root by testid.
+    const bar = page.locator('[data-testid="pwa-tabbar"]')
     await expect(bar).toBeVisible()
 
-    // The four tabs + the FAB + the detached search control are present (by name).
-    for (const name of ['Inicio', 'Mensajes', 'Vender', 'Favoritos', 'Perfil', 'Buscar']) {
+    // The four tabs + the FAB render as links (by name).
+    for (const name of ['Inicio', 'Mensajes', 'Vender', 'Favoritos', 'Perfil']) {
       await expect(bar.getByRole('link', { name, exact: true })).toBeVisible()
     }
+    // The detached search control is now a sheet-opening BUTTON (S2.1 shipped — it
+    // no longer links to /l), so assert the button + its dialog affordance.
+    const search = bar.getByRole('button', { name: 'Buscar', exact: true })
+    await expect(search).toBeVisible()
+    await expect(search).toHaveAttribute('aria-haspopup', 'dialog')
 
     // Gone this sprint: the Explorar tab (search moved to the detached control).
     await expect(bar.getByRole('link', { name: 'Explorar' })).toHaveCount(0)
     // No "Cuenta"/"Entrar" tab anymore — it's "Perfil" now.
     await expect(bar.getByRole('link', { name: 'Cuenta', exact: true })).toHaveCount(0)
 
-    // FAB → publish flow; the search control → /l (interim; S2.1 opens the sheet).
+    // FAB → publish flow.
     await expect(bar.getByRole('link', { name: 'Vender', exact: true }))
       .toHaveAttribute('href', '/sell')
-    await expect(bar.getByRole('link', { name: 'Buscar', exact: true }))
-      .toHaveAttribute('href', '/l')
     // Auth-gated tabs point at sign-in while signed out.
     await expect(bar.getByRole('link', { name: 'Favoritos', exact: true }))
       .toHaveAttribute('href', '/sign-in')
@@ -59,7 +63,8 @@ test.describe('PWA bottom bar (standalone)', () => {
   test('hides on scroll-down and springs back on scroll-up', async ({ page }) => {
     await gotoWithBarForced(page, '/terminos')
 
-    const bar = page.locator('.pwa-only')
+    // .pwa-only is shared by the search sheet + shell; target the bar root by testid.
+    const bar = page.locator('[data-testid="pwa-tabbar"]')
     await expect(bar).toBeVisible()
 
     // Guarantee the page is scrollable regardless of content height.
@@ -92,7 +97,8 @@ test.describe('PWA bottom bar (standalone)', () => {
     await page.goto(`/l/${id}`)
 
     // The component returns null on a PDP, so the bar isn't in the DOM at all
-    // (independent of the CSS gate — no override needed).
-    await expect(page.locator('.pwa-only')).toHaveCount(0)
+    // (independent of the CSS gate — no override needed). Assert on the bar root's
+    // testid, not .pwa-only (which the shell/search sheet also use elsewhere).
+    await expect(page.locator('[data-testid="pwa-tabbar"]')).toHaveCount(0)
   })
 })

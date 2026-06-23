@@ -31,7 +31,8 @@ test.describe('seller acquisition · Creator page', () => {
     await expect(
       page.getByRole('heading', { name: /Tu catalogo de Instagram merece una tienda propia/i }),
     ).toBeVisible()
-    await expect(page.locator('main')).toHaveAttribute('data-seller-variant', 'b')
+    // The (shell) layout adds an outer <main>; target the page's variant-tagged main.
+    await expect(page.locator('main[data-seller-variant]')).toHaveAttribute('data-seller-variant', 'b')
 
     await page.getByTestId('creadores-primary-cta').click()
     await expect(page).toHaveURL((url) => (

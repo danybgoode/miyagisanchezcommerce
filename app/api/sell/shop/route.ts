@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { normalizeSupportSettings } from '@/lib/support-widget'
+import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -96,6 +97,11 @@ export async function POST(req: NextRequest) {
   await ensureSupabaseShopMirror(seller, userId).catch((e) => {
     console.error('[sell/shop] Supabase mirror sync failed (non-fatal):', e)
   })
+
+  // Net-new shop only — ping the ops chat (fire-and-forget). The idempotent
+  // already-exists branch above returns before reaching here, so a re-POST
+  // never double-pings.
+  tg.newShop(shopName, location, seller.slug)
 
   return NextResponse.json({ shopSlug: seller.slug }, { status: 201 })
 }

@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { verifyClaimToken } from '@/lib/claimJwt'
+import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
@@ -125,9 +126,16 @@ export async function POST(req: NextRequest) {
   revalidateTag('shops', 'default')
   revalidateTag('listings', 'default')
 
+  const slug = claimData.seller?.slug ?? payload.shopSlug
+
+  // A successful, net-new claim — ping the ops chat (fire-and-forget). The 404
+  // (not found) and 409 (already claimed) branches return earlier, so a re-claim
+  // never re-pings. Location isn't in the claim token → pass null.
+  tg.newShop(payload.shopName, null, slug)
+
   return NextResponse.json({
     ok: true,
     shopName: payload.shopName,
-    shopSlug: claimData.seller?.slug ?? payload.shopSlug,
+    shopSlug: slug,
   })
 }
