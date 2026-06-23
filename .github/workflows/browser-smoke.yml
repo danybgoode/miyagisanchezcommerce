@@ -8,7 +8,9 @@
 # Provision (Daniel): repo secrets
 #   MS_TEST_BUYER_EMAIL / MS_TEST_BUYER_PASSWORD
 #   MS_TEST_SELLER_EMAIL / MS_TEST_SELLER_PASSWORD
-#   MS_TEST_PERSONALIZED_LISTING_ID   (a public listing with a required custom field)
+#   MS_TEST_PDP_LISTING_ID            (a public listing whose seller exposes >=1 payment/fulfillment method)
+#   MS_TEST_PERSONALIZED_LISTING_ID   (a public listing with a required custom field; dormant — no such
+#                                      public listing exists today, so the personalization smoke skips)
 name: Browser smoke
 
 on:
@@ -31,6 +33,7 @@ jobs:
       MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
       MS_TEST_SELLER_PASSWORD: ${{ secrets.MS_TEST_SELLER_PASSWORD }}
       MS_TEST_PERSONALIZED_LISTING_ID: ${{ secrets.MS_TEST_PERSONALIZED_LISTING_ID }}
+      MS_TEST_PDP_LISTING_ID: ${{ secrets.MS_TEST_PDP_LISTING_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
