@@ -7,6 +7,7 @@ import {
   pickFeatured,
   curateGrid,
   liveCategoryCounts,
+  windowSeed,
   GRID_SIZE,
   type CategoryCount,
 } from './home-curation'
@@ -223,11 +224,15 @@ export async function getFeaturedListing(now = Date.now()): Promise<Listing | nu
   return pickFeatured(pool, now)
 }
 
-/** The Selección grid — n qualifying listings, excluding the featured card. */
+/**
+ * The Selección grid — n qualifying listings, excluding the featured card. The
+ * unpinned remainder is shuffled per ISR window (`windowSeed(now)`, S3.1) so the
+ * grid visibly rotates across revalidations; pinned/admin-ordered items stay fixed.
+ */
 export async function getCuratedListings(n = GRID_SIZE, now = Date.now()): Promise<Listing[]> {
   const pool = await getCuratedPool()
   const featured = pickFeatured(pool, now)
-  return curateGrid(pool, now, n, featured?.id)
+  return curateGrid(pool, now, n, featured?.id, windowSeed(now))
 }
 
 /**

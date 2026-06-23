@@ -7,8 +7,11 @@ import {
   featuredRank,
   isRecentForBadge,
   liveCategoryCounts,
+  seededShuffle,
+  windowSeed,
   MAX_AGE_DAYS,
   RECENT_HOURS,
+  REVALIDATE_MS,
 } from '../lib/home-curation'
 import { CATEGORIES } from '../lib/types'
 import type { Listing } from '../lib/types'
@@ -185,5 +188,61 @@ test.describe('home-curation · live category counts', () => {
   test('each live entry carries the Iconoir glyph name from CATEGORIES', () => {
     const live = liveCategoryCounts({ autos: 1 })
     expect(live[0].icon).toBe(CATEGORIES.find(c => c.key === 'autos')?.icon)
+  })
+})
+
+test.describe('home-curation · per-window shuffle (S3.1)', () => {
+  // A pool of 6 unpinned fresh listings (distinct ages so the no-seed order is total)
+  // plus two pins ranked 1 & 2 — enough entropy that some windows reorder the tail.
+  const unpinnedIds = ['u0', 'u1', 'u2', 'u3', 'u4', 'u5']
+  const unpinned = unpinnedIds.map((id, i) =>
+    makeListing({ id, created_at: new Date(NOW - (i + 1) * HOUR).toISOString() }))
+  const pinA = makeListing({ id: 'pin-a', metadata: { featured: true, featured_rank: 1 } })
+  const pinB = makeListing({ id: 'pin-b', metadata: { featured: true, featured_rank: 2 } })
+  const pool = [...unpinned, pinA, pinB]
+  const BIG = 100 // grab the whole ordering, not just the first GRID_SIZE
+
+  test('windowSeed is stable within a window and increments across windows', () => {
+    const base = 1_000 * REVALIDATE_MS // a window boundary
+    expect(windowSeed(base)).toBe(windowSeed(base + REVALIDATE_MS - 1)) // same window
+    expect(windowSeed(base + REVALIDATE_MS)).toBe(windowSeed(base) + 1) // next window
+    expect(windowSeed(base + REVALIDATE_MS)).not.toBe(windowSeed(base))
+  })
+
+  test('seededShuffle is deterministic and non-mutating', () => {
+    const input = [...unpinnedIds]
+    expect(seededShuffle(input, 7)).toEqual(seededShuffle(input, 7)) // same seed ⇒ same order
+    expect(input).toEqual(unpinnedIds) // input untouched
+    // It is a permutation — same multiset of elements.
+    expect([...seededShuffle(input, 7)].sort()).toEqual([...unpinnedIds].sort())
+  })
+
+  test('same seed ⇒ identical grid order (no hydration mismatch within a window)', () => {
+    const seed = windowSeed(1_700_000_000_000)
+    const a = curateGrid(pool, NOW, BIG, undefined, seed).map(l => l.id)
+    const b = curateGrid(pool, NOW, BIG, undefined, seed).map(l => l.id)
+    expect(a).toEqual(b)
+  })
+
+  test('the seeded grid is a permutation of the unseeded grid (same set, nothing lost)', () => {
+    const seeded = curateGrid(pool, NOW, BIG, undefined, 42).map(l => l.id).sort()
+    const plain = curateGrid(pool, NOW, BIG).map(l => l.id).sort()
+    expect(seeded).toEqual(plain)
+  })
+
+  test('pinned items stay fixed (leading, in featured_rank order) across every window', () => {
+    for (let bucket = 0; bucket < 12; bucket++) {
+      const ids = curateGrid(pool, NOW, BIG, undefined, bucket).map(l => l.id)
+      expect(ids.slice(0, 2)).toEqual(['pin-a', 'pin-b']) // pins lead, rank order
+      expect(ids.slice(2).sort()).toEqual([...unpinnedIds].sort()) // only the tail is the unpinned set
+    }
+  })
+
+  test('different windows produce different unpinned orders (rotation)', () => {
+    const tail = (seed: number) =>
+      curateGrid(pool, NOW, BIG, undefined, seed).slice(2).map(l => l.id).join(',')
+    const orders = new Set<string>()
+    for (let bucket = 0; bucket < 12; bucket++) orders.add(tail(bucket))
+    expect(orders.size).toBeGreaterThan(1) // at least two distinct rotations across windows
   })
 })
