@@ -106,6 +106,10 @@ export interface StripeErrorShape {
   code?: string | null
   type?: string | null
   rawType?: string | null
+  /** The error message — inspected ONLY for the key-free "missing/no API key"
+   *  marker (our lazy `getStripe()` throws a plain Error before any HTTP call,
+   *  and Stripe throws "No API key provided" on an empty key). Never surfaced. */
+  message?: string | null
 }
 
 /**
@@ -124,8 +128,14 @@ export function classifyStripeFailure(e: StripeErrorShape): StripeFailureKind {
   const code = e.code ?? ''
   const type = (e.type ?? '').toLowerCase()
   const rawType = (e.rawType ?? '').toLowerCase()
+  const message = (e.message ?? '').toLowerCase()
 
   if (code === 'resource_missing' || status === 404) return 'missing'
+  // A flatly absent/empty key throws *before* any HTTP round-trip (no statusCode):
+  // our lazy `getStripe()` ("Missing STRIPE_SECRET_KEY…") or Stripe ("No API key
+  // provided"). That is an auth problem the admin must see as "key falta", not a
+  // generic "unknown".
+  if (message.includes('stripe_secret_key') || message.includes('no api key')) return 'auth'
   if (status === 401 || type.includes('authentication') || rawType.includes('authentication')) return 'auth'
   if (status === 403 || type.includes('permission')) return 'permission'
   if (type.includes('connection')) return 'connection'

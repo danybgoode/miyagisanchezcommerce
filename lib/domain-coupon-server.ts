@@ -76,6 +76,7 @@ function stripeErrorShape(e: unknown): StripeErrorShape {
     code: typeof err.code === 'string' ? err.code : null,
     type: typeof err.type === 'string' ? err.type : null,
     rawType: typeof err.rawType === 'string' ? err.rawType : null,
+    message: typeof err.message === 'string' ? err.message : null,
   }
 }
 

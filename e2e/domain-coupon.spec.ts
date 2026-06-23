@@ -58,6 +58,15 @@ test.describe('domain-coupon · Stripe failure classification (S1.1)', () => {
     }
   })
 
+  test('a flatly absent/empty key (no HTTP round-trip) ⇒ "auth", not "unknown"', () => {
+    // getStripe() throws this before any Stripe call when STRIPE_SECRET_KEY is
+    // absent (e.g. a Preview deploy where the key is production-only).
+    expect(classifyStripeFailure({ message: 'Missing STRIPE_SECRET_KEY environment variable' })).toBe('auth')
+    // Stripe's own empty-key message.
+    expect(classifyStripeFailure({ message: 'No API key provided.' })).toBe('auth')
+    expect(isResourceMissing({ message: 'Missing STRIPE_SECRET_KEY environment variable' })).toBe(false)
+  })
+
   test('an unrecognized failure ⇒ "unknown" (still surfaced, never masked)', () => {
     expect(classifyStripeFailure({})).toBe('unknown')
     expect(classifyStripeFailure({ statusCode: 500 })).toBe('unknown')
