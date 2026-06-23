@@ -93,7 +93,7 @@ export function couponRefusalMessage(reason: CouponRefusalReason): string {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /** Classified kind of a Stripe failure (drives the surfaced admin message). */
-export type StripeFailureKind = 'missing' | 'auth' | 'permission' | 'connection' | 'rate_limit' | 'unknown'
+export type StripeFailureKind = 'missing' | 'auth' | 'permission' | 'connection' | 'rate_limit' | 'bad_request' | 'unknown'
 
 /**
  * The key-free, duck-typed subset of a Stripe error we classify on. Stripe's
@@ -106,10 +106,15 @@ export interface StripeErrorShape {
   code?: string | null
   type?: string | null
   rawType?: string | null
-  /** The error message — inspected ONLY for the key-free "missing/no API key"
-   *  marker (our lazy `getStripe()` throws a plain Error before any HTTP call,
-   *  and Stripe throws "No API key provided" on an empty key). Never surfaced. */
+  /** The error message — inspected for the key-free "missing/no API key" marker
+   *  (our lazy `getStripe()` throws a plain Error before any HTTP call, and Stripe
+   *  throws "No API key provided" on an empty key). For an invalid-request error
+   *  this is a *parameter-validation* message ("Received unknown parameter: …",
+   *  "No such coupon: …") — safe to surface; it never contains the secret key. */
   message?: string | null
+  /** Stripe's `param` field on an invalid-request error — the offending
+   *  parameter name (e.g. `promotion`). A field name; never a secret. */
+  param?: string | null
 }
 
 /**
@@ -121,6 +126,9 @@ export interface StripeErrorShape {
  *   - 403 / permission         ⇒ 'permission' (restricted key lacks coupon scope)
  *   - connection               ⇒ 'connection'
  *   - 429 / rate limit         ⇒ 'rate_limit'
+ *   - invalid request (params) ⇒ 'bad_request' (a malformed mint request, NOT a
+ *                                 credentials problem — the offending param is in
+ *                                 `detail.param`/`detail.message`)
  *   - otherwise                ⇒ 'unknown'
  */
 export function classifyStripeFailure(e: StripeErrorShape): StripeFailureKind {
@@ -140,6 +148,10 @@ export function classifyStripeFailure(e: StripeErrorShape): StripeFailureKind {
   if (status === 403 || type.includes('permission')) return 'permission'
   if (type.includes('connection')) return 'connection'
   if (status === 429 || type.includes('ratelimit') || rawType.includes('rate_limit')) return 'rate_limit'
+  // An invalid-request error is a malformed REQUEST (bad/unknown param), not a
+  // credentials problem — the key is fine. Surface it distinctly so the admin
+  // sees the offending param instead of a vague "rechazó la operación".
+  if (type.includes('invalidrequest') || rawType.includes('invalid_request')) return 'bad_request'
   return 'unknown'
 }
 
@@ -165,6 +177,8 @@ export function describeStripeFailure(kind: StripeFailureKind): string {
       return 'La llave de Stripe (STRIPE_SECRET_KEY) falta o no es válida en este entorno (revisa que sea del modo correcto: producción = modo live).'
     case 'permission':
       return 'La llave de Stripe no tiene permiso para administrar cupones (se requiere escritura en Cupones y Códigos de promoción).'
+    case 'bad_request':
+      return 'Stripe rechazó los parámetros de la solicitud (no es la llave). Revisa el detalle (type/param/mensaje) para el parámetro inválido.'
     case 'connection':
       return 'No se pudo conectar con Stripe. Intenta de nuevo en un momento.'
     case 'rate_limit':

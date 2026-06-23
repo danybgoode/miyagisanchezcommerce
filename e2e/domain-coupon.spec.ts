@@ -67,6 +67,18 @@ test.describe('domain-coupon · Stripe failure classification (S1.1)', () => {
     expect(isResourceMissing({ message: 'Missing STRIPE_SECRET_KEY environment variable' })).toBe(false)
   })
 
+  test('an invalid-request error ⇒ "bad_request" (malformed params, NOT credentials)', () => {
+    // The real prod cause: StripeInvalidRequestError, code null — a malformed mint
+    // request, not a key problem. Must NOT be lumped as "unknown".
+    expect(classifyStripeFailure({ type: 'StripeInvalidRequestError', code: null })).toBe('bad_request')
+    expect(classifyStripeFailure({ rawType: 'invalid_request_error' })).toBe('bad_request')
+    // a 400 invalid-request carrying the offending param
+    expect(classifyStripeFailure({ statusCode: 400, type: 'StripeInvalidRequestError', param: 'promotion' })).toBe('bad_request')
+    // but a 404 invalid-request (resource_missing) is still "missing", not bad_request
+    expect(classifyStripeFailure({ type: 'StripeInvalidRequestError', statusCode: 404 })).toBe('missing')
+    expect(isResourceMissing({ type: 'StripeInvalidRequestError', code: null })).toBe(false)
+  })
+
   test('an unrecognized failure ⇒ "unknown" (still surfaced, never masked)', () => {
     expect(classifyStripeFailure({})).toBe('unknown')
     expect(classifyStripeFailure({ statusCode: 500 })).toBe('unknown')
@@ -74,7 +86,7 @@ test.describe('domain-coupon · Stripe failure classification (S1.1)', () => {
   })
 
   test('every surfaced message is non-empty es-MX and never leaks a key/secret', () => {
-    const kinds: StripeFailureKind[] = ['missing', 'auth', 'permission', 'connection', 'rate_limit', 'unknown']
+    const kinds: StripeFailureKind[] = ['missing', 'auth', 'permission', 'connection', 'rate_limit', 'bad_request', 'unknown']
     for (const kind of kinds) {
       const msg = describeStripeFailure(kind)
       expect(msg.length).toBeGreaterThan(0)

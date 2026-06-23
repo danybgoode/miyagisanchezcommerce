@@ -77,26 +77,38 @@ function stripeErrorShape(e: unknown): StripeErrorShape {
     type: typeof err.type === 'string' ? err.type : null,
     rawType: typeof err.rawType === 'string' ? err.rawType : null,
     message: typeof err.message === 'string' ? err.message : null,
+    param: typeof err.param === 'string' ? err.param : null,
   }
 }
 
 /**
  * Map a caught error to a sanitized, surfaceable shape for the admin route. The
- * message is OUR es-MX copy keyed by failure kind — Stripe's raw message (which
- * can echo a redacted key) is never passed through. `detail` carries only the
- * safe `type`/`code` for diagnosis (S1.3).
+ * top-level `message` is OUR es-MX copy keyed by failure kind — never Stripe's
+ * raw message. `detail` carries the safe diagnostic fields `type`/`code`/`param`.
+ *
+ * For an INVALID-REQUEST error (a malformed-params bug, not a credentials
+ * problem) we also surface Stripe's own `message` in `detail.stripeMessage`:
+ * invalid-request messages are parameter-validation text ("Received unknown
+ * parameter: promotion", "No such coupon: …") and never contain the secret key.
+ * We attach it ONLY for `bad_request`, so an auth message (which can echo a
+ * redacted key) is never passed through.
  */
 export function describeCouponError(e: unknown): {
   kind: StripeFailureKind
   message: string
-  detail: { type: string | null; code: string | null }
+  detail: { type: string | null; code: string | null; param: string | null; stripeMessage?: string | null }
 } {
   const shape = stripeErrorShape(e)
   const kind = classifyStripeFailure(shape)
   return {
     kind,
     message: describeStripeFailure(kind),
-    detail: { type: shape.type ?? null, code: shape.code ?? null },
+    detail: {
+      type: shape.type ?? null,
+      code: shape.code ?? null,
+      param: shape.param ?? null,
+      ...(kind === 'bad_request' ? { stripeMessage: shape.message ?? null } : {}),
+    },
   }
 }
 
