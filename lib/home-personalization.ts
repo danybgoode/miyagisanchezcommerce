@@ -55,10 +55,12 @@ export function favoriteConditionLabel(condition: string | null): string {
 }
 
 /**
- * Which seller module the signed-in homepage shows. `hasShop` is authoritative — a
- * user who owns a shop NEVER sees the "¿Vendes algo?" recruit card (that was the bug:
- * a real seller whose Supabase mirror row was missing got `hasShop=false`; the fix
- * makes `hasShop` follow the canonical Medusa seller). So:
+ * Which seller module the signed-in homepage shows. This is the DEFENSIVE half of the
+ * recruit-card-leak fix: it trusts `hasShop` and guarantees a shop owner is never shown
+ * the "¿Vendes algo?" recruit card. The AUTHORITATIVE half is the backend — `hasShop`
+ * itself must come from the canonical Medusa seller, not the best-effort Supabase mirror
+ * (medusa-bonsai-backend #38); a wrong `hasShop=false` would still recruit and is fixed
+ * there, not here. Given a correct `hasShop`:
  *   - no shop            → `recruit`  ("¿Vendes algo?" / Abre tu tienda)
  *   - shop + stats       → `snapshot` ("Tu tienda esta semana")
  *   - shop, no stats yet → `none`     (render nothing — never recruit a shop owner)
