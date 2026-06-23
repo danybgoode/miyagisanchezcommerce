@@ -11,7 +11,11 @@
  */
 import { NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/admin/guard'
-import { ensureCampaignCoupon, getCampaignCouponStatus } from '@/lib/domain-coupon-server'
+import {
+  ensureCampaignCoupon,
+  getCampaignCouponStatus,
+  describeCouponError,
+} from '@/lib/domain-coupon-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +25,10 @@ export const GET = withAdmin(async () => {
     return NextResponse.json({ status })
   } catch (e) {
     console.error('[admin/domain-coupon] status failed:', e)
-    return NextResponse.json({ error: 'No se pudo leer el estado del cupón.' }, { status: 502 })
+    // Surface the real (sanitized) Stripe cause — a missing/wrong-mode/restricted
+    // key can no longer hide behind "no se pudo leer". Never echoes the key.
+    const { message, kind, detail } = describeCouponError(e)
+    return NextResponse.json({ error: message, kind, detail }, { status: 502 })
   }
 })
 
@@ -31,6 +38,7 @@ export const POST = withAdmin(async () => {
     return NextResponse.json({ status })
   } catch (e) {
     console.error('[admin/domain-coupon] mint failed:', e)
-    return NextResponse.json({ error: 'No se pudo crear el cupón.' }, { status: 502 })
+    const { message, kind, detail } = describeCouponError(e)
+    return NextResponse.json({ error: message, kind, detail }, { status: 502 })
   }
 })
