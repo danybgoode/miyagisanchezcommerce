@@ -14,6 +14,7 @@ import FavoritesProvider from '@/app/components/FavoritesProvider'
 import HomePersonalizationProvider from '@/app/components/HomePersonalizationProvider'
 import HomeRetomaOffers from '@/app/components/HomeRetomaOffers'
 import HomeSellerModule from '@/app/components/HomeSellerModule'
+import AuthShow from '@/app/components/AuthShow'
 import {
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
@@ -351,29 +352,33 @@ export default async function HomePage() {
           Same client-island hydration; nothing for signed-out/loading visitors. */}
       <HomeSellerModule />
 
-      {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Shown to
-          everyone now (static page, no auth branch); signed-in islands can refine in S4. */}
+      {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Signed-out
+          only: gated by the client AuthShow (no headers(), so / stays static) — the
+          signed-out HTML still prerenders, then hydrates away for signed-in sessions,
+          who get their HomeSellerModule island instead of a duplicate recruit prompt. */}
       {seleccion.length > 0 && (
-        <section
-          className="mb-4"
-          style={{
-            textAlign: 'center',
-            padding: '28px 16px',
-            borderTop: '1px solid var(--border)',
-            marginTop: 8,
-          }}
-        >
-          <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 4 }}>
-            Únete a la comunidad
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
-            Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/sign-up" className="btn btn-primary">Crear cuenta</Link>
-            <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
-          </div>
-        </section>
+        <AuthShow when="signed-out">
+          <section
+            className="mb-4"
+            style={{
+              textAlign: 'center',
+              padding: '28px 16px',
+              borderTop: '1px solid var(--border)',
+              marginTop: 8,
+            }}
+          >
+            <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 4 }}>
+              Únete a la comunidad
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
+              Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Link href="/sign-up" className="btn btn-primary">Crear cuenta</Link>
+              <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
+            </div>
+          </section>
+        </AuthShow>
       )}
     </div>
     </HomePersonalizationProvider>
