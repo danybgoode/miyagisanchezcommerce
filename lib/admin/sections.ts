@@ -65,6 +65,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     risk: 'low',
   },
   {
+    key: 'seleccion',
+    label: 'Selección',
+    description: 'Fija y ordena la “Selección de la semana” de la página de inicio.',
+    href: '/admin/seleccion',
+    icon: 'iconoir-star',
+    risk: 'med',
+  },
+  {
     key: 'referrals',
     label: 'Referidos',
     description: 'Configura la recompensa por referir (monto, vigencia).',
