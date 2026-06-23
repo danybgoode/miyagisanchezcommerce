@@ -66,6 +66,22 @@ export function readDomainGrant(metadata: unknown): DomainGrant | null {
 }
 
 /**
+ * Build a `comp` grant in the canonical `custom_domain_grant` shape — the ONE
+ * place a hand-granted comp is composed, so the admin grant action (epic 09 ·
+ * admin-consolidation, S4.1) writes exactly what `readDomainGrant` parses and
+ * `deriveDomainEntitlement` honors (never a parallel shape). `granted_at` is an
+ * ISO timestamp; a blank/whitespace note is dropped so the field is absent, not
+ * empty. Revoke has no builder — it clears the `custom_domain_grant` key.
+ */
+export function buildCompGrant(opts?: { note?: string; now?: Date }): DomainGrant {
+  return {
+    type: 'comp',
+    granted_at: (opts?.now ?? new Date()).toISOString(),
+    ...(opts?.note?.trim() ? { note: opts.note.trim() } : {}),
+  }
+}
+
+/**
  * Derive entitlement from the resolved inputs. Precedence:
  *   flag off → grandfather → comp → active subscription → none.
  * Never throws.

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   filterTenants,
   entitlementReasonLabel,
@@ -8,30 +8,42 @@ import {
   domainStatusLabel,
   type TenantRow,
 } from '@/lib/admin/tenant-directory'
+import type { DomainGrant, DomainEntitlementReason } from '@/lib/domain-entitlement'
 
 /**
- * Read-only tenant directory (admin-consolidation · S3.1). Searches the shaped
- * rows in memory (`filterTenants`) and opens an inline inspector for one shop.
- * STRICT READ-MODEL — there are NO edit/mutate controls; the entitlement grant
- * action lands in S4. The canonical identity shown is the Medusa seller id.
+ * Tenant directory (admin-consolidation · S3 read model + S4 actions). Searches
+ * the shaped rows in memory (`filterTenants`) and opens an inline inspector for
+ * one shop. S4 adds the custom-domain comp **grant/revoke** controls on the
+ * inspector — the only mutate surface; everything else stays read-only. The
+ * canonical identity shown is the Medusa seller id.
  */
+
+/** Shape of `POST/GET /api/admin/tenants/[id]` — the resolved entitlement. */
+type EntitlementResponse = {
+  entitlementReason: DomainEntitlementReason
+  entitled: boolean
+  grant: DomainGrant | null
+}
+
 export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Local copy so a grant/revoke can reflect the new reason in place.
+  const [rows, setRows] = useState<TenantRow[]>(tenants)
 
-  const filtered = useMemo(() => filterTenants(tenants, query), [tenants, query])
-  const selected = useMemo(
-    () => filtered.find((t) => t.shopId === selectedId) ?? null,
-    [filtered, selectedId],
-  )
+  const filtered = useMemo(() => filterTenants(rows, query), [rows, query])
+
+  function patchRow(shopId: string, partial: Partial<TenantRow>) {
+    setRows((prev) => prev.map((r) => (r.shopId === shopId ? { ...r, ...partial } : r)))
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Tiendas</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
-          Directorio de solo lectura: identidad (vendedor Medusa), reclamo, dominio, plan y número
-          de anuncios. Las acciones (cortesía de dominio) llegan en una entrega posterior.
+          Directorio de tiendas: identidad (vendedor Medusa), reclamo, dominio, plan y número de
+          anuncios. Puedes otorgar o revocar la cortesía de dominio personalizado desde el detalle.
         </p>
       </div>
 
@@ -45,7 +57,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
 
       <p className="text-xs text-[var(--color-muted)]">
         {filtered.length} {filtered.length === 1 ? 'tienda' : 'tiendas'}
-        {query ? ` (de ${tenants.length})` : ''}
+        {query ? ` (de ${rows.length})` : ''}
       </p>
 
       <div className="space-y-2">
@@ -94,14 +106,12 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                       <span className="text-[var(--color-muted)]">Sin dominio</span>
                     )}
                   </Field>
-                  <Field label="Plan de dominio">
-                    {entitlementReasonLabel(t.entitlementReason)}
-                    {t.subscriptionUnchecked && (
-                      <span className="block text-xs text-[var(--color-muted)] mt-0.5">
-                        No se verificó la suscripción del vendedor (la verificación por vendedor llega en S4).
-                      </span>
-                    )}
-                  </Field>
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs text-[var(--color-muted)]">Plan de dominio</dt>
+                    <dd className="mt-0.5">
+                      <EntitlementControls row={t} onResolved={(p) => patchRow(t.shopId, p)} />
+                    </dd>
+                  </div>
                   <Field label="Anuncios">{t.listingCount}</Field>
                   <Field label="Creada">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('es-MX') : '—'}</Field>
                 </dl>
@@ -112,10 +122,176 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
 
         {filtered.length === 0 && (
           <p className="text-sm text-[var(--color-muted)] py-8 text-center">
-            {tenants.length === 0 ? 'No hay tiendas para mostrar.' : 'Ninguna tienda coincide con tu búsqueda.'}
+            {rows.length === 0 ? 'No hay tiendas para mostrar.' : 'Ninguna tienda coincide con tu búsqueda.'}
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Grant/revoke the custom-domain comp for one shop. On open it resolves the true
+ * entitlement (incl. the per-seller subscription the list skips) to replace the
+ * `subscriptionUnchecked` placeholder; grant/revoke POSTs and patches the parent
+ * row from the resolved response. HIGH-risk (entitlement) — the live money-path
+ * grant is owed to Daniel; this is the UI that drives it.
+ */
+function EntitlementControls({
+  row,
+  onResolved,
+}: {
+  row: TenantRow
+  onResolved: (partial: Partial<TenantRow>) => void
+}) {
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false)
+  // The raw durable grant, resolved on open (null = none, undefined = not yet known).
+  const [grant, setGrant] = useState<DomainGrant | null | undefined>(undefined)
+
+  // On open, resolve the true reason for this one shop (subscription incl.).
+  useEffect(() => {
+    let cancelled = false
+    setError(null)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}`)
+        if (!res.ok) return
+        const data = (await res.json()) as EntitlementResponse
+        if (cancelled) return
+        setGrant(data.grant)
+        onResolved({
+          entitlementReason: data.entitlementReason,
+          entitled: data.entitled,
+          subscriptionUnchecked: false,
+        })
+      } catch {
+        /* leave the list-level reason in place on a failed resolve */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Resolve once per inspected shop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.shopId])
+
+  async function mutate(action: 'grant' | 'revoke') {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'grant' ? { action, note } : { action }),
+      })
+      const data = (await res.json().catch(() => null)) as (EntitlementResponse & { error?: string }) | null
+      if (!res.ok || !data) {
+        setError(data?.error ?? 'No se pudo aplicar el cambio.')
+        return
+      }
+      setGrant(data.grant)
+      onResolved({
+        entitlementReason: data.entitlementReason,
+        entitled: data.entitled,
+        subscriptionUnchecked: false,
+      })
+      setNote('')
+      setConfirmingRevoke(false)
+    } catch {
+      setError('Error de red al aplicar el cambio.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const hasComp = grant?.type === 'comp'
+  const isGrandfather = grant?.type === 'grandfather'
+
+  return (
+    <div className="space-y-2">
+      <div>
+        {/* Honest until the detail GET resolves the per-seller subscription: while
+            `subscriptionUnchecked`, never assert a bare "Sin plan". */}
+        {row.subscriptionUnchecked
+          ? 'Sin plan (suscripción sin verificar)'
+          : entitlementReasonLabel(row.entitlementReason)}
+        {hasComp && (
+          <span className="block text-xs text-[var(--color-muted)] mt-0.5">
+            Cortesía activa
+            {grant?.granted_at ? ` desde ${new Date(grant.granted_at).toLocaleDateString('es-MX')}` : ''}
+            {grant?.note ? ` · ${grant.note}` : ''}
+          </span>
+        )}
+        {isGrandfather && (
+          <span className="block text-xs text-[var(--color-muted)] mt-0.5">
+            Heredada (cutover) — concesión permanente, no editable desde aquí.
+          </span>
+        )}
+      </div>
+
+      {/* A grandfather grant is a different, permanent entitlement — S4 only manages
+          the comp, so expose no edit controls for it (the server refuses too). */}
+      {grant === undefined ? (
+        <p className="text-xs text-[var(--color-muted)]">Verificando plan…</p>
+      ) : isGrandfather ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Nota (opcional)"
+            disabled={busy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => mutate('grant')}
+            disabled={busy}
+            className="rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] px-3 py-1 text-xs font-medium disabled:opacity-50"
+          >
+            {hasComp ? 'Actualizar cortesía' : 'Otorgar cortesía'}
+          </button>
+
+          {hasComp &&
+            (confirmingRevoke ? (
+              <span className="flex items-center gap-1 text-xs">
+                <span className="text-[var(--color-muted)]">¿Revocar la cortesía?</span>
+                <button
+                  type="button"
+                  onClick={() => mutate('revoke')}
+                  disabled={busy}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 font-medium text-[var(--color-warning,#9a6700)] disabled:opacity-50"
+                >
+                  Sí, revocar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRevoke(false)}
+                  disabled={busy}
+                  className="rounded-md px-2 py-1 text-[var(--color-muted)] disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingRevoke(true)}
+                disabled={busy}
+                className="rounded-md border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-50"
+              >
+                Revocar
+              </button>
+            ))}
+
+          {busy && <span className="text-xs text-[var(--color-muted)]">Guardando…</span>}
+        </div>
+      )}
+
+      {error && <p className="text-xs text-[var(--color-danger,#b42318)]">{error}</p>}
     </div>
   )
 }
