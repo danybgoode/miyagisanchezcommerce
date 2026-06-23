@@ -1,7 +1,8 @@
 /**
  * QR generation for print-ad placements. Each ad's CTA (a /l/[id] or /s/[slug]
  * URL) becomes a high-error-correction QR PNG with UTM tags, stored in R2 so it
- * can be dropped straight into the printed layout and tracked in GA/Clarity.
+ * can be dropped straight into the printed layout. The UTM tags surface in GA4 /
+ * Clarity, which run site-wide via the single GTM container (`<SiteAnalytics>`).
  */
 
 import QRCode from 'qrcode'
@@ -12,7 +13,7 @@ import type { PrintLayoutDocument } from '@/lib/print-layout'
 
 /**
  * Append print-edition UTM params to a CTA URL (preserving any existing query),
- * so scans are attributable in the analytics already wired site-wide.
+ * so scans are attributable in the site-wide analytics (GA4 / Clarity via GTM).
  */
 export function buildQrTargetUrl(ctaUrl: string, editionId: string): string {
   try {

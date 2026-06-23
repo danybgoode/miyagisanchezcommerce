@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
+import SiteAnalytics from '@/app/components/SiteAnalytics'
 import './globals.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -121,6 +122,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ))}
         </head>
         <body>
+          {/* Site-wide GTM container (GA4 + Clarity as tags inside GTM). Client-gated
+              on hostname/path so the static root layout reads no headers. */}
+          <SiteAnalytics />
           <CartProvider>
             {children}
             <CartDrawer />
