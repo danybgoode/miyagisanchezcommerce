@@ -1,7 +1,7 @@
-import { redirect } from 'next/navigation'
 import AdminCouponsClient, { type Coupon } from './AdminCouponsClient'
 import { getReferralSettings } from '@/lib/referrals'
 import { getCampaignCouponStatus, type CampaignCouponStatus } from '@/lib/domain-coupon-server'
+import { requireAdmin } from '@/lib/admin/guard'
 
 export const metadata = { title: 'Cupones de plataforma — Admin' }
 
@@ -9,13 +9,14 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 /**
- * Secret-gated admin console for platform coupons (codes redeemable on print-ad
- * checkout) and the referral reward config. Auth matches /api/admin/*:
- * ?secret=<ADMIN_SECRET>.
+ * Admin console for platform coupons (codes redeemable on print-ad checkout)
+ * and the referral reward config. **Dual-accept** this sprint: a Clerk admin
+ * (so the new shell nav works) OR the legacy `?secret=<ADMIN_SECRET>` (so
+ * existing access keeps working). The secret path retires in S2.3.
  */
 export default async function AdminCouponsPage({ searchParams }: { searchParams: Promise<{ secret?: string }> }) {
   const { secret } = await searchParams
-  if (!secret || secret !== process.env.ADMIN_SECRET) redirect('/')
+  await requireAdmin({ secret })
 
   let initialCoupons: Coupon[] = []
   try {
@@ -43,7 +44,7 @@ export default async function AdminCouponsPage({ searchParams }: { searchParams:
 
   return (
     <AdminCouponsClient
-      secret={secret}
+      secret={secret ?? ''}
       initialCoupons={initialCoupons}
       initialSettings={initialSettings}
       initialCampaign={initialCampaign}

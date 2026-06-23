@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 
@@ -69,6 +69,8 @@ test.describe('admin · S1 structural invariants', () => {
     expect(page).not.toContain('redirect(`https://miyagisanchez-scraper')
     expect(page).not.toContain("redirect('https://miyagisanchez-scraper")
   })
-  // The anti-resurrection check for AdminScrapeClient.tsx is added in S1.3,
-  // when the orphaned file is deleted.
+  test('the orphaned AdminScrapeClient is gone (anti-resurrection)', () => {
+    const files = readdirSync(ADMIN_DIR)
+    expect(files).not.toContain('AdminScrapeClient.tsx')
+  })
 })
