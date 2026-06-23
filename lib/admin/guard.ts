@@ -3,6 +3,13 @@ import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { checkAdminSecret } from '@/lib/print-server'
 import { isAdminUser } from '@/lib/admin/identity'
+import { db } from '@/lib/supabase'
+import {
+  auditActionLabel,
+  auditTargetFromPath,
+  isAuditedMethod,
+  redactAuditPayload,
+} from '@/lib/admin/audit'
 
 /**
  * Server-side admin guards. **Dual-accept this sprint** — a request passes as a
@@ -30,6 +37,43 @@ async function currentUserIsAdmin(): Promise<boolean> {
   })
 }
 
+/**
+ * The acting admin's Clerk identity for the audit trail. Returns nulls when the
+ * request authed via the legacy secret (machine path) rather than a Clerk
+ * session — once S2.3 removes the secret arm, an actor is always present.
+ */
+async function currentAdminActor(): Promise<{ userId: string | null; email: string | null }> {
+  const user = await currentUser().catch(() => null)
+  return {
+    userId: user?.id ?? null,
+    email: user?.primaryEmailAddress?.emailAddress ?? null,
+  }
+}
+
+/**
+ * Best-effort audit write for a successful admin mutation. NEVER throws and
+ * never blocks the response — a failed audit must not break a working mutation
+ * (but we log it so a silently-dying write surfaces). `bodyClone` is a clone
+ * taken before the handler consumed the request stream.
+ */
+async function recordAdminAudit(req: Request, bodyClone: Request | null): Promise<void> {
+  try {
+    const url = new URL(req.url)
+    const body = bodyClone ? await bodyClone.json().catch(() => null) : null
+    const actor = await currentAdminActor()
+    const { error } = await db.from('admin_audit_log').insert({
+      actor_user_id: actor.userId,
+      actor_email: actor.email,
+      action: auditActionLabel(req.method, url.pathname),
+      target: auditTargetFromPath(url.pathname),
+      payload_summary: redactAuditPayload(body),
+    })
+    if (error) console.error('admin_audit_log insert error:', error.message)
+  } catch (e) {
+    console.error('admin_audit_log write failed:', e)
+  }
+}
+
 /** True when a provided secret string matches `ADMIN_SECRET` (non-empty). */
 function secretMatches(secret?: string | null): boolean {
   const expected = process.env.ADMIN_SECRET
@@ -55,12 +99,20 @@ type RouteHandler<C> = (req: Request, context: C) => Response | Promise<Response
  */
 export function withAdmin<C>(handler: RouteHandler<C>): RouteHandler<C> {
   return async (req: Request, context: C) => {
-    if (checkAdminSecret(req) || (await currentUserIsAdmin())) {
-      return handler(req, context)
+    if (!(checkAdminSecret(req) || (await currentUserIsAdmin()))) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
-    return new Response(JSON.stringify({ error: 'No autorizado' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    // Clone the request *before* the handler consumes its body, so a mutation
+    // can be summarised for the audit row after it succeeds.
+    const audited = isAuditedMethod(req.method)
+    const bodyClone = audited ? req.clone() : null
+    const res = await handler(req, context)
+    if (audited && res.status < 400) {
+      void recordAdminAudit(req, bodyClone)
+    }
+    return res
   }
 }
