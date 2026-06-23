@@ -55,13 +55,20 @@ export function favoriteConditionLabel(condition: string | null): string {
 }
 
 /**
- * Which seller module the signed-in homepage shows: the "Tu tienda esta semana"
- * snapshot when the user has a shop with stats, else the "¿Vendes algo?" recruit card.
- * (Pre-S2 this was an inline ternary on `hasShop && sellerSnapshot`.)
+ * Which seller module the signed-in homepage shows. This is the DEFENSIVE half of the
+ * recruit-card-leak fix: it trusts `hasShop` and guarantees a shop owner is never shown
+ * the "¿Vendes algo?" recruit card. The AUTHORITATIVE half is the backend — `hasShop`
+ * itself must come from the canonical Medusa seller, not the best-effort Supabase mirror
+ * (medusa-bonsai-backend #38); a wrong `hasShop=false` would still recruit and is fixed
+ * there, not here. Given a correct `hasShop`:
+ *   - no shop            → `recruit`  ("¿Vendes algo?" / Abre tu tienda)
+ *   - shop + stats       → `snapshot` ("Tu tienda esta semana")
+ *   - shop, no stats yet → `none`     (render nothing — never recruit a shop owner)
  */
 export function sellerModule(p: {
   hasShop: boolean
   sellerSnapshot: HomePersonalization['sellerSnapshot']
-}): 'snapshot' | 'recruit' {
-  return p.hasShop && p.sellerSnapshot ? 'snapshot' : 'recruit'
+}): 'snapshot' | 'recruit' | 'none' {
+  if (!p.hasShop) return 'recruit'
+  return p.sellerSnapshot ? 'snapshot' : 'none'
 }
