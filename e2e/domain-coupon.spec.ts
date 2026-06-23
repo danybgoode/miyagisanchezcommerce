@@ -78,9 +78,9 @@ test.describe('domain-coupon · Stripe failure classification (S1.1)', () => {
     for (const kind of kinds) {
       const msg = describeStripeFailure(kind)
       expect(msg.length).toBeGreaterThan(0)
-      // Sanitization guard: our own copy, never Stripe's raw message → no actual
-      // key BODY (sk_live_<token>). A bare "sk_live…" mode hint is intentional copy.
-      expect(msg).not.toMatch(/sk_(test|live)_[A-Za-z0-9]/i)
+      // Sanitization guard: our own copy, never Stripe's raw message → no key
+      // prefix or key body of any shape.
+      expect(msg).not.toMatch(/sk_(test|live)/i)
       expect(msg.toLowerCase()).not.toContain('bearer')
     }
     // The auth message names the actionable cause (key / mode) for diagnosis.

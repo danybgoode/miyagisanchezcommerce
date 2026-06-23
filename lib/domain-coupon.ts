@@ -162,7 +162,7 @@ export function describeStripeFailure(kind: StripeFailureKind): string {
     case 'missing':
       return 'El cupón aún no existe en Stripe.'
     case 'auth':
-      return 'La llave de Stripe (STRIPE_SECRET_KEY) falta o no es válida en este entorno (revisa que sea del modo correcto: prod = sk_live…).'
+      return 'La llave de Stripe (STRIPE_SECRET_KEY) falta o no es válida en este entorno (revisa que sea del modo correcto: producción = modo live).'
     case 'permission':
       return 'La llave de Stripe no tiene permiso para administrar cupones (se requiere escritura en Cupones y Códigos de promoción).'
     case 'connection':
