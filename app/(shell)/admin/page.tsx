@@ -6,13 +6,16 @@ export const metadata = { title: 'Panel de administración' }
 
 /**
  * Admin hub. Replaces the old `redirect()` to the external scraper app: now a
- * real in-repo home, **Clerk-gated** (humans sign in as themselves — no
- * secret-in-URL). The scraper is one external card in the registry. Renders the
- * section cards from `lib/admin/sections.ts`; the left-nav comes from the
- * surrounding `AdminShell` (layout).
+ * real in-repo home. **Dual-accept this sprint** like every other admin page —
+ * a Clerk admin (the target; humans sign in as themselves) OR the legacy
+ * `?secret=<ADMIN_SECRET>` (so a secret-only operator isn't locked out of the
+ * hub before `MIYAGI_ADMIN_EMAILS`/Clerk roles are configured). The secret path
+ * retires in S2.3. The scraper is one external card in the registry; the
+ * left-nav comes from the surrounding `AdminShell` (layout).
  */
-export default async function AdminPage() {
-  await requireAdmin()
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ secret?: string }> }) {
+  const { secret } = await searchParams
+  await requireAdmin({ secret })
 
   return (
     <div style={{ maxWidth: 760 }}>
