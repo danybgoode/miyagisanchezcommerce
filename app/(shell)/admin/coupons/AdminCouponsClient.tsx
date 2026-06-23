@@ -73,6 +73,10 @@ export default function AdminCouponsClient({
       const data = await res.json() as { status?: CampaignCoupon; error?: string }
       if (!res.ok || !data.status) throw new Error(data.error ?? 'No se pudo leer el cupón.')
       setCampaign(data.status)
+      // Always resolve to a *visible* state — never a silent no-op. The status
+      // block re-renders the n/100 counter; this confirming line tells the admin
+      // the read actually ran (and which of the three states they're in).
+      setCampaignMsg(data.status.exists ? 'Estado actualizado ✓' : 'Sin cupón en Stripe todavía.')
     } catch (e) {
       setCampaignMsg(e instanceof Error ? e.message : 'Error al leer el cupón.')
     } finally {

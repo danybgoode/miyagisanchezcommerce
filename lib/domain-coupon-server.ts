@@ -24,7 +24,12 @@ import {
   CAMPAIGN_COUPON_CODE,
   couponRedeemable,
   isCampaignCode,
+  classifyStripeFailure,
+  describeStripeFailure,
+  isResourceMissing,
   type CouponRefusalReason,
+  type StripeErrorShape,
+  type StripeFailureKind,
 } from '@/lib/domain-coupon'
 
 /** Deterministic Stripe ids so find-or-create is idempotent. */
@@ -59,11 +64,51 @@ function couponIdOf(pc: Stripe.PromotionCode): string | null {
   return typeof c === 'string' ? c : c.id
 }
 
+/**
+ * Pull the key-free, classifiable fields off a caught Stripe error (duck-typed —
+ * no `instanceof`, robust to SDK internals). The secret key is never in any of
+ * these fields. Feeds the pure classifier in `lib/domain-coupon.ts`.
+ */
+function stripeErrorShape(e: unknown): StripeErrorShape {
+  const err = (e ?? {}) as Record<string, unknown>
+  return {
+    statusCode: typeof err.statusCode === 'number' ? err.statusCode : null,
+    code: typeof err.code === 'string' ? err.code : null,
+    type: typeof err.type === 'string' ? err.type : null,
+    rawType: typeof err.rawType === 'string' ? err.rawType : null,
+    message: typeof err.message === 'string' ? err.message : null,
+  }
+}
+
+/**
+ * Map a caught error to a sanitized, surfaceable shape for the admin route. The
+ * message is OUR es-MX copy keyed by failure kind — Stripe's raw message (which
+ * can echo a redacted key) is never passed through. `detail` carries only the
+ * safe `type`/`code` for diagnosis (S1.3).
+ */
+export function describeCouponError(e: unknown): {
+  kind: StripeFailureKind
+  message: string
+  detail: { type: string | null; code: string | null }
+} {
+  const shape = stripeErrorShape(e)
+  const kind = classifyStripeFailure(shape)
+  return {
+    kind,
+    message: describeStripeFailure(kind),
+    detail: { type: shape.type ?? null, code: shape.code ?? null },
+  }
+}
+
 async function findCoupon(): Promise<Stripe.Coupon | null> {
   try {
     return await stripe.coupons.retrieve(COUPON_ID)
-  } catch {
-    return null
+  } catch (e) {
+    // A genuine "resource missing" means the coupon simply hasn't been minted
+    // yet → null/EMPTY. But an auth / permission / connection failure must NOT
+    // pose as "not minted" — surface it so the admin tool can show the real cause.
+    if (isResourceMissing(stripeErrorShape(e))) return null
+    throw e
   }
 }
 
