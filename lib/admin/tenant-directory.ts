@@ -45,6 +45,13 @@ export type TenantRow = {
   /** Entitlement reason from the pure deriver (list-level — no subscription lookup). */
   entitlementReason: DomainEntitlementReason
   entitled: boolean
+  /**
+   * True when this list-level reason resolved to `none` only because the paywall
+   * is on and we deliberately skipped the per-seller subscription lookup — so the
+   * shop could actually be entitled via an active subscription. Lets the UI avoid
+   * asserting a false "no plan". Always `false` while the paywall is off.
+   */
+  subscriptionUnchecked: boolean
   listingCount: number
   /** ISO timestamp the mirror row was created. */
   createdAt: string | null
@@ -105,6 +112,7 @@ export function shapeTenantRow(
     domainStatus: deriveDomainStatus(customDomain, !!raw.custom_domain_verified),
     entitlementReason: entitlement.reason,
     entitled: entitlement.entitled,
+    subscriptionUnchecked: ctx.paywallEnabled && entitlement.reason === 'none',
     listingCount: Math.max(0, Math.floor(ctx.listingCount) || 0),
     createdAt: trimmed(raw.created_at) || null,
   }

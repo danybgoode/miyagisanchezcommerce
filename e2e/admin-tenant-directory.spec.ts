@@ -58,10 +58,21 @@ test.describe('admin tenant-directory · shapeTenantRow', () => {
     expect(row.entitled).toBe(true)
   })
 
-  test('entitlement: paywall on, no grant → none & not entitled', () => {
+  test('entitlement: paywall on, no grant → none & not entitled, flagged subscription-unchecked', () => {
     const row = shapeTenantRow(base, { paywallEnabled: true, listingCount: 0 })
     expect(row.entitlementReason).toBe('none')
     expect(row.entitled).toBe(false)
+    // List skips the per-seller subscription lookup, so 'none' is only indicative here.
+    expect(row.subscriptionUnchecked).toBe(true)
+  })
+
+  test('subscriptionUnchecked is false when paywall off, or when a grant entitles', () => {
+    expect(shapeTenantRow(base, { paywallEnabled: false, listingCount: 0 }).subscriptionUnchecked).toBe(false)
+    const comp = shapeTenantRow(
+      { ...base, metadata: { custom_domain_grant: { type: 'comp', granted_at: '2026-01-01T00:00:00Z' } } },
+      { paywallEnabled: true, listingCount: 0 },
+    )
+    expect(comp.subscriptionUnchecked).toBe(false)
   })
 
   test('entitlement: paywall on, comp grant → comp & entitled', () => {

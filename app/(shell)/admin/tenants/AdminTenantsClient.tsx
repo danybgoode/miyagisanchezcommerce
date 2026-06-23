@@ -66,7 +66,9 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                   <Badge tone={t.domainStatus === 'verified' ? 'ok' : t.domainStatus === 'pending' ? 'warn' : 'muted'}>
                     {domainStatusLabel(t.domainStatus)}
                   </Badge>
-                  <Badge tone={t.entitled ? 'ok' : 'muted'}>{entitlementReasonLabel(t.entitlementReason)}</Badge>
+                  <Badge tone={t.entitled ? 'ok' : t.subscriptionUnchecked ? 'warn' : 'muted'}>
+                    {t.subscriptionUnchecked ? 'Sin plan (suscripción sin verificar)' : entitlementReasonLabel(t.entitlementReason)}
+                  </Badge>
                   <span className="text-[var(--color-muted)]">{t.listingCount} anuncios</span>
                 </span>
               </button>
@@ -92,7 +94,14 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                       <span className="text-[var(--color-muted)]">Sin dominio</span>
                     )}
                   </Field>
-                  <Field label="Plan de dominio">{entitlementReasonLabel(t.entitlementReason)}</Field>
+                  <Field label="Plan de dominio">
+                    {entitlementReasonLabel(t.entitlementReason)}
+                    {t.subscriptionUnchecked && (
+                      <span className="block text-xs text-[var(--color-muted)] mt-0.5">
+                        No se verificó la suscripción del vendedor (la verificación por vendedor llega en S4).
+                      </span>
+                    )}
+                  </Field>
                   <Field label="Anuncios">{t.listingCount}</Field>
                   <Field label="Creada">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('es-MX') : '—'}</Field>
                 </dl>
