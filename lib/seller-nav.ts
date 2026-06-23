@@ -47,11 +47,14 @@ export const SELLER_NAV: SellerNavGroup[] = [
     key: 'crecer',
     label: 'Crecer',
     entries: [
-      { key: 'analitica', label: 'Analítica', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
-      { key: 'promociones', label: 'Promociones', href: '/shop/manage/promotions', icon: 'iconoir-percentage-circle' },
+      { key: 'promociones', label: 'Cupones', href: '/shop/manage/promotions', icon: 'iconoir-percentage-circle' },
+      { key: 'suscripciones', label: 'Suscripciones', href: '/shop/manage/subscriptions', icon: 'iconoir-refresh-double' },
+      { key: 'contenido', label: 'Contenido', href: '/shop/manage/content', icon: 'iconoir-book' },
       { key: 'eventos', label: 'Eventos', href: '/shop/manage/eventos', icon: 'iconoir-calendar' },
-      { key: 'importar', label: 'Importar', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
-      { key: 'ajustes', label: 'Ajustes', href: '/shop/manage/settings', icon: 'iconoir-settings' },
+      { key: 'sorteos', label: 'Sorteos', href: '/shop/manage/sweepstakes', icon: 'iconoir-gift' },
+      { key: 'analitica', label: 'Analíticas', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
+      { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
+      { key: 'ajustes', label: 'Configuración', href: '/shop/manage/settings', icon: 'iconoir-settings' },
     ],
   },
 ]

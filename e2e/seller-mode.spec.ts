@@ -23,7 +23,10 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage/offers',
   '/shop/manage/analytics',
   '/shop/manage/promotions',
+  '/shop/manage/subscriptions',
+  '/shop/manage/content',
   '/shop/manage/eventos',
+  '/shop/manage/sweepstakes',
   '/shop/manage/import',
   '/shop/manage/settings',
 ])
@@ -75,7 +78,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
   test('labels match the sprint spec', () => {
     expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
     expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual([
-      'Analítica', 'Promociones', 'Eventos', 'Importar', 'Ajustes',
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Configuración',
     ])
   })
 
@@ -83,7 +86,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
     expect(SELLER_NAV_MOBILE_PRIMARY.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
     expect(SELLER_NAV_MOBILE_OVERFLOW.length).toBeGreaterThan(0)
     expect(SELLER_NAV_MOBILE_OVERFLOW.map(e => e.label)).toEqual([
-      'Analítica', 'Promociones', 'Eventos', 'Importar', 'Ajustes',
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Configuración',
     ])
   })
 
@@ -109,6 +112,9 @@ test.describe('seller-mode · activeSellerNavHref', () => {
     expect(activeSellerNavHref('/shop/manage/settings')).toBe('/shop/manage/settings')
     expect(activeSellerNavHref('/shop/manage/settings/payments')).toBe('/shop/manage/settings')
     expect(activeSellerNavHref('/shop/manage/analytics')).toBe('/shop/manage/analytics')
+    expect(activeSellerNavHref('/shop/manage/subscriptions')).toBe('/shop/manage/subscriptions')
+    expect(activeSellerNavHref('/shop/manage/content')).toBe('/shop/manage/content')
+    expect(activeSellerNavHref('/shop/manage/sweepstakes')).toBe('/shop/manage/sweepstakes')
   })
 
   test('returns null off the seller surface', () => {
