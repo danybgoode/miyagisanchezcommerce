@@ -1,30 +1,28 @@
 /**
- * /api/admin/print/social  (secret-gated)
+ * /api/admin/print/social  (Clerk admin-gated via withAdmin)
  *   GET  — list social submissions (optionally ?status= / ?edition_id=)
  *   POST — create an editor-authored item (source 'editor')
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import { PRINT_SOCIAL_TYPES, type PrintSocialType } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
 
 const VALID_TYPES = new Set(PRINT_SOCIAL_TYPES.map((t) => t.key))
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async (req: NextRequest) => {
   const status = req.nextUrl.searchParams.get('status')
   let query = db.from('print_social_submissions').select('*, print_editions(title)').order('created_at', { ascending: false })
   if (status) query = query.eq('status', status)
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ submissions: data ?? [] })
-}
+})
 
-export async function POST(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const POST = withAdmin(async (req: NextRequest) => {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
   const caption = String(body.caption ?? '').trim()
@@ -47,4 +45,4 @@ export async function POST(req: NextRequest) {
     .single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
   return NextResponse.json({ submission: data }, { status: 201 })
-}
+})

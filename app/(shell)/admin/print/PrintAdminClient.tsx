@@ -20,16 +20,17 @@ function money(cents: number) {
 const EDITION_STATUSES = ['draft', 'open', 'closed', 'in_production', 'distributed'] as const
 const SUBMISSION_STATUSES = ['pending_payment', 'paid', 'approved', 'placed', 'rejected', 'refunded'] as const
 
-export default function PrintAdminClient({ secret }: { secret: string }) {
+export default function PrintAdminClient() {
   const [tab, setTab] = useState<'editions' | 'providers'>('editions')
 
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback(
     (path: string, init?: RequestInit) =>
       fetch(`/api/admin/print${path}`, {
         ...init,
-        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret, ...(init?.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       }),
-    [secret],
+    [],
   )
 
   return (
@@ -44,7 +45,7 @@ export default function PrintAdminClient({ secret }: { secret: string }) {
         ))}
       </div>
       {tab === 'providers' ? <Providers api={api} />
-        : <Editions api={api} secret={secret} />}
+        : <Editions api={api} />}
     </div>
   )
 }
@@ -97,7 +98,7 @@ function Providers({ api }: { api: Api }) {
 
 // ── Editions ───────────────────────────────────────────────────────────────
 
-function Editions({ api, secret }: { api: Api; secret: string }) {
+function Editions({ api }: { api: Api }) {
   const [editions, setEditions] = useState<AdminEdition[]>([])
   const [providers, setProviders] = useState<PrintProvider[]>([])
   const [creating, setCreating] = useState(false)
@@ -114,7 +115,7 @@ function Editions({ api, secret }: { api: Api; secret: string }) {
         {creating ? '× Cancelar' : '+ Nueva edición'}
       </button>
       {creating && <EditionForm api={api} providers={providers} onDone={() => { setCreating(false); load() }} />}
-      {editions.map((e) => <EditionRow key={e.id} api={api} secret={secret} edition={e} onChange={load} />)}
+      {editions.map((e) => <EditionRow key={e.id} api={api} edition={e} onChange={load} />)}
     </div>
   )
 }
@@ -199,10 +200,10 @@ function EditionForm({ api, providers, onDone }: { api: Api; providers: PrintPro
   )
 }
 
-function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: string; edition: AdminEdition; onChange: () => void }) {
+function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEdition; onChange: () => void }) {
   const [open, setOpen] = useState(false)
   const occ: Record<string, number> = edition.occupancy ?? {}
-  const exportHref = `/api/admin/print/editions/${edition.id}/export?secret=${encodeURIComponent(secret)}`
+  const exportHref = `/api/admin/print/editions/${edition.id}/export`
 
   async function setStatus(status: string) {
     await api(`/editions/${edition.id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
@@ -232,7 +233,7 @@ function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: stri
         <button onClick={() => setOpen((v) => !v)} className="text-xs text-[var(--color-accent)]">
           {open ? 'Ocultar anuncios' : 'Ver anuncios'}
         </button>
-        <a href={`/admin/print/${edition.id}/builder?secret=${encodeURIComponent(secret)}`}
+        <a href={`/admin/print/${edition.id}/builder`}
           className="text-xs text-[var(--color-accent)] no-underline font-medium">
           ✎ Maquetar
         </a>

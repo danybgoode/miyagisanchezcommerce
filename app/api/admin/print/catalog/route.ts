@@ -1,18 +1,17 @@
 /**
- * GET /api/admin/print/catalog?q=…  (secret-gated)
+ * GET /api/admin/print/catalog?q=…  (Clerk admin-gated via withAdmin)
  * Searches LIVE marketplace listings (Medusa Store API via searchListings, AGENTS
  * rule #1) for the builder's curation drawer (US-4). Returns slim listing + shop
  * shapes the client maps into house-ad blocks.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import { searchListings, formatPrice } from '@/lib/listings'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async (req: NextRequest) => {
   const q = req.nextUrl.searchParams.get('q') ?? ''
 
   const { listings } = await searchListings({ q, page: '1' })
@@ -25,4 +24,4 @@ export async function GET(req: NextRequest) {
     shop: l.shop ? { slug: l.shop.slug, name: l.shop.name, logo: l.shop.logo_url ?? null, description: l.shop.description ?? null } : null,
   }))
   return NextResponse.json({ items })
-}
+})

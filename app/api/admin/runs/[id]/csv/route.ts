@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import { getScrapeRunItems, scrapeItemsToCsv } from '@/lib/adminScrapeExport'
 
 export const dynamic = 'force-dynamic'
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const GET = withAdmin(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const { data: run, error: runError } = await db
     .from('marketplace_scrape_runs')
@@ -47,4 +36,4 @@ export async function GET(
       'cache-control': 'no-store',
     },
   })
-}
+})

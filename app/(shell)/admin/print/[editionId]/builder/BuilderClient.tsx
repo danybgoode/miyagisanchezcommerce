@@ -28,9 +28,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
  * section / filler) + approved social items. US-3 adds the per-block inspector.
  */
 export default function BuilderClient({
-  secret, editionId, editionTitle, tiers,
+  editionId, editionTitle, tiers,
 }: {
-  secret: string
   editionId: string
   editionTitle: string
   tiers: PrintTier[]
@@ -49,13 +48,14 @@ export default function BuilderClient({
   const [catalogTarget, setCatalogTarget] = useState('')
   const [locked, setLocked] = useState(false)
 
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback(
     (path: string, init?: RequestInit) =>
       fetch(`/api/admin/print${path}`, {
         ...init,
-        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret, ...(init?.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       }),
-    [secret],
+    [],
   )
 
   const tierLabel = useCallback(
@@ -257,7 +257,7 @@ export default function BuilderClient({
       {/* Top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-bg)]/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href={`/admin/print?secret=${encodeURIComponent(secret)}`} className="text-sm text-[var(--color-accent)] no-underline flex-shrink-0">← Admin</Link>
+          <Link href="/admin/print" className="text-sm text-[var(--color-accent)] no-underline flex-shrink-0">← Admin</Link>
           <div className="min-w-0">
             <h1 className="font-bold text-sm truncate">Maqueta · {editionTitle}</h1>
             <p className="text-xs text-[var(--color-muted)]">{doc.pages.length} página(s) · {placedSubs.size} colocado(s) · {tray.length} en bandeja</p>
@@ -279,11 +279,11 @@ export default function BuilderClient({
               ))}
             </select>
           </label>
-          <a href={`/admin/print/${editionId}/print?secret=${encodeURIComponent(secret)}`} target="_blank" rel="noopener"
+          <a href={`/admin/print/${editionId}/print`} target="_blank" rel="noopener"
             className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold no-underline">
             🖨 Vista de impresión
           </a>
-          <a href={`/api/admin/print/editions/${editionId}/pdf?secret=${encodeURIComponent(secret)}`} target="_blank" rel="noopener"
+          <a href={`/api/admin/print/editions/${editionId}/pdf`} target="_blank" rel="noopener"
             className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold no-underline">
             ⬇ Descargar PDF
           </a>

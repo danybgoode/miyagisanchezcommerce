@@ -1,18 +1,18 @@
 /**
- * /api/admin/print/editions  (secret-gated)
+ * /api/admin/print/editions  (Clerk admin-gated via withAdmin)
  *   GET  — list all editions (with provider name + occupancy per tier)
  *   POST — create an edition and mint a Medusa placement product per tier
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret, ensureTierProducts, tierOccupancy } from '@/lib/print-server'
+import { ensureTierProducts, tierOccupancy } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import type { PrintEdition, PrintTier } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async () => {
   const { data, error } = await db
     .from('print_editions')
     .select('*, print_providers(name, slug)')
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     ((data ?? []) as PrintEdition[]).map(async (e) => ({ ...e, occupancy: await tierOccupancy(e.id) })),
   )
   return NextResponse.json({ editions })
-}
+})
 
 interface CreateBody {
   provider_id: string
@@ -34,8 +34,7 @@ interface CreateBody {
   tiers: PrintTier[]
 }
 
-export async function POST(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const POST = withAdmin(async (req: NextRequest) => {
   let body: CreateBody
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 
@@ -65,4 +64,4 @@ export async function POST(req: NextRequest) {
     .from('print_editions').update({ tiers }).eq('id', edition.id).select('*').single()
 
   return NextResponse.json({ edition: updated ?? edition, failed_tiers: failed }, { status: 201 })
-}
+})

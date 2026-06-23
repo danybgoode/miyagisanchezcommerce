@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import {
   refreshBatchCounts,
   supplyItemToSellerBody,
@@ -15,11 +16,6 @@ import {
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
-
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
 
 function internalFetch(path: string, body: unknown) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -59,11 +55,7 @@ async function resolveSeller(item: SupplyItem): Promise<{ seller: MedusaSeller; 
   return { seller: data.seller, mirrorId }
 }
 
-export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const POST = withAdmin(async (req: NextRequest) => {
   if (!INTERNAL_SECRET) {
     return NextResponse.json({ error: 'MEDUSA_INTERNAL_SECRET is not configured' }, { status: 500 })
   }
@@ -209,4 +201,4 @@ export async function POST(req: NextRequest) {
     failed,
     counts,
   })
-}
+})

@@ -1,24 +1,21 @@
 /**
- * GET   /api/admin/referrals/config?secret=…  — current referral reward settings
- * PATCH /api/admin/referrals/config?secret=…  — update them (no deploy needed)
+ * GET   /api/admin/referrals/config  — current referral reward settings
+ * PATCH /api/admin/referrals/config  — update them (no deploy needed)
  *
- * Auth: ?secret=ADMIN_SECRET (matches /api/admin/*).
+ * Auth: Clerk admin session (via withAdmin).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import { getReferralSettings, updateReferralSettings, type ReferralSettings } from '@/lib/referrals'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async () => {
   const settings = await getReferralSettings()
   return NextResponse.json({ settings })
-}
+})
 
-export async function PATCH(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+export const PATCH = withAdmin(async (req: NextRequest) => {
   let body: Partial<ReferralSettings>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -34,4 +31,4 @@ export async function PATCH(req: NextRequest) {
 
   const settings = await updateReferralSettings(patch)
   return NextResponse.json({ settings })
-}
+})

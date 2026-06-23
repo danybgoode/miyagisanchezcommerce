@@ -6,17 +6,15 @@ import type { ReferralSettings } from '@/lib/referrals'
 /**
  * Referrals reward config — a thin screen over `GET/PATCH
  * /api/admin/referrals/config` (S2.2). No backend change; this just replaces the
- * curl-only config with an editable form. **Dual-accept** via the `x-admin-secret`
- * header this sprint; the secret retires in S2.3.
+ * curl-only config with an editable form. **Clerk-gated** — the same-origin
+ * PATCH carries the session cookie.
  *
  * `reward_amount_cents` is reused for both reward types: pesos (×100) when
  * `fixed`, a raw percentage when `percentage` — the input adapts its label.
  */
 export default function ReferralsAdminClient({
-  secret,
   initialSettings,
 }: {
-  secret: string
   initialSettings: ReferralSettings
 }) {
   const [settings, setSettings] = useState<ReferralSettings>(initialSettings)
@@ -39,7 +37,7 @@ export default function ReferralsAdminClient({
     try {
       const res = await fetch('/api/admin/referrals/config', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       })
       const data = await res.json().catch(() => ({}))

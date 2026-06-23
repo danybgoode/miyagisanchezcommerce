@@ -14,9 +14,9 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2.2 re-homed/extracted/new)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'audit', 'scraping',
     ])
   })
 

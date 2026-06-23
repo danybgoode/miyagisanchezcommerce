@@ -18,19 +18,20 @@ const SOCIAL_STATUSES: PrintSocialStatus[] = ['submitted', 'approved', 'placed',
 type EditionOption = { id: string; title?: string }
 type SocialRow = PrintSocialSubmission & { print_editions?: { title?: string } | null }
 
-export default function VecindarioAdminClient({ secret }: { secret: string }) {
+export default function VecindarioAdminClient() {
   const [rows, setRows] = useState<SocialRow[]>([])
   const [editions, setEditions] = useState<EditionOption[]>([])
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ type: 'reconocimiento', caption: '', body: '', edition_id: '' })
 
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback(
     (path: string, init?: RequestInit) =>
       fetch(`/api/admin/print${path}`, {
         ...init,
-        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret, ...(init?.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       }),
-    [secret],
+    [],
   )
 
   const load = useCallback(() => {

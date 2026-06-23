@@ -9,7 +9,7 @@
  *
  * Sprint 1 listed Coupons, Print, and the external scraper link-out. S2.2
  * appends Supply (re-homed), Vecindario (extracted from Print), and Referrals;
- * S2.3 appends Audit; S3 appends Tenants.
+ * S2.3 appends Audit (the admin_audit_log viewer); S3 appends Tenants.
  */
 
 export type AdminRisk = 'low' | 'med' | 'high'
@@ -71,6 +71,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/referrals',
     icon: 'iconoir-gift',
     risk: 'med',
+  },
+  {
+    key: 'audit',
+    label: 'Auditoría',
+    description: 'Registro de cada acción administrativa (quién, qué, cuándo).',
+    href: '/admin/audit',
+    icon: 'iconoir-list',
+    risk: 'low',
   },
   {
     key: 'scraping',

@@ -16,9 +16,6 @@ export async function POST(req: NextRequest) {
   const auth = authorized(req)
   if (!auth.ok) return NextResponse.json({ error: auth.status === 404 ? 'Not found' : 'Unauthorized' }, { status: auth.status })
 
-  const adminSecret = process.env.ADMIN_SECRET
-  if (!adminSecret) return NextResponse.json({ error: 'ADMIN_SECRET required for smoke.' }, { status: 412 })
-
   const now = Date.now()
   const { data: created, error } = await db
     .from('print_social_submissions')
@@ -40,29 +37,23 @@ export async function POST(req: NextRequest) {
   const id = String(created.id)
 
   try {
-    const endpoint = new URL(`/api/admin/print/social/${id}`, req.url)
-    const patchHeaders = { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret }
+    // S2.3: the admin print-social route is now Clerk-only (no machine secret),
+    // so this self-test toggles `web_visible` with direct DB writes — the same
+    // column the route mutates — instead of an internal HTTP PATCH.
+    const { data: on } = await db
+      .from('print_social_submissions')
+      .update({ web_visible: true }).eq('id', id).select('status, web_visible').single()
 
-    const on = await fetch(endpoint, {
-      method: 'PATCH',
-      headers: patchHeaders,
-      body: JSON.stringify({ web_visible: true }),
-    })
-    const onBody = await on.json().catch(() => null) as { submission?: { status?: string; web_visible?: boolean } } | null
-
-    const off = await fetch(endpoint, {
-      method: 'PATCH',
-      headers: patchHeaders,
-      body: JSON.stringify({ web_visible: false }),
-    })
-    const offBody = await off.json().catch(() => null) as { submission?: { web_visible?: boolean } } | null
+    const { data: off } = await db
+      .from('print_social_submissions')
+      .update({ web_visible: false }).eq('id', id).select('web_visible').single()
 
     return NextResponse.json({
       ok: true,
       default_off: created.web_visible === false,
-      toggled_on: on.ok && onBody?.submission?.web_visible === true,
-      toggled_off: off.ok && offBody?.submission?.web_visible === false,
-      status_after_toggle: onBody?.submission?.status ?? null,
+      toggled_on: on?.web_visible === true,
+      toggled_off: off?.web_visible === false,
+      status_after_toggle: on?.status ?? null,
     })
   } finally {
     await db.from('print_social_submissions').delete().eq('id', id).eq('source', 'editor')
