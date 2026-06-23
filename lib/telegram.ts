@@ -13,6 +13,8 @@
  *   TELEGRAM_CHAT_ID     — admin's personal chat ID (default target for tgSend)
  */
 
+import { newShopPingText } from './shop-notify'
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const CHAT_ID   = process.env.TELEGRAM_CHAT_ID
 
@@ -93,7 +95,7 @@ export async function getBotUsername(): Promise<string | null> {
 export const tg = {
   /** New seller account claimed (shop went from pending → active) */
   newShop(shopName: string, location: string | null, slug: string) {
-    return tgNotify(`🏪 <b>Nueva tienda reclamada</b>\n<b>${esc(shopName)}</b>${location ? ` · ${esc(location)}` : ''}\nmiyagisanchez.com/s/${esc(slug)}`)
+    return tgNotify(newShopPingText(shopName, location, slug))
   },
 
   /** New listing published by a claimed seller */
