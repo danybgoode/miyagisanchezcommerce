@@ -72,12 +72,18 @@ export default function SeleccionAdminClient() {
     }
   }, [])
 
-  // Pin: append after the current pins. Unpin: clear featured (rank cleared server-side).
+  // Pin: append after the current pins (max rank + 1, so an unpin that leaves
+  // non-contiguous ranks — e.g. 1,3 — can't collide on the next pin). Unpin:
+  // clear featured (rank cleared server-side).
   async function togglePin(c: Candidate) {
     setBusy(true); setError(null)
     try {
-      if (c.pinned) await patch(c.id, { featured: false, featured_rank: null })
-      else await patch(c.id, { featured: true, featured_rank: pinned.length + 1 })
+      if (c.pinned) {
+        await patch(c.id, { featured: false, featured_rank: null })
+      } else {
+        const nextRank = pinned.reduce((m, p) => Math.max(m, p.rank ?? 0), 0) + 1
+        await patch(c.id, { featured: true, featured_rank: nextRank })
+      }
       await load()
     } catch (e) {
       setError(String(e))

@@ -38,6 +38,13 @@ test.describe('home-seleccion · buildFeaturedPatch (pure)', () => {
     expect(buildFeaturedPatch({ featured: true, featured_rank: 'abc' })).toHaveProperty('error')
     expect(buildFeaturedPatch({ featured: true, featured_rank: -1 })).toHaveProperty('error')
   })
+
+  test('never COERCES a string/boolean rank into a number', () => {
+    // Number('2') → 2, Number(true) → 1, Number('') → 0 — all must be rejected, not admitted.
+    expect(buildFeaturedPatch({ featured: true, featured_rank: '2' })).toHaveProperty('error')
+    expect(buildFeaturedPatch({ featured: true, featured_rank: true })).toHaveProperty('error')
+    expect(buildFeaturedPatch({ featured: true, featured_rank: '' })).toHaveProperty('error')
+  })
 })
 
 test.describe('home-seleccion · admin API auth gate (anonymous)', () => {

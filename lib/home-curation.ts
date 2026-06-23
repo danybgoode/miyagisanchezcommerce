@@ -29,6 +29,7 @@ export function isPinned(l: Listing): boolean {
  * Unranked pins sort last among pins → fall back to fresh order. Non-pins → Infinity.
  */
 export function featuredRank(l: Listing): number {
+  if (!isPinned(l)) return Infinity // a stale rank on an unpinned listing is not a pin order
   const r = l.metadata?.featured_rank
   return typeof r === 'number' && Number.isFinite(r) ? r : Infinity
 }

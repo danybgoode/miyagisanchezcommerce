@@ -27,8 +27,12 @@ export function buildFeaturedPatch(input: unknown): FeaturedPatchResult {
   if (body.featured === false) return { featured: false, featured_rank: null }
 
   // Pinned: rank is optional (absent/null ⇒ unranked → falls back to fresh order).
+  // Require an actual finite number — never coerce a string/boolean (Number('') → 0,
+  // Number(true) → 1 would silently admit garbage ranks).
   if (body.featured_rank == null) return { featured: true, featured_rank: null }
-  const n = Number(body.featured_rank)
-  if (!Number.isFinite(n) || n < 0) return { error: 'featured_rank must be a number ≥ 0 or null' }
-  return { featured: true, featured_rank: Math.floor(n) }
+  const r = body.featured_rank
+  if (typeof r !== 'number' || !Number.isFinite(r) || r < 0) {
+    return { error: 'featured_rank must be a number ≥ 0 or null' }
+  }
+  return { featured: true, featured_rank: Math.floor(r) }
 }
