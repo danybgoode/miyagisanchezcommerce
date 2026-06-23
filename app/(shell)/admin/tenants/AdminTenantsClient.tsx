@@ -208,11 +208,16 @@ function EntitlementControls({
   }
 
   const hasComp = grant?.type === 'comp'
+  const isGrandfather = grant?.type === 'grandfather'
 
   return (
     <div className="space-y-2">
       <div>
-        {row.subscriptionUnchecked ? entitlementReasonLabel('none') : entitlementReasonLabel(row.entitlementReason)}
+        {/* Honest until the detail GET resolves the per-seller subscription: while
+            `subscriptionUnchecked`, never assert a bare "Sin plan". */}
+        {row.subscriptionUnchecked
+          ? 'Sin plan (suscripción sin verificar)'
+          : entitlementReasonLabel(row.entitlementReason)}
         {hasComp && (
           <span className="block text-xs text-[var(--color-muted)] mt-0.5">
             Cortesía activa
@@ -220,62 +225,71 @@ function EntitlementControls({
             {grant?.note ? ` · ${grant.note}` : ''}
           </span>
         )}
-        {grant?.type === 'grandfather' && (
-          <span className="block text-xs text-[var(--color-muted)] mt-0.5">Heredada (cutover)</span>
+        {isGrandfather && (
+          <span className="block text-xs text-[var(--color-muted)] mt-0.5">
+            Heredada (cutover) — concesión permanente, no editable desde aquí.
+          </span>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Nota (opcional)"
-          disabled={busy}
-          className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs"
-        />
-        <button
-          type="button"
-          onClick={() => mutate('grant')}
-          disabled={busy}
-          className="rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] px-3 py-1 text-xs font-medium disabled:opacity-50"
-        >
-          {hasComp ? 'Actualizar cortesía' : 'Otorgar cortesía'}
-        </button>
-
-        {confirmingRevoke ? (
-          <span className="flex items-center gap-1 text-xs">
-            <span className="text-[var(--color-muted)]">¿Revocar la cortesía?</span>
-            <button
-              type="button"
-              onClick={() => mutate('revoke')}
-              disabled={busy}
-              className="rounded-md border border-[var(--color-border)] px-2 py-1 font-medium text-[var(--color-warning,#9a6700)] disabled:opacity-50"
-            >
-              Sí, revocar
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingRevoke(false)}
-              disabled={busy}
-              className="rounded-md px-2 py-1 text-[var(--color-muted)] disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-          </span>
-        ) : (
+      {/* A grandfather grant is a different, permanent entitlement — S4 only manages
+          the comp, so expose no edit controls for it (the server refuses too). */}
+      {grant === undefined ? (
+        <p className="text-xs text-[var(--color-muted)]">Verificando plan…</p>
+      ) : isGrandfather ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Nota (opcional)"
+            disabled={busy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs"
+          />
           <button
             type="button"
-            onClick={() => setConfirmingRevoke(true)}
+            onClick={() => mutate('grant')}
             disabled={busy}
-            className="rounded-md border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-50"
+            className="rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] px-3 py-1 text-xs font-medium disabled:opacity-50"
           >
-            Revocar
+            {hasComp ? 'Actualizar cortesía' : 'Otorgar cortesía'}
           </button>
-        )}
 
-        {busy && <span className="text-xs text-[var(--color-muted)]">Guardando…</span>}
-      </div>
+          {hasComp &&
+            (confirmingRevoke ? (
+              <span className="flex items-center gap-1 text-xs">
+                <span className="text-[var(--color-muted)]">¿Revocar la cortesía?</span>
+                <button
+                  type="button"
+                  onClick={() => mutate('revoke')}
+                  disabled={busy}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 font-medium text-[var(--color-warning,#9a6700)] disabled:opacity-50"
+                >
+                  Sí, revocar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRevoke(false)}
+                  disabled={busy}
+                  className="rounded-md px-2 py-1 text-[var(--color-muted)] disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingRevoke(true)}
+                disabled={busy}
+                className="rounded-md border border-[var(--color-border)] px-3 py-1 text-xs disabled:opacity-50"
+              >
+                Revocar
+              </button>
+            ))}
+
+          {busy && <span className="text-xs text-[var(--color-muted)]">Guardando…</span>}
+        </div>
+      )}
 
       {error && <p className="text-xs text-[var(--color-danger,#b42318)]">{error}</p>}
     </div>

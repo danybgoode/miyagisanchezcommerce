@@ -88,7 +88,22 @@ export const POST = withAdmin<NextRequest, RouteCtx>(async (req, { params }) => 
   if (!shop) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
 
   // Build the next metadata: grant writes the canonical comp shape, revoke clears
-  // the durable grant key (returning the shop to its underlying reason).
+  // the durable grant key (returning the shop to its underlying reason). This
+  // action only manages the **comp**: revoking a `grandfather` grant (stamped at
+  // cutover) would silently strip a different, permanent entitlement, so refuse it
+  // here — it is not what the inspector's "Revocar cortesía" promises.
+  // NOTE: this read-modify-writes the whole `metadata` blob (the established
+  // pattern, cf. scripts/backfill-domain-grandfather.mjs); the load→write window
+  // is small and this is a rare manual admin action, so a concurrent seller
+  // metadata edit racing it is an accepted v1 risk rather than a JSONB-merge RPC.
+  const existing = readDomainGrant(shop.metadata)
+  if (action === 'revoke' && existing?.type === 'grandfather') {
+    return NextResponse.json(
+      { error: 'No se puede revocar una concesión heredada (cutover) desde aquí.' },
+      { status: 409 },
+    )
+  }
+
   const metadata: Record<string, unknown> = { ...(shop.metadata ?? {}) }
   if (action === 'grant') {
     metadata.custom_domain_grant = buildCompGrant({ note })
@@ -96,12 +111,23 @@ export const POST = withAdmin<NextRequest, RouteCtx>(async (req, { params }) => 
     delete metadata.custom_domain_grant
   }
 
-  const { error } = await db.from('marketplace_shops').update({ metadata }).eq('id', id)
+  // `.select()` so we can confirm a row actually matched — a 0-row update must not
+  // be reported as success (and audited) as if it had landed.
+  const { data: updated, error } = await db
+    .from('marketplace_shops')
+    .update({ metadata })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
   if (error) {
     // 502 (≥400) keeps `withAdmin` from auditing a failed write — best-effort
     // discipline: never report a mutation that didn't land.
     console.error('[admin/tenants/:id] entitlement write error:', error.message)
     return NextResponse.json({ error: 'No se pudo guardar la cortesía de dominio.' }, { status: 502 })
+  }
+  if (!updated) {
+    // The row vanished between load and write — not an error, but not a mutation.
+    return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
   }
 
   // Reflect the real post-action state (re-resolve on the written metadata).
