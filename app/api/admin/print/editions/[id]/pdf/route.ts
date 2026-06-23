@@ -1,20 +1,24 @@
 /**
- * GET /api/admin/print/editions/[id]/pdf  (secret-gated)
+ * GET /api/admin/print/editions/[id]/pdf  (Clerk admin-gated via withAdmin)
  * Thin proxy to the standalone Cloud Run PDF renderer (US-5b): it loads our
- * secret-gated /print route in headless Chromium and streams back a print-ready
- * PDF. Inert until PRINT_PDF_URL + PRINT_PDF_SECRET are configured.
+ * /print render page in headless Chromium and streams back a print-ready PDF.
+ * Inert until PRINT_PDF_URL + PRINT_PDF_SECRET are configured.
+ *
+ * The human caller is Clerk-gated by `withAdmin`. The downstream `?secret=` on
+ * the render URL is a MACHINE credential: headless Chromium has no Clerk session,
+ * so the `/admin/print/[id]/print` render page stays secret-accepting. This is a
+ * documented `ADMIN_SECRET` machine exception (like `/api/admin/import`).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
 
   const service = process.env.PRINT_PDF_URL
@@ -48,4 +52,4 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       'Cache-Control': 'no-store',
     },
   })
-}
+})

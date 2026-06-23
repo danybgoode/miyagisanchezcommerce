@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import {
   googleLocalToSupplyItem,
   normalizeSupplyItem,
@@ -7,11 +8,6 @@ import {
   SUPPLY_LISTING_TYPES,
   type IncomingSupplyItem,
 } from '@/lib/supply'
-
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
 
 async function collectGoogleLocal(body: {
   category?: string
@@ -59,11 +55,7 @@ async function collectGoogleLocal(body: {
   }, query))
 }
 
-export async function GET(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const GET = withAdmin(async () => {
   const { data, error } = await db
     .from('supply_batches')
     .select('*')
@@ -72,13 +64,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ batches: data ?? [] })
-}
+})
 
-export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const POST = withAdmin(async (req: NextRequest) => {
   const body = await req.json().catch(() => null) as {
     name?: string
     source_platform?: string
@@ -162,4 +150,4 @@ export async function POST(req: NextRequest) {
 
   const counts = await refreshBatchCounts(batch.id)
   return NextResponse.json({ batch: { ...batch, ...counts }, inserted: normalized.length }, { status: 201 })
-}
+})

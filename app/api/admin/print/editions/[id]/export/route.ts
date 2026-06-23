@@ -1,19 +1,18 @@
 /**
- * GET /api/admin/print/editions/[id]/export  (secret-gated)
+ * GET /api/admin/print/editions/[id]/export  (Clerk admin-gated via withAdmin)
  * Streams the production ZIP pack (approved ads: copy + photos + logo + QR,
  * plus spec.txt + index.html) for hand layout in InDesign/Affinity.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import { buildEditionExportZip } from '@/lib/print-export'
 
 export const dynamic = 'force-dynamic'
 // Larger editions take time to fetch + zip all assets.
 export const maxDuration = 60
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
 
   const result = await buildEditionExportZip(id)
@@ -30,4 +29,4 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       'Cache-Control': 'no-store',
     },
   })
-}
+})

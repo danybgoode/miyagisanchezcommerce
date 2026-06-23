@@ -229,15 +229,6 @@ export async function sendPrintAdLifecycleEmail(
   }
 }
 
-/** Admin secret guard (header x-admin-secret or ?secret=), matching /api/admin/scrape. */
-export function checkAdminSecret(req: Request): boolean {
-  const secret = process.env.ADMIN_SECRET
-  if (!secret) return false
-  const url = new URL(req.url)
-  const provided = req.headers.get('x-admin-secret') ?? url.searchParams.get('secret')
-  return provided === secret
-}
-
 /**
  * Create a Medusa placement product for one edition tier via the backend internal
  * route, returning its product id. Requires MEDUSA_INTERNAL_SECRET in the env.

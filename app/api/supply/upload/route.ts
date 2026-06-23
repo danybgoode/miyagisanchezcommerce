@@ -1,32 +1,23 @@
 /**
- * Supply image upload — secret-gated sibling of /api/sell/upload for the
- * supply/import pipeline (Gem → Claimable Shop Loop · S1.3). An admin or agent
- * with NO Clerk login turns a local photo into a hosted URL, then uses it as
- * `image_url` when staging a gem (or attaches it to a listing after import).
+ * Supply image upload — Clerk admin-gated sibling of /api/sell/upload for the
+ * supply/import pipeline (Gem → Claimable Shop Loop · S1.3). Turns a local photo
+ * into a hosted URL for staging a gem (or attaching to a listing after import).
  *
  *   POST /api/supply/upload   multipart form-data: file=<image>
- *   Auth: x-admin-secret header or ?secret= (same as every /api/supply route)
+ *   Auth: Clerk admin session (via withAdmin)
  *   → { url }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import { uploadToR2, isR2Configured } from '@/lib/r2'
 
 const BUCKET = 'listing-images'
 const MAX_SIZE_BYTES = 8 * 1024 * 1024 // 8 MB hard cap, same as /api/sell/upload
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const POST = withAdmin(async (req: NextRequest) => {
   let formData: FormData
   try {
     formData = await req.formData()
@@ -79,4 +70,4 @@ export async function POST(req: NextRequest) {
 
   const { data: { publicUrl } } = db.storage.from(BUCKET).getPublicUrl(supabasePath)
   return NextResponse.json({ url: publicUrl })
-}
+})

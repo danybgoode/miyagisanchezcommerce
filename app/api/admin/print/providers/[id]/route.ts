@@ -1,12 +1,12 @@
 /**
- * /api/admin/print/providers/[id]  (secret-gated)
+ * /api/admin/print/providers/[id]  (Clerk admin-gated via withAdmin)
  *   PATCH  — update a provider
  *   DELETE — delete a provider (blocked if it has editions)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,8 +15,7 @@ const EDITABLE = [
   'coverage_zones', 'distribution_notes', 'schedule_notes', 'preview_url', 'file_spec',
 ] as const
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const PATCH = withAdmin(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
@@ -27,10 +26,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { data, error } = await db.from('print_providers').update(patch).eq('id', id).select('*').single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
   return NextResponse.json({ provider: data })
-}
+})
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const DELETE = withAdmin(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
 
   const { count } = await db
@@ -44,4 +42,4 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { error } = await db.from('print_providers').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
-}
+})

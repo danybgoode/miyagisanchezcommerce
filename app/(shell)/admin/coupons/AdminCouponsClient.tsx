@@ -48,17 +48,15 @@ export interface ReferralSettings {
 }
 
 export default function AdminCouponsClient({
-  secret,
   initialCoupons,
   initialSettings,
   initialCampaign,
 }: {
-  secret: string
   initialCoupons: Coupon[]
   initialSettings: ReferralSettings
   initialCampaign?: CampaignCoupon | null
 }) {
-  const q = `?secret=${encodeURIComponent(secret)}`
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +69,7 @@ export default function AdminCouponsClient({
   const refreshCampaign = useCallback(async () => {
     setCampaignBusy(true); setCampaignMsg(null)
     try {
-      const res = await fetch(`/api/admin/domain-coupon${q}`, { cache: 'no-store' })
+      const res = await fetch(`/api/admin/domain-coupon`, { cache: 'no-store' })
       const data = await res.json() as { status?: CampaignCoupon; error?: string }
       if (!res.ok || !data.status) throw new Error(data.error ?? 'No se pudo leer el cupón.')
       setCampaign(data.status)
@@ -80,12 +78,12 @@ export default function AdminCouponsClient({
     } finally {
       setCampaignBusy(false)
     }
-  }, [q])
+  }, [])
 
   async function mintCampaign() {
     setCampaignBusy(true); setCampaignMsg(null)
     try {
-      const res = await fetch(`/api/admin/domain-coupon${q}`, { method: 'POST' })
+      const res = await fetch(`/api/admin/domain-coupon`, { method: 'POST' })
       const data = await res.json() as { status?: CampaignCoupon; error?: string }
       if (!res.ok || !data.status) throw new Error(data.error ?? 'No se pudo crear el cupón.')
       setCampaign(data.status)
@@ -109,7 +107,7 @@ export default function AdminCouponsClient({
     setSavingCfg(true)
     setCfgMsg(null)
     try {
-      const res = await fetch(`/api/admin/referrals/config${q}`, {
+      const res = await fetch(`/api/admin/referrals/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,7 +137,7 @@ export default function AdminCouponsClient({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/coupons${q}`)
+      const res = await fetch(`/api/admin/coupons`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || data.message || 'Error al cargar cupones.')
       setCoupons(data.coupons ?? [])
@@ -149,7 +147,7 @@ export default function AdminCouponsClient({
     } finally {
       setLoading(false)
     }
-  }, [q])
+  }, [])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -162,7 +160,7 @@ export default function AdminCouponsClient({
 
     setCreating(true)
     try {
-      const res = await fetch(`/api/admin/coupons${q}`, {
+      const res = await fetch(`/api/admin/coupons`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: normalized, type, value: num, expiry: expiry || null, usage_limit: usageLimit ? Number(usageLimit) : null }),
@@ -181,7 +179,7 @@ export default function AdminCouponsClient({
   async function remove(c: Coupon) {
     if (!confirm(`¿Eliminar el cupón ${c.code}?`)) return
     setCoupons(prev => prev.filter(x => x.id !== c.id))
-    const res = await fetch(`/api/admin/coupons${q}&id=${encodeURIComponent(c.id)}`, { method: 'DELETE' })
+    const res = await fetch(`/api/admin/coupons?id=${encodeURIComponent(c.id)}`, { method: 'DELETE' })
     if (!res.ok) await load()
   }
 

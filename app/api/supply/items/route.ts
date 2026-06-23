@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import { normalizePriceCents, qualityScore, refreshBatchCounts, SUPPLY_ITEM_STATUSES, SUPPLY_LISTING_TYPES } from '@/lib/supply'
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function GET(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const GET = withAdmin(async (req: NextRequest) => {
   const batchId = req.nextUrl.searchParams.get('batchId')
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 422 })
 
@@ -25,13 +17,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ items: data ?? [] })
-}
+})
 
-export async function PATCH(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const PATCH = withAdmin(async (req: NextRequest) => {
   const body = await req.json().catch(() => null) as {
     ids?: string[]
     patch?: Record<string, unknown>
@@ -106,4 +94,4 @@ export async function PATCH(req: NextRequest) {
   for (const batchId of batchIds) await refreshBatchCounts(batchId)
 
   return NextResponse.json({ updated: body.ids.length })
-}
+})

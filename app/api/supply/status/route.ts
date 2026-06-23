@@ -1,15 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { withAdmin } from '@/lib/admin/guard'
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function GET(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const GET = withAdmin(async () => {
   const providers: Record<string, unknown> = {
     serpapi: {
       configured: Boolean(process.env.SERPAPI_KEY),
@@ -65,4 +57,4 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ providers })
-}
+})

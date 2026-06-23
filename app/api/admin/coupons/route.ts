@@ -1,16 +1,14 @@
 /**
- * Admin platform-coupon management (secret-gated). Proxies to the backend
- * /internal/platform-coupons route, which mints coupons owned by the platform
- * `miyagiprints` shop — redeemable on print-ad checkout.
+ * Admin platform-coupon management (Clerk admin-gated via withAdmin). Proxies to
+ * the backend /internal/platform-coupons route, which mints coupons owned by the
+ * platform `miyagiprints` shop — redeemable on print-ad checkout.
  *
- *   GET    /api/admin/coupons?secret=…           — list platform coupons
- *   POST   /api/admin/coupons?secret=…           — create one
- *   DELETE /api/admin/coupons?secret=…&id=…       — delete one
- *
- * Auth: ?secret=ADMIN_SECRET (or x-admin-secret), matching /api/admin/*.
+ *   GET    /api/admin/coupons            — list platform coupons
+ *   POST   /api/admin/coupons            — create one
+ *   DELETE /api/admin/coupons?id=…        — delete one
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,27 +22,24 @@ function backend(path: string, init?: RequestInit) {
   })
 }
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async () => {
   const res = await backend('/internal/platform-coupons')
   const data = await res.json().catch(() => ({}))
   return NextResponse.json(data, { status: res.status })
-}
+})
 
-export async function POST(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const POST = withAdmin(async (req: NextRequest) => {
   let body: unknown
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
   const res = await backend('/internal/platform-coupons', { method: 'POST', body: JSON.stringify({ ...(body as object), created_by: 'admin' }) })
   const data = await res.json().catch(() => ({}))
   return NextResponse.json(data, { status: res.status })
-}
+})
 
-export async function DELETE(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const DELETE = withAdmin(async (req: NextRequest) => {
   const id = req.nextUrl.searchParams.get('id') ?? ''
   if (!id) return NextResponse.json({ error: 'id requerido.' }, { status: 400 })
   const res = await backend(`/internal/platform-coupons?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   const data = await res.json().catch(() => ({}))
   return NextResponse.json(data, { status: res.status })
-}
+})

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/supabase'
+import { currentUserIsAdmin } from '@/lib/admin/guard'
 import { loadLayoutOrEmpty, upsertLayout } from '@/lib/print-layout-server'
 import { ensureLayoutQrs } from '@/lib/print-qr'
 import { densityRows, blockSize, PRINT_PAGE_DIMS } from '@/lib/print-layout'
@@ -18,6 +19,11 @@ const BLEED = 3 // mm — standard commercial print bleed
  * the site chrome via @media print. The admin uses the browser's "Save as PDF".
  * Vector text + the original (hi-res) R2 image URLs already in each block survive
  * straight through. True CMYK/full-bleed art is the Cloud-Run engine's job (US-5b).
+ *
+ * Auth is **dual** by necessity: a Clerk admin (the human "Vista de impresión")
+ * OR `?secret=ADMIN_SECRET` — the **machine** path, since the US-5b headless
+ * Chromium renderer (`/api/admin/print/editions/[id]/pdf`) has no Clerk session.
+ * This is a documented `ADMIN_SECRET` machine exception (S2.3).
  */
 export default async function PrintViewPage({
   params, searchParams,
@@ -26,13 +32,15 @@ export default async function PrintViewPage({
   searchParams: Promise<{ secret?: string }>
 }) {
   const { secret } = await searchParams
-  if (!secret || secret !== process.env.ADMIN_SECRET) redirect('/')
+  const adminSecret = process.env.ADMIN_SECRET
+  const secretOk = Boolean(adminSecret) && secret === adminSecret
+  if (!secretOk && !(await currentUserIsAdmin())) redirect('/')
   const { editionId } = await params
 
   const { data: edition } = (await db
     .from('print_editions').select('title, tiers').eq('id', editionId).maybeSingle()) as
     { data: { title: string; tiers: PrintTier[] } | null }
-  if (!edition) redirect(`/admin/print?secret=${encodeURIComponent(secret)}`)
+  if (!edition) redirect('/admin/print')
 
   const layout = await loadLayoutOrEmpty(editionId)
   // Fill any missing QR codes (catalog/house ads + paid blocks) so the print proof is scannable.
@@ -67,7 +75,7 @@ export default async function PrintViewPage({
   return (
     <div className="print-root">
       <style dangerouslySetInnerHTML={{ __html: css }} />
-      <PrintToolbar backHref={`/admin/print/${editionId}/builder?secret=${encodeURIComponent(secret)}`} />
+      <PrintToolbar backHref={`/admin/print/${editionId}/builder`} />
 
       {document.pages.map((page) => (
         <div key={page.id} className="sheet">

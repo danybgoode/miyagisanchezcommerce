@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 
 const CHECKS = [
   {
@@ -24,16 +25,7 @@ const CHECKS = [
   },
 ]
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function GET(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const GET = withAdmin(async () => {
   const results = []
   for (const check of CHECKS) {
     const { error } = await db.from(check.table).select(check.select).limit(1)
@@ -49,4 +41,4 @@ export async function GET(req: NextRequest) {
     ok: results.every(r => r.ok),
     checks: results,
   })
-}
+})

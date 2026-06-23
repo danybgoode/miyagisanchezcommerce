@@ -5,11 +5,8 @@ import {
   PRINT_TIER_KEYS, PRINT_TIER_DEFAULTS,
   type PrintTier, type PrintTierKey,
   type PrintProvider, type PrintEdition, type PrintAdSubmission,
-  PRINT_SOCIAL_TYPES, type PrintSocialSubmission, type PrintSocialStatus,
 } from '@/lib/print'
 import PrintAdPreview from '@/app/components/PrintAdPreview'
-
-const SOCIAL_STATUSES: PrintSocialStatus[] = ['submitted', 'approved', 'placed', 'rejected']
 
 type AdminEdition = PrintEdition & {
   occupancy?: Record<string, number>
@@ -23,32 +20,32 @@ function money(cents: number) {
 const EDITION_STATUSES = ['draft', 'open', 'closed', 'in_production', 'distributed'] as const
 const SUBMISSION_STATUSES = ['pending_payment', 'paid', 'approved', 'placed', 'rejected', 'refunded'] as const
 
-export default function PrintAdminClient({ secret }: { secret: string }) {
-  const [tab, setTab] = useState<'editions' | 'providers' | 'social'>('editions')
+export default function PrintAdminClient() {
+  const [tab, setTab] = useState<'editions' | 'providers'>('editions')
 
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback(
     (path: string, init?: RequestInit) =>
       fetch(`/api/admin/print${path}`, {
         ...init,
-        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret, ...(init?.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       }),
-    [secret],
+    [],
   )
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold">Edición impresa — Admin</h1>
       <div className="flex gap-2 mt-4 mb-6">
-        {(['editions', 'providers', 'social'] as const).map((t) => (
+        {(['editions', 'providers'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t ? 'bg-[var(--color-accent)] text-white' : 'border border-[var(--color-border)]'}`}>
-            {t === 'editions' ? 'Ediciones' : t === 'providers' ? 'Proveedores' : 'Sección social'}
+            {t === 'editions' ? 'Ediciones' : 'Proveedores'}
           </button>
         ))}
       </div>
       {tab === 'providers' ? <Providers api={api} />
-        : tab === 'social' ? <Social api={api} />
-        : <Editions api={api} secret={secret} />}
+        : <Editions api={api} />}
     </div>
   )
 }
@@ -101,7 +98,7 @@ function Providers({ api }: { api: Api }) {
 
 // ── Editions ───────────────────────────────────────────────────────────────
 
-function Editions({ api, secret }: { api: Api; secret: string }) {
+function Editions({ api }: { api: Api }) {
   const [editions, setEditions] = useState<AdminEdition[]>([])
   const [providers, setProviders] = useState<PrintProvider[]>([])
   const [creating, setCreating] = useState(false)
@@ -118,7 +115,7 @@ function Editions({ api, secret }: { api: Api; secret: string }) {
         {creating ? '× Cancelar' : '+ Nueva edición'}
       </button>
       {creating && <EditionForm api={api} providers={providers} onDone={() => { setCreating(false); load() }} />}
-      {editions.map((e) => <EditionRow key={e.id} api={api} secret={secret} edition={e} onChange={load} />)}
+      {editions.map((e) => <EditionRow key={e.id} api={api} edition={e} onChange={load} />)}
     </div>
   )
 }
@@ -203,10 +200,10 @@ function EditionForm({ api, providers, onDone }: { api: Api; providers: PrintPro
   )
 }
 
-function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: string; edition: AdminEdition; onChange: () => void }) {
+function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEdition; onChange: () => void }) {
   const [open, setOpen] = useState(false)
   const occ: Record<string, number> = edition.occupancy ?? {}
-  const exportHref = `/api/admin/print/editions/${edition.id}/export?secret=${encodeURIComponent(secret)}`
+  const exportHref = `/api/admin/print/editions/${edition.id}/export`
 
   async function setStatus(status: string) {
     await api(`/editions/${edition.id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
@@ -236,7 +233,7 @@ function EditionRow({ api, secret, edition, onChange }: { api: Api; secret: stri
         <button onClick={() => setOpen((v) => !v)} className="text-xs text-[var(--color-accent)]">
           {open ? 'Ocultar anuncios' : 'Ver anuncios'}
         </button>
-        <a href={`/admin/print/${edition.id}/builder?secret=${encodeURIComponent(secret)}`}
+        <a href={`/admin/print/${edition.id}/builder`}
           className="text-xs text-[var(--color-accent)] no-underline font-medium">
           ✎ Maquetar
         </a>
@@ -314,105 +311,4 @@ function Input({ placeholder, value, onChange }: { placeholder: string; value: s
   )
 }
 
-// ── Social section curation ────────────────────────────────────────────────
-
-type SocialRow = PrintSocialSubmission & { print_editions?: { title?: string } | null }
-
-function Social({ api }: { api: Api }) {
-  const [rows, setRows] = useState<SocialRow[]>([])
-  const [editions, setEditions] = useState<AdminEdition[]>([])
-  const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ type: 'reconocimiento', caption: '', body: '', edition_id: '' })
-
-  const load = useCallback(() => {
-    api('/social').then((r) => r.json()).then((d) => setRows(d.submissions ?? []))
-    api('/editions').then((r) => r.json()).then((d) => setEditions(d.editions ?? []))
-  }, [api])
-  useEffect(() => { load() }, [load])
-
-  async function patch(id: string, body: Record<string, unknown>) {
-    await api(`/social/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-    load()
-  }
-  async function remove(id: string) {
-    if (!confirm('¿Borrar este aporte?')) return
-    await api(`/social/${id}`, { method: 'DELETE' })
-    load()
-  }
-  async function addEditorItem() {
-    if (!form.caption.trim()) return
-    await api('/social', { method: 'POST', body: JSON.stringify(form) })
-    setForm({ type: 'reconocimiento', caption: '', body: '', edition_id: '' })
-    setAdding(false)
-    load()
-  }
-
-  const typeLabel = (k: string) => PRINT_SOCIAL_TYPES.find((t) => t.key === k)?.label ?? k
-
-  return (
-    <div className="space-y-4">
-      <button onClick={() => setAdding((v) => !v)} className="text-sm text-[var(--color-accent)]">
-        {adding ? '× Cancelar' : '+ Agregar contenido propio'}
-      </button>
-      {adding && (
-        <div className="border border-[var(--color-border)] rounded-xl p-4 space-y-2">
-          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent">
-            {PRINT_SOCIAL_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-          <Input placeholder="Descripción corta" value={form.caption} onChange={(v) => setForm({ ...form, caption: v })} />
-          <Input placeholder="Texto (opcional)" value={form.body} onChange={(v) => setForm({ ...form, body: v })} />
-          <select value={form.edition_id} onChange={(e) => setForm({ ...form, edition_id: e.target.value })}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent">
-            <option value="">Sin asignar a edición</option>
-            {editions.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-          </select>
-          <button onClick={addEditorItem} className="bg-[var(--color-accent)] text-white rounded-lg px-4 py-2 text-sm font-semibold">Agregar</button>
-        </div>
-      )}
-
-      {rows.length === 0 && <p className="text-sm text-[var(--color-muted)]">Sin aportes todavía.</p>}
-      {rows.map((s) => (
-        <div key={s.id} className="border border-[var(--color-border)] rounded-xl p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex gap-3">
-              {s.photos?.[0] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.photos[0]} alt="" className="h-14 w-14 rounded object-cover border border-[var(--color-border)]" />
-              )}
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
-                  {typeLabel(s.type)}{s.source === 'editor' && ' · editor'}{s.zone && ` · ${s.zone}`}
-                </div>
-                <div className="font-medium text-sm">{s.caption}</div>
-                {s.body && <div className="text-xs text-[var(--color-muted)] mt-0.5">{s.body}</div>}
-                <div className="text-[11px] text-[var(--color-muted)] mt-0.5">{s.submitter_name ?? s.submitter_email ?? '—'}</div>
-              </div>
-            </div>
-            <button onClick={() => remove(s.id)} className="text-xs text-red-600">Borrar</button>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <select value={s.status} onChange={(e) => patch(s.id, { status: e.target.value })}
-              className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent">
-              {SOCIAL_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
-            </select>
-            <select value={s.edition_id ?? ''} onChange={(e) => patch(s.id, { edition_id: e.target.value })}
-              className="rounded border border-[var(--color-border)] px-1.5 py-0.5 text-xs bg-transparent">
-              <option value="">Sin edición</option>
-              {editions.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-            </select>
-            <label className="inline-flex items-center gap-1.5 rounded border border-[var(--color-border)] px-2 py-1 text-xs">
-              <input
-                type="checkbox"
-                checked={s.web_visible === true}
-                onChange={(e) => patch(s.id, { web_visible: e.target.checked })}
-                className="h-3.5 w-3.5 accent-[var(--color-accent)]"
-              />
-              Mostrar en línea
-            </label>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+// Vecindario Sánchez ("Sección social") moderation moved to /admin/vecindario in S2.2.

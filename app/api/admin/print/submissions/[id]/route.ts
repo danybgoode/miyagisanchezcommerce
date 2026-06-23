@@ -1,12 +1,13 @@
 /**
- * PATCH /api/admin/print/submissions/[id]  (secret-gated)
+ * PATCH /api/admin/print/submissions/[id]  (Clerk admin-gated via withAdmin)
  * Update a submission's editorial status (approve / reject / placed / refunded)
  * and/or admin_notes. Used by the admin review queue.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret, sendPrintAdPaidEmails, sendPrintAdLifecycleEmail } from '@/lib/print-server'
+import { sendPrintAdPaidEmails, sendPrintAdLifecycleEmail } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 import type { PrintSubmissionStatus, PrintAdSubmission } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
@@ -15,8 +16,7 @@ const ADMIN_STATUSES: PrintSubmissionStatus[] = [
   'pending_payment', 'paid', 'approved', 'placed', 'rejected', 'refunded',
 ]
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const PATCH = withAdmin(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   let body: { status?: PrintSubmissionStatus; admin_notes?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
@@ -51,4 +51,4 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json({ submission: data })
-}
+})

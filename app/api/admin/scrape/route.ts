@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
+import { withAdmin } from '@/lib/admin/guard'
 import { collectSerpApiLocal, scrapeSerpApiLocal } from '@/lib/scrapers/serpapi'
 import { collectMLSeller, scrapeMercadoLibre, scrapeMLSeller } from '@/lib/scrapers/mercadolibre'
 import { saveScrapeRunItems, type ScrapeCollectResult } from '@/lib/adminScrapeExport'
 
 export const dynamic = 'force-dynamic'
 
-function checkSecret(req: NextRequest): boolean {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.ADMIN_SECRET
-}
-
-export async function POST(req: NextRequest) {
-  if (!checkSecret(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export const POST = withAdmin(async (req: NextRequest) => {
   const body = await req.json() as {
     source: 'serpapi_google_local' | 'mercadolibre_public' | 'mercadolibre_seller'
     mode?: 'collect_only' | 'direct_import'
@@ -126,4 +118,4 @@ export async function POST(req: NextRequest) {
     }).eq('id', run.id)
     return NextResponse.json({ error: String(e), runId: run.id }, { status: 500 })
   }
-}
+})

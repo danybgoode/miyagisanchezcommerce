@@ -1,17 +1,16 @@
 /**
- * /api/admin/print/providers  (secret-gated: x-admin-secret or ?secret=)
+ * /api/admin/print/providers  (Clerk admin-gated via withAdmin)
  *   GET  — list all print providers
  *   POST — create a provider
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { checkAdminSecret } from '@/lib/print-server'
+import { withAdmin } from '@/lib/admin/guard'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withAdmin(async () => {
   const { data, error } = await db
     .from('print_providers')
     .select('*')
@@ -19,10 +18,9 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ providers: data ?? [] })
-}
+})
 
-export async function POST(req: NextRequest) {
-  if (!checkAdminSecret(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const POST = withAdmin(async (req: NextRequest) => {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 
@@ -50,4 +48,4 @@ export async function POST(req: NextRequest) {
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
   return NextResponse.json({ provider: data }, { status: 201 })
-}
+})

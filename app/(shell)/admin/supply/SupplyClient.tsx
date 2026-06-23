@@ -212,7 +212,7 @@ function statusClass(status: string) {
   return 'bg-white text-zinc-700 border-zinc-200'
 }
 
-export default function SupplyClient({ secret }: { secret: string }) {
+export default function SupplyClient() {
   const [schema, setSchema] = useState<{ ok: boolean; checks: SchemaCheck[] } | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaCheckedAt, setSchemaCheckedAt] = useState<string | null>(null)
@@ -256,36 +256,36 @@ export default function SupplyClient({ secret }: { secret: string }) {
   const keywordMode = form.source_platform === 'google_local' && form.source_mode === 'keyword_geo'
   const unsupportedMode = !modeHelp.supported.includes(form.source_platform)
 
+  // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback((path: string, init?: RequestInit) => fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'x-admin-secret': secret,
       ...(init?.headers ?? {}),
     },
-  }), [secret])
+  }), [])
 
   const loadSchema = useCallback(async () => {
     setSchemaLoading(true)
-    const res = await api(`/api/supply/schema?secret=${encodeURIComponent(secret)}`)
+    const res = await api(`/api/supply/schema`)
     if (res.ok) {
       setSchema(await res.json())
       setSchemaCheckedAt(new Date().toLocaleTimeString())
     }
     setSchemaLoading(false)
-  }, [api, secret])
+  }, [api])
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true)
-    const res = await api(`/api/supply/status?secret=${encodeURIComponent(secret)}`)
+    const res = await api(`/api/supply/status`)
     const json = await res.json().catch(() => ({}))
     if (res.ok) setProviderStatus(json.providers ?? null)
     else setMessage(json.error ?? 'Could not load provider status')
     setStatusLoading(false)
-  }, [api, secret])
+  }, [api])
 
   const loadBatches = useCallback(async () => {
-    const res = await api(`/api/supply/batches?secret=${encodeURIComponent(secret)}`)
+    const res = await api(`/api/supply/batches`)
     const json = await res.json()
     if (res.ok) {
       setBatches(json.batches ?? [])
@@ -293,15 +293,15 @@ export default function SupplyClient({ secret }: { secret: string }) {
     } else {
       setMessage(json.error ?? 'Could not load batches')
     }
-  }, [activeBatchId, api, secret])
+  }, [activeBatchId, api])
 
   const loadItems = useCallback(async (batchId: string) => {
     if (!batchId) return
-    const res = await api(`/api/supply/items?secret=${encodeURIComponent(secret)}&batchId=${encodeURIComponent(batchId)}`)
+    const res = await api(`/api/supply/items?batchId=${encodeURIComponent(batchId)}`)
     const json = await res.json()
     if (res.ok) setItems(json.items ?? [])
     else setMessage(json.error ?? 'Could not load rows')
-  }, [api, secret])
+  }, [api])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadSchema(); void loadStatus(); void loadBatches() }, [loadSchema, loadStatus, loadBatches])
@@ -381,7 +381,7 @@ export default function SupplyClient({ secret }: { secret: string }) {
       if (!batchRes.ok) throw new Error(batchJson.error ?? 'Batch creation failed')
 
       const batchId = batchJson.batch.id as string
-      const itemRes = await api(`/api/supply/items?secret=${encodeURIComponent(secret)}&batchId=${encodeURIComponent(batchId)}`)
+      const itemRes = await api(`/api/supply/items?batchId=${encodeURIComponent(batchId)}`)
       const itemJson = await itemRes.json()
       if (!itemRes.ok) throw new Error(itemJson.error ?? 'Could not load staged CSV rows')
 
@@ -457,8 +457,8 @@ export default function SupplyClient({ secret }: { secret: string }) {
             <h1 className="text-2xl font-bold text-zinc-950">Supply Acquisition</h1>
           </div>
           <div className="ml-auto flex items-center gap-2 text-sm text-zinc-600">
-            <Link href={`/admin?secret=${encodeURIComponent(secret)}`} className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
-              Old scraper
+            <Link href="/admin" className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
+              Admin
             </Link>
             <Link href="/l" className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
               Marketplace
