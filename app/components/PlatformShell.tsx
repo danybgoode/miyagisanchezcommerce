@@ -316,7 +316,7 @@ export default async function PlatformShell({
           <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
           <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
           <AuthShow when="signed-out">
-            <Link href="/sign-up" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
+            <Link href="/sign-up" data-testid="footer-signup" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
           </AuthShow>
           <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
             Agent API

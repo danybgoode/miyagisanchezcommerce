@@ -382,7 +382,7 @@ export default async function HomePage() {
               Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Link href="/sign-up" className="btn btn-primary">Crear cuenta</Link>
+              <Link href="/sign-up" data-testid="home-unete-signup" className="btn btn-primary">Crear cuenta</Link>
               <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
             </div>
           </section>

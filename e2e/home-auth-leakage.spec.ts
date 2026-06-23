@@ -23,9 +23,12 @@ test.describe('home auth-state · signed-out CTAs prerender into the static HTML
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
-    // The terminal recruit section + its "Crear cuenta" → /sign-up button prerender.
+    // The terminal recruit section prerenders, AND its OWN "Crear cuenta" button points
+    // to /sign-up — scoped via the testid so a stray footer /sign-up can't pass this test.
     expect(html).toContain('Únete a la comunidad')
-    expect(html).toMatch(/href="\/sign-up"[^>]*>\s*Crear cuenta/)
+    const uneteLink = html.match(/<a[^>]*data-testid="home-unete-signup"[^>]*>/)?.[0] ?? ''
+    expect(uneteLink).not.toBe('')
+    expect(uneteLink).toContain('href="/sign-up"')
   })
 
   test('S1.3 — the footer "Crear cuenta" → /sign-up link prerenders for anonymous viewers', async ({
@@ -36,7 +39,10 @@ test.describe('home auth-state · signed-out CTAs prerender into the static HTML
     const html = await res.text()
 
     // Footer is gated by AuthShow when="signed-out"; the signed-out HTML still prerenders.
+    // Scoped to the footer's OWN /sign-up link (testid) so the section CTA can't pass it.
     expect(html).toContain('data-testid="site-footer"')
-    expect(html).toMatch(/href="\/sign-up"[^>]*>\s*Crear cuenta/)
+    const footerLink = html.match(/<a[^>]*data-testid="footer-signup"[^>]*>/)?.[0] ?? ''
+    expect(footerLink).not.toBe('')
+    expect(footerLink).toContain('href="/sign-up"')
   })
 })
