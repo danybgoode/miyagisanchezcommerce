@@ -710,6 +710,17 @@ html, body {
   overflow: hidden;
 }
 
+/* Categorías list rows — per-row hover/focus highlight. The list lives in a
+   non-hover .card-panel (no whole-card lift), so each row signals it's the
+   individually-clickable target. --bg-sunk is theme-complete (light/warm/dark). */
+.cat-row {
+  transition: background-color var(--dur-base) var(--ease-standard);
+}
+.cat-row:hover,
+.cat-row:focus-visible {
+  background: var(--bg-sunk);
+}
+
 /* ── Badge ── */
 .badge {
   display: inline-flex;

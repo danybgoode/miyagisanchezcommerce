@@ -311,12 +311,12 @@ export default async function HomePage() {
           <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 16 }}>
             Categorías
           </h2>
-          <div className="card-tile" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="card-panel">
             {categories.map((cat, i) => (
               <Link
                 key={cat.key}
                 href={`/l?category=${cat.key}`}
-                className="no-underline"
+                className="no-underline cat-row"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
