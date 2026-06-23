@@ -24,6 +24,15 @@ export function isPinned(l: Listing): boolean {
   return l.metadata?.featured === true
 }
 
+/**
+ * The admin-chosen order for a pin (`metadata.featured_rank`, asc; 1 shows first).
+ * Unranked pins sort last among pins → fall back to fresh order. Non-pins → Infinity.
+ */
+export function featuredRank(l: Listing): number {
+  const r = l.metadata?.featured_rank
+  return typeof r === 'number' && Number.isFinite(r) ? r : Infinity
+}
+
 function ageMs(createdAt: string, now: number): number {
   return now - new Date(createdAt).getTime()
 }
@@ -40,11 +49,20 @@ export function isQualifying(l: Listing, now: number): boolean {
   return isPinned(l) || ageMs(l.created_at, now) <= MAX_AGE_DAYS * DAY_MS
 }
 
-/** Sort: pinned first, then freshest (created_at desc). Stable, non-mutating. */
+/**
+ * Sort: pinned first, then (among pins) by the admin's `featured_rank` asc, then
+ * freshest (created_at desc) as the tie-break / unranked fallback. Stable,
+ * non-mutating. So the admin order on `/admin/seleccion` drives the Selección.
+ */
 function byPinnedThenFresh(a: Listing, b: Listing): number {
   const pa = isPinned(a) ? 1 : 0
   const pb = isPinned(b) ? 1 : 0
   if (pa !== pb) return pb - pa
+  if (pa === 1 && pb === 1) {
+    const ra = featuredRank(a)
+    const rb = featuredRank(b)
+    if (ra !== rb) return ra - rb
+  }
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 }
 
