@@ -439,7 +439,7 @@
   },
   "sweepstakes": {
     "seller": {
-      "breadcrumbHome": "My shop",
+      "breadcrumbHome": "Summary",
       "breadcrumbCurrent": "Sweepstakes",
       "title": "Sweepstakes",
       "subtitle": "Create campaigns with verified entry, QR sharing, and automated drawing.",
@@ -556,7 +556,7 @@
   },
   "events": {
     "seller": {
-      "breadcrumbHome": "My shop",
+      "breadcrumbHome": "Summary",
       "breadcrumbCurrent": "Events",
       "title": "Events",
       "subtitle": "Create free events with email RSVP and a public page.",

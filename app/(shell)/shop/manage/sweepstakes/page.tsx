@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { db } from '@/lib/supabase'
+import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { getDictionary, normalizeLocale } from '@/lib/dictionary'
 import { getCampaignStats, getSweepstakesSettings } from '@/lib/sweepstakes'
 import { resolveSweepstakesSeller } from '@/lib/sweepstakes-seller'
@@ -40,11 +40,12 @@ export default async function SweepstakesManagePage({
   return (
     <main>
       <div className="max-w-5xl mx-auto px-4 pt-8">
-        <div className="flex items-center gap-2 mb-1 text-xs text-[var(--color-muted)]">
-          <Link href="/shop/manage" className="hover:underline no-underline">{dict.sweepstakes.seller.breadcrumbHome}</Link>
-          <span>/</span>
-          <span>{dict.sweepstakes.seller.breadcrumbCurrent}</span>
-        </div>
+        <SellerBreadcrumb
+          crumbs={[
+            { label: dict.sweepstakes.seller.breadcrumbHome, href: '/shop/manage' },
+            { label: dict.sweepstakes.seller.breadcrumbCurrent, href: null },
+          ]}
+        />
       </div>
       <SweepstakesManager
         ui={dict.sweepstakes.seller}
