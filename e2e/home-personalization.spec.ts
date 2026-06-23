@@ -37,11 +37,12 @@ test.describe('home-personalization · pure helpers', () => {
     expect(favoriteConditionLabel(null)).toBe('')
   })
 
-  test('sellerModule picks snapshot only with a shop AND stats, else recruit', () => {
+  test('sellerModule: a shop owner never gets the recruit card (hasShop authoritative)', () => {
     const snap = { shopName: 'Tienda', visitas: 4, ofertasNuevas: 1 }
     expect(sellerModule({ hasShop: true, sellerSnapshot: snap })).toBe('snapshot')
-    // Has a flag but no stats payload → recruit (defensive: never a blank snapshot).
-    expect(sellerModule({ hasShop: true, sellerSnapshot: null })).toBe('recruit')
+    // Owns a shop but no stats payload yet → render nothing, NEVER recruit (the bug).
+    expect(sellerModule({ hasShop: true, sellerSnapshot: null })).toBe('none')
+    // No shop → recruit.
     expect(sellerModule({ hasShop: false, sellerSnapshot: null })).toBe('recruit')
     // hasShop:false with stale stats still recruits (hasShop is authoritative).
     expect(sellerModule({ hasShop: false, sellerSnapshot: snap })).toBe('recruit')

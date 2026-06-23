@@ -55,13 +55,18 @@ export function favoriteConditionLabel(condition: string | null): string {
 }
 
 /**
- * Which seller module the signed-in homepage shows: the "Tu tienda esta semana"
- * snapshot when the user has a shop with stats, else the "¿Vendes algo?" recruit card.
- * (Pre-S2 this was an inline ternary on `hasShop && sellerSnapshot`.)
+ * Which seller module the signed-in homepage shows. `hasShop` is authoritative — a
+ * user who owns a shop NEVER sees the "¿Vendes algo?" recruit card (that was the bug:
+ * a real seller whose Supabase mirror row was missing got `hasShop=false`; the fix
+ * makes `hasShop` follow the canonical Medusa seller). So:
+ *   - no shop            → `recruit`  ("¿Vendes algo?" / Abre tu tienda)
+ *   - shop + stats       → `snapshot` ("Tu tienda esta semana")
+ *   - shop, no stats yet → `none`     (render nothing — never recruit a shop owner)
  */
 export function sellerModule(p: {
   hasShop: boolean
   sellerSnapshot: HomePersonalization['sellerSnapshot']
-}): 'snapshot' | 'recruit' {
-  return p.hasShop && p.sellerSnapshot ? 'snapshot' : 'recruit'
+}): 'snapshot' | 'recruit' | 'none' {
+  if (!p.hasShop) return 'recruit'
+  return p.sellerSnapshot ? 'snapshot' : 'none'
 }

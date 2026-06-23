@@ -17,6 +17,9 @@ export default function HomeSellerModule() {
 
   const which = sellerModule({ hasShop: data.hasShop, sellerSnapshot: data.sellerSnapshot })
 
+  // A shop owner with no stats payload yet renders nothing — never the recruit card.
+  if (which === 'none') return null
+
   if (which === 'snapshot' && data.sellerSnapshot) {
     // Defensive: the wire contract sends numbers, but a missing field would otherwise
     // render "undefined visita(s)" — coerce to 0.
