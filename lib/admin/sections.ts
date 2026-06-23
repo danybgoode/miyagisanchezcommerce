@@ -81,6 +81,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     risk: 'low',
   },
   {
+    key: 'tenants',
+    label: 'Tiendas',
+    description: 'Directorio de tiendas y vendedores: identidad, reclamo, dominio y plan.',
+    href: '/admin/tenants',
+    icon: 'iconoir-shop',
+    risk: 'low',
+  },
+  {
     key: 'scraping',
     label: 'Scraping',
     description: 'Abre la app externa de scraping de oferta.',

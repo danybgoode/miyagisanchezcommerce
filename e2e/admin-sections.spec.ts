@@ -14,10 +14,16 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'audit', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'referrals', 'audit', 'tenants', 'scraping',
     ])
+  })
+
+  test('S3 registers the read-only tenant directory', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.tenants?.href).toBe('/admin/tenants')
+    expect(byKey.tenants?.external).toBeUndefined()
   })
 
   test('S2.2 registers the re-homed supply, extracted vecindario, and referrals sections', () => {
