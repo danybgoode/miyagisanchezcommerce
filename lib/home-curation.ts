@@ -23,9 +23,12 @@ export const RECENT_HOURS = 48
 /** Default Selección grid size. */
 export const GRID_SIZE = 4
 /**
- * The ISR revalidate window in ms — locked to the page's `revalidate = 60` via the
- * cache-policy SSOT (`CACHE.LISTING`, seconds). The per-window shuffle seed buckets
- * time by this, so the rotation cadence == the homepage's ISR cadence.
+ * The ISR revalidate window in ms, mirrored from the cache-policy SSOT
+ * (`CACHE.LISTING`, seconds). The homepage's own `export const revalidate` is a
+ * static literal that tracks the *same* SSOT (Next requires `revalidate` to be
+ * statically analyzable, so it can't import this) — so the shuffle cadence matches
+ * the homepage's ISR cadence as long as both track `CACHE.LISTING`. The per-window
+ * shuffle seed buckets time by this window.
  */
 export const REVALIDATE_MS = CACHE.LISTING * 1000
 
