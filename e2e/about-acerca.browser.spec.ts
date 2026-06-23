@@ -14,9 +14,10 @@ test.describe('about · /acerca human page', () => {
     await expect(page.getByRole('heading', { level: 1, name: /por qué vender aquí/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /¿Por qué vender aquí\?/i })).toBeVisible()
 
-    // Stubs render as clearly-marked placeholders, never fake content.
+    // The founder section still renders as a clearly-marked placeholder, never fake content.
+    // (Pricing shipped real content — about-content.ts pricing is now stub:false — so founder
+    // is the only remaining "próximamente" stub.)
     await expect(page.getByTestId('acerca-stub-founder')).toBeVisible()
-    await expect(page.getByTestId('acerca-stub-pricing')).toBeVisible()
 
     // Soft CTA → /sell?from=acerca.
     await page.getByTestId('acerca-primary-cta').click()

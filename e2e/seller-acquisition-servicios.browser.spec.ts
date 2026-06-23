@@ -12,7 +12,8 @@ test.describe('seller acquisition · services page', () => {
     ).toBeVisible()
     await expect(page.getByText(/Cal.com/i).first()).toBeVisible()
     await expect(page.getByText(/Tipo servicio/i)).toBeVisible()
-    await expect(page.getByText(/Cobra directo/i)).toBeVisible()
+    // "Cobra directo" now appears multiple times on the page; assert presence via .first().
+    await expect(page.getByText(/Cobra directo/i).first()).toBeVisible()
 
     await page.getByTestId('servicios-primary-cta').click()
     await expect(page).toHaveURL((url) => (

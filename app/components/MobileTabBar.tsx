@@ -187,6 +187,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
     <>
     <div
       className="pwa-only"
+      data-testid="pwa-tabbar"
       style={{
         position: 'fixed',
         bottom: 'max(16px, env(safe-area-inset-bottom))',
