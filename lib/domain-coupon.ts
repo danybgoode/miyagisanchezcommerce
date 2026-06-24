@@ -24,6 +24,21 @@ export const CAMPAIGN_COUPON_CODE = 'miyagisan'
 /** Total redemptions allowed across the whole campaign. The 101st is refused. */
 export const CAMPAIGN_COUPON_CAP = 100
 
+/**
+ * Stripe's hard limit on a Coupon `name` (the display label). Exceeding it makes
+ * `coupons.create` fail with a `StripeInvalidRequestError` on `param: name`
+ * ("must be at most 40 characters") — the original prod mint bug. Kept here as a
+ * guarded invariant so the name below (and any future change) stays within it.
+ */
+export const STRIPE_COUPON_NAME_MAX = 40
+
+/**
+ * The Stripe Coupon display name. MUST stay ≤ STRIPE_COUPON_NAME_MAX (the spec
+ * asserts it). The campaign code (`miyagisan`) lives on the coupon `metadata` and
+ * the promo code, so it needn't be repeated in the name. (34 chars.)
+ */
+export const CAMPAIGN_COUPON_NAME = 'Dominio propio — primer año gratis'
+
 /** Why a campaign-coupon application was refused (null ⇒ not refused). */
 export type CouponRefusalReason = 'exhausted' | 'unknown'
 

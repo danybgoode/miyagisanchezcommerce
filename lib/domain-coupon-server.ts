@@ -22,6 +22,7 @@ import { stripe } from '@/lib/stripe'
 import {
   CAMPAIGN_COUPON_CAP,
   CAMPAIGN_COUPON_CODE,
+  CAMPAIGN_COUPON_NAME,
   couponRedeemable,
   isCampaignCode,
   classifyStripeFailure,
@@ -162,7 +163,7 @@ export async function ensureCampaignCoupon(): Promise<CampaignCouponStatus> {
       percent_off: 100,
       duration: 'once',
       max_redemptions: CAMPAIGN_COUPON_CAP,
-      name: 'Dominio propio — primer año gratis (miyagisan)',
+      name: CAMPAIGN_COUPON_NAME,
       metadata: { kind: 'custom_domain_campaign', code: CAMPAIGN_COUPON_CODE },
     })
   }
