@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import {
   CAMPAIGN_COUPON_CAP,
+  CAMPAIGN_COUPON_NAME,
+  STRIPE_COUPON_NAME_MAX,
   couponRedeemable,
   couponRefusalReason,
   formatRedemptionCount,
@@ -97,6 +99,16 @@ test.describe('domain-coupon · Stripe failure classification (S1.1)', () => {
     }
     // The auth message names the actionable cause (key / mode) for diagnosis.
     expect(describeStripeFailure('auth')).toContain('STRIPE_SECRET_KEY')
+  })
+})
+
+test.describe('domain-coupon · Stripe coupon name limit (S2.1)', () => {
+  test('the campaign coupon name stays within Stripe’s 40-char limit', () => {
+    // The original prod mint bug: a 46-char name → StripeInvalidRequestError on
+    // param `name`. This invariant fails CI if the name creeps back over the cap.
+    expect(STRIPE_COUPON_NAME_MAX).toBe(40)
+    expect(CAMPAIGN_COUPON_NAME.length).toBeLessThanOrEqual(STRIPE_COUPON_NAME_MAX)
+    expect(CAMPAIGN_COUPON_NAME.length).toBeGreaterThan(0)
   })
 })
 
