@@ -80,7 +80,7 @@ const SELLER_ACQUISITION_BASE_URL = 'https://miyagisanchez.com'
 export function sellerTrustPrompt(id: SellerPersonaId, template: string): string {
   const route = resolveSellerPersonaRoute(id)
   const url = `${SELLER_ACQUISITION_BASE_URL}${route.pagePath ?? '/vende'}`
-  return template.replace('{url}', url)
+  return template.replaceAll('{url}', url)
 }
 
 export function parseSellerAcquisitionUtm(input?: QueryInput): SellerAcquisitionUtm {
