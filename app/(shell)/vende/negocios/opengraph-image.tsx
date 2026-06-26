@@ -17,6 +17,6 @@ export default function Image() {
     title: ui.heroTitle,
     lead: ui.heroLead,
     path: '/vende/negocios',
-    tags: ['QR', 'Mexico-86', '0% comision'],
+    tags: ['QR', 'México-86', '0% comisión'],
   })
 }

@@ -17,6 +17,6 @@ export default function Image() {
     title: ui.heroTitle,
     lead: ui.heroLead,
     path: '/vende/servicios',
-    tags: ['Cal.com', 'Servicios', '0% comision'],
+    tags: ['Cal.com', 'Servicios', '0% comisión'],
   })
 }

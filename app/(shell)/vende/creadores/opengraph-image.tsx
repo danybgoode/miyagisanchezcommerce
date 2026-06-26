@@ -17,6 +17,6 @@ export default function Image() {
     title: ui.heroTitle,
     lead: ui.heroLead,
     path: '/vende/creadores',
-    tags: ['Catalogo', '0% comision', 'Cobro directo'],
+    tags: ['Catálogo', '0% comisión', 'Cobro directo'],
   })
 }

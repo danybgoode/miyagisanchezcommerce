@@ -17,6 +17,6 @@ export default function Image() {
     title: ui.heroTitle,
     lead: ui.heroLead,
     path: '/vende',
-    tags: ['0% comision', 'Mexico', 'IA'],
+    tags: ['0% comisión', 'México', 'IA'],
   })
 }
