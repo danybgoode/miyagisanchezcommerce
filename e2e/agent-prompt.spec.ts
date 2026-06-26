@@ -189,3 +189,26 @@ test.describe('buildAgentPrompt · PDP + shop human-readable details (S2.2)', ()
       .toBe(buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx', shopName: undefined }))
   })
 })
+
+test.describe('buildAgentPrompt · account/order handoff (S2.3)', () => {
+  test('order prompt names the order ref + product title + the order URL', () => {
+    const p = buildAgentPrompt({ kind: 'account', orderRef: 'order_9', title: 'Tenis Nike Air' })
+    expect(p).toContain('pedido order_9')
+    expect(p).toContain('«Tenis Nike Air»')
+    expect(p).toContain('https://miyagisanchez.com/account/orders/order_9')
+    expect(p).toMatch(/reembolso|env[íi]o/)
+  })
+
+  test('order prompt with a ref but no title omits the parenthetical (no "undefined")', () => {
+    const p = buildAgentPrompt({ kind: 'account', orderRef: 'order_9' })
+    expect(p).toContain('pedido order_9')
+    expect(p).not.toContain('undefined')
+    expect(p).not.toContain('«»')
+  })
+
+  test('account with no ref stays the generic account/orders prompt', () => {
+    const p = buildAgentPrompt({ kind: 'account' })
+    expect(p).toContain('pedidos')
+    expect(p).not.toContain('Mi pedido:')
+  })
+})

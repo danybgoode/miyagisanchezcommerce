@@ -179,9 +179,18 @@ Usa la búsqueda del marketplace (UCP/MCP) para refinar por precio, categoría o
 Usa la búsqueda del marketplace (UCP/MCP) para ayudarme a encontrar lo que busco y refinar por precio, categoría o ubicación.`
     }
 
-    case 'account':
-      return `Necesito ayuda con mi cuenta y mis pedidos en el marketplace${ctx.orderRef ? ` (pedido ${ctx.orderRef})` : ''}.
-Usa el API del marketplace (UCP/MCP) para revisar el estado del pedido, el envío o un reembolso, y guíame paso a paso.`
+    case 'account': {
+      // Order-specific help when on a single order (ref from the URL + product name from
+      // the page — S2.3); else generic account/orders help. Mirrors the in-page AgentHandoff.
+      if (ctx.orderRef) {
+        const named = ctx.title ? ` («${ctx.title}»)` : ''
+        return `Necesito ayuda con mi pedido ${ctx.orderRef}${named} en el marketplace: rastrear el envío, ver el estado o gestionar un reembolso.
+Mi pedido: ${PLATFORM_ORIGIN}/account/orders/${ctx.orderRef}
+Usa el API del marketplace (UCP/MCP) para revisar el estado, el envío o el reembolso, y guíame paso a paso.`
+      }
+      return `Necesito ayuda con mi cuenta y mis pedidos en el marketplace.
+Usa el API del marketplace (UCP/MCP) para revisar el estado de un pedido, el envío o un reembolso, y guíame paso a paso.`
+    }
 
     case 'generic':
     default:
