@@ -17,9 +17,11 @@ test.describe('seller acquisition · anchor page', () => {
     await expect(page.getByTestId('vende-router-negocios')).toBeVisible()
     await expect(page.getByTestId('vende-router-servicios')).toBeVisible()
 
-    // The CTA copies the directive prompt — it must carry the per-page URL and the
-    // Mercado Libre / Shopify cost-comparison instruction (the whole point of the new prompt).
-    await page.getByTestId('vende-trust-copy').click()
+    // The hero PromptBlock shows the directive prompt as visible text + a copy button. Clicking it
+    // copies the prompt, which must carry the per-page URL and the Mercado Libre / Shopify
+    // cost-comparison instruction (the whole point of the visible prompt block).
+    await expect(page.getByText(/Compara cuánto pagaría ahí contra Mercado Libre y Shopify/i)).toBeVisible()
+    await page.getByTestId('vende-prompt-copy').click()
     const clipboard = await page.evaluate(() => navigator.clipboard.readText())
     expect(clipboard).toContain('https://miyagisanchez.com/vende')
     expect(clipboard).toContain('Mercado Libre')

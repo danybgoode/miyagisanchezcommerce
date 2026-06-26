@@ -1,8 +1,11 @@
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import type { SellerAcquisitionVariant } from '@/lib/seller-acquisition'
-import { TrustPromptCopy } from './TrustPromptCopy'
+import { PromptBlock } from './PromptBlock'
 import { SellerAcquisitionVariantTag } from './SellerAcquisitionVariantTag'
+import styles from './SellerAcquisitionHero.module.css'
+
+type HeroValue = { value: string; label: string; icon?: string }
 
 type LandingCta = {
   label: string
@@ -70,6 +73,8 @@ export type SellerAcquisitionPageConfig = {
   primaryCta: LandingCta
   secondaryCta?: LandingCta
   heroStats: Array<{ value: string; label: string }>
+  // Anchor leads its hero right panel with a value list (0% · IA · Premium); personas fall back to heroStats.
+  heroValues?: HeroValue[]
   proofTitle: string
   proofLead: string
   proofPoints: LandingPoint[]
@@ -120,119 +125,71 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
 }
 
 function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
-  return (
-    <section
-      aria-labelledby={`${config.pageId}-hero-title`}
-      style={{
-        display: 'grid',
-        gap: 'var(--s-7)',
-        alignItems: 'center',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-        marginBottom: 'var(--s-10)',
-      }}
-    >
-      <div>
-        <span className="badge badge-agent" style={{ marginBottom: 'var(--s-4)' }}>
-          {config.eyebrow}
-        </span>
-        <h1
-          id={`${config.pageId}-hero-title`}
-          className="t-h1"
-          style={{
-            fontSize: 'clamp(var(--t-2xl), 7vw, var(--t-4xl))',
-            letterSpacing: 0,
-            marginBottom: 'var(--s-4)',
-            maxWidth: 680,
-            overflowWrap: 'break-word',
-          }}
-        >
-          {config.title}
-        </h1>
-        <p className="t-lead" style={{ maxWidth: 660, marginBottom: 'var(--s-5)' }}>
-          {config.lead}
-        </p>
-        <TrustSpine config={config} />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-3)', alignItems: 'center' }}>
-          <Link
-            href={config.primaryCta.href}
-            className="btn btn-primary btn-lg"
-            data-testid={config.primaryCta.testId}
-            prefetch={false}
-          >
-            {config.primaryCta.label}
-            <i className="iconoir-arrow-right" aria-hidden="true" />
-          </Link>
-          {config.secondaryCta ? (
-            <Link href={config.secondaryCta.href} className="btn btn-secondary btn-lg" prefetch={false}>
-              {config.secondaryCta.label}
-            </Link>
-          ) : null}
-        </div>
-      </div>
+  // Anchor leads with the value list (0% · IA · Premium); persona pages keep their three stats.
+  const values: HeroValue[] = config.heroValues ?? config.heroStats
 
-      <aside
-        aria-label={config.socialTitle}
-        className="card-panel"
+  return (
+    <section aria-labelledby={`${config.pageId}-hero-title`} className={styles.hero}>
+      <h1
+        id={`${config.pageId}-hero-title`}
+        className={`t-h1 ${styles.title}`}
         style={{
-          padding: 'var(--s-5)',
-          boxShadow: 'var(--shadow-2)',
+          fontSize: 'clamp(var(--t-2xl), 7vw, var(--t-4xl))',
+          letterSpacing: 0,
+          marginBottom: 0,
+          maxWidth: 680,
+          overflowWrap: 'break-word',
         }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 'var(--s-2)',
-            marginBottom: 'var(--s-5)',
-          }}
+        {config.title}
+      </h1>
+
+      <p className={`t-lead ${styles.lead}`} style={{ maxWidth: 660, margin: 0 }}>
+        {config.lead}
+      </p>
+
+      <TrustLine text={config.trustLine} className={styles.trust} />
+
+      <div className={styles.prompt}>
+        <PromptBlock
+          prompt={config.trustPrompt}
+          copyLabel={config.copyLabel}
+          copiedLabel={config.copiedLabel}
+          testId={`${config.pageId}-prompt-copy`}
+        />
+      </div>
+
+      <HeroValueList values={values} className={styles.values} />
+
+      <div
+        className={styles.cta}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-3)', alignItems: 'center' }}
+      >
+        <Link
+          href={config.primaryCta.href}
+          className="btn btn-primary btn-lg"
+          data-testid={config.primaryCta.testId}
+          prefetch={false}
         >
-          {config.heroStats.map((stat) => (
-            <div
-              key={stat.label}
-              style={{
-                background: 'var(--bg-sunk)',
-                borderRadius: 'var(--r-md)',
-                padding: 'var(--s-3)',
-                minHeight: 88,
-                minWidth: 0,
-              }}
-            >
-              <strong
-                style={{
-                  display: 'block',
-                  color: 'var(--accent)',
-                  fontSize: 24,
-                  lineHeight: 1,
-                  overflowWrap: 'break-word',
-                }}
-              >
-                {stat.value}
-              </strong>
-              <span className="t-caption" style={{ display: 'block', marginTop: 'var(--s-2)' }}>
-                {stat.label}
-              </span>
-            </div>
-          ))}
-        </div>
-        <h2 className="t-h3" style={{ letterSpacing: 0, marginBottom: 'var(--s-3)' }}>
-          {config.agentTitle}
-        </h2>
-        <p className="t-small" style={{ color: 'var(--fg-muted)' }}>
-          {config.agentBody}
-        </p>
-      </aside>
+          {config.primaryCta.label}
+          <i className="iconoir-arrow-right" aria-hidden="true" />
+        </Link>
+        {config.secondaryCta ? (
+          <Link href={config.secondaryCta.href} className="btn btn-secondary btn-lg" prefetch={false}>
+            {config.secondaryCta.label}
+          </Link>
+        ) : null}
+      </div>
     </section>
   )
 }
 
-function TrustSpine({ config }: { config: SellerAcquisitionPageConfig }) {
+function TrustLine({ text, className }: { text: string; className?: string }) {
   return (
-    <div
+    <p
+      className={className}
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 'var(--s-3)',
-        alignItems: 'center',
+        margin: 0,
         color: 'var(--agent)',
         background: 'var(--agent-soft)',
         border: '1px solid var(--anil-100)',
@@ -241,20 +198,46 @@ function TrustSpine({ config }: { config: SellerAcquisitionPageConfig }) {
         lineHeight: 1.55,
         fontSize: 14,
         maxWidth: 660,
-        marginBottom: 'var(--s-5)',
       }}
     >
-      <span style={{ flex: '1 1 260px' }}>
-        <i className="iconoir-sparks" aria-hidden="true" style={{ marginRight: 'var(--s-2)' }} />
-        {config.trustLine}
-      </span>
-      <TrustPromptCopy
-        prompt={config.trustPrompt}
-        copyLabel={config.copyLabel}
-        copiedLabel={config.copiedLabel}
-        testId={`${config.pageId}-trust-copy`}
-      />
-    </div>
+      <i className="iconoir-sparks" aria-hidden="true" style={{ marginRight: 'var(--s-2)' }} />
+      {text}
+    </p>
+  )
+}
+
+function HeroValueList({ values, className }: { values: HeroValue[]; className?: string }) {
+  return (
+    <ul
+      className={className}
+      style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 'var(--s-3)' }}
+    >
+      {values.map((item) => (
+        <li
+          key={item.label}
+          style={{ display: 'flex', gap: 'var(--s-3)', alignItems: 'flex-start' }}
+        >
+          {item.icon ? (
+            <i
+              className={item.icon}
+              aria-hidden="true"
+              style={{ color: 'var(--accent)', fontSize: 22, lineHeight: 1, marginTop: 2 }}
+            />
+          ) : null}
+          <span style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block', color: 'var(--accent)', fontSize: 20, lineHeight: 1.1 }}>
+              {item.value}
+            </strong>
+            <span
+              className="t-small"
+              style={{ display: 'block', color: 'var(--fg-muted)', overflowWrap: 'break-word' }}
+            >
+              {item.label}
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

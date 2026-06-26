@@ -36,6 +36,11 @@ export function buildAnchorPageConfig(
   return {
     ...baseConfig(copy, page, 'vende', query),
     pageId: 'vende',
+    // Anchor hero leads with the shared launch trust line (+ "copia el prompt", paired with the visible
+    // PromptBlock); personas keep their own per-page trust line. Anchor leads its right panel with the
+    // value list (0% · IA · Premium); personas keep their stats.
+    trustLine: copy.shared.heroTrustLine,
+    heroValues: page.heroValues,
     secondaryCta: {
       label: page.secondaryCta,
       // "¿Qué puedo vender?" jumps to the on-page persona router (which answers exactly that).
