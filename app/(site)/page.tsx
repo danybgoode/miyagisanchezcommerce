@@ -56,7 +56,7 @@ export default async function HomePage() {
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
   const [featured, grid, categories, pulse] = await Promise.all([
     getFeaturedListing(now).catch(() => null),
-    getCuratedListings(4, now).catch(() => []),
+    getCuratedListings(now).catch(() => []),
     getCategoryCounts().catch(() => []),
     getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
   ])

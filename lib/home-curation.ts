@@ -20,8 +20,10 @@ import { CACHE } from './cache-policy'
 export const MAX_AGE_DAYS = 14
 /** A timestamp badge shows only when the listing is younger than this. */
 export const RECENT_HOURS = 48
-/** Default Selección grid size. */
+/** Default Selección grid size (the floor: a thin board still auto-fills to here). */
 export const GRID_SIZE = 4
+/** Hard cap on Selección grid cards (Destacado + grid ≤ 12) — a runaway guard. */
+export const GRID_CAP = 11
 /**
  * The ISR revalidate window in ms, mirrored from the cache-policy SSOT
  * (`CACHE.LISTING`, seconds). The homepage's own `export const revalidate` is a
@@ -133,6 +135,20 @@ function byPinnedThenFresh(a: Listing, b: Listing): number {
 export function pickFeatured(listings: Listing[], now: number): Listing | null {
   const qualifying = listings.filter(l => isQualifying(l, now)).sort(byPinnedThenFresh)
   return qualifying[0] ?? null
+}
+
+/**
+ * The grid card count: grows to fit **every** remaining qualifying pin (after the
+ * excluded Destacado, so the admin's full curation always renders), floored at
+ * GRID_SIZE so a thin board still auto-fills, and capped at GRID_CAP as a runaway
+ * guard. Pass the result as `n` to `curateGrid` — pins sort first there, so
+ * `n >= remainingPins` guarantees no pin is ever sliced off.
+ */
+export function curatedGridSize(listings: Listing[], now: number, excludeId?: string): number {
+  const remainingPins = listings.filter(
+    l => isQualifying(l, now) && l.id !== excludeId && isPinned(l),
+  ).length
+  return Math.min(GRID_CAP, Math.max(GRID_SIZE, remainingPins))
 }
 
 /**
