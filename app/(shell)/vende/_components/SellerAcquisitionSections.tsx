@@ -49,6 +49,14 @@ type LandingBenchmark = {
   footnote: string
 }
 
+type LandingAiChannel = {
+  eyebrow: string
+  title: string
+  body: string
+  steps: LandingStep[]
+  note: string
+}
+
 export type SellerAcquisitionPageConfig = {
   pageId: string
   variant: SellerAcquisitionVariant
@@ -83,6 +91,7 @@ export type SellerAcquisitionPageConfig = {
   closingBody: string
   closingCta: LandingCta
   benchmark?: LandingBenchmark
+  aiChannel?: LandingAiChannel
 }
 
 export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPageConfig }) {
@@ -102,6 +111,7 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
       {config.benchmark ? <BenchmarkSection benchmark={config.benchmark} pageId={config.pageId} /> : null}
       {config.personaRouter ? <PersonaRouterSection router={config.personaRouter} pageId={config.pageId} /> : null}
       <StepsSection config={config} />
+      {config.aiChannel ? <AiChannelSection aiChannel={config.aiChannel} pageId={config.pageId} /> : null}
       <SocialProofSection config={config} />
       <FaqSection config={config} />
       <ClosingCta config={config} />
@@ -571,6 +581,90 @@ function BenchmarkSection({
           {benchmark.footnote}
         </p>
       </div>
+    </section>
+  )
+}
+
+function AiChannelSection({
+  aiChannel,
+  pageId,
+}: {
+  aiChannel: NonNullable<SellerAcquisitionPageConfig['aiChannel']>
+  pageId: string
+}) {
+  return (
+    <section
+      aria-labelledby={`${pageId}-ai-channel-title`}
+      className="card-panel"
+      style={{ padding: 'var(--s-6)', background: 'var(--bg-sunk)', marginBottom: 'var(--s-10)' }}
+    >
+      <span className="badge badge-agent" style={{ marginBottom: 'var(--s-4)' }}>
+        <i className="iconoir-sparks" aria-hidden="true" style={{ marginRight: 'var(--s-2)' }} />
+        {aiChannel.eyebrow}
+      </span>
+      <h2
+        id={`${pageId}-ai-channel-title`}
+        className="t-h2"
+        style={{ letterSpacing: 0, marginBottom: 'var(--s-3)', maxWidth: 680 }}
+      >
+        {aiChannel.title}
+      </h2>
+      <p className="t-lead" style={{ maxWidth: 680, marginBottom: 'var(--s-6)' }}>
+        {aiChannel.body}
+      </p>
+      <ol
+        style={{
+          margin: 0,
+          marginBottom: 'var(--s-5)',
+          padding: 0,
+          listStyle: 'none',
+          display: 'grid',
+          gap: 'var(--s-3)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+        }}
+      >
+        {aiChannel.steps.map((step, index) => (
+          <li key={step.title} className="card-panel" style={{ padding: 'var(--s-5)' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                borderRadius: 'var(--r-pill)',
+                background: 'var(--accent)',
+                color: 'var(--fg-inverse)',
+                fontWeight: 700,
+                fontSize: 13,
+                marginBottom: 'var(--s-3)',
+              }}
+            >
+              {index + 1}
+            </span>
+            <strong style={{ display: 'block', color: 'var(--fg)', marginBottom: 'var(--s-1)' }}>
+              {step.title}
+            </strong>
+            <span className="t-small" style={{ display: 'block', color: 'var(--fg-muted)' }}>
+              {step.body}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p
+        className="t-small"
+        style={{
+          margin: 0,
+          color: 'var(--agent)',
+          background: 'var(--agent-soft)',
+          borderLeft: '4px solid var(--agent)',
+          borderRadius: 'var(--r-md)',
+          padding: 'var(--s-3) var(--s-4)',
+        }}
+      >
+        {aiChannel.note}
+      </p>
     </section>
   )
 }

@@ -1,0 +1,32 @@
+import { expect, test } from '@playwright/test'
+
+// Sprint 3 — rendered smoke for the two new anchor sections (benchmark US-3 + AI-channel US-4).
+// Opt-in browser project (NOT the blocking gate): `npm run test:e2e:browser`, nightly via
+// browser-smoke.yml. Asserts what an api spec can't see — the sections render and the table
+// reflows without horizontal page overflow on narrow mobile widths.
+test.describe('seller acquisition · anchor S3 sections (browser)', () => {
+  for (const width of [360, 390]) {
+    test(`benchmark + AI-channel render with no horizontal overflow at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      const res = await page.goto('/vende')
+      expect(res?.ok()).toBeTruthy()
+
+      // US-3 — benchmark table renders with the competitor columns.
+      await expect(page.getByRole('heading', { name: /Compara antes de decidir/i })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Mercado Libre' })).toBeVisible()
+      await expect(page.getByRole('columnheader', { name: 'Shopify' })).toBeVisible()
+      await expect(page.getByText(/Verificado:\s*25 de junio de 2026/i)).toBeVisible()
+
+      // US-4 — AI-channel section renders with its three-step explainer.
+      await expect(page.getByRole('heading', { name: /Que la IA también venda por ti/i })).toBeVisible()
+      await expect(page.getByText(/UCP\/MCP/i)).toBeVisible()
+
+      // The table may scroll inside its own container, but the page itself must not overflow.
+      const overflow = await page.evaluate(() => {
+        const doc = document.documentElement
+        return doc.scrollWidth - doc.clientWidth
+      })
+      expect(overflow, 'no horizontal page overflow').toBeLessThanOrEqual(1)
+    })
+  }
+})

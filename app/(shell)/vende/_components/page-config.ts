@@ -43,6 +43,7 @@ export function buildAnchorPageConfig(
     },
     // Benchmark + AI-channel are anchor-only sections; persona builders leave them undefined.
     benchmark: page.benchmark,
+    aiChannel: copy.aiChannel,
     personaRouter: {
       title: page.routerTitle,
       lead: page.routerLead,

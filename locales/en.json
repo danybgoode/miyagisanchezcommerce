@@ -47,6 +47,26 @@
         }
       ]
     },
+    "aiChannel": {
+      "eyebrow": "A channel others do not have",
+      "title": "Let AI sell for you too",
+      "body": "More and more people ask their AI assistant to find and buy things for them. Your Miyagi shop speaks that language: it is built on UCP/MCP, the open commerce standard for agents (backed by Google, Stripe, Shopify, Visa, and more). That means Claude, Gemini, ChatGPT, and other agents can find your catalog, recommend it, and buy — a sales channel most platforms still do not have.",
+      "steps": [
+        {
+          "title": "You publish your normal catalog.",
+          "body": "Just like any shop."
+        },
+        {
+          "title": "Miyagi exposes it to agents.",
+          "body": "Your catalog ends up in the open format agents understand, with no extra work from you."
+        },
+        {
+          "title": "An agent discovers it and buys.",
+          "body": "An AI can find, recommend, and buy your products on behalf of its user."
+        }
+      ],
+      "note": "This is not a future promise: the shop is already readable and operable by agents today. Do not believe us? Ask your AI to try it."
+    },
     "anchor": {
       "metadata": {
         "title": "Sell with no commissions in Mexico — Miyagi Sanchez",
