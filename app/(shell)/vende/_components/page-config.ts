@@ -41,6 +41,8 @@ export function buildAnchorPageConfig(
       // "¿Qué puedo vender?" jumps to the on-page persona router (which answers exactly that).
       href: '#vende-router-title',
     },
+    // Benchmark + AI-channel are anchor-only sections; persona builders leave them undefined.
+    benchmark: page.benchmark,
     personaRouter: {
       title: page.routerTitle,
       lead: page.routerLead,

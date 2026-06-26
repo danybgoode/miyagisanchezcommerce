@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import type { SellerAcquisitionVariant } from '@/lib/seller-acquisition'
 import { TrustPromptCopy } from './TrustPromptCopy'
@@ -28,6 +29,24 @@ type PersonaRouterCard = {
   icon: string
   statusLabel?: string
   testId?: string
+}
+
+type BenchmarkRow = {
+  label: string
+  miyagi: string
+  mercadoLibre: string
+  shopify: string
+}
+
+type LandingBenchmark = {
+  title: string
+  lead: string
+  rowHeader: string
+  columns: string[]
+  rows: BenchmarkRow[]
+  verified: string
+  verifiedLabel: string
+  footnote: string
 }
 
 export type SellerAcquisitionPageConfig = {
@@ -63,6 +82,7 @@ export type SellerAcquisitionPageConfig = {
   closingTitle: string
   closingBody: string
   closingCta: LandingCta
+  benchmark?: LandingBenchmark
 }
 
 export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPageConfig }) {
@@ -79,6 +99,7 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
       <SellerAcquisitionVariantTag persona={config.pageId} variant={config.variant} />
       <LandingHero config={config} />
       <ProofSection config={config} />
+      {config.benchmark ? <BenchmarkSection benchmark={config.benchmark} pageId={config.pageId} /> : null}
       {config.personaRouter ? <PersonaRouterSection router={config.personaRouter} pageId={config.pageId} /> : null}
       <StepsSection config={config} />
       <SocialProofSection config={config} />
@@ -471,6 +492,85 @@ function ClosingCta({ config }: { config: SellerAcquisitionPageConfig }) {
         {config.closingCta.label}
         <i className="iconoir-arrow-right" aria-hidden="true" />
       </Link>
+    </section>
+  )
+}
+
+function BenchmarkSection({
+  benchmark,
+  pageId,
+}: {
+  benchmark: NonNullable<SellerAcquisitionPageConfig['benchmark']>
+  pageId: string
+}) {
+  const cellBase: CSSProperties = {
+    padding: 'var(--s-3)',
+    verticalAlign: 'top',
+    borderBottom: '1px solid var(--border)',
+    textAlign: 'left',
+  }
+
+  return (
+    <section aria-labelledby={`${pageId}-benchmark-title`} style={{ marginBottom: 'var(--s-10)' }}>
+      <SectionIntro id={`${pageId}-benchmark-title`} title={benchmark.title} lead={benchmark.lead} />
+      <div
+        className="card-panel"
+        style={{ padding: 'var(--s-2)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+      >
+        <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr>
+              <th scope="col" style={{ ...cellBase, color: 'var(--fg-muted)', fontWeight: 600 }}>
+                {benchmark.rowHeader}
+              </th>
+              {benchmark.columns.map((col, index) => (
+                <th
+                  key={col}
+                  scope="col"
+                  style={{
+                    ...cellBase,
+                    fontWeight: 700,
+                    color: index === 0 ? 'var(--accent)' : 'var(--fg)',
+                    background: index === 0 ? 'var(--bg-sunk)' : 'transparent',
+                  }}
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {benchmark.rows.map((row) => (
+              <tr key={row.label}>
+                <th scope="row" style={{ ...cellBase, color: 'var(--fg)', fontWeight: 600 }}>
+                  {row.label}
+                </th>
+                <td style={{ ...cellBase, color: 'var(--fg)', fontWeight: 600, background: 'var(--bg-sunk)' }}>
+                  {row.miyagi}
+                </td>
+                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.mercadoLibre}</td>
+                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.shopify}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--s-2)',
+          alignItems: 'center',
+          marginTop: 'var(--s-3)',
+        }}
+      >
+        <span className="badge badge-verified" data-testid={`${pageId}-benchmark-verified`}>
+          {benchmark.verifiedLabel}: {benchmark.verified}
+        </span>
+        <p className="t-caption" style={{ color: 'var(--fg-muted)', margin: 0, flex: '1 1 260px' }}>
+          {benchmark.footnote}
+        </p>
+      </div>
     </section>
   )
 }

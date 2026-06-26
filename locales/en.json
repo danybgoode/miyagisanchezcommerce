@@ -145,6 +145,65 @@
           "primaryCta": "Create free shop",
           "closingCta": "Start with no commission"
         }
+      },
+      "benchmark": {
+        "title": "Compare before you decide",
+        "lead": "What you pay on other platforms, you keep here. Compare it yourself — or ask your AI.",
+        "rowHeader": "What you compare",
+        "columns": ["Miyagi Sánchez", "Mercado Libre", "Shopify"],
+        "rows": [
+          {
+            "label": "Commission per sale",
+            "miyagi": "0% platform commission",
+            "mercadoLibre": "~8–16% (up to ~20.5% on Premium), by category",
+            "shopify": "0% of its own, but +2% if you do not use Shopify Payments"
+          },
+          {
+            "label": "Monthly fee",
+            "miyagi": "$0",
+            "mercadoLibre": "$0 (they charge per sale)",
+            "shopify": "from ~$19–$39 USD/mo + VAT"
+          },
+          {
+            "label": "Payment processing",
+            "miyagi": "Your gateway's, straight to your account",
+            "mercadoLibre": "Included in the commission; paid out later",
+            "shopify": "~3.5% + $3 MXN per transaction"
+          },
+          {
+            "label": "Where does your money land?",
+            "miyagi": "Straight to your account (Stripe, MercadoPago, SPEI, cash)",
+            "mercadoLibre": "Held and released by Mercado Libre",
+            "shopify": "Via Shopify Payments or your gateway"
+          },
+          {
+            "label": "Your own shop and domain",
+            "miyagi": "Yes: link, subdomain, domain, or widget",
+            "mercadoLibre": "No: you live inside Mercado Libre",
+            "shopify": "Yes, with your plan"
+          },
+          {
+            "label": "Sell services, rentals, and experiences",
+            "miyagi": "Yes, native",
+            "mercadoLibre": "Limited",
+            "shopify": "With third-party apps"
+          },
+          {
+            "label": "Sell through AI agents",
+            "miyagi": "Yes, native (UCP/MCP)",
+            "mercadoLibre": "No",
+            "shopify": "Barely emerging"
+          },
+          {
+            "label": "Built for Mexico",
+            "miyagi": "SPEI, MercadoPago, cash + print magazine",
+            "mercadoLibre": "Yes",
+            "shopify": "Gateways, not local-first"
+          }
+        ],
+        "verified": "June 25, 2026",
+        "verifiedLabel": "Verified",
+        "footnote": "Compared against the public rates of Mercado Libre and Shopify Mexico, verified on June 25, 2026. Rates change: ask your AI to confirm the numbers before deciding."
       }
     },
     "creadores": {

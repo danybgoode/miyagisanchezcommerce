@@ -176,6 +176,65 @@
           "primaryCta": "Crear tienda gratis",
           "closingCta": "Empezar sin comisión"
         }
+      },
+      "benchmark": {
+        "title": "Compara antes de decidir",
+        "lead": "Lo que pagas en otras plataformas, aquí te lo quedas. Compáralo tú mismo — o pídeselo a tu IA.",
+        "rowHeader": "Lo que comparas",
+        "columns": ["Miyagi Sánchez", "Mercado Libre", "Shopify"],
+        "rows": [
+          {
+            "label": "Comisión por venta",
+            "miyagi": "0% comisión de plataforma",
+            "mercadoLibre": "~8–16% (hasta ~20.5% en Premium), según categoría",
+            "shopify": "0% propio, pero +2% si no usas Shopify Payments"
+          },
+          {
+            "label": "Cuota mensual",
+            "miyagi": "$0",
+            "mercadoLibre": "$0 (cobran por venta)",
+            "shopify": "desde ~$19–$39 USD/mes + IVA"
+          },
+          {
+            "label": "Procesamiento de pago",
+            "miyagi": "El de tu pasarela, directo a tu cuenta",
+            "mercadoLibre": "Incluido en la comisión; te depositan después",
+            "shopify": "~3.5% + $3 MXN por transacción"
+          },
+          {
+            "label": "¿Dónde llega tu dinero?",
+            "miyagi": "Directo a tu cuenta (Stripe, MercadoPago, SPEI, efectivo)",
+            "mercadoLibre": "Retenido y liberado por Mercado Libre",
+            "shopify": "Vía Shopify Payments o tu pasarela"
+          },
+          {
+            "label": "Tienda y dominio propios",
+            "miyagi": "Sí: link, subdominio, dominio o widget",
+            "mercadoLibre": "No: vives dentro de Mercado Libre",
+            "shopify": "Sí, con tu plan"
+          },
+          {
+            "label": "Vender servicios, rentas y experiencias",
+            "miyagi": "Sí, nativo",
+            "mercadoLibre": "Limitado",
+            "shopify": "Con apps de terceros"
+          },
+          {
+            "label": "Vender a través de agentes de IA",
+            "miyagi": "Sí, nativo (UCP/MCP)",
+            "mercadoLibre": "No",
+            "shopify": "Apenas emergente"
+          },
+          {
+            "label": "Hecho para México",
+            "miyagi": "SPEI, MercadoPago, efectivo + revista impresa",
+            "mercadoLibre": "Sí",
+            "shopify": "Pasarelas, no local-first"
+          }
+        ],
+        "verified": "25 de junio de 2026",
+        "verifiedLabel": "Verificado",
+        "footnote": "Comparación con las tarifas públicas de Mercado Libre y Shopify México, verificadas el 25 de junio de 2026. Las tarifas cambian: pídele a tu IA que confirme los números antes de decidir."
       }
     },
     "creadores": {
