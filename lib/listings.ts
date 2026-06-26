@@ -9,6 +9,7 @@ import {
   curatedGridSize,
   liveCategoryCounts,
   windowSeed,
+  unionById,
   type CategoryCount,
 } from './home-curation'
 
@@ -200,16 +201,28 @@ export async function getSeleccionCandidates(limit = 50): Promise<Listing[]> {
 // (unit-tested by `e2e/home-curation.spec.ts`); these are the thin Medusa-reading
 // wrappers. One cached pool feeds both featured + grid so they stay consistent.
 
-// A small pool of the freshest listings, curated down on read. Cached so
-// getFeaturedListing + getCuratedListings share a single fetch per request window.
+// A small pool of the freshest listings UNIONed with the explicit pinned set
+// (`?featured=true`, S2.2) so an admin pin renders even when it's older than the
+// freshest-24 window. Cached so getFeaturedListing + getCuratedListings share one
+// fetch per request window. Degrades gracefully: each fetch contributes only if it
+// succeeds, so if the backend `featured` filter lags a deploy the pool is just the
+// freshest-24 (today's behaviour) — never throws (the homepage prerenders at build).
+async function fetchListings(path: string): Promise<Listing[]> {
+  const res = await medusaFetch(path, {
+    next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+  } as RequestInit)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.listings ?? []
+}
+
 const getCuratedPool = unstable_cache(
   async (): Promise<Listing[]> => {
-    const res = await medusaFetch('/store/listings?sort=reciente&limit=24', {
-      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
-    } as RequestInit)
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.listings ?? []
+    const [fresh, pinned] = await Promise.all([
+      fetchListings('/store/listings?sort=reciente&limit=24'),
+      fetchListings('/store/listings?featured=true&limit=50'),
+    ])
+    return unionById(fresh, pinned)
   },
   ['curated-pool'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
