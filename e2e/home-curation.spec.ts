@@ -10,6 +10,7 @@ import {
   liveCategoryCounts,
   seededShuffle,
   windowSeed,
+  unionById,
   GRID_SIZE,
   GRID_CAP,
   MAX_AGE_DAYS,
@@ -363,5 +364,35 @@ test.describe('home-curation · per-window shuffle (S3.1)', () => {
     const orders = new Set<string>()
     for (let bucket = 0; bucket < 12; bucket++) orders.add(tail(bucket))
     expect(orders.size).toBeGreaterThan(1) // at least two distinct rotations across windows
+  })
+})
+
+test.describe('home-curation · pool union (S2.2)', () => {
+  // S2.2 unions the freshest-24 fetch with the explicit ?featured=true pin fetch in
+  // getCuratedPool, so a pin older than the freshest window still reaches the page.
+  test('unionById dedupes by id (first occurrence wins) and is non-mutating', () => {
+    const a = [fresh, pinnedStale]
+    const b = [pinnedStale, makeListing({ id: 'extra' })]
+    const merged = unionById(a, b)
+    expect(merged.map(l => l.id)).toEqual(['fresh', 'pinned', 'extra']) // no dup of 'pinned'
+    expect(a.map(l => l.id)).toEqual(['fresh', 'pinned']) // inputs untouched
+    expect(b.map(l => l.id)).toEqual(['pinned', 'extra'])
+  })
+
+  test('empty featured fetch leaves the freshest pool unchanged (graceful degrade)', () => {
+    expect(unionById([fresh], []).map(l => l.id)).toEqual(['fresh'])
+    expect(unionById([], [pinnedStale]).map(l => l.id)).toEqual(['pinned']) // fresh fetch failed
+  })
+
+  test('a pin OUTSIDE the freshest window, unioned in, becomes the Destacado + leads the grid', () => {
+    // The freshest-24 fetch (only `fresh`) misses the old pin; the ?featured=true
+    // fetch supplies it. After the union it must win Destacado and lead the grid.
+    const freshOnly = [fresh] // what /store/listings?sort=reciente&limit=24 returns
+    const pins = [pinnedStale] // what /store/listings?featured=true returns (older than 14d)
+    expect(pickFeatured(freshOnly, NOW)?.id).toBe('fresh') // pre-union: old pin invisible
+    const pool = unionById(freshOnly, pins)
+    expect(pickFeatured(pool, NOW)?.id).toBe('pinned') // post-union: the pin is the Destacado
+    const featured = pickFeatured(pool, NOW)
+    expect(curateGrid(pool, NOW, GRID_SIZE, featured?.id).map(l => l.id)).toContain('fresh')
   })
 })

@@ -90,6 +90,26 @@ export function featuredRank(l: Listing): number {
   return typeof r === 'number' && Number.isFinite(r) ? r : Infinity
 }
 
+/**
+ * Merge listing lists into one, deduped by `id` (first occurrence wins),
+ * non-mutating. The Selección pool (S2.2) unions the freshest-24 fetch with the
+ * explicit `?featured=true` pin fetch so a pin renders no matter how old it is;
+ * order is irrelevant here because `pickFeatured` / `curateGrid` re-sort.
+ */
+export function unionById(...lists: Listing[][]): Listing[] {
+  const seen = new Set<string>()
+  const out: Listing[] = []
+  for (const list of lists) {
+    for (const l of list) {
+      if (!seen.has(l.id)) {
+        seen.add(l.id)
+        out.push(l)
+      }
+    }
+  }
+  return out
+}
+
 function ageMs(createdAt: string, now: number): number {
   return now - new Date(createdAt).getTime()
 }
