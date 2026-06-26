@@ -24,6 +24,8 @@ import {
  *   • `withAdmin(handler)` — for **API routes**. Passes on a Clerk admin; else
  *     `401`. Writes a best-effort `admin_audit_log` row on each successful
  *     mutation (S2.1).
+ *   • `withSupplyAdmin(handler)` — **`/api/supply/*` only.** Clerk admin OR the
+ *     shared `ADMIN_SECRET` (the documented headless importer path — see below).
  *
  * The identity decision lives in the pure `lib/admin/identity.ts`.
  */
@@ -112,6 +114,63 @@ export function withAdmin<R extends Request = Request, C = unknown>(
       // `after()` registers the write with the platform's `waitUntil`, so the
       // audit row is guaranteed to land even though it runs post-response — a
       // bare fire-and-forget would be killed when the serverless fn suspends.
+      after(() => recordAdminAudit(req, bodyClone))
+    }
+    return res
+  }
+}
+
+/**
+ * Shared-secret check for the documented headless **machine** paths. Reads the
+ * secret from the `x-admin-secret` header or the `?secret=` query string and
+ * compares it to `ADMIN_SECRET`. Returns `false` when `ADMIN_SECRET` is unset or
+ * empty — no configured secret means no secret-based access (never fail-open).
+ */
+function hasValidAdminSecret(req: Request): boolean {
+  const secret = process.env.ADMIN_SECRET
+  if (!secret) return false
+  if (req.headers.get('x-admin-secret') === secret) return true
+  try {
+    if (new URL(req.url).searchParams.get('secret') === secret) return true
+  } catch {
+    /* malformed URL — fall through to deny */
+  }
+  return false
+}
+
+/**
+ * API-route wrapper for **`/api/supply/*` only**. The supply acquisition
+ * pipeline is a documented *machine* surface: a headless importer with no Clerk
+ * session drives it per `SUPPLY_IMPORT_SCHEMA.md`, whose contract is *"All supply
+ * endpoints require `x-admin-secret` or `?secret=`"* (and `/api/supply/upload`'s
+ * *"No Clerk login needed — same secret as the rest"*).
+ *
+ * S2.3 (PR 109) migrated every admin route onto Clerk-only `withAdmin`, which
+ * **unintentionally also revoked that documented headless path** — the migration
+ * preserved machine access only on `/api/admin/import` + the PDF render route,
+ * overlooking that the live importer targets `/api/supply/*`. This wrapper
+ * restores it: a request is authorised by EITHER a Clerk admin session (the
+ * `/admin/supply` review UI, same-origin cookie) OR the shared `ADMIN_SECRET`
+ * (the importer). Successful Clerk mutations are still audited; the machine path
+ * has no Clerk actor (null), exactly like the pre-S2.3 secret arm.
+ *
+ * Deliberately narrow — do NOT reuse for `/api/admin/*`; those stay Clerk-only.
+ */
+export function withSupplyAdmin<R extends Request = Request, C = unknown>(
+  handler: RouteHandler<R, C>,
+): (req: R, context: C) => Promise<Response> {
+  return async (req: R, context: C) => {
+    const clerkAdmin = await currentUserIsAdmin()
+    if (!clerkAdmin && !hasValidAdminSecret(req)) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    const audited = isAuditedMethod(req.method)
+    const bodyClone = audited ? req.clone() : null
+    const res = await handler(req, context)
+    if (audited && res.status < 400) {
       after(() => recordAdminAudit(req, bodyClone))
     }
     return res

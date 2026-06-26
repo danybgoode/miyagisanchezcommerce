@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 
-export const GET = withAdmin(async () => {
+export const GET = withSupplyAdmin(async () => {
   const providers: Record<string, unknown> = {
     serpapi: {
       configured: Boolean(process.env.SERPAPI_KEY),

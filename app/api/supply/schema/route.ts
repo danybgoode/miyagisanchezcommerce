@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 
 const CHECKS = [
   {
@@ -25,7 +25,7 @@ const CHECKS = [
   },
 ]
 
-export const GET = withAdmin(async () => {
+export const GET = withSupplyAdmin(async () => {
   const results = []
   for (const check of CHECKS) {
     const { error } = await db.from(check.table).select(check.select).limit(1)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 import {
   refreshBatchCounts,
   supplyItemToSellerBody,
@@ -55,7 +55,7 @@ async function resolveSeller(item: SupplyItem): Promise<{ seller: MedusaSeller; 
   return { seller: data.seller, mirrorId }
 }
 
-export const POST = withAdmin(async (req: NextRequest) => {
+export const POST = withSupplyAdmin(async (req: NextRequest) => {
   if (!INTERNAL_SECRET) {
     return NextResponse.json({ error: 'MEDUSA_INTERNAL_SECRET is not configured' }, { status: 500 })
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 import {
   googleLocalToSupplyItem,
   normalizeSupplyItem,
@@ -55,7 +55,7 @@ async function collectGoogleLocal(body: {
   }, query))
 }
 
-export const GET = withAdmin(async () => {
+export const GET = withSupplyAdmin(async () => {
   const { data, error } = await db
     .from('supply_batches')
     .select('*')
@@ -66,7 +66,7 @@ export const GET = withAdmin(async () => {
   return NextResponse.json({ batches: data ?? [] })
 })
 
-export const POST = withAdmin(async (req: NextRequest) => {
+export const POST = withSupplyAdmin(async (req: NextRequest) => {
   const body = await req.json().catch(() => null) as {
     name?: string
     source_platform?: string
