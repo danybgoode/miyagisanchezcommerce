@@ -208,12 +208,19 @@ export async function getSeleccionCandidates(limit = 50): Promise<Listing[]> {
 // succeeds, so if the backend `featured` filter lags a deploy the pool is just the
 // freshest-24 (today's behaviour) — never throws (the homepage prerenders at build).
 async function fetchListings(path: string): Promise<Listing[]> {
-  const res = await medusaFetch(path, {
-    next: { revalidate: CACHE.LISTING, tags: ['listings'] },
-  } as RequestInit)
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.listings ?? []
+  try {
+    const res = await medusaFetch(path, {
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.listings ?? []
+  } catch {
+    // Network reject / malformed JSON (e.g. backend mid-deploy) → degrade to empty,
+    // never throw: the homepage prerenders at build and the pool falls back to whatever
+    // the other fetch returned.
+    return []
+  }
 }
 
 const getCuratedPool = unstable_cache(
