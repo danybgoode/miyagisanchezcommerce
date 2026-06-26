@@ -27,7 +27,7 @@
       "faqs": [
         {
           "title": "¿De verdad es sin comisión?",
-          "body": "Sí. Miyagi cobra 0% de comisión de plataforma por tus ventas. Solo pagas la comisión de tu procesador de pago (Stripe, MercadoPago), igual que en cualquier lado — y ese dinero llega directo a tu cuenta, no a una bolsa nuestra."
+          "body": "Sí. miyagisanchez.com cobra 0% de comisión de plataforma por tus ventas. Solo pagas la comisión de tu procesador de pago (Stripe, MercadoPago), igual que en cualquier lado — y ese dinero llega directo a tu cuenta, no a una bolsa nuestra."
         },
         {
           "title": "¿Entonces cómo ganan ustedes?",
@@ -48,20 +48,21 @@
       ],
       "selfCheck": {
         "title": "Compruébalo tú mismo",
-        "body": "No tienes que creernos. Pídele a tu asistente de IA que lea esta página, compare la oferta con lo que pagas hoy y te diga, en tus términos, si te conviene tu negocio."
-      }
+        "body": "Copia el prompt y pégalo en tu IA para que evalúe la oferta por ti."
+      },
+      "heroTrustLine": "Compruébalo tú mismo: copia el prompt y pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene."
     },
     "aiChannel": {
-      "eyebrow": "Un canal que otros no tienen",
+      "eyebrow": "",
       "title": "Que la IA también venda por ti",
-      "body": "Cada vez más gente le pide a su asistente de IA que le busque y le compre cosas. Tu tienda en Miyagi habla ese idioma: está construida sobre UCP/MCP, el estándar abierto de comercio para agentes (respaldado por Google, Stripe, Shopify, Visa y más). Eso significa que Claude, Gemini, ChatGPT y otros agentes pueden encontrar tu catálogo, recomendarlo y comprar — un canal de venta que la mayoría de las plataformas todavía no tiene.",
+      "body": "Cada vez más gente le pide a su asistente de IA que le busque y le compre cosas. Tu tienda en miyagisanchez.com habla ese idioma: está construida sobre UCP/MCP, el estándar abierto de comercio para agentes (respaldado por Google, Stripe, Shopify, Visa y más). Claude, Gemini, ChatGPT y otros agentes pueden encontrar tu catálogo, recomendarlo y comprar — un canal que la mayoría de las plataformas todavía no tiene.",
       "steps": [
         {
           "title": "Publicas tu catálogo normal.",
           "body": "Igual que cualquier tienda."
         },
         {
-          "title": "Miyagi lo expone para agentes.",
+          "title": "miyagisanchez.com lo expone para agentes.",
           "body": "Tu catálogo queda en el formato abierto que los agentes entienden, sin que hagas nada extra."
         },
         {
@@ -69,7 +70,7 @@
           "body": "Una IA puede encontrar, recomendar y comprar tus productos a nombre de su usuario."
         }
       ],
-      "note": "Esto no es promesa a futuro: la tienda ya es legible y operable por agentes hoy. ¿No nos crees? Pídele a tu IA que lo intente."
+      "note": ""
     },
     "anchor": {
       "metadata": {
@@ -77,9 +78,9 @@
         "description": "Abre tu tienda gratis en Miyagi Sánchez. Vende productos, servicios, experiencias o catálogos completos con 0% de comisión y cobro directo a tu cuenta.",
         "ogAlt": "Miyagi Sánchez: vende lo que sea en México con 0% de comisión."
       },
-      "eyebrow": "Para vendedores en México",
+      "eyebrow": "",
       "heroTitle": "Vende lo que sea en México. 0% de comisión.",
-      "heroLead": "Abre tu tienda en minutos: súbete al mercado o vende en tu propio dominio. Tu IA puede armarla por ti, y tu dinero llega directo a tu cuenta.",
+      "heroLead": "Abre tu tienda en minutos: súbete al marketplace o vende en tu propio dominio. Tu IA puede armarla por ti, y tu dinero llega directo a tu cuenta.",
       "trustLine": "Compruébalo tú mismo: pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene.",
       "primaryCta": "Empieza gratis",
       "secondaryCta": "¿Qué puedo vender?",
@@ -95,6 +96,23 @@
         {
           "value": "4",
           "label": "canales: link, subdominio, dominio o widget"
+        }
+      ],
+      "heroValues": [
+        {
+          "value": "0%",
+          "label": "comisión de plataforma",
+          "icon": "iconoir-percentage"
+        },
+        {
+          "value": "IA",
+          "label": "vende en Claude, Gemini y ChatGPT",
+          "icon": "iconoir-sparks"
+        },
+        {
+          "value": "Premium",
+          "label": "funciones premium incluidas: boletos, sorteos, agenda y más",
+          "icon": "iconoir-star"
         }
       ],
       "proofTitle": "Lo que ves es lo que ya puedes usar",
@@ -126,7 +144,7 @@
       "routerCards": [
         {
           "personaId": "creadores",
-          "eyebrow": "Catálogos e Instagram",
+          "eyebrow": "",
           "title": "Soy creador o diseñador",
           "body": "Piezas únicas, drops, diseño, moda, arte o productos que hoy vendes por DM.",
           "icon": "iconoir-instagram",
@@ -134,14 +152,14 @@
         },
         {
           "personaId": "mundial",
-          "eyebrow": "Experiencias",
+          "eyebrow": "",
           "title": "Ofrezco experiencias o servicios",
           "body": "Tours, rentas, comida, traslados, citas o servicios listos para el Mundial.",
           "icon": "iconoir-map"
         },
         {
           "personaId": "negocios",
-          "eyebrow": "Negocio local",
+          "eyebrow": "",
           "title": "Tengo un negocio local",
           "body": "Imprenta, taller, tienda física o inventario que quieres poner en línea.",
           "icon": "iconoir-store",
@@ -149,7 +167,7 @@
         },
         {
           "personaId": "servicios",
-          "eyebrow": "Profesionales",
+          "eyebrow": "",
           "title": "Vendo servicios profesionales",
           "body": "Consultas, sesiones, paquetes, mantenimiento o trabajo por cita.",
           "icon": "iconoir-user-star",
@@ -171,22 +189,45 @@
           "body": "Pega texto, importa un archivo o deja que tu agente lo organice por ti."
         }
       ],
-      "socialTitle": "Hecho para negocios reales, no para demos",
-      "socialBody": "Miyagi ya maneja tiendas, productos, servicios, pagos directos, dominios, subdominios y widgets. La página solo te ordena el camino.",
-      "socialStats": [
-        {
-          "value": "0%",
-          "label": "comisión por venta"
-        },
-        {
-          "value": "MXN",
-          "label": "cobros pensados para México"
-        },
-        {
-          "value": "IA",
-          "label": "tu tienda, operable por agentes"
-        }
-      ],
+      "socialTitle": "",
+      "socialBody": "",
+      "socialStats": [],
+      "premiumFeatures": {
+        "title": "Todo esto ya viene incluido",
+        "lead": "Funciones que en otras plataformas pagas aparte — aquí son parte del marketplace.",
+        "items": [
+          {
+            "icon": "iconoir-ticket",
+            "label": "Boletos y eventos",
+            "sub": "Vende admisiones y maneja tu evento."
+          },
+          {
+            "icon": "iconoir-gift",
+            "label": "Sorteos",
+            "sub": "Campañas de sorteo para crecer tu audiencia."
+          },
+          {
+            "icon": "iconoir-calendar",
+            "label": "Agenda y citas",
+            "sub": "Reserva con Cal.com para servicios y experiencias."
+          },
+          {
+            "icon": "iconoir-refresh",
+            "label": "Suscripciones y contenido",
+            "sub": "Cobra recurrente y vende contenido propio."
+          },
+          {
+            "icon": "iconoir-pricetag",
+            "label": "Cupones y promociones",
+            "sub": "Descuentos y códigos para tus campañas."
+          },
+          {
+            "icon": "iconoir-globe",
+            "label": "Tu dominio, subdominio o widget",
+            "sub": "Tu marca en cualquier canal."
+          }
+        ]
+      },
       "closingTitle": "Empieza gratis y déjalo si no te gusta.",
       "closingBody": "No hay contrato, no hay comisión escondida y no necesitas rehacer tu negocio. Sube tu primera oferta y pruébalo.",
       "closingCta": "Abrir mi tienda",
@@ -254,7 +295,39 @@
         ],
         "verified": "25 de junio de 2026",
         "verifiedLabel": "Verificado",
-        "footnote": "Comparación con las tarifas públicas de Mercado Libre y Shopify México, verificadas el 25 de junio de 2026. Las tarifas cambian: pídele a tu IA que confirme los números antes de decidir."
+        "footnote": "Comparación con las tarifas públicas de Mercado Libre y Shopify México, verificadas el 25 de junio de 2026. Las tarifas cambian: pídele a tu IA que confirme los números antes de decidir.",
+        "example": {
+          "title": "Ejemplo: vendes un producto de $1,000 MXN",
+          "lead": "Cuánto te llega, según dónde vendas.",
+          "columns": ["Plataforma", "Comisión de plataforma", "Mensualidad", "Te llega (aprox.)"],
+          "rows": [
+            {
+              "platform": "miyagisanchez.com",
+              "commission": "$0",
+              "monthly": "$0",
+              "takeHome": "~$1,000¹"
+            },
+            {
+              "platform": "Mercado Libre",
+              "commission": "~$130 (≈13%)²",
+              "monthly": "$0",
+              "takeHome": "~$870"
+            },
+            {
+              "platform": "Shopify",
+              "commission": "$0 por venta³",
+              "monthly": "~$390–790/mes⁴",
+              "takeHome": "~$1,000 − tu mensualidad¹"
+            }
+          ],
+          "punchline": "En una venta de $1,000 te quedas con ~$130 más que en Mercado Libre — y sin pagar mensualidad como en Shopify.",
+          "footnotes": [
+            "Menos la comisión de tu procesador de pago (Stripe, MercadoPago ≈3.5% + $3), igual en cualquier plataforma y directo a tu cuenta.",
+            "Comisión Clásica promedio; varía por categoría (≈8–16%). Productos de bajo precio pagan un cargo fijo extra.",
+            "Con Shopify Payments; +2% si usas otra pasarela.",
+            "Plan Basic ≈$19–39 USD/mes + IVA — lo pagues o no, con o sin ventas."
+          ]
+        }
       }
     },
     "creadores": {
@@ -263,9 +336,9 @@
         "description": "Trae tu catálogo de Instagram a una tienda propia. 0% de comisión, dominio o subdominio, widget y cobro directo.",
         "ogAlt": "Miyagi Sánchez para creadores: catálogo propio, 0% de comisión y cobro directo."
       },
-      "eyebrow": "Creadores y diseñadores",
+      "eyebrow": "",
       "heroTitle": "Deja de pagar comisiones de Shopify y de perder ventas en los DM.",
-      "heroLead": "Trae tu catálogo de Instagram en minutos. Tu propia tienda, tu dominio, 0% de comisión — y tu dinero directo a tu cuenta.",
+      "heroLead": "Trae tu catálogo de Instagram en minutos. Tu tienda, tu dominio, 0% de comisión y tu dinero directo a tu cuenta.",
       "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/creadores y te diga si te conviene.",
       "primaryCta": "Trae tu tienda",
       "secondaryCta": "Ver página general",
@@ -284,7 +357,7 @@
         }
       ],
       "proofTitle": "No tienes que elegir entre Instagram y una tienda de verdad",
-      "proofLead": "Usa tus canales de siempre para vender mejor: los DM para platicar, Miyagi para ordenar catálogo, cobro y links.",
+      "proofLead": "Usa tus canales de siempre para vender mejor: los DM para platicar, el marketplace para ordenar catálogo, cobro y links.",
       "proofPoints": [
         {
           "icon": "iconoir-instagram",
@@ -294,7 +367,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% de comisión",
-          "body": "Deja de perder margen en cada venta. Miyagi no toma un porcentaje de tu pedido. Lo que Shopify te cobra cada mes, aquí es $0."
+          "body": "Deja de perder margen en cada venta. miyagisanchez.com no toma un porcentaje de tu pedido."
         },
         {
           "icon": "iconoir-domain",
@@ -355,9 +428,9 @@
         "description": "Abre una tienda para tu negocio local sin comisiones. Migra tu catálogo, vende con QR y conéctate con la revista México-86.",
         "ogAlt": "Miyagi Sánchez para negocios locales: tienda en línea, QR y revista México-86."
       },
-      "eyebrow": "Negocios locales",
+      "eyebrow": "",
       "heroTitle": "Tu negocio de la esquina, ahora también en línea — y en la revista.",
-      "heroLead": "Sube tu inventario en minutos, cobra directo y comparte tu tienda con link, QR, subdominio o dominio propio. Miyagi también puede llevarte a la edición impresa México-86.",
+      "heroLead": "Sube tu inventario en minutos, cobra directo y comparte tu tienda por link, QR, subdominio o dominio. miyagisanchez.com también te lleva a la revista impresa México-86.",
       "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/negocios y te diga si le conviene a tu negocio.",
       "primaryCta": "Poner mi negocio en línea",
       "secondaryCta": "Ver página general",
@@ -376,7 +449,7 @@
         }
       ],
       "proofTitle": "No tienes que cambiar tu negocio para vender en línea",
-      "proofLead": "Miyagi se adapta a como ya trabajas: inventario, pagos directos, catálogo por QR y presencia impresa cuando te convenga.",
+      "proofLead": "El marketplace se adapta a como ya trabajas: inventario, pagos directos, catálogo por QR y presencia impresa cuando te convenga.",
       "proofPoints": [
         {
           "icon": "iconoir-fast-arrow-right",
@@ -415,7 +488,7 @@
         }
       ],
       "socialTitle": "Para negocios que ya venden, no para empezar de cero",
-      "socialBody": "Si ya tienes clientes, inventario y forma de cobrar, Miyagi suma una vitrina en línea y un puente impreso sin comerse tu margen.",
+      "socialBody": "Si ya tienes clientes, inventario y forma de cobrar, miyagisanchez.com suma una vitrina en línea y un puente impreso sin comerse tu margen.",
       "socialStats": [
         {
           "value": "QR",
@@ -447,9 +520,9 @@
         "description": "Publica servicios, agenda citas con Cal.com y cobra directo. Sin comisiones de plataforma para profesionales en México.",
         "ogAlt": "Miyagi Sánchez para servicios profesionales: agenda, cobra y vende sin comisiones."
       },
-      "eyebrow": "Servicios profesionales",
+      "eyebrow": "",
       "heroTitle": "Cobra y agenda sin complicaciones. 0% de comisión.",
-      "heroLead": "Publica consultas, clases, belleza, oficios, reparaciones o paquetes por cita. Miyagi te da link, tienda, agenda y cobro directo sin quitarte un porcentaje.",
+      "heroLead": "Publica consultas, clases, belleza, oficios o paquetes por cita. miyagisanchez.com te da link, tienda, agenda y cobro directo, sin quitarte un porcentaje.",
       "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/servicios y te diga si sirve para tu oficio.",
       "primaryCta": "Publicar mi servicio",
       "secondaryCta": "Ver página general",
@@ -539,9 +612,9 @@
         "description": "Publica tours, rincones de comida y rentas para el Mundial 2026 en México. Sin comisiones y directo a tu cuenta.",
         "ogAlt": "Miyagi Sánchez Mundial 2026: vende experiencias en México sin comisiones."
       },
-      "eyebrow": "Mundial 2026 · México",
+      "eyebrow": "",
       "heroTitle": "Captura al público global del Mundial.",
-      "heroLead": "Publica tus tours, rincones de comida y rentas al instante, sin comisiones. Entra antes de que la demanda llegue a CDMX, Guadalajara y Monterrey.",
+      "heroLead": "Publica tus tours, rincones de comida y rentas al instante, sin comisiones.",
       "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/mundial por ti.",
       "primaryCta": "Empieza a vender",
       "secondaryCta": "Ver guía para agentes",
@@ -566,7 +639,7 @@
         "Rentas, traslados y servicios por día"
       ],
       "proofTitle": "Hecho para vender servicios y rentas, no solo productos",
-      "proofLead": "Reutilizamos la infraestructura actual de Miyagi: publicación, cobro, agenda y agentes.",
+      "proofLead": "Vende en el marketplace: publicación, cobro, agenda y agentes, listos para usar.",
       "proofPoints": [
         {
           "icon": "iconoir-tools",
@@ -576,7 +649,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% de comisión",
-          "body": "Miyagi no cobra comisión de plataforma. Tu margen se queda contigo. Cada peso del Mundial se queda contigo."
+          "body": "miyagisanchez.com no cobra comisión de plataforma. Tu margen se queda contigo."
         },
         {
           "icon": "iconoir-wallet",
@@ -604,7 +677,7 @@
           "body": "Usa tu link en redes, QR, anuncios o mensajes."
         }
       ],
-      "closingTitle": "El Mundial no espera. Tu anuncio tampoco.",
+      "closingTitle": "Súbete a la ola del Mundial.",
       "closingBody": "Si vendes experiencias, comida, traslados, tours, hospedaje temporal o servicios locales, empieza con un anuncio de servicio y ajusta después.",
       "closingCta": "Publicar mi servicio",
       "variants": {
