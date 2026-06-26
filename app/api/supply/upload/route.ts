@@ -1,23 +1,24 @@
 /**
- * Supply image upload — Clerk admin-gated sibling of /api/sell/upload for the
+ * Supply image upload — admin-gated sibling of /api/sell/upload for the
  * supply/import pipeline (Gem → Claimable Shop Loop · S1.3). Turns a local photo
  * into a hosted URL for staging a gem (or attaching to a listing after import).
  *
  *   POST /api/supply/upload   multipart form-data: file=<image>
- *   Auth: Clerk admin session (via withAdmin)
+ *   Auth: Clerk admin session OR shared ADMIN_SECRET (via withSupplyAdmin) —
+ *   the headless importer has no Clerk login, so the secret path is required.
  *   → { url }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 import { uploadToR2, isR2Configured } from '@/lib/r2'
 
 const BUCKET = 'listing-images'
 const MAX_SIZE_BYTES = 8 * 1024 * 1024 // 8 MB hard cap, same as /api/sell/upload
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
 
-export const POST = withAdmin(async (req: NextRequest) => {
+export const POST = withSupplyAdmin(async (req: NextRequest) => {
   let formData: FormData
   try {
     formData = await req.formData()

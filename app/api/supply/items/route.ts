@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { withAdmin } from '@/lib/admin/guard'
+import { withSupplyAdmin } from '@/lib/admin/guard'
 import { normalizePriceCents, qualityScore, refreshBatchCounts, SUPPLY_ITEM_STATUSES, SUPPLY_LISTING_TYPES } from '@/lib/supply'
 
-export const GET = withAdmin(async (req: NextRequest) => {
+export const GET = withSupplyAdmin(async (req: NextRequest) => {
   const batchId = req.nextUrl.searchParams.get('batchId')
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 422 })
 
@@ -19,7 +19,7 @@ export const GET = withAdmin(async (req: NextRequest) => {
   return NextResponse.json({ items: data ?? [] })
 })
 
-export const PATCH = withAdmin(async (req: NextRequest) => {
+export const PATCH = withSupplyAdmin(async (req: NextRequest) => {
   const body = await req.json().catch(() => null) as {
     ids?: string[]
     patch?: Record<string, unknown>

@@ -3,24 +3,28 @@ import { test, expect } from '@playwright/test'
 /**
  * Admin consolidation · Sprint 2.3 — auth migration gate.
  *
- * Every `/api/admin/*` + `/api/supply/*` route is now Clerk-only (`withAdmin`):
- * the legacy `?secret=` / `x-admin-secret` acceptance for humans is retired. The
- * `api` project runs ANONYMOUS, so each route must 401 — and, critically, a
- * request carrying the OLD secret must ALSO 401 (proving the secret arm is gone).
+ * Every `/api/admin/*` route is now Clerk-only (`withAdmin`): the legacy
+ * `?secret=` / `x-admin-secret` acceptance for humans is retired. The `api`
+ * project runs ANONYMOUS, so each route must 401 — and, critically, a request
+ * carrying the OLD secret must ALSO 401 (proving the secret arm is gone).
  *
- * `ADMIN_SECRET` survives only on documented MACHINE paths (out of scope here):
- * `/api/admin/import` (Bearer batch) and the PDF render path. The full authed
- * 200-with-session sweep across every section is owed to Daniel (he holds the
- * admin Clerk session) — stated in the PR.
+ * `ADMIN_SECRET` survives only on documented MACHINE paths: `/api/admin/import`
+ * (Bearer batch), the PDF render path, and — restored after S2.3 unintentionally
+ * revoked it — the `/api/supply/*` importer surface (`withSupplyAdmin`, per
+ * SUPPLY_IMPORT_SCHEMA.md). Supply therefore gets its OWN block below: it must
+ * still 401 anonymously AND on a WRONG secret (no fail-open), but a correct
+ * secret is honoured (the positive path needs the real secret + a running
+ * importer, so it lives in the importer smoke, not this anonymous gate).
  *
- * A junk secret is used so that even if ADMIN_SECRET were somehow set in the
- * test env, this asserts the route no longer honours a URL/header secret.
+ * A junk secret is used so that even if ADMIN_SECRET were set in the test env,
+ * these assertions hold — a wrong secret never grants access.
  */
 
 const JUNK = 'not-a-real-secret-value'
 
-// Representative routes across every migrated surface (print, coupons,
-// referrals, domain-coupon, scrape, runs, supply).
+// Representative Clerk-only admin routes across every migrated surface (print,
+// coupons, referrals, domain-coupon, scrape, runs). Supply is dual-auth — see
+// the separate block below.
 const GET_ROUTES = [
   '/api/admin/print/editions',
   '/api/admin/print/providers',
@@ -29,6 +33,11 @@ const GET_ROUTES = [
   '/api/admin/referrals/config',
   '/api/admin/domain-coupon',
   '/api/admin/runs',
+]
+
+// Supply importer surface (`withSupplyAdmin`): a CORRECT ADMIN_SECRET is honoured
+// (machine path), but anonymous and wrong-secret requests must still 401.
+const SUPPLY_GET_ROUTES = [
   '/api/supply/batches',
   '/api/supply/status',
   '/api/supply/schema',
@@ -57,7 +66,27 @@ test.describe('admin auth migration · anonymous is rejected', () => {
     expect(res.status()).toBe(401)
   })
 
-  test('POST /api/supply/batches → 401', async ({ request }) => {
+})
+
+test.describe('supply importer auth · anonymous & wrong-secret rejected (no fail-open)', () => {
+  for (const route of SUPPLY_GET_ROUTES) {
+    test(`GET ${route} → 401 (no Clerk session, no secret)`, async ({ request }) => {
+      const res = await request.get(route)
+      expect(res.status()).toBe(401)
+    })
+
+    test(`GET ${route}?secret=<wrong> → 401 (wrong secret never grants access)`, async ({ request }) => {
+      const res = await request.get(`${route}?secret=${JUNK}`)
+      expect(res.status()).toBe(401)
+    })
+
+    test(`GET ${route} with wrong x-admin-secret → 401`, async ({ request }) => {
+      const res = await request.get(route, { headers: { 'x-admin-secret': JUNK } })
+      expect(res.status()).toBe(401)
+    })
+  }
+
+  test('POST /api/supply/batches → 401 (anonymous, no secret)', async ({ request }) => {
     const res = await request.post('/api/supply/batches', { data: { name: 'spec batch' } })
     expect(res.status()).toBe(401)
   })
