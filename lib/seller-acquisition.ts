@@ -70,6 +70,19 @@ export function resolveSellerPersonaRoute(id: SellerPersonaId): SellerPersonaRou
   return SELLER_PERSONA_ROUTES[id]
 }
 
+const SELLER_ACQUISITION_BASE_URL = 'https://miyagisanchez.com'
+
+/**
+ * Builds the directive "ask your AI" prompt for a persona page by substituting the page's
+ * own absolute URL into the shared `{url}` template. One base prompt, the URL swaps per page
+ * so the visitor's agent reads the most relevant landing page when it evaluates the offer.
+ */
+export function sellerTrustPrompt(id: SellerPersonaId, template: string): string {
+  const route = resolveSellerPersonaRoute(id)
+  const url = `${SELLER_ACQUISITION_BASE_URL}${route.pagePath ?? '/vende'}`
+  return template.replaceAll('{url}', url)
+}
+
 export function parseSellerAcquisitionUtm(input?: QueryInput): SellerAcquisitionUtm {
   const params = toSearchParams(input)
   const utm: SellerAcquisitionUtm = {}
