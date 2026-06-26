@@ -51,6 +51,26 @@
         "body": "No tienes que creernos. Pídele a tu asistente de IA que lea esta página, compare la oferta con lo que pagas hoy y te diga, en tus términos, si te conviene tu negocio."
       }
     },
+    "aiChannel": {
+      "eyebrow": "Un canal que otros no tienen",
+      "title": "Que la IA también venda por ti",
+      "body": "Cada vez más gente le pide a su asistente de IA que le busque y le compre cosas. Tu tienda en Miyagi habla ese idioma: está construida sobre UCP/MCP, el estándar abierto de comercio para agentes (respaldado por Google, Stripe, Shopify, Visa y más). Eso significa que Claude, Gemini, ChatGPT y otros agentes pueden encontrar tu catálogo, recomendarlo y comprar — un canal de venta que la mayoría de las plataformas todavía no tiene.",
+      "steps": [
+        {
+          "title": "Publicas tu catálogo normal.",
+          "body": "Igual que cualquier tienda."
+        },
+        {
+          "title": "Miyagi lo expone para agentes.",
+          "body": "Tu catálogo queda en el formato abierto que los agentes entienden, sin que hagas nada extra."
+        },
+        {
+          "title": "Un agente lo descubre y compra.",
+          "body": "Una IA puede encontrar, recomendar y comprar tus productos a nombre de su usuario."
+        }
+      ],
+      "note": "Esto no es promesa a futuro: la tienda ya es legible y operable por agentes hoy. ¿No nos crees? Pídele a tu IA que lo intente."
+    },
     "anchor": {
       "metadata": {
         "title": "Vende sin comisiones en México — Miyagi Sánchez",
@@ -176,6 +196,65 @@
           "primaryCta": "Crear tienda gratis",
           "closingCta": "Empezar sin comisión"
         }
+      },
+      "benchmark": {
+        "title": "Compara antes de decidir",
+        "lead": "Lo que pagas en otras plataformas, aquí te lo quedas. Compáralo tú mismo — o pídeselo a tu IA.",
+        "rowHeader": "Lo que comparas",
+        "columns": ["Miyagi Sánchez", "Mercado Libre", "Shopify"],
+        "rows": [
+          {
+            "label": "Comisión por venta",
+            "miyagi": "0% comisión de plataforma",
+            "mercadoLibre": "~8–16% (hasta ~20.5% en Premium), según categoría",
+            "shopify": "0% propio, pero +2% si no usas Shopify Payments"
+          },
+          {
+            "label": "Cuota mensual",
+            "miyagi": "$0",
+            "mercadoLibre": "$0 (cobran por venta)",
+            "shopify": "desde ~$19–$39 USD/mes + IVA"
+          },
+          {
+            "label": "Procesamiento de pago",
+            "miyagi": "El de tu pasarela, directo a tu cuenta",
+            "mercadoLibre": "Incluido en la comisión; te depositan después",
+            "shopify": "~3.5% + $3 MXN por transacción"
+          },
+          {
+            "label": "¿Dónde llega tu dinero?",
+            "miyagi": "Directo a tu cuenta (Stripe, MercadoPago, SPEI, efectivo)",
+            "mercadoLibre": "Retenido y liberado por Mercado Libre",
+            "shopify": "Vía Shopify Payments o tu pasarela"
+          },
+          {
+            "label": "Tienda y dominio propios",
+            "miyagi": "Sí: link, subdominio, dominio o widget",
+            "mercadoLibre": "No: vives dentro de Mercado Libre",
+            "shopify": "Sí, con tu plan"
+          },
+          {
+            "label": "Vender servicios, rentas y experiencias",
+            "miyagi": "Sí, nativo",
+            "mercadoLibre": "Limitado",
+            "shopify": "Con apps de terceros"
+          },
+          {
+            "label": "Vender a través de agentes de IA",
+            "miyagi": "Sí, nativo (UCP/MCP)",
+            "mercadoLibre": "No",
+            "shopify": "Apenas emergente"
+          },
+          {
+            "label": "Hecho para México",
+            "miyagi": "SPEI, MercadoPago, efectivo + revista impresa",
+            "mercadoLibre": "Sí",
+            "shopify": "Pasarelas, no local-first"
+          }
+        ],
+        "verified": "25 de junio de 2026",
+        "verifiedLabel": "Verificado",
+        "footnote": "Comparación con las tarifas públicas de Mercado Libre y Shopify México, verificadas el 25 de junio de 2026. Las tarifas cambian: pídele a tu IA que confirme los números antes de decidir."
       }
     },
     "creadores": {
