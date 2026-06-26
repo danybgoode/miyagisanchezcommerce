@@ -93,15 +93,20 @@ function ageMs(createdAt: string, now: number): number {
 }
 
 /**
- * Qualifies for the Selección: active, has ≥1 image AND a price, and is either
- * pinned or fresh (within MAX_AGE_DAYS). Pin overrides the freshness cutoff.
+ * Qualifies for the Selección. Every listing must be active/published with ≥1 image
+ * (no broken Destacado). A **pin is authoritative** past there: it qualifies
+ * regardless of price (the "Sin precio" events/agenda/art the admin curates) and
+ * regardless of freshness — so the admin's hand-curation always renders. An UNPINNED
+ * listing still needs a price AND must be fresh (within MAX_AGE_DAYS).
  */
 export function isQualifying(l: Listing, now: number): boolean {
   const active = l.status === 'active' || l.status === 'published'
   const hasImage = (l.images?.length ?? 0) > 0
+  if (!active || !hasImage) return false
+  if (isPinned(l)) return true // a pin overrides BOTH the price and the freshness gates
   const hasPrice = l.price_cents != null
-  if (!active || !hasImage || !hasPrice) return false
-  return isPinned(l) || ageMs(l.created_at, now) <= MAX_AGE_DAYS * DAY_MS
+  if (!hasPrice) return false
+  return ageMs(l.created_at, now) <= MAX_AGE_DAYS * DAY_MS
 }
 
 /**

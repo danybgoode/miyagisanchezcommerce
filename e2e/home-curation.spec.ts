@@ -91,6 +91,44 @@ test.describe('home-curation · qualifying rule', () => {
   })
 })
 
+test.describe('home-curation · pins authoritative over price (S1.1)', () => {
+  // A pinned "Sin precio" listing (event / agenda / art) the admin ranks #1.
+  const pinnedNoPrice = makeListing({
+    id: 'pinned-no-price',
+    price_cents: null,
+    metadata: { featured: true, featured_rank: 1 },
+  })
+  const pinnedNoImage = makeListing({
+    id: 'pinned-no-image',
+    images: [],
+    metadata: { featured: true, featured_rank: 1 },
+  })
+  const pinnedDraft = makeListing({
+    id: 'pinned-draft',
+    status: 'draft',
+    metadata: { featured: true, featured_rank: 1 },
+  })
+
+  test('a PINNED no-price listing qualifies and is the Destacado at rank 1', () => {
+    expect(isQualifying(pinnedNoPrice, NOW)).toBe(true)
+    expect(pickFeatured([fresh, pinnedNoPrice], NOW)?.id).toBe('pinned-no-price')
+  })
+
+  test('an UNPINNED no-price listing is still excluded', () => {
+    expect(isQualifying(noPrice, NOW)).toBe(false)
+    expect(curateGrid([fresh, noPrice], NOW).map(l => l.id)).not.toContain('no-price')
+  })
+
+  test('a PINNED no-image listing is still excluded (no broken Destacado)', () => {
+    expect(isQualifying(pinnedNoImage, NOW)).toBe(false)
+    expect(pickFeatured([fresh, pinnedNoImage], NOW)?.id).toBe('fresh')
+  })
+
+  test('a PINNED non-active (draft) listing is still excluded', () => {
+    expect(isQualifying(pinnedDraft, NOW)).toBe(false)
+  })
+})
+
 test.describe('home-curation · featured + grid', () => {
   test('a pinned listing is the featured pick over a fresher unpinned one', () => {
     const f = pickFeatured([fresh, pinnedStale], NOW)
