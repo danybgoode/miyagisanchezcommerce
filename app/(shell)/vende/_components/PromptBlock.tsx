@@ -53,6 +53,7 @@ export function PromptBlock({ prompt, copyLabel, copiedLabel, testId }: PromptBl
         className="btn btn-agent btn-sm"
         onClick={copy}
         data-testid={testId}
+        aria-live="polite"
         style={{ justifySelf: 'start' }}
       >
         <i className="iconoir-copy" aria-hidden="true" />
