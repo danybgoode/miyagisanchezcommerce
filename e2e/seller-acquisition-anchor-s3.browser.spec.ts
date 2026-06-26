@@ -21,6 +21,16 @@ test.describe('seller acquisition · anchor S3 sections (browser)', () => {
       await expect(page.getByRole('heading', { name: /Que la IA también venda por ti/i })).toBeVisible()
       await expect(page.getByText(/UCP\/MCP/i)).toBeVisible()
 
+      // S2 — benchmark worked-example block renders under the table (punchline visible).
+      await expect(page.getByTestId('vende-benchmark-example-punchline')).toBeVisible()
+      await expect(page.getByText(/Ejemplo: vendes un producto de \$1,000 MXN/i)).toBeVisible()
+
+      // S2 — the anchor social-proof stats block is replaced by the premium-features grid.
+      await expect(page.getByRole('heading', { name: /Todo esto ya viene incluido/i })).toBeVisible()
+
+      // S2 — persona-router cards no longer render an eyebrow badge.
+      await expect(page.locator('[data-testid^="vende-router-"] .badge-soft')).toHaveCount(0)
+
       // The table may scroll inside its own container, but the page itself must not overflow.
       const overflow = await page.evaluate(() => {
         const doc = document.documentElement

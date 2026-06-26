@@ -41,6 +41,22 @@ type BenchmarkRow = {
   shopify: string
 }
 
+type BenchmarkExampleRow = {
+  platform: string
+  commission: string
+  monthly: string
+  takeHome: string
+}
+
+type BenchmarkExample = {
+  title: string
+  lead: string
+  columns: string[]
+  rows: BenchmarkExampleRow[]
+  punchline: string
+  footnotes: string[]
+}
+
 type LandingBenchmark = {
   title: string
   lead: string
@@ -50,6 +66,20 @@ type LandingBenchmark = {
   verified: string
   verifiedLabel: string
   footnote: string
+  // Worked take-home example under the table (S2): "vendes un producto de $1,000 MXN".
+  example?: BenchmarkExample
+}
+
+type PremiumFeatureItem = {
+  icon: string
+  label: string
+  sub: string
+}
+
+type PremiumFeatures = {
+  title: string
+  lead: string
+  items: PremiumFeatureItem[]
 }
 
 type LandingAiChannel = {
@@ -90,6 +120,8 @@ export type SellerAcquisitionPageConfig = {
   socialTitle: string
   socialBody: string
   socialStats: Array<{ value: string; label: string }>
+  // Anchor replaces its social-proof stats block with this premium-features grid; personas leave it undefined.
+  premiumFeatures?: PremiumFeatures
   faqTitle: string
   faqs: LandingStep[]
   closingTitle: string
@@ -117,7 +149,11 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
       {config.personaRouter ? <PersonaRouterSection router={config.personaRouter} pageId={config.pageId} /> : null}
       <StepsSection config={config} />
       {config.aiChannel ? <AiChannelSection aiChannel={config.aiChannel} pageId={config.pageId} /> : null}
-      <SocialProofSection config={config} />
+      {config.premiumFeatures ? (
+        <PremiumFeaturesSection features={config.premiumFeatures} pageId={config.pageId} />
+      ) : (
+        <SocialProofSection config={config} />
+      )}
       <FaqSection config={config} />
       <ClosingCta config={config} />
     </main>
@@ -298,14 +334,15 @@ function PersonaRouterSection({
             prefetch={false}
             style={{ padding: 'var(--s-5)' }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--s-3)' }}>
-              <span className="badge badge-soft">{card.eyebrow}</span>
-              {card.statusLabel ? <span className="badge badge-warning">{card.statusLabel}</span> : null}
-            </div>
+            {card.statusLabel ? (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--s-3)' }}>
+                <span className="badge badge-warning">{card.statusLabel}</span>
+              </div>
+            ) : null}
             <i
               className={card.icon}
               aria-hidden="true"
-              style={{ color: 'var(--accent)', fontSize: 30, display: 'block', marginTop: 'var(--s-5)' }}
+              style={{ color: 'var(--accent)', fontSize: 30, display: 'block', marginTop: 'var(--s-2)' }}
             />
             <h3 className="t-h4" style={{ letterSpacing: 0, marginTop: 'var(--s-4)', marginBottom: 'var(--s-2)' }}>
               {card.title}
@@ -377,21 +414,59 @@ function StepsSection({ config }: { config: SellerAcquisitionPageConfig }) {
         </ol>
       </div>
 
-      <aside
+      <aside style={{ display: 'grid', gap: 'var(--s-4)', alignContent: 'start' }}>
+        <div>
+          <h2 className="t-h3" style={{ color: 'var(--agent)', letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
+            {config.agentTitle}
+          </h2>
+          <p className="t-small" style={{ color: 'var(--fg-muted)' }}>
+            {config.agentBody}
+          </p>
+        </div>
+        <PromptBlock
+          prompt={config.trustPrompt}
+          copyLabel={config.copyLabel}
+          copiedLabel={config.copiedLabel}
+          testId={`${config.pageId}-steps-prompt-copy`}
+        />
+      </aside>
+    </section>
+  )
+}
+
+function PremiumFeaturesSection({ features, pageId }: { features: PremiumFeatures; pageId: string }) {
+  return (
+    <section aria-labelledby={`${pageId}-premium-title`} style={{ marginBottom: 'var(--s-10)' }}>
+      <SectionIntro id={`${pageId}-premium-title`} title={features.title} lead={features.lead} />
+      <div
         style={{
-          borderLeft: '4px solid var(--agent)',
-          background: 'var(--agent-soft)',
-          borderRadius: 'var(--r-md)',
-          padding: 'var(--s-5)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gap: 'var(--s-3)',
         }}
       >
-        <h2 className="t-h3" style={{ color: 'var(--agent)', letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
-          {config.agentTitle}
-        </h2>
-        <p className="t-small" style={{ color: 'var(--agent)' }}>
-          {config.agentBody}
-        </p>
-      </aside>
+        {features.items.map((item) => (
+          <article
+            key={item.label}
+            className="card-panel"
+            style={{ padding: 'var(--s-5)', display: 'flex', gap: 'var(--s-3)', alignItems: 'flex-start' }}
+          >
+            <i
+              className={item.icon}
+              aria-hidden="true"
+              style={{ color: 'var(--accent)', fontSize: 26, lineHeight: 1, flexShrink: 0 }}
+            />
+            <span style={{ minWidth: 0 }}>
+              <strong style={{ display: 'block', color: 'var(--fg)', marginBottom: 'var(--s-1)' }}>
+                {item.label}
+              </strong>
+              <span className="t-small" style={{ display: 'block', color: 'var(--fg-muted)' }}>
+                {item.sub}
+              </span>
+            </span>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -574,7 +649,113 @@ function BenchmarkSection({
           {benchmark.footnote}
         </p>
       </div>
+      {benchmark.example ? (
+        <BenchmarkExampleBlock example={benchmark.example} pageId={pageId} cellBase={cellBase} />
+      ) : null}
     </section>
+  )
+}
+
+function BenchmarkExampleBlock({
+  example,
+  pageId,
+  cellBase,
+}: {
+  example: BenchmarkExample
+  pageId: string
+  cellBase: CSSProperties
+}) {
+  return (
+    <div style={{ marginTop: 'var(--s-7)' }}>
+      <h3 className="t-h4" style={{ letterSpacing: 0, marginBottom: 'var(--s-1)' }}>
+        {example.title}
+      </h3>
+      <p className="t-small" style={{ color: 'var(--fg-muted)', marginBottom: 'var(--s-3)' }}>
+        {example.lead}
+      </p>
+      <div
+        className="card-panel"
+        style={{ padding: 'var(--s-2)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+      >
+        <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr>
+              {example.columns.map((col, index) => (
+                <th
+                  key={col}
+                  scope="col"
+                  style={{
+                    ...cellBase,
+                    fontWeight: 700,
+                    color: index === 0 ? 'var(--fg)' : 'var(--fg-muted)',
+                  }}
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {example.rows.map((row, index) => (
+              <tr key={row.platform}>
+                <th
+                  scope="row"
+                  style={{
+                    ...cellBase,
+                    fontWeight: 600,
+                    color: index === 0 ? 'var(--accent)' : 'var(--fg)',
+                    background: index === 0 ? 'var(--bg-sunk)' : 'transparent',
+                  }}
+                >
+                  {row.platform}
+                </th>
+                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.commission}</td>
+                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.monthly}</td>
+                <td
+                  style={{
+                    ...cellBase,
+                    fontWeight: 600,
+                    color: index === 0 ? 'var(--accent)' : 'var(--fg)',
+                    background: index === 0 ? 'var(--bg-sunk)' : 'transparent',
+                  }}
+                >
+                  {row.takeHome}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p
+        data-testid={`${pageId}-benchmark-example-punchline`}
+        style={{
+          margin: 'var(--s-3) 0 0',
+          color: 'var(--agent)',
+          background: 'var(--agent-soft)',
+          borderLeft: '4px solid var(--agent)',
+          borderRadius: 'var(--r-md)',
+          padding: 'var(--s-3) var(--s-4)',
+          fontSize: 14,
+          lineHeight: 1.55,
+        }}
+      >
+        {example.punchline}
+      </p>
+      <ol
+        style={{
+          margin: 'var(--s-3) 0 0',
+          paddingLeft: 'var(--s-5)',
+          display: 'grid',
+          gap: 'var(--s-1)',
+        }}
+      >
+        {example.footnotes.map((note, index) => (
+          <li key={index} className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+            {note}
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
