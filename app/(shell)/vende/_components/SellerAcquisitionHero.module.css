@@ -1,0 +1,46 @@
+/* Scoped hero layout for the seller-acquisition pages. Mobile-first: DOM order governs (title → lead →
+   trust line → PromptBlock → value list → CTAs). At desktop width it promotes to a two-column layout
+   (left = title/lead/trust/CTAs, right = PromptBlock focal + value list) via grid areas, so the CTAs
+   render last on mobile but sit under the trust line on desktop. Scoped to _components/ — never touches
+   globals.css or the shared layout. */
+
+.hero {
+  display: grid;
+  gap: var(--s-5);
+  margin-bottom: var(--s-10);
+}
+
+@media (min-width: 860px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--s-8);
+    row-gap: var(--s-5);
+    align-items: start;
+    grid-template-areas:
+      'title  prompt'
+      'lead   prompt'
+      'trust  values'
+      'cta    values';
+  }
+
+  .title {
+    grid-area: title;
+  }
+  .lead {
+    grid-area: lead;
+  }
+  .trust {
+    grid-area: trust;
+  }
+  .prompt {
+    grid-area: prompt;
+  }
+  .values {
+    grid-area: values;
+    align-self: start;
+  }
+  .cta {
+    grid-area: cta;
+    align-self: start;
+  }
+}

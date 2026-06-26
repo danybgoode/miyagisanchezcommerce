@@ -36,14 +36,22 @@ export function buildAnchorPageConfig(
   return {
     ...baseConfig(copy, page, 'vende', query),
     pageId: 'vende',
+    // Anchor hero leads with the shared launch trust line (+ "copia el prompt", paired with the visible
+    // PromptBlock); personas keep their own per-page trust line. Anchor leads its right panel with the
+    // value list (0% · IA · Premium); personas keep their stats.
+    trustLine: copy.shared.heroTrustLine,
+    heroValues: page.heroValues,
     secondaryCta: {
       label: page.secondaryCta,
       // "¿Qué puedo vender?" jumps to the on-page persona router (which answers exactly that).
       href: '#vende-router-title',
     },
-    // Benchmark + AI-channel are anchor-only sections; persona builders leave them undefined.
+    // Benchmark (with its worked example) + AI-channel + premium-features grid are anchor-only
+    // sections; persona builders leave them undefined.
     benchmark: page.benchmark,
     aiChannel: copy.aiChannel,
+    // Anchor replaces its social-proof stats block with the premium-features grid.
+    premiumFeatures: page.premiumFeatures,
     personaRouter: {
       title: page.routerTitle,
       lead: page.routerLead,

@@ -21,6 +21,9 @@ test.describe('seller acquisition · mobile no-overflow sweep (browser)', () => 
         const h1 = page.getByRole('heading', { level: 1 }).first()
         await expect(h1).toBeVisible()
 
+        // Sprint 2 — the redesigned hero shows the visible copy-paste prompt block + copy button.
+        await expect(page.getByRole('button', { name: /Copiar prompt para mi IA/i }).first()).toBeVisible()
+
         // No horizontal page overflow. The benchmark table may scroll inside its own card, but the
         // document itself must not exceed the viewport width.
         const overflow = await page.evaluate(() => {
