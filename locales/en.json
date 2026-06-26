@@ -25,8 +25,9 @@
       "copiedPrompt": "Prompt copied",
       "selfCheck": {
         "title": "Check it yourself",
-        "body": "You do not have to take our word for it. Ask your AI assistant to read this page, compare the offer with what you pay today, and tell you, in your terms, whether it fits your business."
+        "body": "Copy the prompt and paste it into your AI so it evaluates the offer for you."
       },
+      "heroTrustLine": "Check it yourself: copy the prompt and ask Claude, Gemini, or ChatGPT to evaluate miyagisanchez.com and tell you whether it fits.",
       "faqTitle": "Normal questions before selling",
       "faqs": [
         {
@@ -83,6 +84,11 @@
         { "value": "0%", "label": "platform commission" },
         { "value": "20s", "label": "to register with Google" },
         { "value": "4", "label": "channels: link, subdomain, domain, or widget" }
+      ],
+      "heroValues": [
+        { "value": "0%", "label": "platform commission", "icon": "iconoir-percentage" },
+        { "value": "AI", "label": "sell on Claude, Gemini, and ChatGPT", "icon": "iconoir-sparks" },
+        { "value": "Premium", "label": "premium features included: tickets, sweepstakes, scheduling, and more", "icon": "iconoir-star" }
       ],
       "proofTitle": "Everything we promise already exists in the platform",
       "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi.",
@@ -149,13 +155,21 @@
         { "title": "Register in seconds", "body": "Use Google, create your shop, and choose how you want customers to find you." },
         { "title": "Upload your catalog", "body": "Paste text, import a file, or let your agent organize it with you." }
       ],
-      "socialTitle": "Built for real businesses, not demos",
-      "socialBody": "Miyagi already supports shops, products, services, direct payments, domains, subdomains, and widgets. The landing page only organizes that path.",
-      "socialStats": [
-        { "value": "0%", "label": "commission per sale" },
-        { "value": "MXN", "label": "payments built for Mexico" },
-        { "value": "AI", "label": "operable by agents" }
-      ],
+      "socialTitle": "",
+      "socialBody": "",
+      "socialStats": [],
+      "premiumFeatures": {
+        "title": "All of this is already included",
+        "lead": "Features you pay extra for on other platforms — here they are part of the marketplace.",
+        "items": [
+          { "icon": "iconoir-ticket", "label": "Tickets and events", "sub": "Sell admissions and run your event." },
+          { "icon": "iconoir-gift", "label": "Sweepstakes", "sub": "Sweepstakes campaigns to grow your audience." },
+          { "icon": "iconoir-calendar", "label": "Scheduling and appointments", "sub": "Book with Cal.com for services and experiences." },
+          { "icon": "iconoir-refresh", "label": "Subscriptions and content", "sub": "Charge recurring and sell your own content." },
+          { "icon": "iconoir-pricetag", "label": "Coupons and promotions", "sub": "Discounts and codes for your campaigns." },
+          { "icon": "iconoir-globe", "label": "Your domain, subdomain, or widget", "sub": "Your brand on any channel." }
+        ]
+      },
       "closingTitle": "Start free and leave it if you do not like it.",
       "closingBody": "No contract, no hidden commission, and no need to rebuild your business. Upload a first offer and try it.",
       "closingCta": "Open my shop",
@@ -223,7 +237,24 @@
         ],
         "verified": "June 25, 2026",
         "verifiedLabel": "Verified",
-        "footnote": "Compared against the public rates of Mercado Libre and Shopify Mexico, verified on June 25, 2026. Rates change: ask your AI to confirm the numbers before deciding."
+        "footnote": "Compared against the public rates of Mercado Libre and Shopify Mexico, verified on June 25, 2026. Rates change: ask your AI to confirm the numbers before deciding.",
+        "example": {
+          "title": "Example: you sell a $1,000 MXN product",
+          "lead": "How much reaches you, depending on where you sell.",
+          "columns": ["Platform", "Platform commission", "Monthly fee", "You keep (approx.)"],
+          "rows": [
+            { "platform": "miyagisanchez.com", "commission": "$0", "monthly": "$0", "takeHome": "~$1,000¹" },
+            { "platform": "Mercado Libre", "commission": "~$130 (≈13%)²", "monthly": "$0", "takeHome": "~$870" },
+            { "platform": "Shopify", "commission": "$0 per sale³", "monthly": "~$390–790/mo⁴", "takeHome": "~$1,000 − your monthly fee¹" }
+          ],
+          "punchline": "On a $1,000 sale you keep ~$130 more than on Mercado Libre — and with no monthly fee like Shopify.",
+          "footnotes": [
+            "Less your payment processor's fee (Stripe, MercadoPago ≈3.5% + $3), the same on any platform and straight to your account.",
+            "Average Clásica commission; varies by category (≈8–16%). Low-priced products pay an extra fixed charge.",
+            "With Shopify Payments; +2% if you use another gateway.",
+            "Basic plan ≈$19–39 USD/mo + VAT — whether or not you sell."
+          ]
+        }
       }
     },
     "creadores": {

@@ -16,16 +16,21 @@ const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url
 const aiChannel = es.sellerAcquisition.aiChannel
 
 test.describe('seller acquisition · AI-channel section (US-4)', () => {
-  test('aiChannel block exists with eyebrow, title, body, and a three-step "cómo funciona"', () => {
+  test('aiChannel block exists with title, body, and a three-step "cómo funciona"', () => {
     expect(aiChannel, 'sellerAcquisition.aiChannel must exist').toBeTruthy()
-    expect(aiChannel!.eyebrow.length).toBeGreaterThan(0)
     expect(aiChannel!.title.length).toBeGreaterThan(0)
     expect(aiChannel!.steps).toHaveLength(3)
     for (const step of aiChannel!.steps) {
       expect(step.title.length).toBeGreaterThan(0)
       expect(step.body.length).toBeGreaterThan(0)
     }
-    expect(aiChannel!.note.length).toBeGreaterThan(0)
+  })
+
+  test('launch polish: the eyebrow and the trailing "note" are removed (§C/§E)', () => {
+    // seller-landing-launch-polish Sprint 1 strips the AI-channel eyebrow + the
+    // "Esto no es promesa a futuro…" note; the keys remain (blanked) for type-parity.
+    expect(aiChannel!.eyebrow).toBe('')
+    expect(aiChannel!.note).toBe('')
   })
 
   test('frames the channel via the open UCP/MCP standard (truthful, not vapor)', () => {
