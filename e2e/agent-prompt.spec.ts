@@ -158,3 +158,34 @@ test.describe('withDetails · overlay human-readable details (S2.1)', () => {
     expect(buildAgentPrompt(withDetails(url, null))).toBe(buildAgentPrompt(url))
   })
 })
+
+test.describe('buildAgentPrompt · PDP + shop human-readable details (S2.2)', () => {
+  test('PDP names the product + price and keeps the canonical URL', () => {
+    const p = buildAgentPrompt({ kind: 'pdp', listingId: 'prod_1', title: 'Tenis Nike Air', price: '$499.00' })
+    expect(p).toContain('«Tenis Nike Air» ($499.00)')
+    expect(p).toContain('https://miyagisanchez.com/l/prod_1')
+  })
+
+  test('PDP with a title but no price omits the parenthetical (no "undefined")', () => {
+    const p = buildAgentPrompt({ kind: 'pdp', listingId: 'prod_1', title: 'Servicio de fotografía' })
+    expect(p).toContain('«Servicio de fotografía»')
+    expect(p).not.toContain('undefined')
+    expect(p).not.toContain('()')
+  })
+
+  test('PDP with no title is byte-identical to the Sprint-1 URL-only prompt', () => {
+    expect(buildAgentPrompt({ kind: 'pdp', listingId: 'prod_1' }))
+      .toBe(buildAgentPrompt({ kind: 'pdp', listingId: 'prod_1', title: undefined, price: undefined }))
+  })
+
+  test('shop names the shop and keeps the canonical URL', () => {
+    const p = buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx', shopName: 'Zapatos MX' })
+    expect(p).toContain('«Zapatos MX»')
+    expect(p).toContain('https://miyagisanchez.com/s/zapatos-mx')
+  })
+
+  test('shop with no name degrades to the URL-only prompt', () => {
+    expect(buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx' }))
+      .toBe(buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx', shopName: undefined }))
+  })
+})

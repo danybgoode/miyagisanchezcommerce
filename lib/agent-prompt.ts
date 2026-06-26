@@ -150,15 +150,23 @@ export function buildAgentPrompt(ctx: AgentPromptContext): string {
 
 function ask(ctx: AgentPromptContext): string {
   switch (ctx.kind) {
-    case 'pdp':
+    case 'pdp': {
+      // Name the product (+ price) when the page pushed it (S2.2); else URL-only (S1.3).
+      const lead = ctx.title
+        ? `«${ctx.title}»${ctx.price ? ` (${ctx.price})` : ''}\n${listingTarget(ctx.listingId)}`
+        : listingTarget(ctx.listingId)
       return `Quiero que revises este producto del marketplace y me ayudes a decidir o comprarlo:
-${listingTarget(ctx.listingId)}
+${lead}
 Usa el API del marketplace (UCP/MCP) para ver el detalle, el precio y las opciones de pago, y si quiero, haz una oferta o inicia la compra por mí.`
+    }
 
-    case 'shop':
+    case 'shop': {
+      // Name the shop when the page pushed it (S2.2); else URL-only (S1.3).
+      const lead = ctx.shopName ? `«${ctx.shopName}»\n${shopTarget(ctx.slug)}` : shopTarget(ctx.slug)
       return `Quiero saber qué vende esta tienda del marketplace y que me ayudes a comprar ahí:
-${shopTarget(ctx.slug)}
+${lead}
 Usa el API del marketplace (UCP/MCP) para listar sus productos, comparar precios y, si quiero, iniciar una compra o una oferta.`
+    }
 
     case 'catalog': {
       const url = ctx.queryString ? `${PLATFORM_ORIGIN}/l?${ctx.queryString}` : `${PLATFORM_ORIGIN}/l`
