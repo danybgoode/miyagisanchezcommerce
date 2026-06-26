@@ -145,7 +145,7 @@ function hasValidAdminSecret(req: Request): boolean {
  * endpoints require `x-admin-secret` or `?secret=`"* (and `/api/supply/upload`'s
  * *"No Clerk login needed — same secret as the rest"*).
  *
- * S2.3 (#109) migrated every admin route onto Clerk-only `withAdmin`, which
+ * S2.3 (PR 109) migrated every admin route onto Clerk-only `withAdmin`, which
  * **unintentionally also revoked that documented headless path** — the migration
  * preserved machine access only on `/api/admin/import` + the PDF render route,
  * overlooking that the live importer targets `/api/supply/*`. This wrapper
