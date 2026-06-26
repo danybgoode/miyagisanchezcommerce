@@ -35,6 +35,7 @@ import { ticketQuantityCap } from '@/lib/ticket-quantity'
 import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
+import { SetAgentContext } from '@/app/components/AgentContext'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
 import { db } from '@/lib/supabase'
@@ -617,6 +618,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     <div
       className={redesign ? 'max-w-[640px] md:max-w-[960px] mx-auto md:px-6 md:pb-12' : 'max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12'}
     >
+      {/* Push the product title + price into AgentContext so the navbar AI card's
+          copied prompt names this product (S2.2). `effectivePrice` mirrors what the
+          shopper sees; clears on navigation away. */}
+      <SetAgentContext title={listing.title} price={effectivePrice} />
       {/* ── Desktop 2-col grid ──────────────────────────────────────────────── */}
       <div className="md:grid md:gap-10 md:[grid-template-columns:46%_1fr]">
 

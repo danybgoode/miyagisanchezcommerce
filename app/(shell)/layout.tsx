@@ -4,6 +4,7 @@ import TrustSignals from '@/app/components/TrustSignals'
 import PlatformShell from '@/app/components/PlatformShell'
 import PlatformThemeScript from '@/app/components/PlatformThemeScript'
 import ReferralAttribution from '@/app/components/ReferralAttribution'
+import { AgentContextProvider } from '@/app/components/AgentContext'
 import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
@@ -52,7 +53,12 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
 
   return (
-    <>
+    // AgentContextProvider wraps both the chrome (where AIAgentButton's card lives) and
+    // {children} (where a server page's <SetAgentContext> pushes its details) so the
+    // hand-off prompt can name the actual product/shop. It wraps all three branches; on
+    // white-label/seller-mode the AIAgentButton consumer isn't rendered, so any details a
+    // page sets are simply never read (harmless).
+    <AgentContextProvider>
       {/* Seasonal-theme boot script (beforeInteractive) — only on eligible platform
           pages (`/l*`, `/agent`), never white-label/embed/ineligible. The static root
           can't gate by path, so it's emitted here where eligibility is known. */}
@@ -85,6 +91,6 @@ export default async function ShellLayout({ children }: { children: React.ReactN
         <main>{children}</main>
       )}
       <ReferralAttribution />
-    </>
+    </AgentContextProvider>
   )
 }

@@ -5,6 +5,7 @@ import { getShop, getShopListings, formatPrice } from '@/lib/listings'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { getSlugRedirect } from '@/lib/slug-redirect'
+import { SetAgentContext } from '@/app/components/AgentContext'
 import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import type { Metadata } from 'next'
@@ -138,6 +139,11 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
   const pageContent = (
     <div style={{ '--shop-accent': accent } as React.CSSProperties}>
+
+      {/* Push the shop name into AgentContext so the navbar AI card's copied prompt names
+          this shop (S2.2). On white-label channels the AIAgentButton consumer isn't
+          rendered, so the value is set but never read → harmless. */}
+      <SetAgentContext shopName={shop.name} />
 
       {/* ── Banner + shop identity header ───────────────────────────────────── */}
       <div className="relative mb-16">

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
-import { buildAgentPrompt, resolveAgentContext } from '@/lib/agent-prompt'
+import { buildAgentPrompt, resolveAgentContext, withDetails } from '@/lib/agent-prompt'
+import { useAgentContext } from '@/app/components/AgentContext'
 
 /**
  * `icon`       — bare ✨ icon button (legacy; no longer mounted after the
@@ -22,15 +23,19 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
 
   useEffect(() => { setMounted(true) }, [])
 
-  // es-MX hand-off prompt, contextual to the current page (URL-only — S1.3).
-  // `usePathname` is SSR-safe + Suspense-free (so static pages stay static); the
-  // catalog query string is read from `window` only after mount — the sheet opens
-  // on click, so the copied/opened prompt always reflects the live URL.
+  // es-MX hand-off prompt, contextual to the current page. The page TYPE + URL come from
+  // the path (URL-only — S1.3); rich human-readable details (product title/price, shop
+  // name) are layered on from AgentContext, which a server page pushes via SetAgentContext
+  // (S2.1). `usePathname` is SSR-safe + Suspense-free (so static pages stay static); the
+  // catalog query string is read from `window` only after mount — the sheet opens on click,
+  // so the copied/opened prompt always reflects the live URL. `details` is null until the
+  // page island's effect runs → the prompt degrades to the Sprint-1 URL-only phrasing.
   const pathname = usePathname()
+  const details = useAgentContext()
   const searchParams = mounted && typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search)
     : null
-  const prompt = buildAgentPrompt(resolveAgentContext(pathname, searchParams))
+  const prompt = buildAgentPrompt(withDetails(resolveAgentContext(pathname, searchParams), details))
 
   async function copy() {
     await navigator.clipboard.writeText(prompt)

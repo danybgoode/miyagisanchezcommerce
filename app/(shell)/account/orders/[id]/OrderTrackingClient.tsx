@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import { SetAgentContext } from '@/app/components/AgentContext'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
 import {
   deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
@@ -422,6 +423,11 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
+
+      {/* Push this order's product title into AgentContext so the navbar AI card offers
+          order-specific help (S2.3); the order ref comes from the URL. The in-page
+          AgentHandoff below is the dedicated refund flow and is left untouched. */}
+      <SetAgentContext title={listing?.title} />
 
       {/* Breadcrumb */}
       <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
