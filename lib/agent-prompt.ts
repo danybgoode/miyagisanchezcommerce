@@ -30,6 +30,32 @@ export type AgentPromptContext =
 type ReadonlyParams = Pick<URLSearchParams, 'get'> & { toString(): string }
 
 /**
+ * Catalog filter keys we'll echo into the hand-off URL. The prompt is pasted into
+ * the user's agent, so we whitelist known params (drop `utm_*`/arbitrary junk) and
+ * sanitize free text — never copy the raw query string verbatim.
+ */
+const CATALOG_PARAMS = [
+  'q', 'category', 'state', 'municipio', 'sort', 'brand', 'condition',
+  'min', 'max', 'year', 'km', 'transmission', 'fuel', 'rooms', 'surface', 'property',
+] as const
+
+/** Collapse whitespace/newlines and cap length so a value can't carry multi-line instructions. */
+function sanitizeParamText(value: string | null | undefined): string {
+  return (value || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+}
+
+/** Rebuild the catalog query string from the allow-list only, with sanitized values. */
+function buildCatalogQuery(sp?: ReadonlyParams | null): string {
+  if (!sp) return ''
+  const out = new URLSearchParams()
+  for (const key of CATALOG_PARAMS) {
+    const val = sanitizeParamText(sp.get(key))
+    if (val) out.set(key, val)
+  }
+  return out.toString()
+}
+
+/**
  * Shared preamble so a cold agent still works: it points at the marketplace ficha
  * (/agent) + the UCP spec before any page-specific ask.
  */
@@ -59,8 +85,8 @@ export function resolveAgentContext(
   if (seg[0] === 'l') {
     const listingId = seg[1]
     if (listingId) return { kind: 'pdp', listingId }
-    const search = (searchParams?.get('q') || searchParams?.get('category') || '').trim() || undefined
-    const queryString = searchParams?.toString() || undefined
+    const search = sanitizeParamText(searchParams?.get('q') || searchParams?.get('category')) || undefined
+    const queryString = buildCatalogQuery(searchParams) || undefined
     return { kind: 'catalog', search, queryString }
   }
 
