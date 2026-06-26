@@ -55,7 +55,9 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   return (
     // AgentContextProvider wraps both the chrome (where AIAgentButton's card lives) and
     // {children} (where a server page's <SetAgentContext> pushes its details) so the
-    // hand-off prompt can name the actual product/shop. No-op on white-label/seller-mode.
+    // hand-off prompt can name the actual product/shop. It wraps all three branches; on
+    // white-label/seller-mode the AIAgentButton consumer isn't rendered, so any details a
+    // page sets are simply never read (harmless).
     <AgentContextProvider>
       {/* Seasonal-theme boot script (beforeInteractive) — only on eligible platform
           pages (`/l*`, `/agent`), never white-label/embed/ineligible. The static root

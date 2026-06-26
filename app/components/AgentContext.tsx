@@ -2,7 +2,7 @@
 
 import {
   createContext, useContext, useEffect, useState,
-  type ReactNode,
+  type Dispatch, type SetStateAction, type ReactNode,
 } from 'react'
 import type { AgentPromptDetails } from '@/lib/agent-prompt'
 
@@ -16,7 +16,7 @@ import type { AgentPromptDetails } from '@/lib/agent-prompt'
  * stays stable for the page islands.
  */
 const ValueContext = createContext<AgentPromptDetails | null>(null)
-const SetterContext = createContext<((d: AgentPromptDetails | null) => void) | null>(null)
+const SetterContext = createContext<Dispatch<SetStateAction<AgentPromptDetails | null>> | null>(null)
 
 /** Current page's hand-off details, or null (no provider / not yet set / generic page). */
 export function useAgentContext(): AgentPromptDetails | null {
@@ -42,8 +42,12 @@ export function AgentContextProvider({ children }: { children: ReactNode }) {
 export function SetAgentContext({ title, price, shopName }: AgentPromptDetails) {
   const setDetails = useContext(SetterContext)
   useEffect(() => {
-    setDetails?.({ title, price, shopName })
-    return () => setDetails?.(null)
+    const mine: AgentPromptDetails = { title, price, shopName }
+    setDetails?.(mine)
+    // Compare-and-clear: only null out if the context still holds OUR object. During a
+    // client navigation the next page's island can set its details before this one's
+    // cleanup runs — a blind `setDetails(null)` would then erase the new page's context.
+    return () => setDetails?.(prev => (prev === mine ? null : prev))
   }, [setDetails, title, price, shopName])
   return null
 }

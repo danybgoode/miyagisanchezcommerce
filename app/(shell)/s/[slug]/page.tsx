@@ -141,7 +141,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     <div style={{ '--shop-accent': accent } as React.CSSProperties}>
 
       {/* Push the shop name into AgentContext so the navbar AI card's copied prompt names
-          this shop (S2.2). On white-label channels the provider is absent → safe no-op. */}
+          this shop (S2.2). On white-label channels the AIAgentButton consumer isn't
+          rendered, so the value is set but never read → harmless. */}
       <SetAgentContext shopName={shop.name} />
 
       {/* ── Banner + shop identity header ───────────────────────────────────── */}
