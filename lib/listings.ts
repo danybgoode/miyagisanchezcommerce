@@ -6,9 +6,9 @@ import { buildQuery } from './listing-query'
 import {
   pickFeatured,
   curateGrid,
+  curatedGridSize,
   liveCategoryCounts,
   windowSeed,
-  GRID_SIZE,
   type CategoryCount,
 } from './home-curation'
 
@@ -225,13 +225,15 @@ export async function getFeaturedListing(now = Date.now()): Promise<Listing | nu
 }
 
 /**
- * The Selección grid — n qualifying listings, excluding the featured card. The
- * unpinned remainder is shuffled per ISR window (`windowSeed(now)`, S3.1) so the
- * grid visibly rotates across revalidations; pinned/admin-ordered items stay fixed.
+ * The Selección grid — every remaining qualifying pin (so the admin's full curation
+ * renders, S1.2) plus auto-fill up to GRID_SIZE, capped at GRID_CAP; excludes the
+ * featured card. The unpinned remainder is shuffled per ISR window (`windowSeed(now)`,
+ * S3.1) so it visibly rotates across revalidations; pinned/admin-ordered items stay fixed.
  */
-export async function getCuratedListings(n = GRID_SIZE, now = Date.now()): Promise<Listing[]> {
+export async function getCuratedListings(now = Date.now()): Promise<Listing[]> {
   const pool = await getCuratedPool()
   const featured = pickFeatured(pool, now)
+  const n = curatedGridSize(pool, now, featured?.id)
   return curateGrid(pool, now, n, featured?.id, windowSeed(now))
 }
 

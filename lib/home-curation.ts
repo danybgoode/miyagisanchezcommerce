@@ -20,8 +20,10 @@ import { CACHE } from './cache-policy'
 export const MAX_AGE_DAYS = 14
 /** A timestamp badge shows only when the listing is younger than this. */
 export const RECENT_HOURS = 48
-/** Default Selección grid size. */
+/** Default Selección grid size (the floor: a thin board still auto-fills to here). */
 export const GRID_SIZE = 4
+/** Hard cap on Selección grid cards (Destacado + grid ≤ 12) — a runaway guard. */
+export const GRID_CAP = 11
 /**
  * The ISR revalidate window in ms, mirrored from the cache-policy SSOT
  * (`CACHE.LISTING`, seconds). The homepage's own `export const revalidate` is a
@@ -93,15 +95,20 @@ function ageMs(createdAt: string, now: number): number {
 }
 
 /**
- * Qualifies for the Selección: active, has ≥1 image AND a price, and is either
- * pinned or fresh (within MAX_AGE_DAYS). Pin overrides the freshness cutoff.
+ * Qualifies for the Selección. Every listing must be active/published with ≥1 image
+ * (no broken Destacado). A **pin is authoritative** past there: it qualifies
+ * regardless of price (the "Sin precio" events/agenda/art the admin curates) and
+ * regardless of freshness — so the admin's hand-curation always renders. An UNPINNED
+ * listing still needs a price AND must be fresh (within MAX_AGE_DAYS).
  */
 export function isQualifying(l: Listing, now: number): boolean {
   const active = l.status === 'active' || l.status === 'published'
   const hasImage = (l.images?.length ?? 0) > 0
+  if (!active || !hasImage) return false
+  if (isPinned(l)) return true // a pin overrides BOTH the price and the freshness gates
   const hasPrice = l.price_cents != null
-  if (!active || !hasImage || !hasPrice) return false
-  return isPinned(l) || ageMs(l.created_at, now) <= MAX_AGE_DAYS * DAY_MS
+  if (!hasPrice) return false
+  return ageMs(l.created_at, now) <= MAX_AGE_DAYS * DAY_MS
 }
 
 /**
@@ -128,6 +135,20 @@ function byPinnedThenFresh(a: Listing, b: Listing): number {
 export function pickFeatured(listings: Listing[], now: number): Listing | null {
   const qualifying = listings.filter(l => isQualifying(l, now)).sort(byPinnedThenFresh)
   return qualifying[0] ?? null
+}
+
+/**
+ * The grid card count: grows to fit **every** remaining qualifying pin (after the
+ * excluded Destacado, so the admin's full curation always renders), floored at
+ * GRID_SIZE so a thin board still auto-fills, and capped at GRID_CAP as a runaway
+ * guard. Pass the result as `n` to `curateGrid` — pins sort first there, so
+ * `n >= remainingPins` guarantees no pin is ever sliced off.
+ */
+export function curatedGridSize(listings: Listing[], now: number, excludeId?: string): number {
+  const remainingPins = listings.filter(
+    l => isQualifying(l, now) && l.id !== excludeId && isPinned(l),
+  ).length
+  return Math.min(GRID_CAP, Math.max(GRID_SIZE, remainingPins))
 }
 
 /**

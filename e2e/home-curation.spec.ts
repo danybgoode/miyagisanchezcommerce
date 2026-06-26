@@ -4,11 +4,14 @@ import {
   isQualifying,
   pickFeatured,
   curateGrid,
+  curatedGridSize,
   featuredRank,
   isRecentForBadge,
   liveCategoryCounts,
   seededShuffle,
   windowSeed,
+  GRID_SIZE,
+  GRID_CAP,
   MAX_AGE_DAYS,
   RECENT_HOURS,
   REVALIDATE_MS,
@@ -88,6 +91,122 @@ test.describe('home-curation · qualifying rule', () => {
 
   test('a non-active (draft) listing is excluded', () => {
     expect(isQualifying(draft, NOW)).toBe(false)
+  })
+})
+
+test.describe('home-curation · pins authoritative over price (S1.1)', () => {
+  // A pinned "Sin precio" listing (event / agenda / art) the admin ranks #1.
+  const pinnedNoPrice = makeListing({
+    id: 'pinned-no-price',
+    price_cents: null,
+    metadata: { featured: true, featured_rank: 1 },
+  })
+  const pinnedNoImage = makeListing({
+    id: 'pinned-no-image',
+    images: [],
+    metadata: { featured: true, featured_rank: 1 },
+  })
+  const pinnedDraft = makeListing({
+    id: 'pinned-draft',
+    status: 'draft',
+    metadata: { featured: true, featured_rank: 1 },
+  })
+
+  test('a PINNED no-price listing qualifies and is the Destacado at rank 1', () => {
+    expect(isQualifying(pinnedNoPrice, NOW)).toBe(true)
+    expect(pickFeatured([fresh, pinnedNoPrice], NOW)?.id).toBe('pinned-no-price')
+  })
+
+  test('an UNPINNED no-price listing is still excluded', () => {
+    expect(isQualifying(noPrice, NOW)).toBe(false)
+    expect(curateGrid([fresh, noPrice], NOW).map(l => l.id)).not.toContain('no-price')
+  })
+
+  test('a PINNED no-image listing is still excluded (no broken Destacado)', () => {
+    expect(isQualifying(pinnedNoImage, NOW)).toBe(false)
+    expect(pickFeatured([fresh, pinnedNoImage], NOW)?.id).toBe('fresh')
+  })
+
+  test('a PINNED non-active (draft) listing is still excluded', () => {
+    expect(isQualifying(pinnedDraft, NOW)).toBe(false)
+  })
+})
+
+test.describe('home-curation · grid grows to all pins (S1.2)', () => {
+  // N pins ranked 1..N, rank 1 freshest so it's the Destacado.
+  function makePins(count: number): Listing[] {
+    return Array.from({ length: count }, (_, i) =>
+      makeListing({
+        id: `pin-${i + 1}`,
+        created_at: new Date(NOW - (i + 1) * HOUR).toISOString(),
+        metadata: { featured: true, featured_rank: i + 1 },
+      }))
+  }
+  const SEED = windowSeed(NOW)
+
+  test('curatedGridSize is floored at GRID_SIZE and capped at GRID_CAP', () => {
+    expect(curatedGridSize([], NOW)).toBe(GRID_SIZE) // no pins → floor (auto-fill)
+    expect(curatedGridSize(makePins(2), NOW)).toBe(GRID_SIZE) // 2 pins < floor
+    expect(curatedGridSize(makePins(7), NOW)).toBe(7) // between floor and cap
+    expect(curatedGridSize(makePins(15), NOW)).toBe(GRID_CAP) // above cap
+  })
+
+  test('curatedGridSize excludes the Destacado from the pin count', () => {
+    const pool = makePins(8)
+    const featured = pickFeatured(pool, NOW)
+    expect(featured?.id).toBe('pin-1')
+    expect(curatedGridSize(pool, NOW, featured?.id)).toBe(7) // 8 pins − Destacado
+  })
+
+  test('6 pins ⇒ Destacado + all 5 remaining in featured_rank order', () => {
+    const pool = makePins(6)
+    const featured = pickFeatured(pool, NOW)
+    const n = curatedGridSize(pool, NOW, featured?.id)
+    const grid = curateGrid(pool, NOW, n, featured?.id, SEED)
+    expect(grid.map(l => l.id)).toEqual(['pin-2', 'pin-3', 'pin-4', 'pin-5', 'pin-6'])
+    expect(grid.map(l => l.id)).not.toContain('pin-1') // Destacado never repeats
+  })
+
+  test('fewer pins ⇒ auto-fill brings the grid up to GRID_SIZE, pin leads', () => {
+    const pins = makePins(2)
+    const fillers = Array.from({ length: 6 }, (_, i) =>
+      makeListing({ id: `f${i}`, created_at: new Date(NOW - (i + 10) * HOUR).toISOString() }))
+    const pool = [...pins, ...fillers]
+    const featured = pickFeatured(pool, NOW)
+    expect(featured?.id).toBe('pin-1')
+    const n = curatedGridSize(pool, NOW, featured?.id)
+    expect(n).toBe(GRID_SIZE) // 1 remaining pin < floor → 4
+    const grid = curateGrid(pool, NOW, n, featured?.id, SEED)
+    expect(grid.length).toBe(GRID_SIZE)
+    expect(grid[0].id).toBe('pin-2') // the remaining pin leads, then auto-filled fillers
+    expect(grid.slice(1).every(l => !isPinned(l))).toBe(true)
+  })
+
+  test('the cap holds at GRID_CAP — a 13th pin is dropped', () => {
+    const pool = makePins(13)
+    const featured = pickFeatured(pool, NOW)
+    const n = curatedGridSize(pool, NOW, featured?.id)
+    expect(n).toBe(GRID_CAP) // 12 remaining, capped at 11
+    const grid = curateGrid(pool, NOW, n, featured?.id, SEED)
+    expect(grid.length).toBe(GRID_CAP)
+    expect(grid.map(l => l.id)).toEqual(
+      Array.from({ length: 11 }, (_, i) => `pin-${i + 2}`)) // pins 2..12 in rank order
+    expect(grid.map(l => l.id)).not.toContain('pin-13') // 13th pin dropped by the cap
+  })
+
+  test('the unpinned remainder still rotates across windows (shuffle unchanged)', () => {
+    // 2 pins + a wide unpinned tail at a grown grid size → tail order varies by window.
+    const pins = makePins(2)
+    const fillers = Array.from({ length: 9 }, (_, i) =>
+      makeListing({ id: `f${i}`, created_at: new Date(NOW - (i + 10) * HOUR).toISOString() }))
+    const pool = [...pins, ...fillers]
+    const featured = pickFeatured(pool, NOW)
+    const n = curatedGridSize(pool, NOW, featured?.id)
+    const tail = (seed: number) =>
+      curateGrid(pool, NOW, n, featured?.id, seed).slice(1).map(l => l.id).join(',')
+    const orders = new Set<string>()
+    for (let bucket = 0; bucket < 12; bucket++) orders.add(tail(bucket))
+    expect(orders.size).toBeGreaterThan(1)
   })
 })
 
