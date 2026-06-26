@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -42,12 +42,19 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    for one event in a single checkout (epic 10). Default OFF ⇒ quantity capped
  *    at 1 (today's behavior) — a flag outage can never let an unverified money/
  *    door path go live. Flip ON once Daniel's live buy-N → N-QR → door smoke passes.
+ *  - ENABLEMENT (`shipping.envia_enabled`): default `false`. The Envia.com shipping
+ *    integration (epic 04). Default OFF ⇒ arranged-delivery / manual-carrier fallback,
+ *    so a flag outage can never push checkout/fulfillment at the unfunded platform
+ *    Envía account. The BACKEND is the real enforcement (rates + label routes); this
+ *    FE read only informs the seller-settings banner + the legacy FE ship/re-quote
+ *    routes. Flip ON the instant the Envía account is funded.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'domain.paywall_enabled': false,
   'pdp_redesign': true,
   'events.quantity_enabled': false,
+  'shipping.envia_enabled': false,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY

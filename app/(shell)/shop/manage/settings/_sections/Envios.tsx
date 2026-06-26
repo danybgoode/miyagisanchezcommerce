@@ -34,6 +34,13 @@ export interface EnviosInitial {
   shipping: ShippingSettings | null
   /** Read-only — the seller's scheduling links (edited under Citas), for the pickup-spot dropdown. */
   scheduling_links: Array<{ label: string; url: string }>
+  /**
+   * Platform Envía kill-switch (`shipping.envia_enabled`), server-evaluated. When
+   * false, automatic Envía shipping is paused platform-wide and the per-shop "tarifas
+   * en vivo" toggle below is superseded — we show a banner and never overwrite the
+   * seller's own `envia_enabled` value. Cosmetic only; the backend is the real gate.
+   */
+  platform_envia_enabled: boolean
 }
 
 export default function Envios({ initial }: { initial: EnviosInitial }) {
@@ -468,10 +475,19 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
 
           {/* ── Envia.com checkout policy ──────────────────────────────── */}
           <div className="pt-4">
+            {!initial.platform_envia_enabled && (
+              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+                <strong>Envío automático en pausa.</strong> Por ahora el cálculo de tarifas en vivo y la
+                generación de etiquetas con Envia.com están desactivados a nivel de plataforma, así que tu
+                opción de &ldquo;tarifas en vivo&rdquo; no surte efecto. Mientras tanto, coordina la entrega
+                con paquetería manual o entrega acordada. Tu configuración se conserva y se reactivará en
+                cuanto el envío automático vuelva a estar disponible.
+              </div>
+            )}
             <ToggleSwitch
               checked={enviaShippingEnabled}
               onChange={v => { setEnviaShippingEnabled(v); mark() }}
-              disabled={!originAddressReady}
+              disabled={!originAddressReady || !initial.platform_envia_enabled}
               label="Envío a domicilio con tarifas en vivo"
               description="Muestra al comprador opciones reales de paquetería calculadas por Envia.com antes de pagar."
             />
