@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
+import { isEnabled } from '@/lib/flags'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
@@ -68,6 +69,14 @@ export default async function SettingsSectionPage({
     ? (await resolveDomainEntitlement(shop.metadata, { sellerClerkId: user.id })).entitled
     : true
 
+  // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open).
+  // Server-evaluated only for the Envíos section; when off, the section shows a
+  // banner that automatic Envía shipping is paused platform-wide (the backend is
+  // the real enforcement — this is cosmetic). Don't read it elsewhere.
+  const platformEnviaEnabled = section === 'envios'
+    ? await isEnabled('shipping.envia_enabled')
+    : true
+
   const meta = shop.metadata as Record<string, unknown> | null
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
   // Typed view of the settings tree for the extracted sections (each reads only its slice).
@@ -116,6 +125,7 @@ export default async function SettingsSectionPage({
           whatsapp: st.theme?.social?.whatsapp ?? null,
           shipping: st.shipping ?? null,
           scheduling_links: st.scheduling?.links ?? [],
+          platform_envia_enabled: platformEnviaEnabled,
         }} />
       case 'citas':
         return <Citas initial={{
