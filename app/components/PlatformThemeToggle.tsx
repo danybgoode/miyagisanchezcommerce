@@ -82,7 +82,10 @@ export default function PlatformThemeToggle({ labels, variant, initialEligible }
   const activeSeasonal = choice === seasonal.id && eligible
   const title = activeSeasonal ? labels.coreTitle : labels.seasonalTitle
   const status = activeSeasonal ? labels.activeSeasonal : labels.activeCore
-  const icon = 'iconoir-sparks'
+  // The seasonal/designer theme feature owns the `flask` glyph; the AI agent
+  // feature keeps `sparks` (the industry-standard AI icon) so the two are
+  // visually distinct in the navbar chrome.
+  const icon = 'iconoir-flask'
 
   const className = useMemo(() => {
     return [

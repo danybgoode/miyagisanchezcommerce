@@ -2,16 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-
-const AGENT_PROMPT = `You are my personal shopping assistant for Miyagi Sánchez — Mexico's zero-commission marketplace.
-
-Before helping me, please read both sources:
-• Marketplace briefing (MCP endpoint, UCP capabilities, API docs): https://miyagisanchez.com/agent
-• Universal Commerce Protocol spec: https://ucp.dev
-
-Once you've reviewed them, you'll be able to search listings, make offers, and help me complete purchases or negotiations through the marketplace API. The marketplace supports physical goods, digital products, services, rentals, and subscriptions — all payable via Stripe, MercadoPago, or SPEI.
-
-¿Qué estás buscando? / What are you looking for today?`
+import { usePathname } from 'next/navigation'
+import { buildAgentPrompt, resolveAgentContext } from '@/lib/agent-prompt'
 
 /**
  * `icon`       — bare ✨ icon button (legacy; no longer mounted after the
@@ -30,13 +22,23 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
 
   useEffect(() => { setMounted(true) }, [])
 
+  // es-MX hand-off prompt, contextual to the current page (URL-only — S1.3).
+  // `usePathname` is SSR-safe + Suspense-free (so static pages stay static); the
+  // catalog query string is read from `window` only after mount — the sheet opens
+  // on click, so the copied/opened prompt always reflects the live URL.
+  const pathname = usePathname()
+  const searchParams = mounted && typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : null
+  const prompt = buildAgentPrompt(resolveAgentContext(pathname, searchParams))
+
   async function copy() {
-    await navigator.clipboard.writeText(AGENT_PROMPT)
+    await navigator.clipboard.writeText(prompt)
     setCopied(true)
     setTimeout(() => setCopied(false), 2200)
   }
 
-  const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(AGENT_PROMPT)}`
+  const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(prompt)}`
 
   const sheet = open && mounted ? createPortal(
     <>
@@ -84,7 +86,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
           maxHeight: 160,
           overflowY: 'auto',
         }}>
-          {AGENT_PROMPT}
+          {prompt}
         </div>
 
         {/* Primary actions */}
