@@ -2,8 +2,13 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
-import { resolveSellerAcquisitionVariant, sellerPersonaCtaHref } from '@/lib/seller-acquisition'
+import {
+  resolveSellerAcquisitionVariant,
+  sellerPersonaCtaHref,
+  sellerTrustPrompt,
+} from '@/lib/seller-acquisition'
 import { SellerAcquisitionVariantTag } from '../_components/SellerAcquisitionVariantTag'
+import { PromptBlock } from '../_components/PromptBlock'
 import { applySellerAcquisitionPageVariant } from '../_components/page-config'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -44,6 +49,9 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
   const ui = applySellerAcquisitionPageVariant(sellerAcquisition.mundial, variant)
   const selfCheck = sellerAcquisition.shared.selfCheck
   const sellCta = sellerPersonaCtaHref('mundial', query)
+  const trustPrompt = sellerTrustPrompt('mundial', sellerAcquisition.shared.trustPrompt)
+  const copyLabel = sellerAcquisition.shared.copyPrompt
+  const copiedLabel = sellerAcquisition.shared.copiedPrompt
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -88,9 +96,6 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
         }}
       >
         <div>
-          <span className="badge badge-promo" style={{ marginBottom: 16 }}>
-            {ui.eyebrow}
-          </span>
           <h1
             id="mundial-hero-title"
             className="t-h1"
@@ -117,12 +122,20 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
               lineHeight: 1.55,
               fontSize: 14,
               maxWidth: 610,
-              marginBottom: 22,
+              marginBottom: 18,
             }}
           >
             <i className="iconoir-sparks" aria-hidden="true" style={{ marginRight: 6 }} />
             {ui.trustLine}
           </p>
+          <div style={{ maxWidth: 610, marginBottom: 22 }}>
+            <PromptBlock
+              prompt={trustPrompt}
+              copyLabel={copyLabel}
+              copiedLabel={copiedLabel}
+              testId="mundial-prompt-copy"
+            />
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
             <Link
               href={sellCta}
@@ -298,20 +311,21 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
           </ol>
         </div>
 
-        <aside
-          style={{
-            borderLeft: '4px solid var(--agent)',
-            background: 'var(--agent-soft)',
-            borderRadius: 'var(--r-md)',
-            padding: 18,
-          }}
-        >
-          <h2 className="t-h3" style={{ color: 'var(--agent)', letterSpacing: 0, marginBottom: 8 }}>
-            {selfCheck.title}
-          </h2>
-          <p style={{ color: 'var(--agent)', lineHeight: 1.6, fontSize: 14 }}>
-            {selfCheck.body}
-          </p>
+        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          <div>
+            <h2 className="t-h3" style={{ color: 'var(--agent)', letterSpacing: 0, marginBottom: 8 }}>
+              {selfCheck.title}
+            </h2>
+            <p style={{ color: 'var(--fg-muted)', lineHeight: 1.6, fontSize: 14 }}>
+              {selfCheck.body}
+            </p>
+          </div>
+          <PromptBlock
+            prompt={trustPrompt}
+            copyLabel={copyLabel}
+            copiedLabel={copiedLabel}
+            testId="mundial-steps-prompt-copy"
+          />
         </aside>
       </section>
 
