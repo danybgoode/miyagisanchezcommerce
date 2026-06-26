@@ -16,15 +16,24 @@
 import { PLATFORM_ORIGIN, listingTarget, shopTarget } from './shortlink'
 
 /**
- * What the shopper is looking at, derived from the URL alone (Sprint 1).
- * A discriminated union so each kind carries exactly the fields its template needs.
+ * What the shopper is looking at. The `kind` + URL fields are derived from the path
+ * alone (Sprint 1); the optional human-readable fields (`title`/`price`/`shopName`)
+ * are layered on by a server page via AgentContext (Sprint 2) so the copied prompt
+ * names the actual product/shop. A discriminated union so each kind carries exactly
+ * the fields its template needs.
  */
 export type AgentPromptContext =
   | { kind: 'generic' }
-  | { kind: 'pdp'; listingId: string }
+  | { kind: 'pdp'; listingId: string; title?: string; price?: string }
   | { kind: 'catalog'; search?: string; queryString?: string }
-  | { kind: 'shop'; slug: string }
-  | { kind: 'account'; orderRef?: string }
+  | { kind: 'shop'; slug: string; shopName?: string }
+  | { kind: 'account'; orderRef?: string; title?: string }
+
+/**
+ * Human-readable details a server page pushes through AgentContext (Sprint 2).
+ * All optional — the prompt degrades to the Sprint-1 URL-only phrasing when absent.
+ */
+export type AgentPromptDetails = { title?: string; price?: string; shopName?: string }
 
 /** Minimal read-only view of URLSearchParams (so ReadonlyURLSearchParams fits too). */
 type ReadonlyParams = Pick<URLSearchParams, 'get'> & { toString(): string }
@@ -100,6 +109,35 @@ export function resolveAgentContext(
   }
 
   return { kind: 'generic' }
+}
+
+/** Collapse whitespace/newlines and cap length so a detail can't carry multi-line instructions. */
+function sanitizeDetail(value: string | null | undefined, max = 120): string | undefined {
+  const v = (value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+  return v || undefined
+}
+
+/**
+ * Overlay a server page's human-readable details onto a URL-derived context (Sprint 2).
+ * Pure: only the kinds that carry rich fields (`pdp`/`shop`/`account`) absorb them;
+ * `catalog`/`generic` and a null/empty `details` return the context unchanged — so the
+ * prompt always degrades cleanly to the Sprint-1 URL-only phrasing.
+ */
+export function withDetails(
+  ctx: AgentPromptContext,
+  details?: AgentPromptDetails | null,
+): AgentPromptContext {
+  if (!details) return ctx
+  switch (ctx.kind) {
+    case 'pdp':
+      return { ...ctx, title: sanitizeDetail(details.title), price: sanitizeDetail(details.price, 32) }
+    case 'shop':
+      return { ...ctx, shopName: sanitizeDetail(details.shopName) }
+    case 'account':
+      return { ...ctx, title: sanitizeDetail(details.title) }
+    default:
+      return ctx
+  }
 }
 
 /**
