@@ -7,12 +7,13 @@
  *
  * The agent already resolves listings/shops over UCP/MCP, so a contextual prompt
  * only has to hand it the **canonical URL** of whatever the shopper is looking at
- * (Sprint 1 — URL-only). Sprint 2 layers human-readable title/price/shop on top.
+ * (Sprint 1 — URL-only, derived from the path via usePathname/useSearchParams).
+ * Sprint 2 layers human-readable title/price/shop on top.
  *
  * Kept dependency-free so the Playwright `api` spec can import it directly.
  */
 
-import { PLATFORM_ORIGIN } from './shortlink'
+import { PLATFORM_ORIGIN, listingTarget, shopTarget } from './shortlink'
 
 /**
  * What the shopper is looking at, derived from the URL alone (Sprint 1).
@@ -21,9 +22,12 @@ import { PLATFORM_ORIGIN } from './shortlink'
 export type AgentPromptContext =
   | { kind: 'generic' }
   | { kind: 'pdp'; listingId: string }
-  | { kind: 'catalog'; query?: string }
+  | { kind: 'catalog'; search?: string; queryString?: string }
   | { kind: 'shop'; slug: string }
   | { kind: 'account'; orderRef?: string }
+
+/** Minimal read-only view of URLSearchParams (so ReadonlyURLSearchParams fits too). */
+type ReadonlyParams = Pick<URLSearchParams, 'get'> & { toString(): string }
 
 /**
  * Shared preamble so a cold agent still works: it points at the marketplace ficha
@@ -40,6 +44,39 @@ Cuando las hayas revisado, podrás buscar productos, hacer ofertas y ayudarme a 
 const GENERIC_ASK = '¿Qué estás buscando hoy?'
 
 /**
+ * Map a URL (pathname + searchParams) to the page context. Pure + URL-only.
+ * Route groups like `(shell)`/`(site)` don't appear in the pathname, so the live
+ * paths are `/l/<id>` (PDP), `/l` (catalog), `/s/<slug>` (shop), `/account/...`.
+ * Anything unrecognized falls back to `generic`.
+ */
+export function resolveAgentContext(
+  pathname: string | null | undefined,
+  searchParams?: ReadonlyParams | null,
+): AgentPromptContext {
+  const seg = (pathname || '').split('/').filter(Boolean)
+
+  // PDP: /l/<id>  ·  Catalog: /l (no id)
+  if (seg[0] === 'l') {
+    const listingId = seg[1]
+    if (listingId) return { kind: 'pdp', listingId }
+    const search = (searchParams?.get('q') || searchParams?.get('category') || '').trim() || undefined
+    const queryString = searchParams?.toString() || undefined
+    return { kind: 'catalog', search, queryString }
+  }
+
+  // Shop: /s/<slug>
+  if (seg[0] === 's' && seg[1]) return { kind: 'shop', slug: seg[1] }
+
+  // Account / orders: /account[/orders[/<id>]]
+  if (seg[0] === 'account') {
+    const orderRef = seg[1] === 'orders' && seg[2] ? seg[2] : undefined
+    return { kind: 'account', orderRef }
+  }
+
+  return { kind: 'generic' }
+}
+
+/**
  * Build the full es-MX hand-off prompt for a given context. Always returns the
  * preamble + a page-specific ask; never empty.
  */
@@ -49,6 +86,31 @@ export function buildAgentPrompt(ctx: AgentPromptContext): string {
 
 function ask(ctx: AgentPromptContext): string {
   switch (ctx.kind) {
+    case 'pdp':
+      return `Quiero que revises este producto del marketplace y me ayudes a decidir o comprarlo:
+${listingTarget(ctx.listingId)}
+Usa el API del marketplace (UCP/MCP) para ver el detalle, el precio y las opciones de pago, y si quiero, haz una oferta o inicia la compra por mí.`
+
+    case 'shop':
+      return `Quiero saber qué vende esta tienda del marketplace y que me ayudes a comprar ahí:
+${shopTarget(ctx.slug)}
+Usa el API del marketplace (UCP/MCP) para listar sus productos, comparar precios y, si quiero, iniciar una compra o una oferta.`
+
+    case 'catalog': {
+      const url = ctx.queryString ? `${PLATFORM_ORIGIN}/l?${ctx.queryString}` : `${PLATFORM_ORIGIN}/l`
+      if (ctx.search) {
+        return `Estoy explorando el catálogo del marketplace con esta búsqueda: «${ctx.search}».
+Revisa estos resultados y ayúdame a encontrar lo mejor: ${url}
+Usa la búsqueda del marketplace (UCP/MCP) para refinar por precio, categoría o ubicación.`
+      }
+      return `Estoy explorando el catálogo del marketplace: ${url}
+Usa la búsqueda del marketplace (UCP/MCP) para ayudarme a encontrar lo que busco y refinar por precio, categoría o ubicación.`
+    }
+
+    case 'account':
+      return `Necesito ayuda con mi cuenta y mis pedidos en el marketplace${ctx.orderRef ? ` (pedido ${ctx.orderRef})` : ''}.
+Usa el API del marketplace (UCP/MCP) para revisar el estado del pedido, el envío o un reembolso, y guíame paso a paso.`
+
     case 'generic':
     default:
       return GENERIC_ASK

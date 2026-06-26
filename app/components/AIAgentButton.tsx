@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { buildAgentPrompt } from '@/lib/agent-prompt'
+import { usePathname } from 'next/navigation'
+import { buildAgentPrompt, resolveAgentContext } from '@/lib/agent-prompt'
 
 /**
  * `icon`       — bare ✨ icon button (legacy; no longer mounted after the
@@ -21,8 +22,15 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
 
   useEffect(() => { setMounted(true) }, [])
 
-  // es-MX hand-off prompt (Sprint 1: generic; route-aware context lands in S1.3).
-  const prompt = buildAgentPrompt({ kind: 'generic' })
+  // es-MX hand-off prompt, contextual to the current page (URL-only — S1.3).
+  // `usePathname` is SSR-safe + Suspense-free (so static pages stay static); the
+  // catalog query string is read from `window` only after mount — the sheet opens
+  // on click, so the copied/opened prompt always reflects the live URL.
+  const pathname = usePathname()
+  const searchParams = mounted && typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : null
+  const prompt = buildAgentPrompt(resolveAgentContext(pathname, searchParams))
 
   async function copy() {
     await navigator.clipboard.writeText(prompt)
