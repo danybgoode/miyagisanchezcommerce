@@ -18,6 +18,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser, auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
+import { isEnabled } from '@/lib/flags'
+import { enviaKillGate, ENVIA_LABEL_DISABLED_MESSAGE, ENVIA_ARRANGED_DELIVERY_MESSAGE } from '@/lib/envia-killswitch'
 import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
@@ -37,6 +39,14 @@ export async function POST(
   const { id } = await params
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open).
+  // The Medusa-order branch proxies to the backend ship route (already gated), but
+  // the legacy Supabase path calls lib/envia.ts createShipment directly — so gate
+  // here too: when off, no Envía label is generated; the seller uses manual carrier.
+  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled') }).blocked) {
+    return NextResponse.json({ error: ENVIA_LABEL_DISABLED_MESSAGE }, { status: 422 })
+  }
 
   let body: {
     rateId?: string              // legacy only — Medusa orders use order metadata
@@ -284,6 +294,13 @@ export async function GET(
   const { id } = await params
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  // Platform Envía kill-switch — re-quoting an existing order's rates calls
+  // lib/envia.ts quoteShipments directly, so short-circuit to the graceful empty
+  // result (mirrors the checkout rates fallback) when off.
+  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled') }).blocked) {
+    return NextResponse.json({ rates: [], message: ENVIA_ARRANGED_DELIVERY_MESSAGE })
+  }
 
   const sp = new URL(req.url).searchParams
   const weightGrams = Number(sp.get('weightGrams') ?? '500')
