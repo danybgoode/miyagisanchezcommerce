@@ -10,8 +10,8 @@ test.describe('seller acquisition · local business page', () => {
     await expect(
       page.getByRole('heading', { name: /Tu negocio de la esquina/i }),
     ).toBeVisible()
-    await expect(page.getByText(/ahora tambien en linea/i)).toBeVisible()
-    await expect(page.getByText(/Mexico-86/i).first()).toBeVisible()
+    await expect(page.getByText(/ahora también en línea/i)).toBeVisible()
+    await expect(page.getByText(/México-86/i).first()).toBeVisible()
     await expect(page.getByText(/QR para tu mostrador/i)).toBeVisible()
 
     await page.getByTestId('negocios-primary-cta').click()

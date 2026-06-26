@@ -17,6 +17,6 @@ export default function Image() {
     title: ui.heroTitle,
     lead: ui.heroLead,
     path: '/vende/mundial',
-    tags: ['Mundial 2026', 'Servicios', '0% comision'],
+    tags: ['Mundial 2026', 'Servicios', '0% comisión'],
   })
 }

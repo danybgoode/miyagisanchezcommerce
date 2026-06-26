@@ -49,8 +49,8 @@ export function createSellerAcquisitionOgImage(config: SellerAcquisitionOgConfig
               MS
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 34, fontWeight: 800 }}>Miyagi Sanchez</span>
-              <span style={{ fontSize: 20, color: colors.muted }}>Vendedores en Mexico</span>
+              <span style={{ fontSize: 34, fontWeight: 800 }}>Miyagi Sánchez</span>
+              <span style={{ fontSize: 20, color: colors.muted }}>Vendedores en México</span>
             </div>
           </div>
           <div

@@ -10,8 +10,8 @@ test.describe('seller acquisition · Creator page', () => {
     await expect(
       page.getByRole('heading', { name: /Deja de pagar comisiones de Shopify/i }),
     ).toBeVisible()
-    await expect(page.getByText(/perder ventas en los DMs/i)).toBeVisible()
-    await expect(page.getByText(/Trae tu catalogo/i).first()).toBeVisible()
+    await expect(page.getByText(/perder ventas en los DM/i)).toBeVisible()
+    await expect(page.getByText(/Trae tu catálogo/i).first()).toBeVisible()
     await expect(page.getByText(/subdominio, dominio propio y widget/i)).toBeVisible()
 
     await page.getByTestId('creadores-primary-cta').click()
@@ -29,7 +29,7 @@ test.describe('seller acquisition · Creator page', () => {
     expect(res?.ok()).toBeTruthy()
 
     await expect(
-      page.getByRole('heading', { name: /Tu catalogo de Instagram merece una tienda propia/i }),
+      page.getByRole('heading', { name: /Tu catálogo de Instagram merece una tienda propia/i }),
     ).toBeVisible()
     // The (shell) layout adds an outer <main>; target the page's variant-tagged main.
     await expect(page.locator('main[data-seller-variant]')).toHaveAttribute('data-seller-variant', 'b')

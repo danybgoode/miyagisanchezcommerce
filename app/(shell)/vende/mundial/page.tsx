@@ -40,7 +40,9 @@ type MundialPageProps = {
 export default async function MundialSellerPage({ searchParams }: MundialPageProps) {
   const query = await searchParams
   const variant = resolveSellerAcquisitionVariant(query)
-  const ui = applySellerAcquisitionPageVariant((await getDictionary('es')).sellerAcquisition.mundial, variant)
+  const sellerAcquisition = (await getDictionary('es')).sellerAcquisition
+  const ui = applySellerAcquisitionPageVariant(sellerAcquisition.mundial, variant)
+  const selfCheck = sellerAcquisition.shared.selfCheck
   const sellCta = sellerPersonaCtaHref('mundial', query)
 
   const jsonLd = {
@@ -295,10 +297,10 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
           }}
         >
           <h2 className="t-h3" style={{ color: 'var(--agent)', letterSpacing: 0, marginBottom: 8 }}>
-            {ui.agentTitle}
+            {selfCheck.title}
           </h2>
           <p style={{ color: 'var(--agent)', lineHeight: 1.6, fontSize: 14 }}>
-            {ui.agentBody}
+            {selfCheck.body}
           </p>
         </aside>
       </section>

@@ -4,16 +4,26 @@ test.describe('seller acquisition · anchor page', () => {
   test('anonymous visitor sees the router and reaches onboarding with attribution', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+
     const res = await page.goto('/vende?utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(
-      page.getByRole('heading', { name: /Vende lo que sea en Mexico/i }),
+      page.getByRole('heading', { name: /Vende lo que sea en México/i }),
     ).toBeVisible()
-    await expect(page.getByText(/preguntale a Claude/i)).toBeVisible()
+    await expect(page.getByText(/pídele a Claude, Gemini o ChatGPT/i)).toBeVisible()
     await expect(page.getByTestId('vende-router-creadores')).toBeVisible()
     await expect(page.getByTestId('vende-router-negocios')).toBeVisible()
     await expect(page.getByTestId('vende-router-servicios')).toBeVisible()
+
+    // The CTA copies the directive prompt — it must carry the per-page URL and the
+    // Mercado Libre / Shopify cost-comparison instruction (the whole point of the new prompt).
+    await page.getByTestId('vende-trust-copy').click()
+    const clipboard = await page.evaluate(() => navigator.clipboard.readText())
+    expect(clipboard).toContain('https://miyagisanchez.com/vende')
+    expect(clipboard).toContain('Mercado Libre')
+    expect(clipboard).toContain('Shopify')
 
     await page.getByTestId('vende-router-creadores').click()
     await expect(page).toHaveURL((url) => (

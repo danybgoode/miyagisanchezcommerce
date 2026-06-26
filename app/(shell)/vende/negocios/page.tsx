@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'es_MX',
     url: `${BASE_URL}${PAGE_PATH}`,
-    siteName: 'Miyagi Sanchez',
+    siteName: 'Miyagi Sánchez',
     title: meta.title,
     description: meta.description,
     images: [{ url: ogImage, width: 1200, height: 630, alt: meta.ogAlt }],
@@ -50,7 +50,7 @@ export default async function LocalBusinessSellerPage({ searchParams }: LocalBus
     inLanguage: 'es-MX',
     isPartOf: {
       '@type': 'WebSite',
-      name: 'Miyagi Sanchez',
+      name: 'Miyagi Sánchez',
       url: BASE_URL,
     },
     potentialAction: {

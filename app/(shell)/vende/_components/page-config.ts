@@ -4,6 +4,7 @@ import {
   resolveSellerAcquisitionVariant,
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
+  sellerTrustPrompt,
   type SellerAcquisitionVariant,
   type SellerPersonaId,
 } from '@/lib/seller-acquisition'
@@ -37,7 +38,8 @@ export function buildAnchorPageConfig(
     pageId: 'vende',
     secondaryCta: {
       label: page.secondaryCta,
-      href: sellerPersonaRouterHref('mundial', query),
+      // "¿Qué puedo vender?" jumps to the on-page persona router (which answers exactly that).
+      href: '#vende-router-title',
     },
     personaRouter: {
       title: page.routerTitle,
@@ -123,7 +125,7 @@ function baseConfig(
     title: variantPage.heroTitle,
     lead: variantPage.heroLead,
     trustLine: variantPage.trustLine,
-    trustPrompt: copy.shared.trustPrompt,
+    trustPrompt: sellerTrustPrompt(personaId, copy.shared.trustPrompt),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
     primaryCta: {
@@ -137,8 +139,9 @@ function baseConfig(
     proofPoints: variantPage.proofPoints,
     stepsTitle: variantPage.stepsTitle,
     steps: variantPage.steps,
-    agentTitle: variantPage.agentTitle,
-    agentBody: variantPage.agentBody,
+    // Single source for the self-verify aside (replaces every page's old agentTitle/agentBody).
+    agentTitle: copy.shared.selfCheck.title,
+    agentBody: copy.shared.selfCheck.body,
     socialTitle: variantPage.socialTitle,
     socialBody: variantPage.socialBody,
     socialStats: variantPage.socialStats,

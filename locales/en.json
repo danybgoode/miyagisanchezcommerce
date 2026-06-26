@@ -23,6 +23,10 @@
       "trustPrompt": "what is miyagisanchez.com?",
       "copyPrompt": "Copy prompt",
       "copiedPrompt": "Prompt copied",
+      "selfCheck": {
+        "title": "Check it yourself",
+        "body": "You do not have to take our word for it. Ask your AI assistant to read this page, compare the offer with what you pay today, and tell you, in your terms, whether it fits your business."
+      },
       "faqTitle": "Normal questions before selling",
       "faqs": [
         {
@@ -125,8 +129,6 @@
         { "title": "Register in seconds", "body": "Use Google, create your shop, and choose how you want customers to find you." },
         { "title": "Upload your catalog", "body": "Paste text, import a file, or let your agent organize it with you." }
       ],
-      "agentTitle": "We do not ask for faith",
-      "agentBody": "Ask your own agent to read miyagisanchez.com/vende, compare the offer, and tell you whether it makes sense for your business.",
       "socialTitle": "Built for real businesses, not demos",
       "socialBody": "Miyagi already supports shops, products, services, direct payments, domains, subdomains, and widgets. The landing page only organizes that path.",
       "socialStats": [
@@ -192,8 +194,6 @@
         { "title": "Register and upload the file", "body": "Sign in with Google, create your shop, and publish the first group of pieces." },
         { "title": "Share your storefront", "body": "Use the link, subdomain, custom domain, or widget; your agent can keep it up to date." }
       ],
-      "agentTitle": "Your agent can help administer it too",
-      "agentBody": "Miyagi already has routes and tools so an agent can read catalog, prepare copy, and help with shop operations.",
       "socialTitle": "For selling without chasing every DM",
       "socialBody": "Keep your audience and add a shop that answers with links, catalog, and clear payment methods.",
       "socialStats": [
@@ -259,8 +259,6 @@
         { "title": "Publish your first storefront", "body": "Choose products, prices, payment methods, and how customers contact you." },
         { "title": "Share QR and link", "body": "Use it on your counter, bags, flyers, social, or magazine ad. Every person reaches your shop." }
       ],
-      "agentTitle": "Your agent can help with the move",
-      "agentBody": "The shop is designed so Claude, Gemini, or ChatGPT can read your catalog, suggest text, and help organize products.",
       "socialTitle": "For businesses already selling today",
       "socialBody": "If you already have customers, inventory, and payment methods, Miyagi adds an online storefront and print bridge without eating your margin.",
       "socialStats": [
@@ -326,8 +324,6 @@
         { "title": "Define schedule and payment", "body": "Connect Cal.com if you need time slots; choose how you want to get paid." },
         { "title": "Share your link", "body": "Send your service by WhatsApp, social, QR, or website. Every visit arrives with attribution." }
       ],
-      "agentTitle": "Your agent can turn your offer into a listing",
-      "agentBody": "Miyagi is written so an agent can read your service and propose description, FAQs, and sales steps.",
       "socialTitle": "For professionals who sell time, skill, and trust",
       "socialBody": "Show customers what you offer, what it costs or how to quote, when you are available, and how to pay you.",
       "socialStats": [
@@ -399,8 +395,6 @@
         { "title": "Upload your experience", "body": "Describe the tour, rental, or service with price, area, photos, and conditions." },
         { "title": "Share and measure", "body": "Use your link in social, QR, ads, or messages; Clarity records the visit." }
       ],
-      "agentTitle": "Ready for an agent to read",
-      "agentBody": "The page uses real text, semantic sections, and metadata. Claude, Gemini, or any crawler can explain why a local provider should publish here.",
       "closingTitle": "The World Cup will not wait. Neither should your listing.",
       "closingBody": "If you sell experiences, food, transfers, tours, short-term rentals, or local services, start with a service listing and tune it later.",
       "closingCta": "Publish my service",
