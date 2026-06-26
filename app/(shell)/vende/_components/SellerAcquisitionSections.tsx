@@ -139,10 +139,11 @@ function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
           id={`${config.pageId}-hero-title`}
           className="t-h1"
           style={{
-            fontSize: 'var(--t-4xl)',
+            fontSize: 'clamp(var(--t-2xl), 7vw, var(--t-4xl))',
             letterSpacing: 0,
             marginBottom: 'var(--s-4)',
             maxWidth: 680,
+            overflowWrap: 'break-word',
           }}
         >
           {config.title}
@@ -193,9 +194,18 @@ function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
                 borderRadius: 'var(--r-md)',
                 padding: 'var(--s-3)',
                 minHeight: 88,
+                minWidth: 0,
               }}
             >
-              <strong style={{ display: 'block', color: 'var(--accent)', fontSize: 24, lineHeight: 1 }}>
+              <strong
+                style={{
+                  display: 'block',
+                  color: 'var(--accent)',
+                  fontSize: 24,
+                  lineHeight: 1,
+                  overflowWrap: 'break-word',
+                }}
+              >
                 {stat.value}
               </strong>
               <span className="t-caption" style={{ display: 'block', marginTop: 'var(--s-2)' }}>
@@ -426,7 +436,7 @@ function SocialProofSection({ config }: { config: SellerAcquisitionPageConfig })
           style={{
             display: 'grid',
             gap: 'var(--s-3)',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))',
           }}
         >
           {config.socialStats.map((stat) => (
