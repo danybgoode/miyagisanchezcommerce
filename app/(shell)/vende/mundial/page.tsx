@@ -95,10 +95,11 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
             id="mundial-hero-title"
             className="t-h1"
             style={{
-              fontSize: 'var(--t-4xl)',
+              fontSize: 'clamp(var(--t-2xl), 7vw, var(--t-4xl))',
               letterSpacing: 0,
               marginBottom: 14,
               maxWidth: 620,
+              overflowWrap: 'break-word',
             }}
           >
             {ui.heroTitle}
@@ -164,9 +165,18 @@ export default async function MundialSellerPage({ searchParams }: MundialPagePro
                   borderRadius: 'var(--r-md)',
                   padding: '12px 10px',
                   minHeight: 86,
+                  minWidth: 0,
                 }}
               >
-                <strong style={{ display: 'block', color: 'var(--accent)', fontSize: 22, lineHeight: 1 }}>
+                <strong
+                  style={{
+                    display: 'block',
+                    color: 'var(--accent)',
+                    fontSize: 22,
+                    lineHeight: 1,
+                    overflowWrap: 'break-word',
+                  }}
+                >
                   {stat.value}
                 </strong>
                 <span className="t-caption" style={{ display: 'block', marginTop: 8 }}>
