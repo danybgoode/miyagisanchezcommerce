@@ -31,10 +31,15 @@ import { canonicalSourceUrl } from '@/lib/supply'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+// Match the store read model (lib/listings.ts uses NEXT_PUBLIC_…); fall back to
+// the AGENTS-documented MEDUSA_PUBLISHABLE_KEY so the slug fallback can't silently
+// fail on an env that only sets one of the two names.
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? process.env.MEDUSA_PUBLISHABLE_KEY ?? ''
 
 type ImageInput = { url?: unknown; alt?: unknown }
 type FinalImage = { url: string; alt: string | null }
+
+const isHttpUrl = (u: string) => /^https?:\/\//i.test(u)
 
 /** Fallback seller-slug resolution straight from the Medusa read model. */
 async function sellerSlugFromStore(productId: string): Promise<string | null> {
@@ -67,11 +72,25 @@ export const POST = withSupplyAdmin(async (req: NextRequest) => {
 
   const mode: 'append' | 'replace' = body.mode === 'replace' ? 'replace' : 'append'
 
-  // Validate the incoming image list (hosted URLs only).
-  const images: FinalImage[] = (Array.isArray(body.images) ? body.images : [])
-    .filter((img): img is { url: string; alt?: unknown } => !!img && typeof img.url === 'string' && img.url.trim().length > 0)
-    .map((img) => ({ url: img.url.trim(), alt: typeof img.alt === 'string' && img.alt.trim() ? img.alt.trim() : null }))
+  // Validate the incoming image list — absolute http(s) hosted URLs only (e.g.
+  // from /api/supply/upload). Reject the whole request on a bad URL so a headless
+  // caller learns about it instead of silently persisting garbage to Medusa.
+  const images: FinalImage[] = []
+  const invalidUrls: string[] = []
+  for (const img of (Array.isArray(body.images) ? body.images : [])) {
+    if (!img || typeof img.url !== 'string') continue
+    const url = img.url.trim()
+    if (!url) continue
+    if (!isHttpUrl(url)) { invalidUrls.push(url); continue }
+    images.push({ url, alt: typeof img.alt === 'string' && img.alt.trim() ? img.alt.trim() : null })
+  }
 
+  if (invalidUrls.length > 0) {
+    return NextResponse.json(
+      { error: `images must be absolute http(s) URLs; rejected: ${invalidUrls.join(', ')}` },
+      { status: 422 },
+    )
+  }
   if (images.length === 0) {
     return NextResponse.json({ error: 'images must be a non-empty array of { url }' }, { status: 422 })
   }
