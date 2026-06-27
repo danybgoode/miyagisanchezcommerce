@@ -10,6 +10,15 @@
   margin-bottom: var(--s-10);
 }
 
+/* Grid items default to min-width: auto, which takes the content-based minimum size —
+   for the prompt block that's the longest unbreakable token (the URL inside the visible
+   prompt text), which can exceed narrow viewports and force the single mobile column wider
+   than the page. min-width: 0 lets overflow-wrap: break-word on the prompt text actually
+   take effect instead of being overridden by the grid's auto min-content sizing. */
+.hero > * {
+  min-width: 0;
+}
+
 @media (min-width: 860px) {
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
