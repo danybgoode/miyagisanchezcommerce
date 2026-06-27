@@ -20,7 +20,9 @@ test.describe('seller acquisition · anchor page', () => {
     // The hero PromptBlock shows the directive prompt as visible text + a copy button. Clicking it
     // copies the prompt, which must carry the per-page URL and the Mercado Libre / Shopify
     // cost-comparison instruction (the whole point of the visible prompt block).
-    await expect(page.getByText(/Compara cuánto pagaría ahí contra Mercado Libre y Shopify/i)).toBeVisible()
+    // The steps aside pairs the same trust prompt with a second PromptBlock, so this text renders
+    // twice — assert the (first) hero occurrence.
+    await expect(page.getByText(/Compara cuánto pagaría ahí contra Mercado Libre y Shopify/i).first()).toBeVisible()
     await page.getByTestId('vende-prompt-copy').click()
     const clipboard = await page.evaluate(() => navigator.clipboard.readText())
     expect(clipboard).toContain('https://miyagisanchez.com/vende')

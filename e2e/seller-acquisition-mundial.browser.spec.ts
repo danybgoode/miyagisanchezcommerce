@@ -10,7 +10,9 @@ test.describe('seller acquisition · Mundial wedge', () => {
     await expect(
       page.getByRole('heading', { name: /Captura al público global del Mundial/i }),
     ).toBeVisible()
-    await expect(page.getByText(/Compruébalo tú mismo/i)).toBeVisible()
+    // The steps aside repeats "Compruébalo tú mismo" as its self-check heading, so this text
+    // renders twice — assert the (first) hero trust-line occurrence.
+    await expect(page.getByText(/Compruébalo tú mismo/i).first()).toBeVisible()
 
     // S2 — the bespoke mundial hero shows the visible PromptBlock + copy button; no eyebrow badge.
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])

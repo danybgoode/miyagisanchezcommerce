@@ -17,9 +17,12 @@ test.describe('seller acquisition · anchor S3 sections (browser)', () => {
       await expect(page.getByRole('columnheader', { name: 'Shopify' })).toBeVisible()
       await expect(page.getByText(/Verificado:\s*25 de junio de 2026/i)).toBeVisible()
 
-      // US-4 — AI-channel section renders with its three-step explainer.
-      await expect(page.getByRole('heading', { name: /Que la IA también venda por ti/i })).toBeVisible()
-      await expect(page.getByText(/UCP\/MCP/i)).toBeVisible()
+      // US-4 — AI-channel section renders with its three-step explainer. Scope the UCP/MCP
+      // assertion to this section: the benchmark table also has a "Sí, nativo (UCP/MCP)" cell,
+      // and getByText would otherwise hit a strict-mode violation across both matches.
+      const aiChannelSection = page.getByRole('region', { name: /Que la IA también venda por ti/i })
+      await expect(aiChannelSection.getByRole('heading', { name: /Que la IA también venda por ti/i })).toBeVisible()
+      await expect(aiChannelSection.getByText(/UCP\/MCP/i)).toBeVisible()
 
       // S2 — benchmark worked-example block renders under the table (punchline visible).
       await expect(page.getByTestId('vende-benchmark-example-punchline')).toBeVisible()
