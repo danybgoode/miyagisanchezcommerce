@@ -58,15 +58,20 @@ export type DomainEntitlement = {
 }
 
 /**
- * Defensively parse `metadata.custom_domain_grant` off a shop's metadata JSONB.
+ * Defensively parse a grant object stored at `metadata[key]` (a shop's JSONB).
  * Returns null for missing / malformed / unknown-type grants — so a corrupt
  * value can never accidentally grant (or, when the flag is on, deny incorrectly).
  * A `one_time` grant with a missing/blank `expires_at` is rejected (treated as
  * no grant) so a half-written dated grant can never entitle forever.
+ *
+ * `key` lets distinct SKUs keep distinct grants without forking the parsing rule:
+ * the custom domain reads `custom_domain_grant`, the subdomain reads
+ * `subdomain_grant` (epic 07 · subdomain-pricing) — same shape, separate keys, so
+ * one SKU's grant never leaks entitlement to the other.
  */
-export function readDomainGrant(metadata: unknown): DomainGrant | null {
+export function readGrant(metadata: unknown, key: string): DomainGrant | null {
   if (!metadata || typeof metadata !== 'object') return null
-  const raw = (metadata as Record<string, unknown>).custom_domain_grant
+  const raw = (metadata as Record<string, unknown>)[key]
   if (!raw || typeof raw !== 'object') return null
   const g = raw as Record<string, unknown>
   if (g.type !== 'grandfather' && g.type !== 'comp' && g.type !== 'one_time') return null
@@ -79,6 +84,14 @@ export function readDomainGrant(metadata: unknown): DomainGrant | null {
     ...(typeof g.expires_at === 'string' && g.expires_at !== '' ? { expires_at: g.expires_at } : {}),
     ...(typeof g.note === 'string' ? { note: g.note } : {}),
   }
+}
+
+/**
+ * Parse the custom-domain grant off `metadata.custom_domain_grant`. Thin wrapper
+ * over `readGrant` so the custom-domain paywall keeps its exact prior behavior.
+ */
+export function readDomainGrant(metadata: unknown): DomainGrant | null {
+  return readGrant(metadata, 'custom_domain_grant')
 }
 
 /**

@@ -8,6 +8,8 @@ import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
 } from '@/lib/shortlink'
 import { isLikelyListingId, isLikelyShopSlug } from '@/lib/route-shape'
+import { isEnabled } from '@/lib/flags'
+import { readSubdomainGrant, subdomainServeDecision } from '@/lib/subdomain-entitlement'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -41,15 +43,17 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   const subSlug = shopSlugFromHost(hostname)
   if (subSlug) {
     let slug: string | null = null
+    let shopMetadata: unknown = null
     let redirectTo: string | null = null
     try {
       const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
       const { data: shop } = await supabase
         .from('marketplace_shops')
-        .select('slug')
+        .select('slug, metadata')
         .eq('slug', subSlug)
         .maybeSingle()
       slug = shop?.slug ?? null
+      shopMetadata = shop?.metadata ?? null
       if (!slug) {
         // Maybe a retired slug — look it up in the alias history (same store as
         // the /s/[slug] redirect). Inline (no unstable_cache — invalid here).
@@ -79,6 +83,27 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     }
 
     if (slug) {
+      // ── Subdomain paywall gate (epic 07 · subdomain-pricing, US-1) ─────────
+      // The white-label subdomain is a paid SKU. When the paywall is ON and this
+      // shop isn't entitled (no grandfather/comp/one-time grant; recurring sub is
+      // Sprint 2), 301 the WHOLE subdomain to the free `/s/slug` on the apex — the
+      // subdomain is honestly the upgrade it isn't paying for. The flag is
+      // fail-open OFF (today's free-for-all), so a flag outage never traps a
+      // seller or breaks a live subdomain. Entitlement piggybacks the shop row we
+      // already fetched (metadata) → no extra round-trip; only the flag read is
+      // new (~0ms local-eval). This read is WHY the middleware runs on the Node
+      // runtime — lib/flags.ts (Flagsmith SDK) is not Edge-compatible (see `config`).
+      const paywallEnabled = await isEnabled('subdomain.paywall_enabled')
+      const decision = subdomainServeDecision({ paywallEnabled, grant: readSubdomainGrant(shopMetadata) })
+      if (decision === 'redirect') {
+        const url = req.nextUrl.clone()
+        url.protocol = 'https:'
+        url.host = ROOT_DOMAIN
+        url.pathname = `/s/${slug}`
+        url.search = ''
+        return NextResponse.redirect(url, 301)
+      }
+
       // Boundary isolation (same as custom domains): a subdomain serves ONLY its
       // own shop — never expose /s/ or the cross-shop /l index here.
       const path = req.nextUrl.pathname
@@ -325,6 +350,12 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 })
 
 export const config = {
+  // Node.js runtime (not the Edge default): the subdomain paywall gate reads the
+  // flag via lib/flags.ts (the Flagsmith Node SDK, local-eval), which is NOT
+  // Edge-compatible. Node runtime keeps the flag in Flagsmith (no Vercel-
+  // proprietary Edge Config) with ~0ms/request reads + ~5-min flip propagation.
+  // (epic 07 · subdomain-pricing, US-1 — Daniel-approved; shared-surface change.)
+  runtime: 'nodejs',
   matcher: [
     // Skip Next.js internals and static files
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
