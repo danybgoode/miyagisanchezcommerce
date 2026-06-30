@@ -32,6 +32,7 @@ import {
 import { buildOneTimeGrant } from '@/lib/domain-entitlement'
 import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
+import { oneTimeGrantNote } from '@/lib/promoter-close'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -777,9 +778,13 @@ async function handleCustomDomainSubscriptionComplete(session: Stripe.Checkout.S
 // won't retry a handler that returns 200).
 async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Session) {
   const shopId = session.metadata?.shop_id
-  const sellerClerkId = session.metadata?.seller_clerk_id
-  if (!shopId || !sellerClerkId) {
-    console.error('[custom-domain one-time] missing metadata:', session.id)
+  // The grant lands on the SHOP (by id); seller_clerk_id is informational and is
+  // empty when a promoter pays for an UNCLAIMED shop (epic 08 · S4 · US-10), so
+  // only shop_id is truly required.
+  const sellerClerkId = session.metadata?.seller_clerk_id ?? ''
+  const paidByPromoter = session.metadata?.paid_by_promoter === '1'
+  if (!shopId) {
+    console.error('[custom-domain one-time] missing shop_id:', session.id)
     return
   }
 
@@ -796,7 +801,7 @@ async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Sessio
       .maybeSingle()
     if (!shop) throw new Error(`no shop row for id ${shopId}`)
     const meta = ((shop.metadata ?? {}) as Record<string, unknown>)
-    meta.custom_domain_grant = buildOneTimeGrant({ note: 'one-time S2' })
+    meta.custom_domain_grant = buildOneTimeGrant({ note: oneTimeGrantNote(paidByPromoter) })
     delete meta.custom_domain_lapsed
     const { data: updated, error } = await db
       .from('marketplace_shops')
