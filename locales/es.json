@@ -242,7 +242,11 @@
         "title": "Compara antes de decidir",
         "lead": "Lo que pagas en otras plataformas, aquí te lo quedas. Compáralo tú mismo — o pídeselo a tu IA.",
         "rowHeader": "Lo que comparas",
-        "columns": ["Miyagi Sánchez", "Mercado Libre", "Shopify"],
+        "columns": [
+          "Miyagi Sánchez",
+          "Mercado Libre",
+          "Shopify"
+        ],
         "rows": [
           {
             "label": "Comisión por venta",
@@ -299,7 +303,12 @@
         "example": {
           "title": "Ejemplo: vendes un producto de $1,000 MXN",
           "lead": "Cuánto te llega, según dónde vendas.",
-          "columns": ["Plataforma", "Comisión de plataforma", "Mensualidad", "Te llega (aprox.)"],
+          "columns": [
+            "Plataforma",
+            "Comisión de plataforma",
+            "Mensualidad",
+            "Te llega (aprox.)"
+          ],
           "rows": [
             {
               "platform": "miyagisanchez.com",
@@ -605,6 +614,80 @@
           "closingCta": "Vender mi servicio"
         }
       }
+    },
+    "promotor": {
+      "metadata": {
+        "title": "Programa de Promotores — Miyagi Sánchez",
+        "description": "Recursos para promotores: monta la tienda del comerciante, cierra la venta en persona y entrega por WhatsApp. Glosario, precios y guía paso a paso.",
+        "ogAlt": "Programa de Promotores de Miyagi Sánchez: monta, cierra y entrega."
+      },
+      "eyebrow": "Promotores",
+      "heroTitle": "Monta la tienda, cierra en persona, entrega por WhatsApp.",
+      "heroLead": "Eres la fuerza de campo de Miyagi. Entras al negocio, lo dejas montado en miyagisanchez.com, cobras en persona y te llevas tu comisión. Aquí tienes todo para explicarlo y venderlo.",
+      "trustLine": "Comisión por cada venta cerrada. Liquidación por transferencia o efectivo.",
+      "primaryCta": "Abrir mi panel para cerrar",
+      "secondaryCta": "Ver hoja de venta imprimible",
+      "priceDomainLabel": "Dominio propio al año",
+      "priceSubdomainLabel": "Subdominio para todos",
+      "commissionLabel": "Tu comisión por venta",
+      "proofTitle": "Glosario: qué le vendes al comerciante",
+      "proofLead": "Cuatro productos. Apréndetelos para explicarlos en 30 segundos.",
+      "glossary": [
+        {
+          "icon": "iconoir-globe",
+          "title": "Dominio propio",
+          "body": "Su tienda en su propia dirección (sutienda.mx) en vez de miyagisanchez.com/s/sutienda. Más marca, tráfico directo y look de marca blanca. $499 MXN al año, pago único."
+        },
+        {
+          "icon": "iconoir-internet",
+          "title": "Subdominio",
+          "body": "sutienda.miyagisanchez.com — gratis para todos. Úsalo como gancho: ya tiene una dirección bonita sin pagar nada."
+        },
+        {
+          "icon": "iconoir-newspaper",
+          "title": "Anuncio impreso",
+          "body": "Un espacio en la edición impresa de Miyagi que circula en su zona. El precio depende del tamaño y la edición; se cobra una sola vez."
+        },
+        {
+          "icon": "iconoir-shop",
+          "title": "Conexión Mercado Libre",
+          "body": "Importa su catálogo de Mercado Libre a Miyagi para que no capture todo a mano. Acelera el montaje en la primera visita."
+        }
+      ],
+      "stepsTitle": "Cómo montar y entregar (en la tienda)",
+      "steps": [
+        {
+          "title": "1 · Monta la tienda",
+          "body": "Desde tu panel, crea la tienda del comerciante (queda sin reclamar) y agrega una primera publicación. Demuéstrale lo fácil que es."
+        },
+        {
+          "title": "2 · Cobra y paga",
+          "body": "Cobra en efectivo al comerciante y paga el dominio o el anuncio con tu propia tarjeta. La venta se atribuye a tu código y la entitlement queda en SU tienda."
+        },
+        {
+          "title": "3 · Entrega por WhatsApp",
+          "body": "Genera el enlace de reclamo y mándaselo por WhatsApp. Al tocarlo e iniciar sesión, la tienda pasa a su cuenta. Tu comisión se conserva."
+        }
+      ],
+      "pitchTitle": "El descuento que abre tu código",
+      "pitchBody": "Tu código de promotor (PRM-…) le da un descuento al comerciante en el dominio o el anuncio. Es tu mejor argumento de cierre: un precio que solo consigue contigo, hoy, en persona.",
+      "pitchStats": [
+        {
+          "value": "PRM-",
+          "label": "tu código personal"
+        },
+        {
+          "value": "1 toque",
+          "label": "para reclamar por WhatsApp"
+        },
+        {
+          "value": "0 fricción",
+          "label": "el comerciante no captura nada"
+        }
+      ],
+      "closingTitle": "Listo para cerrar",
+      "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
+      "closingCta": "Abrir mi panel para cerrar"
     },
     "mundial": {
       "metadata": {
