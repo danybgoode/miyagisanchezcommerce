@@ -619,7 +619,7 @@
       },
       "eyebrow": "Promoters",
       "heroTitle": "Set up the shop, close in person, hand off over WhatsApp.",
-      "heroLead": "You're Miyagi's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
+      "heroLead": "You're Miyagi Sánchez's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
       "trustLine": "Commission on every closed sale. Settlement by transfer or cash.",
       "primaryCta": "Open my close workspace",
       "secondaryCta": "View printable sell-sheet",
@@ -642,12 +642,12 @@
         {
           "icon": "iconoir-newspaper",
           "title": "Printed ad",
-          "body": "A spot in Miyagi's printed edition circulating in their area. Price depends on size and edition; charged once."
+          "body": "A spot in Miyagi Sánchez's printed edition circulating in their area. Price depends on size and edition; charged once."
         },
         {
           "icon": "iconoir-shop",
           "title": "Mercado Libre sync",
-          "body": "Import their Mercado Libre catalog into Miyagi so they don't re-enter everything by hand. Speeds up the first-visit setup."
+          "body": "Import their Mercado Libre catalog into Miyagi Sánchez so they don't re-enter everything by hand. Speeds up the first-visit setup."
         }
       ],
       "stepsTitle": "How to set up and hand off (in the shop)",

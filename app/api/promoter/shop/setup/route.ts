@@ -27,16 +27,19 @@ export async function POST(req: NextRequest) {
   if (!(await isEnabled('promoter.enabled'))) {
     return NextResponse.json({ ok: false }, { status: 404 })
   }
-  if (!INTERNAL_SECRET) {
-    return NextResponse.json({ ok: false, error: 'Configuración incompleta en el servidor.' }, { status: 500 })
-  }
 
+  // Auth gates BEFORE any config/secret check, so an anonymous caller always gets
+  // 401 (never a 500 leaking that a prod-only secret is unset on preview).
   const user = await currentUser().catch(() => null)
   if (!user) return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 })
 
   const promoter = await getPromoterByClerkId(user.id)
   if (!promoter) {
     return NextResponse.json({ ok: false, error: 'Vincula tu código de promotor primero.' }, { status: 403 })
+  }
+
+  if (!INTERNAL_SECRET) {
+    return NextResponse.json({ ok: false, error: 'Configuración incompleta en el servidor.' }, { status: 500 })
   }
 
   let body: { name?: string; location?: string; description?: string } = {}
