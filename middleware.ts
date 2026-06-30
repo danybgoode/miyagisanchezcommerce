@@ -299,11 +299,19 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // cookie so detectChannel() can tag the sale `embed` across the checkout steps.
   const ref = req.nextUrl.searchParams.get('ref')
   const validRef = ref ? /^[A-Za-z0-9]{4,12}$/.test(ref) : false
+  // `?promo=PRM-CODE` from a promoter's share link → 30-day cookie, read later by
+  // /api/promoter/attribute to credit the promoter (epic 08). Distinct namespace
+  // from `ref` so a promoter code never collides with a buyer referral code.
+  const promo = req.nextUrl.searchParams.get('promo')
+  const validPromo = promo ? /^PRM-[A-Za-z0-9]{4,12}$/i.test(promo) : false
   const isEmbed = req.nextUrl.searchParams.get('channel') === 'embed'
-  if (validRef || isEmbed) {
+  if (validRef || validPromo || isEmbed) {
     const res = NextResponse.next({ request: { headers } })
     if (validRef) {
       res.cookies.set('ref', ref!.toUpperCase(), { maxAge: 60 * 60 * 24 * 30, path: '/', sameSite: 'lax' })
+    }
+    if (validPromo) {
+      res.cookies.set('promo', promo!.toUpperCase(), { maxAge: 60 * 60 * 24 * 30, path: '/', sameSite: 'lax' })
     }
     if (isEmbed) {
       res.cookies.set('mi_channel', 'embed', { maxAge: 60 * 60 * 2, path: '/', sameSite: 'lax' })

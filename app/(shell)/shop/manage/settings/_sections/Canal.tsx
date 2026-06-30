@@ -20,10 +20,11 @@ import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '../_components/Toast'
 import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
+import PromoterCodeField from './PromoterCodeField'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
-import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
+import { CUSTOM_DOMAIN_PRICE_LABEL, CUSTOM_DOMAIN_PRICE_CENTS } from '@/lib/domain-pricing'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
@@ -105,6 +106,12 @@ export interface CanalInitial {
    * shows a "re-activate to restore your domain" prompt on the upsell.
    */
   domain_lapsed?: boolean
+  /**
+   * Promoter Program (epic 08, Sprint 1 — `promoter.enabled`, default off). When
+   * true, the domain-subscribe block shows a promoter-code field + discount preview
+   * before pay. The real charge with the discount is Sprint 2.
+   */
+  promoter_enabled?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
@@ -149,6 +156,9 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [subscribing, setSubscribing]               = useState(false)
   const [subscribeError, setSubscribeError]         = useState<string | null>(null)
   const [domainCoupon, setDomainCoupon]             = useState('') // S3: campaign coupon (miyagisan)
+
+  // ── Promoter Program (epic 08, Sprint 1) — discount PREVIEW behind promoter.enabled ──
+  const promoterEnabled = initial.promoter_enabled ?? false
 
   async function handleActivateDomain() {
     setSubscribing(true); setSubscribeError(null)
@@ -588,6 +598,8 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
                 />
               </div>
+              {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled. */}
+              {promoterEnabled && <PromoterCodeField priceCents={CUSTOM_DOMAIN_PRICE_CENTS} sku="custom_domain" />}
               <button
                 type="button"
                 onClick={handleActivateDomain}

@@ -77,6 +77,13 @@ export default async function SettingsSectionPage({
     ? await isEnabled('shipping.envia_enabled')
     : true
 
+  // Promoter Program (promoter.enabled, default OFF / fail-open). Resolved only for
+  // the Canal section, where the custom-domain SKU lives — when on, Canal shows the
+  // promoter-code field + discount preview before pay (Sprint 1; no charge wiring).
+  const promoterEnabled = section === 'canal'
+    ? await isEnabled('promoter.enabled')
+    : false
+
   const meta = shop.metadata as Record<string, unknown> | null
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
   // Typed view of the settings tree for the extracted sections (each reads only its slice).
@@ -159,6 +166,7 @@ export default async function SettingsSectionPage({
           accent: st.theme?.accent_color ?? null,
           domain_entitled: domainEntitled,
           domain_lapsed: section === 'canal' && !!(meta?.custom_domain_lapsed),
+          promoter_enabled: promoterEnabled,
         }} />
       case 'agentes':
         return <Agentes initial={{
