@@ -102,9 +102,9 @@ test.describe('promoter-commission · accrual decision (US-8)', () => {
       .toEqual({ ok: false, reason: 'no_rate' })
   })
 
-  test('a missing gross has nothing to accrue (no_rate)', () => {
+  test('a valid rate but missing gross has nothing to accrue (no_gross)', () => {
     expect(decideAccrual({ attribution: paid({ gross_amount_cents: 0 }), ratePct: 15, existingCommission: false }))
-      .toEqual({ ok: false, reason: 'no_rate' })
+      .toEqual({ ok: false, reason: 'no_gross' })
   })
 })
 

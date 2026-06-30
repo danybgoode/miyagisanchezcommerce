@@ -15,9 +15,12 @@ ALTER TABLE marketplace_promoters
 
 -- Per-SKU commission rate (admin-editable, no deploy). Keyed by SKU (vs the
 -- singleton discount-settings row) so each paid SKU carries its own percentage.
+-- SKU is intentionally NOT CHECK-constrained to a fixed list: the app validates it
+-- (isPromoterSku) and a hard-coded enum would force an ALTER to add the planned
+-- `subdomain` SKU. The numeric/status invariants below ARE enforced (defense in depth).
 CREATE TABLE IF NOT EXISTS marketplace_promoter_commission_rates (
   sku        TEXT        PRIMARY KEY,           -- 'custom_domain' | 'print_ad' (PROMOTER_SKUS)
-  rate_pct   INTEGER     NOT NULL DEFAULT 0,    -- 0–100, whole percent of the gross
+  rate_pct   INTEGER     NOT NULL DEFAULT 0 CHECK (rate_pct BETWEEN 0 AND 100),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -36,10 +39,10 @@ CREATE TABLE IF NOT EXISTS marketplace_promoter_commissions (
   promoter_id          UUID        NOT NULL,
   seller_id            TEXT,
   sku                  TEXT,
-  rate_pct             INTEGER     NOT NULL,          -- snapshot of the rate at accrual
-  gross_amount_cents   INTEGER     NOT NULL,          -- snapshot of the eligible gross
-  commission_cents     INTEGER     NOT NULL,
-  status               TEXT        NOT NULL DEFAULT 'accrued',
+  rate_pct             INTEGER     NOT NULL CHECK (rate_pct BETWEEN 0 AND 100),   -- snapshot of the rate
+  gross_amount_cents   INTEGER     NOT NULL CHECK (gross_amount_cents >= 0),      -- snapshot of the gross
+  commission_cents     INTEGER     NOT NULL CHECK (commission_cents >= 0),
+  status               TEXT        NOT NULL DEFAULT 'accrued' CHECK (status IN ('accrued', 'paid')),
   accrued_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   paid_at              TIMESTAMPTZ,
   settlement_reference TEXT

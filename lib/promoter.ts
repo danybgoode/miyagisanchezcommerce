@@ -24,6 +24,7 @@
 
 import { db } from '@/lib/supabase'
 import { DEFAULT_COMMISSION_RATES, decideAccrual } from '@/lib/promoter-commission'
+import { PROMOTER_SKUS, isPromoterSku, type PromoterSku } from '@/lib/promoter-skus'
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (shared with referrals)
 const CODE_LEN = 6
@@ -255,13 +256,10 @@ export function promoterCouponKey(settings: PromoterSettings): PromoterCouponKey
 
 // ── Attribution (enrollment ledger) ───────────────────────────────────────────
 
-/** The paid SKUs a promoter can enroll a shop on (Sprint 1: custom domain). */
-export const PROMOTER_SKUS = ['custom_domain', 'print_ad'] as const
-export type PromoterSku = (typeof PROMOTER_SKUS)[number]
-
-export function isPromoterSku(raw: string | null | undefined): raw is PromoterSku {
-  return !!raw && (PROMOTER_SKUS as readonly string[]).includes(raw)
-}
+// SKU vocabulary lives in lib/promoter-skus.ts (dependency-free) so this module
+// and lib/promoter-commission.ts share it without an import cycle. Imported above
+// for local use; re-exported here for back-compat with `@/lib/promoter` importers.
+export { PROMOTER_SKUS, isPromoterSku, type PromoterSku }
 
 export interface PromoterAttribution {
   id: string

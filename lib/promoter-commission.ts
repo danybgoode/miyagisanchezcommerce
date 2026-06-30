@@ -17,7 +17,7 @@
  * Copy is es-MX to match the live app.
  */
 
-import { isPromoterSku, type PromoterSku } from '@/lib/promoter'
+import { isPromoterSku, type PromoterSku } from '@/lib/promoter-skus'
 
 // ── Per-SKU commission rate (admin config, US-7) ──────────────────────────────
 
@@ -72,6 +72,7 @@ export type AccrualReason =
   | 'sku_not_eligible'
   | 'self_referral'
   | 'no_rate'
+  | 'no_gross'
   | 'already_accrued'
 
 export type AccrualDecision =
@@ -105,7 +106,7 @@ export function decideAccrual(input: AccrualInput): AccrualDecision {
 
   const grossAmountCents = attribution.gross_amount_cents ?? 0
   const commissionCents = computeCommissionCents(ratePct, grossAmountCents)
-  if (commissionCents <= 0) return { ok: false, reason: 'no_rate' } // nothing to accrue (e.g. missing gross)
+  if (commissionCents <= 0) return { ok: false, reason: 'no_gross' } // rate is valid but no eligible gross
 
   return { ok: true, commissionCents, ratePct, grossAmountCents }
 }
