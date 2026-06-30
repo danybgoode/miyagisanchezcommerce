@@ -10,13 +10,18 @@
  *  - Entitlement is DERIVED, not a parallel boolean flag. The sources are:
  *      1. the rollout flag (off ⇒ everyone ungated — today's free behavior),
  *      2. a durable grant on `marketplace_shops.metadata.custom_domain_grant`
- *         ({ type:'grandfather'|'comp', ... }) — grandfather is stamped at
- *         cutover, comp is hand-granted by Daniel,
- *      3. an active subscription to the custom-domain plan (Sprint 2 wires this;
- *         the input exists here so S2 is a one-line change, undefined in S1).
+ *         ({ type:'grandfather'|'comp'|'one_time', ... }) — grandfather is
+ *         stamped at cutover, comp is hand-granted by Daniel, and `one_time` is
+ *         a DATED 12-month grant bought up-front with no recurring mandate
+ *         (epic 08 · promoter-program, Sprint 2),
+ *      3. an active subscription to the custom-domain plan (recurring cadence).
  *  - The grant is stored DISTINCT from "currently has a domain" so it survives
- *    Sprint 2's lapse logic (a lapsed seller still has `custom_domain` set but
- *    must lose entitlement).
+ *    the lapse logic (a lapsed seller still has `custom_domain` set but must
+ *    lose entitlement).
+ *  - A `one_time` grant LAPSES ON READ: it entitles only while `now < expires_at`,
+ *    so the year-end lapse is graceful and needs no auto-charge and no cron to
+ *    flip a flag (the gate simply closes). The physical domain teardown is a
+ *    separate best-effort sweep (`releaseCustomDomainForShop`).
  *
  * This module is PURE + next-free + has zero side-effect imports, so the
  * Playwright `api` runner can import and unit-test it directly. The async
@@ -24,13 +29,18 @@
  * `lib/domain-entitlement-server.ts`.
  */
 
-export type DomainGrantType = 'grandfather' | 'comp'
+export type DomainGrantType = 'grandfather' | 'comp' | 'one_time'
 
 export type DomainGrant = {
   type: DomainGrantType
   /** ISO timestamp the grant was issued. */
   granted_at: string
-  /** Optional human note (e.g. "cutover", "WC26 partner"). */
+  /**
+   * ISO timestamp the grant expires. REQUIRED for `one_time` (the dated 12-month
+   * cadence); absent for the permanent `grandfather`/`comp` grants.
+   */
+  expires_at?: string
+  /** Optional human note (e.g. "cutover", "WC26 partner", "one-time S2"). */
   note?: string
 }
 
@@ -38,7 +48,8 @@ export type DomainEntitlementReason =
   | 'flag_off'        // paywall not enabled ⇒ ungated (entitled)
   | 'grandfathered'   // durable grandfather grant
   | 'comp'            // durable comp grant
-  | 'subscription'    // active paid subscription to the custom-domain plan (S2)
+  | 'one_time'        // dated one-time grant, still within its 12-month term (S2)
+  | 'subscription'    // active paid subscription to the custom-domain plan
   | 'none'            // paywall on, no grant, no subscription ⇒ NOT entitled
 
 export type DomainEntitlement = {
@@ -50,17 +61,22 @@ export type DomainEntitlement = {
  * Defensively parse `metadata.custom_domain_grant` off a shop's metadata JSONB.
  * Returns null for missing / malformed / unknown-type grants — so a corrupt
  * value can never accidentally grant (or, when the flag is on, deny incorrectly).
+ * A `one_time` grant with a missing/blank `expires_at` is rejected (treated as
+ * no grant) so a half-written dated grant can never entitle forever.
  */
 export function readDomainGrant(metadata: unknown): DomainGrant | null {
   if (!metadata || typeof metadata !== 'object') return null
   const raw = (metadata as Record<string, unknown>).custom_domain_grant
   if (!raw || typeof raw !== 'object') return null
   const g = raw as Record<string, unknown>
-  if (g.type !== 'grandfather' && g.type !== 'comp') return null
+  if (g.type !== 'grandfather' && g.type !== 'comp' && g.type !== 'one_time') return null
   if (typeof g.granted_at !== 'string' || g.granted_at === '') return null
+  // A one_time grant MUST carry a non-blank expires_at — otherwise it's malformed.
+  if (g.type === 'one_time' && (typeof g.expires_at !== 'string' || g.expires_at === '')) return null
   return {
     type: g.type,
     granted_at: g.granted_at,
+    ...(typeof g.expires_at === 'string' && g.expires_at !== '' ? { expires_at: g.expires_at } : {}),
     ...(typeof g.note === 'string' ? { note: g.note } : {}),
   }
 }
@@ -81,20 +97,56 @@ export function buildCompGrant(opts?: { note?: string; now?: Date }): DomainGran
   }
 }
 
+/** Default term for the one-time custom-domain cadence (epic 08 · S2). */
+export const ONE_TIME_GRANT_MONTHS = 12
+
+/**
+ * Build a dated `one_time` grant in the canonical `custom_domain_grant` shape —
+ * the ONE place the one-time cadence's grant is composed, so the Stripe webhook
+ * (`handleCustomDomainOneTimeComplete`) writes exactly what `readDomainGrant`
+ * parses and `deriveDomainEntitlement` honors. `granted_at` is now; `expires_at`
+ * is `now + months` (default 12). Computed by calendar month so a Feb purchase
+ * expires next Feb, not "+365 days".
+ */
+export function buildOneTimeGrant(opts?: { months?: number; now?: Date; note?: string }): DomainGrant {
+  const now = opts?.now ?? new Date()
+  const months = opts?.months ?? ONE_TIME_GRANT_MONTHS
+  const expires = new Date(now)
+  expires.setMonth(expires.getMonth() + months)
+  return {
+    type: 'one_time',
+    granted_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    ...(opts?.note?.trim() ? { note: opts.note.trim() } : {}),
+  }
+}
+
+/** True when a `one_time` grant is still within its term (`now < expires_at`). */
+export function isOneTimeGrantLive(grant: DomainGrant | null, now: Date = new Date()): boolean {
+  if (grant?.type !== 'one_time' || !grant.expires_at) return false
+  const exp = Date.parse(grant.expires_at)
+  return Number.isFinite(exp) && now.getTime() < exp
+}
+
 /**
  * Derive entitlement from the resolved inputs. Precedence:
- *   flag off → grandfather → comp → active subscription → none.
+ *   flag off → grandfather → comp → live one-time grant → active subscription → none.
+ * A `one_time` grant entitles only while `now < expires_at` (lapse on read); past
+ * expiry it stops entitling and the deriver falls through (subscription/none).
  * Never throws.
  */
 export function deriveDomainEntitlement(input: {
   paywallEnabled: boolean
   grant: DomainGrant | null
-  /** S2: active sub to the custom-domain plan. Undefined/false in S1. */
+  /** Active sub to the custom-domain plan (recurring cadence). */
   hasActiveSubscription?: boolean
+  /** Injectable clock for the one-time lapse (defaults to real now). */
+  now?: Date
 }): DomainEntitlement {
   if (!input.paywallEnabled) return { entitled: true, reason: 'flag_off' }
   if (input.grant?.type === 'grandfather') return { entitled: true, reason: 'grandfathered' }
   if (input.grant?.type === 'comp') return { entitled: true, reason: 'comp' }
+  if (isOneTimeGrantLive(input.grant, input.now ?? new Date())) return { entitled: true, reason: 'one_time' }
   if (input.hasActiveSubscription) return { entitled: true, reason: 'subscription' }
   return { entitled: false, reason: 'none' }
 }

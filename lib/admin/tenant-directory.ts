@@ -145,6 +145,8 @@ export function entitlementReasonLabel(reason: DomainEntitlementReason): string 
       return 'Cortesía'
     case 'subscription':
       return 'Suscripción activa'
+    case 'one_time':
+      return 'Pago único (1 año)'
     case 'none':
       return 'Sin plan'
   }

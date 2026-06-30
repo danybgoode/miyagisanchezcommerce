@@ -15,6 +15,7 @@ import { isEnabled } from '@/lib/flags'
 import {
   deriveDomainEntitlement,
   readDomainGrant,
+  isOneTimeGrantLive,
   type DomainEntitlement,
 } from '@/lib/domain-entitlement'
 import { hasActiveCustomDomainSubscription } from '@/lib/domain-subscription'
@@ -34,12 +35,17 @@ export async function resolveDomainEntitlement(
   const paywallEnabled = await isEnabled('domain.paywall_enabled')
 
   // Skip the subscription lookup entirely when the paywall is off (everyone
-  // ungated) or a grant already entitles — saves a backend round-trip on the
-  // common path; the deriver's precedence (flag → grant → subscription) makes
-  // the result identical either way.
+  // ungated) or an ENTITLING grant already covers the shop — saves a backend
+  // round-trip on the common path; the deriver's precedence (flag → grant →
+  // subscription) makes the result identical either way. An EXPIRED one-time
+  // grant is still a (truthy) grant but no longer entitles, so we must NOT skip
+  // the lookup for it — a seller who lapsed one-time and re-subscribed recurring
+  // would otherwise wrongly read as `none`.
   const grant = readDomainGrant(metadata)
+  const grantEntitles =
+    grant?.type === 'grandfather' || grant?.type === 'comp' || isOneTimeGrantLive(grant)
   let hasActiveSubscription = opts?.hasActiveSubscription
-  if (hasActiveSubscription === undefined && paywallEnabled && !grant && opts?.sellerClerkId) {
+  if (hasActiveSubscription === undefined && paywallEnabled && !grantEntitles && opts?.sellerClerkId) {
     hasActiveSubscription = await hasActiveCustomDomainSubscription(opts.sellerClerkId)
   }
 

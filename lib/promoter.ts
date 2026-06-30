@@ -210,6 +210,48 @@ export function promoterRefusalMessage(reason: 'not_found' | 'disabled'): string
   }
 }
 
+// ── Real-billed discount: deterministic Stripe coupon key (epic 08 · S2) ───────
+//
+// The promoter discount is a single admin-set value, so ONE Stripe coupon backs
+// the current discount, keyed by (type, amount). Keying by amount keeps each
+// coupon immutable (Stripe coupons can't change their amount) yet idempotent:
+// changing the admin amount yields a NEW id, never a mutation. The actual
+// find-or-create against Stripe lives in `lib/promoter-coupon-server.ts`; this
+// pure derivation lets the api spec assert determinism without Stripe.
+
+export type PromoterCouponKey = {
+  /** Deterministic Stripe Coupon id (find-or-create). */
+  couponId: string
+  /** Deterministic Stripe Promotion Code (uppercase, alnum). */
+  promoCode: string
+  /** Stripe Coupon `name` — kept ≤ 40 chars (Stripe hard cap). */
+  name: string
+}
+
+/**
+ * Derive the deterministic Stripe ids for the current promoter discount, or null
+ * when the discount can't back a coupon (disabled, non-positive, or a percent
+ * outside 1–100). Pure.
+ */
+export function promoterCouponKey(settings: PromoterSettings): PromoterCouponKey | null {
+  if (!settings.enabled || settings.discount_amount_cents <= 0) return null
+  if (settings.discount_type === 'percentage') {
+    const pct = Math.round(settings.discount_amount_cents)
+    if (pct <= 0 || pct > 100) return null
+    return {
+      couponId: `promoter_disc_pct_${pct}`,
+      promoCode: `PROMOTERDISCPCT${pct}`,
+      name: `Promotor −${pct}%`,
+    }
+  }
+  const cents = Math.round(settings.discount_amount_cents)
+  return {
+    couponId: `promoter_disc_fixed_${cents}`,
+    promoCode: `PROMOTERDISCF${cents}`,
+    name: `Promotor −$${Math.round(cents / 100)} MXN`,
+  }
+}
+
 // ── Attribution (enrollment ledger) ───────────────────────────────────────────
 
 /** The paid SKUs a promoter can enroll a shop on (Sprint 1: custom domain). */
@@ -271,6 +313,69 @@ export async function recordAttribution(input: {
   if (error) {
     if (error.code !== '23505' && !/does not exist|relation/i.test(error.message ?? '')) {
       console.error('[promoter] attribution insert failed:', error.message)
+    }
+    return 'skipped'
+  }
+  return 'recorded'
+}
+
+/**
+ * Mark a promoter attribution PAID when the real charge lands (epic 08 · S2 —
+ * the Stripe/Medusa webhook). Upserts on (promoter, seller, sku): flips an
+ * existing `enrolled` row to `paid` with the real gross + cadence, or inserts a
+ * `paid` row if the buyer never previewed (e.g. an agent/MCP purchase). Idempotent
+ * — a webhook retry re-writes the same deterministic values (Sprint 3 reads
+ * `status='paid'` + the amount to compute first-payment commission). Tolerates
+ * the table not existing yet.
+ */
+export async function markAttributionPaid(input: {
+  promoterId: string
+  sellerId: string | null
+  sku: PromoterSku
+  grossAmountCents: number
+  cadence: string
+}): Promise<AttributeResult> {
+  const { promoterId, sellerId, sku, grossAmountCents, cadence } = input
+  if (!promoterId || !sellerId) return 'skipped'
+
+  const paidFields = {
+    gross_amount_cents: grossAmountCents,
+    cadence,
+    status: 'paid',
+  }
+
+  const { data: existing } = await db
+    .from('marketplace_promoter_attributions')
+    .select('id')
+    .eq('promoter_id', promoterId)
+    .eq('seller_id', sellerId)
+    .eq('sku', sku)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await db
+      .from('marketplace_promoter_attributions')
+      .update(paidFields)
+      .eq('id', existing.id)
+    if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+      console.error('[promoter] attribution paid-update failed:', error.message)
+      return 'skipped'
+    }
+    return 'recorded'
+  }
+
+  const { error } = await db.from('marketplace_promoter_attributions').insert({
+    promoter_id: promoterId,
+    seller_id: sellerId,
+    sku,
+    ...paidFields,
+  })
+  if (error) {
+    // A concurrent insert (23505 on the partial-unique index) means the row now
+    // exists as paid — treat as recorded, not a failure.
+    if (error.code === '23505') return 'recorded'
+    if (!/does not exist|relation/i.test(error.message ?? '')) {
+      console.error('[promoter] attribution paid-insert failed:', error.message)
     }
     return 'skipped'
   }

@@ -7,6 +7,7 @@
 
 import { db } from '@/lib/supabase'
 import { sendPrintAdReceivedToBuyer, sendPrintAdReceivedToMiyagi, sendPrintAdApproved, sendPrintAdRejected } from '@/lib/email'
+import { markAttributionPaid } from '@/lib/promoter'
 import {
   PRINT_OCCUPYING_STATUSES,
   type PrintEdition,
@@ -144,6 +145,22 @@ export async function handlePrintAdPaid(input: {
       .from('print_ad_submissions')
       .update({ status: 'paid', medusa_order_id: medusaOrderId ?? submission.medusa_order_id ?? null })
       .eq('id', submission.id)
+  }
+
+  // Promoter Program (epic 08 · S2): if this ad was sold through a promoter, flip
+  // the attribution to `paid` with the real amount + one-time cadence. Idempotent
+  // (markAttributionPaid re-writes the same deterministic values on a webhook retry).
+  const content = (submission.content ?? {}) as Record<string, unknown>
+  const promoterId = typeof content.promoter_id === 'string' ? content.promoter_id : null
+  const promoterSellerId = typeof content.promoter_seller_id === 'string' ? content.promoter_seller_id : null
+  if (promoterId && promoterSellerId) {
+    await markAttributionPaid({
+      promoterId,
+      sellerId: promoterSellerId,
+      sku: 'print_ad',
+      grossAmountCents: amountCents,
+      cadence: 'one_time',
+    })
   }
 
   await sendPrintAdPaidEmails(submission, { amountCents, currency, buyerEmail, buyerName })
