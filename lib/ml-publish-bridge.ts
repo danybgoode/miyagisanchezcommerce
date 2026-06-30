@@ -116,10 +116,11 @@ export async function publishMlProduct(
         status: (d.status as string | null | undefined) ?? null,
       }
     }
+    // Distinguish the failure on the backend's explicit `code` (not a brittle
+    // message substring) — the route tags each 409/422 with a stable code.
     if (res.status === 422 && d.code === 'ML_NO_CATEGORY') return { ok: false, reason: 'no_category' }
     if (res.status === 409) {
-      const alreadyLinked = typeof d.message === 'string' && d.message.includes('already linked')
-      return { ok: false, reason: alreadyLinked ? 'already_linked' : 'not_connected' }
+      return { ok: false, reason: d.code === 'ML_LINK_CONFLICT' ? 'already_linked' : 'not_connected' }
     }
     return { ok: false, reason: 'failed' }
   } catch {
