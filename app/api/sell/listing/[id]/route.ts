@@ -6,9 +6,34 @@ import { getShopStripe } from '@/lib/stripe'
 import { sanitizeFieldDefs } from '@/lib/personalization'
 import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
+import { isEnabled } from '@/lib/flags'
+import { closeMlProduct } from '@/lib/ml-publish-bridge'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+/**
+ * Best-effort: when a Miyagi product is archived (paused/deleted), close its
+ * linked Mercado Libre item so the two never drift (epic 03 · S3 · US-8). Gated
+ * on `ml.publish_enabled`; NEVER fails the archive on a ML hiccup. Only runs the
+ * (flag-gated) shop lookup + close when publish is enabled, so it's a true no-op
+ * while the feature ships dark.
+ */
+async function bestEffortCloseMl(userId: string, productId: string): Promise<void> {
+  try {
+    if (!(await isEnabled('ml.publish_enabled'))) return
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('slug')
+      .eq('clerk_user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (shop?.slug) await closeMlProduct(shop.slug, productId)
+  } catch {
+    /* never block the archive on a ML failure */
+  }
+}
 
 function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -246,6 +271,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .update({ status: body.status, updated_at: new Date().toISOString() })
     .eq('medusa_product_id', id)
 
+  // Pausing a Miyagi listing closes its linked ML item (US-8); reactivating is the
+  // seller's explicit "Sincronizar" action, not an automatic relist.
+  if (body.status === 'paused') await bestEffortCloseMl(userId, id)
+
   return NextResponse.json({ id, status: body.status })
 }
 
@@ -270,6 +299,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .from('marketplace_listings')
     .update({ status: 'deleted', updated_at: new Date().toISOString() })
     .eq('medusa_product_id', id)
+
+  // Deleting a Miyagi listing closes its linked ML item (US-8) — keyed off the
+  // linkage, so it still works now that the product is soft-deleted.
+  await bestEffortCloseMl(userId, id)
 
   return NextResponse.json({ id, deleted: true })
 }

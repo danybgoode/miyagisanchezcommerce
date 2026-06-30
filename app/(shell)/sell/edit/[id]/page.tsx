@@ -3,6 +3,11 @@ import Link from 'next/link'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import EditForm from './EditForm'
+import PublishToMl from './PublishToMl'
+import { isEnabled } from '@/lib/flags'
+import { getMlConnection } from '@/lib/ml-connection'
+import { getMlProductLink } from '@/lib/ml-publish-bridge'
+import type { MlLinkView } from '@/lib/ml-publish'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Editar anuncio' }
@@ -86,6 +91,17 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     subscription: '🔔 Suscripción',
   }
 
+  // Mercado Libre publish (epic 03 · S3 · US-7/8/9). Dark behind `ml.publish_enabled`;
+  // only for products, only when the shop has a connected ML account. Fails closed.
+  let mlPublishLink: MlLinkView | undefined
+  if (listing.listing_type === 'product' && shopData?.slug && (await isEnabled('ml.publish_enabled'))) {
+    const [{ connection }, link] = await Promise.all([
+      getMlConnection(shopData.slug),
+      getMlProductLink(medusaProductId),
+    ])
+    if (connection?.status === 'connected') mlPublishLink = link
+  }
+
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
@@ -143,6 +159,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           estado_code: (listing.metadata?.estado_code as string | undefined) ?? '',
         }}
       />
+
+      {mlPublishLink !== undefined && (
+        <PublishToMl productId={medusaProductId} title={listing.title} initialLink={mlPublishLink} />
+      )}
     </div>
   )
 }

@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -62,6 +62,12 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    Default OFF ⇒ the import page 404s and the import routes are no-ops, so S2
  *    merges dark (independent of `ml.connect_enabled`). Flip ON once Daniel's live
  *    ML-sandbox import smoke passes.
+ *  - ENABLEMENT (`ml.publish_enabled`): default `false`. The Mercado Libre PUBLISH
+ *    surface + publish/predict routes (epic 03 · mercadolibre-sync Sprint 3). Default
+ *    OFF ⇒ the "Publicar en Mercado Libre" island is hidden and the publish/predict
+ *    routes 404, so S3 merges dark (independent of connect/import). Publish WRITES to
+ *    the seller's external ML account (create/update/close), so it stays dark until
+ *    Daniel's live ML-sandbox publish+edit+close smoke passes — then flip ON.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -72,6 +78,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'promoter.enabled': false,
   'ml.connect_enabled': false,
   'ml.import_enabled': false,
+  'ml.publish_enabled': false,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
