@@ -196,3 +196,82 @@ export function promoterRefusalMessage(reason: 'not_found' | 'disabled'): string
       return 'El descuento de promotor no está disponible.'
   }
 }
+
+// ── Attribution (enrollment ledger) ───────────────────────────────────────────
+
+/** The paid SKUs a promoter can enroll a shop on (Sprint 1: custom domain). */
+export const PROMOTER_SKUS = ['custom_domain', 'print_ad'] as const
+export type PromoterSku = (typeof PROMOTER_SKUS)[number]
+
+export function isPromoterSku(raw: string | null | undefined): raw is PromoterSku {
+  return !!raw && (PROMOTER_SKUS as readonly string[]).includes(raw)
+}
+
+export interface PromoterAttribution {
+  id: string
+  promoter_id: string
+  seller_id: string | null
+  sku: string | null
+  gross_amount_cents: number | null
+  cadence: string | null
+  status: string
+  created_at?: string
+}
+
+export type AttributeResult = 'recorded' | 'skipped'
+
+/**
+ * Record an enrollment / attributed sale against a promoter. Idempotent — the
+ * partial unique index on (promoter_id, seller_id, sku) means re-running checkout
+ * doesn't double-write (swallows 23505), mirroring attributeReferral. In Sprint 1
+ * the row is `enrolled` (code applied, no charge yet); amount/cadence fill in when
+ * the real charge lands (Sprint 2).
+ */
+export async function recordAttribution(input: {
+  promoterId: string
+  sellerId: string | null
+  sku: PromoterSku
+  grossAmountCents?: number | null
+  cadence?: string | null
+}): Promise<AttributeResult> {
+  const { promoterId, sellerId, sku } = input
+  if (!promoterId || !sellerId) return 'skipped'
+
+  // Don't double-write an existing enrollment for this (promoter, seller, sku).
+  const { data: already } = await db
+    .from('marketplace_promoter_attributions')
+    .select('id')
+    .eq('promoter_id', promoterId)
+    .eq('seller_id', sellerId)
+    .eq('sku', sku)
+    .maybeSingle()
+  if (already) return 'skipped'
+
+  const { error } = await db.from('marketplace_promoter_attributions').insert({
+    promoter_id: promoterId,
+    seller_id: sellerId,
+    sku,
+    gross_amount_cents: input.grossAmountCents ?? null,
+    cadence: input.cadence ?? null,
+    status: 'enrolled',
+  })
+  if (error) {
+    if (error.code !== '23505' && !/does not exist|relation/i.test(error.message ?? '')) {
+      console.error('[promoter] attribution insert failed:', error.message)
+    }
+    return 'skipped'
+  }
+  return 'recorded'
+}
+
+/** A promoter's attribution rows, newest first (admin console). */
+export async function listAttributions(promoterId: string): Promise<PromoterAttribution[]> {
+  if (!promoterId) return []
+  const { data, error } = await db
+    .from('marketplace_promoter_attributions')
+    .select('id, promoter_id, seller_id, sku, gross_amount_cents, cadence, status, created_at')
+    .eq('promoter_id', promoterId)
+    .order('created_at', { ascending: false })
+  if (error || !data) return []
+  return data as PromoterAttribution[]
+}

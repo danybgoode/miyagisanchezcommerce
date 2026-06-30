@@ -179,6 +179,13 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
         { valid?: boolean; discount_cents?: number; message?: string } | null
       if (data?.valid && typeof data.discount_cents === 'number') {
         setPromoterDiscountCents(data.discount_cents)
+        // Best-effort: record the enrollment against the promoter (US-3). The
+        // server resolves the seller's shop + dedupes; a failure must not block UI.
+        fetch('/api/promoter/attribute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, sku: 'custom_domain' }),
+        }).catch(() => {})
       } else {
         setPromoterMsg(data?.message ?? 'Código de promotor no válido.')
       }

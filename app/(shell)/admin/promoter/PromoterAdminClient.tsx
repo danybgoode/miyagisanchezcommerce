@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Promoter, PromoterSettings } from '@/lib/promoter'
+import type { Promoter, PromoterSettings, PromoterAttribution } from '@/lib/promoter'
 
 /**
  * Promoter console — provision promoters + edit the seller discount, over
@@ -28,6 +28,24 @@ export default function PromoterAdminClient({
   const [savingSettings, setSavingSettings] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  // Per-promoter attribution ledger (lazy-loaded on expand).
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [attributions, setAttributions] = useState<Record<string, PromoterAttribution[]>>({})
+  const [loadingAttrs, setLoadingAttrs] = useState<string | null>(null)
+
+  async function toggleAttributions(promoterId: string) {
+    if (openId === promoterId) { setOpenId(null); return }
+    setOpenId(promoterId)
+    if (attributions[promoterId]) return // cached
+    setLoadingAttrs(promoterId)
+    try {
+      const res = await fetch(`/api/admin/promoter/attributions?promoterId=${encodeURIComponent(promoterId)}`)
+      const data = await res.json().catch(() => ({}))
+      setAttributions((m) => ({ ...m, [promoterId]: data.attributions ?? [] }))
+    } finally {
+      setLoadingAttrs((id) => (id === promoterId ? null : id))
+    }
+  }
 
   const isFixed = settings.discount_type === 'fixed'
   const amountDisplay = isFixed ? settings.discount_amount_cents / 100 : settings.discount_amount_cents
@@ -141,14 +159,41 @@ export default function PromoterAdminClient({
                     <span className="font-mono font-semibold">{p.code}</span>
                     {p.name && <span className="text-sm text-[var(--color-muted)] ml-2">{p.name}</span>}
                   </div>
-                  <button
-                    onClick={() => copy(p.code)}
-                    className="text-sm rounded-lg border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-surface)]"
-                  >
-                    {copied === p.code ? 'Copiado' : 'Copiar liga'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleAttributions(p.id)}
+                      className="text-sm rounded-lg border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-surface)]"
+                    >
+                      {openId === p.id ? 'Ocultar' : 'Atribuciones'}
+                    </button>
+                    <button
+                      onClick={() => copy(p.code)}
+                      className="text-sm rounded-lg border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-surface)]"
+                    >
+                      {copied === p.code ? 'Copiado' : 'Copiar liga'}
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xs text-[var(--color-muted)] font-mono break-all">{shareLink(p.code)}</div>
+                {openId === p.id && (
+                  <div className="mt-2 rounded-lg bg-[var(--color-surface)] p-2 text-xs">
+                    {loadingAttrs === p.id ? (
+                      <p className="text-[var(--color-muted)]">Cargando…</p>
+                    ) : (attributions[p.id]?.length ?? 0) === 0 ? (
+                      <p className="text-[var(--color-muted)]">Sin atribuciones todavía.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {attributions[p.id].map((a) => (
+                          <li key={a.id} className="flex items-center justify-between gap-2">
+                            <span className="font-mono">{a.sku ?? '—'}</span>
+                            <span className="text-[var(--color-muted)] truncate">{a.seller_id ?? '—'}</span>
+                            <span className="rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5">{a.status}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
