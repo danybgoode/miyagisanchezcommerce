@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'subdomain.paywall_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -68,6 +68,13 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    routes 404, so S3 merges dark (independent of connect/import). Publish WRITES to
  *    the seller's external ML account (create/update/close), so it stays dark until
  *    Daniel's live ML-sandbox publish+edit+close smoke passes — then flip ON.
+ *  - ENABLEMENT (`subdomain.paywall_enabled`): default `false`. The subdomain SKU
+ *    paywall (epic 07 · subdomain-pricing). Default OFF ⇒ today's free-for-all —
+ *    every `<slug>.miyagisanchez.com` serves white-label as it always has, so a
+ *    flag outage can never trap a seller behind a paywall or break a live
+ *    subdomain. Enabling is the deliberate act: flip ON only AFTER the grandfather
+ *    backfill has stamped existing shops. Read in the Node-runtime middleware gate
+ *    (US-1); flipping OFF is the instant rollback for the universal subdomain surface.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -79,6 +86,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ml.connect_enabled': false,
   'ml.import_enabled': false,
   'ml.publish_enabled': false,
+  'subdomain.paywall_enabled': false,
 }
 
 const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
