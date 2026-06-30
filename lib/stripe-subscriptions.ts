@@ -92,6 +92,58 @@ export async function createSubscriptionCheckout({
 }
 
 /**
+ * Creates a Stripe Checkout Session in ONE-TIME payment mode (`mode:'payment'`)
+ * for a PLATFORM-owned SKU — the promoter-program one-time cadence (epic 08 · S2).
+ * Pay-a-year-up-front with NO recurring mandate: a `mode:'payment'` session never
+ * creates a Stripe Subscription or an upcoming invoice, so nothing auto-charges at
+ * year end. The platform is the payee, so there is NO `transfer_data` and NO
+ * application fee (unlike a seller-listing one-time charge).
+ *
+ * The price is passed inline as `price_data` (no Stripe Price object needed),
+ * mirroring `app/api/stripe/checkout/route.ts`. An optional `promotionCodeId`
+ * applies a real Stripe discount (the promoter's coupon). `metadata` is stamped
+ * on the session so the webhook can route + activate the dated grant.
+ */
+export async function createOneTimeCheckout({
+  amountCents,
+  currency,
+  productName,
+  successUrl,
+  cancelUrl,
+  metadata,
+  buyerEmail,
+  promotionCodeId,
+}: {
+  amountCents: number
+  currency: string
+  productName: string
+  successUrl: string
+  cancelUrl: string
+  metadata: Record<string, string>
+  buyerEmail?: string
+  promotionCodeId?: string
+}): Promise<string> {
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    line_items: [{
+      quantity: 1,
+      price_data: {
+        currency: currency.toLowerCase(),
+        unit_amount: amountCents,
+        product_data: { name: productName },
+      },
+    }],
+    payment_intent_data: { metadata },
+    customer_email: buyerEmail,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata,
+    ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
+  })
+  return session.url!
+}
+
+/**
  * Transfers the seller's 97% share to their connected Stripe account.
  * Called on invoice.payment_succeeded — non-fatal, logs on failure.
  */

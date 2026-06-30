@@ -29,9 +29,9 @@ import {
   CUSTOM_DOMAIN_CHECKOUT_KIND,
   setCustomDomainSubscriptionStatus,
 } from '@/lib/domain-subscription'
-import { removeDomainFromProject } from '@/lib/vercel-domains'
-import { SHOP_DOMAINS_TAG } from '@/lib/custom-domain'
-import { revalidateTag } from 'next/cache'
+import { buildOneTimeGrant } from '@/lib/domain-entitlement'
+import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
+import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -124,6 +124,10 @@ export async function POST(req: NextRequest) {
         } else {
           await handleSubscriptionCheckoutComplete(session)
         }
+      } else if (session.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
+        // One-time custom-domain cadence (epic 08 · promoter-program S2):
+        // mode:'payment', no Stripe subscription — entitlement is a dated grant.
+        await handleCustomDomainOneTimeComplete(session)
       } else {
         await handleCheckoutComplete(session)
       }
@@ -763,6 +767,60 @@ async function handleCustomDomainSubscriptionComplete(session: Stripe.Checkout.S
   tg.alert(`✅ Dominio propio activado\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
 }
 
+// ── Custom-domain ONE-TIME: checkout.session.completed (mode=payment) ─────────
+// (epic 08 · promoter-program S2). A pay-a-year-up-front purchase with NO Stripe
+// subscription. Entitlement is a DATED 12-month grant on the shop metadata (the
+// custom_domain_grant seam) that lapses on read — so nothing auto-charges at year
+// end. When a promoter is attributed, the attribution flips to `paid` with the
+// real amount collected. Mirrors handleCustomDomainSubscriptionComplete's safety:
+// the seller PAID, so a failed grant write is alerted for hand-repair (Stripe
+// won't retry a handler that returns 200).
+async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id
+  if (!shopId || !sellerClerkId) {
+    console.error('[custom-domain one-time] missing metadata:', session.id)
+    return
+  }
+
+  // Write the dated one-time grant (+ clear any prior lapse flag) atomically on
+  // the shop's metadata JSONB — the SAME field every entitlement reader derives from.
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    const meta = ((shop?.metadata ?? {}) as Record<string, unknown>)
+    meta.custom_domain_grant = buildOneTimeGrant({ note: 'one-time S2' })
+    delete meta.custom_domain_lapsed
+    const { error } = await db.from('marketplace_shops').update({ metadata: meta }).eq('id', shopId)
+    if (error) throw new Error(error.message)
+  } catch (e) {
+    console.error('[custom-domain one-time] grant write failed:', e)
+    tg.alert(
+      `🚨 Dominio propio (pago único) PAGADO pero NO activado — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nSession: ${session.id}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+    return
+  }
+
+  // Promoter attribution → paid, with the real amount collected (post-discount).
+  const promoterId = session.metadata?.promoter_id
+  const promoterSku = session.metadata?.promoter_sku
+  if (promoterId && isPromoterSku(promoterSku)) {
+    await markAttributionPaid({
+      promoterId,
+      sellerId: shopId,
+      sku: promoterSku,
+      grossAmountCents: session.amount_total ?? 0,
+      cadence: 'one_time',
+    })
+  }
+
+  tg.alert(`✅ Dominio propio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────
 
 async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Session) {
@@ -905,51 +963,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     .eq('stripe_subscription_id', subscription.id)
 }
 
-/**
- * Lapse cleanup (S2.2): release the seller's custom domain from Vercel, null it
- * in Supabase, and stamp `metadata.custom_domain_lapsed` so Canal shows the
- * "re-activate to restore your domain" prompt. The free subdomain + slug are
- * untouched (the shop stays reachable). Best-effort — a Vercel hiccup must never
- * fail the webhook (Stripe would retry the whole event).
- */
-async function releaseCustomDomainForShop(shopId: string | undefined) {
-  if (!shopId) return
-  try {
-    const { data: shop } = await db
-      .from('marketplace_shops')
-      .select('custom_domain, metadata')
-      .eq('id', shopId)
-      .maybeSingle()
-
-    const domain = (shop as { custom_domain?: string | null } | null)?.custom_domain
-    if (domain) {
-      try {
-        await removeDomainFromProject(domain)
-      } catch (err) {
-        console.error('[custom-domain lapse] Vercel removeDomain failed:', err)
-      }
-    }
-
-    const meta = ((shop as { metadata?: Record<string, unknown> } | null)?.metadata ?? {}) as Record<string, unknown>
-    meta.custom_domain_lapsed = { at: new Date().toISOString() }
-
-    await db
-      .from('marketplace_shops')
-      .update({
-        custom_domain: null,
-        custom_domain_verified: false,
-        custom_domain_vercel_ok: false,
-        metadata: meta,
-      })
-      .eq('id', shopId)
-
-    // Drop the reverse lookup so the platform stops redirecting to the now-dead host.
-    revalidateTag(SHOP_DOMAINS_TAG, 'default')
-    tg.alert(`🔻 Dominio propio desconectado (suscripción cancelada)\nShop: ${shopId}\nDominio: ${domain ?? '—'}`)
-  } catch (e) {
-    console.error('[custom-domain lapse] release failed:', e)
-  }
-}
+// Lapse cleanup (custom-domain) now lives in `lib/domain-lapse-server.ts` —
+// shared by this webhook (subscription canceled) and the one-time expiry sweep.
 
 // ── invoice.payment_succeeded ─────────────────────────────────────────────────
 

@@ -37,13 +37,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Optional coupon code from the body (campaign coupon `miyagisan`).
+  // Optional body: campaign coupon (`miyagisan`, recurring), the payment cadence
+  // (`recurring` default | `one_time`), and the promoter code (`PRM-…`, one-time
+  // real discount). A missing/empty body = recurring, no discount (back-compat).
   let couponCode: string | null = null
+  let cadence: string | null = null
+  let promoterCode: string | null = null
   try {
-    const body = (await req.json()) as { coupon?: unknown }
+    const body = (await req.json()) as { coupon?: unknown; cadence?: unknown; promoterCode?: unknown }
     if (typeof body?.coupon === 'string') couponCode = body.coupon
+    if (typeof body?.cadence === 'string') cadence = body.cadence
+    if (typeof body?.promoterCode === 'string') promoterCode = body.promoterCode
   } catch {
-    // No / empty body — straight (paid) checkout.
+    // No / empty body — straight (paid) recurring checkout.
   }
 
   // The seller's first shop (same lookup the domain route uses).
@@ -64,6 +70,8 @@ export async function POST(req: NextRequest) {
     buyerEmail: user.emailAddresses?.[0]?.emailAddress,
     channel: detectChannel(req),
     couponCode,
+    cadence,
+    promoterCode,
   })
 
   if (!result.ok) {

@@ -159,15 +159,24 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
 
   // ── Promoter Program (epic 08, Sprint 1) — discount PREVIEW behind promoter.enabled ──
   const promoterEnabled = initial.promoter_enabled ?? false
+  // Sprint 2: payment cadence (recurring default | one-time pay-a-year-up-front)
+  // + the promoter code lifted up from PromoterCodeField for the REAL one-time charge.
+  const [domainCadence, setDomainCadence] = useState<'recurring' | 'one_time'>('recurring')
+  const [promoterCode, setPromoterCode] = useState('')
 
   async function handleActivateDomain() {
     setSubscribing(true); setSubscribeError(null)
     try {
       const coupon = domainCoupon.trim()
+      const code = promoterCode.trim()
       const res = await fetch('/api/sell/shop/domain/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(coupon ? { coupon } : {}),
+        body: JSON.stringify({
+          ...(coupon ? { coupon } : {}),
+          cadence: domainCadence,
+          ...(domainCadence === 'one_time' && code ? { promoterCode: code } : {}),
+        }),
       })
       const data = await res.json() as { url?: string; error?: string }
       if (!res.ok || !data.url) { setSubscribeError(data.error ?? 'No se pudo iniciar el pago.'); return }
@@ -598,8 +607,41 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
                 />
               </div>
-              {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled. */}
-              {promoterEnabled && <PromoterCodeField priceCents={CUSTOM_DOMAIN_PRICE_CENTS} sku="custom_domain" />}
+              {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled.
+                  Sprint 2: the typed code is lifted up to drive the REAL one-time discount on pay. */}
+              {promoterEnabled && (
+                <PromoterCodeField
+                  priceCents={CUSTOM_DOMAIN_PRICE_CENTS}
+                  sku="custom_domain"
+                  onCodeChange={setPromoterCode}
+                />
+              )}
+              {/* Payment cadence (epic 08 · Sprint 2) — pay yearly subscription or one year up front. */}
+              <fieldset className="mb-3">
+                <legend className="block text-[11px] font-medium text-[var(--color-muted)] mb-1.5">
+                  Forma de pago
+                </legend>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="domain-cadence"
+                      checked={domainCadence === 'recurring'}
+                      onChange={() => { setDomainCadence('recurring'); if (subscribeError) setSubscribeError(null) }}
+                    />
+                    <span>Suscripción anual <span className="text-[var(--color-muted)]">(se renueva cada año)</span></span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="domain-cadence"
+                      checked={domainCadence === 'one_time'}
+                      onChange={() => { setDomainCadence('one_time'); if (subscribeError) setSubscribeError(null) }}
+                    />
+                    <span>Pagar un año <span className="text-[var(--color-muted)]">(pago único, sin renovación)</span></span>
+                  </label>
+                </div>
+              </fieldset>
               <button
                 type="button"
                 onClick={handleActivateDomain}
