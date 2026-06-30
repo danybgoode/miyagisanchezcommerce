@@ -33,17 +33,13 @@ export async function POST(req: NextRequest) {
   const code = (body.code ?? cookieStore.get('promo')?.value ?? '').trim()
   const sku = body.sku ?? 'custom_domain'
 
-  // Build a response that always clears the promo cookie (one enrollment per link).
-  const clearCookie = (payload: Record<string, unknown>, status = 200) => {
-    const res = NextResponse.json(payload, { status })
-    res.cookies.set('promo', '', { maxAge: 0, path: '/' })
-    return res
-  }
-
-  if (!code || !isPromoterSku(sku)) return clearCookie({ ok: true, attributed: false })
+  // Nothing actionable (no code / unknown code / no shop / transient error) → leave
+  // the 30-day promo cookie intact so a valid code survives for a later retry. Only
+  // a FRESH successful enrollment burns it (one enrollment per share link).
+  if (!code || !isPromoterSku(sku)) return NextResponse.json({ ok: true, attributed: false })
 
   const promoter = await getPromoterByCode(code)
-  if (!promoter) return clearCookie({ ok: true, attributed: false })
+  if (!promoter) return NextResponse.json({ ok: true, attributed: false })
 
   // The enrolling seller's own shop is the attribution target.
   const { data: shop } = await db
@@ -58,5 +54,7 @@ export async function POST(req: NextRequest) {
     ? await recordAttribution({ promoterId: promoter.id, sellerId: shop.id, sku })
     : 'skipped'
 
-  return clearCookie({ ok: true, attributed: result === 'recorded' })
+  const res = NextResponse.json({ ok: true, attributed: result === 'recorded' })
+  if (result === 'recorded') res.cookies.set('promo', '', { maxAge: 0, path: '/' })
+  return res
 }

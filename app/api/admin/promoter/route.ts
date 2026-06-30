@@ -39,9 +39,15 @@ export const PATCH = withAdmin(async (req: NextRequest) => {
   if (typeof body.enabled === 'boolean') patch.enabled = body.enabled
   if (body.discount_type === 'fixed' || body.discount_type === 'percentage') patch.discount_type = body.discount_type
   if (Number.isFinite(body.discount_amount_cents) && (body.discount_amount_cents as number) >= 0) {
-    patch.discount_amount_cents = Math.round(body.discount_amount_cents as number)
+    let amount = Math.round(body.discount_amount_cents as number)
+    // For a percentage discount the amount is a raw percent — cap at 100 so the
+    // admin can't store a nonsensical value (computePromoterDiscountCents also
+    // caps at the base, but don't persist >100%).
+    if (patch.discount_type === 'percentage') amount = Math.min(amount, 100)
+    patch.discount_amount_cents = amount
   }
 
-  const settings = await updatePromoterSettings(patch)
+  const { settings, ok } = await updatePromoterSettings(patch)
+  if (!ok) return NextResponse.json({ error: 'No se pudo guardar.' }, { status: 502 })
   return NextResponse.json({ settings })
 })

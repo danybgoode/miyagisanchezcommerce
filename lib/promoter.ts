@@ -139,13 +139,26 @@ export async function getPromoterSettings(): Promise<PromoterSettings> {
   }
 }
 
-export async function updatePromoterSettings(patch: Partial<PromoterSettings>): Promise<PromoterSettings> {
+/**
+ * Persist the settings patch. Returns `ok:false` when the write didn't actually
+ * land — a DB error OR a 0-row update (the singleton row wasn't seeded / table
+ * missing) — so the admin route can surface a real failure instead of a silent
+ * "Guardado" no-op (the "check the write result" rule).
+ */
+export async function updatePromoterSettings(
+  patch: Partial<PromoterSettings>,
+): Promise<{ settings: PromoterSettings; ok: boolean }> {
   const next = { ...(await getPromoterSettings()), ...patch }
-  await db
+  const { data, error } = await db
     .from('marketplace_promoter_settings')
     .update({ ...next, updated_at: new Date().toISOString() })
     .eq('id', 1)
-  return next
+    .select('id')
+  if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+    console.error('[promoter] settings update failed:', error.message)
+  }
+  const ok = !error && Array.isArray(data) && data.length > 0
+  return { settings: next, ok }
 }
 
 // ── Discount resolution (pure — the SKU-checkout preview seam) ─────────────────
