@@ -39,10 +39,11 @@ export function deriveConnectionHealth(
   return { state: 'connected', label_es: 'Conectado' }
 }
 
-/** Mirror of the backend's `isDuplicateLink`. */
+/** Mirror of the backend's `isDuplicateLink` — the 1:1 conflict guard. `existing`
+ *  is the set of links already matching the candidate's product OR ml_item. */
 type LinkPair = { product_id: string; ml_item_id: string }
 export function isDuplicateLink(existing: LinkPair[], candidate: LinkPair): boolean {
   return existing.some(
-    (l) => l.product_id === candidate.product_id && l.ml_item_id === candidate.ml_item_id,
+    (l) => l.product_id === candidate.product_id || l.ml_item_id === candidate.ml_item_id,
   )
 }

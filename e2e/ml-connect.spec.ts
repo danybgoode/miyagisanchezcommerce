@@ -48,17 +48,18 @@ test.describe('ml-health · deriveConnectionHealth', () => {
   })
 })
 
-// ── US-2: linkage duplicate guard (pure mirror) ────────────────────────────────
-test.describe('ml-health · isDuplicateLink', () => {
+// ── US-2: linkage 1:1 conflict guard (pure mirror) ─────────────────────────────
+test.describe('ml-health · isDuplicateLink (1:1)', () => {
   const existing = [{ product_id: 'prod_1', ml_item_id: 'MLM1' }]
 
-  test('rejects an exact (product, ml_item) pair', () => {
-    expect(isDuplicateLink(existing, { product_id: 'prod_1', ml_item_id: 'MLM1' })).toBe(true)
+  test('rejects an exact pair, and either side already linked', () => {
+    expect(isDuplicateLink(existing, { product_id: 'prod_1', ml_item_id: 'MLM1' })).toBe(true) // exact
+    expect(isDuplicateLink(existing, { product_id: 'prod_1', ml_item_id: 'MLM2' })).toBe(true) // product taken
+    expect(isDuplicateLink(existing, { product_id: 'prod_2', ml_item_id: 'MLM1' })).toBe(true) // item taken
   })
 
-  test('allows same product → different ML item, and vice versa', () => {
-    expect(isDuplicateLink(existing, { product_id: 'prod_1', ml_item_id: 'MLM2' })).toBe(false)
-    expect(isDuplicateLink(existing, { product_id: 'prod_2', ml_item_id: 'MLM1' })).toBe(false)
+  test('allows a brand-new product ↔ brand-new ML item pair', () => {
+    expect(isDuplicateLink([], { product_id: 'prod_9', ml_item_id: 'MLM9' })).toBe(false)
   })
 })
 
