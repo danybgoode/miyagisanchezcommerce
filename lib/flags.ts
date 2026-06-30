@@ -22,7 +22,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'ml.connect_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -48,6 +48,10 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    Envía account. The BACKEND is the real enforcement (rates + label routes); this
  *    FE read only informs the seller-settings banner + the legacy FE ship/re-quote
  *    routes. Flip ON the instant the Envía account is funded.
+ *  - ENABLEMENT (`promoter.enabled`): default `false`. The commission-paid promoter
+ *    program (epic 08). Default OFF ⇒ the promoter code/discount-preview/attribution
+ *    surfaces stay hidden, so a flag outage can never expose an unfinished money path.
+ *    Flip ON once Sprint 1 is smoke-tested and the discount cadence (Sprint 2) lands.
  *  - ENABLEMENT (`ml.connect_enabled`): default `false`. The Mercado Libre connect
  *    surface + OAuth routes (epic 03 · mercadolibre-sync). Default OFF ⇒ the connect
  *    button/status page render nothing and the connect route is a no-op, so Sprint 1
@@ -60,6 +64,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'pdp_redesign': true,
   'events.quantity_enabled': false,
   'shipping.envia_enabled': false,
+  'promoter.enabled': false,
   'ml.connect_enabled': false,
 }
 

@@ -81,6 +81,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     risk: 'med',
   },
   {
+    key: 'promoter',
+    label: 'Promotores',
+    description: 'Provisiona promotores y configura el descuento que ofrecen.',
+    href: '/admin/promoter',
+    icon: 'iconoir-megaphone',
+    risk: 'med',
+  },
+  {
     key: 'audit',
     label: 'Auditoría',
     description: 'Registro de cada acción administrativa (quién, qué, cuándo).',
