@@ -75,6 +75,16 @@ export async function startCustomDomainCheckout(input: {
   const { shopId, sellerClerkId, buyerEmail, channel } = input
   const cadence = coerceDomainCadence(input.cadence)
 
+  // The one-time cadence is part of the promoter program (epic 08 · S2) — gated
+  // behind promoter.enabled so the whole sprint is dark until launch. With the
+  // flag off, a one-time request (only reachable by a crafted/agent call — the UI
+  // hides the selector) is refused cleanly rather than silently charged as a
+  // recurring subscription. Resolve the flag once; reused for the discount below.
+  const promoterEnabled = await isEnabled('promoter.enabled')
+  if (cadence === 'one_time' && !promoterEnabled) {
+    return { ok: false, status: 422, error: 'El pago de un año por adelantado aún no está disponible.' }
+  }
+
   // An active recurring subscription already entitles — block either cadence.
   const sub = await getCustomDomainSubscription(sellerClerkId)
   if (sub.active) {
@@ -96,7 +106,7 @@ export async function startCustomDomainCheckout(input: {
     let promotionCodeId: string | undefined
     let promoterId: string | undefined
     const rawPromoter = (input.promoterCode ?? '').trim()
-    if (rawPromoter && (await isEnabled('promoter.enabled'))) {
+    if (rawPromoter && promoterEnabled) {
       const [promoter, settings] = await Promise.all([
         getPromoterByCode(rawPromoter),
         getPromoterSettings(),

@@ -617,12 +617,16 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   onCodeChange={setPromoterCode}
                 />
               )}
-              {/* Payment cadence (epic 08 · Sprint 2) — pay yearly subscription or one year up front. */}
-              <DomainCadenceField
-                value={domainCadence}
-                onChange={setDomainCadence}
-                onInteract={() => { if (subscribeError) setSubscribeError(null) }}
-              />
+              {/* Payment cadence (epic 08 · Sprint 2) — pay yearly subscription or one year up front.
+                  Behind promoter.enabled: with the flag off the selector is hidden and the purchase
+                  stays recurring (today's behavior), so the whole sprint is dark until launch. */}
+              {promoterEnabled && (
+                <DomainCadenceField
+                  value={domainCadence}
+                  onChange={setDomainCadence}
+                  onInteract={() => { if (subscribeError) setSubscribeError(null) }}
+                />
+              )}
               <button
                 type="button"
                 onClick={handleActivateDomain}
