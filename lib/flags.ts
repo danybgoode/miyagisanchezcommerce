@@ -16,7 +16,10 @@
  *     latency to the request path and request volume != Flagsmith API volume.
  *
  * Runtime: Node only (the SDK is not Edge-compatible). Call this from route
- * handlers / server components, NOT from middleware (Edge).
+ * handlers / server components — and from middleware ONLY when the middleware
+ * runs on the Node runtime (`export const config = { runtime: 'nodejs' }`), never
+ * from Edge middleware. `middleware.ts` opts into the Node runtime specifically so
+ * the subdomain paywall gate (epic 07 · subdomain-pricing) can read a flag here.
  */
 import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
