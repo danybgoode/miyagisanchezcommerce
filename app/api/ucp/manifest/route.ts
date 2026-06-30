@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
         seller_domain_subscription: {
           method: 'POST',
           url: `${base}/api/ucp/mcp`,
-          description: "A seller's own agent can check its custom-domain entitlement and start the domain subscription (the platform's paid SKU, $499 MXN/yr) via the MCP tools get_domain_entitlement and start_domain_subscription. Pass an optional coupon (e.g. miyagisan) to comp the first year, capped at 100 redemptions. Returns a Stripe checkout URL; entitlement flips on once checkout completes. The subdomain and free shop URL stay free.",
+          description: "A seller's own agent can check its custom-domain entitlement and start checkout for the domain SKU (the platform's paid SKU, $499 MXN/yr) via the MCP tools get_domain_entitlement and start_domain_subscription. The SKU has two cadences: `recurring` (annual subscription, default) or `one_time` (pay one year up front with no recurring mandate — a dated 12-month grant that lapses gracefully with no auto-charge). On the recurring cadence pass an optional coupon (e.g. miyagisan) to comp the first year, capped at 100 redemptions. Returns a Stripe checkout URL; entitlement flips on once checkout completes. The subdomain and free shop URL stay free.",
           auth: 'authorization_bearer_shop_token',
           note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
           mcp_tools: ['get_domain_entitlement', 'start_domain_subscription'],
