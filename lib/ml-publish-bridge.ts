@@ -18,7 +18,7 @@ const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 export type MlPublishResult = {
   ok: boolean
   /** 'already_linked' is a 409 on a create attempt — the link already exists. */
-  reason?: 'not_connected' | 'no_category' | 'already_linked' | 'failed'
+  reason?: 'not_connected' | 'no_category' | 'invalid_product' | 'already_linked' | 'failed'
   action?: string
   created?: boolean
   ml_item_id?: string | null
@@ -119,6 +119,7 @@ export async function publishMlProduct(
     // Distinguish the failure on the backend's explicit `code` (not a brittle
     // message substring) — the route tags each 409/422 with a stable code.
     if (res.status === 422 && d.code === 'ML_NO_CATEGORY') return { ok: false, reason: 'no_category' }
+    if (res.status === 422 && d.code === 'ML_INVALID_PRODUCT') return { ok: false, reason: 'invalid_product' }
     if (res.status === 409) {
       return { ok: false, reason: d.code === 'ML_LINK_CONFLICT' ? 'already_linked' : 'not_connected' }
     }

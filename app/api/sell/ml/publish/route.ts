@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
     if (result.reason === 'no_category') {
       return NextResponse.json({ error: 'Elige una categoría de Mercado Libre para publicar.', code: 'ML_NO_CATEGORY' }, { status: 422 })
     }
+    if (result.reason === 'invalid_product') {
+      return NextResponse.json({ error: 'El anuncio necesita título y precio para publicarse en Mercado Libre.' }, { status: 422 })
+    }
     return NextResponse.json({ error: 'No pudimos publicar en Mercado Libre. Intenta de nuevo.' }, { status: 502 })
   }
 
