@@ -35,6 +35,7 @@ import { resolveAgentShop } from '@/lib/agent-auth'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
+import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
@@ -367,7 +368,7 @@ const TOOLS = [
   },
   {
     name: 'get_domain_entitlement',
-    description: "SELLER TOOL. Check whether YOUR OWN shop may connect a custom domain (the platform's paid SKU). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / active subscription / not entitled), the annual price, and — when not entitled — that the campaign coupon `miyagisan` covers the first year free. The subdomain and free shop URL are always free regardless. Use before start_domain_subscription.",
+    description: "SELLER TOOL. Check whether YOUR OWN shop may connect a custom domain (the platform's paid SKU). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / one-time grant / active subscription / not entitled), the annual price, and — when not entitled — that the campaign coupon `miyagisan` covers the first year free. The SKU can be bought in two cadences (an annual subscription, or a one-time year up front with no recurring mandate). The subdomain and free shop URL are always free regardless. Use before start_domain_subscription.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -375,11 +376,12 @@ const TOOLS = [
   },
   {
     name: 'start_domain_subscription',
-    description: "SELLER TOOL. Start the Stripe checkout to subscribe YOUR OWN shop to the custom-domain SKU ($499 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Optionally pass a `coupon` (e.g. `miyagisan`) to comp the first year — capped at 100 redemptions; an exhausted/invalid coupon is refused with a clear message and no checkout is created. Returns a Stripe checkout URL the seller opens to pay (or, with a valid 100%-off coupon, to confirm at $0). Entitlement flips on automatically once checkout completes.",
+    description: "SELLER TOOL. Start the Stripe checkout for YOUR OWN shop's custom-domain SKU ($499 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Two cadences: `recurring` (default — an annual subscription that auto-renews) or `one_time` (pay one year up front with NO recurring mandate; entitlement is a dated 12-month grant that lapses gracefully at year end with no auto-charge — the cash-friendly option). On the `recurring` cadence you may pass a `coupon` (e.g. `miyagisan`) to comp the first year — capped at 100 redemptions; an exhausted/invalid coupon is refused with a clear message and no checkout is created. Returns a Stripe checkout URL the seller opens to pay (or, with a valid 100%-off coupon, to confirm at $0). Entitlement flips on automatically once checkout completes.",
     inputSchema: {
       type: 'object',
       properties: {
-        coupon: { type: 'string', description: 'Optional campaign coupon code (e.g. miyagisan) to comp the first year' },
+        cadence: { type: 'string', enum: ['recurring', 'one_time'], description: "Payment cadence: 'recurring' (annual subscription, default) or 'one_time' (pay a year up front, no renewal)" },
+        coupon: { type: 'string', description: 'Optional campaign coupon code (e.g. miyagisan) to comp the first year — recurring cadence only' },
       },
     },
   },
@@ -1364,26 +1366,31 @@ async function handleStartDomainSubscription(args: Record<string, unknown>, auth
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
 
   const couponCode = typeof args.coupon === 'string' ? args.coupon : null
+  const cadence = asDomainCadence(args.cadence) ?? 'recurring'
   const result = await startCustomDomainCheckout({
     shopId: shop.id,
     sellerClerkId: shop.clerk_user_id,
     channel: 'api',
     couponCode,
+    cadence,
   })
 
   if (!result.ok) {
     return { isError: true, content: [{ type: 'text', text: result.error }] }
   }
 
+  const cadenceNote = cadence === 'one_time'
+    ? ' (pago único por un año, sin renovación automática)'
+    : ''
   return {
     content: [
       {
         type: 'text',
         text:
-          `Abre este enlace para activar tu dominio propio${couponCode ? ` con el cupón “${couponCode}”` : ''}:\n${result.url}\n\n` +
+          `Abre este enlace para activar tu dominio propio${cadenceNote}${couponCode ? ` con el cupón “${couponCode}”` : ''}:\n${result.url}\n\n` +
           'La habilitación se activa automáticamente al completar el checkout.',
       },
-      { type: 'text', text: JSON.stringify({ checkout_url: result.url }, null, 2) },
+      { type: 'text', text: JSON.stringify({ checkout_url: result.url, cadence }, null, 2) },
     ],
   }
 }

@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
@@ -21,6 +22,9 @@ import {
 } from '@/lib/print-server'
 import { sendPrintAdPaymentPending } from '@/lib/email'
 import type { PrintEdition, PrintAdContent } from '@/lib/print'
+import { isEnabled } from '@/lib/flags'
+import { getPromoterByCode, getPromoterSettings, resolvePromoterDiscount } from '@/lib/promoter'
+import { ensurePromoterPlatformCouponCode } from '@/lib/promoter-coupon-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +90,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const isManual = body.provider === 'manual' || body.provider === 'spei' || body.provider === 'cash'
 
+  // ── Promoter Program (epic 08 · S2) — same one-time cadence + real discount ──
+  // A promoter's code (captured to the `promo` cookie from their share link)
+  // applies the seller discount as a Medusa platform coupon and attributes the
+  // sale to the promoter (resolved server-side — never a client-sent amount).
+  let promoterCouponCode: string | undefined
+  let promoterId: string | undefined
+  let promoterSellerId: string | undefined
+  if (await isEnabled('promoter.enabled')) {
+    const cookieStore = await cookies()
+    const promoCode = (cookieStore.get('promo')?.value ?? '').trim()
+    if (promoCode) {
+      const [promoter, settings] = await Promise.all([getPromoterByCode(promoCode), getPromoterSettings()])
+      const resolved = resolvePromoterDiscount({ promoter, settings, itemsCents: tier.price_cents })
+      if (resolved.ok) {
+        promoterId = resolved.promoter_id
+        // Attribution targets the seller's marketplace shop (consistent with US-3
+        // + the custom-domain path: attribution `seller_id` is marketplace_shops.id).
+        const { data: shop } = await db
+          .from('marketplace_shops')
+          .select('id')
+          .eq('clerk_user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        promoterSellerId = shop?.id ?? undefined
+        // Apply the discount only when the buyer didn't type their own coupon.
+        if (!body.couponCode) {
+          promoterCouponCode = (await ensurePromoterPlatformCouponCode(settings)) ?? undefined
+        }
+      }
+    }
+  }
+
   // ── Drive the shared checkout flow ────────────────────────────────────────
   let result
   try {
@@ -97,7 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       buyerFirstName: user?.firstName ?? undefined,
       buyerLastName: user?.lastName ?? undefined,
       clerkJwt: clerkJwt ?? undefined,
-      couponCode: body.couponCode,
+      couponCode: body.couponCode ?? promoterCouponCode,
       fulfillmentMethod: 'digital',
       // Print sends its own payment-pending email (not the generic manual order one).
       suppressManualEmail: true,
@@ -117,14 +154,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     manual_payment?: PrintAdContent['manual_payment']
   }).manual_payment ?? null
 
+  // Persist content when there's something to carry: the manual payment snapshot
+  // and/or the promoter attribution ids (read by handlePrintAdPaid on the paid event).
+  const promoterContent = promoterId && promoterSellerId
+    ? { promoter_id: promoterId, promoter_seller_id: promoterSellerId }
+    : {}
+  const writeContent = isManual || (promoterId && promoterSellerId)
+  const nextContent = {
+    ...(submission.content ?? {}),
+    ...promoterContent,
+    ...(isManual ? { manual_payment: manualSnapshot } : {}),
+  }
+
   await db
     .from('print_ad_submissions')
     .update({
       status: 'pending_payment',
       buyer_email: buyerEmail ?? null,
       medusa_product_id: tier.medusa_product_id,
-      // Persist the manual payment instructions so the buyer can retrieve them anytime.
-      ...(isManual ? { content: { ...(submission.content ?? {}), manual_payment: manualSnapshot } } : {}),
+      ...(writeContent ? { content: nextContent } : {}),
       ...(isManual
         ? { medusa_order_id: result.cart_id ?? null }
         : { cart_id: result.cart_id ?? null }),

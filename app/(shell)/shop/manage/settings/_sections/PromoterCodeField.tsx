@@ -12,7 +12,16 @@ import { useState } from 'react'
  * enrollment attribution. No money moves here — the billed discount + cadence is
  * Sprint 2.
  */
-export default function PromoterCodeField({ priceCents, sku }: { priceCents: number; sku: string }) {
+export default function PromoterCodeField({
+  priceCents,
+  sku,
+  onCodeChange,
+}: {
+  priceCents: number
+  sku: string
+  /** Sprint 2: lift the typed code up so the parent can bill the REAL one-time discount. */
+  onCodeChange?: (code: string) => void
+}) {
   const [code, setCode] = useState('')
   const [checking, setChecking] = useState(false)
   const [discountCents, setDiscountCents] = useState<number | null>(null)
@@ -59,7 +68,7 @@ export default function PromoterCodeField({ priceCents, sku }: { priceCents: num
         <input
           type="text"
           value={code}
-          onChange={(e) => { setCode(e.target.value); setDiscountCents(null); setMsg(null) }}
+          onChange={(e) => { setCode(e.target.value); setDiscountCents(null); setMsg(null); onCodeChange?.(e.target.value) }}
           placeholder="Código de promotor (PRM-…)"
           autoCapitalize="characters"
           className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
