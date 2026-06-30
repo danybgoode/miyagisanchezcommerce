@@ -38,11 +38,13 @@ export default function MercadoLibreStatus({
   health,
   error,
   justConnected,
+  importEnabled = false,
 }: {
   connection: SanitizedMlConnection | null
   health: MlHealth
   error: string | null
   justConnected: boolean
+  importEnabled?: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -119,6 +121,17 @@ export default function MercadoLibreStatus({
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {isConnected ? (
           <>
+            {importEnabled && (
+              <a
+                href="/shop/manage/mercadolibre/import"
+                style={{
+                  padding: '10px 16px', borderRadius: 'var(--r-md)', fontSize: 14, fontWeight: 600,
+                  background: 'var(--accent)', color: 'var(--fg-inverse)', textDecoration: 'none',
+                }}
+              >
+                Importar mi catálogo
+              </a>
+            )}
             <a
               href="/api/sell/ml/connect"
               style={{
