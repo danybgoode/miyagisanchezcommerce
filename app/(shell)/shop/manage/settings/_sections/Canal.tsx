@@ -21,6 +21,7 @@ import { Toast } from '../_components/Toast'
 import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
 import PromoterCodeField from './PromoterCodeField'
+import DomainCadenceField from './DomainCadenceField'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
@@ -617,31 +618,11 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                 />
               )}
               {/* Payment cadence (epic 08 · Sprint 2) — pay yearly subscription or one year up front. */}
-              <fieldset className="mb-3">
-                <legend className="block text-[11px] font-medium text-[var(--color-muted)] mb-1.5">
-                  Forma de pago
-                </legend>
-                <div className="flex flex-col gap-1.5">
-                  <label className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="radio"
-                      name="domain-cadence"
-                      checked={domainCadence === 'recurring'}
-                      onChange={() => { setDomainCadence('recurring'); if (subscribeError) setSubscribeError(null) }}
-                    />
-                    <span>Suscripción anual <span className="text-[var(--color-muted)]">(se renueva cada año)</span></span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="radio"
-                      name="domain-cadence"
-                      checked={domainCadence === 'one_time'}
-                      onChange={() => { setDomainCadence('one_time'); if (subscribeError) setSubscribeError(null) }}
-                    />
-                    <span>Pagar un año <span className="text-[var(--color-muted)]">(pago único, sin renovación)</span></span>
-                  </label>
-                </div>
-              </fieldset>
+              <DomainCadenceField
+                value={domainCadence}
+                onChange={setDomainCadence}
+                onInteract={() => { if (subscribeError) setSubscribeError(null) }}
+              />
               <button
                 type="button"
                 onClick={handleActivateDomain}
