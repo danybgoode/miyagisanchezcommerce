@@ -38,6 +38,7 @@ export default async function MercadoLibrePage({
   if (!shop?.slug) redirect('/sell')
 
   const { connection, health } = await getMlConnection(shop.slug)
+  const importEnabled = await isEnabled('ml.import_enabled')
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -54,6 +55,7 @@ export default async function MercadoLibrePage({
         health={health}
         error={sp.error ?? null}
         justConnected={sp.connected === '1'}
+        importEnabled={importEnabled}
       />
     </div>
   )
