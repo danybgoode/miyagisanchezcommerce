@@ -29,7 +29,12 @@ import {
   CUSTOM_DOMAIN_CHECKOUT_KIND,
   setCustomDomainSubscriptionStatus,
 } from '@/lib/domain-subscription'
+import {
+  SUBDOMAIN_CHECKOUT_KIND,
+  setSubdomainSubscriptionStatus,
+} from '@/lib/subdomain-subscription'
 import { buildOneTimeGrant } from '@/lib/domain-entitlement'
+import { SUBDOMAIN_GRANT_KEY } from '@/lib/subdomain-entitlement'
 import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
@@ -122,6 +127,8 @@ export async function POST(req: NextRequest) {
       if (session.mode === 'subscription') {
         if (session.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
           await handleCustomDomainSubscriptionComplete(session)
+        } else if (session.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+          await handleSubdomainSubscriptionComplete(session)
         } else {
           await handleSubscriptionCheckoutComplete(session)
         }
@@ -129,6 +136,10 @@ export async function POST(req: NextRequest) {
         // One-time custom-domain cadence (epic 08 · promoter-program S2):
         // mode:'payment', no Stripe subscription — entitlement is a dated grant.
         await handleCustomDomainOneTimeComplete(session)
+      } else if (session.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+        // One-time subdomain cadence (epic 07 · subdomain-pricing S2): same shape
+        // as the custom-domain one-time path, writing the subdomain_grant.
+        await handleSubdomainOneTimeComplete(session)
       } else {
         await handleCheckoutComplete(session)
       }
@@ -835,6 +846,155 @@ async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Sessio
   tg.alert(`✅ Dominio propio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
 }
 
+// ── Subdomain subscription: checkout.session.completed ────────────────────────
+// (epic 07 · subdomain-pricing S2). A faithful clone of the custom-domain handler
+// for the cheaper subdomain SKU. The PLATFORM is the payee — no transfer. Activates
+// a Medusa Subscription (subscriber = seller) against the platform subdomain plan,
+// which flips the subdomain entitlement seam on (white-label instead of 301→/s/slug).
+async function handleSubdomainSubscriptionComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id
+  const stripeSubscriptionId = session.subscription as string | null
+  if (!shopId || !sellerClerkId || !stripeSubscriptionId) {
+    console.error('[subdomain sub] missing metadata/subscription:', session.id)
+    return
+  }
+
+  const sellerEmail = session.customer_details?.email?.toLowerCase().trim() ?? ''
+
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  type SubWithPeriod = { current_period_start: number; current_period_end: number }
+  const _sub = stripeSub as unknown as SubWithPeriod
+  const periodStart = new Date(_sub.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_sub.current_period_end   * 1000).toISOString()
+  const stripePriceId = stripeSub.items.data[0]?.price?.id
+
+  // Resolve the platform plan by its Stripe price, then activate the Medusa sub.
+  try {
+    if (!stripePriceId) throw new Error('no price on subscription')
+    const planRes = await fetch(
+      `${MEDUSA_BASE}/store/sellers/subscription-plans/by-stripe-price?stripe_price_id=${encodeURIComponent(stripePriceId)}`,
+      { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
+    )
+    if (!planRes.ok) throw new Error(`plan lookup ${planRes.status}`)
+    const { plan } = (await planRes.json()) as { plan?: { id: string } }
+    if (!plan?.id) throw new Error('plan not found')
+
+    const subRes = await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
+      },
+      body: JSON.stringify({
+        plan_id: plan.id,
+        seller_id: shopId, // subscriber's shop (denormalized; entitlement keys off clerk id)
+        clerk_user_id: sellerClerkId,
+        buyer_email: sellerEmail || `${sellerClerkId}@seller.miyagisanchez.com`,
+        status: 'active',
+        payment_method: 'stripe',
+        stripe_subscription_id: stripeSubscriptionId,
+        stripe_customer_id: session.customer as string | null,
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
+        metadata: { kind: SUBDOMAIN_CHECKOUT_KIND, shop_id: shopId },
+      }),
+    })
+    if (!subRes.ok) throw new Error(`subscription create ${subRes.status}`)
+  } catch (e) {
+    // Money-path safety: the seller PAID but isn't entitled, and Stripe won't retry
+    // (this handler returns 200). Alert operationally for hand-repair.
+    console.error('[subdomain sub] Medusa activation failed:', e)
+    tg.alert(
+      `🚨 Subdominio PAGADO pero NO activado — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nStripe sub: ${stripeSubscriptionId}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+
+  // Clear any prior lapse flag so the re-add-payment prompt disappears.
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    const meta = (shop?.metadata ?? {}) as Record<string, unknown>
+    if (meta.subdomain_lapsed) {
+      delete meta.subdomain_lapsed
+      await db.from('marketplace_shops').update({ metadata: meta }).eq('id', shopId)
+    }
+  } catch (e) {
+    console.error('[subdomain sub] clear lapse flag failed:', e)
+  }
+
+  tg.alert(`✅ Subdominio activado\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
+// ── Subdomain ONE-TIME: checkout.session.completed (mode=payment) ─────────────
+// (epic 07 · subdomain-pricing S2). A pay-a-year-up-front purchase with NO Stripe
+// subscription. Entitlement is a DATED 12-month grant on the shop metadata (the
+// subdomain_grant seam) that lapses on read — nothing auto-charges at year end.
+// When a promoter is attributed, the attribution flips to `paid` with the real
+// amount collected. Mirrors the custom-domain one-time handler's safety.
+async function handleSubdomainOneTimeComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  // The grant lands on the SHOP (by id); seller_clerk_id is informational and is
+  // empty when a promoter pays for an UNCLAIMED shop, so only shop_id is required.
+  const sellerClerkId = session.metadata?.seller_clerk_id ?? ''
+  const paidByPromoter = session.metadata?.paid_by_promoter === '1'
+  if (!shopId) {
+    console.error('[subdomain one-time] missing shop_id:', session.id)
+    return
+  }
+
+  // Write the dated one-time grant (+ clear any prior lapse flag) on the shop's
+  // metadata JSONB — the SAME field the entitlement reader derives from. The seller
+  // PAID, so a write that doesn't land MUST be caught: verify the shop exists AND
+  // that the update affected a row (a `.eq` matching 0 rows returns no error — the
+  // classic silent 0-row write), else alert for hand-repair.
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    if (!shop) throw new Error(`no shop row for id ${shopId}`)
+    const meta = ((shop.metadata ?? {}) as Record<string, unknown>)
+    meta[SUBDOMAIN_GRANT_KEY] = buildOneTimeGrant({ note: oneTimeGrantNote(paidByPromoter) })
+    delete meta.subdomain_lapsed
+    const { data: updated, error } = await db
+      .from('marketplace_shops')
+      .update({ metadata: meta })
+      .eq('id', shopId)
+      .select('id')
+    if (error) throw new Error(error.message)
+    if (!updated || updated.length === 0) throw new Error(`grant update matched 0 rows for id ${shopId}`)
+  } catch (e) {
+    console.error('[subdomain one-time] grant write failed:', e)
+    tg.alert(
+      `🚨 Subdominio (pago único) PAGADO pero NO activado — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nSession: ${session.id}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+    return
+  }
+
+  // Promoter attribution → paid, with the real amount collected (post-discount).
+  const promoterId = session.metadata?.promoter_id
+  const promoterSku = session.metadata?.promoter_sku
+  if (promoterId && isPromoterSku(promoterSku)) {
+    await markAttributionPaid({
+      promoterId,
+      sellerId: shopId,
+      sku: promoterSku,
+      grossAmountCents: session.amount_total ?? 0,
+      cadence: 'one_time',
+    })
+  }
+
+  tg.alert(`✅ Subdominio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────
 
 async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Session) {
@@ -945,6 +1105,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return
   }
 
+  // Subdomain paywall (S2): same status sync against the Medusa subdomain sub.
+  if (subscription.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+    const map: Record<string, 'active' | 'trialing' | 'past_due' | 'canceled'> = {
+      active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'past_due', canceled: 'canceled',
+    }
+    const mapped = map[subscription.status]
+    if (mapped) await setSubdomainSubscriptionStatus(subscription.id, mapped)
+    return
+  }
+
   type SubWithPeriod = { current_period_start: number; current_period_end: number }
   const _s = subscription as unknown as SubWithPeriod
   const periodStart = new Date(_s.current_period_start * 1000).toISOString()
@@ -972,6 +1142,16 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     return
   }
 
+  // Subdomain paywall (S2): a definitive cancel flips entitlement off. There's
+  // nothing physical to release — the subdomain IS the slug — so simply flipping
+  // the Medusa sub to `canceled` makes the gate re-close (301 → free /s/slug) on
+  // the next request. No grant is cleared (recurring entitles via the sub, not a
+  // grant); a one-time grant would lapse on its own date.
+  if (subscription.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+    await setSubdomainSubscriptionStatus(subscription.id, 'canceled')
+    return
+  }
+
   await db.from('marketplace_subscriptions')
     .update({ status: 'canceled', updated_at: new Date().toISOString() })
     .eq('stripe_subscription_id', subscription.id)
@@ -993,6 +1173,13 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   // keeps the Medusa sub active. No seller transfer — the platform is the payee.
   if (stripeSub.metadata?.kind === CUSTOM_DOMAIN_CHECKOUT_KIND) {
     await setCustomDomainSubscriptionStatus(stripeSubscriptionId, 'active')
+    return
+  }
+
+  // Subdomain paywall (S2): a successful renewal (or recovery from past_due) keeps
+  // the Medusa subdomain sub active. No seller transfer — the platform is the payee.
+  if (stripeSub.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+    await setSubdomainSubscriptionStatus(stripeSubscriptionId, 'active')
     return
   }
 
@@ -1063,8 +1250,15 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
       tg.alert(`⚠️ Pago fallido en dominio propio (en gracia)\nSubscription: ${stripeSubscriptionId}`)
       return
     }
+    // Subdomain paywall (S2): same grace state — entitlement stays live while
+    // Stripe retries; only customer.subscription.deleted collapses to /s/slug.
+    if (sub.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
+      await setSubdomainSubscriptionStatus(stripeSubscriptionId, 'past_due')
+      tg.alert(`⚠️ Pago fallido en subdominio (en gracia)\nSubscription: ${stripeSubscriptionId}`)
+      return
+    }
   } catch (e) {
-    console.error('[custom-domain lapse] payment_failed lookup error:', e)
+    console.error('[custom-domain/subdomain lapse] payment_failed lookup error:', e)
   }
 
   await db.from('marketplace_subscriptions')

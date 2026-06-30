@@ -5,8 +5,9 @@
  * (no ESM initialization cycle). Add a new SKU here (e.g. 'subdomain') in one place.
  */
 
-/** The paid SKUs a promoter can enroll a shop on (S1: custom domain; S2: print ad). */
-export const PROMOTER_SKUS = ['custom_domain', 'print_ad'] as const
+/** The paid SKUs a promoter can enroll a shop on (S1: custom domain; S2: print ad;
+ *  subdomain-pricing S2: subdomain). */
+export const PROMOTER_SKUS = ['custom_domain', 'print_ad', 'subdomain'] as const
 export type PromoterSku = (typeof PROMOTER_SKUS)[number]
 
 export function isPromoterSku(raw: string | null | undefined): raw is PromoterSku {

@@ -25,6 +25,7 @@ import { isPromoterSku, type PromoterSku } from '@/lib/promoter-skus'
 export const DEFAULT_COMMISSION_RATES: Record<PromoterSku, number> = {
   custom_domain: 0,
   print_ad: 0,
+  subdomain: 0,
 }
 
 /**

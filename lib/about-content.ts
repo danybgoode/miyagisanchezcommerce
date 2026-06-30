@@ -229,18 +229,20 @@ export const ABOUT_SECTIONS: AboutSection[] = [
     stub: false,
     es: {
       heading: 'Precios',
-      lead: 'Vender es gratis (0% de comisión). El único servicio premium opcional es el dominio propio.',
+      lead: 'Vender es gratis (0% de comisión). Los servicios premium opcionales son el subdominio propio y el dominio propio.',
       body: [
-        'Tu tienda siempre es gratis: tu URL en miyagisanchez.com/s/tu-tienda y tu subdominio tu-tienda.miyagisanchez.com no cuestan nada y nunca caducan.',
-        'Dominio propio: $499 MXN/año (~$42/mes). Conecta tu propio dominio (tutienda.com) con SSL e infraestructura nuestra y sin miyagisanchez.com en la URL. Se renueva cada año; puedes cancelar cuando quieras y tu tienda sigue activa en tu URL y subdominio gratis.',
+        'Tu tienda siempre es gratis: tu URL en miyagisanchez.com/s/tu-tienda no cuesta nada y nunca caduca, con 0% de comisión.',
+        'Subdominio propio: $199 MXN/año (~$17/mes). Tu tienda como sitio independiente en tu-tienda.miyagisanchez.com (sin la barra de la plataforma). Se renueva cada año; puedes cancelar cuando quieras y tu tienda sigue activa y gratis en tu URL miyagisanchez.com/s/tu-tienda.',
+        'Dominio propio: $499 MXN/año (~$42/mes). Conecta tu propio dominio (tutienda.com) con SSL e infraestructura nuestra y sin miyagisanchez.com en la URL. Se renueva cada año; puedes cancelar cuando quieras y tu tienda sigue activa en tu URL gratis.',
       ],
     },
     en: {
       heading: 'Pricing',
-      lead: 'Selling is free (0% commission). The only optional premium service is a custom domain.',
+      lead: 'Selling is free (0% commission). The optional premium services are a custom subdomain and a custom domain.',
       body: [
-        'Your shop is always free: your URL at miyagisanchez.com/s/your-shop and your subdomain your-shop.miyagisanchez.com cost nothing and never expire.',
-        'Custom domain: $499 MXN/year (~$42/mo). Connect your own domain (yourshop.com) with SSL and our infrastructure, with no miyagisanchez.com in the URL. It renews yearly; you can cancel anytime and your shop stays live on your free URL and subdomain.',
+        'Your shop is always free: your URL at miyagisanchez.com/s/your-shop costs nothing and never expires, with 0% commission.',
+        'Custom subdomain: $199 MXN/year (~$17/mo). Your shop as a standalone site at your-shop.miyagisanchez.com (no platform bar). It renews yearly; you can cancel anytime and your shop stays live and free at your URL miyagisanchez.com/s/your-shop.',
+        'Custom domain: $499 MXN/year (~$42/mo). Connect your own domain (yourshop.com) with SSL and our infrastructure, with no miyagisanchez.com in the URL. It renews yearly; you can cancel anytime and your shop stays live on your free URL.',
       ],
     },
   },

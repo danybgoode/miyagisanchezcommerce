@@ -24,6 +24,7 @@ import {
 const SKU_LABEL: Record<PromoterSku, string> = {
   custom_domain: 'Dominio propio',
   print_ad: 'Anuncio impreso',
+  subdomain: 'Subdominio propio',
 }
 
 const mxn = (cents: number) =>
