@@ -57,6 +57,9 @@ export const guardExcludedFiles = new Set([
   'app/opengraph-image.tsx',
   'app/(shell)/shop/manage/PrintAdBlock.tsx',
   'app/(shell)/shop/manage/PrintAdPreview.tsx',
+  // Printable promoter sell-sheet (epic 08 · S4) — a print surface whose @media
+  // print CSS needs literal colors (same rationale as the print-export libs).
+  'app/(shell)/vende/promotor/sell-sheet/page.tsx',
   'lib/email.ts',
   'lib/design-token-audit.ts',
   'lib/platform-theme.ts',

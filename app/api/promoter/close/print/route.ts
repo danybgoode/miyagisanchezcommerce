@@ -16,6 +16,7 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { tg } from '@/lib/telegram'
 import { getMiyagiprintsSellerId, tierOccupancy, remainingForTier } from '@/lib/print-server'
 import { isEnabled } from '@/lib/flags'
 import { getPromoterByClerkId, getPromoterSettings, resolvePromoterDiscount } from '@/lib/promoter'
@@ -142,7 +143,11 @@ export async function POST(req: NextRequest) {
     ...(isManual ? { manual_payment: manualSnapshot, payment_reported: true, payment_reported_at: new Date().toISOString() } : {}),
   }
 
-  await db
+  // The stamp is load-bearing: the card webhook (handlePrintAdPaid) finds the
+  // submission by cart_id and reads content.promoter_* for attribution. A silent
+  // failure here would lose the link AFTER the promoter pays — verify the write
+  // landed (error OR 0 rows) and refuse + alert instead of a false ok:true.
+  const { data: stamped, error: stampErr } = await db
     .from('print_ad_submissions')
     .update({
       status: 'pending_payment',
@@ -151,6 +156,15 @@ export async function POST(req: NextRequest) {
       ...(isManual ? { medusa_order_id: result.cart_id ?? null } : { cart_id: result.cart_id ?? null }),
     })
     .eq('id', submission.id)
+    .select('id')
+  if (stampErr || !stamped || stamped.length === 0) {
+    console.error('[promoter/close/print] submission stamp failed:', stampErr?.message ?? '0 rows')
+    tg.alert(
+      `🚨 Anuncio impreso (promotor) NO vinculado tras el checkout — reparar a mano.\n` +
+      `Submission: ${submission.id}\nCart: ${result.cart_id ?? '?'}\nPromotor: ${promoter.code}`,
+    )
+    return NextResponse.json({ ok: false, error: 'El pago se inició pero no se registró. Avísale al equipo.' }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true, submissionId: submission.id, ...result })
 }

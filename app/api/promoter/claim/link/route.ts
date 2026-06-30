@@ -55,11 +55,15 @@ export async function POST(req: NextRequest) {
   const claimUrl = `${despachoBonsaiUrl}/onboarding/claim?token=${token}`
 
   // Upsert the pending claim against the mirror UUID (marketplace_claims.shop_id
-  // FKs marketplace_shops.id), exactly like /api/claim/send.
-  await db.from('marketplace_claims').upsert(
+  // FKs marketplace_shops.id), exactly like /api/claim/send. Non-fatal: the claim
+  // itself is driven by the self-contained signed JWT (verified at
+  // /api/claim/complete), not this row — the row is for admin visibility — so a
+  // failed upsert is logged but still returns a working link.
+  const { error: claimErr } = await db.from('marketplace_claims').upsert(
     { shop_id: shop.id, clerk_user_id: `pending:${email}`, status: 'pending', message: 'Promoter handoff' },
     { onConflict: 'shop_id,clerk_user_id' },
   )
+  if (claimErr) console.error('[promoter/claim/link] pending claim upsert failed (non-fatal):', claimErr.message)
 
   return NextResponse.json({
     ok: true,

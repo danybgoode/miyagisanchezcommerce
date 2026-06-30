@@ -79,7 +79,7 @@ function BindStep({ onBound }: { onBound: (b: Bound) => void }) {
           placeholder="PRM-XXXXXX"
           className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 font-mono"
         />
-        {error && <p className="text-sm text-[var(--color-danger,#c00)]">{error}</p>}
+        {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
         <button
           onClick={bind}
           disabled={busy || !code.trim()}
@@ -124,7 +124,7 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
           <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ubicación (opcional)"
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
-          {error && <p className="text-sm text-[var(--color-danger,#c00)]">{error}</p>}
+          {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
           <button onClick={setup} disabled={busy || name.trim().length < 2}
             className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
             {busy ? 'Creando…' : 'Crear tienda'}
@@ -156,10 +156,10 @@ function CloseStep({ shop }: { shop: Shop }) {
   return (
     <Card n={2} title="Cobrar y pagar (a nombre del comerciante)">
       <p className="text-sm text-[var(--color-muted)]">
-        Cobra al comerciante (efectivo) y paga con tu tarjeta. La venta se atribuye a tu código y la
-        entitlement queda en la tienda del comerciante.
+        Cobra al comerciante (efectivo) y paga con tu tarjeta. La venta se atribuye a tu código y el
+        beneficio queda activado en la tienda del comerciante.
       </p>
-      {error && <p className="text-sm text-[var(--color-danger,#c00)]">{error}</p>}
+      {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
       <button onClick={payDomain} disabled={busy}
         className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
         {busy ? 'Abriendo pago…' : 'Pagar dominio propio (1 año)'}
@@ -193,10 +193,10 @@ function HandoffStep({ shop }: { shop: Shop }) {
         Genera el enlace de reclamo y compártelo con el comerciante. Al tocarlo e iniciar sesión, la
         tienda pasa a su cuenta — tu atribución se conserva.
       </p>
-      {error && <p className="text-sm text-[var(--color-danger,#c00)]">{error}</p>}
+      {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
       {link ? (
         <a href={link} target="_blank" rel="noreferrer"
-          className="inline-block rounded-lg bg-[#25D366] text-white px-4 py-2 font-medium">
+          className="inline-block rounded-lg bg-[color:var(--provider-whatsapp)] text-[color:var(--fg-inverse)] px-4 py-2 font-medium">
           Abrir en WhatsApp →
         </a>
       ) : (
