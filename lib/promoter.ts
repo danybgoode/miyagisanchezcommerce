@@ -23,6 +23,8 @@
  */
 
 import { db } from '@/lib/supabase'
+import { DEFAULT_COMMISSION_RATES, decideAccrual } from '@/lib/promoter-commission'
+import { PROMOTER_SKUS, isPromoterSku, type PromoterSku } from '@/lib/promoter-skus'
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (shared with referrals)
 const CODE_LEN = 6
@@ -254,13 +256,10 @@ export function promoterCouponKey(settings: PromoterSettings): PromoterCouponKey
 
 // ── Attribution (enrollment ledger) ───────────────────────────────────────────
 
-/** The paid SKUs a promoter can enroll a shop on (Sprint 1: custom domain). */
-export const PROMOTER_SKUS = ['custom_domain', 'print_ad'] as const
-export type PromoterSku = (typeof PROMOTER_SKUS)[number]
-
-export function isPromoterSku(raw: string | null | undefined): raw is PromoterSku {
-  return !!raw && (PROMOTER_SKUS as readonly string[]).includes(raw)
-}
+// SKU vocabulary lives in lib/promoter-skus.ts (dependency-free) so this module
+// and lib/promoter-commission.ts share it without an import cycle. Imported above
+// for local use; re-exported here for back-compat with `@/lib/promoter` importers.
+export { PROMOTER_SKUS, isPromoterSku, type PromoterSku }
 
 export interface PromoterAttribution {
   id: string
@@ -361,24 +360,40 @@ export async function markAttributionPaid(input: {
       console.error('[promoter] attribution paid-update failed:', error.message)
       return 'skipped'
     }
+    await accrueCommissionForAttribution(existing.id) // Sprint 3 — best-effort, idempotent
     return 'recorded'
   }
 
-  const { error } = await db.from('marketplace_promoter_attributions').insert({
-    promoter_id: promoterId,
-    seller_id: sellerId,
-    sku,
-    ...paidFields,
-  })
+  const { data: inserted, error } = await db
+    .from('marketplace_promoter_attributions')
+    .insert({
+      promoter_id: promoterId,
+      seller_id: sellerId,
+      sku,
+      ...paidFields,
+    })
+    .select('id')
+    .maybeSingle()
   if (error) {
     // A concurrent insert (23505 on the partial-unique index) means the row now
-    // exists as paid — treat as recorded, not a failure.
-    if (error.code === '23505') return 'recorded'
+    // exists as paid — treat as recorded, not a failure, and accrue against it.
+    if (error.code === '23505') {
+      const { data: row } = await db
+        .from('marketplace_promoter_attributions')
+        .select('id')
+        .eq('promoter_id', promoterId)
+        .eq('seller_id', sellerId)
+        .eq('sku', sku)
+        .maybeSingle()
+      if (row) await accrueCommissionForAttribution(row.id)
+      return 'recorded'
+    }
     if (!/does not exist|relation/i.test(error.message ?? '')) {
       console.error('[promoter] attribution paid-insert failed:', error.message)
     }
     return 'skipped'
   }
+  if (inserted) await accrueCommissionForAttribution(inserted.id) // Sprint 3
   return 'recorded'
 }
 
@@ -392,4 +407,182 @@ export async function listAttributions(promoterId: string): Promise<PromoterAttr
     .order('created_at', { ascending: false })
   if (error || !data) return []
   return data as PromoterAttribution[]
+}
+
+// ── Commission ledger (epic 08 · S3) ──────────────────────────────────────────
+
+export interface Commission {
+  id: string
+  attribution_id: string
+  promoter_id: string
+  seller_id: string | null
+  sku: string | null
+  rate_pct: number
+  gross_amount_cents: number
+  commission_cents: number
+  status: string
+  accrued_at?: string
+  paid_at?: string | null
+  settlement_reference?: string | null
+}
+
+/**
+ * Per-SKU commission rates, defaulting any unset SKU to 0%. Tolerates the table
+ * not existing yet (returns the all-zero defaults). US-7.
+ */
+export async function getCommissionRates(): Promise<Record<PromoterSku, number>> {
+  const rates: Record<PromoterSku, number> = { ...DEFAULT_COMMISSION_RATES }
+  const { data, error } = await db
+    .from('marketplace_promoter_commission_rates')
+    .select('sku, rate_pct')
+  if (error || !data) return rates
+  for (const row of data) {
+    if (isPromoterSku(row.sku)) rates[row.sku] = row.rate_pct ?? 0
+  }
+  return rates
+}
+
+/**
+ * Upsert one SKU's commission rate. Returns `ok:false` when the write didn't land
+ * (DB error / missing table), mirroring updatePromoterSettings' "check the write"
+ * discipline. The caller validates `ratePct` with isValidRatePct first. US-7.
+ */
+export async function updateCommissionRate(sku: PromoterSku, ratePct: number): Promise<{ ok: boolean }> {
+  const { data, error } = await db
+    .from('marketplace_promoter_commission_rates')
+    .upsert({ sku, rate_pct: ratePct, updated_at: new Date().toISOString() }, { onConflict: 'sku' })
+    .select('sku')
+  if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+    console.error('[promoter] commission rate update failed:', error.message)
+  }
+  return { ok: !error && Array.isArray(data) && data.length > 0 }
+}
+
+/**
+ * Accrue commission for a paid attribution (US-8). Best-effort + idempotent: fetches
+ * the attribution, its SKU rate, the promoter's + shop owner's Clerk ids (the
+ * self-referral guard), and whether a commission already exists, then defers the
+ * decision to the pure decideAccrual seam. Inserts the ledger row only when it says
+ * `ok`. Called from markAttributionPaid (the paid seam) — no money moves. The
+ * UNIQUE(attribution_id) constraint is the exactly-once backstop (a webhook retry /
+ * subscription renewal of the same attribution accrues nothing).
+ */
+export async function accrueCommissionForAttribution(attributionId: string): Promise<void> {
+  if (!attributionId) return
+
+  const { data: attr, error: attrErr } = await db
+    .from('marketplace_promoter_attributions')
+    .select('id, promoter_id, seller_id, sku, gross_amount_cents, status')
+    .eq('id', attributionId)
+    .maybeSingle()
+  if (attrErr || !attr) return
+
+  const { data: existing } = await db
+    .from('marketplace_promoter_commissions')
+    .select('id')
+    .eq('attribution_id', attributionId)
+    .maybeSingle()
+
+  const rates = await getCommissionRates()
+  const ratePct = isPromoterSku(attr.sku) ? rates[attr.sku] : null
+
+  const { data: promoter } = await db
+    .from('marketplace_promoters')
+    .select('clerk_user_id')
+    .eq('id', attr.promoter_id)
+    .maybeSingle()
+
+  let shopOwnerClerkUserId: string | null = null
+  if (attr.seller_id) {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('clerk_user_id')
+      .eq('id', attr.seller_id)
+      .maybeSingle()
+    shopOwnerClerkUserId = shop?.clerk_user_id ?? null
+  }
+
+  const decision = decideAccrual({
+    attribution: { status: attr.status, sku: attr.sku, gross_amount_cents: attr.gross_amount_cents },
+    ratePct,
+    existingCommission: !!existing,
+    promoterClerkUserId: promoter?.clerk_user_id ?? null,
+    shopOwnerClerkUserId,
+  })
+  if (!decision.ok) return
+
+  const { error } = await db.from('marketplace_promoter_commissions').insert({
+    attribution_id: attributionId,
+    promoter_id: attr.promoter_id,
+    seller_id: attr.seller_id,
+    sku: attr.sku,
+    rate_pct: decision.ratePct,
+    gross_amount_cents: decision.grossAmountCents,
+    commission_cents: decision.commissionCents,
+    status: 'accrued',
+  })
+  // 23505 = a concurrent accrual already inserted (UNIQUE attribution_id) — fine.
+  if (error && error.code !== '23505' && !/does not exist|relation/i.test(error.message ?? '')) {
+    console.error('[promoter] commission accrual insert failed:', error.message)
+  }
+}
+
+/** A promoter's commission rows, newest first (dashboard + admin). US-8. */
+export async function listCommissionsForPromoter(promoterId: string): Promise<Commission[]> {
+  if (!promoterId) return []
+  const { data, error } = await db
+    .from('marketplace_promoter_commissions')
+    .select(
+      'id, attribution_id, promoter_id, seller_id, sku, rate_pct, gross_amount_cents, commission_cents, status, accrued_at, paid_at, settlement_reference',
+    )
+    .eq('promoter_id', promoterId)
+    .order('accrued_at', { ascending: false })
+  if (error || !data) return []
+  return data as Commission[]
+}
+
+/** All accrued (unpaid) commissions across promoters, for the settlement view. US-9. */
+export async function listPendingCommissions(): Promise<Commission[]> {
+  const { data, error } = await db
+    .from('marketplace_promoter_commissions')
+    .select(
+      'id, attribution_id, promoter_id, seller_id, sku, rate_pct, gross_amount_cents, commission_cents, status, accrued_at, paid_at, settlement_reference',
+    )
+    .eq('status', 'accrued')
+    .order('accrued_at', { ascending: false })
+  if (error || !data) return []
+  return data as Commission[]
+}
+
+/**
+ * Mark a commission settled (paid offline). Idempotent: an atomic conditional claim
+ * (`.eq('status','accrued')`) flips exactly one accrued row to paid + stamps the
+ * timestamp/reference, mirroring referrals' maybeRewardReferralOnOrder. Re-settling
+ * an already-paid row is a no-op that still returns `ok` (alreadyPaid). US-9.
+ */
+export async function settleCommission(
+  id: string,
+  reference: string | null,
+): Promise<{ ok: boolean; alreadyPaid: boolean }> {
+  if (!id) return { ok: false, alreadyPaid: false }
+  const { data, error } = await db
+    .from('marketplace_promoter_commissions')
+    .update({ status: 'paid', paid_at: new Date().toISOString(), settlement_reference: reference })
+    .eq('id', id)
+    .eq('status', 'accrued')
+    .select('id')
+  if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+    console.error('[promoter] commission settle failed:', error.message)
+    return { ok: false, alreadyPaid: false }
+  }
+  if (!error && Array.isArray(data) && data.length > 0) return { ok: true, alreadyPaid: false }
+
+  // 0 rows claimed: either it's already paid (idempotent ok) or the id is unknown.
+  const { data: row } = await db
+    .from('marketplace_promoter_commissions')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle()
+  if (row?.status === 'paid') return { ok: true, alreadyPaid: true }
+  return { ok: false, alreadyPaid: false }
 }

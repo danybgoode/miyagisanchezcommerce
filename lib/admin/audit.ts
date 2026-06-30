@@ -41,6 +41,7 @@ export function auditTargetFromPath(pathname: string): string | null {
     'admin', 'supply', 'config', 'batches', 'items', 'import', 'status',
     'schema', 'upload', 'coupons', 'social', 'providers', 'editions',
     'submissions', 'catalog', 'runs', 'scrape', 'referrals', 'audit',
+    'commission', 'settle',
   ])
   if (collectionish.has(last.toLowerCase())) return null
   return last

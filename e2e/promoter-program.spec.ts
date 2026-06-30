@@ -141,16 +141,21 @@ test.describe('promoter · admin routes reject anonymously (401)', () => {
   })
 })
 
-test.describe('promoter · public routes hidden while the flag is off (404)', () => {
-  // promoter.enabled defaults OFF (fail-open) and no Flagsmith key flips it on in
-  // CI/preview, so the feature is hidden — the routes 404 before doing any work.
-  test('GET /api/promoter/validate-code → 404 (feature hidden)', async ({ request }) => {
+test.describe('promoter · public routes respect the kill-switch (flag on OR off)', () => {
+  // `promoter.enabled` is a kill-switch ops can toggle either way (launched ON 2026-06-30),
+  // so these assert the route's guard holds in BOTH states — no work for a hidden feature
+  // or an anonymous caller — without coupling the gate to the current flag value.
+  test('GET /api/promoter/validate-code → 404 (hidden) or 200 invalid-code (live)', async ({ request }) => {
     const res = await request.get('/api/promoter/validate-code?code=PRM-ABC123&itemsCents=49900')
-    expect(res.status()).toBe(404)
+    expect([200, 404]).toContain(res.status())
+    if (res.status() === 200) {
+      const body = await res.json()
+      expect(body.valid).toBe(false) // unknown code never previews a discount
+    }
   })
 
-  test('POST /api/promoter/attribute → 404 (feature hidden)', async ({ request }) => {
+  test('POST /api/promoter/attribute → 404 (hidden) or 401 (live, auth required)', async ({ request }) => {
     const res = await request.post('/api/promoter/attribute', { data: { code: 'PRM-ABC123', sku: 'custom_domain' } })
-    expect(res.status()).toBe(404)
+    expect([401, 404]).toContain(res.status())
   })
 })
