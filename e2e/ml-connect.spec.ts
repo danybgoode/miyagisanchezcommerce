@@ -72,7 +72,7 @@ test.describe('ml OAuth routes · anonymous shape', () => {
 
   test('GET /api/sell/ml/connect never returns a usable redirect to ML for an anonymous caller', async ({ request }) => {
     const res = await request.get('/api/sell/ml/connect', { maxRedirects: 0 })
-    // Anonymous → redirected (to sign-in, or to /shop/manage when the flag is off).
+    // Anonymous → redirected to sign-in (the route checks auth before the flag).
     // The key invariant: it never hands an anonymous caller the ML consent URL.
     expect([301, 302, 303, 307, 308]).toContain(res.status())
     const location = res.headers()['location'] ?? ''
