@@ -120,6 +120,56 @@ export function buildServicesPageConfig(
   }
 }
 
+/**
+ * Promoter resources mini-site (epic 08 · S4 · US-12). A STANDALONE content page —
+ * it sells SKUs + a glossary, not a seller archetype — so it deliberately does NOT
+ * register as a 6th SellerPersonaId. It reuses the SellerAcquisitionPage component
+ * but builds its config directly (plain hrefs to the close workspace + sell-sheet),
+ * bypassing the persona-keyed baseConfig. es-MX only (rule #5), like the rest of /vende.
+ */
+export function buildPromoterPageConfig(
+  copy: SellerAcquisitionCopy,
+  opts: { customDomainPriceMxn: number },
+): SellerAcquisitionPageConfig {
+  const page = copy.promotor
+  const priceMxn = opts.customDomainPriceMxn
+  return {
+    pageId: 'promotor',
+    variant: 'a',
+    eyebrow: page.eyebrow,
+    title: page.heroTitle,
+    lead: page.heroLead,
+    trustLine: page.trustLine,
+    trustPrompt: copy.shared.trustPrompt,
+    copyLabel: copy.shared.copyPrompt,
+    copiedLabel: copy.shared.copiedPrompt,
+    primaryCta: { label: page.primaryCta, href: '/promotor/cerrar', testId: 'promotor-primary-cta' },
+    secondaryCta: { label: page.secondaryCta, href: '/vende/promotor/sell-sheet' },
+    // Pricing figures — the custom-domain price is the one fixed number; print-ad is per-edition.
+    heroStats: [
+      { value: `$${priceMxn}`, label: page.priceDomainLabel },
+      { value: 'Gratis', label: page.priceSubdomainLabel },
+      { value: '%', label: page.commissionLabel },
+    ],
+    proofTitle: page.proofTitle,
+    proofLead: page.proofLead,
+    // The glossary maps cleanly onto proof points (icon/title/body).
+    proofPoints: page.glossary,
+    stepsTitle: page.stepsTitle,
+    steps: page.steps,
+    agentTitle: copy.shared.selfCheck.title,
+    agentBody: copy.shared.selfCheck.body,
+    socialTitle: page.pitchTitle,
+    socialBody: page.pitchBody,
+    socialStats: page.pitchStats,
+    faqTitle: copy.shared.faqTitle,
+    faqs: copy.shared.faqs,
+    closingTitle: page.closingTitle,
+    closingBody: page.closingBody,
+    closingCta: { label: page.closingCta, href: '/promotor/cerrar', testId: 'promotor-closing-cta' },
+  }
+}
+
 function baseConfig(
   copy: SellerAcquisitionCopy,
   page: AnchorCopy | CreatorCopy | LocalBusinessCopy | ServicesCopy,

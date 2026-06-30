@@ -81,14 +81,35 @@
       "primaryCta": "Start free",
       "secondaryCta": "View World Cup page",
       "heroStats": [
-        { "value": "0%", "label": "platform commission" },
-        { "value": "20s", "label": "to register with Google" },
-        { "value": "4", "label": "channels: link, subdomain, domain, or widget" }
+        {
+          "value": "0%",
+          "label": "platform commission"
+        },
+        {
+          "value": "20s",
+          "label": "to register with Google"
+        },
+        {
+          "value": "4",
+          "label": "channels: link, subdomain, domain, or widget"
+        }
       ],
       "heroValues": [
-        { "value": "0%", "label": "platform commission", "icon": "iconoir-percentage" },
-        { "value": "AI", "label": "sell on Claude, Gemini, and ChatGPT", "icon": "iconoir-sparks" },
-        { "value": "Premium", "label": "premium features included: tickets, sweepstakes, scheduling, and more", "icon": "iconoir-star" }
+        {
+          "value": "0%",
+          "label": "platform commission",
+          "icon": "iconoir-percentage"
+        },
+        {
+          "value": "AI",
+          "label": "sell on Claude, Gemini, and ChatGPT",
+          "icon": "iconoir-sparks"
+        },
+        {
+          "value": "Premium",
+          "label": "premium features included: tickets, sweepstakes, scheduling, and more",
+          "icon": "iconoir-star"
+        }
       ],
       "proofTitle": "Everything we promise already exists in the platform",
       "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi.",
@@ -151,9 +172,18 @@
       ],
       "stepsTitle": "How it works",
       "steps": [
-        { "title": "Ask your AI about us", "body": "Or go straight in. The page is written so an agent can audit it." },
-        { "title": "Register in seconds", "body": "Use Google, create your shop, and choose how you want customers to find you." },
-        { "title": "Upload your catalog", "body": "Paste text, import a file, or let your agent organize it with you." }
+        {
+          "title": "Ask your AI about us",
+          "body": "Or go straight in. The page is written so an agent can audit it."
+        },
+        {
+          "title": "Register in seconds",
+          "body": "Use Google, create your shop, and choose how you want customers to find you."
+        },
+        {
+          "title": "Upload your catalog",
+          "body": "Paste text, import a file, or let your agent organize it with you."
+        }
       ],
       "socialTitle": "",
       "socialBody": "",
@@ -162,12 +192,36 @@
         "title": "All of this is already included",
         "lead": "Features you pay extra for on other platforms — here they are part of the marketplace.",
         "items": [
-          { "icon": "iconoir-ticket", "label": "Tickets and events", "sub": "Sell admissions and run your event." },
-          { "icon": "iconoir-gift", "label": "Sweepstakes", "sub": "Sweepstakes campaigns to grow your audience." },
-          { "icon": "iconoir-calendar", "label": "Scheduling and appointments", "sub": "Book with Cal.com for services and experiences." },
-          { "icon": "iconoir-refresh", "label": "Subscriptions and content", "sub": "Charge recurring and sell your own content." },
-          { "icon": "iconoir-pricetag", "label": "Coupons and promotions", "sub": "Discounts and codes for your campaigns." },
-          { "icon": "iconoir-globe", "label": "Your domain, subdomain, or widget", "sub": "Your brand on any channel." }
+          {
+            "icon": "iconoir-ticket",
+            "label": "Tickets and events",
+            "sub": "Sell admissions and run your event."
+          },
+          {
+            "icon": "iconoir-gift",
+            "label": "Sweepstakes",
+            "sub": "Sweepstakes campaigns to grow your audience."
+          },
+          {
+            "icon": "iconoir-calendar",
+            "label": "Scheduling and appointments",
+            "sub": "Book with Cal.com for services and experiences."
+          },
+          {
+            "icon": "iconoir-refresh",
+            "label": "Subscriptions and content",
+            "sub": "Charge recurring and sell your own content."
+          },
+          {
+            "icon": "iconoir-pricetag",
+            "label": "Coupons and promotions",
+            "sub": "Discounts and codes for your campaigns."
+          },
+          {
+            "icon": "iconoir-globe",
+            "label": "Your domain, subdomain, or widget",
+            "sub": "Your brand on any channel."
+          }
         ]
       },
       "closingTitle": "Start free and leave it if you do not like it.",
@@ -184,7 +238,11 @@
         "title": "Compare before you decide",
         "lead": "What you pay on other platforms, you keep here. Compare it yourself — or ask your AI.",
         "rowHeader": "What you compare",
-        "columns": ["Miyagi Sánchez", "Mercado Libre", "Shopify"],
+        "columns": [
+          "Miyagi Sánchez",
+          "Mercado Libre",
+          "Shopify"
+        ],
         "rows": [
           {
             "label": "Commission per sale",
@@ -241,11 +299,31 @@
         "example": {
           "title": "Example: you sell a $1,000 MXN product",
           "lead": "How much reaches you, depending on where you sell.",
-          "columns": ["Platform", "Platform commission", "Monthly fee", "You keep (approx.)"],
+          "columns": [
+            "Platform",
+            "Platform commission",
+            "Monthly fee",
+            "You keep (approx.)"
+          ],
           "rows": [
-            { "platform": "miyagisanchez.com", "commission": "$0", "monthly": "$0", "takeHome": "~$1,000¹" },
-            { "platform": "Mercado Libre", "commission": "~$130 (≈13%)²", "monthly": "$0", "takeHome": "~$870" },
-            { "platform": "Shopify", "commission": "$0 per sale³", "monthly": "~$390–790/mo⁴", "takeHome": "~$1,000 − your monthly fee¹" }
+            {
+              "platform": "miyagisanchez.com",
+              "commission": "$0",
+              "monthly": "$0",
+              "takeHome": "~$1,000¹"
+            },
+            {
+              "platform": "Mercado Libre",
+              "commission": "~$130 (≈13%)²",
+              "monthly": "$0",
+              "takeHome": "~$870"
+            },
+            {
+              "platform": "Shopify",
+              "commission": "$0 per sale³",
+              "monthly": "~$390–790/mo⁴",
+              "takeHome": "~$1,000 − your monthly fee¹"
+            }
           ],
           "punchline": "On a $1,000 sale you keep ~$130 more than on Mercado Libre — and with no monthly fee like Shopify.",
           "footnotes": [
@@ -270,9 +348,18 @@
       "primaryCta": "Bring my shop",
       "secondaryCta": "View general page",
       "heroStats": [
-        { "value": "0%", "label": "commission per sale" },
-        { "value": "IG", "label": "catalog by photos, text, or file" },
-        { "value": "Your brand", "label": "subdomain, domain, or widget" }
+        {
+          "value": "0%",
+          "label": "commission per sale"
+        },
+        {
+          "value": "IG",
+          "label": "catalog by photos, text, or file"
+        },
+        {
+          "value": "Your brand",
+          "label": "subdomain, domain, or widget"
+        }
       ],
       "proofTitle": "You do not have to choose between Instagram and a real shop",
       "proofLead": "Use your current channels to sell better: DMs for conversation, Miyagi for catalog, payment, and links.",
@@ -300,16 +387,34 @@
       ],
       "stepsTitle": "From feed to operable shop",
       "steps": [
-        { "title": "Give your catalog to your AI", "body": "Photos, Instagram, text, or a file. You do not have to rewrite everything from scratch." },
-        { "title": "Register and upload the file", "body": "Sign in with Google, create your shop, and publish the first group of pieces." },
-        { "title": "Share your storefront", "body": "Use the link, subdomain, custom domain, or widget; your agent can keep it up to date." }
+        {
+          "title": "Give your catalog to your AI",
+          "body": "Photos, Instagram, text, or a file. You do not have to rewrite everything from scratch."
+        },
+        {
+          "title": "Register and upload the file",
+          "body": "Sign in with Google, create your shop, and publish the first group of pieces."
+        },
+        {
+          "title": "Share your storefront",
+          "body": "Use the link, subdomain, custom domain, or widget; your agent can keep it up to date."
+        }
       ],
       "socialTitle": "For selling without chasing every DM",
       "socialBody": "Keep your audience and add a shop that answers with links, catalog, and clear payment methods.",
       "socialStats": [
-        { "value": "DMs", "label": "for conversation, not payment chasing" },
-        { "value": "Links", "label": "for each product or shop" },
-        { "value": "Widget", "label": "to sell from your own site" }
+        {
+          "value": "DMs",
+          "label": "for conversation, not payment chasing"
+        },
+        {
+          "value": "Links",
+          "label": "for each product or shop"
+        },
+        {
+          "value": "Widget",
+          "label": "to sell from your own site"
+        }
       ],
       "closingTitle": "Your catalog already exists. Put it to work.",
       "closingBody": "Start with what you have: photos, text, Instagram, or a file. You can tune it later.",
@@ -335,9 +440,18 @@
       "primaryCta": "Bring my business online",
       "secondaryCta": "View general page",
       "heroStats": [
-        { "value": "0%", "label": "commission per sale" },
-        { "value": "QR", "label": "for counter, window, or flyer" },
-        { "value": "Print", "label": "bridge to Mexico-86 magazine" }
+        {
+          "value": "0%",
+          "label": "commission per sale"
+        },
+        {
+          "value": "QR",
+          "label": "for counter, window, or flyer"
+        },
+        {
+          "value": "Print",
+          "label": "bridge to Mexico-86 magazine"
+        }
       ],
       "proofTitle": "You do not need to change your business to sell online",
       "proofLead": "Miyagi adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
@@ -365,16 +479,34 @@
       ],
       "stepsTitle": "From physical shop to online storefront",
       "steps": [
-        { "title": "Bring your current catalog", "body": "Photos, price list, spreadsheet, WhatsApp, or text. You do not start from scratch." },
-        { "title": "Publish your first storefront", "body": "Choose products, prices, payment methods, and how customers contact you." },
-        { "title": "Share QR and link", "body": "Use it on your counter, bags, flyers, social, or magazine ad. Every person reaches your shop." }
+        {
+          "title": "Bring your current catalog",
+          "body": "Photos, price list, spreadsheet, WhatsApp, or text. You do not start from scratch."
+        },
+        {
+          "title": "Publish your first storefront",
+          "body": "Choose products, prices, payment methods, and how customers contact you."
+        },
+        {
+          "title": "Share QR and link",
+          "body": "Use it on your counter, bags, flyers, social, or magazine ad. Every person reaches your shop."
+        }
       ],
       "socialTitle": "For businesses already selling today",
       "socialBody": "If you already have customers, inventory, and payment methods, Miyagi adds an online storefront and print bridge without eating your margin.",
       "socialStats": [
-        { "value": "QR", "label": "online from the counter" },
-        { "value": "MXN", "label": "payments built for Mexico" },
-        { "value": "Print", "label": "magazine + shop connected" }
+        {
+          "value": "QR",
+          "label": "online from the counter"
+        },
+        {
+          "value": "MXN",
+          "label": "payments built for Mexico"
+        },
+        {
+          "value": "Print",
+          "label": "magazine + shop connected"
+        }
       ],
       "closingTitle": "Your local shop already has a story. Give it a URL too.",
       "closingBody": "Start with your current catalog and test a shop with no commissions. If it works, make it your permanent channel.",
@@ -400,9 +532,18 @@
       "primaryCta": "Publish my service",
       "secondaryCta": "View general page",
       "heroStats": [
-        { "value": "0%", "label": "commission per booking" },
-        { "value": "Cal.com", "label": "scheduling when needed" },
-        { "value": "MXN", "label": "get paid to your account" }
+        {
+          "value": "0%",
+          "label": "commission per booking"
+        },
+        {
+          "value": "Cal.com",
+          "label": "scheduling when needed"
+        },
+        {
+          "value": "MXN",
+          "label": "get paid to your account"
+        }
       ],
       "proofTitle": "Services with scheduling, payment, and your own page",
       "proofLead": "Your work can live as a service listing: clear description, price or quote, schedule, and payment methods.",
@@ -430,16 +571,34 @@
       ],
       "stepsTitle": "From trade or consultation to sellable service",
       "steps": [
-        { "title": "Describe what you do", "body": "Service, area, duration, price, or range. Your agent can help make it clear." },
-        { "title": "Define schedule and payment", "body": "Connect Cal.com if you need time slots; choose how you want to get paid." },
-        { "title": "Share your link", "body": "Send your service by WhatsApp, social, QR, or website. Every visit arrives with attribution." }
+        {
+          "title": "Describe what you do",
+          "body": "Service, area, duration, price, or range. Your agent can help make it clear."
+        },
+        {
+          "title": "Define schedule and payment",
+          "body": "Connect Cal.com if you need time slots; choose how you want to get paid."
+        },
+        {
+          "title": "Share your link",
+          "body": "Send your service by WhatsApp, social, QR, or website. Every visit arrives with attribution."
+        }
       ],
       "socialTitle": "For professionals who sell time, skill, and trust",
       "socialBody": "Show customers what you offer, what it costs or how to quote, when you are available, and how to pay you.",
       "socialStats": [
-        { "value": "Schedule", "label": "appointments and availability" },
-        { "value": "Link", "label": "service ready to share" },
-        { "value": "0%", "label": "no commission per sale" }
+        {
+          "value": "Schedule",
+          "label": "appointments and availability"
+        },
+        {
+          "value": "Link",
+          "label": "service ready to share"
+        },
+        {
+          "value": "0%",
+          "label": "no commission per sale"
+        }
       ],
       "closingTitle": "Your service already sells through messages. Give it a page.",
       "closingBody": "Publish a first offer, test the flow, and tune your schedule as customers arrive.",
@@ -451,6 +610,80 @@
           "closingCta": "Sell my service"
         }
       }
+    },
+    "promotor": {
+      "metadata": {
+        "title": "Promoter Program — Miyagi Sánchez",
+        "description": "Resources for promoters: set up the merchant's shop, close the sale in person, and hand off over WhatsApp. Glossary, pricing, and a step-by-step guide.",
+        "ogAlt": "Miyagi Sánchez Promoter Program: set up, close, hand off."
+      },
+      "eyebrow": "Promoters",
+      "heroTitle": "Set up the shop, close in person, hand off over WhatsApp.",
+      "heroLead": "You're Miyagi Sánchez's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
+      "trustLine": "Commission on every closed sale. Settlement by transfer or cash.",
+      "primaryCta": "Open my close workspace",
+      "secondaryCta": "View printable sell-sheet",
+      "priceDomainLabel": "Own domain per year",
+      "priceSubdomainLabel": "Subdomain for everyone",
+      "commissionLabel": "Your commission per sale",
+      "proofTitle": "Glossary: what you sell the merchant",
+      "proofLead": "Four products. Learn them to explain each in 30 seconds.",
+      "glossary": [
+        {
+          "icon": "iconoir-globe",
+          "title": "Own domain",
+          "body": "Their shop on their own address (theirshop.mx) instead of miyagisanchez.com/s/theirshop. More brand, direct traffic, white-label look. $499 MXN per year, one-time."
+        },
+        {
+          "icon": "iconoir-internet",
+          "title": "Subdomain",
+          "body": "theirshop.miyagisanchez.com — free for everyone. Use it as a hook: a nice address at no cost."
+        },
+        {
+          "icon": "iconoir-newspaper",
+          "title": "Printed ad",
+          "body": "A spot in Miyagi Sánchez's printed edition circulating in their area. Price depends on size and edition; charged once."
+        },
+        {
+          "icon": "iconoir-shop",
+          "title": "Mercado Libre sync",
+          "body": "Import their Mercado Libre catalog into Miyagi Sánchez so they don't re-enter everything by hand. Speeds up the first-visit setup."
+        }
+      ],
+      "stepsTitle": "How to set up and hand off (in the shop)",
+      "steps": [
+        {
+          "title": "1 · Set up the shop",
+          "body": "From your workspace, create the merchant's shop (it stays unclaimed) and add a first listing. Show them how easy it is."
+        },
+        {
+          "title": "2 · Collect and pay",
+          "body": "Collect cash from the merchant and pay for the domain or ad with your own card. The sale is attributed to your code and the entitlement lands on THEIR shop."
+        },
+        {
+          "title": "3 · Hand off over WhatsApp",
+          "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account. Your commission survives."
+        }
+      ],
+      "pitchTitle": "The discount your code unlocks",
+      "pitchBody": "Your promoter code (PRM-…) gives the merchant a discount on the domain or ad. It's your best closing argument: a price only you can give them, today, in person.",
+      "pitchStats": [
+        {
+          "value": "PRM-",
+          "label": "your personal code"
+        },
+        {
+          "value": "1 tap",
+          "label": "to claim over WhatsApp"
+        },
+        {
+          "value": "0 friction",
+          "label": "the merchant enters nothing"
+        }
+      ],
+      "closingTitle": "Ready to close",
+      "closingBody": "Open your workspace, bind your code, and start setting up shops. Every closed sale is commission for you.",
+      "closingCta": "Open my close workspace"
     },
     "mundial": {
       "metadata": {
@@ -465,9 +698,18 @@
       "primaryCta": "Start selling",
       "secondaryCta": "View agent guide",
       "heroStats": [
-        { "value": "0%", "label": "platform commission" },
-        { "value": "3", "label": "host cities in Mexico" },
-        { "value": "Minutes", "label": "to publish your first listing" }
+        {
+          "value": "0%",
+          "label": "platform commission"
+        },
+        {
+          "value": "3",
+          "label": "host cities in Mexico"
+        },
+        {
+          "value": "Minutes",
+          "label": "to publish your first listing"
+        }
       ],
       "demandTitle": "What visitors are already looking for",
       "demandItems": [
@@ -501,9 +743,18 @@
       ],
       "stepsTitle": "Publish before kickoff",
       "steps": [
-        { "title": "Create your shop", "body": "Name, location, and basics so visitors know who is helping them." },
-        { "title": "Upload your experience", "body": "Describe the tour, rental, or service with price, area, photos, and conditions." },
-        { "title": "Share and measure", "body": "Use your link in social, QR, ads, or messages; Clarity records the visit." }
+        {
+          "title": "Create your shop",
+          "body": "Name, location, and basics so visitors know who is helping them."
+        },
+        {
+          "title": "Upload your experience",
+          "body": "Describe the tour, rental, or service with price, area, photos, and conditions."
+        },
+        {
+          "title": "Share and measure",
+          "body": "Use your link in social, QR, ads, or messages; Clarity records the visit."
+        }
       ],
       "closingTitle": "The World Cup will not wait. Neither should your listing.",
       "closingBody": "If you sell experiences, food, transfers, tours, short-term rentals, or local services, start with a service listing and tune it later.",

@@ -39,6 +39,10 @@ export interface Promoter {
   id: string
   code: string
   name: string | null
+  /** The Clerk identity bound to this promoter (epic 08 · S4) — null until the
+   *  promoter logs into the workspace and binds their code. Powers the
+   *  self-referral guard and "who am I" in the authed close workspace. */
+  clerk_user_id?: string | null
   created_at?: string
 }
 
@@ -94,11 +98,69 @@ export async function getPromoterByCode(code: string): Promise<Promoter | null> 
   if (!normalized) return null
   const { data, error } = await db
     .from('marketplace_promoters')
-    .select('id, code, name, created_at')
+    .select('id, code, name, clerk_user_id, created_at')
     .eq('code', normalized)
     .maybeSingle()
   if (error || !data) return null
   return data as Promoter
+}
+
+/**
+ * Look up the promoter bound to a Clerk identity (epic 08 · S4 — the authed
+ * close workspace resolves "who am I" from the logged-in user). Null when the
+ * user hasn't bound a code yet / tables missing.
+ */
+export async function getPromoterByClerkId(clerkUserId: string): Promise<Promoter | null> {
+  if (!clerkUserId) return null
+  const { data, error } = await db
+    .from('marketplace_promoters')
+    .select('id, code, name, clerk_user_id, created_at')
+    .eq('clerk_user_id', clerkUserId)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as Promoter
+}
+
+export type BindPromoterResult =
+  | { ok: true; promoter: Promoter; alreadyBound: boolean }
+  | { ok: false; reason: 'not_found' | 'code_taken' | 'user_taken' | 'error' }
+
+/**
+ * Bind a Clerk identity to a promoter code (epic 08 · S4). One-time + idempotent:
+ *   - unknown code → not_found
+ *   - code already bound to THIS user → ok (alreadyBound)
+ *   - code already bound to ANOTHER user → code_taken
+ *   - this user already binds a DIFFERENT code → user_taken (one code per identity)
+ * Otherwise stamp `clerk_user_id` via an atomic conditional update (`.is(null)`)
+ * so two concurrent binds can't both win. Promoters are admin-provisioned rows;
+ * this lets a real person operate their own code in the authed workspace.
+ */
+export async function bindPromoterClerkId(code: string, clerkUserId: string): Promise<BindPromoterResult> {
+  if (!clerkUserId) return { ok: false, reason: 'error' }
+  const promoter = await getPromoterByCode(code)
+  if (!promoter) return { ok: false, reason: 'not_found' }
+  if (promoter.clerk_user_id === clerkUserId) return { ok: true, promoter, alreadyBound: true }
+  if (promoter.clerk_user_id) return { ok: false, reason: 'code_taken' }
+
+  // This identity must not already operate a different code.
+  const existing = await getPromoterByClerkId(clerkUserId)
+  if (existing && existing.id !== promoter.id) return { ok: false, reason: 'user_taken' }
+
+  const { data, error } = await db
+    .from('marketplace_promoters')
+    .update({ clerk_user_id: clerkUserId })
+    .eq('id', promoter.id)
+    .is('clerk_user_id', null)
+    .select('id, code, name, clerk_user_id, created_at')
+    .maybeSingle()
+  if (error || !data) {
+    if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+      console.error('[promoter] clerk bind failed:', error.message)
+    }
+    // 0-row update without error = lost the race (someone bound it first).
+    return { ok: false, reason: error ? 'error' : 'code_taken' }
+  }
+  return { ok: true, promoter: data as Promoter, alreadyBound: false }
 }
 
 /** All promoters, newest first (admin console). Empty on missing tables/error. */

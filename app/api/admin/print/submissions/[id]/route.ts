@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { sendPrintAdPaidEmails, sendPrintAdLifecycleEmail } from '@/lib/print-server'
 import { withAdmin } from '@/lib/admin/guard'
+import { markAttributionPaid } from '@/lib/promoter'
 import type { PrintSubmissionStatus, PrintAdSubmission } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,28 @@ export const PATCH = withAdmin(async (req: NextRequest, { params }: { params: Pr
   // payment here (pending_payment → paid), fire the same emails the card flow sends.
   if (body.status === 'paid' && prior?.status === 'pending_payment') {
     await sendPrintAdPaidEmails(data as PrintAdSubmission, {})
+
+    // Promoter Program (epic 08 · S4): a cash-reported / manual print ad sold by a
+    // promoter never reached the card webhook, so accrue its commission HERE on the
+    // offline confirm — same as handlePrintAdPaid does for card. Idempotent.
+    const content = ((data as PrintAdSubmission).content ?? {}) as Record<string, unknown>
+    const promoterId = typeof content.promoter_id === 'string' ? content.promoter_id : null
+    const promoterSellerId = typeof content.promoter_seller_id === 'string' ? content.promoter_seller_id : null
+    if (promoterId && promoterSellerId) {
+      const tier = await db
+        .from('print_editions')
+        .select('tiers')
+        .eq('id', (data as PrintAdSubmission).edition_id)
+        .single()
+        .then(({ data: ed }) => (ed?.tiers ?? []).find((t: { key: string }) => t.key === (data as PrintAdSubmission).tier_key))
+      await markAttributionPaid({
+        promoterId,
+        sellerId: promoterSellerId,
+        sku: 'print_ad',
+        grossAmountCents: tier?.price_cents ?? 0,
+        cadence: 'one_time',
+      })
+    }
   }
   // Editorial lifecycle emails (only on the transition into the status).
   if (body.status === 'approved' && prior?.status !== 'approved') {

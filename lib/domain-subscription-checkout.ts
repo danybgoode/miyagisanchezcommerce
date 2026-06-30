@@ -26,6 +26,7 @@ import {
   coerceDomainCadence,
   type DomainCadence,
 } from '@/lib/domain-cadence'
+import { PAID_BY_PROMOTER_FLAG } from '@/lib/promoter-close'
 import { isEnabled } from '@/lib/flags'
 import {
   getPromoterByCode,
@@ -71,6 +72,11 @@ export async function startCustomDomainCheckout(input: {
   cadence?: DomainCadence | string | null
   /** Promoter code (`PRM-…`) for the real one-time discount (one-time path). */
   promoterCode?: string | null
+  /** epic 08 · S4 · US-10: the PAYER is a promoter checking out on the seller's
+   *  behalf (cash collected in person), not the seller themselves. Stamps a
+   *  provenance marker on the session so the webhook records paid-by-promoter +
+   *  audits the grant. One-time cadence only. */
+  paidByPromoter?: boolean
 }): Promise<StartCheckoutResult> {
   const { shopId, sellerClerkId, buyerEmail, channel } = input
   const cadence = coerceDomainCadence(input.cadence)
@@ -133,6 +139,7 @@ export async function startCustomDomainCheckout(input: {
         seller_clerk_id: sellerClerkId,
         channel,
         ...(promoterId ? { promoter_id: promoterId, promoter_sku: 'custom_domain' } : {}),
+        ...(input.paidByPromoter ? { paid_by_promoter: PAID_BY_PROMOTER_FLAG } : {}),
       },
       ...(promotionCodeId ? { promotionCodeId } : {}),
     })
