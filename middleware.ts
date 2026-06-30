@@ -8,8 +8,7 @@ import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
 } from '@/lib/shortlink'
 import { isLikelyListingId, isLikelyShopSlug } from '@/lib/route-shape'
-import { isEnabled } from '@/lib/flags'
-import { readSubdomainGrant, subdomainServeDecision } from '@/lib/subdomain-entitlement'
+import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -44,16 +43,18 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (subSlug) {
     let slug: string | null = null
     let shopMetadata: unknown = null
+    let shopClerkId: string | null = null
     let redirectTo: string | null = null
     try {
       const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
       const { data: shop } = await supabase
         .from('marketplace_shops')
-        .select('slug, metadata')
+        .select('slug, metadata, clerk_user_id')
         .eq('slug', subSlug)
         .maybeSingle()
       slug = shop?.slug ?? null
       shopMetadata = shop?.metadata ?? null
+      shopClerkId = (shop?.clerk_user_id as string | null) ?? null
       if (!slug) {
         // Maybe a retired slug — look it up in the alias history (same store as
         // the /s/[slug] redirect). Inline (no unstable_cache — invalid here).
@@ -83,19 +84,24 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     }
 
     if (slug) {
-      // ── Subdomain paywall gate (epic 07 · subdomain-pricing, US-1) ─────────
+      // ── Subdomain paywall gate (epic 07 · subdomain-pricing, US-1 + US-4) ──
       // The white-label subdomain is a paid SKU. When the paywall is ON and this
-      // shop isn't entitled (no grandfather/comp/one-time grant; recurring sub is
-      // Sprint 2), 301 the WHOLE subdomain to the free `/s/slug` on the apex — the
-      // subdomain is honestly the upgrade it isn't paying for. The flag is
-      // fail-open OFF (today's free-for-all), so a flag outage never traps a
-      // seller or breaks a live subdomain. Entitlement piggybacks the shop row we
-      // already fetched (metadata) → no extra round-trip; only the flag read is
-      // new (~0ms local-eval). This read is WHY the middleware runs on the Node
-      // runtime — lib/flags.ts (Flagsmith SDK) is not Edge-compatible (see `config`).
-      const paywallEnabled = await isEnabled('subdomain.paywall_enabled')
-      const decision = subdomainServeDecision({ paywallEnabled, grant: readSubdomainGrant(shopMetadata) })
-      if (decision === 'redirect') {
+      // shop isn't entitled (no grandfather/comp grant, no LIVE one-time grant, and
+      // no active recurring subscription — US-4), 301 the WHOLE subdomain to the
+      // free `/s/slug` on the apex — the subdomain is honestly the upgrade it isn't
+      // paying for. The flag is fail-open OFF (today's free-for-all), so a flag
+      // outage never traps a seller or breaks a live subdomain.
+      //
+      // `resolveSubdomainEntitlement` short-circuits the Medusa subscription read
+      // unless it's actually needed (paywall on AND no entitling grant), so the 179
+      // grandfathered shops add zero round-trip — identical perf to Sprint 1; only a
+      // non-grandfathered shop that bought the recurring plan triggers the lookup.
+      // The flag + subscription reads are WHY the middleware runs on the Node runtime
+      // — lib/flags.ts + the Medusa bridge are not Edge-compatible (see `config`).
+      const { entitled } = await resolveSubdomainEntitlement(shopMetadata, {
+        sellerClerkId: shopClerkId ?? undefined,
+      })
+      if (!entitled) {
         const url = req.nextUrl.clone()
         url.protocol = 'https:'
         url.host = ROOT_DOMAIN

@@ -37,6 +37,9 @@ import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
 import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
+import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
+import { startSubdomainCheckout } from '@/lib/subdomain-subscription-checkout'
+import { SUBDOMAIN_PRICE_LABEL } from '@/lib/subdomain-pricing'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
@@ -382,6 +385,24 @@ const TOOLS = [
       properties: {
         cadence: { type: 'string', enum: ['recurring', 'one_time'], description: "Payment cadence: 'recurring' (annual subscription, default) or 'one_time' (pay a year up front, no renewal)" },
         coupon: { type: 'string', description: 'Optional campaign coupon code (e.g. miyagisan) to comp the first year — recurring cadence only' },
+      },
+    },
+  },
+  {
+    name: 'get_subdomain_entitlement',
+    description: "SELLER TOOL. Check whether YOUR OWN shop may serve its white-label subdomain <slug>.miyagisanchez.com (the platform's cheaper paid SKU, $199 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns whether the shop is entitled and why (grandfathered / comp grant / one-time grant / active subscription / not entitled) and the annual price. The free shop URL (/s/slug) is always free regardless. Use before start_subdomain_subscription.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'start_subdomain_subscription',
+    description: "SELLER TOOL. Start the Stripe checkout for YOUR OWN shop's subdomain SKU ($199 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Two cadences: `recurring` (default — an annual subscription that auto-renews) or `one_time` (pay one year up front with NO recurring mandate; entitlement is a dated 12-month grant that lapses gracefully at year end with no auto-charge — the cash-friendly option). No campaign coupon (that's the custom-domain SKU). Returns a Stripe checkout URL the seller opens to pay. Entitlement flips on automatically once checkout completes.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cadence: { type: 'string', enum: ['recurring', 'one_time'], description: "Payment cadence: 'recurring' (annual subscription, default) or 'one_time' (pay a year up front, no renewal)" },
       },
     },
   },
@@ -1395,6 +1416,69 @@ async function handleStartDomainSubscription(args: Record<string, unknown>, auth
   }
 }
 
+// ── Subdomain paywall (epic 07 · subdomain-pricing S2) — seller-agent SKU tools ─
+
+async function handleGetSubdomainEntitlement(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const ent = await resolveSubdomainEntitlement(shop.metadata, { sellerClerkId: shop.clerk_user_id })
+  const summary = ent.entitled
+    ? `✅ ${shop.name ?? 'Tu tienda'} puede servir su subdominio white-label (motivo: ${ent.reason}).`
+    : `🔒 El subdominio propio es una función premium (${SUBDOMAIN_PRICE_LABEL.es}). Tu tienda aún no está habilitada. ` +
+      `Tu URL gratis (/s/tu-tienda) siempre es gratis. Usa start_subdomain_subscription para activar.`
+
+  return {
+    content: [
+      { type: 'text', text: summary },
+      {
+        type: 'text',
+        text: JSON.stringify(
+          {
+            entitled: ent.entitled,
+            reason: ent.reason,
+            price_label: SUBDOMAIN_PRICE_LABEL.es,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  }
+}
+
+async function handleStartSubdomainSubscription(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const cadence = asDomainCadence(args.cadence) ?? 'recurring'
+  const result = await startSubdomainCheckout({
+    shopId: shop.id,
+    sellerClerkId: shop.clerk_user_id,
+    channel: 'api',
+    cadence,
+  })
+
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: result.error }] }
+  }
+
+  const cadenceNote = cadence === 'one_time'
+    ? ' (pago único por un año, sin renovación automática)'
+    : ''
+  return {
+    content: [
+      {
+        type: 'text',
+        text:
+          `Abre este enlace para activar tu subdominio propio${cadenceNote}:\n${result.url}\n\n` +
+          'La habilitación se activa automáticamente al completar el checkout.',
+      },
+      { type: 'text', text: JSON.stringify({ checkout_url: result.url, cadence }, null, 2) },
+    ],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 function handleAboutMiyagi(baseUrl: string) {
@@ -1472,6 +1556,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'start_subdomain_subscription': { const r = await handleStartSubdomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       default:                     return null  // will become MethodNotFound error
     }
   }
