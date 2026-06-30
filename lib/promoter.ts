@@ -147,3 +147,52 @@ export async function updatePromoterSettings(patch: Partial<PromoterSettings>): 
     .eq('id', 1)
   return next
 }
+
+// ── Discount resolution (pure — the SKU-checkout preview seam) ─────────────────
+
+export type PromoterDiscount =
+  | { ok: true; promoter_id: string; code: string; discount_cents: number }
+  | { ok: false; reason: 'not_found' | 'disabled' }
+
+/**
+ * Discount in cents off a base. Mirrors the backend coupon engine's
+ * `computeCouponDiscountCents`: a percentage of the base, or a flat cents amount,
+ * never below 0 and never more than the base. `amount` is the raw percent for
+ * 'percentage', or cents (pesos×100) for 'fixed' — matching `discount_amount_cents`.
+ */
+export function computePromoterDiscountCents(
+  type: 'fixed' | 'percentage',
+  amount: number,
+  baseCents: number,
+): number {
+  if (baseCents <= 0 || amount <= 0) return 0
+  const raw = type === 'percentage' ? Math.round((baseCents * amount) / 100) : Math.round(amount)
+  return Math.max(0, Math.min(raw, baseCents))
+}
+
+/**
+ * Resolve a promoter code to a discount preview. Pure: the caller looks the
+ * promoter up (DB) and passes it in, so this stays unit-testable. Unknown code →
+ * not_found; valid code but the program/discount is off → disabled.
+ */
+export function resolvePromoterDiscount(input: {
+  promoter: Promoter | null
+  settings: PromoterSettings
+  itemsCents: number
+}): PromoterDiscount {
+  const { promoter, settings, itemsCents } = input
+  if (!promoter) return { ok: false, reason: 'not_found' }
+  if (!settings.enabled || settings.discount_amount_cents <= 0) return { ok: false, reason: 'disabled' }
+  const discount_cents = computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, itemsCents)
+  return { ok: true, promoter_id: promoter.id, code: promoter.code, discount_cents }
+}
+
+/** es-MX message for a refused promoter code (mirrors couponErrorMessage). */
+export function promoterRefusalMessage(reason: 'not_found' | 'disabled'): string {
+  switch (reason) {
+    case 'not_found':
+      return 'Código de promotor no válido.'
+    case 'disabled':
+      return 'El descuento de promotor no está disponible.'
+  }
+}

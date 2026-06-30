@@ -23,7 +23,7 @@ import SupportWidgetSection from '../SupportWidgetSection'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
-import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
+import { CUSTOM_DOMAIN_PRICE_LABEL, CUSTOM_DOMAIN_PRICE_CENTS } from '@/lib/domain-pricing'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
@@ -105,6 +105,12 @@ export interface CanalInitial {
    * shows a "re-activate to restore your domain" prompt on the upsell.
    */
   domain_lapsed?: boolean
+  /**
+   * Promoter Program (epic 08, Sprint 1 — `promoter.enabled`, default off). When
+   * true, the domain-subscribe block shows a promoter-code field + discount preview
+   * before pay. The real charge with the discount is Sprint 2.
+   */
+  promoter_enabled?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
@@ -149,6 +155,39 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [subscribing, setSubscribing]               = useState(false)
   const [subscribeError, setSubscribeError]         = useState<string | null>(null)
   const [domainCoupon, setDomainCoupon]             = useState('') // S3: campaign coupon (miyagisan)
+
+  // ── Promoter Program (epic 08, Sprint 1) — discount PREVIEW behind promoter.enabled ──
+  const promoterEnabled = initial.promoter_enabled ?? false
+  const [promoterCode, setPromoterCode]             = useState('')
+  const [promoterChecking, setPromoterChecking]     = useState(false)
+  const [promoterDiscountCents, setPromoterDiscountCents] = useState<number | null>(null)
+  const [promoterMsg, setPromoterMsg]               = useState<string | null>(null)
+
+  const pesos = (cents: number) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
+
+  /** Preview the promoter discount on the custom-domain SKU (no charge — Sprint 2 bills). */
+  async function previewPromoterDiscount() {
+    const code = promoterCode.trim()
+    setPromoterDiscountCents(null); setPromoterMsg(null)
+    if (!code) return
+    setPromoterChecking(true)
+    try {
+      const qs = new URLSearchParams({ code, itemsCents: String(CUSTOM_DOMAIN_PRICE_CENTS) })
+      const res = await fetch(`/api/promoter/validate-code?${qs}`)
+      const data = await res.json().catch(() => null) as
+        { valid?: boolean; discount_cents?: number; message?: string } | null
+      if (data?.valid && typeof data.discount_cents === 'number') {
+        setPromoterDiscountCents(data.discount_cents)
+      } else {
+        setPromoterMsg(data?.message ?? 'Código de promotor no válido.')
+      }
+    } catch {
+      setPromoterMsg('No se pudo validar el código. Intenta de nuevo.')
+    } finally {
+      setPromoterChecking(false)
+    }
+  }
 
   async function handleActivateDomain() {
     setSubscribing(true); setSubscribeError(null)
@@ -588,6 +627,39 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
                 />
               </div>
+              {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled. */}
+              {promoterEnabled && (
+                <div className="mb-3">
+                  <label className="block text-[11px] font-medium text-[var(--color-muted)] mb-1">
+                    ¿Te atendió un promotor?
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={promoterCode}
+                      onChange={(e) => { setPromoterCode(e.target.value); setPromoterDiscountCents(null); setPromoterMsg(null) }}
+                      placeholder="Código de promotor (PRM-…)"
+                      autoCapitalize="characters"
+                      className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={previewPromoterDiscount}
+                      disabled={promoterChecking || !promoterCode.trim()}
+                      className="text-xs font-semibold px-3 py-2 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface)] disabled:opacity-50"
+                    >
+                      {promoterChecking ? 'Validando…' : 'Aplicar'}
+                    </button>
+                  </div>
+                  {promoterDiscountCents !== null && (
+                    <p className="mt-1.5 text-xs text-[var(--color-accent)]" data-testid="promoter-discount-preview">
+                      Descuento de promotor: −{pesos(promoterDiscountCents)} · Pagarías{' '}
+                      {pesos(Math.max(0, CUSTOM_DOMAIN_PRICE_CENTS - promoterDiscountCents))}
+                    </p>
+                  )}
+                  {promoterMsg && <p className="mt-1.5 text-xs text-red-600">⚠ {promoterMsg}</p>}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleActivateDomain}
