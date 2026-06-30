@@ -2,31 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { withSupplyAdmin } from '@/lib/admin/guard'
-import {
-  refreshBatchCounts,
-  supplyItemToSellerBody,
-  supplyItemToProductBody,
-  type SupplyItem,
-} from '@/lib/supply'
+import { refreshBatchCounts, supplyItemToSellerBody, type SupplyItem } from '@/lib/supply'
+import { importApprovedItems, type ResolvedImportSeller } from '@/lib/supply-import'
 import {
   ensureUnclaimedShopMirror,
-  syncSupabaseListingMirror,
   type MedusaSellerForMirror,
 } from '@/lib/provisioning'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
-
-function internalFetch(path: string, body: unknown) {
-  return fetch(`${MEDUSA_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-secret': INTERNAL_SECRET,
-    },
-    body: JSON.stringify(body),
-  })
-}
 
 type MedusaSeller = MedusaSellerForMirror & {
   clerk_user_id: string | null
@@ -40,8 +24,12 @@ type MedusaSeller = MedusaSellerForMirror & {
  * source_url — then make sure the Supabase mirror row exists (conversations /
  * offers / short links read the mirror; non-fatal when it fails).
  */
-async function resolveSeller(item: SupplyItem): Promise<{ seller: MedusaSeller; mirrorId: string | null }> {
-  const res = await internalFetch('/internal/sellers', supplyItemToSellerBody(item))
+async function resolveUnclaimedSeller(item: SupplyItem): Promise<ResolvedImportSeller> {
+  const res = await fetch(`${MEDUSA_BASE}/internal/sellers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+    body: JSON.stringify(supplyItemToSellerBody(item)),
+  })
   const data = await res.json().catch(() => ({})) as { seller?: MedusaSeller; message?: string }
   if (!res.ok || !data.seller) {
     throw new Error(`Seller create failed (${res.status}): ${data.message ?? 'no data'}`)
@@ -52,7 +40,7 @@ async function resolveSeller(item: SupplyItem): Promise<{ seller: MedusaSeller; 
     return null
   })
 
-  return { seller: data.seller, mirrorId }
+  return { sellerSlug: data.seller.slug, mirrorId }
 }
 
 export const POST = withSupplyAdmin(async (req: NextRequest) => {
@@ -93,93 +81,10 @@ export const POST = withSupplyAdmin(async (req: NextRequest) => {
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
   }
 
-  let imported = 0
-  let duplicate = 0
-  let failed = 0
-
-  for (const item of (items ?? []) as SupplyItem[]) {
-    try {
-      if (!item.listing_title || item.listing_title.trim().length < 5) {
-        throw new Error('Missing listing title')
-      }
-      if (!item.source_url) {
-        throw new Error('Missing original source URL')
-      }
-      if (!item.category) {
-        throw new Error('Missing category')
-      }
-
-      const { data: existingListing } = await db
-        .from('marketplace_listings')
-        .select('id')
-        .eq('source_url', item.source_url)
-        .maybeSingle()
-
-      if (existingListing) {
-        duplicate++
-        await db.from('supply_items').update({
-          status: 'duplicate',
-          error_message: 'Listing source_url already exists',
-          imported_listing_id: existingListing.id,
-          imported_at: new Date().toISOString(),
-        }).eq('id', item.id)
-        continue
-      }
-
-      const { seller, mirrorId } = await resolveSeller(item)
-
-      // ── Create the REAL listing: a Medusa product linked to the seller ────
-      const productBody = supplyItemToProductBody(item, seller.slug, targetStatus)
-      const productRes = await internalFetch('/internal/seller-products', productBody)
-      const productData = await productRes.json().catch(() => ({})) as { product_id?: string; message?: string }
-      if (!productRes.ok || !productData.product_id) {
-        throw new Error(`Listing create failed (${productRes.status}): ${productData.message ?? 'no data'}`)
-      }
-
-      // ── Mirror the listing (short-code mint + conversations/offers) ───────
-      let mirrorListingId: string | null = null
-      if (mirrorId) {
-        mirrorListingId = await syncSupabaseListingMirror(mirrorId, {
-          id: productData.product_id,
-          title: productBody.title,
-          description: productBody.description,
-          price_cents: productBody.price_cents,
-          currency: productBody.currency,
-          condition: productBody.condition,
-          listing_type: productBody.listing_type,
-          category: productBody.category,
-          state: productBody.state,
-          municipio: productBody.municipio,
-          location: productBody.location,
-          images: productBody.images,
-          tags: productBody.tags,
-          status: targetStatus,
-          metadata: productBody.metadata,
-          source: 'scraped',
-          source_platform: item.source_platform,
-          source_url: item.source_url,
-        }).catch((e) => {
-          console.error('[supply/import] listing mirror failed (non-fatal):', e)
-          return null
-        }) ?? null
-      }
-
-      imported++
-      await db.from('supply_items').update({
-        status: 'imported',
-        imported_shop_id: mirrorId,
-        imported_listing_id: mirrorListingId,
-        imported_at: new Date().toISOString(),
-        error_message: null,
-      }).eq('id', item.id)
-    } catch (err) {
-      failed++
-      await db.from('supply_items').update({
-        status: 'failed',
-        error_message: err instanceof Error ? err.message : String(err),
-      }).eq('id', item.id)
-    }
-  }
+  const { imported, duplicate, failed } = await importApprovedItems((items ?? []) as SupplyItem[], {
+    targetStatus,
+    resolveSeller: resolveUnclaimedSeller,
+  })
 
   // Fresh shops/listings should show up without waiting out the ISR window.
   if (imported > 0) {
@@ -195,10 +100,5 @@ export const POST = withSupplyAdmin(async (req: NextRequest) => {
     error_message: failed > 0 ? `${failed} row(s) failed during import` : null,
   }).eq('id', batch.id)
 
-  return NextResponse.json({
-    imported,
-    duplicate,
-    failed,
-    counts,
-  })
+  return NextResponse.json({ imported, duplicate, failed, counts })
 })
