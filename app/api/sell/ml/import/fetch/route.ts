@@ -30,9 +30,13 @@ export async function POST() {
     .maybeSingle()
   if (!shop?.slug) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
 
-  const { items: mlItems, connected } = await getMlSellerItems(shop.slug, { limit: 50 })
+  const { items: mlItems, connected, failed } = await getMlSellerItems(shop.slug, { limit: 50 })
   if (!connected) {
     return NextResponse.json({ error: 'Conecta tu cuenta de Mercado Libre primero.' }, { status: 409 })
+  }
+  // A fetch failure must surface as an error (retry), not an empty staged batch.
+  if (failed) {
+    return NextResponse.json({ error: 'No pudimos cargar tus publicaciones de Mercado Libre. Intenta de nuevo.' }, { status: 502 })
   }
 
   const { data: batch, error: batchErr } = await db

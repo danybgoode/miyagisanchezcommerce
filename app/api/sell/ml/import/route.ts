@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as { batchId?: string; itemIds?: string[] } | null
   if (!body?.batchId) return NextResponse.json({ error: 'batchId es requerido.' }, { status: 422 })
+  // Selection is explicit: never bulk-import by omission (cross-review #142).
+  if (!Array.isArray(body.itemIds) || body.itemIds.length === 0) {
+    return NextResponse.json({ error: 'Selecciona al menos una publicación.' }, { status: 422 })
+  }
 
   const { data: shop } = await db
     .from('marketplace_shops')
@@ -53,15 +57,13 @@ export async function POST(req: NextRequest) {
 
   // Import only the explicitly selected items (the review selection); never
   // re-touch an already-imported/duplicate row.
-  let query = db
+  const { data: items, error: itemsErr } = await db
     .from('supply_items')
     .select('*')
     .eq('batch_id', batch.id)
+    .in('id', body.itemIds)
     .not('status', 'in', '("imported","duplicate")')
     .limit(500)
-  if (body.itemIds?.length) query = query.in('id', body.itemIds)
-
-  const { data: items, error: itemsErr } = await query
   if (itemsErr) {
     await db.from('supply_batches').update({ status: 'failed', error_message: itemsErr.message }).eq('id', batch.id)
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
@@ -88,10 +90,15 @@ export async function POST(req: NextRequest) {
       }
       return { duplicate: false }
     },
+    // Best-effort linkage: the product is already created + mirrored, so a failed
+    // link must NOT fail the item (that would mark it 'failed' while the product
+    // exists, and a retry could create a second one). The source_url dedupe
+    // fallback above still catches the re-import; the unlinked product is a soft
+    // gap a reconciliation can re-link. (cross-review #142.)
     afterCreate: async (productId, item) => {
       if (!item.source_id) return
       const r = await linkMlProduct(shop.slug, productId, item.source_id)
-      if (!r.ok) throw new Error('No se pudo registrar el vínculo con Mercado Libre')
+      if (!r.ok) console.error(`[ml/import] linkage record failed for product ${productId} / ${item.source_id}`)
     },
   })
 

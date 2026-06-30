@@ -20,16 +20,23 @@ export type MlSellerItemsResult = {
   paging: { total: number; offset: number; limit: number }
   /** false when the seller has no active ML connection (the backend returned 409). */
   connected: boolean
+  /** true when the ML fetch itself failed (502) — distinct from a genuinely empty catalog. */
+  failed: boolean
 }
 
-const EMPTY: MlSellerItemsResult = { items: [], paging: { total: 0, offset: 0, limit: 0 }, connected: true }
+const EMPTY: MlSellerItemsResult = { items: [], paging: { total: 0, offset: 0, limit: 0 }, connected: true, failed: false }
 
-/** Fetch the connected seller's active ML items (import-ready). Fails closed to []. */
+/**
+ * Fetch the connected seller's active ML items (import-ready). Distinguishes
+ * three outcomes the caller must NOT conflate: not connected (409 → connected
+ * false), an ML fetch failure (non-2xx → failed true, so the UI shows a retry
+ * instead of "nothing to import"), and a genuinely empty catalog.
+ */
 export async function getMlSellerItems(
   sellerSlug: string,
   opts: { offset?: number; limit?: number } = {},
 ): Promise<MlSellerItemsResult> {
-  if (!sellerSlug || !INTERNAL_SECRET) return EMPTY
+  if (!sellerSlug || !INTERNAL_SECRET) return { ...EMPTY, failed: true }
   const params = new URLSearchParams({ seller_slug: sellerSlug })
   if (opts.offset != null) params.set('offset', String(opts.offset))
   if (opts.limit != null) params.set('limit', String(opts.limit))
@@ -39,15 +46,16 @@ export async function getMlSellerItems(
       cache: 'no-store',
     })
     if (res.status === 409) return { ...EMPTY, connected: false }
-    if (!res.ok) return EMPTY
+    if (!res.ok) return { ...EMPTY, failed: true }
     const d = (await res.json()) as Partial<MlSellerItemsResult>
     return {
       items: Array.isArray(d.items) ? d.items : [],
       paging: d.paging ?? EMPTY.paging,
       connected: true,
+      failed: false,
     }
   } catch {
-    return EMPTY
+    return { ...EMPTY, failed: true }
   }
 }
 
