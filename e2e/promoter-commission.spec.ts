@@ -149,10 +149,10 @@ test.describe('promoter-commission · admin routes reject anonymously (401)', ()
   })
 })
 
-test.describe('promoter-commission · dashboard hidden while the flag is off (404)', () => {
-  // promoter.enabled defaults OFF (fail-open) and no Flagsmith key flips it on in
-  // CI/preview, so the dashboard 404s before resolving any promoter.
-  test('GET /promotor/PRM-ABC123 → 404 (feature hidden)', async ({ request }) => {
+test.describe('promoter-commission · dashboard 404s for a non-promoter code', () => {
+  // 404 in BOTH flag states: flag off ⇒ hidden; flag on ⇒ the unknown code resolves
+  // to no promoter ⇒ notFound(). Robust to the kill-switch (launched ON 2026-06-30).
+  test('GET /promotor/PRM-ABC123 → 404', async ({ request }) => {
     const res = await request.get('/promotor/PRM-ABC123')
     expect(res.status()).toBe(404)
   })
