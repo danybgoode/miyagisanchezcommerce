@@ -15,10 +15,13 @@ import { sweepExpiredOneTimeGrants } from '@/lib/domain-lapse-server'
 
 export const runtime = 'nodejs'
 
-// Vercel calls with Authorization: Bearer <CRON_SECRET>.
+// Vercel calls with Authorization: Bearer <CRON_SECRET>. This endpoint is
+// DESTRUCTIVE (it disconnects expired domains), so unlike the read-ish crons it
+// fails CLOSED in production when CRON_SECRET is unset — a missing env var must
+// never turn it into a public teardown endpoint. Locally (no secret) it's open.
 function isCronAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true // allow if not set (local dev)
+  if (!secret) return process.env.NODE_ENV !== 'production'
   return req.headers.get('authorization') === `Bearer ${secret}`
 }
 

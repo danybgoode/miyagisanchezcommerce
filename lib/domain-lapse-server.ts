@@ -39,6 +39,12 @@ export async function releaseCustomDomainForShop(
       .select('custom_domain, metadata')
       .eq('id', shopId)
       .maybeSingle()
+    // A bad/stale shopId would otherwise write 0 rows silently and still alert a
+    // "disconnect" — surface it instead of faking success.
+    if (!shop) {
+      console.error('[custom-domain lapse] no shop row for id', shopId)
+      return
+    }
 
     const domain = (shop as { custom_domain?: string | null } | null)?.custom_domain
     if (domain) {

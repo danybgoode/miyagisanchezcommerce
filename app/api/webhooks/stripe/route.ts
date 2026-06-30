@@ -783,19 +783,28 @@ async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Sessio
     return
   }
 
-  // Write the dated one-time grant (+ clear any prior lapse flag) atomically on
-  // the shop's metadata JSONB — the SAME field every entitlement reader derives from.
+  // Write the dated one-time grant (+ clear any prior lapse flag) on the shop's
+  // metadata JSONB — the SAME field every entitlement reader derives from. The
+  // seller PAID, so a write that doesn't land MUST be caught: verify the shop
+  // exists AND that the update affected a row (a `.eq` matching 0 rows returns
+  // no error — the classic silent 0-row write), else alert for hand-repair.
   try {
     const { data: shop } = await db
       .from('marketplace_shops')
       .select('metadata')
       .eq('id', shopId)
       .maybeSingle()
-    const meta = ((shop?.metadata ?? {}) as Record<string, unknown>)
+    if (!shop) throw new Error(`no shop row for id ${shopId}`)
+    const meta = ((shop.metadata ?? {}) as Record<string, unknown>)
     meta.custom_domain_grant = buildOneTimeGrant({ note: 'one-time S2' })
     delete meta.custom_domain_lapsed
-    const { error } = await db.from('marketplace_shops').update({ metadata: meta }).eq('id', shopId)
+    const { data: updated, error } = await db
+      .from('marketplace_shops')
+      .update({ metadata: meta })
+      .eq('id', shopId)
+      .select('id')
     if (error) throw new Error(error.message)
+    if (!updated || updated.length === 0) throw new Error(`grant update matched 0 rows for id ${shopId}`)
   } catch (e) {
     console.error('[custom-domain one-time] grant write failed:', e)
     tg.alert(
