@@ -26,6 +26,8 @@ import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
 import { CUSTOM_DOMAIN_PRICE_LABEL, CUSTOM_DOMAIN_PRICE_CENTS } from '@/lib/domain-pricing'
+import { SUBDOMAIN_PRICE_LABEL, SUBDOMAIN_PRICE_MONTHLY_LABEL } from '@/lib/subdomain-pricing'
+import type { SubdomainInterval } from '@/lib/subdomain-billing'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
@@ -113,6 +115,23 @@ export interface CanalInitial {
    * before pay. The real charge with the discount is Sprint 2.
    */
   promoter_enabled?: boolean
+  /**
+   * Subdomain paywall (epic 07 · subdomain-pricing). False ⇒ the white-label
+   * subdomain isn't active for this shop → show the buy upsell. Defaults true
+   * (ungated) so the section is unchanged when the paywall flag is off / the seller
+   * is grandfathered.
+   */
+  subdomain_entitled?: boolean
+  /** True when the seller holds an ACTIVE recurring subdomain subscription — enables
+   *  the monthly↔yearly cadence-switch control (a grant/grandfather has nothing to
+   *  switch). */
+  subdomain_active?: boolean
+  /** True once the monthly price ($25/mo) is seeded — gates the monthly buy/switch
+   *  options so a pre-seed click can't 422. */
+  subdomain_has_monthly?: boolean
+  /** True when a previously-active subdomain subscription lapsed (cancel/past_due)
+   *  and the subdomain reverted to a 301 → /s/slug — shows a re-activate prompt. */
+  subdomain_lapsed?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
@@ -186,6 +205,61 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
       setSubscribeError('Sin conexión. Intenta de nuevo.')
     } finally {
       setSubscribing(false)
+    }
+  }
+
+  // ── Subdomain paywall — buy + monthly↔yearly switch (epic 07 · subdomain-pricing) ──
+  const subdomainEntitled = initial.subdomain_entitled ?? true
+  const subdomainActive   = initial.subdomain_active ?? false
+  const subdomainHasMonthly = initial.subdomain_has_monthly ?? false
+  const subdomainLapsed   = initial.subdomain_lapsed ?? false
+  // Buy upsell: which cadence to purchase (yearly is the discounted default).
+  const [subBuyInterval, setSubBuyInterval] = useState<SubdomainInterval>('year')
+  const [subSubscribing, setSubSubscribing] = useState(false)
+  const [subSubscribeError, setSubSubscribeError] = useState<string | null>(null)
+  // Cadence switch (active subscribers): in-place, no redirect.
+  const [subSwitching, setSubSwitching] = useState<SubdomainInterval | null>(null)
+  const [subSwitchNote, setSubSwitchNote] = useState<string | null>(null)
+  const [subSwitchError, setSubSwitchError] = useState<string | null>(null)
+
+  async function handleActivateSubdomain() {
+    setSubSubscribing(true); setSubSubscribeError(null)
+    try {
+      const res = await fetch('/api/sell/shop/subdomain/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadence: 'recurring', interval: subBuyInterval }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) { setSubSubscribeError(data.error ?? 'No se pudo iniciar el pago.'); return }
+      window.location.href = data.url
+    } catch {
+      setSubSubscribeError('Sin conexión. Intenta de nuevo.')
+    } finally {
+      setSubSubscribing(false)
+    }
+  }
+
+  async function handleSwitchSubdomain(target: SubdomainInterval) {
+    setSubSwitching(target); setSubSwitchError(null); setSubSwitchNote(null)
+    try {
+      const res = await fetch('/api/sell/shop/subdomain/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval: target }),
+      })
+      const data = await res.json() as { ok?: boolean; switched?: boolean; error?: string }
+      if (!res.ok || !data.ok) { setSubSwitchError(data.error ?? 'No se pudo cambiar tu plan.'); return }
+      const label = target === 'month' ? SUBDOMAIN_PRICE_MONTHLY_LABEL.es : SUBDOMAIN_PRICE_LABEL.es
+      setSubSwitchNote(
+        data.switched
+          ? `Listo — tu subdominio ahora se factura ${target === 'month' ? 'cada mes' : 'cada año'} (${label}). Se prorrateó el cambio, sin cargo doble.`
+          : `Tu subdominio ya se factura ${target === 'month' ? 'cada mes' : 'cada año'}. No se hizo ningún cambio.`,
+      )
+    } catch {
+      setSubSwitchError('Sin conexión. Intenta de nuevo.')
+    } finally {
+      setSubSwitching(null)
     }
   }
 
@@ -529,6 +603,105 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     Mejora a dominio propio ↓
                   </a>
                 </p>
+
+                {/* ══ Subdomain paywall (epic 07 · subdomain-pricing) ═══════════════
+                    The white-label subdomain <slug>.miyagisanchez.com is a paid SKU.
+                    Not entitled → the buy upsell (yearly $199 / monthly $25); active
+                    recurring subscription → the monthly↔yearly cadence switch
+                    (prorated, no gap). Entitled via a grandfather/comp/one-time grant
+                    → a plain "incluido" note (nothing to switch). Defaults entitled
+                    (ungated) so this is invisible when the flag is off / grandfathered
+                    without a subscription. */}
+                {!subdomainEntitled ? (
+                  <div className="mt-3 border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-base">✦</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
+                    </div>
+                    <p className="text-sm font-semibold mb-1">Subdominio propio</p>
+                    <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-2.5">
+                      Sirve tu tienda como sitio independiente en{' '}
+                      <span className="font-mono">{subdomainUrl}</span> (sin la barra de la plataforma).
+                      {subdomainHasMonthly
+                        ? ` ${SUBDOMAIN_PRICE_LABEL.es} o ${SUBDOMAIN_PRICE_MONTHLY_LABEL.es} — el plan anual sale más barato; el mensual es sin compromiso.`
+                        : ` ${SUBDOMAIN_PRICE_LABEL.es}.`}
+                      {' '}Tu <strong>URL gratis</strong> (<span className="font-mono">/s/</span>) sigue activa siempre.
+                    </p>
+                    {subdomainLapsed && (
+                      <div className="mb-2.5 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
+                        <p className="text-xs text-amber-700">
+                          Tu suscripción al subdominio terminó y tu tienda volvió a tu URL gratis
+                          (<span className="font-mono">/s/{shopSlug}</span>). Reactívala para volver a servir tu subdominio.
+                        </p>
+                      </div>
+                    )}
+                    {subdomainHasMonthly && (
+                      <div className="flex gap-2 mb-2.5" role="radiogroup" aria-label="Frecuencia de pago">
+                        {([
+                          ['year', SUBDOMAIN_PRICE_LABEL.es, 'Más barato'],
+                          ['month', SUBDOMAIN_PRICE_MONTHLY_LABEL.es, 'Sin compromiso'],
+                        ] as const).map(([iv, label, hint]) => (
+                          <button
+                            key={iv}
+                            type="button"
+                            role="radio"
+                            aria-checked={subBuyInterval === iv}
+                            onClick={() => { setSubBuyInterval(iv); if (subSubscribeError) setSubSubscribeError(null) }}
+                            className={`flex-1 text-left rounded-lg border px-3 py-2 transition-colors ${subBuyInterval === iv ? 'border-[var(--color-accent)] bg-[var(--color-surface)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)]'}`}
+                          >
+                            <span className="block text-xs font-semibold">{label}</span>
+                            <span className="block text-[10px] text-[var(--color-muted)]">{hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {subSubscribeError && <p className="text-xs text-red-600 mb-2">{subSubscribeError}</p>}
+                    <button
+                      type="button"
+                      onClick={handleActivateSubdomain}
+                      disabled={subSubscribing}
+                      className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-60 transition-colors"
+                    >
+                      {subSubscribing
+                        ? <><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
+                        : (subdomainLapsed ? 'Reactivar subdominio →' : 'Activar subdominio propio →')}
+                    </button>
+                  </div>
+                ) : subdomainActive ? (
+                  <div className="mt-3 border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+                    <p className="text-sm font-semibold mb-0.5">✓ Subdominio propio activo</p>
+                    <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-2.5">
+                      Tu tienda se sirve white-label en <span className="font-mono">{subdomainUrl}</span>.
+                      {subdomainHasMonthly && ' Cambia tu facturación cuando quieras — se prorratea, sin cargo doble.'}
+                    </p>
+                    {subdomainHasMonthly && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {([
+                          ['year', `Cambiar a anual (${SUBDOMAIN_PRICE_LABEL.es})`],
+                          ['month', `Cambiar a mensual (${SUBDOMAIN_PRICE_MONTHLY_LABEL.es})`],
+                        ] as const).map(([iv, label]) => (
+                          <button
+                            key={iv}
+                            type="button"
+                            onClick={() => handleSwitchSubdomain(iv)}
+                            disabled={subSwitching !== null}
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] disabled:opacity-60 transition-colors"
+                          >
+                            {subSwitching === iv && <span className="inline-block w-3 h-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />}
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {subSwitchNote && <p className="text-xs text-green-700">{subSwitchNote}</p>}
+                    {subSwitchError && <p className="text-xs text-red-600">{subSwitchError}</p>}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-[var(--color-muted)]">
+                    ✓ Tu subdominio propio (<span className="font-mono">{subdomainUrl}</span>) está activo — incluido en tu tienda.
+                  </p>
+                )}
               </>
             ) : (
               <div className="mt-2 space-y-3">
