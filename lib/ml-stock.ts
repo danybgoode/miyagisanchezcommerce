@@ -2,15 +2,21 @@
  * Mercado Libre two-way stock sync — pure decision mirror (Sprint 4).
  *
  * The sync itself runs entirely in the Medusa backend (an `order.placed`
- * subscriber + a public webhook + a reconcile job mutate Medusa Inventory and
+ * subscriber, a public webhook, and a reconcile job mutate Medusa Inventory and
  * write to ML — unreachable from, and never called by, the frontend). This module
  * is the FRONTEND MIRROR of the backend's `modules/mercadolibre/sync-utils.ts`
- * correctness core — the same relationship `lib/ml-health.ts` has to the backend
- * `_utils.ts` health deriver. It exists so the deterministic `api` gate can prove
- * the one invariant that matters, without a backend: **no path can oversell.**
+ * correctness core (as `lib/ml-health.ts` mirrors the backend `_utils.ts`), so the
+ * deterministic `api` gate can prove the oversell invariant without a backend.
  *
- * Keep it byte-for-byte equivalent to the backend seam. It is the authoritative
- * copy for tests; the backend copy is authoritative at runtime.
+ * The model is **delta / source-of-truth**, not absolute reconcile: comparing the
+ * two channels' absolute quantities can't recover concurrent independent sales
+ * (baseline 5, ML sells 2 → 3, Miyagi sells 3 → 2; true remaining is 0, but
+ * `min(3,2)=2` — a 2-unit oversell). Each sale is applied to Medusa as a delta,
+ * exactly once per ML order id.
+ *
+ * Keep this byte-for-byte equivalent to the backend seam. The backend unit spec
+ * (`ml-sync.unit.spec.ts`) is authoritative for the runtime; this proves the same
+ * invariants on the FE gate.
  */
 
 /** Clamp any quantity to a safe non-negative integer (the last line of defense). */
@@ -20,24 +26,18 @@ export function clampAvailable(n: number | null | undefined): number {
 }
 
 /**
- * The oversell-safe reconcile decision (US-12). The reconciled remaining is the
- * **conservative minimum** of the two observed available quantities — it never
- * exceeds either side and is never negative, so when both channels recorded a sale
- * the other hasn't seen yet, neither can oversell. `drift` = how far apart they were.
+ * Apply a sale of `soldQty` units to a current available quantity (US-11):
+ * `available − soldQty`, clamped ≥ 0. A delta composes correctly with a
+ * simultaneous sale on the other channel and never drives stock negative — the
+ * oversell-safe primitive.
  */
-export function reconcileStock(args: { medusaAvailable: number; mlAvailable: number }): {
-  target: number
-  drift: number
-} {
-  const m = clampAvailable(args.medusaAvailable)
-  const l = clampAvailable(args.mlAvailable)
-  return { target: Math.min(m, l), drift: Math.abs(m - l) }
+export function applySale(available: number, soldQty: number): number {
+  return clampAvailable(clampAvailable(available) - clampAvailable(soldQty))
 }
 
 /**
- * Outbound idempotency (US-10): only push to ML when the value changed since the
- * last successful push. Pushing the current absolute value means a burst collapses
- * to the latest value and a retried trigger is a no-op.
+ * Outbound mirror idempotency (US-10): only push Medusa's available to ML when it
+ * changed since the last push (collapses bursts, safe on retry).
  */
 export function shouldPushStock(args: {
   currentAvailable: number
@@ -48,26 +48,25 @@ export function shouldPushStock(args: {
   return cur !== clampAvailable(args.lastPushedAvailable)
 }
 
-// ── Replay-safe inbound dedupe (US-11) ──────────────────────────────────────────
-export type ProcessedEvent = { id: string; ts: string }
-export const PROCESSED_EVENTS_CAP = 50
+// ── Exactly-once sale application (US-11/12) ─────────────────────────────────────
+// The dedupe key is the ML order id (the natural exactly-once key for a sale), so
+// a redelivered webhook or a reconcile poll surfacing the same order applies once.
+export type AppliedOrder = { id: string; ts: string }
+export const APPLIED_ORDERS_CAP = 100
 
-export function isProcessedNotification(
-  processed: ProcessedEvent[] | null | undefined,
-  id: string,
-): boolean {
-  if (!id) return false
-  return Array.isArray(processed) && processed.some((e) => e.id === id)
+export function isOrderApplied(applied: AppliedOrder[] | null | undefined, orderId: string): boolean {
+  if (!orderId) return false
+  return Array.isArray(applied) && applied.some((o) => o.id === orderId)
 }
 
-export function recordProcessedNotification(
-  processed: ProcessedEvent[] | null | undefined,
-  id: string,
+export function recordAppliedOrder(
+  applied: AppliedOrder[] | null | undefined,
+  orderId: string,
   now: string = new Date().toISOString(),
-  cap: number = PROCESSED_EVENTS_CAP,
-): ProcessedEvent[] {
-  const base = Array.isArray(processed) ? processed : []
-  if (!id || base.some((e) => e.id === id)) return base
-  const next = [...base, { id, ts: now }]
+  cap: number = APPLIED_ORDERS_CAP,
+): AppliedOrder[] {
+  const base = Array.isArray(applied) ? applied : []
+  if (!orderId || base.some((o) => o.id === orderId)) return base
+  const next = [...base, { id: orderId, ts: now }]
   return next.length > cap ? next.slice(next.length - cap) : next
 }

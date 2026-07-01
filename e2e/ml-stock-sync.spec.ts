@@ -1,72 +1,58 @@
 import { test, expect } from '@playwright/test'
 import {
   clampAvailable,
-  reconcileStock,
+  applySale,
   shouldPushStock,
-  isProcessedNotification,
-  recordProcessedNotification,
-  PROCESSED_EVENTS_CAP,
-  type ProcessedEvent,
+  isOrderApplied,
+  recordAppliedOrder,
+  APPLIED_ORDERS_CAP,
+  type AppliedOrder,
 } from '../lib/ml-stock'
 
 /**
  * Mercado Libre two-way stock sync · Sprint 4 (epic 03 · mercadolibre-sync).
  *
  * The sync runs entirely in the Medusa backend — an `order.placed` subscriber +
- * the seller-edit path push stock OUT to ML, a public `/webhooks/mercadolibre`
- * route pulls ML sales INTO Medusa Inventory, and a reconcile job heals drift.
- * Those are backend writes on the Medusa service (unreachable from the `api`
- * runner, which targets the Next app), and they are gated by the global
- * `ml.sync_enabled` kill-switch (default OFF / fail-closed) + a per-seller enable.
+ * the seller-edit path mirror Medusa stock OUT to ML, a public
+ * `/webhooks/mercadolibre` applies ML sales INTO Medusa as deltas, and a reconcile
+ * job recovers missed sales + re-mirrors. Those are backend writes on the Medusa
+ * service (unreachable from the `api` runner), gated by the global `ml.sync_enabled`
+ * kill-switch (default OFF / fail-closed) + a per-seller enable.
  *
- * So this gate proves what the frontend can prove deterministically: the pure
+ * This gate proves what the frontend can prove deterministically: the pure
  * correctness core (mirrored from the backend `modules/mercadolibre/sync-utils.ts`)
- * that guarantees **no path can oversell** — the reconcile conservative-minimum
- * (US-12), the outbound push idempotency (US-10), and the replay-safe inbound
- * dedupe ring (US-11).
+ * that guarantees **no path can oversell** — the delta application (a sale
+ * decrements by exactly the sold qty, never negative — US-11), exactly-once per ML
+ * order id (US-11/12), and the outbound mirror idempotency (US-10).
  *
  * OWED TO DANIEL (correctness/oversell path — real ML sandbox, sprint-4.md smoke):
  * sell a linked item on ML → Miyagi decrements once; reduce Miyagi stock → ML
- * reflects once; inject drift → the reconcile job heals it; flip `ml.sync_enabled`
- * OFF → all sync halts. Concurrency/oversell can't be fully covered headlessly.
+ * reflects once; drop a webhook → the reconcile job recovers the sale; flip
+ * `ml.sync_enabled` OFF → all sync halts.
  */
 
-// ── US-12: the oversell invariant ──────────────────────────────────────────────
-test.describe('ml-stock · reconcileStock (no oversell, ever)', () => {
-  test('equal sides → no change', () => {
-    expect(reconcileStock({ medusaAvailable: 5, mlAvailable: 5 })).toEqual({ target: 5, drift: 0 })
+test.describe('ml-stock · applySale (delta model, no oversell)', () => {
+  test('decrements by the sold quantity; never negative', () => {
+    expect(applySale(5, 2)).toBe(3)
+    expect(applySale(5, 5)).toBe(0)
+    expect(applySale(2, 3)).toBe(0)
   })
-  test('ML lower (unrecorded ML sale) → target follows ML down', () => {
-    expect(reconcileStock({ medusaAvailable: 10, mlAvailable: 7 })).toEqual({ target: 7, drift: 3 })
+  test('CONCURRENT CASE: ML sale applied to a Medusa already reduced by a Miyagi sale → correct remaining', () => {
+    // baseline 5; Miyagi sold 3 → Medusa 2; ML sale of 2 as a delta → 0 (not min(2,3)=2)
+    expect(applySale(2, 2)).toBe(0)
   })
-  test('Medusa lower (unreflected Miyagi sale) → target follows Medusa down', () => {
-    expect(reconcileStock({ medusaAvailable: 2, mlAvailable: 10 })).toEqual({ target: 2, drift: 8 })
-  })
-  test('both sides moved (near-simultaneous sales) → conservative minimum', () => {
-    // both started at 5; ML sold 2 (→3), Miyagi sold 3 (→2) → remaining 2, never 3
-    expect(reconcileStock({ medusaAvailable: 2, mlAvailable: 3 })).toEqual({ target: 2, drift: 1 })
-  })
-
-  test('INVARIANT: over a wide grid, target ≤ min(both) and ≥ 0 — no path oversells', () => {
-    for (let m = -3; m <= 20; m++) {
-      for (let l = -3; l <= 20; l++) {
-        const { target } = reconcileStock({ medusaAvailable: m, mlAvailable: l })
-        expect(target).toBeLessThanOrEqual(Math.min(clampAvailable(m), clampAvailable(l)))
-        expect(target).toBeGreaterThanOrEqual(0)
+  test('INVARIANT: over a grid, applySale(a,b) ≤ a and ≥ 0 — no path oversells', () => {
+    for (let a = -2; a <= 15; a++) {
+      for (let b = -2; b <= 15; b++) {
+        const out = applySale(a, b)
+        expect(out).toBeLessThanOrEqual(clampAvailable(a))
+        expect(out).toBeGreaterThanOrEqual(0)
       }
     }
   })
-
-  test('clampAvailable never yields a negative / fractional / NaN quantity', () => {
-    expect(clampAvailable(-3)).toBe(0)
-    expect(clampAvailable(2.9)).toBe(2)
-    expect(clampAvailable(null)).toBe(0)
-    expect(clampAvailable(Number.NaN)).toBe(0)
-  })
 })
 
-// ── US-10: outbound push idempotency ───────────────────────────────────────────
-test.describe('ml-stock · shouldPushStock (burst-collapse + safe retry)', () => {
+test.describe('ml-stock · shouldPushStock (outbound mirror idempotency)', () => {
   test('never pushed → push; unchanged → skip; changed → push', () => {
     expect(shouldPushStock({ currentAvailable: 4 })).toBe(true)
     expect(shouldPushStock({ currentAvailable: 4, lastPushedAvailable: 4 })).toBe(false)
@@ -74,24 +60,23 @@ test.describe('ml-stock · shouldPushStock (burst-collapse + safe retry)', () =>
   })
 })
 
-// ── US-11: replay-safe inbound dedupe ──────────────────────────────────────────
-test.describe('ml-stock · processed-notification ring (replay = no-op)', () => {
+test.describe('ml-stock · applied-order ring (exactly-once per ML order id)', () => {
   const now = '2026-06-30T00:00:00.000Z'
 
-  test('a redelivered notification id is detected as processed', () => {
-    const ring: ProcessedEvent[] = [{ id: 'wh_1', ts: now }]
-    expect(isProcessedNotification(ring, 'wh_1')).toBe(true)
-    expect(isProcessedNotification(ring, 'wh_2')).toBe(false)
-    expect(isProcessedNotification(null, 'wh_1')).toBe(false)
+  test('a re-seen order id is detected as applied → no double-decrement', () => {
+    const ring: AppliedOrder[] = [{ id: 'ord_1', ts: now }]
+    expect(isOrderApplied(ring, 'ord_1')).toBe(true)
+    expect(isOrderApplied(ring, 'ord_2')).toBe(false)
+    expect(isOrderApplied(null, 'ord_1')).toBe(false)
   })
 
   test('recording appends new ids, ignores duplicates/blanks, and stays bounded', () => {
-    let ring = recordProcessedNotification(null, 'wh_1', now)
-    expect(ring).toEqual([{ id: 'wh_1', ts: now }])
-    expect(recordProcessedNotification(ring, 'wh_1', now)).toBe(ring) // duplicate → unchanged
-    expect(recordProcessedNotification(ring, '', now)).toBe(ring) // blank → unchanged
-    for (let i = 0; i < PROCESSED_EVENTS_CAP + 10; i++) ring = recordProcessedNotification(ring, `n_${i}`, now)
-    expect(ring.length).toBe(PROCESSED_EVENTS_CAP)
-    expect(isProcessedNotification(ring, `n_${PROCESSED_EVENTS_CAP + 9}`)).toBe(true) // latest still remembered
+    let ring = recordAppliedOrder(null, 'ord_1', now)
+    expect(ring).toEqual([{ id: 'ord_1', ts: now }])
+    expect(recordAppliedOrder(ring, 'ord_1', now)).toBe(ring)
+    expect(recordAppliedOrder(ring, '', now)).toBe(ring)
+    for (let i = 0; i < APPLIED_ORDERS_CAP + 10; i++) ring = recordAppliedOrder(ring, `o_${i}`, now)
+    expect(ring.length).toBe(APPLIED_ORDERS_CAP)
+    expect(isOrderApplied(ring, `o_${APPLIED_ORDERS_CAP + 9}`)).toBe(true)
   })
 })
