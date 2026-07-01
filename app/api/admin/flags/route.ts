@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { withAdmin } from '@/lib/admin/guard'
 import { db } from '@/lib/supabase'
-import { parseFlagWriteBody } from '@/lib/flags-admin'
+import { parseFlagWriteBody, FLAG_META } from '@/lib/flags-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +45,11 @@ export const POST = withAdmin(async (req: NextRequest) => {
     {
       key: parsed.key,
       enabled: parsed.enabled,
+      // Stamp polarity from the known-flag SSOT so a code-added-before-seed flag's
+      // FIRST flip inserts a complete row (not NULL polarity). On an existing seeded
+      // row this re-writes the same value — a no-op, never a clobber (PostgREST upserts
+      // only the payload columns, so `description` on the seed is left intact).
+      polarity: FLAG_META[parsed.key].polarity,
       updated_at: new Date().toISOString(),
       updated_by: userId ?? null,
     },
