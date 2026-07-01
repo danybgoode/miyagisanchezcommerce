@@ -20,12 +20,11 @@ import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '../_components/Toast'
 import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
-import PromoterCodeField from './PromoterCodeField'
-import DomainCadenceField from './DomainCadenceField'
+import SubdomainSection from './SubdomainSection'
+import DomainPaywallUpsell from './DomainPaywallUpsell'
 import { dnsRecordFor } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
-import { CUSTOM_DOMAIN_PRICE_LABEL, CUSTOM_DOMAIN_PRICE_CENTS } from '@/lib/domain-pricing'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
@@ -113,13 +112,20 @@ export interface CanalInitial {
    * before pay. The real charge with the discount is Sprint 2.
    */
   promoter_enabled?: boolean
+  // Subdomain paywall (epic 07 · subdomain-pricing) — feed <SubdomainSection>.
+  // entitled: false ⇒ show the buy upsell (defaults true/ungated). active: an active
+  // recurring sub ⇒ show the cadence switch. has_monthly: $25/mo seeded ⇒ gate the
+  // monthly options. lapsed: a sub lapsed ⇒ re-activate prompt.
+  subdomain_entitled?: boolean
+  subdomain_active?: boolean
+  subdomain_has_monthly?: boolean
+  subdomain_lapsed?: boolean
 }
 
 export default function Canal({ initial }: { initial: CanalInitial }) {
   const { save, saving, toast, dismissToast, isDirty, markDirty } = useSettingsSave()
   const mark = markDirty
   const accentColor = initial.accent ?? '#1d6f42'
-  const domainLapsed = initial.domain_lapsed ?? false
 
   // ── Own channel — custom domain ────────────────────────────────────────────
   const [shopSlug, setShopSlug]                     = useState(initial.slug ?? '')
@@ -152,42 +158,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [cfSuccess, setCfSuccess]                   = useState(false)
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // ── Custom-domain paywall — buy the subscription (epic: custom-domain-paywall, S2/S3) ──
-  const [subscribing, setSubscribing]               = useState(false)
-  const [subscribeError, setSubscribeError]         = useState<string | null>(null)
-  const [domainCoupon, setDomainCoupon]             = useState('') // S3: campaign coupon (miyagisan)
-
-  // ── Promoter Program (epic 08, Sprint 1) — discount PREVIEW behind promoter.enabled ──
-  const promoterEnabled = initial.promoter_enabled ?? false
-  // Sprint 2: payment cadence (recurring default | one-time pay-a-year-up-front)
-  // + the promoter code lifted up from PromoterCodeField for the REAL one-time charge.
-  const [domainCadence, setDomainCadence] = useState<'recurring' | 'one_time'>('recurring')
-  const [promoterCode, setPromoterCode] = useState('')
-
-  async function handleActivateDomain() {
-    setSubscribing(true); setSubscribeError(null)
-    try {
-      const coupon = domainCoupon.trim()
-      const code = promoterCode.trim()
-      const res = await fetch('/api/sell/shop/domain/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(coupon ? { coupon } : {}),
-          cadence: domainCadence,
-          ...(domainCadence === 'one_time' && code ? { promoterCode: code } : {}),
-        }),
-      })
-      const data = await res.json() as { url?: string; error?: string }
-      if (!res.ok || !data.url) { setSubscribeError(data.error ?? 'No se pudo iniciar el pago.'); return }
-      window.location.href = data.url
-    } catch {
-      setSubscribeError('Sin conexión. Intenta de nuevo.')
-    } finally {
-      setSubscribing(false)
-    }
-  }
+  // Custom-domain paywall buy upsell — state + POST moved to <DomainPaywallUpsell>.
 
   // ── Own channel — support widget ───────────────────────────────────────────
   const supportSettings = coerceSupportSettings(initial.support)
@@ -529,6 +500,19 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     Mejora a dominio propio ↓
                   </a>
                 </p>
+
+                {/* Subdomain paywall — buy + monthly↔yearly switch (epic 07 ·
+                    subdomain-pricing). Extracted to its own section (Canal is at the
+                    anti-monolith line cap); invisible for a grandfathered shop with no
+                    subscription other than a small "incluido" note. */}
+                <SubdomainSection
+                  subdomainUrl={subdomainUrl}
+                  shopSlug={shopSlug}
+                  entitled={initial.subdomain_entitled ?? true}
+                  active={initial.subdomain_active ?? false}
+                  hasMonthly={initial.subdomain_has_monthly ?? false}
+                  lapsed={initial.subdomain_lapsed ?? false}
+                />
               </>
             ) : (
               <div className="mt-2 space-y-3">
@@ -572,73 +556,10 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
               above stays fully available. Defaults to entitled (unchanged) when
               the prop is absent or the paywall flag is off. */}
           {!(initial.domain_entitled ?? true) ? (
-            <div className="border border-[var(--color-border)] rounded-xl p-5 bg-[var(--color-surface-alt)]">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">🌐</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
-              </div>
-              <p className="text-sm font-semibold mb-1.5">Dominio propio</p>
-              <p className="text-base font-bold mb-1.5">{CUSTOM_DOMAIN_PRICE_LABEL.es}</p>
-              <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
-                Conecta tu propio dominio (tutienda.com) para que tu tienda viva en tu marca, con SSL e
-                infraestructura nuestra y sin miyagisanchez.com en la URL. Se renueva cada año; puedes
-                cancelar cuando quieras. Tu <strong>URL gratis</strong> y tu <strong>subdominio</strong>
-                {' '}(arriba) siguen siendo gratis.
-              </p>
-              {domainLapsed && (
-                <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-                  <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
-                  <p className="text-xs text-amber-700">
-                    Tu suscripción al dominio propio terminó y tu dominio se desconectó. Tu tienda sigue
-                    activa en tu URL gratis y tu subdominio. Vuelve a activarla para reconectar tu dominio.
-                  </p>
-                </div>
-              )}
-              {/* Campaign coupon (epic: custom-domain-paywall, S3) — miyagisan comps year 1. */}
-              <div className="mb-3">
-                <label className="block text-[11px] font-medium text-[var(--color-muted)] mb-1">
-                  ¿Tienes un cupón?
-                </label>
-                <input
-                  type="text"
-                  value={domainCoupon}
-                  onChange={(e) => { setDomainCoupon(e.target.value); if (subscribeError) setSubscribeError(null) }}
-                  placeholder="Código de cupón (opcional)"
-                  autoCapitalize="characters"
-                  className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-                />
-              </div>
-              {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled.
-                  Sprint 2: the typed code is lifted up to drive the REAL one-time discount on pay. */}
-              {promoterEnabled && (
-                <PromoterCodeField
-                  priceCents={CUSTOM_DOMAIN_PRICE_CENTS}
-                  sku="custom_domain"
-                  onCodeChange={setPromoterCode}
-                />
-              )}
-              {/* Payment cadence (epic 08 · Sprint 2) — pay yearly subscription or one year up front.
-                  Behind promoter.enabled: with the flag off the selector is hidden and the purchase
-                  stays recurring (today's behavior), so the whole sprint is dark until launch. */}
-              {promoterEnabled && (
-                <DomainCadenceField
-                  value={domainCadence}
-                  onChange={setDomainCadence}
-                  onInteract={() => { if (subscribeError) setSubscribeError(null) }}
-                />
-              )}
-              <button
-                type="button"
-                onClick={handleActivateDomain}
-                disabled={subscribing}
-                className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-60 transition-colors"
-              >
-                {subscribing
-                  ? <><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
-                  : (domainLapsed ? 'Reactivar dominio propio →' : 'Activar dominio propio →')}
-              </button>
-              {subscribeError && <p className="mt-2 text-xs text-red-600">⚠ {subscribeError}</p>}
-            </div>
+            <DomainPaywallUpsell
+              domainLapsed={initial.domain_lapsed ?? false}
+              promoterEnabled={initial.promoter_enabled ?? false}
+            />
           ) : (
           <>
           {/* ══ STEP 1 — Enter domain ════════════════════════════════════════ */}

@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
+import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
+import { getSubdomainSubscription } from '@/lib/subdomain-subscription'
 import { isEnabled } from '@/lib/flags'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
@@ -67,6 +69,19 @@ export default async function SettingsSectionPage({
   // grant/subscription), Canal renders the upsell instead of the connect form.
   const domainEntitled = section === 'canal'
     ? (await resolveDomainEntitlement(shop.metadata, { sellerClerkId: user.id })).entitled
+    : true
+
+  // Subdomain paywall (epic 07 · subdomain-pricing): resolve the seller's subdomain
+  // entitlement + subscription state for the Canal section so it can show the buy
+  // upsell (when not entitled) or the cadence-switch control (when on an active
+  // recurring subscription). One `getSubdomainSubscription` call feeds both the
+  // entitlement deriver (via `hasActiveSubscription`, so no double round-trip) and
+  // the UI's active/monthly flags.
+  const subdomainSub = section === 'canal'
+    ? await getSubdomainSubscription(user.id)
+    : null
+  const subdomainEntitled = section === 'canal'
+    ? (await resolveSubdomainEntitlement(shop.metadata, { hasActiveSubscription: subdomainSub?.active })).entitled
     : true
 
   // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open).
@@ -167,6 +182,10 @@ export default async function SettingsSectionPage({
           domain_entitled: domainEntitled,
           domain_lapsed: section === 'canal' && !!(meta?.custom_domain_lapsed),
           promoter_enabled: promoterEnabled,
+          subdomain_entitled: subdomainEntitled,
+          subdomain_active: subdomainSub?.active ?? false,
+          subdomain_has_monthly: !!subdomainSub?.monthly_stripe_price_id,
+          subdomain_lapsed: section === 'canal' && !!(meta?.subdomain_lapsed),
         }} />
       case 'agentes':
         return <Agentes initial={{
