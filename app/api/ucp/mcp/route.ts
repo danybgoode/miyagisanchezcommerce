@@ -1502,17 +1502,18 @@ async function handleSwitchSubdomainCadence(args: Record<string, unknown>, authH
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
 
-  const interval = coerceSubdomainInterval(args.interval)
+  // Pass the raw arg — the switch builder validates it strictly (a billing mutation
+  // rejects a missing/invalid interval rather than defaulting).
   const result = await switchSubdomainCadence({
     sellerClerkId: shop.clerk_user_id,
-    targetInterval: interval,
+    targetInterval: args.interval,
   })
 
   if (!result.ok) {
     return { isError: true, content: [{ type: 'text', text: result.error }] }
   }
 
-  const label = interval === 'month' ? '$25 MXN/mes' : '$199 MXN/año'
+  const label = result.interval === 'month' ? '$25 MXN/mes' : '$199 MXN/año'
   const text = result.switched
     ? `✅ Tu suscripción al subdominio cambió a ${label}. Se prorrateó el cambio (sin cargo doble) y tu subdominio siguió activo sin interrupción.`
     : `Tu suscripción al subdominio ya está en ${label}. No se hizo ningún cambio ni cargo.`

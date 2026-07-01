@@ -25,7 +25,7 @@ import 'server-only'
 import { stripe } from '@/lib/stripe'
 import { getSubdomainSubscription } from '@/lib/subdomain-subscription'
 import {
-  coerceSubdomainInterval,
+  asSubdomainInterval,
   subdomainPriceIdForInterval,
   decideCadenceSwitch,
   cadenceSwitchRefusalMessage,
@@ -49,9 +49,16 @@ function intervalOf(sub: import('stripe').Stripe.Subscription): SubdomainInterva
  */
 export async function switchSubdomainCadence(input: {
   sellerClerkId: string
-  targetInterval: SubdomainInterval | string | null
+  targetInterval: unknown
 }): Promise<SwitchCadenceResult> {
-  const target = coerceSubdomainInterval(input.targetInterval)
+  // A switch is a BILLING MUTATION — a missing/invalid interval must be REJECTED,
+  // not silently defaulted to yearly (unlike the buy path, where defaulting to the
+  // discounted yearly is safe). A malformed body/tool call never moves a seller's
+  // cadence + prorates behind their back.
+  const target = asSubdomainInterval(input.targetInterval)
+  if (!target) {
+    return { ok: false, status: 400, error: 'Especifica un plan válido para cambiar: mensual o anual.' }
+  }
 
   const sub = await getSubdomainSubscription(input.sellerClerkId)
   const targetPriceId = subdomainPriceIdForInterval(target, {
@@ -74,6 +81,11 @@ export async function switchSubdomainCadence(input: {
     return { ok: false, status: 502, error: 'No se pudo leer tu suscripción. Intenta más tarde.' }
   }
   const item = stripeSub.items.data[0]
+  // No subscription item is a corrupt/unexpected Stripe shape (a live recurring sub
+  // always has one) — surface it as an error, NOT a silent "already on target" no-op.
+  if (!item) {
+    return { ok: false, status: 502, error: 'No se pudo leer tu suscripción. Intenta más tarde.' }
+  }
   const current = intervalOf(stripeSub)
 
   const decision = decideCadenceSwitch({
@@ -85,8 +97,8 @@ export async function switchSubdomainCadence(input: {
   if (decision.action === 'refuse') {
     return { ok: false, status: 422, error: cadenceSwitchRefusalMessage(decision.reason) }
   }
-  if (decision.action === 'noop' || !item) {
-    // Already on the target cadence (or no item to swap) — nothing to charge.
+  if (decision.action === 'noop') {
+    // Already on the target cadence — nothing to charge.
     return { ok: true, switched: false, interval: target }
   }
 
