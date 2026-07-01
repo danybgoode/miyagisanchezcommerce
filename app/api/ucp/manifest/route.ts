@@ -165,10 +165,10 @@ export async function GET(req: NextRequest) {
         seller_subdomain_subscription: {
           method: 'POST',
           url: `${base}/api/ucp/mcp`,
-          description: "A seller's own agent can check its subdomain entitlement and start checkout for the subdomain SKU (the platform's cheaper paid SKU, $199 MXN/yr ~ $17/mo) via the MCP tools get_subdomain_entitlement and start_subdomain_subscription. This SKU serves the shop white-label at <slug>.miyagisanchez.com as a standalone site (no platform chrome). Two cadences: `recurring` (annual subscription, default) or `one_time` (pay one year up front with no recurring mandate — a dated 12-month grant that lapses gracefully with no auto-charge). No campaign coupon (that's the custom-domain SKU). Returns a Stripe checkout URL; entitlement flips on once checkout completes. The free shop URL (/s/slug) always stays free.",
+          description: "A seller's own agent can check its subdomain entitlement and start checkout for the subdomain SKU (the platform's cheaper paid SKU, $199 MXN/yr ~ $17/mo, or $25 MXN/mo) via the MCP tools get_subdomain_entitlement and start_subdomain_subscription. This SKU serves the shop white-label at <slug>.miyagisanchez.com as a standalone site (no platform chrome). Two cadences: `recurring` (a subscription, default) or `one_time` (pay one year up front with no recurring mandate — a dated 12-month grant that lapses gracefully with no auto-charge). On the recurring cadence pick the billing interval: `year` ($199/yr, the discount) or `month` ($25/mo); switch between them anytime with switch_subdomain_cadence (Stripe proration, no double charge, no gap). No campaign coupon (that's the custom-domain SKU). Returns a Stripe checkout URL; entitlement flips on once checkout completes. The free shop URL (/s/slug) always stays free.",
           auth: 'authorization_bearer_shop_token',
           note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
-          mcp_tools: ['get_subdomain_entitlement', 'start_subdomain_subscription'],
+          mcp_tools: ['get_subdomain_entitlement', 'start_subdomain_subscription', 'switch_subdomain_cadence'],
         },
 
         seller_onboarding: {
