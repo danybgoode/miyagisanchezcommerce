@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'subdomain.paywall_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'subdomain.paywall_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -88,6 +88,14 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    a per-seller enable must ALSO be on. This FE key exists only for parity / any
  *    future seller-facing sync UI. Flip ON once Daniel's live ML-sandbox sync smoke
  *    passes; flipping OFF is the instant rollback.
+ *  - ENABLEMENT (`ml.sync_paywall_enabled`): default `false`. The paid/promoter-SKU
+ *    ENTITLEMENT gate for ML sync (epic 03 · mercadolibre-sync Sprint 5). Distinct
+ *    from `ml.sync_enabled` (the kill-switch that halts the sync ENGINE): this flag
+ *    decides whether the seller-facing "enable ML sync" toggle is PAYWALLED. Default
+ *    OFF ⇒ today's behavior — any connected seller may enable sync (already-enabled
+ *    testers keep working); a flag outage can never trap a seller behind the paywall.
+ *    Flip ON to start charging (grant/subscription required). Mirrors the
+ *    `*.paywall_enabled` polarity of the domain/subdomain SKUs.
  *  - ENABLEMENT (`subdomain.paywall_enabled`): default `false`. The subdomain SKU
  *    paywall (epic 07 · subdomain-pricing). Default OFF ⇒ today's free-for-all —
  *    every `<slug>.miyagisanchez.com` serves white-label as it always has, so a
@@ -107,6 +115,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ml.import_enabled': false,
   'ml.publish_enabled': false,
   'ml.sync_enabled': false,
+  'ml.sync_paywall_enabled': false,
   'subdomain.paywall_enabled': false,
 }
 

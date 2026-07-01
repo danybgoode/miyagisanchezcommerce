@@ -3,6 +3,10 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { getMlConnection } from '@/lib/ml-connection'
+import { getMlSyncEvents } from '@/lib/ml-events'
+import { toMlEventViews } from '@/lib/ml-events-view'
+import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
+import { getSellerSyncEnabled } from '@/lib/ml-sync-settings'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import MercadoLibreStatus from './MercadoLibreStatus'
 import type { Metadata } from 'next'
@@ -30,7 +34,7 @@ export default async function MercadoLibrePage({
 
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('slug')
+    .select('slug, metadata')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -39,6 +43,14 @@ export default async function MercadoLibrePage({
 
   const { connection, health } = await getMlConnection(shop.slug)
   const importEnabled = await isEnabled('ml.import_enabled')
+  const syncEnabledFlag = await isEnabled('ml.sync_enabled')
+
+  // The activity log + sync toggle only matter once sync is enabled at the platform
+  // level; skip the extra round-trips when the kill-switch is off (dark-ship).
+  const events = syncEnabledFlag ? toMlEventViews(await getMlSyncEvents(shop.slug, 25)) : []
+  const [entitlement, sellerSyncEnabled] = syncEnabledFlag
+    ? await Promise.all([resolveMlSyncEntitlement(shop.metadata), getSellerSyncEnabled(shop.slug)])
+    : [null, false]
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -56,6 +68,10 @@ export default async function MercadoLibrePage({
         error={sp.error ?? null}
         justConnected={sp.connected === '1'}
         importEnabled={importEnabled}
+        syncEnabledFlag={syncEnabledFlag}
+        syncEntitled={entitlement?.entitled ?? false}
+        sellerSyncEnabled={sellerSyncEnabled}
+        events={events}
       />
     </div>
   )

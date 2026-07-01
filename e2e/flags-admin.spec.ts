@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 11 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(11)
+  test('covers all 12 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(12)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -29,6 +29,8 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     expect(FLAG_META['pdp_redesign']).toEqual({ polarity: 'killswitch', default: true })
     expect(FLAG_META['subdomain.paywall_enabled']).toEqual({ polarity: 'enablement', default: false })
     expect(FLAG_META['ml.sync_enabled']).toEqual({ polarity: 'killswitch', default: false })
+    // The ML-sync paid-SKU entitlement gate (S5) — enablement, fail-open OFF (no paywall).
+    expect(FLAG_META['ml.sync_paywall_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 
