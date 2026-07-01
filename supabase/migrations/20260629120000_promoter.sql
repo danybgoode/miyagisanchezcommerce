@@ -42,7 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS marketplace_promoter_attributions_uniq
 
 -- Singleton, admin-editable discount config (no deploy needed to change the amount).
 -- `enabled` is the admin toggle for the seller discount; the feature kill-switch is
--- the Flagsmith flag `promoter.enabled` (lib/flags.ts) — two distinct gates.
+-- the platform flag `promoter.enabled` (lib/flags.ts) — two distinct gates.
 CREATE TABLE IF NOT EXISTS marketplace_promoter_settings (
   id                    INTEGER     PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   enabled               BOOLEAN     NOT NULL DEFAULT true,

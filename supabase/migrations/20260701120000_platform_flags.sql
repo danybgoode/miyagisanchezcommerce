@@ -1,5 +1,5 @@
 -- In-house feature flags · Sprint 1 (epic 09 · feature-flags-inhouse) — the owned
--- flag store that replaces Flagsmith. Infra config, not commerce (AGENTS rule #2 →
+-- flag store that replaces the retired SaaS provider. Infra config, not commerce (AGENTS rule #2 →
 -- Supabase is the correct home). Additive, scoped to miyagisanchez (shared Supabase).
 --
 -- Read by BOTH apps through the unchanged isEnabled() seam, in-process cached (60 s)

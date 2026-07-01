@@ -11,7 +11,7 @@
  *
  * ⚠️  RUN ORDER: run this AFTER the backend deploy that ships
  *     /internal/setup-custom-domain-plan, and BEFORE flipping
- *     `domain.paywall_enabled` on in Flagsmith.
+ *     `domain.paywall_enabled` on in /admin/flags.
  *
  * Run:  node --env-file=.env.local scripts/seed-custom-domain-plan.mjs
  * Idempotent — re-runs reuse the same Stripe Price + update the same Medusa plan.
@@ -71,4 +71,4 @@ if (!res.ok) {
 }
 const { plan, created } = await res.json()
 console.log(`Medusa plan ${created ? 'created' : 'updated'}: ${plan?.id} (stripe_price_id=${plan?.stripe_price_id}).`)
-console.log('\nDone. Next: flip domain.paywall_enabled ON in Flagsmith when ready.')
+console.log('\nDone. Next: flip domain.paywall_enabled ON in /admin/flags when ready.')

@@ -2,10 +2,11 @@
  * lib/flags.ts
  *
  * The platform's feature-flag / kill-switch layer, backed by an OWNED Supabase
- * table (`platform_flags`) — replaces Flagsmith (epic 09 · feature-flags-inhouse).
+ * table (`platform_flags`) — the in-house replacement for the old SaaS flag
+ * provider (epic 09 · feature-flags-inhouse).
  * See the scope: Roadmap/09-platform-infra/feature-flags-inhouse/.
  *
- * Design rules (non-negotiable — carried over from the Flagsmith spike):
+ * Design rules (non-negotiable — carried over from the original kill-switch spike):
  *  1. FAIL-OPEN. Every read falls back to DEFAULT_FLAGS. Supabase being
  *     unreachable, slow, or the table empty/missing must NEVER break a request —
  *     especially checkout. Kill-switches default to ENABLED (feature stays on).
@@ -35,18 +36,18 @@ import {
 export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'subdomain.paywall_enabled'
 
 /**
- * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
- * network error, flag absent).
+ * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
+ * absent, network error, flag absent).
  *
  * Two polarities live here — both fail-open, but to opposite values:
  *  - KILL-SWITCH (`checkout.stripe_enabled`): default `true`. The feature keeps
  *    working if the flag service is down (disabling is the deliberate action).
  *  - ENABLEMENT (`domain.paywall_enabled`): default `false`. The gate stays OFF
- *    (today's free custom-domain behavior) if Flagsmith is unreachable — so a
+ *    (today's free custom-domain behavior) if the flag store is unreachable — so a
  *    flag outage can never trap a seller behind a paywall. Enabling is the
- *    deliberate action (flip on in Flagsmith once the grandfather backfill ran).
+ *    deliberate action (flip on in /admin/flags once the grandfather backfill ran).
  *  - KILL-SWITCH (`pdp_redesign`): default `true`. The "decide, then act" PDP
- *    redesign (epic 01) stays live if Flagsmith is down; flipping it OFF reverts
+ *    redesign (epic 01) stays live if the flag store is down; flipping it OFF reverts
  *    the whole product page to the previous layout instantly (the deliberate act).
  *  - ENABLEMENT (`events.quantity_enabled`): default `false`. Buying >1 admission
  *    for one event in a single checkout (epic 10). Default OFF ⇒ quantity capped

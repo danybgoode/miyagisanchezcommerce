@@ -13,7 +13,7 @@
  *
  * Imports `@/lib/flags` (server-only) — keep the pure shaping + types in
  * `lib/admin/tenant-directory.ts` so the Playwright `api` runner can unit-test
- * the seam without pulling in `server-only`/`flagsmith-nodejs`.
+ * the seam without pulling in `server-only` (and the Supabase client).
  */
 import 'server-only'
 import { db } from '@/lib/supabase'

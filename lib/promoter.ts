@@ -19,7 +19,7 @@
  *
  * Every function tolerates the tables not existing yet (returns a safe default),
  * so the UI degrades gracefully until the migration is applied. The whole feature
- * is gated by the Flagsmith flag `promoter.enabled` (lib/flags.ts, default off).
+ * is gated by the platform flag `promoter.enabled` (lib/flags.ts, default off).
  */
 
 import { db } from '@/lib/supabase'

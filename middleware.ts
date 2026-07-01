@@ -357,9 +357,9 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
 export const config = {
   // Node.js runtime (not the Edge default): the subdomain paywall gate reads the
-  // flag via lib/flags.ts (the Flagsmith Node SDK, local-eval), which is NOT
-  // Edge-compatible. Node runtime keeps the flag in Flagsmith (no Vercel-
-  // proprietary Edge Config) with ~0ms/request reads + ~5-min flip propagation.
+  // flag via lib/flags.ts (the in-house Supabase-backed reader, `server-only`), which
+  // is NOT Edge-compatible. The Node runtime lets middleware read platform_flags (no
+  // Vercel-proprietary Edge Config) with cached ~0ms/request reads + ~60s flip propagation.
   // (epic 07 · subdomain-pricing, US-1 — Daniel-approved; shared-surface change.)
   runtime: 'nodejs',
   matcher: [

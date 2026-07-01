@@ -29,10 +29,10 @@ import {
  *     auth check that precedes it.
  *
  * NOT covered here (owed to Daniel — sprint-1.md smoke walkthrough): the live
- * 402 path. CI has no FLAGSMITH_ENVIRONMENT_KEY, so isEnabled('domain.paywall_enabled')
- * fails open to its default (false ⇒ ungated) — the gate is intentionally inert
+ * 402 path. platform_flags seeds domain.paywall_enabled OFF, so isEnabled('domain.paywall_enabled')
+ * resolves to false (⇒ ungated) — the gate is intentionally inert
  * in CI. Exercising the 402 + the rendered upsell needs the flag flipped on in
- * Flagsmith AND a real Clerk seller session.
+ * /admin/flags AND a real Clerk seller session.
  */
 
 const GRANDFATHER: DomainGrant = { type: 'grandfather', granted_at: '2026-01-01T00:00:00.000Z', note: 'cutover' }

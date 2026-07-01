@@ -14,7 +14,7 @@
  * and would silently miss shops, trapping sellers when the flag flips).
  *
  * ⚠️  RUN ORDER: run this BEFORE flipping `subdomain.paywall_enabled` on in
- *     Flagsmith. The flag defaults OFF (fail-open ⇒ ungated), so the deploy is
+ *     the flag store. The flag defaults OFF (fail-open ⇒ ungated), so the deploy is
  *     inert until both this backfill has run AND Daniel flips the flag.
  *
  * Run (DRY-RUN by default — prints what it WOULD stamp, writes nothing):

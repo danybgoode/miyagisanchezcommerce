@@ -6,7 +6,7 @@ import { applyPaymentKillSwitches } from '../lib/checkout-killswitch'
  * The pure transform behind the `checkout.stripe_enabled` kill-switch: given the
  * options payload Medusa returned + the resolved flag value, it drops the Stripe
  * rail when the flag is OFF. The flag *value* (and its fail-open default) is
- * Flagsmith's job (lib/flags.ts); this proves the application logic. No network.
+ * the flag store's job (lib/flags.ts); this proves the application logic. No network.
  */
 const sampleOptions = () => ({
   payment_methods: [
