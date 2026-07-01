@@ -26,13 +26,20 @@ export function clampAvailable(n: number | null | undefined): number {
 }
 
 /**
- * Apply a sale of `soldQty` units to a current available quantity (US-11):
- * `available − soldQty`, clamped ≥ 0. A delta composes correctly with a
- * simultaneous sale on the other channel and never drives stock negative — the
- * oversell-safe primitive.
+ * How many units to remove from `stocked` for an ML sale of `soldQty`, given the
+ * current `stocked`/`reserved` (US-11): the sold qty capped at the current
+ * available (`stocked − reserved`), so the relative decrement never drives
+ * available below 0 and always honors Medusa's own reservations. Mirrors the
+ * backend runtime primitive exactly.
  */
-export function applySale(available: number, soldQty: number): number {
-  return clampAvailable(clampAvailable(available) - clampAvailable(soldQty))
+export function safeDecrement(stocked: number, reserved: number, soldQty: number): number {
+  const available = Math.max(0, clampAvailable(stocked) - clampAvailable(reserved))
+  return Math.min(clampAvailable(soldQty), available)
+}
+
+/** Only a paid ML order consumed stock (a cancelled/pending order must not decrement). */
+export function isSoldOrderStatus(status: string | null | undefined): boolean {
+  return status === 'paid'
 }
 
 /**
@@ -52,7 +59,7 @@ export function shouldPushStock(args: {
 // The dedupe key is the ML order id (the natural exactly-once key for a sale), so
 // a redelivered webhook or a reconcile poll surfacing the same order applies once.
 export type AppliedOrder = { id: string; ts: string }
-export const APPLIED_ORDERS_CAP = 100
+export const APPLIED_ORDERS_CAP = 500
 
 export function isOrderApplied(applied: AppliedOrder[] | null | undefined, orderId: string): boolean {
   if (!orderId) return false

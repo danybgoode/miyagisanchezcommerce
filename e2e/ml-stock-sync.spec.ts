@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
 import {
   clampAvailable,
-  applySale,
+  safeDecrement,
   shouldPushStock,
   isOrderApplied,
   recordAppliedOrder,
+  isSoldOrderStatus,
   APPLIED_ORDERS_CAP,
   type AppliedOrder,
 } from '../lib/ml-stock'
@@ -31,24 +32,36 @@ import {
  * `ml.sync_enabled` OFF → all sync halts.
  */
 
-test.describe('ml-stock · applySale (delta model, no oversell)', () => {
-  test('decrements by the sold quantity; never negative', () => {
-    expect(applySale(5, 2)).toBe(3)
-    expect(applySale(5, 5)).toBe(0)
-    expect(applySale(2, 3)).toBe(0)
+test.describe('ml-stock · safeDecrement (relative, reservation-safe — no oversell)', () => {
+  test('removes the sold quantity from available; preserves reservations', () => {
+    expect(safeDecrement(5, 0, 2)).toBe(2)
+    expect(safeDecrement(5, 1, 2)).toBe(2)
   })
-  test('CONCURRENT CASE: ML sale applied to a Medusa already reduced by a Miyagi sale → correct remaining', () => {
-    // baseline 5; Miyagi sold 3 → Medusa 2; ML sale of 2 as a delta → 0 (not min(2,3)=2)
-    expect(applySale(2, 2)).toBe(0)
+  test('caps the decrement at available so available never goes negative', () => {
+    expect(safeDecrement(5, 1, 6)).toBe(4) // only 4 available → remove 4, reserved intact
+    expect(safeDecrement(3, 3, 2)).toBe(0)
   })
-  test('INVARIANT: over a grid, applySale(a,b) ≤ a and ≥ 0 — no path oversells', () => {
-    for (let a = -2; a <= 15; a++) {
-      for (let b = -2; b <= 15; b++) {
-        const out = applySale(a, b)
-        expect(out).toBeLessThanOrEqual(clampAvailable(a))
-        expect(out).toBeGreaterThanOrEqual(0)
+  test('INVARIANT: over a grid, 0 ≤ decrement ≤ available and ≤ soldQty', () => {
+    for (let s = -2; s <= 12; s++) {
+      for (let r = -2; r <= 12; r++) {
+        for (let q = -2; q <= 12; q++) {
+          const d = safeDecrement(s, r, q)
+          const available = Math.max(0, clampAvailable(s) - clampAvailable(r))
+          expect(d).toBeGreaterThanOrEqual(0)
+          expect(d).toBeLessThanOrEqual(available)
+          expect(d).toBeLessThanOrEqual(clampAvailable(q))
+        }
       }
     }
+  })
+})
+
+test.describe('ml-stock · isSoldOrderStatus (only paid consumes stock)', () => {
+  test('paid → true; pending/cancelled → false', () => {
+    expect(isSoldOrderStatus('paid')).toBe(true)
+    expect(isSoldOrderStatus('payment_required')).toBe(false)
+    expect(isSoldOrderStatus('cancelled')).toBe(false)
+    expect(isSoldOrderStatus(null)).toBe(false)
   })
 })
 
