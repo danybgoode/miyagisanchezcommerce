@@ -40,17 +40,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Optional body: the payment cadence (`recurring` default | `one_time`) and the
+  // Optional body: the payment cadence (`recurring` default | `one_time`), the
+  // recurring billing interval (`year` default | `month`, Sprint 3), and the
   // promoter code (`PRM-…`, one-time real discount). A missing/empty body =
-  // recurring, no discount (back-compat).
+  // recurring yearly, no discount (back-compat).
   let cadence: string | null = null
+  let interval: string | null = null
   let promoterCode: string | null = null
   try {
-    const body = (await req.json()) as { cadence?: unknown; promoterCode?: unknown }
+    const body = (await req.json()) as { cadence?: unknown; interval?: unknown; promoterCode?: unknown }
     if (typeof body?.cadence === 'string') cadence = body.cadence
+    if (typeof body?.interval === 'string') interval = body.interval
     if (typeof body?.promoterCode === 'string') promoterCode = body.promoterCode
   } catch {
-    // No / empty body — straight (paid) recurring checkout.
+    // No / empty body — straight (paid) recurring yearly checkout.
   }
 
   // The seller's first shop (same lookup the domain route uses).
@@ -71,6 +74,7 @@ export async function POST(req: NextRequest) {
     buyerEmail: user.emailAddresses?.[0]?.emailAddress,
     channel: detectChannel(req),
     cadence,
+    interval,
     promoterCode,
   })
 

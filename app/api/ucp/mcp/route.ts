@@ -39,7 +39,9 @@ import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { startSubdomainCheckout } from '@/lib/subdomain-subscription-checkout'
-import { SUBDOMAIN_PRICE_LABEL } from '@/lib/subdomain-pricing'
+import { switchSubdomainCadence } from '@/lib/subdomain-switch'
+import { coerceSubdomainInterval } from '@/lib/subdomain-billing'
+import { SUBDOMAIN_PRICE_LABEL, SUBDOMAIN_PRICE_MONTHLY_LABEL } from '@/lib/subdomain-pricing'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
@@ -398,12 +400,24 @@ const TOOLS = [
   },
   {
     name: 'start_subdomain_subscription',
-    description: "SELLER TOOL. Start the Stripe checkout for YOUR OWN shop's subdomain SKU ($199 MXN/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Two cadences: `recurring` (default — an annual subscription that auto-renews) or `one_time` (pay one year up front with NO recurring mandate; entitlement is a dated 12-month grant that lapses gracefully at year end with no auto-charge — the cash-friendly option). No campaign coupon (that's the custom-domain SKU). Returns a Stripe checkout URL the seller opens to pay. Entitlement flips on automatically once checkout completes.",
+    description: "SELLER TOOL. Start the Stripe checkout for YOUR OWN shop's subdomain SKU ($199 MXN/yr, or $25 MXN/mo). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Two cadences: `recurring` (default — a subscription that auto-renews) or `one_time` (pay one year up front with NO recurring mandate; entitlement is a dated 12-month grant that lapses gracefully at year end with no auto-charge — the cash-friendly option). On the `recurring` cadence pick the billing `interval`: `year` (default — $199/yr, the discounted option) or `month` ($25/mo, no annual commitment); `one_time` is always a year. No campaign coupon (that's the custom-domain SKU). Returns a Stripe checkout URL the seller opens to pay. Entitlement flips on automatically once checkout completes.",
     inputSchema: {
       type: 'object',
       properties: {
-        cadence: { type: 'string', enum: ['recurring', 'one_time'], description: "Payment cadence: 'recurring' (annual subscription, default) or 'one_time' (pay a year up front, no renewal)" },
+        cadence: { type: 'string', enum: ['recurring', 'one_time'], description: "Payment cadence: 'recurring' (subscription, default) or 'one_time' (pay a year up front, no renewal)" },
+        interval: { type: 'string', enum: ['year', 'month'], description: "Recurring billing interval: 'year' ($199/yr, default) or 'month' ($25/mo). Applies to the 'recurring' cadence only." },
       },
+    },
+  },
+  {
+    name: 'switch_subdomain_cadence',
+    description: "SELLER TOOL. Switch YOUR OWN shop's ACTIVE recurring subdomain subscription between monthly ($25/mo) and yearly ($199/yr). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Does a Stripe proration on the SAME subscription — no double charge and no gap in your subdomain (it keeps serving white-label throughout). Refused cleanly if you have no active subscription to switch, or if you're already on the target cadence (no-op). Use start_subdomain_subscription first if you don't have a subscription yet.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        interval: { type: 'string', enum: ['year', 'month'], description: "Target billing interval: 'year' ($199/yr) or 'month' ($25/mo)." },
+      },
+      required: ['interval'],
     },
   },
   {
@@ -1438,6 +1452,7 @@ async function handleGetSubdomainEntitlement(authHeader?: string | null) {
             entitled: ent.entitled,
             reason: ent.reason,
             price_label: SUBDOMAIN_PRICE_LABEL.es,
+            monthly_price_label: SUBDOMAIN_PRICE_MONTHLY_LABEL.es,
           },
           null,
           2,
@@ -1452,11 +1467,13 @@ async function handleStartSubdomainSubscription(args: Record<string, unknown>, a
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
 
   const cadence = asDomainCadence(args.cadence) ?? 'recurring'
+  const interval = coerceSubdomainInterval(args.interval)
   const result = await startSubdomainCheckout({
     shopId: shop.id,
     sellerClerkId: shop.clerk_user_id,
     channel: 'api',
     cadence,
+    interval,
   })
 
   if (!result.ok) {
@@ -1465,7 +1482,9 @@ async function handleStartSubdomainSubscription(args: Record<string, unknown>, a
 
   const cadenceNote = cadence === 'one_time'
     ? ' (pago único por un año, sin renovación automática)'
-    : ''
+    : interval === 'month'
+      ? ' (suscripción mensual, $25 MXN/mes)'
+      : ' (suscripción anual, $199 MXN/año)'
   return {
     content: [
       {
@@ -1474,7 +1493,34 @@ async function handleStartSubdomainSubscription(args: Record<string, unknown>, a
           `Abre este enlace para activar tu subdominio propio${cadenceNote}:\n${result.url}\n\n` +
           'La habilitación se activa automáticamente al completar el checkout.',
       },
-      { type: 'text', text: JSON.stringify({ checkout_url: result.url, cadence }, null, 2) },
+      { type: 'text', text: JSON.stringify({ checkout_url: result.url, cadence, interval }, null, 2) },
+    ],
+  }
+}
+
+async function handleSwitchSubdomainCadence(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  // Pass the raw arg — the switch builder validates it strictly (a billing mutation
+  // rejects a missing/invalid interval rather than defaulting).
+  const result = await switchSubdomainCadence({
+    sellerClerkId: shop.clerk_user_id,
+    targetInterval: args.interval,
+  })
+
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: result.error }] }
+  }
+
+  const label = result.interval === 'month' ? '$25 MXN/mes' : '$199 MXN/año'
+  const text = result.switched
+    ? `✅ Tu suscripción al subdominio cambió a ${label}. Se prorrateó el cambio (sin cargo doble) y tu subdominio siguió activo sin interrupción.`
+    : `Tu suscripción al subdominio ya está en ${label}. No se hizo ningún cambio ni cargo.`
+  return {
+    content: [
+      { type: 'text', text },
+      { type: 'text', text: JSON.stringify({ switched: result.switched, interval: result.interval }, null, 2) },
     ],
   }
 }
@@ -1558,6 +1604,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_subdomain_subscription': { const r = await handleStartSubdomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'switch_subdomain_cadence':     { const r = await handleSwitchSubdomainCadence(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       default:                     return null  // will become MethodNotFound error
     }
   }

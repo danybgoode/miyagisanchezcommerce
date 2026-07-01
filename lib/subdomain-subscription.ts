@@ -34,16 +34,27 @@ export type SubdomainSubscription = {
    *  INCLUDE `past_due` as a deliberate grace window (not just active/trialing).
    *  Source of truth is the Medusa route; don't re-derive it here. */
   active: boolean
+  /** The YEARLY recurring price ($199/yr) — the plan's stripe_price_id column. */
   stripe_price_id: string | null
   price_cents: number | null
+  /** The MONTHLY recurring price ($25/mo) — held on the plan metadata (Sprint 3);
+   *  null until the monthly seed runs (the buy route degrades gracefully). */
+  monthly_stripe_price_id: string | null
+  monthly_price_cents: number | null
   plan_id: string | null
+  /** The LIVE Stripe subscription id (when `active`) — the switch route prorates
+   *  the monthly↔yearly price swap on it. null when there's no live subscription. */
+  subscription_id: string | null
 }
 
 const EMPTY: SubdomainSubscription = {
   active: false,
   stripe_price_id: null,
   price_cents: null,
+  monthly_stripe_price_id: null,
+  monthly_price_cents: null,
   plan_id: null,
+  subscription_id: null,
 }
 
 /** Read the seller's subdomain subscription state + the plan's Stripe price. */
@@ -62,7 +73,10 @@ export async function getSubdomainSubscription(
       active: !!d.active,
       stripe_price_id: d.stripe_price_id ?? null,
       price_cents: d.price_cents ?? null,
+      monthly_stripe_price_id: d.monthly_stripe_price_id ?? null,
+      monthly_price_cents: d.monthly_price_cents ?? null,
       plan_id: d.plan_id ?? null,
+      subscription_id: d.subscription_id ?? null,
     }
   } catch {
     return EMPTY
