@@ -105,6 +105,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     risk: 'low',
   },
   {
+    key: 'flags',
+    label: 'Flags',
+    description: 'Prende y apaga funciones de la plataforma sin redeploy (auditado).',
+    href: '/admin/flags',
+    icon: 'iconoir-toggle-on',
+    risk: 'high',
+  },
+  {
     key: 'scraping',
     label: 'Scraping',
     description: 'Abre la app externa de scraping de oferta.',

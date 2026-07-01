@@ -14,10 +14,17 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'referrals', 'promoter', 'audit', 'tenants', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'referrals', 'promoter', 'audit', 'tenants', 'flags', 'scraping',
     ])
+  })
+
+  test('feature-flags control surface registers as an internal, high-risk section', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.flags?.href).toBe('/admin/flags')
+    expect(byKey.flags?.external).toBeUndefined()
+    expect(byKey.flags?.risk).toBe('high')
   })
 
   test('S3 registers the read-only tenant directory', () => {
