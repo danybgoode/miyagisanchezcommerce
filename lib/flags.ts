@@ -1,28 +1,35 @@
 /**
  * lib/flags.ts
  *
- * The platform's feature-flag / kill-switch layer, backed by Flagsmith
- * (SaaS, project "miyagisanchezmarketplace"). See the spike decision:
- * Roadmap/00-ideas/2. readyforscope/spikeflagsmith.md.
+ * The platform's feature-flag / kill-switch layer, backed by an OWNED Supabase
+ * table (`platform_flags`) — replaces Flagsmith (epic 09 · feature-flags-inhouse).
+ * See the scope: Roadmap/09-platform-infra/feature-flags-inhouse/.
  *
- * Design rules (non-negotiable — from the spike):
- *  1. FAIL-OPEN. Every read falls back to DEFAULT_FLAGS. Flagsmith being
- *     unreachable, slow, or missing the flag must NEVER break a request —
+ * Design rules (non-negotiable — carried over from the Flagsmith spike):
+ *  1. FAIL-OPEN. Every read falls back to DEFAULT_FLAGS. Supabase being
+ *     unreachable, slow, or the table empty/missing must NEVER break a request —
  *     especially checkout. Kill-switches default to ENABLED (feature stays on).
- *  2. SERVER-ONLY, environment-level. v1 is admin-only: no per-identity traits,
- *     no per-shop segments. We evaluate the environment's flags, in-process.
- *  3. LOCAL EVALUATION. The SDK fetches the environment document and evaluates
- *     in-memory (~0 ms per request, refreshed every 60 s) — so flag reads add no
- *     latency to the request path and request volume != Flagsmith API volume.
+ *  2. SERVER-ONLY, environment-level. Admin-only: no per-identity traits, no
+ *     per-shop segments — one boolean per flag, read for the whole environment.
+ *  3. IN-PROCESS CACHE. All rows are cached module-side for 60 s (FLAG_CACHE_TTL_MS)
+ *     so a fresh cache adds NO DB hit per request; a stale cache triggers ONE
+ *     bounded refresh (≤2 s, no retries) shared across concurrent callers.
  *
- * Runtime: Node only (the SDK is not Edge-compatible). Call this from route
+ * Runtime: Node only (uses the Supabase service-role client). Call this from route
  * handlers / server components — and from middleware ONLY when the middleware
  * runs on the Node runtime (`export const config = { runtime: 'nodejs' }`), never
  * from Edge middleware. `middleware.ts` opts into the Node runtime specifically so
  * the subdomain paywall gate (epic 07 · subdomain-pricing) can read a flag here.
  */
 import 'server-only'
-import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
+import { db } from '@/lib/supabase'
+import {
+  resolveFlag,
+  isCacheStale,
+  FLAG_CACHE_TTL_MS,
+  FLAG_FETCH_TIMEOUT_MS,
+  type FlagRow,
+} from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
 export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'subdomain.paywall_enabled'
@@ -102,46 +109,66 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'subdomain.paywall_enabled': false,
 }
 
-const ENV_KEY = process.env.FLAGSMITH_ENVIRONMENT_KEY
+const TABLE = 'platform_flags'
 
-// Constructed once at module load. Module evaluation is single-threaded, so this
-// sidesteps the check-then-set race a lazy getter would have — where concurrent
-// first requests on a cold instance each build a client and leak its 60 s polling
-// timer. `null` when no server-side key is configured (local dev / preview
-// without the secret) → isEnabled() simply runs on DEFAULT_FLAGS.
-const client: Flagsmith | null = ENV_KEY
-  ? new Flagsmith({
-      environmentKey: ENV_KEY,
-      enableLocalEvaluation: true,
-      // Refresh the Environment Document every 5 min, not the SDK default 60 s. Each
-      // refresh is one Flagsmith API call; every warm server instance polls on this
-      // timer regardless of traffic, so 60 s blew the free tier with zero users
-      // (~43k calls/mo vs ~8.6k at 300 s). These flags are deliberate kill-switches —
-      // a ~5 min flip-propagation delay is fine.
-      environmentRefreshIntervalSeconds: 300,
-      // Fail FAST on the checkout path: if Flagsmith hangs, give up after ~2 s and
-      // fall back to defaults rather than blocking the request. The SDK default is
-      // 3 retries × 10 s timeout (+ 1 s delays) ≈ 33 s — unacceptable on checkout.
-      requestTimeoutSeconds: 2,
-      retries: 0,
-      // Per-flag fail-open inside the SDK, in case a flag is missing from the env.
-      defaultFlagHandler: (flagKey: string) =>
-        new DefaultFlag(null, DEFAULT_FLAGS[flagKey as FlagKey] ?? true),
-    })
-  : null
+// Module-level in-process cache. Single-threaded module evaluation → no init race.
+// `rows: null` means "no trusted values" → resolveFlag() falls open to DEFAULT_FLAGS.
+// `fetchedAt` gates staleness (60 s TTL); `inflight` de-dupes concurrent refreshes so
+// a burst of first requests on a cold instance issues ONE read, not N.
+let cache: { rows: FlagRow[] | null; fetchedAt: number | null } = { rows: null, fetchedAt: null }
+let inflight: Promise<void> | null = null
 
 /**
- * Is a feature enabled? Never throws — returns the fail-open default on any
- * error or when Flagsmith isn't configured.
+ * Read every flag row from Supabase, bounded to ~2 s (no retries) so a hung read
+ * can't stall a request. Returns null on timeout / error / empty — the caller then
+ * fails open. Uses Promise.race (not .abortSignal) so the missing-config stub — which
+ * has no abortSignal — is handled uniformly (its error → null → defaults).
+ */
+async function fetchRows(): Promise<FlagRow[] | null> {
+  try {
+    const query = db.from(TABLE).select('key, enabled')
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('platform_flags fetch timeout')), FLAG_FETCH_TIMEOUT_MS),
+    )
+    const { data, error } = (await Promise.race([query, timeout])) as {
+      data: FlagRow[] | null
+      error: unknown
+    }
+    if (error || !data) return null
+    return data.map((r) => ({ key: String(r.key), enabled: Boolean(r.enabled) }))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Refresh the cache if stale. Never throws. On a successful read the rows + timestamp
+ * are replaced; on failure the rows are cleared to null (fail open to DEFAULT_FLAGS)
+ * and the timestamp is still bumped so an outage doesn't hammer the DB every request.
+ */
+async function refreshIfStale(): Promise<void> {
+  if (!isCacheStale(cache.fetchedAt, Date.now(), FLAG_CACHE_TTL_MS)) return
+  if (inflight) return inflight
+  inflight = fetchRows()
+    .then((rows) => {
+      cache = { rows, fetchedAt: Date.now() }
+    })
+    .finally(() => {
+      inflight = null
+    })
+  return inflight
+}
+
+/**
+ * Is a feature enabled? Never throws — returns the fail-open DEFAULT_FLAGS value on
+ * any error, timeout, or when the table is unreadable/empty. A fresh cache resolves
+ * with no DB hit; a stale cache awaits one bounded (≤2 s) refresh first.
  */
 export async function isEnabled(flag: FlagKey): Promise<boolean> {
-  const fallback = DEFAULT_FLAGS[flag]
-  if (!client) return fallback
   try {
-    const flags = await client.getEnvironmentFlags()
-    return flags.isFeatureEnabled(flag)
+    await refreshIfStale()
   } catch {
-    // Flagsmith unreachable / timed out / malformed → fail open.
-    return fallback
+    // Defensive: refreshIfStale already swallows errors, but never let a flag read throw.
   }
+  return resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
 }
