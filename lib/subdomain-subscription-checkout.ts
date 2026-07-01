@@ -29,6 +29,11 @@ import {
   coerceDomainCadence,
   type DomainCadence,
 } from '@/lib/domain-cadence'
+import {
+  coerceSubdomainInterval,
+  subdomainPriceIdForInterval,
+  type SubdomainInterval,
+} from '@/lib/subdomain-billing'
 import { PAID_BY_PROMOTER_FLAG } from '@/lib/promoter-close'
 import { isEnabled } from '@/lib/flags'
 import {
@@ -68,6 +73,9 @@ export async function startSubdomainCheckout(input: {
   channel: string
   /** Payment cadence; unknown/blank → `recurring` (back-compat). */
   cadence?: DomainCadence | string | null
+  /** Recurring billing interval (Sprint 3); unknown/blank → `year` (back-compat).
+   *  Monthly is recurring-only — ignored on the `one_time` cadence (always a year). */
+  interval?: SubdomainInterval | string | null
   /** Promoter code (`PRM-…`) for the real one-time discount (one-time path). */
   promoterCode?: string | null
   /** The PAYER is a promoter checking out on the seller's behalf (cash collected
@@ -144,7 +152,16 @@ export async function startSubdomainCheckout(input: {
   }
 
   // ── Recurring cadence (today's path) ──────────────────────────────────────
-  if (!sub.stripe_price_id) {
+  // Pick the plan's price for the requested interval: yearly ($199/yr, the plan's
+  // stripe_price_id column) or monthly ($25/mo, held on the plan metadata — Sprint 3).
+  // A missing price (e.g. monthly not yet seeded) degrades to the same graceful
+  // "aún no está disponible" as before.
+  const interval = coerceSubdomainInterval(input.interval)
+  const priceId = subdomainPriceIdForInterval(interval, {
+    yearly: sub.stripe_price_id,
+    monthly: sub.monthly_stripe_price_id,
+  })
+  if (!priceId) {
     return {
       ok: false,
       status: 422,
@@ -153,13 +170,14 @@ export async function startSubdomainCheckout(input: {
   }
 
   const url = await createSubscriptionCheckout({
-    priceId: sub.stripe_price_id,
+    priceId,
     successUrl,
     cancelUrl,
     buyerEmail,
     metadata: {
       kind: SUBDOMAIN_CHECKOUT_KIND,
       cadence: 'recurring',
+      interval,
       shop_id: shopId,
       seller_clerk_id: sellerClerkId,
       channel,

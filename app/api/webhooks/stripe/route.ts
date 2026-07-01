@@ -32,6 +32,7 @@ import {
 import {
   SUBDOMAIN_CHECKOUT_KIND,
   setSubdomainSubscriptionStatus,
+  getSubdomainSubscription,
 } from '@/lib/subdomain-subscription'
 import { buildOneTimeGrant } from '@/lib/domain-entitlement'
 import { SUBDOMAIN_GRANT_KEY } from '@/lib/subdomain-entitlement'
@@ -867,18 +868,14 @@ async function handleSubdomainSubscriptionComplete(session: Stripe.Checkout.Sess
   const _sub = stripeSub as unknown as SubWithPeriod
   const periodStart = new Date(_sub.current_period_start * 1000).toISOString()
   const periodEnd   = new Date(_sub.current_period_end   * 1000).toISOString()
-  const stripePriceId = stripeSub.items.data[0]?.price?.id
 
-  // Resolve the platform plan by its Stripe price, then activate the Medusa sub.
+  // Resolve the platform subdomain plan BY KIND (not by Stripe price): the SAME plan
+  // now carries both the yearly price (its column) and the monthly price (its
+  // metadata, Sprint 3), so a by-stripe-price lookup would miss a monthly-priced
+  // subscription. The kind-based read returns the one plan for either cadence.
   try {
-    if (!stripePriceId) throw new Error('no price on subscription')
-    const planRes = await fetch(
-      `${MEDUSA_BASE}/store/sellers/subscription-plans/by-stripe-price?stripe_price_id=${encodeURIComponent(stripePriceId)}`,
-      { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
-    )
-    if (!planRes.ok) throw new Error(`plan lookup ${planRes.status}`)
-    const { plan } = (await planRes.json()) as { plan?: { id: string } }
-    if (!plan?.id) throw new Error('plan not found')
+    const { plan_id } = await getSubdomainSubscription(sellerClerkId)
+    if (!plan_id) throw new Error('subdomain plan not found')
 
     const subRes = await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
       method: 'POST',
@@ -888,7 +885,7 @@ async function handleSubdomainSubscriptionComplete(session: Stripe.Checkout.Sess
         'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
       },
       body: JSON.stringify({
-        plan_id: plan.id,
+        plan_id,
         seller_id: shopId, // subscriber's shop (denormalized; entitlement keys off clerk id)
         clerk_user_id: sellerClerkId,
         buyer_email: sellerEmail || `${sellerClerkId}@seller.miyagisanchez.com`,

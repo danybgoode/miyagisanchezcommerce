@@ -139,6 +139,7 @@ export const MCP_SELLER_TOOLS = [
   'start_domain_subscription',  // custom-domain paywall S3 (token-scoped)
   'get_subdomain_entitlement',     // subdomain-pricing S2 (token-scoped)
   'start_subdomain_subscription',  // subdomain-pricing S2 (token-scoped)
+  'switch_subdomain_cadence',      // subdomain-pricing S3 — monthly↔yearly switch (token-scoped)
 ] as const
 
 /** Every MCP tool name, in discovery order. */
