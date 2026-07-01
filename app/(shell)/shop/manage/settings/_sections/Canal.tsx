@@ -672,7 +672,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   <div className="mt-3 border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
                     <p className="text-sm font-semibold mb-0.5">✓ Subdominio propio activo</p>
                     <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-2.5">
-                      Tu tienda se sirve white-label en <span className="font-mono">{subdomainUrl}</span>.
+                      Tu tienda se sirve como sitio independiente en <span className="font-mono">{subdomainUrl}</span> (sin la barra de la plataforma).
                       {subdomainHasMonthly && ' Cambia tu facturación cuando quieras — se prorratea, sin cargo doble.'}
                     </p>
                     {subdomainHasMonthly && (
