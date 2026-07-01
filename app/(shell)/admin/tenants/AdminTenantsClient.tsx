@@ -43,7 +43,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
         <h1 className="text-2xl font-bold">Tiendas</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
           Directorio de tiendas: identidad (vendedor Medusa), reclamo, dominio, plan y número de
-          anuncios. Puedes otorgar o revocar la cortesía de dominio personalizado desde el detalle.
+          anuncios. Puedes otorgar o revocar cortesías (dominio, subdominio o sincronización ML) desde el detalle.
         </p>
       </div>
 
@@ -150,14 +150,18 @@ function EntitlementControls({
   const [confirmingRevoke, setConfirmingRevoke] = useState(false)
   // The raw durable grant, resolved on open (null = none, undefined = not yet known).
   const [grant, setGrant] = useState<DomainGrant | null | undefined>(undefined)
+  // Which paid SKU's comp we're managing (S6: was custom-domain-only).
+  const [sku, setSku] = useState<'custom_domain' | 'subdomain' | 'ml_sync'>('custom_domain')
 
-  // On open, resolve the true reason for this one shop (subscription incl.).
+  // On open (and whenever the SKU changes), resolve the true reason for this one
+  // shop + SKU (subscription incl.).
   useEffect(() => {
     let cancelled = false
     setError(null)
+    setGrant(undefined)
     ;(async () => {
       try {
-        const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}`)
+        const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}?sku=${sku}`)
         if (!res.ok) return
         const data = (await res.json()) as EntitlementResponse
         if (cancelled) return
@@ -174,9 +178,9 @@ function EntitlementControls({
     return () => {
       cancelled = true
     }
-    // Resolve once per inspected shop.
+    // Resolve per inspected shop + SKU.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.shopId])
+  }, [row.shopId, sku])
 
   async function mutate(action: 'grant' | 'revoke') {
     setBusy(true)
@@ -185,7 +189,7 @@ function EntitlementControls({
       const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action === 'grant' ? { action, note } : { action }),
+        body: JSON.stringify(action === 'grant' ? { action, note, sku } : { action, sku }),
       })
       const data = (await res.json().catch(() => null)) as (EntitlementResponse & { error?: string }) | null
       if (!res.ok || !data) {
@@ -238,6 +242,17 @@ function EntitlementControls({
         <p className="text-xs text-[var(--color-muted)]">Verificando plan…</p>
       ) : isGrandfather ? null : (
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={sku}
+            onChange={(e) => setSku(e.target.value as 'custom_domain' | 'subdomain' | 'ml_sync')}
+            disabled={busy}
+            aria-label="SKU"
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs"
+          >
+            <option value="custom_domain">Dominio propio</option>
+            <option value="subdomain">Subdominio</option>
+            <option value="ml_sync">Sincronización ML</option>
+          </select>
           <input
             type="text"
             value={note}

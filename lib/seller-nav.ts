@@ -54,6 +54,7 @@ export const SELLER_NAV: SellerNavGroup[] = [
       { key: 'sorteos', label: 'Sorteos', href: '/shop/manage/sweepstakes', icon: 'iconoir-gift' },
       { key: 'analitica', label: 'Analíticas', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
       { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
+      { key: 'mercadolibre', label: 'Mercado Libre', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
       { key: 'ajustes', label: 'Configuración', href: '/shop/manage/settings', icon: 'iconoir-settings' },
     ],
   },

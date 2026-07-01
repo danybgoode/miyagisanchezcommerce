@@ -34,8 +34,14 @@ import {
   setSubdomainSubscriptionStatus,
   getSubdomainSubscription,
 } from '@/lib/subdomain-subscription'
+import {
+  ML_SYNC_CHECKOUT_KIND,
+  setMlSyncSubscriptionStatus,
+  getMlSyncSubscription,
+} from '@/lib/ml-sync-subscription'
 import { buildOneTimeGrant } from '@/lib/domain-entitlement'
 import { SUBDOMAIN_GRANT_KEY } from '@/lib/subdomain-entitlement'
+import { ML_SYNC_GRANT_KEY } from '@/lib/ml-sync-entitlement'
 import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
@@ -130,6 +136,8 @@ export async function POST(req: NextRequest) {
           await handleCustomDomainSubscriptionComplete(session)
         } else if (session.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
           await handleSubdomainSubscriptionComplete(session)
+        } else if (session.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+          await handleMlSyncSubscriptionComplete(session)
         } else {
           await handleSubscriptionCheckoutComplete(session)
         }
@@ -141,6 +149,10 @@ export async function POST(req: NextRequest) {
         // One-time subdomain cadence (epic 07 · subdomain-pricing S2): same shape
         // as the custom-domain one-time path, writing the subdomain_grant.
         await handleSubdomainOneTimeComplete(session)
+      } else if (session.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+        // One-time ML-sync cadence (epic 03 · mercadolibre-sync S6): pay a year up
+        // front, writing the dated ml_sync_grant.
+        await handleMlSyncOneTimeComplete(session)
       } else {
         await handleCheckoutComplete(session)
       }
@@ -992,6 +1004,123 @@ async function handleSubdomainOneTimeComplete(session: Stripe.Checkout.Session) 
   tg.alert(`✅ Subdominio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
 }
 
+// ── ML-sync RECURRING: checkout.session.completed (mode=subscription) ─────────
+// (epic 03 · mercadolibre-sync S6). Faithful clone of the subdomain subscription
+// handler onto the ml_sync plan. The platform is the payee; entitlement flips on
+// via the Medusa subscription (resolved by kind, covering yearly + monthly).
+async function handleMlSyncSubscriptionComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id
+  const stripeSubscriptionId = session.subscription as string | null
+  if (!shopId || !sellerClerkId || !stripeSubscriptionId) {
+    console.error('[ml-sync sub] missing metadata/subscription:', session.id)
+    return
+  }
+
+  const sellerEmail = session.customer_details?.email?.toLowerCase().trim() ?? ''
+
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  type SubWithPeriod = { current_period_start: number; current_period_end: number }
+  const _sub = stripeSub as unknown as SubWithPeriod
+  const periodStart = new Date(_sub.current_period_start * 1000).toISOString()
+  const periodEnd   = new Date(_sub.current_period_end   * 1000).toISOString()
+
+  // Resolve the platform ML-sync plan BY KIND (covers yearly column + monthly
+  // metadata price in one read).
+  try {
+    const { plan_id } = await getMlSyncSubscription(sellerClerkId)
+    if (!plan_id) throw new Error('ml-sync plan not found')
+
+    const subRes = await fetch(`${MEDUSA_BASE}/store/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': MEDUSA_PUB_KEY,
+        'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
+      },
+      body: JSON.stringify({
+        plan_id,
+        seller_id: shopId,
+        clerk_user_id: sellerClerkId,
+        buyer_email: sellerEmail || `${sellerClerkId}@seller.miyagisanchez.com`,
+        status: 'active',
+        payment_method: 'stripe',
+        stripe_subscription_id: stripeSubscriptionId,
+        stripe_customer_id: session.customer as string | null,
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
+        metadata: { kind: ML_SYNC_CHECKOUT_KIND, shop_id: shopId },
+      }),
+    })
+    if (!subRes.ok) throw new Error(`subscription create ${subRes.status}`)
+  } catch (e) {
+    // Money-path safety: the seller PAID but isn't entitled, and Stripe won't retry
+    // (this handler returns 200). Alert operationally for hand-repair.
+    console.error('[ml-sync sub] Medusa activation failed:', e)
+    tg.alert(
+      `🚨 Sincronización ML PAGADA pero NO activada — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nStripe sub: ${stripeSubscriptionId}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+
+  tg.alert(`✅ Sincronización Mercado Libre activada\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
+// ── ML-sync ONE-TIME: checkout.session.completed (mode=payment) ───────────────
+// (epic 03 · mercadolibre-sync S6). A pay-a-year-up-front purchase with NO Stripe
+// subscription — entitlement is a DATED 12-month grant on the shop metadata (the
+// ml_sync_grant seam) that lapses on read. Mirrors the subdomain one-time handler's
+// safety (verify the write landed; alert on a silent 0-row write).
+async function handleMlSyncOneTimeComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id ?? ''
+  const paidByPromoter = session.metadata?.paid_by_promoter === '1'
+  if (!shopId) {
+    console.error('[ml-sync one-time] missing shop_id:', session.id)
+    return
+  }
+
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    if (!shop) throw new Error(`no shop row for id ${shopId}`)
+    const meta = (shop.metadata ?? {}) as Record<string, unknown>
+    meta[ML_SYNC_GRANT_KEY] = buildOneTimeGrant({ note: oneTimeGrantNote(paidByPromoter) })
+    const { data: updated, error } = await db
+      .from('marketplace_shops')
+      .update({ metadata: meta })
+      .eq('id', shopId)
+      .select('id')
+    if (error) throw new Error(error.message)
+    if (!updated || updated.length === 0) throw new Error(`grant update matched 0 rows for id ${shopId}`)
+  } catch (e) {
+    console.error('[ml-sync one-time] grant write failed:', e)
+    tg.alert(
+      `🚨 Sincronización ML (pago único) PAGADA pero NO activada — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nSession: ${session.id}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+    return
+  }
+
+  // Promoter attribution → paid, with the real amount collected (post-discount).
+  const promoterId = session.metadata?.promoter_id
+  const promoterSku = session.metadata?.promoter_sku
+  if (promoterId && isPromoterSku(promoterSku)) {
+    await markAttributionPaid({
+      promoterId,
+      sellerId: shopId,
+      sku: promoterSku,
+      grossAmountCents: session.amount_total ?? 0,
+      cadence: 'one_time',
+    })
+  }
+
+  tg.alert(`✅ Sincronización Mercado Libre activada (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────
 
 async function handleSubscriptionCheckoutComplete(session: Stripe.Checkout.Session) {
@@ -1112,6 +1241,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return
   }
 
+  // ML-sync paid SKU (S6): same status sync against the Medusa ML-sync sub.
+  if (subscription.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+    const map: Record<string, 'active' | 'trialing' | 'past_due' | 'canceled'> = {
+      active: 'active', trialing: 'trialing', past_due: 'past_due', unpaid: 'past_due', canceled: 'canceled',
+    }
+    const mapped = map[subscription.status]
+    if (mapped) await setMlSyncSubscriptionStatus(subscription.id, mapped)
+    return
+  }
+
   type SubWithPeriod = { current_period_start: number; current_period_end: number }
   const _s = subscription as unknown as SubWithPeriod
   const periodStart = new Date(_s.current_period_start * 1000).toISOString()
@@ -1149,6 +1288,14 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     return
   }
 
+  // ML-sync paid SKU (S6): a definitive cancel flips entitlement off — the gate
+  // re-closes on the next read (sync toggle disabled). No grant to clear (recurring
+  // entitles via the sub; a one-time grant lapses on its own date).
+  if (subscription.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+    await setMlSyncSubscriptionStatus(subscription.id, 'canceled')
+    return
+  }
+
   await db.from('marketplace_subscriptions')
     .update({ status: 'canceled', updated_at: new Date().toISOString() })
     .eq('stripe_subscription_id', subscription.id)
@@ -1177,6 +1324,13 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   // the Medusa subdomain sub active. No seller transfer — the platform is the payee.
   if (stripeSub.metadata?.kind === SUBDOMAIN_CHECKOUT_KIND) {
     await setSubdomainSubscriptionStatus(stripeSubscriptionId, 'active')
+    return
+  }
+
+  // ML-sync paid SKU (S6): a successful renewal (or recovery from past_due) keeps
+  // the Medusa ML-sync sub active. No seller transfer — the platform is the payee.
+  if (stripeSub.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+    await setMlSyncSubscriptionStatus(stripeSubscriptionId, 'active')
     return
   }
 
@@ -1254,8 +1408,15 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
       tg.alert(`⚠️ Pago fallido en subdominio (en gracia)\nSubscription: ${stripeSubscriptionId}`)
       return
     }
+    // ML-sync paid SKU (S6): same grace state — entitlement stays live while Stripe
+    // retries; only customer.subscription.deleted lapses it.
+    if (sub.metadata?.kind === ML_SYNC_CHECKOUT_KIND) {
+      await setMlSyncSubscriptionStatus(stripeSubscriptionId, 'past_due')
+      tg.alert(`⚠️ Pago fallido en sincronización ML (en gracia)\nSubscription: ${stripeSubscriptionId}`)
+      return
+    }
   } catch (e) {
-    console.error('[custom-domain/subdomain lapse] payment_failed lookup error:', e)
+    console.error('[custom-domain/subdomain/ml-sync lapse] payment_failed lookup error:', e)
   }
 
   await db.from('marketplace_subscriptions')
