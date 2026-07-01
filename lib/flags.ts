@@ -25,7 +25,7 @@ import 'server-only'
 import { Flagsmith, DefaultFlag } from 'flagsmith-nodejs'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'subdomain.paywall_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'subdomain.paywall_enabled'
 
 /**
  * Fail-open defaults. Returned whenever Flagsmith can't be consulted (no key,
@@ -71,6 +71,15 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    routes 404, so S3 merges dark (independent of connect/import). Publish WRITES to
  *    the seller's external ML account (create/update/close), so it stays dark until
  *    Daniel's live ML-sandbox publish+edit+close smoke passes — then flip ON.
+ *  - KILL-SWITCH, FAIL-CLOSED (`ml.sync_enabled`): default `false`. The two-way ML
+ *    stock sync (epic 03 · mercadolibre-sync Sprint 4). A kill-switch by function
+ *    (flip OFF to instantly halt all sync) but deliberately fail-CLOSED — unlike the
+ *    usual kill-switch default-`true` — because the blast radius of sync running
+ *    unsupervised (overselling on ML or in Miyagi) is worse than the feature being
+ *    off. Enforcement lives in the BACKEND (subscriber + webhook + reconcile job);
+ *    a per-seller enable must ALSO be on. This FE key exists only for parity / any
+ *    future seller-facing sync UI. Flip ON once Daniel's live ML-sandbox sync smoke
+ *    passes; flipping OFF is the instant rollback.
  *  - ENABLEMENT (`subdomain.paywall_enabled`): default `false`. The subdomain SKU
  *    paywall (epic 07 · subdomain-pricing). Default OFF ⇒ today's free-for-all —
  *    every `<slug>.miyagisanchez.com` serves white-label as it always has, so a
@@ -89,6 +98,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ml.connect_enabled': false,
   'ml.import_enabled': false,
   'ml.publish_enabled': false,
+  'ml.sync_enabled': false,
   'subdomain.paywall_enabled': false,
 }
 
