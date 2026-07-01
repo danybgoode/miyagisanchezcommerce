@@ -95,7 +95,8 @@ test.describe('ml-events-view (S5)', () => {
 
   test('handles an empty / undefined list', () => {
     expect(toMlEventViews([])).toEqual([])
-    expect(toMlEventViews(undefined as unknown as MlSyncEvent[])).toEqual([])
+    expect(toMlEventViews(undefined)).toEqual([])
+    expect(toMlEventViews(null)).toEqual([])
   })
 })
 

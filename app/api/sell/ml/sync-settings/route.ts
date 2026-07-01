@@ -10,10 +10,11 @@ import { getSellerSyncEnabled, setSellerSyncEnabled } from '@/lib/ml-sync-settin
  * enable (epic 03 · mercadolibre-sync S5 · US-14). S4 shipped the enable
  * backend-only; this gives it a Clerk-authed, entitlement-GATED surface.
  *
- * Order at every entry point is flag → auth → entitlement (LEARNINGS flag/auth/
- * secret ordering): anonymous is always 401, the route 404s until `ml.sync_enabled`
- * is on, and ENABLING is blocked (403 + upsell) unless the shop is entitled to the
- * ML-sync SKU. DISABLING is never gated — a seller can always turn sync off.
+ * Order at every entry point is auth → flag → entitlement: anonymous is always 401
+ * (auth precedes the flag, so the guard holds in both flag states — mirrors the
+ * sibling ml/publish route), the route 404s until `ml.sync_enabled` is on, and
+ * ENABLING is blocked (403 + upsell) unless the shop is entitled to the ML-sync
+ * SKU. DISABLING is never gated — a seller can always turn sync off.
  *
  * Fail-safe: `ml.sync_paywall_enabled` defaults OFF ⇒ every connected seller is
  * entitled, so an already-enabled tester keeps working when the gate is off.

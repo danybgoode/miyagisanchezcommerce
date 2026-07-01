@@ -71,13 +71,23 @@ export type MlEventView = {
   when: string
 }
 
+/** Render cap for a message — defense-in-depth vs a long/unbounded row breaking layout
+ *  (the backend already caps + redacts on write; this protects the render regardless). */
+export const MAX_RENDERED_MESSAGE_LEN = 300
+
+function clampMessage(msg: string | null | undefined): string | null {
+  if (msg == null) return null
+  const s = String(msg)
+  return s.length > MAX_RENDERED_MESSAGE_LEN ? `${s.slice(0, MAX_RENDERED_MESSAGE_LEN - 1)}…` : s
+}
+
 /** Map raw events → view rows (pure). Drops nothing; the backend already bounds count. */
-export function toMlEventViews(events: MlSyncEvent[]): MlEventView[] {
+export function toMlEventViews(events: MlSyncEvent[] | null | undefined): MlEventView[] {
   return (events ?? []).map((e) => ({
     id: e.id,
     label: mlEventLabel(e.kind),
     tone: mlEventTone(e.outcome),
-    message: e.message ?? null,
+    message: clampMessage(e.message),
     when: fmtMlEventDate(e.created_at),
   }))
 }
