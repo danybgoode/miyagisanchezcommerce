@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { MlHealth, MlHealthState } from '@/lib/ml-health'
 import type { SanitizedMlConnection } from '@/lib/ml-connection'
 import type { MlEventView } from '@/lib/ml-events-view'
+import { ML_SYNC_PRICE_YEARLY_MXN, ML_SYNC_PRICE_MONTHLY_MXN } from '@/lib/ml-sync-pricing'
 
 /**
  * Mercado Libre connection status + actions (US-3; extended in S5 · US-13/14).
@@ -293,7 +294,7 @@ export default function MercadoLibreStatus({
                     cursor: syncBusy ? 'default' : 'pointer', opacity: syncBusy ? 0.6 : 1,
                   }}
                 >
-                  Activar — $299/año
+                  Activar — ${ML_SYNC_PRICE_YEARLY_MXN}/año
                 </button>
                 <button
                   type="button"
@@ -305,7 +306,7 @@ export default function MercadoLibreStatus({
                     cursor: syncBusy ? 'default' : 'pointer', opacity: syncBusy ? 0.6 : 1,
                   }}
                 >
-                  o $30/mes
+                  o ${ML_SYNC_PRICE_MONTHLY_MXN}/mes
                 </button>
               </div>
               <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>

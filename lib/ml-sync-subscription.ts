@@ -82,11 +82,22 @@ export async function setMlSyncSubscriptionStatus(
 ): Promise<void> {
   if (!INTERNAL_SECRET || !stripeSubscriptionId) return
   try {
-    await fetch(`${MEDUSA_BASE}/internal/ml-sync-subscription`, {
+    const res = await fetch(`${MEDUSA_BASE}/internal/ml-sync-subscription`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
       body: JSON.stringify({ stripe_subscription_id: stripeSubscriptionId, status }),
     })
+    // Money-path state change: a non-2xx (or a 0-row update) means entitlement may
+    // stay live after a cancel/lapse. Surface it — the reconcile/next webhook heals,
+    // but a silent failure must not read as success.
+    if (!res.ok) {
+      console.error(`[ml-sync-subscription] status update to '${status}' failed: HTTP ${res.status}`)
+      return
+    }
+    const d = (await res.json().catch(() => ({}))) as { updated?: number }
+    if (typeof d.updated === 'number' && d.updated === 0) {
+      console.error(`[ml-sync-subscription] status update to '${status}' matched 0 rows for ${stripeSubscriptionId}`)
+    }
   } catch (e) {
     console.error('[ml-sync-subscription] status update failed:', e)
   }

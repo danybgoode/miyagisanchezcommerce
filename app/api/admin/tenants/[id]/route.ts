@@ -40,8 +40,13 @@ const GRANT_KEY: Record<GrantSku, string> = {
   ml_sync: ML_SYNC_GRANT_KEY,
 }
 
+function isGrantSku(raw: unknown): raw is GrantSku {
+  return (GRANT_SKUS as readonly string[]).includes(raw as string)
+}
+
+/** GET (a read) may default a missing/unknown sku to custom_domain (back-compat). */
 function asSku(raw: unknown): GrantSku {
-  return (GRANT_SKUS as readonly string[]).includes(raw as string) ? (raw as GrantSku) : 'custom_domain'
+  return isGrantSku(raw) ? raw : 'custom_domain'
 }
 
 /** Resolve the SKU's true entitlement (incl. the per-seller subscription). */
@@ -100,6 +105,12 @@ export const POST = withAdmin<NextRequest, RouteCtx>(async (req, { params }) => 
     return NextResponse.json({ error: 'Acción inválida (usa "grant" o "revoke").' }, { status: 400 })
   }
   const note = typeof body.note === 'string' ? body.note : undefined
+  // A mutation rejects a bad SKU rather than silently defaulting (per LEARNINGS:
+  // coerce a purchase, reject a mutation) — a typo must never grant the wrong SKU.
+  // An ABSENT sku still defaults to custom_domain (back-compat with the S4 caller).
+  if (body.sku !== undefined && !isGrantSku(body.sku)) {
+    return NextResponse.json({ error: 'SKU inválido.' }, { status: 400 })
+  }
   const sku = asSku(body.sku)
   const grantKey = GRANT_KEY[sku]
 

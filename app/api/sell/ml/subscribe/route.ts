@@ -19,6 +19,7 @@ import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { detectChannel } from '@/lib/channel'
 import { startMlSyncCheckout } from '@/lib/ml-sync-subscription-checkout'
+import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
 
 export async function POST(req: NextRequest) {
   const user = await currentUser()
@@ -53,13 +54,25 @@ export async function POST(req: NextRequest) {
 
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id, slug')
+    .select('id, slug, metadata')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
   if (!shop) {
     return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
+  }
+
+  // Already entitled (comp / live one-time grant / active subscription) ⇒ no buy.
+  // `startMlSyncCheckout` short-circuits an active SUBSCRIPTION, but not a live GRANT
+  // (a comp or a prepaid year) — this closes that double-charge gap uniformly via the
+  // same entitlement seam the UI gates on. (cross-review #154.)
+  const entitlement = await resolveMlSyncEntitlement(shop.metadata, { sellerClerkId: user.id })
+  if (entitlement.entitled) {
+    return NextResponse.json(
+      { error: 'Ya tienes la sincronización de Mercado Libre activa.', alreadyActive: true },
+      { status: 409 },
+    )
   }
 
   const result = await startMlSyncCheckout({
