@@ -46,6 +46,12 @@ export async function POST(req: NextRequest) {
   const result = await publishMlProduct(shop.slug, body.productId, { categoryId: body.categoryId ?? null })
 
   if (!result.ok) {
+    if (result.reason === 'reauth_required') {
+      return NextResponse.json(
+        { error: 'Reconecta tu cuenta de Mercado Libre para continuar.', code: 'ML_REAUTH_REQUIRED' },
+        { status: 409 },
+      )
+    }
     if (result.reason === 'not_connected') {
       return NextResponse.json({ error: 'Conecta tu cuenta de Mercado Libre primero.' }, { status: 409 })
     }

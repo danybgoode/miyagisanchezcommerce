@@ -44,7 +44,7 @@ test.describe('promoter-commission · rate validation (US-7)', () => {
   })
 
   test('defaults are 0% for every known SKU', () => {
-    expect(DEFAULT_COMMISSION_RATES).toEqual({ custom_domain: 0, print_ad: 0, subdomain: 0 })
+    expect(DEFAULT_COMMISSION_RATES).toEqual({ custom_domain: 0, print_ad: 0, subdomain: 0, ml_sync: 0 })
   })
 })
 

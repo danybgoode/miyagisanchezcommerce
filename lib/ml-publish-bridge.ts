@@ -17,8 +17,12 @@ const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export type MlPublishResult = {
   ok: boolean
-  /** 'already_linked' is a 409 on a create attempt — the link already exists. */
-  reason?: 'not_connected' | 'no_category' | 'invalid_product' | 'already_linked' | 'failed'
+  /**
+   * 'already_linked' is a 409 on a create attempt — the link already exists.
+   * 'reauth_required' (S5) is a 409 `ML_REAUTH_REQUIRED` — the ML token refresh
+   * failed, so the seller must reconnect (distinct from a transient 'failed').
+   */
+  reason?: 'not_connected' | 'reauth_required' | 'no_category' | 'invalid_product' | 'already_linked' | 'failed'
   action?: string
   created?: boolean
   ml_item_id?: string | null
@@ -121,6 +125,7 @@ export async function publishMlProduct(
     if (res.status === 422 && d.code === 'ML_NO_CATEGORY') return { ok: false, reason: 'no_category' }
     if (res.status === 422 && d.code === 'ML_INVALID_PRODUCT') return { ok: false, reason: 'invalid_product' }
     if (res.status === 409) {
+      if (d.code === 'ML_REAUTH_REQUIRED') return { ok: false, reason: 'reauth_required' }
       return { ok: false, reason: d.code === 'ML_LINK_CONFLICT' ? 'already_linked' : 'not_connected' }
     }
     return { ok: false, reason: 'failed' }

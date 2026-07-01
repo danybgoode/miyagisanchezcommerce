@@ -22,9 +22,12 @@ export type MlSellerItemsResult = {
   connected: boolean
   /** true when the ML fetch itself failed (502) — distinct from a genuinely empty catalog. */
   failed: boolean
+  /** true when the backend flagged ML_REAUTH_REQUIRED (a 409) — the token refresh
+   *  failed, so the seller must reconnect (a sharper case of `connected:false`). */
+  needsReauth: boolean
 }
 
-const EMPTY: MlSellerItemsResult = { items: [], paging: { total: 0, offset: 0, limit: 0 }, connected: true, failed: false }
+const EMPTY: MlSellerItemsResult = { items: [], paging: { total: 0, offset: 0, limit: 0 }, connected: true, failed: false, needsReauth: false }
 
 /**
  * Fetch the connected seller's active ML items (import-ready). Distinguishes
@@ -45,7 +48,13 @@ export async function getMlSellerItems(
       headers: { 'x-internal-secret': INTERNAL_SECRET },
       cache: 'no-store',
     })
-    if (res.status === 409) return { ...EMPTY, connected: false }
+    if (res.status === 409) {
+      const d = (await res.json().catch(() => ({}))) as { code?: string }
+      // A failed refresh (reauth) is a 409 too — surface it distinctly so the UI can
+      // say "reconnect" rather than the generic "connect your account".
+      if (d.code === 'ML_REAUTH_REQUIRED') return { ...EMPTY, connected: false, needsReauth: true }
+      return { ...EMPTY, connected: false }
+    }
     if (!res.ok) return { ...EMPTY, failed: true }
     const d = (await res.json()) as Partial<MlSellerItemsResult>
     return {
@@ -53,6 +62,7 @@ export async function getMlSellerItems(
       paging: d.paging ?? EMPTY.paging,
       connected: true,
       failed: false,
+      needsReauth: false,
     }
   } catch {
     return { ...EMPTY, failed: true }

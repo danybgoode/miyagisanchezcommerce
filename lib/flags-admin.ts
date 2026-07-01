@@ -54,6 +54,9 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // Two-way ML stock sync (epic 03 S4). Fail-CLOSED by function but seeds OFF; its real
   // enforcement lives in the backend + a per-seller enable, so the platform default is OFF.
   'ml.sync_enabled': { polarity: 'killswitch', default: false },
+  // ML-sync paid/promoter-SKU entitlement gate (epic 03 S5). Enablement: default OFF ⇒
+  // no paywall (any connected seller may enable sync); flip ON to start charging.
+  'ml.sync_paywall_enabled': { polarity: 'enablement', default: false },
   'subdomain.paywall_enabled': { polarity: 'enablement', default: false },
 }
 

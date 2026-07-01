@@ -4,17 +4,22 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { MlHealth, MlHealthState } from '@/lib/ml-health'
 import type { SanitizedMlConnection } from '@/lib/ml-connection'
+import type { MlEventView } from '@/lib/ml-events-view'
 
 /**
- * Mercado Libre connection status + actions (US-3). Presentational client island:
- * shows the health badge + nickname, and drives Conectar (a plain link to the
- * OAuth start) / Reconectar / Desconectar. No token is ever present here.
+ * Mercado Libre connection status + actions (US-3; extended in S5 · US-13/14).
+ * Presentational client island: the health badge + nickname, Conectar/Reconectar/
+ * Desconectar, plus (S5) a re-auth prompt on `needs_reauth`, the two-way stock-sync
+ * enable toggle (entitlement-gated → upsell when not entitled), and the per-seller
+ * activity log. No token is ever present here.
  */
 
 const STATE_STYLE: Record<MlHealthState, { color: string; bg: string; dot: string }> = {
   connected: { color: 'var(--success)', bg: 'var(--success-soft)', dot: 'var(--success)' },
   stale: { color: 'var(--warning)', bg: 'var(--warning-soft)', dot: 'var(--warning)' },
   expired: { color: 'var(--danger)', bg: 'var(--danger-soft)', dot: 'var(--danger)' },
+  // A failed refresh: same urgency tone as expired — the seller must reconnect.
+  needs_reauth: { color: 'var(--danger)', bg: 'var(--danger-soft)', dot: 'var(--danger)' },
   disconnected: { color: 'var(--fg-muted)', bg: 'var(--bg-sunk)', dot: 'var(--fg-subtle)' },
 }
 
@@ -39,19 +44,60 @@ export default function MercadoLibreStatus({
   error,
   justConnected,
   importEnabled = false,
+  syncEnabledFlag = false,
+  syncEntitled = false,
+  sellerSyncEnabled = false,
+  events = [],
 }: {
   connection: SanitizedMlConnection | null
   health: MlHealth
   error: string | null
   justConnected: boolean
   importEnabled?: boolean
+  syncEnabledFlag?: boolean
+  syncEntitled?: boolean
+  sellerSyncEnabled?: boolean
+  events?: MlEventView[]
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncOn, setSyncOn] = useState(sellerSyncEnabled)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const isConnected = !!connection && connection.status === 'connected'
+  const needsReauth = health.state === 'needs_reauth'
   const style = STATE_STYLE[health.state] ?? STATE_STYLE.disconnected
+
+  async function toggleSync(next: boolean) {
+    if (syncBusy) return
+    setSyncBusy(true)
+    setSyncError(null)
+    try {
+      const res = await fetch('/api/sell/ml/sync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      if (res.status === 403) {
+        setSyncError('La sincronización con Mercado Libre es una función de pago.')
+        return
+      }
+      if (res.status === 409) {
+        setSyncError('Conecta tu cuenta de Mercado Libre primero.')
+        return
+      }
+      if (!res.ok) throw new Error('sync_toggle_failed')
+      const d = (await res.json()) as { sync_enabled?: boolean }
+      setSyncOn(d.sync_enabled === true)
+      router.refresh()
+    } catch {
+      setSyncError('No se pudo actualizar la sincronización. Vuelve a intentarlo.')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
 
   async function disconnect() {
     if (busy) return
@@ -76,9 +122,15 @@ export default function MercadoLibreStatus({
           {ERROR_COPY[error] ?? 'Ocurrió un error al conectar con Mercado Libre.'}
         </div>
       )}
-      {justConnected && isConnected && (
+      {justConnected && isConnected && !needsReauth && (
         <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--success-soft)', color: 'var(--success)', fontSize: 14 }}>
           ¡Listo! Tu cuenta de Mercado Libre quedó conectada.
+        </div>
+      )}
+      {needsReauth && (
+        <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--danger-soft)', color: 'var(--danger)', fontSize: 14 }}>
+          <strong>Reconecta tu cuenta de Mercado Libre.</strong> Tu autorización dejó de ser válida
+          (la revocaste o expiró), así que la sincronización está en pausa. Vuelve a conectar para reanudarla.
         </div>
       )}
 
@@ -166,6 +218,93 @@ export default function MercadoLibreStatus({
           </a>
         )}
       </div>
+
+      {/* Two-way stock sync — entitlement-gated toggle OR upsell (S5 · US-14) */}
+      {syncEnabledFlag && isConnected && (
+        <div
+          style={{
+            padding: 18, borderRadius: 'var(--r-lg)', border: '1.5px solid var(--border)',
+            background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-1)',
+          }}
+        >
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Sincronización de inventario</h2>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 14px' }}>
+            Mantén tu existencia igual en Mercado Libre y en Miyagi — cada venta descuenta de ambos, sin vender de más.
+          </p>
+
+          {syncEntitled ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => toggleSync(!syncOn)}
+                disabled={syncBusy}
+                aria-pressed={syncOn}
+                style={{
+                  padding: '10px 16px', borderRadius: 'var(--r-md)', fontSize: 14, fontWeight: 600,
+                  border: syncOn ? '1.5px solid var(--danger)' : 'none',
+                  background: syncOn ? 'transparent' : 'var(--accent)',
+                  color: syncOn ? 'var(--danger)' : 'var(--fg-inverse)',
+                  cursor: syncBusy ? 'default' : 'pointer', opacity: syncBusy ? 0.6 : 1,
+                }}
+              >
+                {syncBusy ? 'Guardando…' : syncOn ? 'Desactivar sincronización' : 'Activar sincronización'}
+              </button>
+              <span style={{ fontSize: 13, fontWeight: 600, color: syncOn ? 'var(--success)' : 'var(--fg-muted)' }}>
+                {syncOn ? 'Activada' : 'Desactivada'}
+              </span>
+            </div>
+          ) : (
+            <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)', fontSize: 13 }}>
+              <p style={{ margin: '0 0 8px', color: 'var(--fg)' }}>
+                La sincronización automática de inventario es una función de pago. Actívala con tu promotor
+                o desde tu plan para no vender de más en ninguno de los dos canales.
+              </p>
+              <a
+                href="/vende/promotor"
+                style={{
+                  display: 'inline-block', padding: '8px 14px', borderRadius: 'var(--r-md)', fontSize: 13,
+                  fontWeight: 600, background: 'var(--accent)', color: 'var(--fg-inverse)', textDecoration: 'none',
+                }}
+              >
+                Ver cómo activarla
+              </a>
+            </div>
+          )}
+          {syncError && <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 10 }}>{syncError}</div>}
+        </div>
+      )}
+
+      {/* Per-seller sync activity log (S5 · US-13) */}
+      {syncEnabledFlag && isConnected && events.length > 0 && (
+        <div
+          style={{
+            padding: 18, borderRadius: 'var(--r-lg)', border: '1.5px solid var(--border)',
+            background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-1)',
+          }}
+        >
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px' }}>Actividad reciente</h2>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {events.map((e) => (
+              <li key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 8, height: 8, borderRadius: '50%', marginTop: 5, flexShrink: 0,
+                    background: e.tone === 'fail' ? 'var(--danger)' : 'var(--success)',
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontWeight: 600, color: e.tone === 'fail' ? 'var(--danger)' : 'var(--fg)' }}>{e.label}</span>
+                    <span style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>{e.when}</span>
+                  </div>
+                  {e.message && <div style={{ color: 'var(--fg-muted)', marginTop: 2 }}>{e.message}</div>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

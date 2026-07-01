@@ -25,6 +25,7 @@ const SKU_LABEL: Record<PromoterSku, string> = {
   custom_domain: 'Dominio propio',
   print_ad: 'Anuncio impreso',
   subdomain: 'Subdominio propio',
+  ml_sync: 'Sincronización Mercado Libre',
 }
 
 const mxn = (cents: number) =>
