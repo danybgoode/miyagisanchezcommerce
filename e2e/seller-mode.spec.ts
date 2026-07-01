@@ -28,6 +28,7 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage/eventos',
   '/shop/manage/sweepstakes',
   '/shop/manage/import',
+  '/shop/manage/mercadolibre',
   '/shop/manage/settings',
 ])
 
@@ -78,7 +79,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
   test('labels match the sprint spec', () => {
     expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
     expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual([
-      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Configuración',
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Mercado Libre', 'Configuración',
     ])
   })
 
@@ -86,7 +87,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
     expect(SELLER_NAV_MOBILE_PRIMARY.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
     expect(SELLER_NAV_MOBILE_OVERFLOW.length).toBeGreaterThan(0)
     expect(SELLER_NAV_MOBILE_OVERFLOW.map(e => e.label)).toEqual([
-      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Configuración',
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Importar catálogo', 'Mercado Libre', 'Configuración',
     ])
   })
 

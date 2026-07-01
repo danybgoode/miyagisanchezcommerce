@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { MlHealth, MlHealthState } from '@/lib/ml-health'
 import type { SanitizedMlConnection } from '@/lib/ml-connection'
 import type { MlEventView } from '@/lib/ml-events-view'
+import { ML_SYNC_PRICE_YEARLY_MXN, ML_SYNC_PRICE_MONTHLY_MXN } from '@/lib/ml-sync-pricing'
 
 /**
  * Mercado Libre connection status + actions (US-3; extended in S5 · US-13/14).
@@ -94,6 +95,29 @@ export default function MercadoLibreStatus({
       router.refresh()
     } catch {
       setSyncError('No se pudo actualizar la sincronización. Vuelve a intentarlo.')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  async function buyMlSync(interval: 'year' | 'month') {
+    if (syncBusy) return
+    setSyncBusy(true)
+    setSyncError(null)
+    try {
+      const res = await fetch('/api/sell/ml/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadence: 'recurring', interval }),
+      })
+      const d = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+      if (res.ok && d.url) {
+        window.location.href = d.url
+        return
+      }
+      setSyncError(d.error ?? 'No pudimos iniciar el pago. Vuelve a intentarlo.')
+    } catch {
+      setSyncError('No pudimos iniciar el pago. Vuelve a intentarlo.')
     } finally {
       setSyncBusy(false)
     }
@@ -255,19 +279,39 @@ export default function MercadoLibreStatus({
             </div>
           ) : (
             <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)', fontSize: 13 }}>
-              <p style={{ margin: '0 0 8px', color: 'var(--fg)' }}>
-                La sincronización automática de inventario es una función de pago. Actívala con tu promotor
-                o desde tu plan para no vender de más en ninguno de los dos canales.
+              <p style={{ margin: '0 0 10px', color: 'var(--fg)' }}>
+                La sincronización automática de inventario es una función de pago. Actívala para no vender de
+                más en ninguno de los dos canales.
               </p>
-              <a
-                href="/vende/promotor"
-                style={{
-                  display: 'inline-block', padding: '8px 14px', borderRadius: 'var(--r-md)', fontSize: 13,
-                  fontWeight: 600, background: 'var(--accent)', color: 'var(--fg-inverse)', textDecoration: 'none',
-                }}
-              >
-                Ver cómo activarla
-              </a>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => buyMlSync('year')}
+                  disabled={syncBusy}
+                  style={{
+                    padding: '9px 15px', borderRadius: 'var(--r-md)', fontSize: 13, fontWeight: 600, border: 'none',
+                    background: 'var(--accent)', color: 'var(--fg-inverse)',
+                    cursor: syncBusy ? 'default' : 'pointer', opacity: syncBusy ? 0.6 : 1,
+                  }}
+                >
+                  Activar — ${ML_SYNC_PRICE_YEARLY_MXN}/año
+                </button>
+                <button
+                  type="button"
+                  onClick={() => buyMlSync('month')}
+                  disabled={syncBusy}
+                  style={{
+                    padding: '9px 15px', borderRadius: 'var(--r-md)', fontSize: 13, fontWeight: 600,
+                    border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--fg)',
+                    cursor: syncBusy ? 'default' : 'pointer', opacity: syncBusy ? 0.6 : 1,
+                  }}
+                >
+                  o ${ML_SYNC_PRICE_MONTHLY_MXN}/mes
+                </button>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>
+                ¿Trabajas con un promotor? También puede activártela por ti.
+              </p>
             </div>
           )}
           {syncError && <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 10 }}>{syncError}</div>}

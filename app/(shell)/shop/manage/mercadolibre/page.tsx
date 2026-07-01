@@ -49,7 +49,7 @@ export default async function MercadoLibrePage({
   // level; skip the extra round-trips when the kill-switch is off (dark-ship).
   const events = syncEnabledFlag ? toMlEventViews(await getMlSyncEvents(shop.slug, 25)) : []
   const [entitlement, sellerSyncEnabled] = syncEnabledFlag
-    ? await Promise.all([resolveMlSyncEntitlement(shop.metadata), getSellerSyncEnabled(shop.slug)])
+    ? await Promise.all([resolveMlSyncEntitlement(shop.metadata, { sellerClerkId: user.id }), getSellerSyncEnabled(shop.slug)])
     : [null, false]
 
   return (
