@@ -6,7 +6,7 @@ import {
 } from '../lib/envia-killswitch'
 
 /**
- * Envía Flagsmith kill-switch · Sprint 1 — pure decision seam (frontend mirror).
+ * Envía kill-switch · Sprint 1 — pure decision seam (frontend mirror).
  * `shipping.envia_enabled` (enablement polarity / default OFF). The flag *value* is
  * resolved by lib/flags.ts (fail-open); this proves the gate + es-MX fallback copy
  * used by the legacy FE ship/re-quote routes and the settings banner.

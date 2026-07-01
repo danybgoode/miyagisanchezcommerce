@@ -3,7 +3,7 @@
  *
  * Server-side composer for the subdomain paywall (epic 07 · subdomain-pricing,
  * Sprint 2). A faithful clone of `lib/domain-entitlement-server.ts`. Reads the
- * rollout flag (Flagsmith, fail-open) + the durable grant off the shop's metadata,
+ * rollout flag (fail-open) + the durable grant off the shop's metadata,
  * conditionally resolves the seller's Medusa subdomain subscription, then runs the
  * pure deriver. The middleware subdomain gate calls THIS so the recurring-paid path
  * entitles at serve time (the subdomain IS the slug — there's nothing to "clear" on
@@ -13,7 +13,7 @@
  * Imports `@/lib/flags` + `@/lib/subdomain-subscription` (both server-only) — keep
  * the pure logic + types in `lib/subdomain-entitlement.ts` / `lib/domain-entitlement.ts`
  * so the Playwright `api` runner can unit-test the seam without pulling in
- * `server-only`/`flagsmith-nodejs`. Safe to import from the Node-runtime middleware
+ * `server-only` (and the Supabase client). Safe to import from the Node-runtime middleware
  * (same as `lib/flags.ts`, already imported there).
  */
 import 'server-only'

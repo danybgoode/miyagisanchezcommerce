@@ -264,7 +264,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const typeFrame = listingTypeFrame(listing.listing_type)
 
   // PDP redesign kill-switch (epic 01). Default ENABLED (fail-open `true` in
-  // lib/flags.ts) — flipping it OFF in Flagsmith reverts the whole product page to
+  // lib/flags.ts) — flipping it OFF in /admin/flags reverts the whole product page to
   // the previous layout instantly. Every redesign delta below branches on this.
   const redesign = await isEnabled('pdp_redesign')
 

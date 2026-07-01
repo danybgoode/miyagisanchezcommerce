@@ -5,7 +5,7 @@
  * payload Medusa returned. Kept free of `next/*` and `server-only` so it is
  * directly unit-testable (the route + lib/flags.ts that wrap it are not).
  *
- * The flag *values* are resolved elsewhere (lib/flags.ts → Flagsmith, fail-open);
+ * The flag *values* are resolved elsewhere (lib/flags.ts → the flag store, fail-open);
  * this function just applies them. See the spike decision §6.
  */
 

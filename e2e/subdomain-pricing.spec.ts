@@ -23,10 +23,10 @@ import { shopSlugFromHost } from '../lib/subdomain'
  *     pre-gate; full coverage lives in subdomain.spec.ts).
  *
  * NOT covered here (owed to Daniel — sprint-1.md smoke walkthrough): the live 301
- * path. CI has no FLAGSMITH_ENVIRONMENT_KEY, so isEnabled('subdomain.paywall_enabled')
- * fails open to its default (false ⇒ ungated) and the gate is intentionally inert
+ * path. platform_flags seeds subdomain.paywall_enabled OFF, so isEnabled('subdomain.paywall_enabled')
+ * resolves to false (⇒ ungated) and the gate is intentionally inert
  * in CI. Exercising the live 301 (non-entitled subdomain → /s/slug) + the
- * grandfathered render needs the flag flipped on in Flagsmith on a preview.
+ * grandfathered render needs the flag flipped on in /admin/flags on a preview.
  */
 
 const GRANDFATHER: DomainGrant = { type: 'grandfather', granted_at: '2026-01-01T00:00:00.000Z', note: 'cutover' }

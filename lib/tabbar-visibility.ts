@@ -7,7 +7,7 @@
  * test. Same pattern as `lib/gallery.ts` ↔ `e2e/gallery.spec.ts`.
  */
 
-/** How tab labels render. The const below is the single switch (no Flagsmith, no peek mode). */
+/** How tab labels render. The const below is the single switch (no remote flag, no peek mode). */
 export type LabelMode = 'icons-only' | 'active-label' | 'full-labels'
 
 /**

@@ -9,7 +9,7 @@
  * it survives Sprint 2's lapse logic.
  *
  * ⚠️  RUN ORDER: run this BEFORE flipping `domain.paywall_enabled` on in
- *     Flagsmith. The flag defaults OFF (fail-open ⇒ ungated), so the deploy is
+ *     the flag store. The flag defaults OFF (fail-open ⇒ ungated), so the deploy is
  *     inert until both this backfill has run and Daniel flips the flag.
  *
  * Run:  node --env-file=.env.local scripts/backfill-domain-grandfather.mjs

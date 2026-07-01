@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Respuesta inválida del servidor.' }, { status: upstream.status })
     }
     // Apply platform kill-switches to the success payload. The flag read is
-    // fail-open (isEnabled → true if Flagsmith is unreachable), so Stripe is
+    // fail-open (isEnabled → true if the flag store is unreachable), so Stripe is
     // only ever removed on a deliberate dashboard toggle. Error bodies (no
     // payment_methods array) pass through untouched.
     const stripeEnabled = upstream.ok ? await isEnabled('checkout.stripe_enabled') : true

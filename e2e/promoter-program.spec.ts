@@ -23,7 +23,7 @@ import {
  *     disabled / ok), and the es-MX refusal copy.
  *  2. ROUTE GUARDS — the admin routes reject anonymously (401), and the public
  *     promoter routes are hidden while `promoter.enabled` is off (404) — the
- *     fail-open default in CI/preview where no Flagsmith key flips it on.
+ *     seeded-OFF default in CI/preview where nothing flips it on.
  *
  * NOT covered (owed to Daniel — sprint-1.md smoke walkthrough): the live discount
  * PREVIEW render at the custom-domain checkout with the flag ON (needs a real Clerk
