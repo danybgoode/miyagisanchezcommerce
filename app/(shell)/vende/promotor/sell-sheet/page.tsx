@@ -23,10 +23,10 @@ const css = `
   .ss-root { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
   .ss-h1 { font-size: 26px; font-weight: 800; margin: 0 0 4px; }
   .ss-sub { color: #555; margin: 0 0 20px; }
-  .ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
-  .ss-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+  .ss-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+  .ss-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-width: 0; }
   .ss-card h3 { margin: 0 0 4px; font-size: 15px; }
-  .ss-card p { margin: 0; font-size: 13px; color: #444; }
+  .ss-card p { margin: 0; font-size: 13px; color: #444; overflow-wrap: break-word; }
   .ss-steps { margin: 16px 0; padding: 0; list-style: none; }
   .ss-steps li { margin: 0 0 10px; font-size: 14px; }
   .ss-price { font-weight: 700; }
