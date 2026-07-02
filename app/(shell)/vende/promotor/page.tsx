@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import { currentUser } from '@clerk/nextjs/server'
 import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { isEnabled } from '@/lib/flags'
+import { getPromoterByClerkId, getPromoterSettings, getCommissionRates } from '@/lib/promoter'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildPromoterPageConfig } from '../_components/page-config'
 
@@ -38,8 +40,22 @@ export const dynamic = 'force-dynamic'
 
 export default async function PromoterResourcesPage() {
   const ui = (await getDictionary('es')).sellerAcquisition
-  const enabled = await isEnabled('promoter.enabled')
-  const config = buildPromoterPageConfig(ui, { customDomainPriceMxn: CUSTOM_DOMAIN_PRICE_MXN, enabled })
+  const [enabled, user, commissionRates, promoterSettings] = await Promise.all([
+    isEnabled('promoter.enabled'),
+    currentUser(),
+    getCommissionRates(),
+    getPromoterSettings(),
+  ])
+  // A signed-in, already-bound promoter still gets the real "Abrir mi panel" CTA (S1.3) — anyone
+  // else (logged out, or logged in but not yet bound) gets the apply-teaser CTA instead.
+  const promoter = user ? await getPromoterByClerkId(user.id) : null
+  const config = buildPromoterPageConfig(ui, {
+    customDomainPriceMxn: CUSTOM_DOMAIN_PRICE_MXN,
+    enabled,
+    isBoundPromoter: !!promoter,
+    commissionRates,
+    promoterSettings,
+  })
 
   const jsonLd = {
     '@context': 'https://schema.org',

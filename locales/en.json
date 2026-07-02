@@ -622,7 +622,8 @@
       "heroLead": "You're Miyagi Sánchez's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
       "trustLine": "Commission on every closed sale. Settlement by transfer or cash.",
       "primaryCta": "Open my close workspace",
-      "secondaryCta": "View printable sell-sheet",
+      "applyCta": "Apply to be a promoter",
+      "secondaryCta": "Promoter handbook",
       "priceDomainLabel": "Own domain per year",
       "priceSubdomainLabel": "Subdomain for everyone",
       "commissionLabel": "Your commission per sale",
@@ -681,6 +682,30 @@
           "label": "the merchant enters nothing"
         }
       ],
+      "apply": {
+        "title": "Online applications are coming soon",
+        "body": "We're building the no-intermediary application form. Meanwhile, copy the prompt above and ask your AI how it works, how much you could earn, and how to start — or check back soon."
+      },
+      "handbookTitle": "Promoter handbook",
+      "handbookLead": "The full close checklist, start to finish, so you never have to ask Daniel anything.",
+      "checklistTitle": "Close checklist",
+      "checklist": [
+        { "title": "1 · Set up", "body": "Create the merchant's shop from your workspace (it stays unclaimed) and add a first listing." },
+        { "title": "2 · Collect", "body": "Collect cash from the merchant and pay for the domain, subdomain, or ad with your own card. The sale is attributed to your code." },
+        { "title": "3 · Design the ad (when it applies)", "body": "If the close includes a printed ad: designing it from your workspace is coming soon — for now, coordinate the design directly with the team." },
+        { "title": "4 · Hand off over WhatsApp", "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account." },
+        { "title": "5 · Send the receipt", "body": "The automatic receipt to the merchant is coming soon — for now, let them know over WhatsApp yourself that everything is activated." }
+      ],
+      "scriptsTitle": "30-second scripts",
+      "scripts": [
+        { "title": "Own domain", "body": "\"Did you know your shop could live at yourname.mx instead of a long link? Looks more professional and people find you directly. It's $499 a year, one-time, and with my code I can activate it today.\"" },
+        { "title": "Subdomain", "body": "\"Your shop can have its own address, yourname.miyagisanchez.com, without buying a domain. It's $199 a year, but with my code it's FREE the first year — I can activate it today.\"" },
+        { "title": "Printed ad", "body": "\"We run in print and circulate in your area — people who don't even search online will find you there. Price depends on size, charged once, and with my code you get a price you can't get on your own.\"" },
+        { "title": "Mercado Libre sync", "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\"" }
+      ],
+      "paymentsTitle": "How payments work",
+      "paymentsBody": "You pay for the domain, subdomain, or ad with your own card when you set up the shop. The merchant pays you back in cash (or however you agree). Your commission isn't charged separately: Miyagi Sánchez records it on your account and the team settles it with you afterward, by transfer or cash.",
+      "paymentsComingSoon": "Coming soon: you'll be able to collect the full payment and transfer only what's owed, keeping your commission on the spot — no waiting for settlement.",
       "closingTitle": "Ready to close",
       "closingBody": "Open your workspace, bind your code, and start setting up shops. Every closed sale is commission for you.",
       "closingCta": "Open my close workspace"

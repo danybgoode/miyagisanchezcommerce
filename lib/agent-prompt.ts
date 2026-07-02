@@ -67,16 +67,33 @@ function buildCatalogQuery(sp?: ReadonlyParams | null): string {
 }
 
 /**
- * Shared preamble so a cold agent still works: it points at the marketplace ficha
- * (/agent) + the UCP spec before any page-specific ask.
+ * Cold-agent preambles, keyed off the page kind (epic 08 · promoter-funnel-v2 S1 ·
+ * US-1.2). Both cite the same two sources (/agent ficha + the UCP spec) before any
+ * page-specific ask; only the framing differs — a buyer's agent shops, a
+ * seller/promoter's agent evaluates an opportunity. Splitting by kind (rather than
+ * one generic line) keeps the recruiting pages from opening with "soy tu asistente
+ * de compras", which reads wrong on a page that isn't about buying.
  */
-const PREAMBLE = `Eres mi asistente de compras para Miyagi Sánchez, el marketplace sin comisiones de México.
+const SHOPPING_PREAMBLE = `Eres mi asistente de compras para Miyagi Sánchez, el marketplace sin comisiones de México.
 
 Antes de ayudarme, lee estas dos fuentes:
 • Ficha del marketplace (endpoint MCP, capacidades UCP y documentación del API): ${PLATFORM_ORIGIN}/agent
 • Especificación del Universal Commerce Protocol: https://ucp.dev
 
 Cuando las hayas revisado, podrás buscar productos, hacer ofertas y ayudarme a completar compras o negociaciones a través del API del marketplace. El marketplace admite productos físicos, digitales, servicios, rentas y suscripciones, todos pagables con Stripe, MercadoPago o SPEI.`
+
+const OPPORTUNITY_PREAMBLE = `Eres mi asesor para evaluar esta oportunidad de negocio en Miyagi Sánchez, el marketplace sin comisiones de México.
+
+Antes de ayudarme, lee estas dos fuentes:
+• Ficha del marketplace (endpoint MCP, capacidades UCP y documentación del API): ${PLATFORM_ORIGIN}/agent
+• Especificación del Universal Commerce Protocol: https://ucp.dev
+
+Cuando las hayas revisado, ayúdame a decidir si me conviene: compara cifras contra las alternativas, explícame los siguientes pasos y resuelve mis dudas.`
+
+/** Buyer-facing kinds get the shopping framing; seller/promoter get the opportunity framing. */
+function preambleFor(kind: AgentPromptContext['kind']): string {
+  return kind === 'seller' || kind === 'promoter' ? OPPORTUNITY_PREAMBLE : SHOPPING_PREAMBLE
+}
 
 const GENERIC_ASK = '¿Qué estás buscando hoy?'
 
@@ -156,7 +173,7 @@ export function withDetails(
  * preamble + a page-specific ask; never empty.
  */
 export function buildAgentPrompt(ctx: AgentPromptContext): string {
-  return `${PREAMBLE}\n\n${ask(ctx)}`
+  return `${preambleFor(ctx.kind)}\n\n${ask(ctx)}`
 }
 
 function ask(ctx: AgentPromptContext): string {

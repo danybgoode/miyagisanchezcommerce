@@ -83,14 +83,6 @@ export function sellerTrustPrompt(id: SellerPersonaId, template: string): string
   return template.replaceAll('{url}', url)
 }
 
-/**
- * Same `{url}` substitution as sellerTrustPrompt, for the promoter mini-site
- * (`/vende/promotor`) — a standalone page with no registered SellerPersonaId.
- */
-export function promoterTrustPrompt(template: string): string {
-  return template.replaceAll('{url}', `${SELLER_ACQUISITION_BASE_URL}/vende/promotor`)
-}
-
 export function parseSellerAcquisitionUtm(input?: QueryInput): SellerAcquisitionUtm {
   const params = toSearchParams(input)
   const utm: SellerAcquisitionUtm = {}

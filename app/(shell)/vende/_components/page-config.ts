@@ -5,10 +5,19 @@ import {
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
   sellerTrustPrompt,
-  promoterTrustPrompt,
   type SellerAcquisitionVariant,
   type SellerPersonaId,
 } from '@/lib/seller-acquisition'
+import { buildAgentPrompt } from '@/lib/agent-prompt'
+import type { PromoterSettings } from '@/lib/promoter'
+import type { PromoterSku } from '@/lib/promoter-skus'
+import {
+  buildPromoterEarningsTable,
+  buildPromoterEarningsExample,
+  promoterHeroCommissionStat,
+  type PromoterSkuEarnings,
+} from '@/lib/promoter-earnings'
+import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
 import type { SellerAcquisitionPageConfig } from './SellerAcquisitionSections'
 
 type QueryParams = Record<string, string | string[] | undefined | null>
@@ -128,16 +137,59 @@ export function buildServicesPageConfig(
  * but builds its config directly (plain hrefs to the close workspace + sell-sheet),
  * bypassing the persona-keyed baseConfig. es-MX only (rule #5), like the rest of /vende.
  */
+// The glossary in locales/*.json is ordered [Dominio propio, Subdominio, Anuncio impreso, Conexión
+// Mercado Libre] — this mirrors that order so each proof point can be paired with its SKU's computed
+// earnings. Keep the two in sync if the glossary is ever reordered.
+const GLOSSARY_SKU_ORDER: PromoterSku[] = ['custom_domain', 'subdomain', 'print_ad', 'ml_sync']
+
+/**
+ * Append the computed regular/promoter price + commission to a glossary body — degrades to the
+ * body unchanged when nothing is configured yet (never a "$0"/placeholder). `subdomain` is skipped
+ * by the caller: its glossary copy already states the promoter angle in words (the future
+ * free-first-year grant, US-3.2), and appending the *current* checkout-discount math there would
+ * contradict that framing.
+ */
+function withEarningsLine(body: string, earnings: PromoterSkuEarnings): string {
+  if (earnings.variablePrice) {
+    return earnings.commissionPct != null ? `${body} Tu comisión: ${earnings.commissionPct}%.` : body
+  }
+  if (earnings.commissionMxn == null) return body
+  return `${body} Con tu código: $${earnings.promoterPriceMxn} MXN para el comerciante · tu comisión: $${earnings.commissionMxn} MXN.`
+}
+
 export function buildPromoterPageConfig(
   copy: SellerAcquisitionCopy,
-  opts: { customDomainPriceMxn: number; enabled: boolean },
+  opts: {
+    customDomainPriceMxn: number
+    enabled: boolean
+    isBoundPromoter?: boolean
+    commissionRates?: Record<PromoterSku, number>
+    promoterSettings?: PromoterSettings
+  },
 ): SellerAcquisitionPageConfig {
   const page = copy.promotor
   const priceMxn = opts.customDomainPriceMxn
+  const isBoundPromoter = opts.isBoundPromoter ?? false
+  const promoterSettings: PromoterSettings = opts.promoterSettings ?? { enabled: false, discount_type: 'fixed', discount_amount_cents: 0 }
+  const commissionRates: Record<PromoterSku, number> = opts.commissionRates ?? {
+    custom_domain: 0,
+    print_ad: 0,
+    subdomain: 0,
+    ml_sync: 0,
+  }
+  const earningsTable = buildPromoterEarningsTable(commissionRates, promoterSettings)
+  const heroCommissionStat = promoterHeroCommissionStat(commissionRates)
+  const monthlyExample = buildPromoterEarningsExample(commissionRates, promoterSettings, [5])
   // The close workspace (`/promotor/cerrar`) 404s when the program is off — hide both CTAs
   // that point there rather than link to a dead page (epic 08 · promoter-funnel-fixes S1.2).
   const closeWorkspaceCta = (label: string, testId: string) =>
     opts.enabled ? { label, href: '/promotor/cerrar', testId } : null
+  const APPLY_TEASER_ID = 'promotor-aplica'
+  // A visitor who hasn't bound a code yet has nowhere to click "Abrir mi panel" (S1.3) — the
+  // self-serve application form doesn't exist until Sprint 2, so the interim CTA anchors to an
+  // on-page teaser instead of a dead link. An already-bound promoter keeps the real close-workspace CTA.
+  const primaryOrApplyCta = (testId: string) =>
+    isBoundPromoter ? closeWorkspaceCta(page.closingCta, testId) : { label: page.applyCta, href: `#${APPLY_TEASER_ID}`, testId }
   return {
     pageId: 'promotor',
     variant: 'a',
@@ -145,33 +197,56 @@ export function buildPromoterPageConfig(
     title: page.heroTitle,
     lead: page.heroLead,
     trustLine: page.trustLine,
-    trustPrompt: promoterTrustPrompt(copy.shared.trustPrompt),
+    // Single source (epic 08 · promoter-funnel-v2 S1 · US-1.1): the same builder the
+    // navbar "Agente IA" sheet uses for this page (resolveAgentContext maps
+    // /vende/promotor → kind:'promoter'), so hero and sheet can never drift.
+    trustPrompt: buildAgentPrompt({ kind: 'promoter' }),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
-    primaryCta: closeWorkspaceCta(page.primaryCta, 'promotor-primary-cta'),
+    primaryCta: primaryOrApplyCta('promotor-primary-cta'),
     secondaryCta: { label: page.secondaryCta, href: '/vende/promotor/sell-sheet' },
-    // Pricing figures — the custom-domain price is the one fixed number; print-ad is per-edition.
+    // Pricing figures — the custom-domain + subdomain prices are fixed numbers; the commission
+    // stat is computed from the live admin config (US-1.4) and hidden (not "%"/"0%") until a rate
+    // is configured.
     heroStats: [
       { value: `$${priceMxn}`, label: page.priceDomainLabel },
-      { value: 'Gratis', label: page.priceSubdomainLabel },
-      { value: '%', label: page.commissionLabel },
+      { value: `$${SUBDOMAIN_PRICE_YEARLY_MXN}`, label: page.priceSubdomainLabel },
+      ...(heroCommissionStat ? [{ value: heroCommissionStat, label: page.commissionLabel }] : []),
     ],
     proofTitle: page.proofTitle,
     proofLead: page.proofLead,
-    // The glossary maps cleanly onto proof points (icon/title/body).
-    proofPoints: page.glossary,
+    // The glossary maps onto proof points (icon/title/body), with the computed regular/promoter
+    // price + commission appended per SKU (US-1.4) — degrades to the plain glossary body until a
+    // rate is configured.
+    proofPoints: page.glossary.map((point, i) => {
+      const sku = GLOSSARY_SKU_ORDER[i]
+      if (sku === 'subdomain') return point
+      const earnings = earningsTable.find((r) => r.sku === sku)
+      return earnings ? { ...point, body: withEarningsLine(point.body, earnings) } : point
+    }),
     stepsTitle: page.stepsTitle,
     steps: page.steps,
     agentTitle: copy.shared.selfCheck.title,
     agentBody: copy.shared.selfCheck.body,
     socialTitle: page.pitchTitle,
     socialBody: page.pitchBody,
-    socialStats: page.pitchStats,
+    // The 3rd pitch stat becomes a "close N shops/month" earnings example once the representative
+    // SKU has a configured rate; degrades to the original placeholder stats until then.
+    socialStats: monthlyExample
+      ? [
+          page.pitchStats[0],
+          page.pitchStats[1],
+          { value: `$${monthlyExample[0].estimatedMonthlyMxn}`, label: `cerrando ${monthlyExample[0].closesPerMonth} tiendas/mes` },
+        ]
+      : page.pitchStats,
     faqTitle: copy.shared.faqTitle,
     faqs: copy.shared.faqs,
     closingTitle: page.closingTitle,
     closingBody: page.closingBody,
-    closingCta: closeWorkspaceCta(page.closingCta, 'promotor-closing-cta'),
+    closingCta: primaryOrApplyCta('promotor-closing-cta'),
+    applyTeaser: isBoundPromoter
+      ? undefined
+      : { id: APPLY_TEASER_ID, title: page.apply.title, body: page.apply.body },
   }
 }
 

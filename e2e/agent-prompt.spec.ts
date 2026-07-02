@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { buildAgentPrompt, resolveAgentContext, withDetails } from '../lib/agent-prompt'
+import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
 
 test.describe('buildAgentPrompt · generic es-MX hand-off (S1.2)', () => {
   const prompt = buildAgentPrompt({ kind: 'generic' })
@@ -246,6 +248,23 @@ test.describe('resolveAgentContext · seller/promoter paths (promoter-funnel-fix
   })
 })
 
+test.describe('promoter landing hero prompt · single source (promoter-funnel-v2 S1 · US-1.1)', () => {
+  const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8'))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const copy = es.sellerAcquisition as any
+
+  test('the hero trustPrompt is byte-identical to the sheet\'s promoter prompt — can\'t drift', () => {
+    const config = buildPromoterPageConfig(copy, { customDomainPriceMxn: 499, enabled: true })
+    expect(config.trustPrompt).toBe(buildAgentPrompt({ kind: 'promoter' }))
+  })
+
+  test('the hero prompt is the real promoter ask, not the generic Mercado Libre/Shopify comparison', () => {
+    const config = buildPromoterPageConfig(copy, { customDomainPriceMxn: 499, enabled: true })
+    expect(config.trustPrompt).toContain('Quiero ser promotor de Miyagi Sánchez')
+    expect(config.trustPrompt).toContain('https://miyagisanchez.com/vende/promotor')
+  })
+})
+
 test.describe('buildAgentPrompt · seller/promoter asks (promoter-funnel-fixes S1.3)', () => {
   test('seller ask pitches selling + points at /vende, not the generic buyer ask', () => {
     const p = buildAgentPrompt({ kind: 'seller' })
@@ -266,6 +285,32 @@ test.describe('buildAgentPrompt · seller/promoter asks (promoter-funnel-fixes S
     for (const p of [buildAgentPrompt({ kind: 'seller' }), buildAgentPrompt({ kind: 'promoter' })]) {
       expect(p).toContain('https://miyagisanchez.com/agent')
       expect(p).toContain('https://ucp.dev')
+    }
+  })
+})
+
+test.describe('buildAgentPrompt · context-aware preamble (promoter-funnel-v2 S1 · US-1.2)', () => {
+  test('seller/promoter get the opportunity-evaluation framing, not the shopping-assistant one', () => {
+    for (const p of [buildAgentPrompt({ kind: 'seller' }), buildAgentPrompt({ kind: 'promoter' })]) {
+      expect(p).not.toContain('asistente de compras')
+      expect(p).toContain('evaluar esta oportunidad de negocio')
+      expect(p).toContain('https://miyagisanchez.com/agent')
+      expect(p).toContain('https://ucp.dev')
+    }
+  })
+
+  test('buyer-facing kinds keep the shopping-assistant preamble (regression, byte-identical)', () => {
+    const generic = buildAgentPrompt({ kind: 'generic' })
+    expect(generic).toContain('Eres mi asistente de compras')
+    expect(generic).not.toContain('evaluar esta oportunidad de negocio')
+
+    for (const p of [
+      buildAgentPrompt({ kind: 'pdp', listingId: 'p1' }),
+      buildAgentPrompt({ kind: 'catalog' }),
+      buildAgentPrompt({ kind: 'shop', slug: 'zap' }),
+      buildAgentPrompt({ kind: 'account' }),
+    ]) {
+      expect(p).toContain('Eres mi asistente de compras')
     }
   })
 })

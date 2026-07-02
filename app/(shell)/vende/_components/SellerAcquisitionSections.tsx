@@ -82,6 +82,15 @@ type PremiumFeatures = {
   items: PremiumFeatureItem[]
 }
 
+// Interim "apply to be a promoter" nudge (epic 08 · promoter-funnel-v2 S1 · US-1.3), shown to a
+// not-yet-bound visitor whose primary CTA anchors here instead of a self-serve form that doesn't
+// exist until Sprint 2 — an in-page anchor, never a dead link.
+type ApplyTeaser = {
+  id: string
+  title: string
+  body: string
+}
+
 type LandingAiChannel = {
   eyebrow: string
   title: string
@@ -131,6 +140,7 @@ export type SellerAcquisitionPageConfig = {
   closingCta: LandingCta | null
   benchmark?: LandingBenchmark
   aiChannel?: LandingAiChannel
+  applyTeaser?: ApplyTeaser
 }
 
 export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPageConfig }) {
@@ -157,8 +167,22 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
         <SocialProofSection config={config} />
       )}
       <FaqSection config={config} />
+      {config.applyTeaser ? <ApplyTeaserSection teaser={config.applyTeaser} /> : null}
       <ClosingCta config={config} />
     </main>
+  )
+}
+
+function ApplyTeaserSection({ teaser }: { teaser: ApplyTeaser }) {
+  return (
+    <section id={teaser.id} aria-labelledby={`${teaser.id}-title`} style={{ marginBottom: 'var(--s-10)' }}>
+      <article className="card-panel" style={{ padding: 'var(--s-6)' }}>
+        <h2 id={`${teaser.id}-title`} className="t-h3" style={{ letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
+          {teaser.title}
+        </h2>
+        <p className="t-lead" style={{ color: 'var(--fg-muted)' }}>{teaser.body}</p>
+      </article>
+    </section>
   )
 }
 
