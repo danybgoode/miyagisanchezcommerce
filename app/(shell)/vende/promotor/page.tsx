@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
+import { isEnabled } from '@/lib/flags'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildPromoterPageConfig } from '../_components/page-config'
 
@@ -31,9 +32,14 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title: meta.title, description: meta.description },
 }
 
+// Reads the live promoter.enabled flag (below) to hide the close-workspace CTA when the
+// program is off — can't be statically generated at build time like a pure content page.
+export const dynamic = 'force-dynamic'
+
 export default async function PromoterResourcesPage() {
   const ui = (await getDictionary('es')).sellerAcquisition
-  const config = buildPromoterPageConfig(ui, { customDomainPriceMxn: CUSTOM_DOMAIN_PRICE_MXN })
+  const enabled = await isEnabled('promoter.enabled')
+  const config = buildPromoterPageConfig(ui, { customDomainPriceMxn: CUSTOM_DOMAIN_PRICE_MXN, enabled })
 
   const jsonLd = {
     '@context': 'https://schema.org',

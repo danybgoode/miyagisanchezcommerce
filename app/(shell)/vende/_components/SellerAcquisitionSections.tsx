@@ -100,7 +100,9 @@ export type SellerAcquisitionPageConfig = {
   trustPrompt: string
   copyLabel: string
   copiedLabel: string
-  primaryCta: LandingCta
+  // Nullable so a flag-gated CTA (e.g. the promoter close workspace) can hide itself
+  // outright when the target route would 404, instead of linking to a dead page.
+  primaryCta: LandingCta | null
   secondaryCta?: LandingCta
   heroStats: Array<{ value: string; label: string }>
   // Anchor leads its hero right panel with a value list (0% · IA · Premium); personas fall back to heroStats.
@@ -126,7 +128,7 @@ export type SellerAcquisitionPageConfig = {
   faqs: LandingStep[]
   closingTitle: string
   closingBody: string
-  closingCta: LandingCta
+  closingCta: LandingCta | null
   benchmark?: LandingBenchmark
   aiChannel?: LandingAiChannel
 }
@@ -201,15 +203,17 @@ function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
         className={styles.cta}
         style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-3)', alignItems: 'center' }}
       >
-        <Link
-          href={config.primaryCta.href}
-          className="btn btn-primary btn-lg"
-          data-testid={config.primaryCta.testId}
-          prefetch={false}
-        >
-          {config.primaryCta.label}
-          <i className="iconoir-arrow-right" aria-hidden="true" />
-        </Link>
+        {config.primaryCta ? (
+          <Link
+            href={config.primaryCta.href}
+            className="btn btn-primary btn-lg"
+            data-testid={config.primaryCta.testId}
+            prefetch={false}
+          >
+            {config.primaryCta.label}
+            <i className="iconoir-arrow-right" aria-hidden="true" />
+          </Link>
+        ) : null}
         {config.secondaryCta ? (
           <Link href={config.secondaryCta.href} className="btn btn-secondary btn-lg" prefetch={false}>
             {config.secondaryCta.label}
@@ -561,15 +565,17 @@ function ClosingCta({ config }: { config: SellerAcquisitionPageConfig }) {
         </h2>
         <p className="t-lead">{config.closingBody}</p>
       </div>
-      <Link
-        href={config.closingCta.href}
-        className="btn btn-primary btn-lg"
-        data-testid={config.closingCta.testId}
-        prefetch={false}
-      >
-        {config.closingCta.label}
-        <i className="iconoir-arrow-right" aria-hidden="true" />
-      </Link>
+      {config.closingCta ? (
+        <Link
+          href={config.closingCta.href}
+          className="btn btn-primary btn-lg"
+          data-testid={config.closingCta.testId}
+          prefetch={false}
+        >
+          {config.closingCta.label}
+          <i className="iconoir-arrow-right" aria-hidden="true" />
+        </Link>
+      ) : null}
     </section>
   )
 }
