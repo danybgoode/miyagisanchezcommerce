@@ -90,4 +90,18 @@ test.describe('supply importer auth · anonymous & wrong-secret rejected (no fai
     const res = await request.post('/api/supply/batches', { data: { name: 'spec batch' } })
     expect(res.status()).toBe(401)
   })
+
+  test('POST /api/supply/listing-images → 401 (anonymous, no secret)', async ({ request }) => {
+    const res = await request.post('/api/supply/listing-images', {
+      data: { product_id: 'prod_x', images: [{ url: 'https://example.com/a.jpg' }] },
+    })
+    expect(res.status()).toBe(401)
+  })
+
+  test('POST /api/supply/listing-images?secret=<wrong> → 401', async ({ request }) => {
+    const res = await request.post('/api/supply/listing-images?secret=not-a-real-secret-value', {
+      data: { product_id: 'prod_x', images: [{ url: 'https://example.com/a.jpg' }] },
+    })
+    expect(res.status()).toBe(401)
+  })
 })
