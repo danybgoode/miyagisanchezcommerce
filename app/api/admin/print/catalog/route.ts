@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/admin/guard'
-import { searchListings, formatPrice } from '@/lib/listings'
+import { searchListings, toCatalogItems } from '@/lib/listings'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,13 +15,5 @@ export const GET = withAdmin(async (req: NextRequest) => {
   const q = req.nextUrl.searchParams.get('q') ?? ''
 
   const { listings } = await searchListings({ q, page: '1' })
-  const items = listings.map((l) => ({
-    id: l.id,
-    title: l.title,
-    description: l.description,
-    price: l.price_cents != null ? formatPrice(l) : null,
-    image: l.images?.[0]?.url ?? null,
-    shop: l.shop ? { slug: l.shop.slug, name: l.shop.name, logo: l.shop.logo_url ?? null, description: l.shop.description ?? null } : null,
-  }))
-  return NextResponse.json({ items })
+  return NextResponse.json({ items: toCatalogItems(listings) })
 })

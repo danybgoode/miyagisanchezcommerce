@@ -26,6 +26,9 @@ import {
  *     mutation (S2.1).
  *   • `withSupplyAdmin(handler)` — **`/api/supply/*` only.** Clerk admin OR the
  *     shared `ADMIN_SECRET` (the documented headless importer path — see below).
+ *   • `withPrintStudio(handler)` — **`/api/admin/print/studio/*` only.** Clerk
+ *     admin OR a `PRINT_STUDIO_TOKEN` Bearer token (the zine studio, a separate
+ *     local app with no Clerk session — see below).
  *
  * The identity decision lives in the pure `lib/admin/identity.ts`.
  */
@@ -162,6 +165,55 @@ export function withSupplyAdmin<R extends Request = Request, C = unknown>(
   return async (req: R, context: C) => {
     const clerkAdmin = await currentUserIsAdmin()
     if (!clerkAdmin && !hasValidAdminSecret(req)) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    const audited = isAuditedMethod(req.method)
+    const bodyClone = audited ? req.clone() : null
+    const res = await handler(req, context)
+    if (audited && res.status < 400) {
+      after(() => recordAdminAudit(req, bodyClone))
+    }
+    return res
+  }
+}
+
+/**
+ * Bearer-token check for the zine studio machine path. Reads `Authorization:
+ * Bearer <token>` and compares it to `PRINT_STUDIO_TOKEN`. Returns `false` when
+ * the env var is unset or empty — no configured token means no token-based
+ * access (never fail-open), same posture as `hasValidAdminSecret`.
+ */
+function hasValidPrintStudioToken(req: Request): boolean {
+  const token = process.env.PRINT_STUDIO_TOKEN
+  if (!token) return false
+  const auth = req.headers.get('authorization') ?? ''
+  const [scheme, value] = auth.split(' ')
+  return scheme === 'Bearer' && value === token
+}
+
+/**
+ * API-route wrapper for **`/api/admin/print/studio/*` only**. The zine studio
+ * (epic `zine-editing-central`, Story 1.2) is a headless machine client — a
+ * separate local app with no Clerk session — that needs to read real paid-ad /
+ * social / catalog data and flip a submission `approved ⇄ placed`. A request is
+ * authorised by EITHER a Clerk admin session OR a valid `PRINT_STUDIO_TOKEN`
+ * Bearer token. Successful Clerk mutations are still audited; the token path
+ * has no Clerk actor (null), same as the supply machine path.
+ *
+ * Deliberately narrow — do NOT reuse for the rest of `/api/admin/print/*`
+ * (those stay Clerk-only via `withAdmin`); the studio surface itself is also
+ * deliberately narrow in what it lets the token mutate (see the `studio/`
+ * routes — one status transition only, nothing money-touching).
+ */
+export function withPrintStudio<R extends Request = Request, C = unknown>(
+  handler: RouteHandler<R, C>,
+): (req: R, context: C) => Promise<Response> {
+  return async (req: R, context: C) => {
+    const clerkAdmin = await currentUserIsAdmin()
+    if (!clerkAdmin && !hasValidPrintStudioToken(req)) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },

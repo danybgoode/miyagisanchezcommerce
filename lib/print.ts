@@ -109,6 +109,18 @@ export const PRINT_OCCUPYING_STATUSES: PrintSubmissionStatus[] = [
   'placed',
 ]
 
+/**
+ * The one status transition the print-studio (zine) machine surface may make —
+ * `approved ⇄ placed`, and nothing else (no refunds, no rejections, no touching
+ * `paid`). Pure so it's directly unit-testable without hitting the route.
+ */
+export function isValidStudioTransition(
+  from: PrintSubmissionStatus,
+  to: PrintSubmissionStatus,
+): boolean {
+  return (from === 'approved' && to === 'placed') || (from === 'placed' && to === 'approved')
+}
+
 export interface PrintCtaTarget {
   type: 'listing' | 'shop'
   id: string
@@ -161,6 +173,42 @@ export interface PrintAdSubmission {
   admin_notes: string | null
   created_at: string
   updated_at: string
+}
+
+/**
+ * The slice of a submission the print-studio (zine) machine surface may read —
+ * layout-relevant fields only. A `PRINT_STUDIO_TOKEN` bearer is a weaker
+ * assurance than a Clerk admin session (no MFA, typically sits in a local
+ * `.env`), so it must not receive buyer PII (email, Clerk id) or payment
+ * details (SPEI CLABE/bank/phone) the full admin-console row carries.
+ */
+export interface PrintStudioSafeSubmission {
+  id: string
+  edition_id: string
+  tier_key: PrintTierKey
+  status: PrintSubmissionStatus
+  content: Omit<PrintAdContent, 'manual_payment' | 'contact' | 'payment_reported' | 'payment_reported_at' | 'payment_reminded' | 'change_requests'>
+  created_at: string
+}
+
+export function toStudioSafeSubmission(sub: PrintAdSubmission): PrintStudioSafeSubmission {
+  const {
+    manual_payment: _manual_payment,
+    contact: _contact,
+    payment_reported: _payment_reported,
+    payment_reported_at: _payment_reported_at,
+    payment_reminded: _payment_reminded,
+    change_requests: _change_requests,
+    ...safeContent
+  } = sub.content
+  return {
+    id: sub.id,
+    edition_id: sub.edition_id,
+    tier_key: sub.tier_key,
+    status: sub.status,
+    content: safeContent,
+    created_at: sub.created_at,
+  }
 }
 
 /** Central WhatsApp surfaced on every ad (Miyagi concierge line). */
