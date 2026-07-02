@@ -109,6 +109,18 @@ export const PRINT_OCCUPYING_STATUSES: PrintSubmissionStatus[] = [
   'placed',
 ]
 
+/**
+ * The one status transition the print-studio (zine) machine surface may make —
+ * `approved ⇄ placed`, and nothing else (no refunds, no rejections, no touching
+ * `paid`). Pure so it's directly unit-testable without hitting the route.
+ */
+export function isValidStudioTransition(
+  from: PrintSubmissionStatus,
+  to: PrintSubmissionStatus,
+): boolean {
+  return (from === 'approved' && to === 'placed') || (from === 'placed' && to === 'approved')
+}
+
 export interface PrintCtaTarget {
   type: 'listing' | 'shop'
   id: string
