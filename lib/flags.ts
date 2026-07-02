@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'subdomain.paywall_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -103,6 +103,14 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    subdomain. Enabling is the deliberate act: flip ON only AFTER the grandfather
  *    backfill has stamped existing shops. Read in the Node-runtime middleware gate
  *    (US-1); flipping OFF is the instant rollback for the universal subdomain surface.
+ *  - ENABLEMENT (`seller_agent.connector_url_enabled`): default `false`. The
+ *    always-on personal MCP URL + "Agregar a Claude" one-click (epic 03 ·
+ *    seller-agent-connect-mcp-url Sprint 2) — a NEW authentication path to
+ *    seller-scoped MCP tools (`/api/ucp/mcp/c/<slug>`, `lib/agent-auth.ts`
+ *    `ms_connector_…` credential). Default OFF ⇒ the URL route 404s and the panel
+ *    shows only today's Bearer-token flow, so a flag outage can never expose an
+ *    unverified auth path. Flip ON only after the auth `api` specs are green and
+ *    Daniel's live claude.ai connector round-trip smoke passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -117,6 +125,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ml.sync_enabled': false,
   'ml.sync_paywall_enabled': false,
   'subdomain.paywall_enabled': false,
+  'seller_agent.connector_url_enabled': false,
 }
 
 const TABLE = 'platform_flags'

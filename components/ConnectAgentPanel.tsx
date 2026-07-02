@@ -1,19 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 /**
  * "Conecta tu agente" — the reusable per-shop MCP token + config helper.
  *
- * Generates a per-shop agent token (POST /api/sell/agent-token, DELETE to revoke)
- * and renders the ready-to-paste MCP-client config snippet. Self-contained so it can
- * be dropped onto the first-run success screen as well as the seller settings page —
- * it mirrors the proven token-generation + copy-button pattern without depending on
- * the settings page's local helpers.
+ * Two credentials, one panel:
+ *  - The **personal MCP URL** (Sprint 2 of seller-agent-connect-mcp-url) — always
+ *    shown, no button press, because claude.ai's custom-connector modal only
+ *    accepts a URL (no Bearer-header field). Backed by
+ *    GET/POST/DELETE `/api/sell/agent-connector`, gated by the
+ *    `seller_agent.connector_url_enabled` kill-switch — a 404 (flag off) falls
+ *    back to legacy-only, so this component degrades gracefully with zero
+ *    special-casing by the caller.
+ *  - The existing **Bearer token** (POST/DELETE `/api/sell/agent-token`) — unchanged,
+ *    for Claude Desktop / CLI / other MCP clients that DO support a header.
+ *
+ * Self-contained so it can be dropped onto the first-run success screen as well as
+ * the seller settings page.
  */
 
 const MCP_URL = 'https://miyagisanchez.com/api/ucp/mcp'
 const TOKEN_PLACEHOLDER = 'PEGA_TU_TOKEN_AQUÍ'
+const ADD_TO_CLAUDE_URL = 'https://claude.ai/customize/connectors?modal=add-custom-connector'
 
 function mcpSnippet(token: string): string {
   return `{
@@ -33,6 +42,49 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
   const [busy, setBusy] = useState(false)
   const [tokenCopied, setTokenCopied] = useState(false)
   const [snippetCopied, setSnippetCopied] = useState(false)
+
+  // Personal MCP URL (Sprint 2). `null` while loading/unavailable (flag off) —
+  // the block below simply doesn't render until we know it exists.
+  const [connectorUrl, setConnectorUrl] = useState<string | null>(null)
+  const [connectorRevoked, setConnectorRevoked] = useState(false) // explicit revoke → show "generar" instead of auto-refetch
+  const [connectorBusy, setConnectorBusy] = useState(false)
+  const [connectorCopied, setConnectorCopied] = useState(false)
+
+  async function fetchConnector() {
+    try {
+      const res = await fetch('/api/sell/agent-connector')
+      if (!res.ok) return // 404 (flag off) or not signed in — stays hidden, legacy flow only
+      const data = (await res.json().catch(() => ({}))) as { url?: string }
+      if (data.url) { setConnectorUrl(data.url); setConnectorRevoked(false) }
+    } catch {
+      /* network error — stays hidden, legacy flow only */
+    }
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetchConnector() }, [])
+
+  async function rotateConnector() {
+    setConnectorBusy(true)
+    try {
+      const res = await fetch('/api/sell/agent-connector', { method: 'POST' })
+      const data = (await res.json().catch(() => ({}))) as { url?: string }
+      if (res.ok && data.url) { setConnectorUrl(data.url); setConnectorRevoked(false) }
+    } catch {
+      /* no-op — retry */
+    } finally { setConnectorBusy(false) }
+  }
+
+  async function revokeConnector() {
+    setConnectorBusy(true)
+    try {
+      await fetch('/api/sell/agent-connector', { method: 'DELETE' })
+      setConnectorUrl(null)
+      setConnectorRevoked(true)
+    } catch {
+      /* no-op — retry */
+    } finally { setConnectorBusy(false) }
+  }
 
   async function generate() {
     setBusy(true)
@@ -59,12 +111,76 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
 
   return (
     <div>
+      {/* Personal MCP URL — always shown once provisioned, no button press to discover.
+          Renders nothing if the flag is off (fetchConnector silently no-ops on 404). */}
+      {connectorUrl ? (
+        <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl p-4 mb-4">
+          <p className="text-xs font-semibold mb-2">Tu URL personal de agente (MCP)</p>
+          <p className="text-xs text-[var(--color-muted)] mb-3">
+            Pégala directo en Claude — sin token, sin config. Trátala como una contraseña: cualquiera con
+            este enlace puede leer y ajustar tu tienda.
+          </p>
+          <div className="flex items-center gap-2 bg-white border border-[var(--color-border)] rounded-lg px-3 py-2 mb-3">
+            <code className="flex-1 text-xs font-mono text-[var(--color-foreground)] break-all">{connectorUrl}</code>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(connectorUrl); setConnectorCopied(true); setTimeout(() => setConnectorCopied(false), 2000) }}
+              className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
+            >
+              {connectorCopied ? '✓ Copiado' : 'Copiar'}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={ADD_TO_CLAUDE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
+            >
+              Agregar a Claude
+            </a>
+            <button
+              type="button"
+              onClick={rotateConnector}
+              disabled={connectorBusy}
+              className="text-xs text-[var(--color-muted)] border border-[var(--color-border)] rounded px-2.5 py-1.5 hover:bg-gray-100 disabled:opacity-50"
+            >
+              Rotar
+            </button>
+            <button
+              type="button"
+              onClick={revokeConnector}
+              disabled={connectorBusy}
+              className="text-xs text-red-600 border border-red-200 rounded px-2.5 py-1.5 hover:bg-red-50 disabled:opacity-50"
+            >
+              Revocar
+            </button>
+          </div>
+          <p className="text-[11px] text-[var(--color-muted)] mt-2">
+            Rotar invalida el enlace anterior de inmediato. Pagos, dominio y Cal.com siempre se quedan en un
+            paso manual.
+          </p>
+        </div>
+      ) : connectorRevoked ? (
+        <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl p-4 mb-4">
+          <p className="text-xs text-[var(--color-muted)] mb-2">Revocaste tu URL de agente.</p>
+          <button
+            type="button"
+            onClick={fetchConnector}
+            disabled={connectorBusy}
+            className="text-xs bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+          >
+            Generar nueva URL
+          </button>
+        </div>
+      ) : null}
+
       <p className="text-xs text-[var(--color-muted)] mb-3">
-        Genera un token para que tu propio agente de IA lea y ajuste tu tienda vía MCP. Solo afecta a esta
-        tienda. Pagos, dominio y Cal.com siempre se quedan en un paso manual.
+        Para Claude Desktop u otros clientes MCP: genera un token con encabezado <code className="font-mono">Authorization</code>.
+        Solo afecta a esta tienda. Pagos, dominio y Cal.com siempre se quedan en un paso manual.
       </p>
 
-      {/* Token generation (show-once) */}
+      {/* Token generation (show-once) — para Claude Desktop u otros clientes */}
       {token ? (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
           <p className="text-xs font-semibold text-amber-800 mb-2">⚠️ Copia este token ahora — no se vuelve a mostrar.</p>

@@ -58,6 +58,10 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // no paywall (any connected seller may enable sync); flip ON to start charging.
   'ml.sync_paywall_enabled': { polarity: 'enablement', default: false },
   'subdomain.paywall_enabled': { polarity: 'enablement', default: false },
+  // Personal MCP URL + Claude one-click (epic 03 · seller-agent-connect-mcp-url S2) —
+  // a NEW auth path to seller-scoped MCP tools. Enablement: default OFF ⇒ the URL
+  // route 404s and the panel shows only the existing Bearer-token flow.
+  'seller_agent.connector_url_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
