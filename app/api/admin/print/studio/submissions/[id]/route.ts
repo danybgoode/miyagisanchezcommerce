@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { withPrintStudio } from '@/lib/admin/guard'
-import { isValidStudioTransition, type PrintSubmissionStatus } from '@/lib/print'
+import { isValidStudioTransition, toStudioSafeSubmission, type PrintAdSubmission, type PrintSubmissionStatus } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +45,9 @@ export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { para
     .from('print_ad_submissions')
     .update({ status: body.status })
     .eq('id', id)
-    .select('*')
+    .select('id, edition_id, tier_key, status, content, created_at')
     .single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
 
-  return NextResponse.json({ submission: data })
+  return NextResponse.json({ submission: toStudioSafeSubmission(data as PrintAdSubmission) })
 })
