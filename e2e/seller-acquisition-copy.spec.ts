@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { sellerTrustPrompt, promoterTrustPrompt } from '../lib/seller-acquisition'
+import { sellerTrustPrompt } from '../lib/seller-acquisition'
+import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
 
 // Locked es-MX copy from COPY-BRIEF.md (Sprint 1, approved 2026-06-25). These guards keep the
 // distrust framing, internal jargon, and un-accented offenders from creeping back into the
@@ -67,16 +68,6 @@ test.describe('seller acquisition · es-MX copy guards', () => {
     expect(servicios).toContain('https://miyagisanchez.com/vende/servicios')
   })
 
-  // ── agent-discovery-and-indexing (Sprint 1) — the promoted prompt targets /vende everywhere ──
-
-  test('promoterTrustPrompt resolves {url} to the promoter mini-site (not a registered persona)', () => {
-    const promoter = promoterTrustPrompt(sa.shared.trustPrompt)
-    expect(promoter).toContain('https://miyagisanchez.com/vende/promotor')
-    expect(promoter).not.toContain('{url}')
-    expect(promoter).toContain('Mercado Libre')
-    expect(promoter).toContain('Shopify')
-  })
-
   // ── launch polish (seller-landing-launch-polish, Sprint 1) ──────────────────────────────
 
   test('brand voice: no bare "Miyagi" (only "Miyagi Sánchez" or "miyagisanchez.com")', () => {
@@ -135,5 +126,35 @@ test.describe('seller acquisition · es-MX copy guards', () => {
     expect(ex.rows).toHaveLength(3)
     expect(ex.footnotes).toHaveLength(4)
     expect(ex.punchline).toContain('Mercado Libre')
+  })
+})
+
+test.describe('promoter landing · CTA + wording sweep (promoter-funnel-v2 S1 · US-1.3)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promoterCopy = (sa as any).promotor
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fullCopy = sa as any
+
+  test('no stale "subdomain is free for everyone" claim remains in the glossary', () => {
+    const subdomainEntry = promoterCopy.glossary.find((g: { title: string }) => g.title === 'Subdominio')
+    expect(subdomainEntry.body).not.toContain('gratis para todos')
+    expect(subdomainEntry.body).toContain('$199')
+    expect(subdomainEntry.body).toContain('GRATIS el primer año')
+  })
+
+  test('a not-yet-bound visitor gets the apply CTA, never the dead-ended workspace CTA', () => {
+    const config = buildPromoterPageConfig(fullCopy, { customDomainPriceMxn: 499, enabled: true, isBoundPromoter: false })
+    expect(config.primaryCta?.label).toBe('Aplica para ser promotor')
+    expect(config.primaryCta?.label).not.toBe('Abrir mi panel para cerrar')
+    // Never a dead link: the apply CTA anchors to the on-page teaser, not a route.
+    expect(config.primaryCta?.href).toBe('#promotor-aplica')
+    expect(config.applyTeaser?.id).toBe('promotor-aplica')
+  })
+
+  test('a bound promoter keeps the real close-workspace CTA', () => {
+    const config = buildPromoterPageConfig(fullCopy, { customDomainPriceMxn: 499, enabled: true, isBoundPromoter: true })
+    expect(config.primaryCta?.label).toBe('Abrir mi panel para cerrar')
+    expect(config.primaryCta?.href).toBe('/promotor/cerrar')
+    expect(config.applyTeaser).toBeUndefined()
   })
 })
