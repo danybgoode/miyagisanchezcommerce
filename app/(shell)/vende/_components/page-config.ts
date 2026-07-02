@@ -5,10 +5,10 @@ import {
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
   sellerTrustPrompt,
-  promoterTrustPrompt,
   type SellerAcquisitionVariant,
   type SellerPersonaId,
 } from '@/lib/seller-acquisition'
+import { buildAgentPrompt } from '@/lib/agent-prompt'
 import type { SellerAcquisitionPageConfig } from './SellerAcquisitionSections'
 
 type QueryParams = Record<string, string | string[] | undefined | null>
@@ -145,7 +145,10 @@ export function buildPromoterPageConfig(
     title: page.heroTitle,
     lead: page.heroLead,
     trustLine: page.trustLine,
-    trustPrompt: promoterTrustPrompt(copy.shared.trustPrompt),
+    // Single source (epic 08 · promoter-funnel-v2 S1 · US-1.1): the same builder the
+    // navbar "Agente IA" sheet uses for this page (resolveAgentContext maps
+    // /vende/promotor → kind:'promoter'), so hero and sheet can never drift.
+    trustPrompt: buildAgentPrompt({ kind: 'promoter' }),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
     primaryCta: closeWorkspaceCta(page.primaryCta, 'promotor-primary-cta'),

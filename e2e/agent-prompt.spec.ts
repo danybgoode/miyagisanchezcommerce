@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { buildAgentPrompt, resolveAgentContext, withDetails } from '../lib/agent-prompt'
+import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
 
 test.describe('buildAgentPrompt · generic es-MX hand-off (S1.2)', () => {
   const prompt = buildAgentPrompt({ kind: 'generic' })
@@ -243,6 +245,23 @@ test.describe('resolveAgentContext · seller/promoter paths (promoter-funnel-fix
     expect(resolveAgentContext('/s/zapatos-mx', null)).toEqual({ kind: 'shop', slug: 'zapatos-mx' })
     expect(resolveAgentContext('/account', null)).toEqual({ kind: 'account', orderRef: undefined })
     expect(resolveAgentContext('/', null)).toEqual({ kind: 'generic' })
+  })
+})
+
+test.describe('promoter landing hero prompt · single source (promoter-funnel-v2 S1 · US-1.1)', () => {
+  const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8'))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const copy = es.sellerAcquisition as any
+
+  test('the hero trustPrompt is byte-identical to the sheet\'s promoter prompt — can\'t drift', () => {
+    const config = buildPromoterPageConfig(copy, { customDomainPriceMxn: 499, enabled: true })
+    expect(config.trustPrompt).toBe(buildAgentPrompt({ kind: 'promoter' }))
+  })
+
+  test('the hero prompt is the real promoter ask, not the generic Mercado Libre/Shopify comparison', () => {
+    const config = buildPromoterPageConfig(copy, { customDomainPriceMxn: 499, enabled: true })
+    expect(config.trustPrompt).toContain('Quiero ser promotor de Miyagi Sánchez')
+    expect(config.trustPrompt).toContain('https://miyagisanchez.com/vende/promotor')
   })
 })
 
