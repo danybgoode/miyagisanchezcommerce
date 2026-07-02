@@ -131,6 +131,6 @@ test.describe('setup-spec · published surface (1.3)', () => {
     const html = await res.text()
     expect(html).toContain('/api/ucp/setup-spec')
     expect(html).toContain('get_setup_spec')
-    expect(html).toContain('coming soon')
+    expect(html).toContain('próximamente')
   })
 })

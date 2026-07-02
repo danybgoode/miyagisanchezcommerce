@@ -31,6 +31,42 @@ test.describe('Agent discovery surface', () => {
     expect(html).not.toContain('/api/mcp')
   })
 
+  test('/agent points the seller CTA at /vende — the promoted evaluation target (agent-discovery S1.2)', async ({ request }) => {
+    const res = await request.get('/agent')
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    expect(html).toContain('href="https://miyagisanchez.com/vende"')
+  })
+
+  test('/agent renders es-MX body copy + a valid, key-English JSON-LD block (agent-discovery S1.1)', async ({ request }) => {
+    const res = await request.get('/agent')
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+
+    // es-MX markers on the page's own authored prose (headings/labels).
+    expect(html).toContain('Ficha para agentes')
+    expect(html).toContain('¿Qué es este marketplace?')
+    expect(html).toContain('Tipos de producto compatibles')
+    expect(html).toContain('Métodos de pago')
+    expect(html).toContain('Configuración del servidor MCP')
+
+    // Known English sentences from before the translation must not come back.
+    expect(html).not.toContain('Agent Briefing')
+    expect(html).not.toContain('What is this marketplace?')
+    expect(html).not.toContain('Supported product types')
+    expect(html).not.toContain('Payment methods</h2>')
+    expect(html).not.toContain('For sellers — /vende')
+
+    // The JSON-LD block still parses; schema.org keys stay English (API contract).
+    const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    expect(match).toBeTruthy()
+    const jsonLd = JSON.parse(match![1])
+    expect(jsonLd['@context']).toBe('https://schema.org')
+    expect(jsonLd['@type']).toBe('WebAPI')
+    expect(typeof jsonLd.description).toBe('string')
+    expect(jsonLd.disambiguatingDescription).toContain('in their own language')
+  })
+
   test('.well-known/ucp resolves to the manifest', async ({ request }) => {
     const res = await request.get('/.well-known/ucp')
     expect(res.ok()).toBeTruthy()

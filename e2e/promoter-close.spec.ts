@@ -106,6 +106,16 @@ test.describe('promoter close · resources mini-site renders es-MX (US-12)', () 
     expect(html).toContain('Subdominio')
   })
 
+  test('GET /vende/promotor → the trust prompt resolves {url} to its own page (agent-discovery S1.2)', async ({ request }) => {
+    const res = await request.get('/vende/promotor', { headers: { Accept: 'text/html' } })
+    expect(res.status()).toBe(200)
+    const html = await res.text()
+    // Regression guard: the promoter mini-site isn't a registered SellerPersonaId, so its
+    // trustPrompt used to render the raw, unresolved "{url}" template placeholder.
+    expect(html).not.toContain('{url}')
+    expect(html).toContain('https://miyagisanchez.com/vende/promotor')
+  })
+
   test('GET /vende/promotor/sell-sheet → 200 printable sell-sheet', async ({ request }) => {
     const res = await request.get('/vende/promotor/sell-sheet', { headers: { Accept: 'text/html' } })
     expect(res.status()).toBe(200)

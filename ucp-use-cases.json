@@ -1,65 +1,65 @@
 [
   {
-    "domain": "Generic Retail / Fashion",
-    "target_user": "B2C Consumer",
-    "primary_pain_point": "Friction in cross-platform authentication, manual input of sizing data, and tedious checkout forms.",
-    "ucp_mechanism": "Identity Linking (OAuth 2.0) & Embedded Checkout",
-    "operational_flow": "User requests brand updates via AI assistant. AI assistant invokes UCP Identity Linking token to securely access consumer's store profile, loyalty ledger, and physical dimensions. AI executes headless checkout using Google Wallet API without directing user to external web browser."
+    "domain": "Retail genérico / Moda",
+    "target_user": "Consumidor B2C",
+    "primary_pain_point": "Fricción en la autenticación entre plataformas, captura manual de tallas y formularios de checkout tediosos.",
+    "ucp_mechanism": "Identity Linking (OAuth 2.0) y Embedded Checkout",
+    "operational_flow": "El usuario pide actualizaciones de marca a su asistente de IA. El asistente invoca el token de Identity Linking de UCP para acceder de forma segura al perfil de la tienda, el historial de lealtad y las medidas físicas del consumidor. La IA ejecuta un checkout headless con la API de Google Wallet sin redirigir al usuario a un navegador externo."
   },
   {
-    "domain": "Home Improvement / General Retail",
-    "target_user": "B2C Consumer",
-    "primary_pain_point": "High cart abandonment rates during multi-step redirection to unknown merchant domains.",
-    "ucp_mechanism": "Native Embedded Checkout (Merchant of Record pass-through)",
-    "operational_flow": "User identifies product within Google Search/Chat interface. UCP surfaces integrated checkout parameters (taxes, localized shipping). User completes transaction instantly inside native interface via Google Wallet. Retailer backend receives structured order payload as direct Merchant of Record."
+    "domain": "Mejoras del hogar / Retail general",
+    "target_user": "Consumidor B2C",
+    "primary_pain_point": "Altas tasas de abandono de carrito durante la redirección de varios pasos a dominios de comerciantes desconocidos.",
+    "ucp_mechanism": "Native Embedded Checkout (pass-through de Merchant of Record)",
+    "operational_flow": "El usuario identifica un producto dentro de Google Search/Chat. UCP entrega los parámetros de checkout integrados (impuestos, envío localizado). El usuario completa la transacción de forma instantánea dentro de la interfaz nativa vía Google Wallet. El backend del comerciante recibe el pedido estructurado como Merchant of Record directo."
   },
   {
-    "domain": "Electronics / Consumer Hardware",
-    "target_user": "Post-Purchase Support",
-    "primary_pain_point": "Complex, fragmented post-purchase return portals requiring manual customer service intervention.",
-    "ucp_mechanism": "Order Management & Real-Time Webhooks",
-    "operational_flow": "User requests a product return natively through AI assistant. AI leverages UCP order webhooks to trigger return authorization event in e-commerce backend. System generates automated return shipping label and registers refund parameters inside database without human intervention."
+    "domain": "Electrónica / Hardware de consumo",
+    "target_user": "Soporte posventa",
+    "primary_pain_point": "Portales de devolución posventa complejos y fragmentados que requieren intervención manual de servicio al cliente.",
+    "ucp_mechanism": "Order Management y webhooks en tiempo real",
+    "operational_flow": "El usuario solicita la devolución de un producto directamente a través de su asistente de IA. La IA usa los webhooks de pedidos de UCP para disparar el evento de autorización de devolución en el backend de ecommerce. El sistema genera una etiqueta de envío de devolución automática y registra los parámetros del reembolso en la base de datos sin intervención humana."
   },
   {
-    "domain": "P2P Marketplace (General / Vinted-Style Mexico)",
-    "target_user": "C2C Buyers & Tenants",
-    "primary_pain_point": "Low mobile app retention and friction for users navigating fragmented P2P listings across regions.",
-    "ucp_mechanism": "Open Liquidity Network & Medusa Headless Sourcing",
-    "operational_flow": "User requests highly specific second-hand item within Gemini environment. AI queries Medusa database exposed via UCP metadata attributes. Listing displays inline within user's active application. Purchase resolves via universal payment tokens, routing order straight to the tenant's inventory."
+    "domain": "Marketplace P2P (general / estilo Vinted, México)",
+    "target_user": "Compradores y arrendatarios C2C",
+    "primary_pain_point": "Baja retención en la app móvil y fricción para usuarios que navegan publicaciones P2P fragmentadas entre regiones.",
+    "ucp_mechanism": "Red de liquidez abierta y sourcing headless con Medusa",
+    "operational_flow": "El usuario pide un artículo de segunda mano muy específico dentro de Gemini. La IA consulta la base de datos de Medusa expuesta vía metadatos UCP. La publicación se muestra en línea dentro de la app activa del usuario. La compra se resuelve vía tokens de pago universales, enrutando el pedido directo al inventario del vendedor."
   },
   {
-    "domain": "P2P Marketplace (Price Negotiation)",
-    "target_user": "C2C Individual Sellers",
-    "primary_pain_point": "High operational fatigue for casual sellers managing manual, repetitive price haggling ('¿Cuánto lo menos?') over chat apps.",
-    "ucp_mechanism": "Model Context Protocol (MCP) & Agent-to-Agent (A2A) Negotiation",
-    "operational_flow": "Buyer's AI agent submits lower price offer to marketplace. Medusa backend AI evaluates offer against programmatic seller constraints (e.g., age of listing, predefined discount bounds). If valid, system automatically updates transaction price and processes immediate automated checkout."
+    "domain": "Marketplace P2P (negociación de precio)",
+    "target_user": "Vendedores individuales C2C",
+    "primary_pain_point": "Alta fatiga operativa para vendedores casuales que gestionan regateo manual y repetitivo ('¿Cuánto lo menos?') por apps de chat.",
+    "ucp_mechanism": "Model Context Protocol (MCP) y negociación Agent-to-Agent (A2A)",
+    "operational_flow": "El agente de IA del comprador envía una oferta de precio más bajo al marketplace. La IA del backend de Medusa evalúa la oferta contra restricciones programáticas del vendedor (p. ej. antigüedad de la publicación, límites de descuento predefinidos). Si es válida, el sistema actualiza automáticamente el precio de la transacción y procesa un checkout automatizado inmediato."
   },
   {
-    "domain": "P2P Marketplace (Trust & Safety - Mexico)",
-    "target_user": "C2C Ecosystem Trust",
-    "primary_pain_point": "High prevalence of identity fraud, ghost accounts, and payment scams ('salvo buen cobro') in the Mexican secondary market.",
-    "ucp_mechanism": "Verifiable Identity Credentials & Escrow Logic",
-    "operational_flow": "Onboarding users link profiles to authenticated global ecosystems via UCP Identity framework. System transmits zero-knowledge trust proofs to Medusa backend. Marketplace displays decentralized trust metrics natively, while Medusa core executes secure payment hold escrow until delivery is verified."
+    "domain": "Marketplace P2P (confianza y seguridad — México)",
+    "target_user": "Confianza del ecosistema C2C",
+    "primary_pain_point": "Alta prevalencia de fraude de identidad, cuentas fantasma y estafas de pago ('salvo buen cobro') en el mercado secundario mexicano.",
+    "ucp_mechanism": "Credenciales de identidad verificables y lógica de escrow",
+    "operational_flow": "Al registrarse, los usuarios vinculan sus perfiles a ecosistemas globales autenticados vía el framework de identidad de UCP. El sistema transmite pruebas de confianza de conocimiento cero al backend de Medusa. El marketplace muestra métricas de confianza descentralizadas de forma nativa, mientras el núcleo de Medusa ejecuta la retención segura del pago en escrow hasta verificar la entrega."
   },
   {
-    "domain": "Automotive (Used Cars - Mexico)",
-    "target_user": "High-Value P2P Merchants",
-    "primary_pain_point": "Sellers flooded with low-intent inquiries; buyers paralyzed by lack of vehicle history verification (REPUVE) and physical safety fears.",
-    "ucp_mechanism": "Asynchronous Pre-Vetting & Escrow Deposits",
-    "operational_flow": "Buyer's agent queries car listings. Medusa serves UCP metadata containing cryptographically verified government database checks (REPUVE, original invoice validation). Buyer's agent automatically locks a refundable holding deposit into Medusa's escrow via UCP checkout to secure a physical vehicle inspection slot."
+    "domain": "Automotriz (autos usados — México)",
+    "target_user": "Comerciantes P2P de alto valor",
+    "primary_pain_point": "Vendedores saturados de consultas de bajo interés; compradores paralizados por la falta de verificación del historial vehicular (REPUVE) y el miedo a la seguridad física.",
+    "ucp_mechanism": "Pre-validación asíncrona y depósitos en escrow",
+    "operational_flow": "El agente del comprador consulta publicaciones de autos. Medusa entrega metadatos UCP con verificaciones criptográficas de bases de datos gubernamentales (REPUVE, validación de factura original). El agente del comprador bloquea automáticamente un depósito de garantía reembolsable en el escrow de Medusa vía checkout UCP para asegurar un horario de inspección física del vehículo."
   },
   {
-    "domain": "Real Estate (Rentals & Sales - Mexico)",
-    "target_user": "Landlords and Real Estate Brokers",
-    "primary_pain_point": "High volume of unqualified leads and administrative friction collecting physical identity and income documents over WhatsApp.",
-    "ucp_mechanism": "Pre-Qualified Identity Transmission & Custom Transactional Flows",
-    "operational_flow": "Prospect's AI agent presents a verified UCP token representing identity and income background validation without revealing underlying sensitive raw data. Landlord's system reviews pre-qualification and executes custom UCP action requiring payment for a background check or booking deposit before releasing calendar availability."
+    "domain": "Bienes raíces (rentas y ventas — México)",
+    "target_user": "Arrendadores y agentes inmobiliarios",
+    "primary_pain_point": "Alto volumen de prospectos no calificados y fricción administrativa al recolectar identidad física y comprobantes de ingresos por WhatsApp.",
+    "ucp_mechanism": "Transmisión de identidad pre-calificada y flujos transaccionales personalizados",
+    "operational_flow": "El agente de IA del prospecto presenta un token UCP verificado que representa la validación de identidad e ingresos, sin revelar los datos sensibles subyacentes. El sistema del arrendador revisa la pre-calificación y ejecuta una acción UCP personalizada que requiere el pago de un estudio o depósito de reserva antes de liberar la disponibilidad del calendario."
   },
   {
-    "domain": "Handcrafted & Artisanal Goods (Etsy-Style)",
-    "target_user": "Independent Micro-Merchants (Oaxaca, Jalisco, etc.)",
-    "primary_pain_point": "Inability to calculate complex freight shipping variables dynamically for unique items, paired with manual friction handling custom modifications.",
-    "ucp_mechanism": "Dynamic API Parameter Routing & Conversational Customization",
-    "operational_flow": "User inputs custom sizing/color alterations to AI. AI updates product configuration schema and requests validation from Medusa API. Medusa calculates structural material adjustments, fetches real-time regional logistics shipping rates via local carrier APIs, and displays a single, binding UCP checkout price to the user instantly."
+    "domain": "Artesanías y productos hechos a mano (estilo Etsy)",
+    "target_user": "Micro-comerciantes independientes (Oaxaca, Jalisco, etc.)",
+    "primary_pain_point": "Incapacidad de calcular dinámicamente variables complejas de envío de carga para artículos únicos, más la fricción manual al manejar modificaciones personalizadas.",
+    "ucp_mechanism": "Enrutamiento dinámico de parámetros de API y personalización conversacional",
+    "operational_flow": "El usuario indica a la IA alteraciones personalizadas de talla/color. La IA actualiza el esquema de configuración del producto y solicita validación a la API de Medusa. Medusa calcula los ajustes estructurales de material, obtiene tarifas de envío regionales en tiempo real vía APIs de paqueterías locales, y muestra al usuario un precio de checkout UCP único y vinculante, al instante."
   }
 ]

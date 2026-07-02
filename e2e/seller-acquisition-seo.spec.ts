@@ -33,10 +33,30 @@ test.describe('seller acquisition · SEO and OpenGraph', () => {
       expect(getMetaContents(html, 'property', 'og:title')).toContain(page.meta.title)
       expect(getMetaContents(html, 'property', 'og:description')).toContain(page.meta.description)
       expect(getMetaContents(html, 'property', 'og:url')).toContain(`${BASE_URL}${page.path}`)
-      expect(getMetaContents(html, 'property', 'og:image')).toContain(`${BASE_URL}${page.path}/opengraph-image`)
       expect(getMetaContents(html, 'property', 'og:image:alt')).toContain(page.meta.ogAlt)
       expect(getMetaContents(html, 'name', 'twitter:card')).toContain('summary_large_image')
       expect(getLinkHrefs(html, 'canonical')).toContain(`${BASE_URL}${page.path}`)
+    })
+
+    // agent-discovery-and-indexing S1.3 — regression guard. The og:image URL used to be
+    // hand-built as `${path}/opengraph-image`, which 404s: Next serves file-convention OG
+    // images at a content-hashed path (e.g. `/vende/opengraph-image-<hash>`), so a substring
+    // check on the meta tag's URL text passed even while the route itself was dead. Assert
+    // the meta tag's own URL is actually LIVE, not just shaped like the page's path.
+    test(`${page.path} og:image meta tag points at a route that actually renders`, async ({ request }) => {
+      const res = await request.get(page.path)
+      expect(res.ok()).toBeTruthy()
+      const html = await res.text()
+
+      const [ogImageUrl] = getMetaContents(html, 'property', 'og:image')
+      expect(ogImageUrl, 'og:image meta tag must be present').toBeTruthy()
+      expect(ogImageUrl).toContain(`${page.path}/opengraph-image`)
+
+      // Next resolves the auto-detected image route to the CURRENT request origin (not the
+      // static metadataBase), so the tag is already a full, directly-fetchable URL here.
+      const imgRes = await request.get(ogImageUrl)
+      expect(imgRes.ok(), `og:image route ${ogImageUrl} must return 200, not the hardcoded (unhashed) path`).toBeTruthy()
+      expect(imgRes.headers()['content-type']).toContain('image/')
     })
   }
 
