@@ -83,6 +83,30 @@ test.describe('setup-spec · buildSetupPrompt (1.2)', () => {
     expect(prompt.toLowerCase()).toContain('paso manual')
     expect(prompt).toContain('Mercado Pago')
   })
+
+  test('states the objective of helping the seller, not just reformatting input', () => {
+    expect(prompt).toContain('OBJETIVO')
+    expect(prompt).toContain('Ayuda a este vendedor a abrir una tienda completa')
+  })
+
+  test('instructs the agent to read Miyagi context before asking or emitting', () => {
+    expect(prompt).toContain('PASO 1')
+    expect(prompt).toContain('/api/ucp/setup-spec')
+    expect(prompt).toContain('/vende')
+    expect(prompt).toContain('/acerca')
+  })
+
+  test('instructs the agent to interview on thin input instead of emitting the bare skeleton', () => {
+    expect(prompt).toContain('PASO 2')
+    expect(prompt).toContain('ENTREVISTA')
+    expect(prompt).toContain('NO generes el esqueleto vacío')
+    expect(prompt).toContain('Qué vende')
+  })
+
+  test('still ends in the JSON-only final-output contract', () => {
+    expect(prompt).toContain('Devuelve ÚNICAMENTE el objeto JSON válido')
+    expect(prompt).toContain('sin markdown, sin comentarios, sin texto antes o después')
+  })
 })
 
 // ── Story 1.3 — published surface (API) ─────────────────────────────────────────
