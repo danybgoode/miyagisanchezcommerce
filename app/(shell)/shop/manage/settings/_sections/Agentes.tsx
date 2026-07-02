@@ -2,20 +2,23 @@
 
 /**
  * Agentes e integraciones (slug `agentes`) — extracted out of the ShopSettings
- * monolith. The single internal `webhook` section: UCP webhook URL + signing
- * secret, the MCP agent-token issue/revoke, and a ready-to-paste MCP config.
+ * monolith. The `webhook` section (UCP webhook URL + signing secret) plus the
+ * shared `<ConnectAgentPanel>` for the MCP agent-token / personal-URL flow —
+ * the same component the `/sell/setup` success screen uses, so the URL/token
+ * UI is built once, not duplicated per surface (seller-agent-connect-mcp-url
+ * Sprint 2).
  *
- * Behavior-preserving: the agent-token flow fires the same requests —
- * `POST /api/sell/agent-token` (issue) and `DELETE /api/sell/agent-token`
- * (revoke). The "Guardar cambios" footer persists the top-level
- * ucp_webhook_url + ucp_webhook_secret through useSettingsSave() → PATCH
- * /api/sell/shop (exactly as the monolith did, incl. auto-generating a secret
- * when a URL is set without one).
+ * Behavior-preserving: `useSettingsSave()`'s "Guardar cambios" footer still
+ * persists only the top-level ucp_webhook_url + ucp_webhook_secret through
+ * PATCH /api/sell/shop (exactly as the monolith did, incl. auto-generating a
+ * secret when a URL is set without one) — the agent-token/connector flow lives
+ * entirely inside `<ConnectAgentPanel>` and saves independently via its own
+ * fetch calls, same as it always has on `/sell/setup`.
  *
  * Secret-strip invariant: this component receives only `agent_token_set` (a
  * boolean derived server-side) — the hashed token `ucp_agent_token_hash` never
- * reaches the client. The plaintext agent token exists only transiently in
- * client state right after issuance (shown once), never persisted here.
+ * reaches the client. `<ConnectAgentPanel>` only ever sees the plaintext agent
+ * token transiently, right after issuance (shown once).
  */
 
 import { useState } from 'react'
@@ -24,6 +27,7 @@ import { Toast } from '../_components/Toast'
 import { SectionTitle } from '../_components/SectionTitle'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { generateHex32 } from '@/lib/shop-settings/helpers'
+import ConnectAgentPanel from '@/components/ConnectAgentPanel'
 
 export interface AgentesInitial {
   ucp_webhook_url?: string | null
@@ -33,7 +37,7 @@ export interface AgentesInitial {
 }
 
 export default function Agentes({ initial }: { initial: AgentesInitial }) {
-  const { save, saving, toast, dismissToast, isDirty, markDirty, showToast } = useSettingsSave()
+  const { save, saving, toast, dismissToast, isDirty, markDirty } = useSettingsSave()
   const mark = markDirty
 
   // UCP Webhook
@@ -45,39 +49,6 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
   const [webhookCopied, setWebhookCopied]   = useState(false)
   const [webhookUrlError, setWebhookUrlError] = useState('')
   const [webhookSaveError, setWebhookSaveError] = useState('')
-
-  // MCP agent token — the inbound credential a seller's agent uses to read/patch
-  // this shop's config. We only ever see the plaintext at creation.
-  const [agentTokenSet, setAgentTokenSet]   = useState(initial.agent_token_set ?? false)
-  const [agentToken, setAgentToken]         = useState<string | null>(null) // plaintext, shown once
-  const [agentTokenBusy, setAgentTokenBusy] = useState(false)
-  const [agentTokenCopied, setAgentTokenCopied] = useState(false)
-  const [mcpConfigCopied, setMcpConfigCopied] = useState(false)
-
-  async function handleGenerateAgentToken() {
-    setAgentTokenBusy(true)
-    try {
-      const res = await fetch('/api/sell/agent-token', { method: 'POST' })
-      const data = await res.json() as { token?: string; error?: string }
-      if (!res.ok || !data.token) { showToast(data.error ?? 'No se pudo generar el token.', 'error'); return }
-      setAgentToken(data.token)
-      setAgentTokenSet(true)
-      showToast('Token de agente generado. Cópialo ahora — no se vuelve a mostrar.', 'success')
-    } catch { showToast('Error de red al generar el token.', 'error') }
-    finally { setAgentTokenBusy(false) }
-  }
-
-  async function handleRevokeAgentToken() {
-    setAgentTokenBusy(true)
-    try {
-      const res = await fetch('/api/sell/agent-token', { method: 'DELETE' })
-      if (!res.ok) { const d = await res.json().catch(() => ({})) as { error?: string }; showToast(d.error ?? 'No se pudo revocar.', 'error'); return }
-      setAgentToken(null)
-      setAgentTokenSet(false)
-      showToast('Token de agente revocado.', 'success')
-    } catch { showToast('Error de red al revocar.', 'error') }
-    finally { setAgentTokenBusy(false) }
-  }
 
   async function handleSave() {
     if (webhookUrl.trim() && !webhookUrl.trim().startsWith('https://')) {
@@ -289,110 +260,13 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
           )}
         </div>
 
-        {/* ── MCP agent token — let an AI agent read/patch this shop's config ── */}
+        {/* ── Conecta tu agente — personal MCP URL + Bearer token, shared panel ── */}
         <div className="mt-6 pt-5 border-t border-[var(--color-border)]">
           <div className="flex items-center justify-between mb-1">
-            <SectionTitle>Token para tu agente (MCP)</SectionTitle>
+            <SectionTitle>Conecta tu agente</SectionTitle>
             <CopyPromptButton prompt="¿Qué es el Model Context Protocol (MCP) y cómo puede un agente de IA configurar mi tienda por mí? Explícame en términos sencillos cómo funciona un token tipo 'Bearer' y por qué solo debo compartirlo con mi propio asistente de confianza." />
           </div>
-          <p className="text-xs text-[var(--color-muted)] mb-4">
-            Genera un token para que tu propio agente de IA lea y ajuste la configuración de tu tienda
-            vía MCP (<code className="font-mono bg-gray-100 px-1 rounded">get_store_configuration</code> /
-            <code className="font-mono bg-gray-100 px-1 rounded">patch_store_configuration</code>) sin entrar al panel.
-            Solo afecta a esta tienda. No incluye pagos, dominio ni claves — eso siempre se queda en un paso manual.
-          </p>
-
-          {agentToken ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-amber-800 mb-2">
-                ⚠️ Copia este token ahora — no se vuelve a mostrar.
-              </p>
-              <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
-                <code className="flex-1 text-xs font-mono text-[var(--color-foreground)] break-all">{agentToken}</code>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard.writeText(agentToken); setAgentTokenCopied(true); setTimeout(() => setAgentTokenCopied(false), 2000) }}
-                  className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
-                >
-                  {agentTokenCopied ? '✓ Copiado' : 'Copiar'}
-                </button>
-              </div>
-              <p className="text-[11px] text-amber-700 mt-2">
-                Úsalo como <code className="font-mono">Authorization: Bearer {'{token}'}</code> contra el servidor MCP en <code className="font-mono">/api/ucp/mcp</code>.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleGenerateAgentToken}
-                disabled={agentTokenBusy}
-                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50"
-              >
-                {agentTokenBusy ? 'Generando…' : agentTokenSet ? 'Regenerar token' : 'Generar token de agente'}
-              </button>
-              {agentTokenSet && (
-                <>
-                  <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">✓ Token activo</span>
-                  <button
-                    type="button"
-                    onClick={handleRevokeAgentToken}
-                    disabled={agentTokenBusy}
-                    className="text-xs text-red-600 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Revocar
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-          {agentTokenSet && !agentToken && (
-            <p className="text-[11px] text-[var(--color-muted)] mt-2">
-              Regenerar invalida el token anterior. Si crees que se filtró, revócalo de inmediato.
-            </p>
-          )}
-        </div>
-
-        {/* ── Conecta tu agente — ready-to-paste MCP config ── */}
-        <div className="mt-6 pt-5 border-t border-[var(--color-border)]">
-          <SectionTitle>Conecta tu agente</SectionTitle>
-          <p className="text-xs text-[var(--color-muted)] mb-3">
-            Pega esta configuración en tu cliente MCP (Claude Desktop u otro) para que tu agente lea y
-            ajuste tu tienda. Reemplaza el token por el que generaste arriba.
-          </p>
-          {(() => {
-            const token = agentToken ?? 'PEGA_TU_TOKEN_AQUÍ'
-            const snippet = `{
-  "mcpServers": {
-    "mi-tienda-miyagi": {
-      "url": "https://miyagisanchez.com/api/ucp/mcp",
-      "transport": "http",
-      "headers": { "Authorization": "Bearer ${token}" }
-    }
-  }
-}`
-            return (
-              <div className="relative">
-                <pre className="text-[11px] bg-gray-900 text-green-400 rounded-lg p-3 overflow-x-auto leading-relaxed">{snippet}</pre>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard.writeText(snippet); setMcpConfigCopied(true); setTimeout(() => setMcpConfigCopied(false), 2000) }}
-                  className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded"
-                >
-                  {mcpConfigCopied ? '✓ Copiado' : 'Copiar'}
-                </button>
-              </div>
-            )
-          })()}
-          <ol className="mt-3 text-xs text-[var(--color-muted)] list-decimal list-inside space-y-1">
-            <li>Genera tu token arriba y cópialo.</li>
-            <li>Pega esta configuración en tu cliente MCP, con tu token en lugar del marcador.</li>
-            <li>Tu agente podrá usar <code className="font-mono">get_store_configuration</code> y <code className="font-mono">patch_store_configuration</code>.</li>
-          </ol>
-          <p className="text-[11px] text-[var(--color-muted)] mt-2">
-            Tu agente puede ajustar perfil, envíos, negociación, notificaciones, pedidos y devoluciones.
-            Pagos, dominio y Cal.com siempre requieren un paso manual.
-          </p>
+          <ConnectAgentPanel initialTokenSet={initial.agent_token_set ?? false} />
         </div>
       </section>
 
