@@ -130,14 +130,21 @@ export function buildServicesPageConfig(
  */
 export function buildPromoterPageConfig(
   copy: SellerAcquisitionCopy,
-  opts: { customDomainPriceMxn: number; enabled: boolean },
+  opts: { customDomainPriceMxn: number; enabled: boolean; isBoundPromoter?: boolean },
 ): SellerAcquisitionPageConfig {
   const page = copy.promotor
   const priceMxn = opts.customDomainPriceMxn
+  const isBoundPromoter = opts.isBoundPromoter ?? false
   // The close workspace (`/promotor/cerrar`) 404s when the program is off — hide both CTAs
   // that point there rather than link to a dead page (epic 08 · promoter-funnel-fixes S1.2).
   const closeWorkspaceCta = (label: string, testId: string) =>
     opts.enabled ? { label, href: '/promotor/cerrar', testId } : null
+  const APPLY_TEASER_ID = 'promotor-aplica'
+  // A visitor who hasn't bound a code yet has nowhere to click "Abrir mi panel" (S1.3) — the
+  // self-serve application form doesn't exist until Sprint 2, so the interim CTA anchors to an
+  // on-page teaser instead of a dead link. An already-bound promoter keeps the real close-workspace CTA.
+  const primaryOrApplyCta = (testId: string) =>
+    isBoundPromoter ? closeWorkspaceCta(page.closingCta, testId) : { label: page.applyCta, href: `#${APPLY_TEASER_ID}`, testId }
   return {
     pageId: 'promotor',
     variant: 'a',
@@ -151,7 +158,7 @@ export function buildPromoterPageConfig(
     trustPrompt: buildAgentPrompt({ kind: 'promoter' }),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
-    primaryCta: closeWorkspaceCta(page.primaryCta, 'promotor-primary-cta'),
+    primaryCta: primaryOrApplyCta('promotor-primary-cta'),
     secondaryCta: { label: page.secondaryCta, href: '/vende/promotor/sell-sheet' },
     // Pricing figures — the custom-domain price is the one fixed number; print-ad is per-edition.
     heroStats: [
@@ -174,7 +181,10 @@ export function buildPromoterPageConfig(
     faqs: copy.shared.faqs,
     closingTitle: page.closingTitle,
     closingBody: page.closingBody,
-    closingCta: closeWorkspaceCta(page.closingCta, 'promotor-closing-cta'),
+    closingCta: primaryOrApplyCta('promotor-closing-cta'),
+    applyTeaser: isBoundPromoter
+      ? undefined
+      : { id: APPLY_TEASER_ID, title: page.apply.title, body: page.apply.body },
   }
 }
 

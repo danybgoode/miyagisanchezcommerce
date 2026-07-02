@@ -622,6 +622,7 @@
       "heroLead": "You're Miyagi Sánchez's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
       "trustLine": "Commission on every closed sale. Settlement by transfer or cash.",
       "primaryCta": "Open my close workspace",
+      "applyCta": "Apply to be a promoter",
       "secondaryCta": "View printable sell-sheet",
       "priceDomainLabel": "Own domain per year",
       "priceSubdomainLabel": "Subdomain for everyone",
@@ -681,6 +682,10 @@
           "label": "the merchant enters nothing"
         }
       ],
+      "apply": {
+        "title": "Online applications are coming soon",
+        "body": "We're building the no-intermediary application form. Meanwhile, copy the prompt above and ask your AI how it works, how much you could earn, and how to start — or check back soon."
+      },
       "closingTitle": "Ready to close",
       "closingBody": "Open your workspace, bind your code, and start setting up shops. Every closed sale is commission for you.",
       "closingCta": "Open my close workspace"

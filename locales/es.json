@@ -626,32 +626,33 @@
       "heroLead": "Eres la fuerza de campo de Miyagi Sánchez. Entras al negocio, lo dejas montado en miyagisanchez.com, cobras en persona y te llevas tu comisión. Aquí tienes todo para explicarlo y venderlo.",
       "trustLine": "Comisión por cada venta cerrada. Liquidación por transferencia o efectivo.",
       "primaryCta": "Abrir mi panel para cerrar",
+      "applyCta": "Aplica para ser promotor",
       "secondaryCta": "Ver hoja de venta imprimible",
       "priceDomainLabel": "Dominio propio al año",
       "priceSubdomainLabel": "Subdominio para todos",
       "commissionLabel": "Tu comisión por venta",
       "proofTitle": "Glosario: qué le vendes al comerciante",
-      "proofLead": "Cuatro productos. Apréndetelos para explicarlos en 30 segundos.",
+      "proofLead": "Una tienda montada ya puede correr sorteos, publicar eventos, ofrecer un punto de entrega y que los agentes de IA la encuentren. Estos cuatro productos suman todavía más — apréndetelos para explicarlos en 30 segundos.",
       "glossary": [
         {
           "icon": "iconoir-globe",
           "title": "Dominio propio",
-          "body": "Su tienda en su propia dirección (sutienda.mx) en vez de miyagisanchez.com/s/sutienda. Más marca, tráfico directo y look de marca blanca. $499 MXN al año, pago único."
+          "body": "Su tienda en su propia dirección (sutienda.mx) en vez de miyagisanchez.com/s/sutienda: más marca, tráfico directo y que un agente de IA la encuentre bajo su propio nombre. $499 MXN al año, pago único."
         },
         {
           "icon": "iconoir-internet",
           "title": "Subdominio",
-          "body": "sutienda.miyagisanchez.com — gratis para todos. Úsalo como gancho: ya tiene una dirección bonita sin pagar nada."
+          "body": "sutienda.miyagisanchez.com — dirección propia sin comprar un dominio. $199 MXN/año, GRATIS el primer año con tu código de promotor: el gancho perfecto para cerrar hoy."
         },
         {
           "icon": "iconoir-newspaper",
           "title": "Anuncio impreso",
-          "body": "Un espacio en la edición impresa de Miyagi Sánchez que circula en su zona. El precio depende del tamaño y la edición; se cobra una sola vez."
+          "body": "Un espacio en la edición impresa de Miyagi Sánchez que circula en su zona: tráfico físico a la tienda, no solo en línea. El precio depende del tamaño y la edición; se cobra una sola vez."
         },
         {
           "icon": "iconoir-shop",
           "title": "Conexión Mercado Libre",
-          "body": "Importa su catálogo de Mercado Libre a Miyagi Sánchez para que no capture todo a mano. Acelera el montaje en la primera visita."
+          "body": "Importa su catálogo de Mercado Libre a Miyagi Sánchez para que no capture todo a mano — monta la tienda completa en la primera visita, no en varias."
         }
       ],
       "stepsTitle": "Cómo montar y entregar (en la tienda)",
@@ -685,6 +686,10 @@
           "label": "el comerciante no captura nada"
         }
       ],
+      "apply": {
+        "title": "La solicitud en línea llega pronto",
+        "body": "Estamos armando el formulario para aplicar sin intermediarios. Mientras tanto, copia el prompt de arriba y pídele a tu IA que te explique cómo funciona, cuánto puedes ganar y cómo empezar — o vuelve pronto a esta página."
+      },
       "closingTitle": "Listo para cerrar",
       "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
       "closingCta": "Abrir mi panel para cerrar"
