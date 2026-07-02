@@ -131,12 +131,18 @@ test.describe('promoter close · the public CTA never links to a 404 (promoter-f
   })
 
   test('/vende/promotor only shows the close-workspace CTA when the flag makes it reachable', async ({ request }) => {
-    const page = await request.get('/vende/promotor', { headers: { Accept: 'text/html' } })
+    // Fire both requests concurrently (not sequentially) so a flag toggle landing
+    // between them can't desync the two reads — and both routes read the same 60s
+    // in-process cache (lib/flags.ts) regardless, so this is already a vanishingly
+    // narrow window (codex cross-review should-fix on PR #157).
+    const [page, close] = await Promise.all([
+      request.get('/vende/promotor', { headers: { Accept: 'text/html' } }),
+      request.get('/promotor/cerrar', { maxRedirects: 0 }),
+    ])
     expect(page.status()).toBe(200)
     const html = await page.text()
     const hasCloseCta = html.includes('href="/promotor/cerrar"')
 
-    const close = await request.get('/promotor/cerrar', { maxRedirects: 0 })
     const closeIsReachable = [301, 302, 303, 307, 308].includes(close.status())
     const closeIs404 = close.status() === 404
 
