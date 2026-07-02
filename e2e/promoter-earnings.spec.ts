@@ -39,6 +39,14 @@ test.describe('computePromoterSkuEarnings', () => {
     expect(r.regularPriceMxn).toBe(499)
   })
 
+  test('commission is computed off the DISCOUNTED price, matching real accrual (markAttributionPaid charges the discounted amount)', () => {
+    const r = computePromoterSkuEarnings(499, 20, FIXED_DISCOUNT)
+    // 20% of $399 (promoter price), NOT 20% of $499 (regular price) — a commission based on the
+    // regular price would overstate what Sprint 3's ledger actually accrues.
+    expect(r.commissionMxn).toBe(80)
+    expect(r.commissionMxn).not.toBe(100)
+  })
+
   test('a discount larger than the price floors the promoter price at 0', () => {
     const bigDiscount: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 100000 }
     const r = computePromoterSkuEarnings(199, 10, bigDiscount)

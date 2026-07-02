@@ -38,6 +38,15 @@ export type PromoterSkuEarnings =
  * Regular vs. promoter-discounted price + the promoter's commission for one priced
  * SKU. `commissionMxn` degrades to `null` (never `$0`) when the admin hasn't
  * configured a rate for this SKU yet.
+ *
+ * The commission is computed off the DISCOUNTED (promoter) price, not the regular
+ * price — this must match the real accrual math (Sprint 3's `markAttributionPaid` /
+ * `computeCommissionCents`), which pays commission on `gross_amount_cents`, the
+ * amount actually charged at checkout (the discounted price). Computing off the
+ * regular price would overstate the promoter's earnings preview relative to what
+ * actually accrues once a real rate is configured. (Caught in cross-agent review
+ * of this PR — the discount fallback in getPromoterSettings is already non-zero
+ * by default, so this divergence is live-reachable the moment a SKU gets a rate.)
  */
 export function computePromoterSkuEarnings(
   basePriceMxn: number,
@@ -46,8 +55,9 @@ export function computePromoterSkuEarnings(
 ): { regularPriceMxn: number; promoterPriceMxn: number; commissionMxn: number | null } {
   const baseCents = Math.round(basePriceMxn * 100)
   const discountCents = computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, baseCents)
-  const promoterPriceMxn = Math.max(0, Math.round((baseCents - discountCents) / 100))
-  const commissionMxn = ratePct > 0 ? Math.round((baseCents * ratePct) / 100 / 100) : null
+  const promoterCents = Math.max(0, baseCents - discountCents)
+  const promoterPriceMxn = Math.round(promoterCents / 100)
+  const commissionMxn = ratePct > 0 ? Math.round((promoterCents * ratePct) / 100 / 100) : null
   return { regularPriceMxn: basePriceMxn, promoterPriceMxn, commissionMxn }
 }
 
