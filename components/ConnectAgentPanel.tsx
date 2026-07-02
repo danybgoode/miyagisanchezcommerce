@@ -49,6 +49,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
   const [connectorRevoked, setConnectorRevoked] = useState(false) // explicit revoke → show "generar" instead of auto-refetch
   const [connectorBusy, setConnectorBusy] = useState(false)
   const [connectorCopied, setConnectorCopied] = useState(false)
+  const [connectorError, setConnectorError] = useState<string | null>(null)
 
   async function fetchConnector() {
     try {
@@ -66,23 +67,28 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
 
   async function rotateConnector() {
     setConnectorBusy(true)
+    setConnectorError(null)
     try {
       const res = await fetch('/api/sell/agent-connector', { method: 'POST' })
       const data = (await res.json().catch(() => ({}))) as { url?: string }
       if (res.ok && data.url) { setConnectorUrl(data.url); setConnectorRevoked(false) }
+      else setConnectorError('No se pudo rotar la URL. Intenta de nuevo.')
     } catch {
-      /* no-op — retry */
+      setConnectorError('Error de red al rotar la URL.')
     } finally { setConnectorBusy(false) }
   }
 
   async function revokeConnector() {
     setConnectorBusy(true)
+    setConnectorError(null)
     try {
-      await fetch('/api/sell/agent-connector', { method: 'DELETE' })
-      setConnectorUrl(null)
-      setConnectorRevoked(true)
+      const res = await fetch('/api/sell/agent-connector', { method: 'DELETE' })
+      // Only clear the shown URL on a confirmed 2xx — a non-ok response means the
+      // credential is still live server-side, so the UI must not claim it's revoked.
+      if (res.ok) { setConnectorUrl(null); setConnectorRevoked(true) }
+      else setConnectorError('No se pudo revocar la URL. Sigue activa — intenta de nuevo.')
     } catch {
-      /* no-op — retry */
+      setConnectorError('Error de red al revocar la URL.')
     } finally { setConnectorBusy(false) }
   }
 
@@ -156,6 +162,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
               Revocar
             </button>
           </div>
+          {connectorError && <p className="text-[11px] text-red-600 mt-2">⚠ {connectorError}</p>}
           <p className="text-[11px] text-[var(--color-muted)] mt-2">
             Rotar invalida el enlace anterior de inmediato. Pagos, dominio y Cal.com siempre se quedan en un
             paso manual.

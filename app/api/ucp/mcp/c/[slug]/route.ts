@@ -48,16 +48,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  // Flag first — a throttled-but-flag-off client must still see a deterministic
+  // 404, never a 429 that could imply the path exists while "disabled".
+  if (!(await isEnabled('seller_agent.connector_url_enabled'))) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404, headers: CORS })
+  }
+
   const rl = await checkRateLimit('mcp', getClientIp(req))
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded — too many requests' },
       { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
     )
-  }
-
-  if (!(await isEnabled('seller_agent.connector_url_enabled'))) {
-    return NextResponse.json({ error: 'Not found.' }, { status: 404, headers: CORS })
   }
 
   const { slug } = await params
