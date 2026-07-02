@@ -212,3 +212,60 @@ test.describe('buildAgentPrompt · account/order handoff (S2.3)', () => {
     expect(p).not.toContain('Mi pedido:')
   })
 })
+
+test.describe('resolveAgentContext · seller/promoter paths (promoter-funnel-fixes S1.3)', () => {
+  test('/vende → seller', () => {
+    expect(resolveAgentContext('/vende', null)).toEqual({ kind: 'seller' })
+  })
+
+  test('/vende/creadores (persona sub-page) → seller', () => {
+    expect(resolveAgentContext('/vende/creadores', null)).toEqual({ kind: 'seller' })
+  })
+
+  test('/sell → seller', () => {
+    expect(resolveAgentContext('/sell', null)).toEqual({ kind: 'seller' })
+  })
+
+  test('/vende/promotor (resources mini-site) → promoter, not seller', () => {
+    expect(resolveAgentContext('/vende/promotor', null)).toEqual({ kind: 'promoter' })
+  })
+
+  test('/promotor/cerrar (close workspace) → promoter', () => {
+    expect(resolveAgentContext('/promotor/cerrar', null)).toEqual({ kind: 'promoter' })
+  })
+
+  test('/promotor/<code> (dashboard) → promoter', () => {
+    expect(resolveAgentContext('/promotor/PRM-ABC123', null)).toEqual({ kind: 'promoter' })
+  })
+
+  test('buyer paths are unchanged (regression)', () => {
+    expect(resolveAgentContext('/l/prod_1', null)).toEqual({ kind: 'pdp', listingId: 'prod_1' })
+    expect(resolveAgentContext('/s/zapatos-mx', null)).toEqual({ kind: 'shop', slug: 'zapatos-mx' })
+    expect(resolveAgentContext('/account', null)).toEqual({ kind: 'account', orderRef: undefined })
+    expect(resolveAgentContext('/', null)).toEqual({ kind: 'generic' })
+  })
+})
+
+test.describe('buildAgentPrompt · seller/promoter asks (promoter-funnel-fixes S1.3)', () => {
+  test('seller ask pitches selling + points at /vende, not the generic buyer ask', () => {
+    const p = buildAgentPrompt({ kind: 'seller' })
+    expect(p).toContain('vender en Miyagi Sánchez')
+    expect(p).toContain('https://miyagisanchez.com/vende')
+    expect(p).not.toContain('¿Qué estás buscando hoy?')
+  })
+
+  test('promoter ask pitches the commission program + points at /vende/promotor', () => {
+    const p = buildAgentPrompt({ kind: 'promoter' })
+    expect(p).toContain('promotor')
+    expect(p).toContain('comisión')
+    expect(p).toContain('https://miyagisanchez.com/vende/promotor')
+    expect(p).not.toContain('¿Qué estás buscando hoy?')
+  })
+
+  test('seller and promoter asks both keep the cold-agent preamble', () => {
+    for (const p of [buildAgentPrompt({ kind: 'seller' }), buildAgentPrompt({ kind: 'promoter' })]) {
+      expect(p).toContain('https://miyagisanchez.com/agent')
+      expect(p).toContain('https://ucp.dev')
+    }
+  })
+})

@@ -28,6 +28,8 @@ export type AgentPromptContext =
   | { kind: 'catalog'; search?: string; queryString?: string }
   | { kind: 'shop'; slug: string; shopName?: string }
   | { kind: 'account'; orderRef?: string; title?: string }
+  | { kind: 'seller' }
+  | { kind: 'promoter' }
 
 /**
  * Human-readable details a server page pushes through AgentContext (Sprint 2).
@@ -81,7 +83,8 @@ const GENERIC_ASK = '¿Qué estás buscando hoy?'
 /**
  * Map a URL (pathname + searchParams) to the page context. Pure + URL-only.
  * Route groups like `(shell)`/`(site)` don't appear in the pathname, so the live
- * paths are `/l/<id>` (PDP), `/l` (catalog), `/s/<slug>` (shop), `/account/...`.
+ * paths are `/l/<id>` (PDP), `/l` (catalog), `/s/<slug>` (shop), `/account/...`,
+ * `/vende*`/`/sell*` (seller), `/promotor/*`/`/vende/promotor` (promoter).
  * Anything unrecognized falls back to `generic`.
  */
 export function resolveAgentContext(
@@ -107,6 +110,14 @@ export function resolveAgentContext(
     const orderRef = seg[1] === 'orders' && seg[2] ? seg[2] : undefined
     return { kind: 'account', orderRef }
   }
+
+  // Promoter: /promotor/* (close workspace, code dashboard) · /vende/promotor (resources
+  // mini-site) — checked before the general /vende* seller match below.
+  if (seg[0] === 'promotor') return { kind: 'promoter' }
+  if (seg[0] === 'vende' && seg[1] === 'promotor') return { kind: 'promoter' }
+
+  // Seller acquisition: /vende* (anchor + persona pages) · /sell* (the seller portal).
+  if (seg[0] === 'vende' || seg[0] === 'sell') return { kind: 'seller' }
 
   return { kind: 'generic' }
 }
@@ -191,6 +202,12 @@ Usa el API del marketplace (UCP/MCP) para revisar el estado, el envío o el reem
       return `Necesito ayuda con mi cuenta y mis pedidos en el marketplace.
 Usa el API del marketplace (UCP/MCP) para revisar el estado de un pedido, el envío o un reembolso, y guíame paso a paso.`
     }
+
+    case 'seller':
+      return `Estoy pensando en vender en Miyagi Sánchez. Abre ${PLATFORM_ORIGIN}/vende, dime qué es, cuánto pagaría vs. Mercado Libre y Shopify, qué puedo vender y cómo abro mi tienda.`
+
+    case 'promoter':
+      return `Quiero ser promotor de Miyagi Sánchez y ganar comisión montando tiendas en persona. Abre ${PLATFORM_ORIGIN}/vende/promotor, dime cómo funciona, cuánto puedo ganar y cómo empiezo.`
 
     case 'generic':
     default:

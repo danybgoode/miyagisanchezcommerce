@@ -130,10 +130,14 @@ export function buildServicesPageConfig(
  */
 export function buildPromoterPageConfig(
   copy: SellerAcquisitionCopy,
-  opts: { customDomainPriceMxn: number },
+  opts: { customDomainPriceMxn: number; enabled: boolean },
 ): SellerAcquisitionPageConfig {
   const page = copy.promotor
   const priceMxn = opts.customDomainPriceMxn
+  // The close workspace (`/promotor/cerrar`) 404s when the program is off — hide both CTAs
+  // that point there rather than link to a dead page (epic 08 · promoter-funnel-fixes S1.2).
+  const closeWorkspaceCta = (label: string, testId: string) =>
+    opts.enabled ? { label, href: '/promotor/cerrar', testId } : null
   return {
     pageId: 'promotor',
     variant: 'a',
@@ -144,7 +148,7 @@ export function buildPromoterPageConfig(
     trustPrompt: promoterTrustPrompt(copy.shared.trustPrompt),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
-    primaryCta: { label: page.primaryCta, href: '/promotor/cerrar', testId: 'promotor-primary-cta' },
+    primaryCta: closeWorkspaceCta(page.primaryCta, 'promotor-primary-cta'),
     secondaryCta: { label: page.secondaryCta, href: '/vende/promotor/sell-sheet' },
     // Pricing figures — the custom-domain price is the one fixed number; print-ad is per-edition.
     heroStats: [
@@ -167,7 +171,7 @@ export function buildPromoterPageConfig(
     faqs: copy.shared.faqs,
     closingTitle: page.closingTitle,
     closingBody: page.closingBody,
-    closingCta: { label: page.closingCta, href: '/promotor/cerrar', testId: 'promotor-closing-cta' },
+    closingCta: closeWorkspaceCta(page.closingCta, 'promotor-closing-cta'),
   }
 }
 

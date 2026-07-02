@@ -123,3 +123,33 @@ test.describe('promoter close · resources mini-site renders es-MX (US-12)', () 
     expect(html).toContain('Guardar como PDF') // the .no-print toolbar hint
   })
 })
+
+test.describe('promoter close · the public CTA never links to a 404 (promoter-funnel-fixes S1.2)', () => {
+  test('GET /promotor/cerrar → redirect (flag on, anon → sign-in) or 404 (flag off)', async ({ request }) => {
+    const res = await request.get('/promotor/cerrar', { maxRedirects: 0 })
+    expect([301, 302, 303, 307, 308, 404]).toContain(res.status())
+  })
+
+  test('/vende/promotor only shows the close-workspace CTA when the flag makes it reachable', async ({ request }) => {
+    // Fire both requests concurrently (not sequentially) so a flag toggle landing
+    // between them can't desync the two reads — and both routes read the same 60s
+    // in-process cache (lib/flags.ts) regardless, so this is already a vanishingly
+    // narrow window (codex cross-review should-fix on PR #157).
+    const [page, close] = await Promise.all([
+      request.get('/vende/promotor', { headers: { Accept: 'text/html' } }),
+      request.get('/promotor/cerrar', { maxRedirects: 0 }),
+    ])
+    expect(page.status()).toBe(200)
+    const html = await page.text()
+    const hasCloseCta = html.includes('href="/promotor/cerrar"')
+
+    const closeIsReachable = [301, 302, 303, 307, 308].includes(close.status())
+    const closeIs404 = close.status() === 404
+
+    // The invariant that matters, independent of the live flag value: the CTA is shown
+    // if and only if the target route doesn't 404 — never a dead link, never a hidden
+    // live route.
+    expect(hasCloseCta).toBe(closeIsReachable)
+    expect(hasCloseCta).toBe(!closeIs404)
+  })
+})
