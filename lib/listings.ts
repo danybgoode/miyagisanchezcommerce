@@ -293,3 +293,24 @@ export function conditionLabel(condition: Listing['condition']): string {
   }
   return condition ? (map[condition] ?? condition) : ''
 }
+
+/** Slim listing shape for the print-builder's curation drawers (US-4 + the print-studio catalog). */
+export interface CatalogListingItem {
+  id: string
+  title: string
+  description: string | null
+  price: string | null
+  image: string | null
+  shop: { slug: string; name: string; logo: string | null; description: string | null } | null
+}
+
+export function toCatalogItems(listings: Listing[]): CatalogListingItem[] {
+  return listings.map((l) => ({
+    id: l.id,
+    title: l.title,
+    description: l.description,
+    price: l.price_cents != null ? formatPrice(l) : null,
+    image: l.images?.[0]?.url ?? null,
+    shop: l.shop ? { slug: l.shop.slug, name: l.shop.name, logo: l.shop.logo_url ?? null, description: l.shop.description ?? null } : null,
+  }))
+}
