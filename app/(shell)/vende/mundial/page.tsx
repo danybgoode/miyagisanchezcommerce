@@ -15,8 +15,10 @@ const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/vende/mundial'
 
 const meta = es.sellerAcquisition.mundial.metadata
-const ogImage = `${BASE_URL}${PAGE_PATH}/opengraph-image`
 
+// No manual `images` field — the sibling `opengraph-image.tsx` is auto-detected by Next's
+// file-convention metadata resolution. A hardcoded `${PAGE_PATH}/opengraph-image` URL 404s:
+// Next serves these at a content-hashed path (e.g. `/vende/mundial/opengraph-image-<hash>`).
 export const metadata: Metadata = {
   title: meta.title,
   description: meta.description,
@@ -28,13 +30,11 @@ export const metadata: Metadata = {
     siteName: 'Miyagi Sánchez',
     title: meta.title,
     description: meta.description,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: meta.ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
     title: meta.title,
     description: meta.description,
-    images: [ogImage],
   },
 }
 
