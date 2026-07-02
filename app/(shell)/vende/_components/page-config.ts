@@ -5,6 +5,7 @@ import {
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
   sellerTrustPrompt,
+  promoterTrustPrompt,
   type SellerAcquisitionVariant,
   type SellerPersonaId,
 } from '@/lib/seller-acquisition'
@@ -140,7 +141,7 @@ export function buildPromoterPageConfig(
     title: page.heroTitle,
     lead: page.heroLead,
     trustLine: page.trustLine,
-    trustPrompt: copy.shared.trustPrompt,
+    trustPrompt: promoterTrustPrompt(copy.shared.trustPrompt),
     copyLabel: copy.shared.copyPrompt,
     copiedLabel: copy.shared.copiedPrompt,
     primaryCta: { label: page.primaryCta, href: '/promotor/cerrar', testId: 'promotor-primary-cta' },

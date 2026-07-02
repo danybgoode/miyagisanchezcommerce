@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { sellerTrustPrompt } from '../lib/seller-acquisition'
+import { sellerTrustPrompt, promoterTrustPrompt } from '../lib/seller-acquisition'
 
 // Locked es-MX copy from COPY-BRIEF.md (Sprint 1, approved 2026-06-25). These guards keep the
 // distrust framing, internal jargon, and un-accented offenders from creeping back into the
@@ -65,6 +65,16 @@ test.describe('seller acquisition · es-MX copy guards', () => {
 
     const servicios = sellerTrustPrompt('servicios', sa.shared.trustPrompt)
     expect(servicios).toContain('https://miyagisanchez.com/vende/servicios')
+  })
+
+  // ── agent-discovery-and-indexing (Sprint 1) — the promoted prompt targets /vende everywhere ──
+
+  test('promoterTrustPrompt resolves {url} to the promoter mini-site (not a registered persona)', () => {
+    const promoter = promoterTrustPrompt(sa.shared.trustPrompt)
+    expect(promoter).toContain('https://miyagisanchez.com/vende/promotor')
+    expect(promoter).not.toContain('{url}')
+    expect(promoter).toContain('Mercado Libre')
+    expect(promoter).toContain('Shopify')
   })
 
   // ── launch polish (seller-landing-launch-polish, Sprint 1) ──────────────────────────────
