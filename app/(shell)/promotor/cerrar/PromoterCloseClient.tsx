@@ -8,8 +8,9 @@ type Shop = { shopId: string; slug: string; name: string }
 /**
  * Promoter "close" workspace client island (epic 08 · S4). Four steps for the
  * in-store motion: (1) bind your PRM- code, (2) set up the merchant's shop,
- * (3) charge the SKU on their behalf, (4) hand off the WhatsApp claim link.
- * Thin screens over /api/promoter/{me/bind,shop/setup,close/domain,claim/link}.
+ * (3) charge a SKU on their behalf (a picker over the one-time close routes —
+ * domain / ml-sync), (4) hand off the WhatsApp claim link.
+ * Thin screens over /api/promoter/{me/bind,shop/setup,close/<sku>,claim/link}.
  */
 export default function PromoterCloseClient({ bound: initialBound }: { bound: Bound }) {
   const [bound, setBound] = useState<Bound>(initialBound)
@@ -135,14 +136,28 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
   )
 }
 
+/**
+ * The one-time SKUs a promoter can close on a merchant's behalf — each maps to a
+ * `/api/promoter/close/<id>` route that takes `{ shopId }` and returns `{ url }`.
+ * (Print is a different flow — it needs ad content — so it's not in this picker.)
+ */
+const CLOSE_SKUS = [
+  { id: 'domain', label: 'Dominio propio', payLabel: 'Pagar dominio propio (1 año)' },
+  { id: 'ml-sync', label: 'Sincronización Mercado Libre', payLabel: 'Pagar sincronización ML (1 año)' },
+] as const
+type CloseSkuId = (typeof CLOSE_SKUS)[number]['id']
+
 function CloseStep({ shop }: { shop: Shop }) {
+  const [sku, setSku] = useState<CloseSkuId>('domain')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function payDomain() {
+  const selected = CLOSE_SKUS.find((s) => s.id === sku) ?? CLOSE_SKUS[0]
+
+  async function pay() {
     setBusy(true); setError(null)
     try {
-      const res = await fetch('/api/promoter/close/domain', {
+      const res = await fetch(`/api/promoter/close/${sku}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shopId: shop.shopId }),
       })
@@ -159,10 +174,22 @@ function CloseStep({ shop }: { shop: Shop }) {
         Cobra al comerciante (efectivo) y paga con tu tarjeta. La venta se atribuye a tu código y el
         beneficio queda activado en la tienda del comerciante.
       </p>
+      <label className="block text-sm">
+        <span className="text-[var(--color-muted)]">Producto</span>
+        <select
+          value={sku}
+          onChange={(e) => setSku(e.target.value as CloseSkuId)}
+          disabled={busy}
+          aria-label="Producto a cerrar"
+          className="mt-1 w-full rounded-lg border border-[var(--color-border)] px-3 py-2"
+        >
+          {CLOSE_SKUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+      </label>
       {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
-      <button onClick={payDomain} disabled={busy}
+      <button onClick={pay} disabled={busy}
         className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
-        {busy ? 'Abriendo pago…' : 'Pagar dominio propio (1 año)'}
+        {busy ? 'Abriendo pago…' : selected.payLabel}
       </button>
     </Card>
   )

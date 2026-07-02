@@ -87,6 +87,7 @@ test.describe('promoter close · authed routes respect the kill-switch (flag on 
     '/api/promoter/claim/link',
     '/api/promoter/close/domain',
     '/api/promoter/close/print',
+    '/api/promoter/close/ml-sync',
   ]
   for (const path of authedPosts) {
     test(`POST ${path} → 404 (hidden) or 401 (live, auth required)`, async ({ request }) => {
