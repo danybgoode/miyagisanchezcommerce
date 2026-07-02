@@ -627,7 +627,7 @@
       "trustLine": "Comisión por cada venta cerrada. Liquidación por transferencia o efectivo.",
       "primaryCta": "Abrir mi panel para cerrar",
       "applyCta": "Aplica para ser promotor",
-      "secondaryCta": "Ver hoja de venta imprimible",
+      "secondaryCta": "Manual del promotor",
       "priceDomainLabel": "Dominio propio al año",
       "priceSubdomainLabel": "Subdominio para todos",
       "commissionLabel": "Tu comisión por venta",
@@ -690,6 +690,53 @@
         "title": "La solicitud en línea llega pronto",
         "body": "Estamos armando el formulario para aplicar sin intermediarios. Mientras tanto, copia el prompt de arriba y pídele a tu IA que te explique cómo funciona, cuánto puedes ganar y cómo empezar — o vuelve pronto a esta página."
       },
+      "handbookTitle": "Manual del promotor",
+      "handbookLead": "El paso a paso completo de un cierre, de principio a fin, para que no tengas que preguntarle nada a Daniel.",
+      "checklistTitle": "Checklist de cierre",
+      "checklist": [
+        {
+          "title": "1 · Monta",
+          "body": "Crea la tienda del comerciante desde tu panel (queda sin reclamar) y agrega una primera publicación."
+        },
+        {
+          "title": "2 · Cobra",
+          "body": "Cobra en efectivo al comerciante y paga el dominio, el subdominio o el anuncio con tu propia tarjeta. La venta queda atribuida a tu código."
+        },
+        {
+          "title": "3 · Diseña el anuncio (cuando aplique)",
+          "body": "Si el cierre incluye un anuncio impreso: diseñarlo desde tu panel llega pronto — por ahora coordina el diseño directo con el equipo."
+        },
+        {
+          "title": "4 · Entrega por WhatsApp",
+          "body": "Genera el enlace de reclamo y mándaselo por WhatsApp. Al tocarlo e iniciar sesión, la tienda pasa a su cuenta."
+        },
+        {
+          "title": "5 · Avisa el recibo",
+          "body": "El recibo automático al comerciante llega pronto — por ahora avísale tú mismo por WhatsApp que ya quedó todo activado."
+        }
+      ],
+      "scriptsTitle": "Guiones de 30 segundos",
+      "scripts": [
+        {
+          "title": "Dominio propio",
+          "body": "«¿Sabías que puedes tener tu tienda en tunombre.mx en vez de una liga larga? Se ve más profesional y te encuentran directo. Son $499 al año, pago único, y con mi código te lo dejo activado hoy mismo.»"
+        },
+        {
+          "title": "Subdominio",
+          "body": "«Tu tienda puede tener su propia dirección, tunombre.miyagisanchez.com, sin comprar un dominio. Son $199 al año, pero con mi código te sale GRATIS el primer año — hoy mismo te lo activo.»"
+        },
+        {
+          "title": "Anuncio impreso",
+          "body": "«Salimos impresos y circulamos en tu zona — gente que ni busca en línea te va a conocer ahí. El precio depende del tamaño, se paga una sola vez, y con mi código tienes un precio que no consigues solo.»"
+        },
+        {
+          "title": "Conexión Mercado Libre",
+          "body": "«Si ya vendes en Mercado Libre no tienes que capturar nada otra vez — conectamos tu catálogo y queda todo aquí también, el mismo día.»"
+        }
+      ],
+      "paymentsTitle": "Cómo funcionan los pagos",
+      "paymentsBody": "Tú pagas el dominio, el subdominio o el anuncio con tu propia tarjeta al momento de montar la tienda. El comerciante te paga a ti en efectivo (o como acuerden). Tu comisión no se cobra aparte: Miyagi Sánchez la registra en tu cuenta y el equipo la liquida contigo después, por transferencia o efectivo.",
+      "paymentsComingSoon": "Próximamente: podrás cobrar el pago completo y transferir solo lo que se debe, quedándote tu comisión al momento — sin esperar la liquidación.",
       "closingTitle": "Listo para cerrar",
       "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
       "closingCta": "Abrir mi panel para cerrar"

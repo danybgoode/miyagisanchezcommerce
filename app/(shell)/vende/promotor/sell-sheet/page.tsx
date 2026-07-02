@@ -1,17 +1,21 @@
 import type { Metadata } from 'next'
 import { getDictionary } from '@/lib/dictionary'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
+import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
 
 export const metadata: Metadata = {
-  title: 'Hoja de venta — Promotor',
+  title: 'Manual del promotor',
   robots: { index: false },
 }
 
 /**
- * Printable promoter sell-sheet (epic 08 · S4 · US-12). A single es-MX page the
- * promoter prints / saves as PDF to use in the shop. Reuses the admin print view's
- * idiom: an injected <style> with @media print that hides the site chrome + a
- * `.no-print` toolbar. Copy comes from the same sellerAcquisition.promotor block
+ * Printable promoter handbook (epic 08 · promoter-funnel-v2 S1 · US-1.5 — evolved
+ * from the original sell-sheet, US-12). A single es-MX page the promoter prints /
+ * saves as PDF to run a full close start-to-finish: the glossary + pricing pitch
+ * (unchanged from the original sell-sheet), plus a close checklist, 30-second
+ * per-SKU scripts, and how payments actually work today. Reuses the admin print
+ * view's idiom: an injected <style> with @media print that hides the site chrome +
+ * a `.no-print` toolbar. Copy comes from the same sellerAcquisition.promotor block
  * as /vende/promotor, so the two never drift.
  */
 const css = `
@@ -26,6 +30,7 @@ const css = `
   .ss-steps { margin: 16px 0; padding: 0; list-style: none; }
   .ss-steps li { margin: 0 0 10px; font-size: 14px; }
   .ss-price { font-weight: 700; }
+  .ss-soon { color: #a15c00; font-style: italic; }
   .no-print { margin-bottom: 16px; }
   @media print {
     html, body { background: #fff !important; }
@@ -50,8 +55,8 @@ export default async function PromoterSellSheetPage() {
         <span style={{ color: '#888', fontSize: 13 }}>Usa Imprimir / Guardar como PDF (⌘P)</span>
       </div>
 
-      <h1 className="ss-h1">{p.heroTitle}</h1>
-      <p className="ss-sub">{p.heroLead}</p>
+      <h1 className="ss-h1">{p.handbookTitle}</h1>
+      <p className="ss-sub">{p.handbookLead}</p>
 
       <h2 style={{ fontSize: 16 }}>{p.proofTitle}</h2>
       <div className="ss-grid">
@@ -63,17 +68,31 @@ export default async function PromoterSellSheetPage() {
         ))}
       </div>
 
-      <h2 style={{ fontSize: 16 }}>{p.stepsTitle}</h2>
+      <h2 style={{ fontSize: 16 }}>{p.checklistTitle}</h2>
       <ul className="ss-steps">
-        {p.steps.map((s) => (
+        {p.checklist.map((s) => (
           <li key={s.title}><strong>{s.title}.</strong> {s.body}</li>
         ))}
       </ul>
 
+      <h2 style={{ fontSize: 16 }}>{p.scriptsTitle}</h2>
+      <div className="ss-grid">
+        {p.scripts.map((s) => (
+          <div key={s.title} className="ss-card">
+            <h3>{s.title}</h3>
+            <p>{s.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <h2 style={{ fontSize: 16 }}>{p.paymentsTitle}</h2>
+      <p style={{ fontSize: 14 }}>{p.paymentsBody}</p>
+      <p className="ss-soon" style={{ fontSize: 13 }}>{p.paymentsComingSoon}</p>
+
       <h2 style={{ fontSize: 16 }}>{p.pitchTitle}</h2>
       <p style={{ fontSize: 14 }}>{p.pitchBody}</p>
       <p className="ss-price">
-        {p.priceDomainLabel}: ${CUSTOM_DOMAIN_PRICE_MXN} MXN · {p.priceSubdomainLabel}: gratis
+        {p.priceDomainLabel}: ${CUSTOM_DOMAIN_PRICE_MXN} MXN · {p.priceSubdomainLabel}: ${SUBDOMAIN_PRICE_YEARLY_MXN} MXN/año
       </p>
     </main>
   )
