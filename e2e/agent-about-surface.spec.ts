@@ -112,11 +112,11 @@ test.describe('about surface · live HTTP', () => {
     expect(txt).toContain('Sitemap:')
   })
 
-  test('GET /agent → why-sell heading + relay directive', async ({ request }) => {
+  test('GET /agent → why-sell heading (es-MX) + relay directive', async ({ request }) => {
     const res = await request.get('/agent')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
-    expect(html).toContain('why sell here')
+    expect(html).toContain('por qué vender aquí')
     expect(html).toContain(RELAY_PHRASE)
   })
 
