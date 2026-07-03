@@ -138,11 +138,15 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
 
 /**
  * The one-time SKUs a promoter can close on a merchant's behalf — each maps to a
- * `/api/promoter/close/<id>` route that takes `{ shopId }` and returns `{ url }`.
+ * `/api/promoter/close/<id>` route that takes `{ shopId }` and returns `{ url }`
+ * (a Stripe checkout redirect) OR, for `subdomain` when the admin has configured
+ * the free-first-year perk (Sprint 3 · US-3.1/US-3.2), `{ free: true }` with NO
+ * redirect — the grant activates immediately, no charge.
  * (Print is a different flow — it needs ad content — so it's not in this picker.)
  */
 const CLOSE_SKUS = [
   { id: 'domain', label: 'Dominio propio', payLabel: 'Pagar dominio propio (1 año)' },
+  { id: 'subdomain', label: 'Subdominio propio', payLabel: 'Activar subdominio (1 año)' },
   { id: 'ml-sync', label: 'Sincronización Mercado Libre', payLabel: 'Pagar sincronización ML (1 año)' },
 ] as const
 type CloseSkuId = (typeof CLOSE_SKUS)[number]['id']
@@ -151,18 +155,21 @@ function CloseStep({ shop }: { shop: Shop }) {
   const [sku, setSku] = useState<CloseSkuId>('domain')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<string | null>(null)
 
   const selected = CLOSE_SKUS.find((s) => s.id === sku) ?? CLOSE_SKUS[0]
 
   async function pay() {
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setDone(null)
     try {
       const res = await fetch(`/api/promoter/close/${sku}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shopId: shop.shopId }),
       })
       const data = await res.json()
-      if (!res.ok || !data.ok || !data.url) { setError(data.error ?? 'No se pudo iniciar el pago.'); return }
+      if (!res.ok || !data.ok) { setError(data.error ?? 'No se pudo iniciar el pago.'); return }
+      if (data.free) { setDone('¡Listo! El subdominio ya está activo — sin costo, primer año GRATIS.'); return }
+      if (!data.url) { setError('No se pudo iniciar el pago.'); return }
       window.location.href = data.url
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }
@@ -178,7 +185,7 @@ function CloseStep({ shop }: { shop: Shop }) {
         <span className="text-[var(--color-muted)]">Producto</span>
         <select
           value={sku}
-          onChange={(e) => setSku(e.target.value as CloseSkuId)}
+          onChange={(e) => { setSku(e.target.value as CloseSkuId); setDone(null); setError(null) }}
           disabled={busy}
           aria-label="Producto a cerrar"
           className="mt-1 w-full rounded-lg border border-[var(--color-border)] px-3 py-2"
@@ -186,6 +193,7 @@ function CloseStep({ shop }: { shop: Shop }) {
           {CLOSE_SKUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
       </label>
+      {done && <p className="text-sm text-[color:var(--success)]">{done}</p>}
       {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
       <button onClick={pay} disabled={busy}
         className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">

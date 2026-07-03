@@ -15,8 +15,10 @@ import {
   buildPromoterEarningsTable,
   buildPromoterEarningsExample,
   promoterHeroCommissionStat,
+  PROMOTER_SKU_BASE_PRICE_MXN,
   type PromoterSkuEarnings,
 } from '@/lib/promoter-earnings'
+import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
 import type { SellerAcquisitionPageConfig } from './SellerAcquisitionSections'
 
@@ -165,21 +167,31 @@ export function buildPromoterPageConfig(
     isBoundPromoter?: boolean
     commissionRates?: Record<PromoterSku, number>
     promoterSettings?: PromoterSettings
+    /** Sprint 3 (US-3.1) — per-SKU promoter price overrides + the bundle offer. */
+    skuPrices?: PromoterSkuPrices
   },
 ): SellerAcquisitionPageConfig {
   const page = copy.promotor
   const priceMxn = opts.customDomainPriceMxn
   const isBoundPromoter = opts.isBoundPromoter ?? false
-  const promoterSettings: PromoterSettings = opts.promoterSettings ?? { enabled: false, discount_type: 'fixed', discount_amount_cents: 0 }
+  const promoterSettings: PromoterSettings = opts.promoterSettings ?? { enabled: false, discount_type: 'fixed', discount_amount_cents: 0 , bundle_skus: [], bundle_price_mxn: null }
   const commissionRates: Record<PromoterSku, number> = opts.commissionRates ?? {
     custom_domain: 0,
     print_ad: 0,
     subdomain: 0,
     ml_sync: 0,
   }
-  const earningsTable = buildPromoterEarningsTable(commissionRates, promoterSettings)
+  const skuPrices: PromoterSkuPrices = opts.skuPrices ?? {}
+  const earningsTable = buildPromoterEarningsTable(commissionRates, promoterSettings, skuPrices)
   const heroCommissionStat = promoterHeroCommissionStat(commissionRates)
   const monthlyExample = buildPromoterEarningsExample(commissionRates, promoterSettings, [5])
+  // Sprint 3 (US-3.1) — "todo esto cuesta $X — con tu promotor $Y" bundle stat, same
+  // deriver the admin preview + close workspace read. Absent (null) until an admin
+  // configures a bundle — never a fabricated number.
+  const bundleRow = computeBundleRow(
+    buildSkuPriceTable(PROMOTER_SKU_BASE_PRICE_MXN, skuPrices, promoterSettings),
+    { skus: promoterSettings.bundle_skus, bundlePriceMxn: promoterSettings.bundle_price_mxn },
+  )
   // The close workspace (`/promotor/cerrar`) 404s when the program is off — hide both CTAs
   // that point there rather than link to a dead page (epic 08 · promoter-funnel-fixes S1.2).
   const closeWorkspaceCta = (label: string, testId: string) =>
@@ -211,6 +223,8 @@ export function buildPromoterPageConfig(
     heroStats: [
       { value: `$${priceMxn}`, label: page.priceDomainLabel },
       { value: `$${SUBDOMAIN_PRICE_YEARLY_MXN}`, label: page.priceSubdomainLabel },
+      // Sprint 3 (US-3.1) — "todo esto cuesta $X — con tu promotor $Y" once a bundle is configured.
+      ...(bundleRow ? [{ value: `$${bundleRow.bundlePriceMxn}`, label: `paquete completo (antes $${bundleRow.regularTotalMxn})` }] : []),
       ...(heroCommissionStat ? [{ value: heroCommissionStat, label: page.commissionLabel }] : []),
     ],
     proofTitle: page.proofTitle,

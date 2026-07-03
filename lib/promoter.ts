@@ -25,6 +25,7 @@
 import { db } from '@/lib/supabase'
 import { DEFAULT_COMMISSION_RATES, decideAccrual } from '@/lib/promoter-commission'
 import { PROMOTER_SKUS, isPromoterSku, type PromoterSku } from '@/lib/promoter-skus'
+import { resolveSkuPromoterPriceCents, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (shared with referrals)
 const CODE_LEN = 6
@@ -181,18 +182,24 @@ export interface PromoterSettings {
   discount_type: 'fixed' | 'percentage'
   /** Pesos×100 when `fixed`; the raw percent when `percentage` (same column). */
   discount_amount_cents: number
+  /** Sprint 3 (US-3.1) — which SKUs the bundle price covers. Empty = no bundle configured. */
+  bundle_skus: PromoterSku[]
+  /** Sprint 3 (US-3.1) — admin-set total price (whole MXN) for the bundled SKUs together. `null` = not configured. */
+  bundle_price_mxn: number | null
 }
 
 const DEFAULT_SETTINGS: PromoterSettings = {
   enabled: true,
   discount_type: 'fixed',
   discount_amount_cents: 10000, // $100 MXN off the SKU
+  bundle_skus: [],
+  bundle_price_mxn: null,
 }
 
 export async function getPromoterSettings(): Promise<PromoterSettings> {
   const { data, error } = await db
     .from('marketplace_promoter_settings')
-    .select('enabled, discount_type, discount_amount_cents')
+    .select('enabled, discount_type, discount_amount_cents, bundle_skus, bundle_price_mxn')
     .eq('id', 1)
     .maybeSingle()
   if (error || !data) return DEFAULT_SETTINGS
@@ -200,6 +207,8 @@ export async function getPromoterSettings(): Promise<PromoterSettings> {
     enabled: data.enabled ?? true,
     discount_type: (data.discount_type as 'fixed' | 'percentage') ?? 'fixed',
     discount_amount_cents: data.discount_amount_cents ?? DEFAULT_SETTINGS.discount_amount_cents,
+    bundle_skus: Array.isArray(data.bundle_skus) ? (data.bundle_skus as string[]).filter(isPromoterSku) : [],
+    bundle_price_mxn: data.bundle_price_mxn ?? null,
   }
 }
 
@@ -251,16 +260,30 @@ export function computePromoterDiscountCents(
  * Resolve a promoter code to a discount preview. Pure: the caller looks the
  * promoter up (DB) and passes it in, so this stays unit-testable. Unknown code →
  * not_found; valid code but the program/discount is off → disabled.
+ *
+ * Sprint 3 (US-3.1) — pass `sku` + `skuPrices` to prefer an explicit per-SKU
+ * promoter price (e.g. subdomain = $0, US-3.2) over the legacy global discount.
+ * Omitting them keeps the exact prior behavior (back-compat for every existing
+ * checkout call site) — so this is additive, never a drift risk for a SKU without
+ * an override.
  */
 export function resolvePromoterDiscount(input: {
   promoter: Promoter | null
   settings: PromoterSettings
   itemsCents: number
+  sku?: PromoterSku
+  skuPrices?: PromoterSkuPrices
 }): PromoterDiscount {
-  const { promoter, settings, itemsCents } = input
+  const { promoter, settings, itemsCents, sku, skuPrices } = input
   if (!promoter) return { ok: false, reason: 'not_found' }
-  if (!settings.enabled || settings.discount_amount_cents <= 0) return { ok: false, reason: 'disabled' }
-  const discount_cents = computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, itemsCents)
+  if (!settings.enabled) return { ok: false, reason: 'disabled' }
+
+  const hasOverride = sku != null && skuPrices != null && skuPrices[sku] != null
+  if (!hasOverride && settings.discount_amount_cents <= 0) return { ok: false, reason: 'disabled' }
+
+  const discount_cents = hasOverride
+    ? Math.max(0, itemsCents - resolveSkuPromoterPriceCents({ sku: sku as PromoterSku, regularPriceCents: itemsCents, skuPrices: skuPrices as PromoterSkuPrices, settings }))
+    : computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, itemsCents)
   return { ok: true, promoter_id: promoter.id, code: promoter.code, discount_cents }
 }
 
@@ -516,6 +539,42 @@ export async function updateCommissionRate(sku: PromoterSku, ratePct: number): P
     .select('sku')
   if (error && !/does not exist|relation/i.test(error.message ?? '')) {
     console.error('[promoter] commission rate update failed:', error.message)
+  }
+  return { ok: !error && Array.isArray(data) && data.length > 0 }
+}
+
+// ── Per-SKU promoter price overrides + bundle (Sprint 3 · US-3.1) ─────────────
+
+/**
+ * Explicit per-SKU promoter prices (whole MXN), keyed by SKU. An absent/`null`
+ * entry means "not configured — fall back to the legacy global discount formula"
+ * (lib/promoter-pricing.ts resolveSkuPromoterPriceCents). Tolerates the table not
+ * existing yet (returns `{}`, the all-fallback default).
+ */
+export async function getPromoterSkuPrices(): Promise<PromoterSkuPrices> {
+  const prices: PromoterSkuPrices = {}
+  const { data, error } = await db
+    .from('marketplace_promoter_sku_prices')
+    .select('sku, promoter_price_mxn')
+  if (error || !data) return prices
+  for (const row of data) {
+    if (isPromoterSku(row.sku)) prices[row.sku] = row.promoter_price_mxn
+  }
+  return prices
+}
+
+/**
+ * Upsert one SKU's promoter price override (whole MXN; `null` clears the
+ * override back to the global-discount fallback). Returns `ok:false` when the
+ * write didn't land, mirroring updateCommissionRate's "check the write" discipline.
+ */
+export async function updatePromoterSkuPrice(sku: PromoterSku, promoterPriceMxn: number | null): Promise<{ ok: boolean }> {
+  const { data, error } = await db
+    .from('marketplace_promoter_sku_prices')
+    .upsert({ sku, promoter_price_mxn: promoterPriceMxn, updated_at: new Date().toISOString() }, { onConflict: 'sku' })
+    .select('sku')
+  if (error && !/does not exist|relation/i.test(error.message ?? '')) {
+    console.error('[promoter] sku price update failed:', error.message)
   }
   return { ok: !error && Array.isArray(data) && data.length > 0 }
 }

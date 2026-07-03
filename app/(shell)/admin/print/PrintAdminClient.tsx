@@ -251,6 +251,8 @@ function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEditio
 function Submissions({ api, editionId, tiers }: { api: Api; editionId: string; tiers: PrintTier[] }) {
   const [subs, setSubs] = useState<PrintAdSubmission[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
+  const [cloneTarget, setCloneTarget] = useState<Record<string, string>>({})
+  const [cloning, setCloning] = useState<string | null>(null)
   const load = useCallback(() => {
     api(`/editions/${editionId}/submissions`).then((r) => r.json()).then((d) => setSubs(d.submissions ?? []))
   }, [api, editionId])
@@ -261,6 +263,20 @@ function Submissions({ api, editionId, tiers }: { api: Api; editionId: string; t
   async function setStatus(id: string, status: string) {
     await api(`/submissions/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
     load()
+  }
+
+  // Sprint 3 (US-3.3) — the admin-manual fallback: when the automatic 2x1 clone
+  // found no eligible next edition, the admin pastes the target edition id here.
+  async function cloneManually(id: string) {
+    const targetEditionId = (cloneTarget[id] ?? '').trim()
+    if (!targetEditionId) return
+    setCloning(id)
+    try {
+      const res = await api(`/submissions/${id}/clone-2x1`, { method: 'POST', body: JSON.stringify({ targetEditionId }) })
+      if (res.ok) load()
+    } finally {
+      setCloning(null)
+    }
   }
 
   if (subs.length === 0) return <p className="mt-2 text-xs text-[var(--color-muted)]">Sin anuncios todavía.</p>
@@ -290,7 +306,24 @@ function Submissions({ api, editionId, tiers }: { api: Api; editionId: string; t
           <div className="text-[var(--color-muted)] mt-1">
             {s.buyer_email ?? 'sin email'} · CTA: {s.content?.cta_target?.url ?? '—'}
             {s.content?.photos?.length ? ` · ${s.content.photos.length} fotos` : ''}
+            {s.content?.is_2x1 && !s.content?.is_2x1_cloned && ' · 2x1'}
+            {s.content?.is_2x1_cloned && ' · 2x1 (clonado)'}
           </div>
+          {s.content?.is_2x1_needs_manual_clone && (
+            <div className="mt-2 flex items-center gap-1.5 rounded bg-[var(--color-surface-alt)] p-1.5">
+              <span className="text-[var(--color-muted)]">2x1 sin edición siguiente disponible — clonar a mano:</span>
+              <input
+                placeholder="ID de la edición destino"
+                value={cloneTarget[s.id] ?? ''}
+                onChange={(e) => setCloneTarget((m) => ({ ...m, [s.id]: e.target.value }))}
+                className="rounded border border-[var(--color-border)] px-1.5 py-0.5 bg-transparent flex-1 min-w-0"
+              />
+              <button onClick={() => cloneManually(s.id)} disabled={cloning === s.id}
+                className="rounded bg-[var(--color-accent)] text-white px-2 py-0.5 disabled:opacity-50 flex-shrink-0">
+                {cloning === s.id ? 'Clonando…' : 'Clonar'}
+              </button>
+            </div>
+          )}
           {openId === s.id && (
             <div className="mt-3">
               <PrintAdPreview content={s.content ?? {}} tierLabel={tierLabel(s.tier_key)} />
