@@ -238,20 +238,44 @@ export type Clone2x1Result = { ok: true; cloneId: string } | { ok: false; error:
  * Shared by the automatic path above and the admin-manual "clonar a la siguiente
  * edición" fallback (`POST /api/admin/print/submissions/[id]/clone-2x1`) — same
  * write, two callers. Does NOT re-check `shouldAttemptClone` (the caller decides
- * whether to call this); does check the target edition/tier are real.
+ * whether to call this); does validate the target edition is real, from the SAME
+ * provider as the original, still accepting content (draft/open — not
+ * closed/in_production/distributed), and has the required tier (caught in
+ * cross-agent review of PR #165 — the admin-manual fallback previously accepted
+ * ANY edition id, including a different provider's or an already-closed one).
+ *
+ * Race-safety: a partial UNIQUE index on `content->>'is_2x1_clone_of'`
+ * (`print_ad_submissions_2x1_clone_of_uniq`, 20260703130000) means two concurrent
+ * callers for the SAME original (e.g. a Stripe webhook retry racing itself) can't
+ * both succeed — the second insert hits 23505, swallowed here as "already cloned"
+ * (also caught in cross-agent review).
  */
 export async function cloneSubmissionInto2x1Edition(
   submission: PrintAdSubmission,
   targetEditionId: string,
 ): Promise<Clone2x1Result> {
   const content = submission.content ?? {}
+
+  const { data: original } = await db
+    .from('print_editions')
+    .select('provider_id')
+    .eq('id', submission.edition_id)
+    .maybeSingle() as { data: Pick<PrintEdition, 'provider_id'> | null }
+
   const { data: targetEdition } = await db
     .from('print_editions')
-    .select('id, tiers')
+    .select('id, provider_id, status, tiers')
     .eq('id', targetEditionId)
-    .maybeSingle() as { data: Pick<PrintEdition, 'id' | 'tiers'> | null }
-  const targetTier = targetEdition?.tiers.find((t) => t.key === submission.tier_key)
-  if (!targetEdition || !targetTier?.medusa_product_id) {
+    .maybeSingle() as { data: Pick<PrintEdition, 'id' | 'provider_id' | 'status' | 'tiers'> | null }
+  if (!targetEdition) return { ok: false, error: 'Edición de destino no encontrada.' }
+  if (!original || targetEdition.provider_id !== original.provider_id) {
+    return { ok: false, error: 'La edición de destino debe ser del mismo proveedor.' }
+  }
+  if (targetEdition.status !== 'draft' && targetEdition.status !== 'open') {
+    return { ok: false, error: 'La edición de destino ya no acepta anuncios.' }
+  }
+  const targetTier = targetEdition.tiers.find((t) => t.key === submission.tier_key)
+  if (!targetTier?.medusa_product_id) {
     return { ok: false, error: 'La edición de destino no tiene ese tamaño disponible.' }
   }
 
@@ -269,6 +293,10 @@ export async function cloneSubmissionInto2x1Edition(
     })
     .select('id')
     .maybeSingle()
+  if (error?.code === '23505') {
+    // A concurrent call already cloned this exact original — not a failure.
+    return { ok: true, cloneId: 'already-cloned' }
+  }
   if (error || !clone) {
     console.error('[promoter 2x1] clone insert failed:', error?.message ?? 'no row')
     return { ok: false, error: 'No se pudo crear el clon.' }

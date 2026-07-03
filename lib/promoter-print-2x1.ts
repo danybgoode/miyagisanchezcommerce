@@ -38,8 +38,12 @@ export interface EditionForCloneDecision {
  * by `distribution_date` (falling back to `created_at` when unset — a freshly
  * scaffolded edition may not have a distribution date yet). Only `draft`/`open`
  * editions are eligible (closed/in_production/distributed can't take a new
- * submission). A candidate whose `submission_deadline` has already passed is
- * skipped (falls through to the next one, or `no_next_edition`).
+ * submission). A candidate whose `submission_deadline` has already passed, or
+ * that's missing the required tier, is skipped in favor of the NEXT candidate
+ * (fixed in cross-agent review of PR #165 — previously only the single closest
+ * candidate was checked, contradicting this comment's own stated intent) — the
+ * failure reason on a total miss is whichever the CLOSEST candidate failed on
+ * (the most actionable one for the admin-manual fallback to report).
  */
 export function decideNextEditionForClone(input: {
   currentEdition: Pick<EditionForCloneDecision, 'id' | 'provider_id' | 'distribution_date' | 'created_at'>
@@ -60,14 +64,20 @@ export function decideNextEditionForClone(input: {
 
   if (candidates.length === 0) return { ok: false, reason: 'no_next_edition' }
 
-  const next = candidates[0].edition
-  if (next.submission_deadline && Date.parse(next.submission_deadline) < now.getTime()) {
-    return { ok: false, reason: 'deadline_passed' }
+  let closestFailure: NextEditionDecision = { ok: false, reason: 'no_next_edition' }
+  for (const { edition } of candidates) {
+    if (edition.submission_deadline && Date.parse(edition.submission_deadline) < now.getTime()) {
+      closestFailure = { ok: false, reason: 'deadline_passed' }
+      continue
+    }
+    const tier = (edition.tiers ?? []).find((t) => t.key === requiredTierKey)
+    if (!tier?.medusa_product_id) {
+      closestFailure = { ok: false, reason: 'tier_unavailable' }
+      continue
+    }
+    return { ok: true, editionId: edition.id }
   }
-  const tier = (next.tiers ?? []).find((t) => t.key === requiredTierKey)
-  if (!tier?.medusa_product_id) return { ok: false, reason: 'tier_unavailable' }
-
-  return { ok: true, editionId: next.id }
+  return closestFailure
 }
 
 /**

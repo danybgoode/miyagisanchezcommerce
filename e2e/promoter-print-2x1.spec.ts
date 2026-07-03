@@ -68,6 +68,18 @@ test.describe('decideNextEditionForClone', () => {
     const decision = decideNextEditionForClone({ currentEdition: current, editions: [current, noTier], requiredTierKey: 'half' })
     expect(decision).toEqual({ ok: false, reason: 'tier_unavailable' })
   })
+
+  test('falls through a disqualified CLOSEST candidate to the next qualifying one (not just no_next_edition)', () => {
+    const closestButPastDeadline = edition({
+      id: 'ed_closest', distribution_date: '2026-09-01T00:00:00Z', submission_deadline: '2026-01-01T00:00:00Z',
+    })
+    const laterButQualifies = edition({ id: 'ed_later', distribution_date: '2026-10-01T00:00:00Z' })
+    const decision = decideNextEditionForClone({
+      currentEdition: current, editions: [current, closestButPastDeadline, laterButQualifies], requiredTierKey: 'half',
+      now: new Date('2026-07-03T00:00:00Z'),
+    })
+    expect(decision).toEqual({ ok: true, editionId: 'ed_later' })
+  })
 })
 
 test.describe('shouldAttemptClone', () => {
