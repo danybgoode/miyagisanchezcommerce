@@ -134,16 +134,18 @@ test.describe('print-studio API · authed round-trip (owed provisioning)', () =>
   })
 
   const socialId = process.env.MS_TEST_PRINT_STUDIO_SOCIAL_ID
+  const socialEditionId = process.env.MS_TEST_PRINT_STUDIO_EDITION_ID
 
-  test('flips a disposable social submission approved → placed → approved', async ({ request }) => {
+  test('flips a disposable social submission approved → placed → approved, scoped to an edition', async ({ request }) => {
     test.skip(!token, 'Set PRINT_STUDIO_TOKEN to run the authed round-trip.')
     test.skip(!socialId, 'Set MS_TEST_PRINT_STUDIO_SOCIAL_ID (a disposable approved social submission) to run the authed round-trip.')
+    test.skip(!socialEditionId, 'Set MS_TEST_PRINT_STUDIO_EDITION_ID (a real print_editions UUID) — placing now requires one.')
 
     const auth = { Authorization: `Bearer ${token}` }
 
     const toPlaced = await request.patch(`/api/admin/print/studio/social/${socialId}`, {
       headers: auth,
-      data: { status: 'placed' },
+      data: { status: 'placed', editionId: socialEditionId },
     })
     expect(toPlaced.ok()).toBeTruthy()
     expect((await toPlaced.json()).submission.status).toBe('placed')
@@ -154,6 +156,17 @@ test.describe('print-studio API · authed round-trip (owed provisioning)', () =>
     })
     expect(back.ok()).toBeTruthy()
     expect((await back.json()).submission.status).toBe('approved')
+  })
+
+  test('PATCH .../studio/social/:id with status=placed and no editionId → 400', async ({ request }) => {
+    test.skip(!token, 'Set PRINT_STUDIO_TOKEN to run the authed round-trip.')
+    test.skip(!socialId, 'Set MS_TEST_PRINT_STUDIO_SOCIAL_ID to run this check.')
+
+    const res = await request.patch(`/api/admin/print/studio/social/${socialId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { status: 'placed' },
+    })
+    expect(res.status()).toBe(400)
   })
 
   test('GET .../studio/social?editionId=<non-uuid> → 400 (not silently ignored or passed to the DB filter)', async ({ request }) => {
