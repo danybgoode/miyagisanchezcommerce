@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   PRINT_TIER_KEYS, PRINT_TIER_DEFAULTS,
   type PrintTier, type PrintTierKey,
@@ -22,6 +23,8 @@ const SUBMISSION_STATUSES = ['pending_payment', 'paid', 'approved', 'placed', 'r
 
 export default function PrintAdminClient() {
   const [tab, setTab] = useState<'editions' | 'providers'>('editions')
+  const searchParams = useSearchParams()
+  const [showMaquetaNotice, setShowMaquetaNotice] = useState(searchParams.get('notice') === 'zine-maqueta')
 
   // Clerk-gated page → same-origin fetches carry the session cookie; no secret.
   const api = useCallback(
@@ -36,6 +39,12 @@ export default function PrintAdminClient() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold">Edición impresa — Admin</h1>
+      {showMaquetaNotice && (
+        <div className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-accent)]/10 px-3 py-2 text-sm">
+          <span>La maqueta ahora vive en el estudio zine.</span>
+          <button onClick={() => setShowMaquetaNotice(false)} className="text-xs text-[var(--color-muted)]" aria-label="Cerrar">✕</button>
+        </div>
+      )}
       <div className="flex gap-2 mt-4 mb-6">
         {(['editions', 'providers'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -233,10 +242,9 @@ function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEditio
         <button onClick={() => setOpen((v) => !v)} className="text-xs text-[var(--color-accent)]">
           {open ? 'Ocultar anuncios' : 'Ver anuncios'}
         </button>
-        <a href={`/admin/print/${edition.id}/builder`}
-          className="text-xs text-[var(--color-accent)] no-underline font-medium">
-          ✎ Maquetar
-        </a>
+        <span className="text-xs text-[var(--color-muted)]" title="La maqueta ahora se edita en el estudio zine (local)">
+          ✎ Edición en el estudio zine
+        </span>
         <a href={exportHref} className="text-xs text-[var(--color-accent)] no-underline" download>
           ⬇ Descargar paquete de producción
         </a>
