@@ -185,7 +185,7 @@ export default function PromoterAdminClient({
       }
       // Resync the text input to the SAVED (possibly rounded) value — otherwise a
       // stale unrounded input (e.g. "12.7") can sit next to the actual "13" the
-      // server persisted (caught in cross-agent review of PR #165).
+      // server persisted (caught in cross-agent review of PR 165).
       if (data.prices) {
         setSkuPrices(data.prices)
         setPriceInputs((p) => ({ ...p, [sku]: data.prices[sku] != null ? String(data.prices[sku]) : '' }))

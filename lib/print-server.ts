@@ -241,7 +241,7 @@ export type Clone2x1Result = { ok: true; cloneId: string } | { ok: false; error:
  * whether to call this); does validate the target edition is real, from the SAME
  * provider as the original, still accepting content (draft/open — not
  * closed/in_production/distributed), and has the required tier (caught in
- * cross-agent review of PR #165 — the admin-manual fallback previously accepted
+ * cross-agent review of PR 165 — the admin-manual fallback previously accepted
  * ANY edition id, including a different provider's or an already-closed one).
  *
  * Race-safety: a partial UNIQUE index on `content->>'is_2x1_clone_of'`

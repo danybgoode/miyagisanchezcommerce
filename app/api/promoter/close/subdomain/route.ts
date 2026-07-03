@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     // existing grant or an active paid subscription — independent of the paywall
     // flag (a shop can hold a real entitlement even while the flag is off).
     // Mirrors the "already active" guard the paid path (startSubdomainCheckout)
-    // already has; caught missing here in fresh cross-agent review of PR #165 —
+    // already has; caught missing here in fresh cross-agent review of PR 165 —
     // without it, a promoter could silently overwrite a paying shop's grant
     // metadata and log a misleading $0-paid attribution.
     const existingGrant = readSubdomainGrant(shop.metadata)

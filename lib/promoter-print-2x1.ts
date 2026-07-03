@@ -40,7 +40,7 @@ export interface EditionForCloneDecision {
  * editions are eligible (closed/in_production/distributed can't take a new
  * submission). A candidate whose `submission_deadline` has already passed, or
  * that's missing the required tier, is skipped in favor of the NEXT candidate
- * (fixed in cross-agent review of PR #165 — previously only the single closest
+ * (fixed in cross-agent review of PR 165 — previously only the single closest
  * candidate was checked, contradicting this comment's own stated intent) — the
  * failure reason on a total miss is whichever the CLOSEST candidate failed on
  * (the most actionable one for the admin-manual fallback to report).
@@ -96,7 +96,7 @@ export function shouldAttemptClone(content: Pick<PrintAdContent, 'is_2x1' | 'is_
  * reachable exactly when `is_2x1_needs_manual_clone` is true (the automatic path
  * already tried and failed), so gating it on `!is_2x1_needs_manual_clone` — as a
  * first cut of this route mistakenly did — made every real invocation 422 (caught
- * in a fresh cross-agent review of PR #165: the flag that makes the "Clonar a
+ * in a fresh cross-agent review of PR 165: the flag that makes the "Clonar a
  * mano" button appear is the exact flag that blocked the click). Only requires:
  * a real 2x1 sale, not already cloned.
  */
