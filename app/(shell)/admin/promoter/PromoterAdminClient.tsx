@@ -12,6 +12,8 @@ import {
 import type { PromoterApplication } from '@/lib/promoter-applications'
 import { PROMOTER_SKU_BASE_PRICE_MXN } from '@/lib/promoter-earnings'
 import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
+import { TRANSFER_SKU_LABEL, type TransferSku } from '@/lib/promoter-transfer'
+import type { PromoterTransfer } from '@/lib/promoter-transfers'
 
 /**
  * Promoter console — provision promoters + edit the seller discount + (S3) set the
@@ -52,6 +54,7 @@ export default function PromoterAdminClient({
   initialSkuPrices,
   initialPendingCommissions,
   initialApplications,
+  initialPendingTransfers,
   siteUrl,
 }: {
   initialPromoters: Promoter[]
@@ -60,6 +63,7 @@ export default function PromoterAdminClient({
   initialSkuPrices: PromoterSkuPrices
   initialPendingCommissions: Commission[]
   initialApplications: PromoterApplication[]
+  initialPendingTransfers: PromoterTransfer[]
   siteUrl: string
 }) {
   const [promoters, setPromoters] = useState<Promoter[]>(initialPromoters)
@@ -87,6 +91,12 @@ export default function PromoterAdminClient({
     Object.fromEntries(PROMOTER_SKUS.map((sku) => [sku, initialSkuPrices[sku] != null ? String(initialSkuPrices[sku]) : ''])),
   )
   const [savingPrice, setSavingPrice] = useState<PromoterSku | null>(null)
+  // Sprint 4 (US-4.2) — pending net-remittance transfers + admin approve/reject.
+  const [transfers, setTransfers] = useState<PromoterTransfer[]>(initialPendingTransfers)
+  const [decidingTransferId, setDecidingTransferId] = useState<string | null>(null)
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({})
+  // Captured once at mount — keeps render pure (no Date.now() in the render body).
+  const [now] = useState(() => Date.now())
 
   const codeById = new Map(promoters.map((p) => [p.id, p.code]))
 
@@ -264,6 +274,36 @@ export default function PromoterAdminClient({
     } finally {
       setDecidingId(null)
     }
+  }
+
+  async function decideTransfer(id: string, action: 'approve' | 'reject') {
+    setDecidingTransferId(id)
+    setMsg(null)
+    try {
+      const res = await fetch(`/api/admin/promoter/transfers/${encodeURIComponent(id)}/${action}`, {
+        method: 'POST',
+        ...(action === 'reject' ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: rejectReasons[id] ?? '' }) } : {}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setMsg(data?.error ?? 'No se pudo procesar la transferencia.')
+        return
+      }
+      setTransfers((list) => list.filter((t) => t.id !== id))
+      setMsg(action === 'approve' ? 'Transferencia aprobada — beneficio activado.' : 'Transferencia rechazada.')
+    } finally {
+      setDecidingTransferId(null)
+    }
+  }
+
+  /** Age since reported, es-MX short form — so a stale transfer is visible at a glance. */
+  function ageSince(iso: string | null): string {
+    if (!iso) return '—'
+    const ms = now - new Date(iso).getTime()
+    const hours = Math.floor(ms / 3_600_000)
+    if (hours < 1) return 'hace unos minutos'
+    if (hours < 24) return `hace ${hours}h`
+    return `hace ${Math.floor(hours / 24)}d`
   }
 
   const pendingTotalCents = pending.reduce((sum, c) => sum + (c.commission_cents ?? 0), 0)
@@ -453,6 +493,42 @@ export default function PromoterAdminClient({
         </div>
       </section>
 
+      {/* Sprint 4 (US-4.1) — net-remittance transfer instructions (admin-config, never hardcoded) */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Detalles de transferencia (SPEI/DiMo/CoDi)</h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Se muestran al promotor cuando elige &ldquo;Transferir a Miyagi&rdquo; en el cierre.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {([
+            ['clabe', 'CLABE'],
+            ['bank_name', 'Banco'],
+            ['account_holder', 'Titular'],
+            ['dimo_phone', 'Teléfono DiMo'],
+            ['codi_reference', 'Referencia CoDi'],
+          ] as const).map(([key, label]) => (
+            <label key={key} className="block text-sm">
+              {label}
+              <input
+                type="text"
+                value={settings.transfer_details?.[key] ?? ''}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, transfer_details: { ...s.transfer_details, [key]: e.target.value } }))
+                }
+                className="w-full mt-1 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent"
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          onClick={saveSettings}
+          disabled={savingSettings}
+          className="rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {savingSettings ? 'Guardando…' : 'Guardar datos de transferencia'}
+        </button>
+      </section>
+
       {/* Sprint 3 (US-3.1) — per-SKU promoter price + bundle offer */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Precio por SKU + paquete</h2>
@@ -624,6 +700,61 @@ export default function PromoterAdminClient({
                     className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
                   >
                     {settling === c.id ? 'Marcando…' : 'Marcar pagada'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Sprint 4 (US-4.2) — pending net-remittance transfers */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Transferencias pendientes ({transfers.length})</h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Aprobar activa el producto en la tienda del comerciante y notifica al promotor; rechazar regresa la
+          venta a estado sin pagar.
+        </p>
+        {transfers.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">No hay transferencias pendientes.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
+            {transfers.map((t) => (
+              <li key={t.id} className="p-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <span className="font-mono font-semibold">{codeById.get(t.promoter_id) ?? t.promoter_id}</span>
+                    <span className="text-[var(--color-muted)] ml-2">
+                      {TRANSFER_SKU_LABEL[t.sku as TransferSku] ?? t.sku} · {t.method.toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-xs rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5">
+                    {ageSince(t.reported_at)}
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--color-muted)] truncate">Tienda: {t.seller_id}</div>
+                <div className="font-semibold">{mxn(t.owed_cents)} <span className="text-xs font-normal text-[var(--color-muted)]">(comisión retenida: {mxn(t.commission_cents)})</span></div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => decideTransfer(t.id, 'approve')}
+                    disabled={decidingTransferId === t.id}
+                    className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 text-sm font-semibold disabled:opacity-50"
+                  >
+                    {decidingTransferId === t.id ? 'Procesando…' : 'Aprobar'}
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Motivo de rechazo (opcional)"
+                    value={rejectReasons[t.id] ?? ''}
+                    onChange={(e) => setRejectReasons((m) => ({ ...m, [t.id]: e.target.value }))}
+                    className="w-48 rounded-lg border border-[var(--color-border)] px-2 py-1 text-sm bg-transparent"
+                  />
+                  <button
+                    onClick={() => decideTransfer(t.id, 'reject')}
+                    disabled={decidingTransferId === t.id}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
+                  >
+                    Rechazar
                   </button>
                 </div>
               </li>

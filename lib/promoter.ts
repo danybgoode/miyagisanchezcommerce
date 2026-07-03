@@ -106,6 +106,18 @@ export async function getPromoterByCode(code: string): Promise<Promoter | null> 
   return data as Promoter
 }
 
+/** Look up a promoter by id (epic 08 · S4 — resolving a transfer's owner). Null if not found / tables missing. */
+export async function getPromoterById(id: string): Promise<Promoter | null> {
+  if (!id) return null
+  const { data, error } = await db
+    .from('marketplace_promoters')
+    .select('id, code, name, clerk_user_id, created_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as Promoter
+}
+
 /**
  * Look up the promoter bound to a Clerk identity (epic 08 · S4 — the authed
  * close workspace resolves "who am I" from the logged-in user). Null when the
@@ -186,6 +198,21 @@ export interface PromoterSettings {
   bundle_skus: PromoterSku[]
   /** Sprint 3 (US-3.1) — admin-set total price (whole MXN) for the bundled SKUs together. `null` = not configured. */
   bundle_price_mxn: number | null
+  /** Sprint 4 (US-4.1) — admin-entered transfer instructions (CLABE/bank name/DiMo
+   *  phone/CoDi reference) shown to the promoter at close. Never hardcoded.
+   *  Optional (unlike `bundle_skus`/`bundle_price_mxn`) so the many existing
+   *  `PromoterSettings` test fixtures across e2e/*.spec.ts don't all need updating —
+   *  every real read defaults it with `?? {}`. */
+  transfer_details?: PromoterTransferDetails
+}
+
+/** Admin-config transfer instructions — every field optional (shown only when set). */
+export interface PromoterTransferDetails {
+  clabe?: string
+  bank_name?: string
+  account_holder?: string
+  dimo_phone?: string
+  codi_reference?: string
 }
 
 const DEFAULT_SETTINGS: PromoterSettings = {
@@ -194,12 +221,13 @@ const DEFAULT_SETTINGS: PromoterSettings = {
   discount_amount_cents: 10000, // $100 MXN off the SKU
   bundle_skus: [],
   bundle_price_mxn: null,
+  transfer_details: {},
 }
 
 export async function getPromoterSettings(): Promise<PromoterSettings> {
   const { data, error } = await db
     .from('marketplace_promoter_settings')
-    .select('enabled, discount_type, discount_amount_cents, bundle_skus, bundle_price_mxn')
+    .select('enabled, discount_type, discount_amount_cents, bundle_skus, bundle_price_mxn, transfer_details')
     .eq('id', 1)
     .maybeSingle()
   if (error || !data) return DEFAULT_SETTINGS
@@ -209,6 +237,7 @@ export async function getPromoterSettings(): Promise<PromoterSettings> {
     discount_amount_cents: data.discount_amount_cents ?? DEFAULT_SETTINGS.discount_amount_cents,
     bundle_skus: Array.isArray(data.bundle_skus) ? (data.bundle_skus as string[]).filter(isPromoterSku) : [],
     bundle_price_mxn: data.bundle_price_mxn ?? null,
+    transfer_details: (data.transfer_details ?? {}) as PromoterTransferDetails,
   }
 }
 
@@ -411,6 +440,12 @@ export async function recordAttribution(input: {
  * — a webhook retry re-writes the same deterministic values (Sprint 3 reads
  * `status='paid'` + the amount to compute first-payment commission). Tolerates
  * the table not existing yet.
+ *
+ * `skipAccrual` (Sprint 4 · US-4.2) — a cash/transfer close is "settled at
+ * source": the promoter already kept their commission out of the cash they
+ * collected, so it must NEVER create an `accrued` commission ledger row (unlike
+ * a card close, which still runs the normal accrual-then-offline-settle flow).
+ * Every existing caller omits it (defaults `false`), so this is purely additive.
  */
 export async function markAttributionPaid(input: {
   promoterId: string
@@ -418,8 +453,9 @@ export async function markAttributionPaid(input: {
   sku: PromoterSku
   grossAmountCents: number
   cadence: string
+  skipAccrual?: boolean
 }): Promise<AttributeResult> {
-  const { promoterId, sellerId, sku, grossAmountCents, cadence } = input
+  const { promoterId, sellerId, sku, grossAmountCents, cadence, skipAccrual = false } = input
   if (!promoterId || !sellerId) return 'skipped'
 
   const paidFields = {
@@ -445,7 +481,7 @@ export async function markAttributionPaid(input: {
       console.error('[promoter] attribution paid-update failed:', error.message)
       return 'skipped'
     }
-    await accrueCommissionForAttribution(existing.id) // Sprint 3 — best-effort, idempotent
+    if (!skipAccrual) await accrueCommissionForAttribution(existing.id) // Sprint 3 — best-effort, idempotent
     return 'recorded'
   }
 
@@ -470,7 +506,7 @@ export async function markAttributionPaid(input: {
         .eq('seller_id', sellerId)
         .eq('sku', sku)
         .maybeSingle()
-      if (row) await accrueCommissionForAttribution(row.id)
+      if (row && !skipAccrual) await accrueCommissionForAttribution(row.id)
       return 'recorded'
     }
     if (!/does not exist|relation/i.test(error.message ?? '')) {
@@ -478,7 +514,7 @@ export async function markAttributionPaid(input: {
     }
     return 'skipped'
   }
-  if (inserted) await accrueCommissionForAttribution(inserted.id) // Sprint 3
+  if (inserted && !skipAccrual) await accrueCommissionForAttribution(inserted.id) // Sprint 3
   return 'recorded'
 }
 

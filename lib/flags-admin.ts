@@ -62,6 +62,9 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // a NEW auth path to seller-scoped MCP tools. Enablement: default OFF ⇒ the URL
   // route 404s and the panel shows only the existing Bearer-token flow.
   'seller_agent.connector_url_enabled': { polarity: 'enablement', default: false },
+  // Net-remittance (SPEI/DiMo/CoDi) promoter close (epic 08 · promoter-funnel-v2 S4).
+  // Enablement: default OFF ⇒ the close checkout only ever offers Stripe.
+  'promoter.transfer_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
