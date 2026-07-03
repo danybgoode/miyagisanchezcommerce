@@ -33,11 +33,18 @@ export interface CloseReceiptContent {
   claimUrl: string
 }
 
+/** `intro` is embedded as raw HTML by the sender — a promoter-typed shop name
+ *  must be escaped before interpolation (caught by cross-agent review). */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export function buildMerchantCloseReceipt(input: CloseReceiptInput): CloseReceiptContent {
   const shopName = input.shopName.trim() || 'tu tienda'
+  const safeName = escapeHtml(shopName)
   const subject = `Recibo de ${shopName} en Miyagi Sánchez`
   const intro = input.toMerchantDirectly
-    ? `Gracias por unirte a Miyagi Sánchez. Esto es lo que activamos para <strong>${shopName}</strong>:`
-    : `Esto es lo que se activó para <strong>${shopName}</strong> — compártelo con tu comerciante:`
+    ? `Gracias por unirte a Miyagi Sánchez. Esto es lo que activamos para <strong>${safeName}</strong>:`
+    : `Esto es lo que se activó para <strong>${safeName}</strong> — compártelo con tu comerciante:`
   return { subject, intro, items: input.items, claimUrl: input.claimUrl }
 }

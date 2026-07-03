@@ -35,11 +35,15 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
     setUploading(true); setError(null)
     try {
       const uploaded: string[] = []
+      let failed = 0
       for (const file of Array.from(files).slice(0, 6)) {
         const url = await uploadPhoto(file)
-        if (url) uploaded.push(url)
+        if (url) uploaded.push(url); else failed++
       }
       setPhotos((prev) => [...prev, ...uploaded].slice(0, 6))
+      if (failed > 0) {
+        setError(failed === 1 ? 'Una foto no se pudo subir. Intenta de nuevo.' : `${failed} fotos no se pudieron subir. Intenta de nuevo.`)
+      }
     } finally {
       setUploading(false)
     }

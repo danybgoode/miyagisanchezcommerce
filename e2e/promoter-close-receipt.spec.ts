@@ -75,4 +75,16 @@ test.describe('promoter close receipt · buildMerchantCloseReceipt', () => {
     const r = buildMerchantCloseReceipt({ shopName: '   ', items: [], claimUrl: 'https://x', toMerchantDirectly: true })
     expect(r.subject).toContain('tu tienda')
   })
+
+  test('a promoter-typed shop name with HTML-special characters is escaped in the (raw-HTML) intro, never injected verbatim', () => {
+    const r = buildMerchantCloseReceipt({
+      shopName: '<img src=x onerror=alert(1)>Café & Co',
+      items: [],
+      claimUrl: 'https://x',
+      toMerchantDirectly: true,
+    })
+    expect(r.intro).not.toContain('<img')
+    expect(r.intro).toContain('&lt;img')
+    expect(r.intro).toContain('Café &amp; Co')
+  })
 })
