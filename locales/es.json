@@ -687,8 +687,24 @@
         }
       ],
       "apply": {
-        "title": "La solicitud en línea llega pronto",
-        "body": "Estamos armando el formulario para aplicar sin intermediarios. Mientras tanto, copia el prompt de arriba y pídele a tu IA que te explique cómo funciona, cuánto puedes ganar y cómo empezar — o vuelve pronto a esta página."
+        "title": "Aplica para ser promotor",
+        "body": "Cuéntanos quién eres. Revisamos tu solicitud y te avisamos en 2–3 días hábiles.",
+        "form": {
+          "nameLabel": "Nombre",
+          "namePlaceholder": "Tu nombre completo",
+          "emailLabel": "Correo",
+          "emailPlaceholder": "tu@correo.com",
+          "whatsappLabel": "WhatsApp",
+          "whatsappPlaceholder": "Ej. 55 1234 5678",
+          "cityLabel": "Ciudad o zona",
+          "cityPlaceholder": "Ej. CDMX — Coyoacán",
+          "motivationLabel": "¿Por qué quieres ser promotor? (opcional)",
+          "motivationPlaceholder": "Cuéntanos brevemente",
+          "submit": "Enviar solicitud",
+          "submitting": "Enviando…",
+          "success": "¡Listo! Recibimos tu solicitud — te avisamos por correo en 2–3 días hábiles.",
+          "genericError": "No se pudo enviar la solicitud. Intenta de nuevo."
+        }
       },
       "handbookTitle": "Manual del promotor",
       "handbookLead": "El paso a paso completo de un cierre, de principio a fin, para que no tengas que preguntarle nada a Daniel.",

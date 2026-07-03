@@ -104,9 +104,17 @@ const telegramLinkLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '10 m'), prefix: 'rl:tg_link' })
 }
 
+// Promoter applications: max 5 submissions per IP per hour — a public, unauthenticated
+// form, so this is the primary anti-spam backstop alongside the honeypot.
+const promoterApplyLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:promoter_apply' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -126,6 +134,7 @@ export async function checkRateLimit(
     : key === 'sweepstakes'     ? sweepstakesLimiter
     : key === 'telegram_webhook'? telegramWebhookLimiter
     : key === 'telegram_link'   ? telegramLinkLimiter
+    : key === 'promoter_apply'  ? promoterApplyLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

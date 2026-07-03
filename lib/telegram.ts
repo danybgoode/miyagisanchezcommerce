@@ -144,6 +144,11 @@ export const tg = {
   alert(message: string) {
     return tgNotify(`🚨 <b>Admin alert</b>\n${esc(message)}`)
   },
+
+  /** New self-serve promoter application submitted (epic 08 · promoter-funnel-v2 S2). */
+  promoterApplicationSubmitted(name: string, city: string | null, adminUrl: string) {
+    return tgNotify(`📝 <b>Nueva solicitud de promotor</b>\n${esc(name)}${city ? ` · ${esc(city)}` : ''}\n${esc(adminUrl)}`)
+  },
 }
 
 // ── HTML escape ────────────────────────────────────────────────────────────────

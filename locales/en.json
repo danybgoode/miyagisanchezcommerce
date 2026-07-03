@@ -683,8 +683,24 @@
         }
       ],
       "apply": {
-        "title": "Online applications are coming soon",
-        "body": "We're building the no-intermediary application form. Meanwhile, copy the prompt above and ask your AI how it works, how much you could earn, and how to start — or check back soon."
+        "title": "Apply to become a promoter",
+        "body": "Tell us who you are. We'll review your application and get back to you in 2–3 business days.",
+        "form": {
+          "nameLabel": "Name",
+          "namePlaceholder": "Your full name",
+          "emailLabel": "Email",
+          "emailPlaceholder": "you@email.com",
+          "whatsappLabel": "WhatsApp",
+          "whatsappPlaceholder": "e.g. 55 1234 5678",
+          "cityLabel": "City or area",
+          "cityPlaceholder": "e.g. CDMX — Coyoacán",
+          "motivationLabel": "Why do you want to be a promoter? (optional)",
+          "motivationPlaceholder": "Tell us briefly",
+          "submit": "Send application",
+          "submitting": "Sending…",
+          "success": "Done! We received your application — we'll email you in 2–3 business days.",
+          "genericError": "Couldn't send the application. Please try again."
+        }
       },
       "handbookTitle": "Promoter handbook",
       "handbookLead": "The full close checklist, start to finish, so you never have to ask Daniel anything.",

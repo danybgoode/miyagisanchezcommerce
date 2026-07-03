@@ -7,6 +7,7 @@ import { isEnabled } from '@/lib/flags'
 import { getPromoterByClerkId, getPromoterSettings, getCommissionRates } from '@/lib/promoter'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildPromoterPageConfig } from '../_components/page-config'
+import { PromoterApplicationForm } from '../_components/PromoterApplicationForm'
 
 const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/vende/promotor'
@@ -56,6 +57,12 @@ export default async function PromoterResourcesPage() {
     commissionRates,
     promoterSettings,
   })
+  // Sprint 2 · US-2.1: the not-yet-bound applyTeaser gets the real application form as its
+  // slot (see SellerAcquisitionSections.tsx's ApplyTeaser.form) — an already-bound promoter has
+  // no applyTeaser at all (buildPromoterPageConfig already omits it), so this is a no-op there.
+  if (config.applyTeaser) {
+    config.applyTeaser = { ...config.applyTeaser, form: <PromoterApplicationForm copy={ui.promotor.apply.form} /> }
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
