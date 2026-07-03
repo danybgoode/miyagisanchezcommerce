@@ -16,6 +16,7 @@ import {
   type PickupAppointmentState, type PickupAppointmentLike,
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
+import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,10 @@ interface OrderDetailProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Which marketplace sold this (ml-orders-native S1 · US-3).
+    source?: string | null
+    ml_order_id?: string | null
+    ml_pack_id?: string | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -841,6 +846,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold">Pedido</h1>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
+            {mlOrderBadgeLabel(order) && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800"
+                title="Venta importada de Mercado Libre"
+              >
+                {mlOrderBadgeLabel(order)}
+              </span>
+            )}
             {orderMeta.channel === 'custom_domain' && (
               <span
                 className="text-xs font-semibold px-2 py-0.5 rounded-full"
@@ -946,6 +959,27 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           )}
         </div>
       </section>
+
+      {/* Mercado Libre detail (ml-orders-native S1 · US-3) */}
+      {isMlOrder(order) && (
+        <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+          <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">
+            Mercado Libre
+          </h2>
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">ID de pedido</span>
+              <span className="font-mono text-xs">{order.ml_order_id ?? '—'}</span>
+            </div>
+            {order.ml_pack_id && (
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--color-muted)] w-24 flex-shrink-0 text-xs">ID de paquete</span>
+                <span className="font-mono text-xs">{order.ml_pack_id}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* SPEI/cash: seller confirm payment received — precedes shipping (S2.1) */}
       {isSpeiOrder && !paymentReceived && (

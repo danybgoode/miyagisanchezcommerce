@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 14 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(14)
+  test('covers all 15 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(15)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -31,6 +31,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     expect(FLAG_META['ml.sync_enabled']).toEqual({ polarity: 'killswitch', default: false })
     // The ML-sync paid-SKU entitlement gate (S5) — enablement, fail-open OFF (no paywall).
     expect(FLAG_META['ml.sync_paywall_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // ML order materialization (ml-orders-native S1) — enablement, fail-open OFF (stock
+    // sync only, no order, until the live materialization smoke passes).
+    expect(FLAG_META['ml.orders_enabled']).toEqual({ polarity: 'enablement', default: false })
     // The personal-MCP-URL auth path (seller-agent-connect-mcp-url S2) — enablement,
     // fail-open OFF (legacy Bearer-token flow only until the auth path is verified).
     expect(FLAG_META['seller_agent.connector_url_enabled']).toEqual({ polarity: 'enablement', default: false })

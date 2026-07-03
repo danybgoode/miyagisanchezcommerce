@@ -57,6 +57,12 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // ML-sync paid/promoter-SKU entitlement gate (epic 03 S5). Enablement: default OFF ⇒
   // no paywall (any connected seller may enable sync); flip ON to start charging.
   'ml.sync_paywall_enabled': { polarity: 'enablement', default: false },
+  // Materialize a paid ML sale as a real Medusa order (epic ml-orders-native S1).
+  // Enablement: default OFF ⇒ today's behavior (stock sync only, no order) — a flag
+  // outage can never start creating orders unsupervised. Real enforcement lives in the
+  // BACKEND (webhook + reconcile job); flip ON once Daniel's live ML-sandbox
+  // order-materialization smoke passes.
+  'ml.orders_enabled': { polarity: 'enablement', default: false },
   'subdomain.paywall_enabled': { polarity: 'enablement', default: false },
   // Personal MCP URL + Claude one-click (epic 03 · seller-agent-connect-mcp-url S2) —
   // a NEW auth path to seller-scoped MCP tools. Enablement: default OFF ⇒ the URL
