@@ -8,6 +8,8 @@
 import { db } from '@/lib/supabase'
 import { sendPrintAdReceivedToBuyer, sendPrintAdReceivedToMiyagi, sendPrintAdApproved, sendPrintAdRejected } from '@/lib/email'
 import { markAttributionPaid } from '@/lib/promoter'
+import { tg } from '@/lib/telegram'
+import { decideNextEditionForClone, shouldAttemptClone, buildClone2x1Content } from '@/lib/promoter-print-2x1'
 import {
   PRINT_OCCUPYING_STATUSES,
   type PrintEdition,
@@ -163,8 +165,120 @@ export async function handlePrintAdPaid(input: {
     })
   }
 
+  // Sprint 3 (US-3.3) — a 2x1 sale clones into the next edition once paid.
+  await maybeClone2x1Submission(submission as PrintAdSubmission)
+
   await sendPrintAdPaidEmails(submission, { amountCents, currency, buyerEmail, buyerName })
   return true
+}
+
+/**
+ * Promoter Funnel v2 · Sprint 3 (US-3.3) — attempt the 2x1 clone once a
+ * `content.is_2x1` submission is paid. Idempotent (`shouldAttemptClone` refuses a
+ * submission already cloned/flagged — a webhook retry or a second manual confirm
+ * never double-clones). Called from BOTH the card webhook (`handlePrintAdPaid`)
+ * and the admin manual-payment-confirm route, so a 2x1 sale clones regardless of
+ * how it was paid.
+ *
+ * No eligible next edition (not created yet, or its deadline already passed) ⇒
+ * stamps `is_2x1_needs_manual_clone` + alerts — the admin-manual "clonar a la
+ * siguiente edición" fallback (v1, per the sprint-3.md build note) picks it up
+ * from there (`POST /api/admin/print/submissions/[id]/clone-2x1`).
+ */
+export async function maybeClone2x1Submission(submission: PrintAdSubmission): Promise<void> {
+  const content = submission.content ?? {}
+  if (!shouldAttemptClone(content)) return
+
+  const { data: current } = await db
+    .from('print_editions')
+    .select('*')
+    .eq('id', submission.edition_id)
+    .maybeSingle() as { data: PrintEdition | null }
+  if (!current) return
+
+  const { data: editions } = await db
+    .from('print_editions')
+    .select('id, provider_id, status, submission_deadline, distribution_date, created_at, tiers')
+    .eq('provider_id', current.provider_id)
+  const decision = decideNextEditionForClone({
+    currentEdition: current,
+    editions: (editions ?? []) as Parameters<typeof decideNextEditionForClone>[0]['editions'],
+    requiredTierKey: submission.tier_key,
+  })
+
+  if (!decision.ok) {
+    await db
+      .from('print_ad_submissions')
+      .update({ content: { ...content, is_2x1_needs_manual_clone: true } })
+      .eq('id', submission.id)
+    tg.alert(
+      `⚠️ Anuncio 2x1 pagado sin edición siguiente disponible (${decision.reason}) — clonar a mano.\n` +
+      `Submission: ${submission.id}\nEdición actual: ${current.id}`,
+    )
+    return
+  }
+
+  const result = await cloneSubmissionInto2x1Edition(submission, decision.editionId)
+  if (!result.ok) {
+    await db
+      .from('print_ad_submissions')
+      .update({ content: { ...content, is_2x1_needs_manual_clone: true } })
+      .eq('id', submission.id)
+    tg.alert(`⚠️ Anuncio 2x1 pagado — el clon automático falló, clonar a mano.\nSubmission: ${submission.id}`)
+    return
+  }
+
+  tg.alert(`✅ Anuncio 2x1: clon comped creado en la siguiente edición\nOriginal: ${submission.id}\nClon: ${result.cloneId}`)
+}
+
+export type Clone2x1Result = { ok: true; cloneId: string } | { ok: false; error: string }
+
+/**
+ * Insert the comped clone into `targetEditionId` + stamp the original as cloned.
+ * Shared by the automatic path above and the admin-manual "clonar a la siguiente
+ * edición" fallback (`POST /api/admin/print/submissions/[id]/clone-2x1`) — same
+ * write, two callers. Does NOT re-check `shouldAttemptClone` (the caller decides
+ * whether to call this); does check the target edition/tier are real.
+ */
+export async function cloneSubmissionInto2x1Edition(
+  submission: PrintAdSubmission,
+  targetEditionId: string,
+): Promise<Clone2x1Result> {
+  const content = submission.content ?? {}
+  const { data: targetEdition } = await db
+    .from('print_editions')
+    .select('id, tiers')
+    .eq('id', targetEditionId)
+    .maybeSingle() as { data: Pick<PrintEdition, 'id' | 'tiers'> | null }
+  const targetTier = targetEdition?.tiers.find((t) => t.key === submission.tier_key)
+  if (!targetEdition || !targetTier?.medusa_product_id) {
+    return { ok: false, error: 'La edición de destino no tiene ese tamaño disponible.' }
+  }
+
+  const { data: clone, error } = await db
+    .from('print_ad_submissions')
+    .insert({
+      edition_id: targetEditionId,
+      tier_key: submission.tier_key,
+      seller_id: submission.seller_id,
+      buyer_clerk_user_id: submission.buyer_clerk_user_id,
+      buyer_email: submission.buyer_email,
+      medusa_product_id: targetTier.medusa_product_id,
+      status: 'paid', // re-enters the editorial queue exactly like a real paid ad
+      content: buildClone2x1Content(content, submission.id),
+    })
+    .select('id')
+    .maybeSingle()
+  if (error || !clone) {
+    console.error('[promoter 2x1] clone insert failed:', error?.message ?? 'no row')
+    return { ok: false, error: 'No se pudo crear el clon.' }
+  }
+
+  await db
+    .from('print_ad_submissions')
+    .update({ content: { ...content, is_2x1_cloned: true, is_2x1_clone_id: clone.id, is_2x1_needs_manual_clone: false } })
+    .eq('id', submission.id)
+  return { ok: true, cloneId: clone.id }
 }
 
 /**

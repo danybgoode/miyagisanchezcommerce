@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Vincula tu código de promotor primero.' }, { status: 403 })
   }
 
-  let body: { shopId?: string; slug?: string; editionId?: string; tierKey?: string; provider?: CheckoutProvider; content?: PrintAdContent } = {}
+  let body: { shopId?: string; slug?: string; editionId?: string; tierKey?: string; provider?: CheckoutProvider; content?: PrintAdContent; is2x1?: boolean } = {}
   try { body = await req.json() } catch { return NextResponse.json({ ok: false, error: 'Datos inválidos.' }, { status: 400 }) }
   if (!body.provider || !PROVIDERS.includes(body.provider)) {
     return NextResponse.json({ ok: false, error: 'Método de pago no válido.' }, { status: 400 })
@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
       buyer_email: null,
       medusa_product_id: tier.medusa_product_id,
       status: 'draft',
-      content: body.content ?? {},
+      // Sprint 3 (US-3.3) — a 2x1 close (pay 1 edition, appear in 2) is stamped
+      // here so maybeClone2x1Submission (lib/print-server.ts) picks it up once paid.
+      content: { ...(body.content ?? {}), ...(body.is2x1 ? { is_2x1: true } : {}) },
     })
     .select('*')
     .single()

@@ -156,6 +156,19 @@ export interface PrintAdContent {
   payment_reminded?: boolean
   /** Buyer change requests on a paid/approved ad. */
   change_requests?: Array<{ message: string; at: string }>
+  // ── 2x1 (promoter-funnel-v2 S3 · US-3.3): pay 1 edition, appear in 2 ──────────
+  /** Set at close time — this sale is a 2x1: pay 1 edition, appear in 2 consecutive. */
+  is_2x1?: boolean
+  /** Set on the ORIGINAL once its comped clone lands in the next edition. */
+  is_2x1_cloned?: boolean
+  /** The comped clone's submission id (on the ORIGINAL, once cloned). */
+  is_2x1_clone_id?: string
+  /** Set on the ORIGINAL when no eligible next edition exists yet — the admin-manual
+   *  "clonar a la siguiente edición" fallback (v1, sprint-3.md build note). */
+  is_2x1_needs_manual_clone?: boolean
+  /** Set on the CLONE, pointing back to the original — excluded from commission
+   *  (a clone is comped: it's never created by markAttributionPaid). */
+  is_2x1_clone_of?: string
 }
 
 export interface PrintAdSubmission {
