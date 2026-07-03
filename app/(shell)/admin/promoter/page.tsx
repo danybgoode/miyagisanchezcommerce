@@ -5,6 +5,7 @@ import {
   getCommissionRates,
   listPendingCommissions,
 } from '@/lib/promoter'
+import { listPromoterApplications } from '@/lib/promoter-applications'
 import { requireAdmin } from '@/lib/admin/guard'
 
 export const metadata = { title: 'Promotores — Admin' }
@@ -17,11 +18,12 @@ export const metadata = { title: 'Promotores — Admin' }
  */
 export default async function AdminPromoterPage() {
   await requireAdmin()
-  const [promoters, settings, commissionRates, pendingCommissions] = await Promise.all([
+  const [promoters, settings, commissionRates, pendingCommissions, applications] = await Promise.all([
     listPromoters(),
     getPromoterSettings(),
     getCommissionRates(),
     listPendingCommissions(),
+    listPromoterApplications(),
   ])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
   return (
@@ -30,6 +32,7 @@ export default async function AdminPromoterPage() {
       initialSettings={settings}
       initialCommissionRates={commissionRates}
       initialPendingCommissions={pendingCommissions}
+      initialApplications={applications}
       siteUrl={siteUrl}
     />
   )

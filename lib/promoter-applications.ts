@@ -159,6 +159,22 @@ export async function getPromoterApplication(id: string): Promise<PromoterApplic
 
 // ── Approve / reject transition (epic 08 · S2 · US-2.2) ───────────────────────
 
+export type ApplicationTransitionDecision =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' | 'invalid_transition' }
+
+/**
+ * Pure transition guard — mirrors resolvePromoterDiscount's shape (the caller
+ * looks the row up via DB and passes it in, so this stays unit-testable without
+ * a network call). Only a `pending` application may transition; an unknown
+ * (null) or already-decided application is refused (idempotency / no double-mint).
+ */
+export function decideApplicationTransition(application: PromoterApplication | null): ApplicationTransitionDecision {
+  if (!application) return { ok: false, reason: 'not_found' }
+  if (application.status !== 'pending') return { ok: false, reason: 'invalid_transition' }
+  return { ok: true }
+}
+
 export type DecideApplicationResult =
   | { ok: true; application: PromoterApplication; promoter?: Promoter }
   | { ok: false; reason: 'not_found' | 'invalid_transition' | 'mint_failed' }
@@ -166,17 +182,15 @@ export type DecideApplicationResult =
 /**
  * Approve a pending application: mints a fresh promoter code via the EXISTING
  * `createPromoter()` (unchanged), links it via `promoter_id`, and flips the
- * application to `approved`. Guards the transition — only `pending` can be
- * approved; an already-decided application is refused (idempotency / no
- * double-mint), same shape as the checkout state-machine pattern elsewhere in
- * this codebase.
+ * application to `approved`. Guarded by the pure `decideApplicationTransition`
+ * seam above.
  */
 export async function approvePromoterApplication(id: string): Promise<DecideApplicationResult> {
   const application = await getPromoterApplication(id)
-  if (!application) return { ok: false, reason: 'not_found' }
-  if (application.status !== 'pending') return { ok: false, reason: 'invalid_transition' }
+  const decision = decideApplicationTransition(application)
+  if (!decision.ok) return decision
 
-  const promoter = await createPromoter(application.name)
+  const promoter = await createPromoter(application!.name)
   if (!promoter) return { ok: false, reason: 'mint_failed' }
 
   const { data, error } = await db
@@ -198,13 +212,13 @@ export async function approvePromoterApplication(id: string): Promise<DecideAppl
 }
 
 /**
- * Reject a pending application. Same transition guard as approve — no code is
- * ever minted on this path.
+ * Reject a pending application. Same pure transition guard as approve — no code
+ * is ever minted on this path.
  */
 export async function rejectPromoterApplication(id: string): Promise<DecideApplicationResult> {
   const application = await getPromoterApplication(id)
-  if (!application) return { ok: false, reason: 'not_found' }
-  if (application.status !== 'pending') return { ok: false, reason: 'invalid_transition' }
+  const decision = decideApplicationTransition(application)
+  if (!decision.ok) return decision
 
   const { data, error } = await db
     .from('marketplace_promoter_applications')

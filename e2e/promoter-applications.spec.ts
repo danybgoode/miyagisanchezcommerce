@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test'
 import {
   validateApplicationInput,
   applicationRefusalMessage,
+  decideApplicationTransition,
+  type PromoterApplication,
 } from '../lib/promoter-applications'
 
 /**
@@ -104,5 +106,42 @@ test.describe('promoter applications · POST /api/promoter/apply (anonymous)', (
   test('malformed JSON body ⇒ 400', async ({ request }) => {
     const res = await request.post('/api/promoter/apply', { data: 'not json', headers: { 'Content-Type': 'application/json' } })
     expect([400, 500]).toContain(res.status())
+  })
+})
+
+const PENDING_APP: PromoterApplication = {
+  id: 'app_1', name: 'Test', email: 't@example.com', whatsapp: '555', city: null, motivation: null,
+  status: 'pending', promoter_id: null,
+}
+
+test.describe('promoter applications · decideApplicationTransition (pure — US-2.2)', () => {
+  test('unknown (null) application ⇒ not_found', () => {
+    expect(decideApplicationTransition(null)).toEqual({ ok: false, reason: 'not_found' })
+  })
+
+  test('a pending application ⇒ ok (may transition)', () => {
+    expect(decideApplicationTransition(PENDING_APP)).toEqual({ ok: true })
+  })
+
+  test('an already-approved or already-rejected application ⇒ invalid_transition (no double-mint)', () => {
+    expect(decideApplicationTransition({ ...PENDING_APP, status: 'approved' })).toEqual({ ok: false, reason: 'invalid_transition' })
+    expect(decideApplicationTransition({ ...PENDING_APP, status: 'rejected' })).toEqual({ ok: false, reason: 'invalid_transition' })
+  })
+})
+
+test.describe('promoter applications · admin routes reject anonymously (401)', () => {
+  test('GET /api/admin/promoter/applications → 401 (no Clerk session)', async ({ request }) => {
+    const res = await request.get('/api/admin/promoter/applications')
+    expect(res.status()).toBe(401)
+  })
+
+  test('POST /api/admin/promoter/applications/:id/approve → 401', async ({ request }) => {
+    const res = await request.post('/api/admin/promoter/applications/does-not-exist/approve')
+    expect(res.status()).toBe(401)
+  })
+
+  test('POST /api/admin/promoter/applications/:id/reject → 401', async ({ request }) => {
+    const res = await request.post('/api/admin/promoter/applications/does-not-exist/reject')
+    expect(res.status()).toBe(401)
   })
 })

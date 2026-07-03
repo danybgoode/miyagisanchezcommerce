@@ -9,6 +9,7 @@ import {
   type PromoterSku,
   type Commission,
 } from '@/lib/promoter'
+import type { PromoterApplication } from '@/lib/promoter-applications'
 
 /**
  * Promoter console — provision promoters + edit the seller discount + (S3) set the
@@ -31,20 +32,35 @@ const SKU_LABEL: Record<PromoterSku, string> = {
 const mxn = (cents: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
 
+const APPLICATION_STATUS_LABEL: Record<PromoterApplication['status'], string> = {
+  pending: 'Pendiente',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+}
+
+/** Build a tappable wa.me link from a stored WhatsApp number (digits only). */
+function whatsappLink(whatsapp: string): string {
+  return `https://wa.me/${whatsapp.replace(/\D/g, '')}`
+}
+
 export default function PromoterAdminClient({
   initialPromoters,
   initialSettings,
   initialCommissionRates,
   initialPendingCommissions,
+  initialApplications,
   siteUrl,
 }: {
   initialPromoters: Promoter[]
   initialSettings: PromoterSettings
   initialCommissionRates: Record<PromoterSku, number>
   initialPendingCommissions: Commission[]
+  initialApplications: PromoterApplication[]
   siteUrl: string
 }) {
   const [promoters, setPromoters] = useState<Promoter[]>(initialPromoters)
+  const [applications, setApplications] = useState<PromoterApplication[]>(initialApplications)
+  const [decidingId, setDecidingId] = useState<string | null>(null)
   const [settings, setSettings] = useState<PromoterSettings>(initialSettings)
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -185,6 +201,24 @@ export default function PromoterAdminClient({
     }
   }
 
+  async function decide(id: string, action: 'approve' | 'reject') {
+    setDecidingId(id)
+    setMsg(null)
+    try {
+      const res = await fetch(`/api/admin/promoter/applications/${encodeURIComponent(id)}/${action}`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setMsg(data?.error ?? 'No se pudo procesar la solicitud.')
+        return
+      }
+      setApplications((list) => list.map((a) => (a.id === id ? data.application : a)))
+      if (data.promoter) setPromoters((list) => [data.promoter, ...list])
+      setMsg(action === 'approve' ? 'Solicitud aprobada — se envió el código por correo.' : 'Solicitud rechazada.')
+    } finally {
+      setDecidingId(null)
+    }
+  }
+
   const pendingTotalCents = pending.reduce((sum, c) => sum + (c.commission_cents ?? 0), 0)
 
   return (
@@ -218,6 +252,55 @@ export default function PromoterAdminClient({
             {creating ? 'Creando…' : 'Crear promotor'}
           </button>
         </div>
+      </section>
+
+      {/* Sprint 2 · US-2.2 — self-serve applications */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Solicitudes ({applications.filter((a) => a.status === 'pending').length} pendientes)</h2>
+        {applications.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">Aún no hay solicitudes.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
+            {applications.map((a) => (
+              <li key={a.id} className="p-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <span className="font-semibold">{a.name}</span>
+                    {a.city && <span className="text-[var(--color-muted)] ml-2">· {a.city}</span>}
+                  </div>
+                  <span className="text-xs rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5">
+                    {APPLICATION_STATUS_LABEL[a.status]}
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--color-muted)]">
+                  {a.email} ·{' '}
+                  <a href={whatsappLink(a.whatsapp)} target="_blank" rel="noreferrer" className="underline">
+                    WhatsApp
+                  </a>
+                </div>
+                {a.motivation && <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{a.motivation}&rdquo;</p>}
+                {a.status === 'pending' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => decide(a.id, 'approve')}
+                      disabled={decidingId === a.id}
+                      className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {decidingId === a.id ? 'Procesando…' : 'Aprobar'}
+                    </button>
+                    <button
+                      onClick={() => decide(a.id, 'reject')}
+                      disabled={decidingId === a.id}
+                      className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Promoter list with code + share link */}
