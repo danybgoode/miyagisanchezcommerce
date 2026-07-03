@@ -89,6 +89,7 @@ test.describe('promoter close · authed routes respect the kill-switch (flag on 
     '/api/promoter/close/subdomain',
     '/api/promoter/close/print',
     '/api/promoter/close/ml-sync',
+    '/api/promoter/close/listing', // Sprint 5 · US-5.1
   ]
   for (const path of authedPosts) {
     test(`POST ${path} → 404 (hidden) or 401 (live, auth required)`, async ({ request }) => {
@@ -96,6 +97,12 @@ test.describe('promoter close · authed routes respect the kill-switch (flag on 
       expect([401, 404]).toContain(res.status())
     })
   }
+
+  // Sprint 5 · US-5.6 — GET, not POST, same guard shape.
+  test('GET /api/promoter/rate-card → 404 (hidden) or 401 (live, auth required)', async ({ request }) => {
+    const res = await request.get('/api/promoter/rate-card')
+    expect([401, 404]).toContain(res.status())
+  })
 })
 
 test.describe('promoter close · resources mini-site renders es-MX (US-12)', () => {

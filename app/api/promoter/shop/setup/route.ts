@@ -42,12 +42,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Configuración incompleta en el servidor.' }, { status: 500 })
   }
 
-  let body: { name?: string; location?: string; description?: string } = {}
+  let body: {
+    name?: string
+    description?: string
+    cp?: string
+    estado?: string
+    municipio?: string
+    colonia?: string
+    merchant_email?: string
+  } = {}
   try { body = await req.json() } catch { /* validated below */ }
   const name = (body.name ?? '').trim()
   if (name.length < 2) {
     return NextResponse.json({ ok: false, error: 'Escribe el nombre del negocio.' }, { status: 400 })
   }
+
+  // Sprint 5 (US-5.2) — structured estado/municipio/colonia (CP-first, from
+  // /api/checkout/postal-lookup) replaces the old free-text location field.
+  // `location` stays a plain "municipio, estado" string for every existing
+  // reader (parseLocation, PDP, search) — same join order `parseLocation`
+  // expects (city-like part first, state-like part second). `location_detail`
+  // carries the precise fields for Sprint 5's coverage matcher (US-5.3), which
+  // treats it as optional (older shops only have the free-text `location`).
+  const estado = body.estado?.trim() || null
+  const municipio = body.municipio?.trim() || null
+  const colonia = body.colonia?.trim() || null
+  const cp = body.cp?.trim() || null
+  const location = [municipio, estado].filter(Boolean).join(', ') || null
+  const locationDetail = (cp || estado || municipio || colonia)
+    ? { cp, estado, municipio, colonia }
+    : null
+
+  // Sprint 5 (US-5.5) — optional merchant email, so the close-completion
+  // receipt has somewhere real to land. Falls back to the promoter's own
+  // email (adapted copy) when the promoter didn't capture one.
+  const merchantEmailRaw = body.merchant_email?.trim() || null
+  const merchantEmail = merchantEmailRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(merchantEmailRaw)
+    ? merchantEmailRaw
+    : null
+
+  const metadata = (locationDetail || merchantEmail)
+    ? { ...(locationDetail ? { location_detail: locationDetail } : {}), ...(merchantEmail ? { merchant_email: merchantEmail } : {}) }
+    : undefined
 
   // Mint the unclaimed Medusa seller (the storefront's only read model).
   let seller: MintedSeller
@@ -57,10 +93,11 @@ export async function POST(req: NextRequest) {
       headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
       body: JSON.stringify({
         name,
-        location: body.location?.trim() || null,
+        location,
         description: body.description?.trim() || null,
         source: 'promoter',
         source_url: promoterSourceUrl(promoter.code, name),
+        metadata,
       }),
     })
     const data = (await res.json().catch(() => ({}))) as { seller?: MintedSeller; message?: string }
@@ -92,6 +129,10 @@ export async function POST(req: NextRequest) {
     shopId: mirrorId,
     sellerMedusaId: seller.id,
     slug: seller.slug,
+    // Sprint 5 (US-5.3) — carried forward so the client can pass it into the
+    // print-ad step's coverage matcher with no extra round-trip.
+    estado,
+    municipio,
     name: seller.name,
   })
 }

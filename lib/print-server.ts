@@ -8,6 +8,7 @@
 import { db } from '@/lib/supabase'
 import { sendPrintAdReceivedToBuyer, sendPrintAdReceivedToMiyagi, sendPrintAdApproved, sendPrintAdRejected } from '@/lib/email'
 import { markAttributionPaid } from '@/lib/promoter'
+import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
 import { tg } from '@/lib/telegram'
 import { decideNextEditionForClone, shouldAttemptClone, buildClone2x1Content } from '@/lib/promoter-print-2x1'
 import {
@@ -361,6 +362,29 @@ export async function sendPrintAdPaidEmails(
       photosCount: Array.isArray(content.photos) ? content.photos.length : 0,
       adminUrl: `${SITE_URL}/admin/print`,
     }).catch((e) => console.error('[print] admin email failed:', e))
+  }
+
+  // Sprint 5 (US-5.5) — the merchant close-receipt, when this ad was sold
+  // through a promoter (same guard `handlePrintAdPaid` already uses right next
+  // to markAttributionPaid). Covers BOTH real call sites (the card webhook via
+  // handlePrintAdPaid, AND the admin manual/SPEI confirm route) with one change,
+  // since both call this shared function directly.
+  const promoContent = (submission.content ?? {}) as Record<string, unknown>
+  const promoterId = typeof promoContent.promoter_id === 'string' ? promoContent.promoter_id : null
+  const promoterSellerId = typeof promoContent.promoter_seller_id === 'string' ? promoContent.promoter_seller_id : null
+  if (promoterId && promoterSellerId) {
+    const distributionDate = edition?.distribution_date
+      ? new Date(edition.distribution_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+      : null
+    notifyMerchantCloseReceipt({
+      shopId: promoterSellerId,
+      promoterId,
+      items: [{
+        label: `Anuncio impreso — ${tierLabel}`,
+        amountMxn: amountFmt,
+        note: distributionDate ? `Distribución: ${distributionDate}. Diseño pendiente de revisión.` : 'Diseño pendiente de revisión.',
+      }],
+    }).catch((e) => console.error('[print] merchant receipt failed:', e))
   }
 }
 

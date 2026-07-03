@@ -19,6 +19,7 @@ import { markAttributionPaid, getPromoterById } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { TRANSFER_SKU_LABEL } from '@/lib/promoter-transfer'
 import { getSellerEmail, sendPromoterTransferApproved } from '@/lib/email'
+import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,16 @@ export const POST = withAdmin(async (_req: Request, { params }: { params: Promis
     cadence: 'one_time',
     skipAccrual: true, // settled at source — never an accrued commission row
   })
+
+  // Sprint 5 (US-5.5) — the merchant receipt, one per completed close.
+  notifyMerchantCloseReceipt({
+    shopId: transfer.seller_id,
+    promoterId: transfer.promoter_id,
+    items: [{
+      label: TRANSFER_SKU_LABEL[transfer.sku],
+      amountMxn: `$${(transfer.gross_amount_cents / 100).toFixed(2)} MXN`,
+    }],
+  }).catch((e) => console.error('[promoter-transfers] merchant receipt failed:', e))
 
   const promoter = await getPromoterById(transfer.promoter_id)
   if (promoter?.clerk_user_id) {
