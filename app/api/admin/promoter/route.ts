@@ -57,6 +57,15 @@ export const PATCH = withAdmin(async (req: NextRequest) => {
   } else if (Number.isFinite(body.bundle_price_mxn) && (body.bundle_price_mxn as number) >= 0) {
     patch.bundle_price_mxn = Math.round(body.bundle_price_mxn as number)
   }
+  // Sprint 4 (US-4.1) — admin-entered net-remittance transfer instructions.
+  if (body.transfer_details && typeof body.transfer_details === 'object') {
+    const td = body.transfer_details as Record<string, unknown>
+    const clean: Record<string, string> = {}
+    for (const key of ['clabe', 'bank_name', 'account_holder', 'dimo_phone', 'codi_reference'] as const) {
+      if (typeof td[key] === 'string' && td[key].trim()) clean[key] = td[key].trim()
+    }
+    patch.transfer_details = clean
+  }
 
   const { settings, ok } = await updatePromoterSettings(patch)
   if (!ok) return NextResponse.json({ error: 'No se pudo guardar.' }, { status: 502 })

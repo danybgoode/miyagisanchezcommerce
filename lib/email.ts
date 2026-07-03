@@ -1562,3 +1562,38 @@ export async function sendPromoterApplicationRejected(ctx: {
   ].join('')
   await send(ctx.to, subject, body)
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PROMOTER NET-REMITTANCE TRANSFERS (epic 08 · promoter-funnel-v2 · Sprint 4)
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** Promoter: your reported transfer was approved — the benefit is already live. */
+export async function sendPromoterTransferApproved(ctx: {
+  to: string
+  skuLabel: string
+  owedMxn: string
+}): Promise<void> {
+  const subject = `✅ Transferencia aprobada — ${ctx.skuLabel} activado`
+  const body = [
+    h1('Transferencia aprobada'),
+    p(`Confirmamos tu transferencia de ${esc(ctx.owedMxn)}. El beneficio ya está activo en la tienda del comerciante:`),
+    amount(ctx.skuLabel, 'Producto activado', true),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
+
+/** Promoter: your reported transfer was rejected — an es-MX reason + retry note. */
+export async function sendPromoterTransferRejected(ctx: {
+  to: string
+  skuLabel: string
+  reason: string | null
+}): Promise<void> {
+  const subject = 'Tu transferencia no pudo confirmarse'
+  const body = [
+    h1('Transferencia rechazada'),
+    p(`No pudimos confirmar tu transferencia para ${esc(ctx.skuLabel)}.`),
+    ctx.reason ? quote(ctx.reason) : '',
+    p('Puedes intentar de nuevo desde el flujo de cierre.'),
+  ].join('')
+  await send(ctx.to, subject, body)
+}

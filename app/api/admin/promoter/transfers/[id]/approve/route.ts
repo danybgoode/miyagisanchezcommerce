@@ -1,0 +1,69 @@
+/**
+ * POST /api/admin/promoter/transfers/:id/approve
+ *
+ * Claims a `reported` transfer (atomic `reported → approved`), THEN activates the
+ * SKU via the existing grant writer + marks the attribution paid — settled at
+ * source, so this NEVER accrues a commission ledger row (the promoter already
+ * kept it out of the cash they collected). Rolls the claim back to `reported` if
+ * activation fails, so a transient failure is retryable, not a permanent
+ * "approved but nothing happened" dead end. Notifies the promoter by email.
+ *
+ * Auth: Clerk admin session (via withAdmin). Promoter Funnel v2 · Sprint 4 (US-4.2).
+ */
+import { NextResponse } from 'next/server'
+import { currentUser } from '@clerk/nextjs/server'
+import { withAdmin } from '@/lib/admin/guard'
+import { claimPromoterTransferForApproval, releasePromoterTransferClaim } from '@/lib/promoter-transfers'
+import { activatePromoterOneTimeGrant } from '@/lib/promoter-grant-server'
+import { markAttributionPaid, getPromoterById } from '@/lib/promoter'
+import { resolveTargetShop } from '@/lib/promoter-server'
+import { TRANSFER_SKU_LABEL } from '@/lib/promoter-transfer'
+import { getSellerEmail, sendPromoterTransferApproved } from '@/lib/email'
+
+export const dynamic = 'force-dynamic'
+
+export const POST = withAdmin(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params
+  const admin = await currentUser().catch(() => null)
+
+  const claimed = await claimPromoterTransferForApproval(id, admin?.id ?? null)
+  if (!claimed.ok) {
+    return NextResponse.json({ error: claimed.reason }, { status: claimed.reason === 'not_found' ? 404 : 409 })
+  }
+  const transfer = claimed.transfer
+
+  const shop = await resolveTargetShop({ shopId: transfer.seller_id })
+  const activated = await activatePromoterOneTimeGrant({
+    sku: transfer.sku,
+    shopId: transfer.seller_id,
+    promoterId: transfer.promoter_id,
+    sellerClerkId: shop?.clerkUserId ?? '',
+  })
+  if (!activated.ok) {
+    await releasePromoterTransferClaim(id)
+    return NextResponse.json({ error: activated.error }, { status: 502 })
+  }
+
+  await markAttributionPaid({
+    promoterId: transfer.promoter_id,
+    sellerId: transfer.seller_id,
+    sku: transfer.sku,
+    grossAmountCents: transfer.gross_amount_cents,
+    cadence: 'one_time',
+    skipAccrual: true, // settled at source — never an accrued commission row
+  })
+
+  const promoter = await getPromoterById(transfer.promoter_id)
+  if (promoter?.clerk_user_id) {
+    const email = await getSellerEmail(promoter.clerk_user_id)
+    if (email) {
+      sendPromoterTransferApproved({
+        to: email,
+        skuLabel: TRANSFER_SKU_LABEL[transfer.sku],
+        owedMxn: `$${(transfer.owed_cents / 100).toFixed(2)} MXN`,
+      }).catch((e) => console.error('[promoter-transfers] approved email failed:', e))
+    }
+  }
+
+  return NextResponse.json({ ok: true, transfer })
+})
