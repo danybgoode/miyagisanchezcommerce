@@ -180,33 +180,54 @@ export type DecideApplicationResult =
   | { ok: false; reason: 'not_found' | 'invalid_transition' | 'mint_failed' }
 
 /**
- * Approve a pending application: mints a fresh promoter code via the EXISTING
- * `createPromoter()` (unchanged), links it via `promoter_id`, and flips the
- * application to `approved`. Guarded by the pure `decideApplicationTransition`
- * seam above.
+ * Approve a pending application: claims the row FIRST via an atomic conditional
+ * update (`.eq('status','pending')`), THEN mints the code — never the other way
+ * around. Two concurrent approves (double-click, retry) racing the old
+ * mint-then-claim order could both pass the pending check and both call
+ * `createPromoter()`, leaving the loser's freshly-minted code orphaned in
+ * `marketplace_promoters` even though its own claim failed (caught by cross-agent
+ * review). Only one caller can win the claim; the loser mints nothing.
+ * If minting fails after the claim, the claim is released back to `pending` so
+ * the application can be retried instead of getting stuck "approved" with no code.
  */
 export async function approvePromoterApplication(id: string): Promise<DecideApplicationResult> {
   const application = await getPromoterApplication(id)
   const decision = decideApplicationTransition(application)
   if (!decision.ok) return decision
 
-  const promoter = await createPromoter(application!.name)
-  if (!promoter) return { ok: false, reason: 'mint_failed' }
-
-  const { data, error } = await db
+  const { data: claimed, error: claimError } = await db
     .from('marketplace_promoter_applications')
-    .update({ status: 'approved', promoter_id: promoter.id, decided_at: new Date().toISOString() })
+    .update({ status: 'approved', decided_at: new Date().toISOString() })
     .eq('id', id)
     .eq('status', 'pending')
     .select(APPLICATION_COLUMNS)
     .maybeSingle()
-  if (error || !data) {
-    if (error && !/does not exist|relation/i.test(error.message ?? '')) {
-      console.error('[promoter-applications] approve update failed:', error.message)
+  if (claimError || !claimed) {
+    if (claimError && !/does not exist|relation/i.test(claimError.message ?? '')) {
+      console.error('[promoter-applications] approve claim failed:', claimError.message)
     }
-    // The promoter was already minted at this point — surfacing not_found/invalid_transition
-    // here would hide a real code from the applicant, so tell the truth: the transition failed.
     return { ok: false, reason: 'invalid_transition' }
+  }
+
+  const promoter = await createPromoter(claimed.name)
+  if (!promoter) {
+    // Release the claim — mint_failed should be retryable, not a permanent dead end.
+    await db.from('marketplace_promoter_applications').update({ status: 'pending', decided_at: null }).eq('id', id)
+    return { ok: false, reason: 'mint_failed' }
+  }
+
+  const { data, error } = await db
+    .from('marketplace_promoter_applications')
+    .update({ promoter_id: promoter.id })
+    .eq('id', id)
+    .select(APPLICATION_COLUMNS)
+    .maybeSingle()
+  if (error || !data) {
+    if (error) console.error('[promoter-applications] approve link failed:', error.message)
+    // The code minted fine and the row is already 'approved' — only the FK-back-reference
+    // write failed. Surface what we know rather than a false failure (the applicant's
+    // email still carries the real, valid code).
+    return { ok: true, application: { ...claimed, promoter_id: promoter.id }, promoter }
   }
   return { ok: true, application: data as PromoterApplication, promoter }
 }

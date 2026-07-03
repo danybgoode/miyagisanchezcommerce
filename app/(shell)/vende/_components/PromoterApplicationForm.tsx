@@ -125,10 +125,20 @@ export function PromoterApplicationForm({ copy }: { copy: FormCopy }) {
 
       {/* Honeypot — visually hidden off-screen, never `display:none`, so a scripted
           bot that fills every visible-in-DOM input still trips it; a real person never
-          sees or reaches it. */}
+          sees or reaches it. Deliberately avoids a `name`/label like "website" or
+          "company" — those are common browser-autofill/password-manager tokens that
+          can silently fill a hidden field even with autoComplete="off", tripping the
+          trap for a real applicant (cross-review should-fix). */}
       <label style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }} aria-hidden="true">
-        Website
-        <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        Campo adicional
+        <input
+          type="text"
+          name="promoter_apply_extra_hp"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
       </label>
 
       {error ? <p className="t-small" style={{ color: 'var(--danger)' }}>{error}</p> : null}

@@ -12,7 +12,7 @@ import { sendPromoterApplicationReceivedToAdmin } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
-const SITE = 'https://miyagisanchez.com'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 export async function POST(req: NextRequest) {
   const rl = await checkRateLimit('promoter_apply', getClientIp(req))

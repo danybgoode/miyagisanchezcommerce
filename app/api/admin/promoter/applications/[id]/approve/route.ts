@@ -12,7 +12,7 @@ import { sendPromoterApplicationApproved } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
-const SITE = 'https://miyagisanchez.com'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 export const POST = withAdmin(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
