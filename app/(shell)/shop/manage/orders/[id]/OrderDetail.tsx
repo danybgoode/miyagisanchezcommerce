@@ -657,6 +657,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
   const thumb  = listing?.images?.[0]?.url ?? null
   const meta   = STATUS_META[currentStatus] ?? STATUS_META.paid
+  const mlBadge = mlOrderBadgeLabel(order)
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -846,12 +847,12 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold">Pedido</h1>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
-            {mlOrderBadgeLabel(order) && (
+            {mlBadge && (
               <span
                 className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800"
                 title="Venta importada de Mercado Libre"
               >
-                {mlOrderBadgeLabel(order)}
+                {mlBadge}
               </span>
             )}
             {orderMeta.channel === 'custom_domain' && (
