@@ -12,7 +12,9 @@ import {
   listPromoters,
   getPromoterSettings,
   updatePromoterSettings,
+  isPromoterSku,
   type PromoterSettings,
+  type PromoterSku,
 } from '@/lib/promoter'
 
 export const dynamic = 'force-dynamic'
@@ -45,6 +47,15 @@ export const PATCH = withAdmin(async (req: NextRequest) => {
     // caps at the base, but don't persist >100%).
     if (patch.discount_type === 'percentage') amount = Math.min(amount, 100)
     patch.discount_amount_cents = amount
+  }
+  // Sprint 3 (US-3.1) — bundle config: which SKUs + the one bundle price.
+  if (Array.isArray(body.bundle_skus)) {
+    patch.bundle_skus = (body.bundle_skus as unknown[]).filter((s): s is PromoterSku => isPromoterSku(s as string))
+  }
+  if (body.bundle_price_mxn === null) {
+    patch.bundle_price_mxn = null
+  } else if (Number.isFinite(body.bundle_price_mxn) && (body.bundle_price_mxn as number) >= 0) {
+    patch.bundle_price_mxn = Math.round(body.bundle_price_mxn as number)
   }
 
   const { settings, ok } = await updatePromoterSettings(patch)

@@ -134,7 +134,7 @@ test.describe('subdomain-checkout · cadence + coupon', () => {
   })
 
   test('promoter coupon key is deterministic + name ≤ 40 chars', () => {
-    const fixed = (cents: number): PromoterSettings => ({ enabled: true, discount_type: 'fixed', discount_amount_cents: cents })
+    const fixed = (cents: number): PromoterSettings => ({ enabled: true, discount_type: 'fixed', discount_amount_cents: cents , bundle_skus: [], bundle_price_mxn: null })
     const k = promoterCouponKey(fixed(10000))!
     expect(k.couponId).toBe('promoter_disc_fixed_10000')
     expect(k.name.length).toBeLessThanOrEqual(40)

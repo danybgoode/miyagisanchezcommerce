@@ -31,7 +31,7 @@ import {
  */
 
 const PROMOTER: Promoter = { id: 'promoter_1', code: 'PRM-ABC123', name: 'Test' }
-const ENABLED_FIXED: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 10000 }
+const ENABLED_FIXED: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 10000 , bundle_skus: [], bundle_price_mxn: null }
 
 test.describe('promoter · code generation + shape', () => {
   test('generated codes carry the PRM- prefix and only unambiguous chars', () => {
@@ -101,7 +101,7 @@ test.describe('promoter · resolution decision (resolvePromoterDiscount)', () =>
   test('valid code but zero discount ⇒ disabled (nothing to preview)', () => {
     const r = resolvePromoterDiscount({
       promoter: PROMOTER,
-      settings: { ...ENABLED_FIXED, discount_amount_cents: 0 },
+      settings: { ...ENABLED_FIXED, discount_amount_cents: 0 , bundle_skus: [], bundle_price_mxn: null },
       itemsCents: 49900,
     })
     expect(r).toEqual({ ok: false, reason: 'disabled' })

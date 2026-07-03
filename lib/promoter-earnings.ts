@@ -16,6 +16,7 @@
 
 import { computePromoterDiscountCents, type PromoterSettings } from '@/lib/promoter'
 import { PROMOTER_SKUS, type PromoterSku } from '@/lib/promoter-skus'
+import { resolveSkuPromoterPriceCents, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
 import { ML_SYNC_PRICE_YEARLY_MXN } from '@/lib/ml-sync-pricing'
@@ -47,15 +48,22 @@ export type PromoterSkuEarnings =
  * actually accrues once a real rate is configured. (Caught in cross-agent review
  * of this PR — the discount fallback in getPromoterSettings is already non-zero
  * by default, so this divergence is live-reachable the moment a SKU gets a rate.)
+ *
+ * `opts.sku` + `opts.skuPrices` (Sprint 3 · US-3.1) prefer an explicit per-SKU
+ * promoter price override over the global discount formula — omit them (or leave
+ * no override configured for that SKU) for the exact prior behavior.
  */
 export function computePromoterSkuEarnings(
   basePriceMxn: number,
   ratePct: number,
   settings: PromoterSettings,
+  opts?: { sku?: PromoterSku; skuPrices?: PromoterSkuPrices },
 ): { regularPriceMxn: number; promoterPriceMxn: number; commissionMxn: number | null } {
   const baseCents = Math.round(basePriceMxn * 100)
-  const discountCents = computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, baseCents)
-  const promoterCents = Math.max(0, baseCents - discountCents)
+  const override = opts?.sku != null && opts.skuPrices?.[opts.sku] != null
+  const promoterCents = override
+    ? resolveSkuPromoterPriceCents({ sku: opts!.sku as PromoterSku, regularPriceCents: baseCents, skuPrices: opts!.skuPrices as PromoterSkuPrices, settings })
+    : Math.max(0, baseCents - computePromoterDiscountCents(settings.discount_type, settings.discount_amount_cents, baseCents))
   const promoterPriceMxn = Math.round(promoterCents / 100)
   const commissionMxn = ratePct > 0 ? Math.round((promoterCents * ratePct) / 100 / 100) : null
   return { regularPriceMxn: basePriceMxn, promoterPriceMxn, commissionMxn }
@@ -65,6 +73,7 @@ export function computePromoterSkuEarnings(
 export function buildPromoterEarningsTable(
   rates: Record<PromoterSku, number>,
   settings: PromoterSettings,
+  skuPrices?: PromoterSkuPrices,
 ): PromoterSkuEarnings[] {
   return PROMOTER_SKUS.map((sku): PromoterSkuEarnings => {
     const basePriceMxn = PROMOTER_SKU_BASE_PRICE_MXN[sku]
@@ -72,7 +81,7 @@ export function buildPromoterEarningsTable(
     if (basePriceMxn == null) {
       return { sku, variablePrice: true, commissionPct: ratePct > 0 ? ratePct : null }
     }
-    return { sku, variablePrice: false, ...computePromoterSkuEarnings(basePriceMxn, ratePct, settings) }
+    return { sku, variablePrice: false, ...computePromoterSkuEarnings(basePriceMxn, ratePct, settings, { sku, skuPrices }) }
   })
 }
 

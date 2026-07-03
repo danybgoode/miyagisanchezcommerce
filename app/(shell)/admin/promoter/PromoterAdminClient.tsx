@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   PROMOTER_SKUS,
   type Promoter,
@@ -10,6 +10,8 @@ import {
   type Commission,
 } from '@/lib/promoter'
 import type { PromoterApplication } from '@/lib/promoter-applications'
+import { PROMOTER_SKU_BASE_PRICE_MXN } from '@/lib/promoter-earnings'
+import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 
 /**
  * Promoter console — provision promoters + edit the seller discount + (S3) set the
@@ -47,6 +49,7 @@ export default function PromoterAdminClient({
   initialPromoters,
   initialSettings,
   initialCommissionRates,
+  initialSkuPrices,
   initialPendingCommissions,
   initialApplications,
   siteUrl,
@@ -54,6 +57,7 @@ export default function PromoterAdminClient({
   initialPromoters: Promoter[]
   initialSettings: PromoterSettings
   initialCommissionRates: Record<PromoterSku, number>
+  initialSkuPrices: PromoterSkuPrices
   initialPendingCommissions: Commission[]
   initialApplications: PromoterApplication[]
   siteUrl: string
@@ -77,8 +81,22 @@ export default function PromoterAdminClient({
   const [pending, setPending] = useState<Commission[]>(initialPendingCommissions)
   const [refs, setRefs] = useState<Record<string, string>>({})
   const [settling, setSettling] = useState<string | null>(null)
+  // Sprint 3 (US-3.1) — per-SKU promoter price overrides + the bundle offer.
+  const [skuPrices, setSkuPrices] = useState<PromoterSkuPrices>(initialSkuPrices)
+  const [priceInputs, setPriceInputs] = useState<Record<string, string>>(
+    Object.fromEntries(PROMOTER_SKUS.map((sku) => [sku, initialSkuPrices[sku] != null ? String(initialSkuPrices[sku]) : ''])),
+  )
+  const [savingPrice, setSavingPrice] = useState<PromoterSku | null>(null)
 
   const codeById = new Map(promoters.map((p) => [p.id, p.code]))
+
+  // Live preview — the SAME deriver the landing/handbook/close workspace use, so
+  // "what you see here is what they see" holds without a deploy or a page reload.
+  const priceTable = useMemo(() => buildSkuPriceTable(PROMOTER_SKU_BASE_PRICE_MXN, skuPrices, settings), [skuPrices, settings])
+  const bundleRow = useMemo(
+    () => computeBundleRow(priceTable, { skus: settings.bundle_skus, bundlePriceMxn: settings.bundle_price_mxn }),
+    [priceTable, settings.bundle_skus, settings.bundle_price_mxn],
+  )
 
   async function toggleAttributions(promoterId: string) {
     if (openId === promoterId) { setOpenId(null); return }
@@ -146,6 +164,29 @@ export default function PromoterAdminClient({
       setMsg('Descuento guardado.')
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  async function savePrice(sku: PromoterSku) {
+    setSavingPrice(sku)
+    setMsg(null)
+    try {
+      const raw = priceInputs[sku] ?? ''
+      const promoterPriceMxn = raw.trim() === '' ? null : Number(raw)
+      const res = await fetch('/api/admin/promoter/pricing', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku, promoter_price_mxn: promoterPriceMxn }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setMsg(data?.error ?? 'No se pudo guardar.')
+        return
+      }
+      if (data.prices) setSkuPrices(data.prices)
+      setMsg('Precio guardado.')
+    } finally {
+      setSavingPrice(null)
     }
   }
 
@@ -403,6 +444,109 @@ export default function PromoterAdminClient({
           >
             {savingSettings ? 'Guardando…' : 'Guardar descuento'}
           </button>
+        </div>
+      </section>
+
+      {/* Sprint 3 (US-3.1) — per-SKU promoter price + bundle offer */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Precio por SKU + paquete</h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Precio exacto con código de promotor por SKU (vacío = usa el descuento general de arriba). El
+          checkout cobra exactamente este número — nunca hay diferencia con lo que se anuncia.
+        </p>
+        <ul className="space-y-2">
+          {PROMOTER_SKUS.map((sku) => {
+            const base = PROMOTER_SKU_BASE_PRICE_MXN[sku]
+            return (
+              <li key={sku} className="flex items-end gap-3">
+                <label className="block text-sm flex-1">
+                  {SKU_LABEL[sku]} {base != null && <span className="text-[var(--color-muted)]">· regular {mxn(base * 100)}</span>}
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder={base == null ? 'variable (anuncio impreso)' : 'usar descuento general'}
+                      value={priceInputs[sku] ?? ''}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, [sku]: e.target.value }))}
+                      disabled={base == null}
+                      className="w-48 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent disabled:opacity-40"
+                    />
+                    <span className="text-sm text-[var(--color-muted)]">MXN</span>
+                  </div>
+                </label>
+                <button
+                  onClick={() => savePrice(sku)}
+                  disabled={savingPrice === sku || base == null}
+                  className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
+                >
+                  {savingPrice === sku ? 'Guardando…' : 'Guardar'}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        <div className="pt-2 border-t border-[var(--color-border)] space-y-3">
+          <h3 className="text-sm font-semibold">Paquete (todo esto cuesta $X — con tu promotor $Y)</h3>
+          <div className="flex flex-wrap gap-3">
+            {PROMOTER_SKUS.filter((sku) => PROMOTER_SKU_BASE_PRICE_MXN[sku] != null).map((sku) => (
+              <label key={sku} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.bundle_skus.includes(sku)}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bundle_skus: e.target.checked ? [...s.bundle_skus, sku] : s.bundle_skus.filter((x) => x !== sku),
+                    }))
+                  }
+                  className="h-4 w-4 accent-[var(--color-accent)]"
+                />
+                {SKU_LABEL[sku]}
+              </label>
+            ))}
+          </div>
+          <label className="block text-sm max-w-xs">
+            Precio del paquete (MXN)
+            <input
+              type="number"
+              min={0}
+              value={settings.bundle_price_mxn ?? ''}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, bundle_price_mxn: e.target.value.trim() === '' ? null : Number(e.target.value) }))
+              }
+              placeholder="sin configurar"
+              className="w-full mt-1 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent"
+            />
+          </label>
+          <button
+            onClick={saveSettings}
+            disabled={savingSettings}
+            className="rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {savingSettings ? 'Guardando…' : 'Guardar paquete'}
+          </button>
+        </div>
+
+        {/* Live preview — same deriver the landing/handbook/close workspace read. */}
+        <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
+          <h3 className="text-sm font-semibold">Vista previa</h3>
+          <ul className="text-sm space-y-1">
+            {priceTable.filter((r) => !r.variablePrice).map((r) => (
+              <li key={r.sku} className="flex items-center justify-between text-[var(--color-muted)]">
+                <span>{SKU_LABEL[r.sku]}</span>
+                <span>
+                  <span className="line-through mr-2">{mxn((r.regularPriceMxn ?? 0) * 100)}</span>
+                  <span className="font-semibold text-[var(--color-fg)]">{r.isFree ? 'GRATIS' : mxn((r.promoterPriceMxn ?? 0) * 100)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {bundleRow && (
+            <p className="text-sm font-semibold">
+              Paquete: {mxn(bundleRow.regularTotalMxn * 100)} → {mxn(bundleRow.bundlePriceMxn * 100)} ({bundleRow.savingsPct}% de ahorro)
+            </p>
+          )}
         </div>
       </section>
 

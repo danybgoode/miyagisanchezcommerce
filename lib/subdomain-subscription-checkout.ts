@@ -39,10 +39,11 @@ import { isEnabled } from '@/lib/flags'
 import {
   getPromoterByCode,
   getPromoterSettings,
+  getPromoterSkuPrices,
   resolvePromoterDiscount,
   promoterRefusalMessage,
 } from '@/lib/promoter'
-import { ensurePromoterDiscountPromotionCode } from '@/lib/promoter-coupon-server'
+import { ensurePromoterDiscountPromotionCode, ensureSkuDiscountPromotionCode } from '@/lib/promoter-coupon-server'
 
 /** A fixed canonical origin — never trust a (spoofable) request Host for the
  *  post-payment redirect. Falls back to the production URL when unset. */
@@ -118,16 +119,24 @@ export async function startSubdomainCheckout(input: {
     let promoterId: string | undefined
     const rawPromoter = (input.promoterCode ?? '').trim()
     if (rawPromoter && promoterEnabled) {
-      const [promoter, settings] = await Promise.all([
+      const [promoter, settings, skuPrices] = await Promise.all([
         getPromoterByCode(rawPromoter),
         getPromoterSettings(),
+        getPromoterSkuPrices(),
       ])
-      const resolved = resolvePromoterDiscount({ promoter, settings, itemsCents: SUBDOMAIN_PRICE_YEARLY_CENTS })
+      const resolved = resolvePromoterDiscount({
+        promoter, settings, itemsCents: SUBDOMAIN_PRICE_YEARLY_CENTS,
+        sku: 'subdomain', skuPrices,
+      })
       if (!resolved.ok) {
         return { ok: false, status: 422, error: promoterRefusalMessage(resolved.reason) }
       }
       promoterId = resolved.promoter_id
-      promotionCodeId = (await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
+      // A per-SKU override (Sprint 3 · US-3.1 — e.g. the free first year, US-3.2)
+      // needs its OWN coupon keyed by the exact resolved cents.
+      promotionCodeId = (skuPrices.subdomain != null
+        ? await ensureSkuDiscountPromotionCode('subdomain', resolved.discount_cents)
+        : await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
     }
 
     const url = await createOneTimeCheckout({

@@ -4,7 +4,7 @@ import es from '@/locales/es.json'
 import { getDictionary } from '@/lib/dictionary'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { isEnabled } from '@/lib/flags'
-import { getPromoterByClerkId, getPromoterSettings, getCommissionRates } from '@/lib/promoter'
+import { getPromoterByClerkId, getPromoterSettings, getCommissionRates, getPromoterSkuPrices } from '@/lib/promoter'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildPromoterPageConfig } from '../_components/page-config'
 import { PromoterApplicationForm } from '../_components/PromoterApplicationForm'
@@ -41,11 +41,12 @@ export const dynamic = 'force-dynamic'
 
 export default async function PromoterResourcesPage() {
   const ui = (await getDictionary('es')).sellerAcquisition
-  const [enabled, user, commissionRates, promoterSettings] = await Promise.all([
+  const [enabled, user, commissionRates, promoterSettings, skuPrices] = await Promise.all([
     isEnabled('promoter.enabled'),
     currentUser(),
     getCommissionRates(),
     getPromoterSettings(),
+    getPromoterSkuPrices(),
   ])
   // A signed-in, already-bound promoter still gets the real "Abrir mi panel" CTA (S1.3) — anyone
   // else (logged out, or logged in but not yet bound) gets the apply-teaser CTA instead.
@@ -56,6 +57,7 @@ export default async function PromoterResourcesPage() {
     isBoundPromoter: !!promoter,
     commissionRates,
     promoterSettings,
+    skuPrices,
   })
   // Sprint 2 · US-2.1: the not-yet-bound applyTeaser gets the real application form as its
   // slot (see SellerAcquisitionSections.tsx's ApplyTeaser.form) — an already-bound promoter has

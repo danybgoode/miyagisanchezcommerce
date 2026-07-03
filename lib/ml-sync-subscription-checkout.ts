@@ -21,10 +21,11 @@ import { isEnabled } from '@/lib/flags'
 import {
   getPromoterByCode,
   getPromoterSettings,
+  getPromoterSkuPrices,
   resolvePromoterDiscount,
   promoterRefusalMessage,
 } from '@/lib/promoter'
-import { ensurePromoterDiscountPromotionCode } from '@/lib/promoter-coupon-server'
+import { ensurePromoterDiscountPromotionCode, ensureSkuDiscountPromotionCode } from '@/lib/promoter-coupon-server'
 
 /** A fixed canonical origin — never trust a (spoofable) request Host. */
 export function canonicalOrigin(): string {
@@ -92,16 +93,22 @@ export async function startMlSyncCheckout(input: {
     let promoterId: string | undefined
     const rawPromoter = (input.promoterCode ?? '').trim()
     if (rawPromoter && promoterEnabled) {
-      const [promoter, settings] = await Promise.all([
+      const [promoter, settings, skuPrices] = await Promise.all([
         getPromoterByCode(rawPromoter),
         getPromoterSettings(),
+        getPromoterSkuPrices(),
       ])
-      const resolved = resolvePromoterDiscount({ promoter, settings, itemsCents: ML_SYNC_PRICE_YEARLY_CENTS })
+      const resolved = resolvePromoterDiscount({
+        promoter, settings, itemsCents: ML_SYNC_PRICE_YEARLY_CENTS,
+        sku: 'ml_sync', skuPrices,
+      })
       if (!resolved.ok) {
         return { ok: false, status: 422, error: promoterRefusalMessage(resolved.reason) }
       }
       promoterId = resolved.promoter_id
-      promotionCodeId = (await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
+      promotionCodeId = (skuPrices.ml_sync != null
+        ? await ensureSkuDiscountPromotionCode('ml_sync', resolved.discount_cents)
+        : await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
     }
 
     const url = await createOneTimeCheckout({
