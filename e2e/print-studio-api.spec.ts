@@ -53,8 +53,10 @@ test.describe('print-studio API · anonymous is rejected', () => {
   })
 
   test('PATCH .../studio/social/:id → 401 (no auth)', async ({ request }) => {
+    // status:'approved' needs no editionId — an otherwise-valid body, so a 401
+    // here can only be the auth guard, never masked by a body-validation 400.
     const res = await request.patch('/api/admin/print/studio/social/does-not-exist', {
-      data: { status: 'placed' },
+      data: { status: 'approved' },
     })
     expect(res.status()).toBe(401)
   })
@@ -75,9 +77,10 @@ test.describe('print-studio API · a wrong Bearer token is rejected', () => {
   })
 
   test('PATCH .../studio/social/:id with a junk token → still 401', async ({ request }) => {
+    // status:'approved' needs no editionId — see the anonymous variant's comment.
     const res = await request.patch('/api/admin/print/studio/social/does-not-exist', {
       headers: JUNK_BEARER,
-      data: { status: 'placed' },
+      data: { status: 'approved' },
     })
     expect(res.status()).toBe(401)
   })

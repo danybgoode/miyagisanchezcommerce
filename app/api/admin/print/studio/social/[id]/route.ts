@@ -38,6 +38,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: 'id must be a UUID' }, { status: 400 })
+  }
   let body: { status?: PrintSocialStatus; editionId?: string }
   try {
     const parsed: unknown = await req.json()
