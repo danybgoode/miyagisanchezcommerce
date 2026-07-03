@@ -15,6 +15,9 @@ export interface TargetShop {
   clerkUserId: string | null
   /** The Medusa seller id (sel_…) from metadata — the claim token addresses this. */
   medusaSellerId: string | null
+  /** Raw shop metadata JSONB — lets a caller read an existing entitlement grant
+   *  (e.g. `subdomain_grant`/`custom_domain_grant`) before writing a new one. */
+  metadata: Record<string, unknown>
 }
 
 /**
@@ -41,5 +44,6 @@ export async function resolveTargetShop(selector: { shopId?: string | null; slug
     name: (data.name as string) ?? '',
     clerkUserId: (data.clerk_user_id as string | null) ?? null,
     medusaSellerId: typeof meta.medusa_seller_id === 'string' ? meta.medusa_seller_id : null,
+    metadata: meta,
   }
 }

@@ -16,8 +16,8 @@ import type { PromoterSku } from '../lib/promoter-skus'
 // the output, which is what "Daniel changes a % in /admin/promoter → the landing changes" reduces to
 // at the pure-function seam (the live confirmation is the sprint-1 smoke walkthrough).
 
-const NO_DISCOUNT: PromoterSettings = { enabled: false, discount_type: 'fixed', discount_amount_cents: 0 }
-const FIXED_DISCOUNT: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 10000 } // $100 off
+const NO_DISCOUNT: PromoterSettings = { enabled: false, discount_type: 'fixed', discount_amount_cents: 0 , bundle_skus: [], bundle_price_mxn: null }
+const FIXED_DISCOUNT: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 10000 , bundle_skus: [], bundle_price_mxn: null } // $100 off
 const ZERO_RATES: Record<PromoterSku, number> = { ...DEFAULT_COMMISSION_RATES }
 
 test.describe('computePromoterSkuEarnings', () => {
@@ -48,7 +48,7 @@ test.describe('computePromoterSkuEarnings', () => {
   })
 
   test('a discount larger than the price floors the promoter price at 0', () => {
-    const bigDiscount: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 100000 }
+    const bigDiscount: PromoterSettings = { enabled: true, discount_type: 'fixed', discount_amount_cents: 100000 , bundle_skus: [], bundle_price_mxn: null }
     const r = computePromoterSkuEarnings(199, 10, bigDiscount)
     expect(r.promoterPriceMxn).toBe(0)
   })

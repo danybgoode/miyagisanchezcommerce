@@ -20,6 +20,7 @@ import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { CUSTOM_DOMAIN_CURRENCY } from '@/lib/domain-pricing'
 import { promoterCouponKey, type PromoterSettings } from '@/lib/promoter'
+import type { PromoterSku } from '@/lib/promoter-skus'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
@@ -88,6 +89,45 @@ export async function ensurePromoterDiscountPromotionCode(
       promotion: { type: 'coupon', coupon: coupon.id },
       code: key.promoCode,
       metadata: { kind: 'promoter_discount' },
+    })
+  }
+  return promo.id
+}
+
+/**
+ * Idempotent find-or-create of a FIXED-amount coupon keyed purely by (sku, cents)
+ * — Sprint 3 (US-3.1). Used ONLY when a per-SKU promoter price override makes the
+ * resolved discount diverge from the settings-based coupon above (`ensurePromoterDiscountPromotionCode`),
+ * so the checkout charge always matches exactly what the landing/handbook/close
+ * workspace advertise (the "no drift" acceptance bar). `duration:'once'` — same
+ * shape as the settings-keyed coupon, just keyed by the resolved amount instead
+ * of the global config. Returns `null` for a non-positive amount (nothing to
+ * discount — the caller should skip passing a promotion code, not error).
+ */
+export async function ensureSkuDiscountPromotionCode(sku: PromoterSku, discountCents: number): Promise<string | null> {
+  if (discountCents <= 0) return null
+  const couponId = `promoter_sku_disc_${sku}_${Math.round(discountCents)}`
+  const promoCode = `PROMOTER${sku.toUpperCase().replace(/_/g, '')}${Math.round(discountCents)}`
+  const name = `Promotor ${sku} −$${Math.round(discountCents / 100)} MXN`.slice(0, 40)
+
+  let coupon = await findCoupon(couponId)
+  if (!coupon) {
+    coupon = await stripe.coupons.create({
+      id: couponId,
+      duration: 'once',
+      name,
+      amount_off: Math.round(discountCents),
+      currency: CUSTOM_DOMAIN_CURRENCY.toLowerCase(),
+      metadata: { kind: 'promoter_sku_discount', sku },
+    })
+  }
+
+  let promo = await findPromotionCode(promoCode, coupon.id)
+  if (!promo) {
+    promo = await stripe.promotionCodes.create({
+      promotion: { type: 'coupon', coupon: coupon.id },
+      code: promoCode,
+      metadata: { kind: 'promoter_sku_discount', sku },
     })
   }
   return promo.id

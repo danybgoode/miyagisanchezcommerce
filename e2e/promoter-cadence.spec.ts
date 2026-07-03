@@ -167,8 +167,8 @@ test.describe('promoter-cadence · cadence helpers', () => {
 // ── 3. Promoter coupon key (deterministic, amount-keyed, name ≤ 40) ────────────
 
 test.describe('promoter-cadence · promoterCouponKey', () => {
-  const fixed = (cents: number): PromoterSettings => ({ enabled: true, discount_type: 'fixed', discount_amount_cents: cents })
-  const pct = (p: number): PromoterSettings => ({ enabled: true, discount_type: 'percentage', discount_amount_cents: p })
+  const fixed = (cents: number): PromoterSettings => ({ enabled: true, discount_type: 'fixed', discount_amount_cents: cents , bundle_skus: [], bundle_price_mxn: null })
+  const pct = (p: number): PromoterSettings => ({ enabled: true, discount_type: 'percentage', discount_amount_cents: p , bundle_skus: [], bundle_price_mxn: null })
 
   test('fixed: deterministic id keyed by cents; name ≤ 40 chars', () => {
     const k = promoterCouponKey(fixed(10000))!
@@ -187,7 +187,7 @@ test.describe('promoter-cadence · promoterCouponKey', () => {
   })
 
   test('returns null when the discount cannot back a coupon', () => {
-    expect(promoterCouponKey({ enabled: false, discount_type: 'fixed', discount_amount_cents: 10000 })).toBeNull()
+    expect(promoterCouponKey({ enabled: false, discount_type: 'fixed', discount_amount_cents: 10000 , bundle_skus: [], bundle_price_mxn: null })).toBeNull()
     expect(promoterCouponKey(fixed(0))).toBeNull()
     expect(promoterCouponKey(pct(0))).toBeNull()
     expect(promoterCouponKey(pct(150))).toBeNull() // percent > 100

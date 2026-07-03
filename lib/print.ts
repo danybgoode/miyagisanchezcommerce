@@ -156,6 +156,19 @@ export interface PrintAdContent {
   payment_reminded?: boolean
   /** Buyer change requests on a paid/approved ad. */
   change_requests?: Array<{ message: string; at: string }>
+  // ── 2x1 (promoter-funnel-v2 S3 · US-3.3): pay 1 edition, appear in 2 ──────────
+  /** Set at close time — this sale is a 2x1: pay 1 edition, appear in 2 consecutive. */
+  is_2x1?: boolean
+  /** Set on the ORIGINAL once its comped clone lands in the next edition. */
+  is_2x1_cloned?: boolean
+  /** The comped clone's submission id (on the ORIGINAL, once cloned). */
+  is_2x1_clone_id?: string
+  /** Set on the ORIGINAL when no eligible next edition exists yet — the admin-manual
+   *  "clonar a la siguiente edición" fallback (v1, sprint-3.md build note). */
+  is_2x1_needs_manual_clone?: boolean
+  /** Set on the CLONE, pointing back to the original — excluded from commission
+   *  (a clone is comped: it's never created by markAttributionPaid). */
+  is_2x1_clone_of?: string
 }
 
 export interface PrintAdSubmission {
@@ -246,4 +259,51 @@ export interface PrintSocialSubmission {
   admin_notes: string | null
   created_at: string
   updated_at: string
+}
+
+/** The one status transition the print-studio (zine) machine surface may make
+ *  on a social submission — `approved ⇄ placed`, mirroring
+ *  `isValidStudioTransition` for ad submissions (Story 2.3). */
+export const STUDIO_SOCIAL_TARGET_STATUSES: PrintSocialStatus[] = ['approved', 'placed']
+
+export function isValidStudioSocialTransition(
+  from: PrintSocialStatus,
+  to: PrintSocialStatus,
+): boolean {
+  return (from === 'approved' && to === 'placed') || (from === 'placed' && to === 'approved')
+}
+
+/**
+ * The slice of a social submission the print-studio (zine) machine surface
+ * may read — same PII discipline as `PrintStudioSafeSubmission`: no
+ * submitter email/Clerk id, and no moderator-only fields.
+ */
+export interface PrintStudioSafeSocialSubmission {
+  id: string
+  edition_id: string | null
+  submitter_name: string | null
+  type: PrintSocialType
+  caption: string
+  body: string | null
+  photos: string[]
+  zone: string | null
+  status: PrintSocialStatus
+  source: 'community' | 'editor'
+  created_at: string
+}
+
+export function toStudioSafeSocialSubmission(sub: PrintSocialSubmission): PrintStudioSafeSocialSubmission {
+  return {
+    id: sub.id,
+    edition_id: sub.edition_id,
+    submitter_name: sub.submitter_name,
+    type: sub.type,
+    caption: sub.caption,
+    body: sub.body,
+    photos: sub.photos,
+    zone: sub.zone,
+    status: sub.status,
+    source: sub.source,
+    created_at: sub.created_at,
+  }
 }

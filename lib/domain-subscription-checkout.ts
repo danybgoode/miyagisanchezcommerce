@@ -31,10 +31,11 @@ import { isEnabled } from '@/lib/flags'
 import {
   getPromoterByCode,
   getPromoterSettings,
+  getPromoterSkuPrices,
   resolvePromoterDiscount,
   promoterRefusalMessage,
 } from '@/lib/promoter'
-import { ensurePromoterDiscountPromotionCode } from '@/lib/promoter-coupon-server'
+import { ensurePromoterDiscountPromotionCode, ensureSkuDiscountPromotionCode } from '@/lib/promoter-coupon-server'
 
 /** A fixed canonical origin — never trust a (spoofable) request Host for the
  *  post-payment redirect. Falls back to the production URL when unset. */
@@ -113,16 +114,25 @@ export async function startCustomDomainCheckout(input: {
     let promoterId: string | undefined
     const rawPromoter = (input.promoterCode ?? '').trim()
     if (rawPromoter && promoterEnabled) {
-      const [promoter, settings] = await Promise.all([
+      const [promoter, settings, skuPrices] = await Promise.all([
         getPromoterByCode(rawPromoter),
         getPromoterSettings(),
+        getPromoterSkuPrices(),
       ])
-      const resolved = resolvePromoterDiscount({ promoter, settings, itemsCents: CUSTOM_DOMAIN_PRICE_CENTS })
+      const resolved = resolvePromoterDiscount({
+        promoter, settings, itemsCents: CUSTOM_DOMAIN_PRICE_CENTS,
+        sku: 'custom_domain', skuPrices,
+      })
       if (!resolved.ok) {
         return { ok: false, status: 422, error: promoterRefusalMessage(resolved.reason) }
       }
       promoterId = resolved.promoter_id
-      promotionCodeId = (await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
+      // A per-SKU override (Sprint 3 · US-3.1) needs its OWN coupon keyed by the
+      // exact resolved cents — the settings-keyed coupon below would only match
+      // when no override is set (today's behavior, unchanged).
+      promotionCodeId = (skuPrices.custom_domain != null
+        ? await ensureSkuDiscountPromotionCode('custom_domain', resolved.discount_cents)
+        : await ensurePromoterDiscountPromotionCode(settings)) ?? undefined
     }
 
     const url = await createOneTimeCheckout({

@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { sendPrintAdPaidEmails, sendPrintAdLifecycleEmail } from '@/lib/print-server'
+import { sendPrintAdPaidEmails, sendPrintAdLifecycleEmail, maybeClone2x1Submission } from '@/lib/print-server'
 import { withAdmin } from '@/lib/admin/guard'
 import { markAttributionPaid } from '@/lib/promoter'
 import type { PrintSubmissionStatus, PrintAdSubmission } from '@/lib/print'
@@ -64,6 +64,10 @@ export const PATCH = withAdmin(async (req: NextRequest, { params }: { params: Pr
         cadence: 'one_time',
       })
     }
+
+    // Sprint 3 (US-3.3) — a 2x1 sale clones into the next edition once paid,
+    // regardless of whether it was paid by card (webhook) or confirmed here (manual).
+    await maybeClone2x1Submission(data as PrintAdSubmission)
   }
   // Editorial lifecycle emails (only on the transition into the status).
   if (body.status === 'approved' && prior?.status !== 'approved') {

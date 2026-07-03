@@ -86,6 +86,7 @@ test.describe('promoter close · authed routes respect the kill-switch (flag on 
     '/api/promoter/shop/setup',
     '/api/promoter/claim/link',
     '/api/promoter/close/domain',
+    '/api/promoter/close/subdomain',
     '/api/promoter/close/print',
     '/api/promoter/close/ml-sync',
   ]
