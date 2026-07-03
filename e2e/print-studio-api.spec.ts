@@ -155,4 +155,13 @@ test.describe('print-studio API · authed round-trip (owed provisioning)', () =>
     expect(back.ok()).toBeTruthy()
     expect((await back.json()).submission.status).toBe('approved')
   })
+
+  test('GET .../studio/social?editionId=<non-uuid> → 400 (not silently ignored or passed to the DB filter)', async ({ request }) => {
+    test.skip(!token, 'Set PRINT_STUDIO_TOKEN to run the authed round-trip.')
+
+    const res = await request.get('/api/admin/print/studio/social?editionId=not-a-uuid,edition_id.is.null', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(res.status()).toBe(400)
+  })
 })

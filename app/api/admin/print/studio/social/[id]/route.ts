@@ -46,13 +46,21 @@ export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { para
     )
   }
 
+  // Guard the update on the status we just read, so a concurrent flip
+  // between the read above and this write can't silently apply on top of
+  // a state it never actually validated against (0 rows updated = lost
+  // the race → 409, not a false success).
   const { data, error } = await db
     .from('print_social_submissions')
     .update({ status: body.status })
     .eq('id', id)
+    .eq('status', prior.status)
     .select('*')
-    .single()
-  if (error || !data) return NextResponse.json({ error: error?.message ?? 'Failed' }, { status: 500 })
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) {
+    return NextResponse.json({ error: 'Submission status changed concurrently — retry.' }, { status: 409 })
+  }
 
   return NextResponse.json({ submission: toStudioSafeSocialSubmission(data as PrintSocialSubmission) })
 })

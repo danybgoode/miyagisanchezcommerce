@@ -15,11 +15,18 @@ import { toStudioSafeSocialSubmission, type PrintSocialSubmission } from '@/lib/
 
 export const dynamic = 'force-dynamic'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export const GET = withPrintStudio(async (req: NextRequest) => {
   const editionId = req.nextUrl.searchParams.get('editionId')
+  if (editionId && !UUID_RE.test(editionId)) {
+    return NextResponse.json({ error: 'editionId must be a UUID' }, { status: 400 })
+  }
 
   let query = db.from('print_social_submissions').select('*').eq('status', 'approved')
   if (editionId) {
+    // editionId is UUID-validated above, so it's safe to interpolate into
+    // the PostgREST .or() filter string (which has no parameterized form).
     query = query.or(`edition_id.eq.${editionId},edition_id.is.null`)
   }
 
