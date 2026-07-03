@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { isValidStudioTransition, isValidStudioSocialTransition } from '../lib/print'
+import {
+  isValidStudioTransition,
+  isValidStudioSocialTransition,
+  toStudioSafeSocialSubmission,
+  type PrintSocialSubmission,
+} from '../lib/print'
 
 /**
  * Print-studio API · auth gate + narrow-transition guardrail (epic
@@ -105,6 +110,51 @@ test.describe('isValidStudioSocialTransition — the same narrow rule for social
     expect(isValidStudioSocialTransition('placed', 'rejected')).toBe(false)
     expect(isValidStudioSocialTransition('submitted', 'placed')).toBe(false)
     expect(isValidStudioSocialTransition('approved', 'approved')).toBe(false)
+  })
+})
+
+test.describe('toStudioSafeSocialSubmission — PII-safe projection (pure)', () => {
+  test('strips submitter email/Clerk id and moderator-only fields, keeps layout-relevant ones', () => {
+    const row: PrintSocialSubmission = {
+      id: 'sub-1',
+      edition_id: 'ed-1',
+      submitter_clerk_user_id: 'user_abc123',
+      submitter_name: 'Dona Chela',
+      submitter_email: 'chela@example.com',
+      type: 'recomendacion',
+      caption: 'El taller de bicis',
+      body: 'Arreglan cualquier cosa.',
+      photos: ['https://example.com/a.jpg'],
+      zone: 'Palmas',
+      web_visible: true,
+      status: 'approved',
+      source: 'community',
+      admin_notes: 'internal note nobody outside admin should see',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    }
+
+    const safe = toStudioSafeSocialSubmission(row)
+
+    expect(safe).not.toHaveProperty('submitter_email')
+    expect(safe).not.toHaveProperty('submitter_clerk_user_id')
+    expect(safe).not.toHaveProperty('admin_notes')
+    expect(safe).not.toHaveProperty('web_visible')
+    expect(safe).not.toHaveProperty('updated_at')
+
+    expect(safe).toEqual({
+      id: 'sub-1',
+      edition_id: 'ed-1',
+      submitter_name: 'Dona Chela',
+      type: 'recomendacion',
+      caption: 'El taller de bicis',
+      body: 'Arreglan cualquier cosa.',
+      photos: ['https://example.com/a.jpg'],
+      zone: 'Palmas',
+      status: 'approved',
+      source: 'community',
+      created_at: '2026-01-01T00:00:00Z',
+    })
   })
 })
 
