@@ -20,11 +20,15 @@ export default async function PromoterClosePage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
-  const promoter = await getPromoterByClerkId(user.id)
+  const [promoter, transferEnabled] = await Promise.all([
+    getPromoterByClerkId(user.id),
+    isEnabled('promoter.transfer_enabled'),
+  ])
 
   return (
     <PromoterCloseClient
       bound={promoter ? { code: promoter.code, name: promoter.name } : null}
+      transferEnabled={transferEnabled}
     />
   )
 }
