@@ -247,3 +247,50 @@ export interface PrintSocialSubmission {
   created_at: string
   updated_at: string
 }
+
+/** The one status transition the print-studio (zine) machine surface may make
+ *  on a social submission — `approved ⇄ placed`, mirroring
+ *  `isValidStudioTransition` for ad submissions (Story 2.3). */
+export const STUDIO_SOCIAL_TARGET_STATUSES: PrintSocialStatus[] = ['approved', 'placed']
+
+export function isValidStudioSocialTransition(
+  from: PrintSocialStatus,
+  to: PrintSocialStatus,
+): boolean {
+  return (from === 'approved' && to === 'placed') || (from === 'placed' && to === 'approved')
+}
+
+/**
+ * The slice of a social submission the print-studio (zine) machine surface
+ * may read — same PII discipline as `PrintStudioSafeSubmission`: no
+ * submitter email/Clerk id, and no moderator-only fields.
+ */
+export interface PrintStudioSafeSocialSubmission {
+  id: string
+  edition_id: string | null
+  submitter_name: string | null
+  type: PrintSocialType
+  caption: string
+  body: string | null
+  photos: string[]
+  zone: string | null
+  status: PrintSocialStatus
+  source: 'community' | 'editor'
+  created_at: string
+}
+
+export function toStudioSafeSocialSubmission(sub: PrintSocialSubmission): PrintStudioSafeSocialSubmission {
+  return {
+    id: sub.id,
+    edition_id: sub.edition_id,
+    submitter_name: sub.submitter_name,
+    type: sub.type,
+    caption: sub.caption,
+    body: sub.body,
+    photos: sub.photos,
+    zone: sub.zone,
+    status: sub.status,
+    source: sub.source,
+    created_at: sub.created_at,
+  }
+}
