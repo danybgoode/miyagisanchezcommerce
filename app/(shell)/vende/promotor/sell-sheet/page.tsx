@@ -50,9 +50,12 @@ export default async function PromoterSellSheetPage() {
     <main className="ss-root">
       <style dangerouslySetInnerHTML={{ __html: css }} />
 
-      <div className="no-print" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div className="no-print" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <a href="/vende/promotor" style={{ textDecoration: 'underline', fontSize: 14 }}>← Volver</a>
         <span style={{ color: '#888', fontSize: 13 }}>Usa Imprimir / Guardar como PDF (⌘P)</span>
+        <a href="/api/promoter/rate-card" style={{ textDecoration: 'underline', fontSize: 13, fontWeight: 600 }}>
+          📄 Descargar tarifario (anuncios impresos)
+        </a>
       </div>
 
       <h1 className="ss-h1">{p.handbookTitle}</h1>

@@ -27,6 +27,7 @@ import { buildOneTimeGrant } from '@/lib/domain-entitlement'
 import { SUBDOMAIN_GRANT_KEY } from '@/lib/subdomain-entitlement'
 import { markAttributionPaid } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
+import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
 
 export type GrantFreeSubdomainYearResult =
   | { ok: true }
@@ -84,6 +85,13 @@ export async function grantFreeSubdomainYear(input: {
     grossAmountCents: 0,
     cadence: 'one_time',
   })
+
+  // Sprint 5 (US-5.5) — the merchant receipt, one per completed close.
+  notifyMerchantCloseReceipt({
+    shopId,
+    promoterId,
+    items: [{ label: 'Subdominio propio (1 año)', amountMxn: null, note: 'Primer año GRATIS por promotor' }],
+  }).catch((e) => console.error('[promoter subdomain free year] receipt failed:', e))
 
   tg.alert(`✅ Subdominio gratis (primer año, promotor) activado\nShop: ${shopId}\nPromotor: ${promoterId}`)
   return { ok: true }

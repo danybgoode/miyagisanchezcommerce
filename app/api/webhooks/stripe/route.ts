@@ -45,9 +45,15 @@ import { ML_SYNC_GRANT_KEY } from '@/lib/ml-sync-entitlement'
 import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
+import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+/** Sprint 5 (US-5.5) — shared MXN formatter for the merchant close-receipt items. */
+function formatMxnCents(cents: number): string {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cents / 100)
+}
 
 /** Complete a Medusa cart → creates the Medusa order. Returns the order ID. */
 async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[] } | null> {
@@ -854,6 +860,12 @@ async function handleCustomDomainOneTimeComplete(session: Stripe.Checkout.Sessio
       grossAmountCents: session.amount_total ?? 0,
       cadence: 'one_time',
     })
+    // Sprint 5 (US-5.5) — the merchant receipt, one per completed close.
+    notifyMerchantCloseReceipt({
+      shopId,
+      promoterId,
+      items: [{ label: 'Dominio propio (1 año)', amountMxn: formatMxnCents(session.amount_total ?? 0) }],
+    }).catch((e) => console.error('[custom-domain one-time] receipt failed:', e))
   }
 
   tg.alert(`✅ Dominio propio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
@@ -999,6 +1011,12 @@ async function handleSubdomainOneTimeComplete(session: Stripe.Checkout.Session) 
       grossAmountCents: session.amount_total ?? 0,
       cadence: 'one_time',
     })
+    // Sprint 5 (US-5.5) — the merchant receipt, one per completed close.
+    notifyMerchantCloseReceipt({
+      shopId,
+      promoterId,
+      items: [{ label: 'Subdominio propio (1 año)', amountMxn: formatMxnCents(session.amount_total ?? 0) }],
+    }).catch((e) => console.error('[subdomain one-time] receipt failed:', e))
   }
 
   tg.alert(`✅ Subdominio activado (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
@@ -1116,6 +1134,12 @@ async function handleMlSyncOneTimeComplete(session: Stripe.Checkout.Session) {
       grossAmountCents: session.amount_total ?? 0,
       cadence: 'one_time',
     })
+    // Sprint 5 (US-5.5) — the merchant receipt, one per completed close.
+    notifyMerchantCloseReceipt({
+      shopId,
+      promoterId,
+      items: [{ label: 'Sincronización Mercado Libre (1 año)', amountMxn: formatMxnCents(session.amount_total ?? 0) }],
+    }).catch((e) => console.error('[ml-sync one-time] receipt failed:', e))
   }
 
   tg.alert(`✅ Sincronización Mercado Libre activada (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)

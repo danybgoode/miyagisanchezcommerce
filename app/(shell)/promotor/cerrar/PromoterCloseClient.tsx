@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ESTADO_NAMES } from '@/lib/mx-locations'
+import ListingStep from './ListingStep'
+import PrintAdStep from './PrintAdStep'
 
 type Bound = { code: string; name: string | null } | null
-type Shop = { shopId: string; slug: string; name: string }
+type Shop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null }
 
 /** Promoter Funnel v2 · Sprint 4 (US-4.1) — a net-remittance transfer request. */
 type Transfer = {
@@ -40,8 +43,10 @@ export default function PromoterCloseClient({ bound: initialBound, transferEnabl
       </header>
 
       <SetupStep shop={shop} onShop={setShop} />
-      {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} />}
-      {shop && <HandoffStep shop={shop} />}
+      {shop && <ListingStep shop={shop} n={2} />}
+      {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} n={3} />}
+      {shop && <PrintAdStep shop={shop} n={4} />}
+      {shop && <HandoffStep shop={shop} n={5} />}
     </div>
   )
 }
@@ -106,20 +111,56 @@ function BindStep({ onBound }: { onBound: (b: Bound) => void }) {
 
 function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => void }) {
   const [name, setName] = useState('')
-  const [location, setLocation] = useState('')
+  const [cp, setCp] = useState('')
+  const [cpBusy, setCpBusy] = useState(false)
+  const [cpError, setCpError] = useState<string | null>(null)
+  const [estado, setEstado] = useState('')
+  const [municipio, setMunicipio] = useState('')
+  const [colonia, setColonia] = useState('')
+  const [colonias, setColonias] = useState<string[]>([])
+  const [manual, setManual] = useState(false)
+  const [merchantEmail, setMerchantEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // CP-first lookup (Sprint 5 · US-5.2) — same envia geocode pattern checkout's
+  // shipping-origin step already uses. A promoter standing in the shop can type
+  // the 5-digit CP and get structured estado/municipio/colonia data, instead of
+  // a free-text "Ubicación (opcional)" field nobody downstream could parse.
+  async function lookupCp() {
+    setCpBusy(true); setCpError(null)
+    try {
+      const res = await fetch('/api/checkout/postal-lookup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cp }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCpError(data.error ?? 'Código postal no encontrado.'); return }
+      setEstado(data.stateName ?? '')
+      setMunicipio(data.alcaldia ?? '')
+      setColonias(Array.isArray(data.colonias) ? data.colonias : [])
+      setColonia(data.colonias?.[0] ?? '')
+    } catch { setCpError('Error de red. Intenta de nuevo.') }
+    finally { setCpBusy(false) }
+  }
 
   async function setup() {
     setBusy(true); setError(null)
     try {
       const res = await fetch('/api/promoter/shop/setup', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, location }),
+        body: JSON.stringify({
+          name,
+          cp: cp.trim() || undefined,
+          estado: estado.trim() || undefined,
+          municipio: municipio.trim() || undefined,
+          colonia: colonia.trim() || undefined,
+          merchant_email: merchantEmail.trim() || undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok || !data.ok) { setError(data.error ?? 'No se pudo crear.'); return }
-      onShop({ shopId: data.shopId, slug: data.slug, name: data.name })
+      onShop({ shopId: data.shopId, slug: data.slug, name: data.name, estado: data.estado ?? null, municipio: data.municipio ?? null })
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }
   }
@@ -134,8 +175,61 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
         <div className="space-y-3">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del negocio"
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
-          <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ubicación (opcional)"
+
+          {!manual ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={cp}
+                  onChange={(e) => setCp(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                  placeholder="Código postal"
+                  inputMode="numeric"
+                  className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2"
+                />
+                <button type="button" onClick={lookupCp} disabled={cpBusy || cp.length < 4}
+                  className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm font-medium disabled:opacity-50">
+                  {cpBusy ? 'Buscando…' : 'Buscar'}
+                </button>
+              </div>
+              {cpError && <p className="text-sm text-[color:var(--danger)]">{cpError}</p>}
+              {estado && (
+                <p className="text-sm text-[var(--color-muted)]">
+                  📍 {municipio}, {estado}
+                  {colonias.length > 0 && (
+                    <select value={colonia} onChange={(e) => setColonia(e.target.value)}
+                      aria-label="Colonia"
+                      className="ml-2 rounded border border-[var(--color-border)] px-2 py-1 text-sm">
+                      {colonias.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </p>
+              )}
+              <button type="button" onClick={() => setManual(true)}
+                className="text-xs underline text-[var(--color-muted)]">
+                No tengo el código postal
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <select value={estado} onChange={(e) => setEstado(e.target.value)}
+                aria-label="Estado"
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2">
+                <option value="">Estado (opcional)…</option>
+                {ESTADO_NAMES.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+              <input value={municipio} onChange={(e) => setMunicipio(e.target.value)}
+                placeholder="Municipio / alcaldía (opcional)"
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+            </div>
+          )}
+
+          <input value={merchantEmail} onChange={(e) => setMerchantEmail(e.target.value)}
+            type="email" placeholder="Correo del comerciante (opcional)"
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+          <p className="text-xs text-[var(--color-muted)]">
+            Si lo dejas en blanco, el recibo de cada compra te llega a ti para que se lo compartas.
+          </p>
+
           {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
           <button onClick={setup} disabled={busy || name.trim().length < 2}
             className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
@@ -171,7 +265,7 @@ const TRANSFER_METHOD_LABEL: Record<Transfer['method'], string> = {
 const mxn = (cents: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 }).format(cents / 100)
 
-function CloseStep({ shop, transferEnabled }: { shop: Shop; transferEnabled: boolean }) {
+function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: boolean; n: number }) {
   const [sku, setSku] = useState<CloseSkuId>('domain')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -231,7 +325,7 @@ function CloseStep({ shop, transferEnabled }: { shop: Shop; transferEnabled: boo
   // A transfer already exists for this shop+SKU — show its state instead of the picker.
   if (transfer) {
     return (
-      <Card n={2} title="Cobrar y pagar (a nombre del comerciante)">
+      <Card n={n} title="Cobrar y pagar (a nombre del comerciante)">
         {transfer.status === 'pending' && (
           <div className="space-y-3">
             <p className="text-sm">
@@ -326,7 +420,7 @@ function CloseStep({ shop, transferEnabled }: { shop: Shop; transferEnabled: boo
   )
 }
 
-function HandoffStep({ shop }: { shop: Shop }) {
+function HandoffStep({ shop, n }: { shop: Shop; n: number }) {
   const [link, setLink] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -346,7 +440,7 @@ function HandoffStep({ shop }: { shop: Shop }) {
   }
 
   return (
-    <Card n={3} title="Entregar por WhatsApp">
+    <Card n={n} title="Entregar por WhatsApp">
       <p className="text-sm text-[var(--color-muted)]">
         Genera el enlace de reclamo y compártelo con el comerciante. Al tocarlo e iniciar sesión, la
         tienda pasa a su cuenta — tu atribución se conserva.

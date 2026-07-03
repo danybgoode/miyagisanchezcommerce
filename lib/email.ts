@@ -6,6 +6,7 @@
 import { Resend } from 'resend'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
+import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -1594,6 +1595,32 @@ export async function sendPromoterTransferRejected(ctx: {
     p(`No pudimos confirmar tu transferencia para ${esc(ctx.skuLabel)}.`),
     ctx.reason ? quote(ctx.reason) : '',
     p('Puedes intentar de nuevo desde el flujo de cierre.'),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
+
+/**
+ * Promoter Funnel v2 · Sprint 5 (US-5.5) — the branded merchant receipt after a
+ * promoter close: what they bought, what they paid, what happens next, plus
+ * the claim-link recap. Fired from every close-completion path (see
+ * lib/promoter-close-receipt.ts's header comment for the six call sites) —
+ * one email per completed SKU close, not batched per promoter visit.
+ */
+export async function sendMerchantCloseReceipt(ctx: {
+  to: string
+  shopName: string
+  items: CloseReceiptItem[]
+  claimUrl: string
+  toMerchantDirectly: boolean
+}): Promise<void> {
+  const { subject, intro, items, claimUrl } = buildMerchantCloseReceipt(ctx)
+  const notes = items.map((i) => i.note).filter((n): n is string => !!n)
+  const body = [
+    h1('Tu recibo de Miyagi Sánchez'),
+    p(intro),
+    table(items.map((i) => [i.label, i.amountMxn ?? 'GRATIS'] as [string, string])),
+    ...(notes.length ? [notice(notes.join('<br>'))] : []),
+    cta('Reclamar mi tienda', claimUrl),
   ].join('')
   await send(ctx.to, subject, body)
 }
