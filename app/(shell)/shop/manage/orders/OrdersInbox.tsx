@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
+import { mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,10 @@ interface Order {
   payment_received?: boolean
   buyer_reported_paid?: boolean
   manual_payment_state?: string | null
+  // Which marketplace sold this (ml-orders-native S1 · US-3).
+  source?: string | null
+  ml_order_id?: string | null
+  ml_pack_id?: string | null
   marketplace_listings: { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }
     | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }[]
   marketplace_shipments: OrderShipment[] | null
@@ -101,6 +106,7 @@ function OrderCard({ order }: { order: Order }) {
   const manualState = manualPaymentStateFromOrder(order)
   const isUnpaidManual = manualState === 'pending_payment' || manualState === 'buyer_reported_paid'
   const badgeLabel = manualState === 'buyer_reported_paid' ? manualPaymentBadge(manualState) : meta.label
+  const mlBadge = mlOrderBadgeLabel(order)
 
   return (
     <Link
@@ -126,8 +132,15 @@ function OrderCard({ order }: { order: Order }) {
             <p className="text-sm font-semibold leading-snug truncate text-[var(--color-text)]">
               {listing?.title ?? '—'}
             </p>
-            <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>
-              {badgeLabel}
+            <span className="flex-shrink-0 flex items-center gap-1">
+              {mlBadge && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                  {mlBadge}
+                </span>
+              )}
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>
+                {badgeLabel}
+              </span>
             </span>
           </div>
 
