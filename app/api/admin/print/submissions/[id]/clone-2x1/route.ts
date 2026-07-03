@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { withAdmin } from '@/lib/admin/guard'
 import { cloneSubmissionInto2x1Edition } from '@/lib/print-server'
-import { shouldAttemptClone } from '@/lib/promoter-print-2x1'
+import { canManuallyClone } from '@/lib/promoter-print-2x1'
 import type { PrintAdSubmission } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export const POST = withAdmin(async (req: NextRequest, { params }: { params: Pro
     .eq('id', id)
     .maybeSingle() as { data: PrintAdSubmission | null }
   if (!submission) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (!shouldAttemptClone(submission.content ?? {})) {
+  if (!canManuallyClone(submission.content ?? {})) {
     return NextResponse.json({ error: 'Este anuncio no es 2x1, o ya tiene un clon.' }, { status: 422 })
   }
 

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   decideNextEditionForClone,
   shouldAttemptClone,
+  canManuallyClone,
   buildClone2x1Content,
 } from '../lib/promoter-print-2x1'
 import type { PrintAdContent, PrintEditionStatus } from '../lib/print'
@@ -88,6 +89,21 @@ test.describe('shouldAttemptClone', () => {
     expect(shouldAttemptClone({ is_2x1: true })).toBe(true)
     expect(shouldAttemptClone({ is_2x1: true, is_2x1_cloned: true })).toBe(false)
     expect(shouldAttemptClone({ is_2x1: true, is_2x1_needs_manual_clone: true })).toBe(false)
+  })
+})
+
+test.describe('canManuallyClone', () => {
+  // Regression for a bug caught in fresh cross-agent review of PR #165: the admin
+  // "Clonar a mano" route is reachable ONLY when is_2x1_needs_manual_clone is true
+  // (that flag is what makes the button render) — using shouldAttemptClone there
+  // made every real click 422, since shouldAttemptClone requires that flag FALSE.
+  test('IS reachable when flagged for manual clone — the exact case the button exists for', () => {
+    const content: PrintAdContent = { is_2x1: true, is_2x1_needs_manual_clone: true }
+    expect(canManuallyClone(content)).toBe(true)
+  })
+  test('still refuses a non-2x1 sale or one already cloned', () => {
+    expect(canManuallyClone({})).toBe(false)
+    expect(canManuallyClone({ is_2x1: true, is_2x1_cloned: true })).toBe(false)
   })
 })
 

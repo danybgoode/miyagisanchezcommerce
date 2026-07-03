@@ -22,6 +22,9 @@ import { getPromoterByClerkId, getPromoterSkuPrices } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { startSubdomainCheckout } from '@/lib/subdomain-subscription-checkout'
 import { grantFreeSubdomainYear } from '@/lib/promoter-subdomain-grant-server'
+import { isOneTimeGrantLive } from '@/lib/domain-entitlement'
+import { readSubdomainGrant } from '@/lib/subdomain-entitlement'
+import { hasActiveSubdomainSubscription } from '@/lib/subdomain-subscription'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +59,20 @@ export async function POST(req: NextRequest) {
   const isFree = skuPrices.subdomain === 0
 
   if (isFree) {
+    // Refuse a redundant free-year grant when the shop is ALREADY entitled via an
+    // existing grant or an active paid subscription — independent of the paywall
+    // flag (a shop can hold a real entitlement even while the flag is off).
+    // Mirrors the "already active" guard the paid path (startSubdomainCheckout)
+    // already has; caught missing here in fresh cross-agent review of PR #165 —
+    // without it, a promoter could silently overwrite a paying shop's grant
+    // metadata and log a misleading $0-paid attribution.
+    const existingGrant = readSubdomainGrant(shop.metadata)
+    const alreadyGranted = existingGrant?.type === 'grandfather' || existingGrant?.type === 'comp' || isOneTimeGrantLive(existingGrant)
+    const alreadySubscribed = shop.clerkUserId ? await hasActiveSubdomainSubscription(shop.clerkUserId) : false
+    if (alreadyGranted || alreadySubscribed) {
+      return NextResponse.json({ ok: false, error: 'Esta tienda ya tiene el subdominio activo.', alreadyActive: true }, { status: 409 })
+    }
+
     const result = await grantFreeSubdomainYear({
       shopId: shop.id,
       promoterId: promoter.id,

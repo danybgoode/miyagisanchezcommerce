@@ -81,12 +81,27 @@ export function decideNextEditionForClone(input: {
 }
 
 /**
- * Whether a submission should attempt a 2x1 clone: it was sold as 2x1 and hasn't
- * already been cloned or flagged for the manual fallback (idempotent — a webhook
- * retry or a second admin confirm never double-clones).
+ * Whether the AUTOMATIC clone attempt (`maybeClone2x1Submission`) should run: it
+ * was sold as 2x1 and hasn't already been cloned or already flagged for the
+ * manual fallback (idempotent — a webhook retry or a second automatic attempt
+ * never double-clones, and never re-flags an already-flagged submission).
  */
 export function shouldAttemptClone(content: Pick<PrintAdContent, 'is_2x1' | 'is_2x1_cloned' | 'is_2x1_needs_manual_clone'>): boolean {
   return content.is_2x1 === true && !content.is_2x1_cloned && !content.is_2x1_needs_manual_clone
+}
+
+/**
+ * Whether the ADMIN-MANUAL clone-2x1 route may act on a submission — deliberately
+ * a DIFFERENT (looser) predicate than `shouldAttemptClone`: the manual route is
+ * reachable exactly when `is_2x1_needs_manual_clone` is true (the automatic path
+ * already tried and failed), so gating it on `!is_2x1_needs_manual_clone` — as a
+ * first cut of this route mistakenly did — made every real invocation 422 (caught
+ * in a fresh cross-agent review of PR #165: the flag that makes the "Clonar a
+ * mano" button appear is the exact flag that blocked the click). Only requires:
+ * a real 2x1 sale, not already cloned.
+ */
+export function canManuallyClone(content: Pick<PrintAdContent, 'is_2x1' | 'is_2x1_cloned'>): boolean {
+  return content.is_2x1 === true && !content.is_2x1_cloned
 }
 
 /**
