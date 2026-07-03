@@ -130,7 +130,7 @@ test.describe('promoter close · the public CTA never links to a 404 (promoter-f
     expect([301, 302, 303, 307, 308, 404]).toContain(res.status())
   })
 
-  test('/vende/promotor only shows the close-workspace CTA when the flag makes it reachable', async ({ request }) => {
+  test('anonymous /vende/promotor never links the close-workspace CTA to a 404, and never links it at all (promoter-funnel-v2 US-1.3)', async ({ request }) => {
     // Fire both requests concurrently (not sequentially) so a flag toggle landing
     // between them can't desync the two reads — and both routes read the same 60s
     // in-process cache (lib/flags.ts) regardless, so this is already a vanishingly
@@ -142,14 +142,24 @@ test.describe('promoter close · the public CTA never links to a 404 (promoter-f
     expect(page.status()).toBe(200)
     const html = await page.text()
     const hasCloseCta = html.includes('href="/promotor/cerrar"')
-
-    const closeIsReachable = [301, 302, 303, 307, 308].includes(close.status())
     const closeIs404 = close.status() === 404
 
-    // The invariant that matters, independent of the live flag value: the CTA is shown
-    // if and only if the target route doesn't 404 — never a dead link, never a hidden
-    // live route.
-    expect(hasCloseCta).toBe(closeIsReachable)
-    expect(hasCloseCta).toBe(!closeIs404)
+    // Safety property (promoter-funnel-fixes S1.2), still holds: whenever the close-workspace
+    // CTA IS shown, its target must be reachable — never a dead link. The converse no longer
+    // holds since promoter-funnel-v2 US-1.3: the CTA is now bound-promoter-only, so an anonymous
+    // visitor never sees it even when the route itself is perfectly reachable (it 30x-redirects
+    // them to sign-in). That third state (hidden in favor of the apply teaser, route otherwise
+    // reachable) is covered directly against buildPromoterPageConfig in
+    // e2e/seller-acquisition-copy.spec.ts ("promoter landing · CTA + wording sweep"); this `api`
+    // spec has no way to simulate a bound Clerk session, so it only asserts the anonymous side.
+    if (hasCloseCta) {
+      expect(closeIs404).toBe(false)
+    }
+
+    // This request carries no Clerk session, so the visitor is never a bound promoter — they
+    // should always land on the apply-teaser anchor instead of the direct workspace link,
+    // regardless of the live promoter.enabled value.
+    expect(hasCloseCta).toBe(false)
+    expect(html).toContain('href="#promotor-aplica"')
   })
 })
