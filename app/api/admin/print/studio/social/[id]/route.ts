@@ -13,9 +13,12 @@
  * physically in, and `studio/social` GET's edition-scoping treats any
  * `edition_id IS NULL` row as visible to every edition — leaving a placed
  * submission unassigned would leak it into every other edition's queue
- * (caught by a second cross-review pass, not shipped this way). Un-placing
+ * (caught by a cross-review pass, not shipped this way). Un-placing
  * deliberately does NOT clear `edition_id` — that's an edition
- * *reassignment*, which stays on the Clerk-only route.
+ * *reassignment*, which stays on the Clerk-only route — and placing may
+ * only ASSIGN an unassigned row, never REASSIGN an already-assigned one to
+ * a different edition (also cross-review-caught): the update itself is
+ * additionally guarded on `edition_id` being null or already matching.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -36,7 +39,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   let body: { status?: PrintSocialStatus; editionId?: string }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
+  try {
+    const parsed: unknown = await req.json()
+    if (!parsed || typeof parsed !== 'object') {
+      return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+    }
+    body = parsed as { status?: PrintSocialStatus; editionId?: string }
+  } catch {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+  }
 
   if (!body.status || !STUDIO_SOCIAL_TARGET_STATUSES.includes(body.status)) {
     return NextResponse.json({ error: 'status must be approved or placed' }, { status: 400 })
@@ -47,7 +58,7 @@ export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { para
 
   const { data: prior, error: priorError } = await db
     .from('print_social_submissions')
-    .select('status')
+    .select('status, edition_id')
     .eq('id', id)
     .maybeSingle()
   if (priorError) return NextResponse.json({ error: priorError.message }, { status: 500 })
@@ -59,24 +70,29 @@ export const PATCH = withPrintStudio(async (req: NextRequest, { params }: { para
       { status: 409 },
     )
   }
+  // Placing may only ASSIGN an unassigned row, never REASSIGN one already
+  // tied to a different edition — reassignment is the Clerk-only route's
+  // job, not this narrow status-flip's.
+  if (body.status === 'placed' && prior.edition_id && prior.edition_id !== body.editionId) {
+    return NextResponse.json(
+      { error: 'Submission is already assigned to a different edition.' },
+      { status: 409 },
+    )
+  }
 
   const update: { status: PrintSocialStatus; edition_id?: string } = { status: body.status }
   if (body.status === 'placed') update.edition_id = body.editionId
 
-  // Guard the update on the status we just read, so a concurrent flip
-  // between the read above and this write can't silently apply on top of
-  // a state it never actually validated against (0 rows updated = lost
-  // the race → 409, not a false success).
-  const { data, error } = await db
-    .from('print_social_submissions')
-    .update(update)
-    .eq('id', id)
-    .eq('status', prior.status)
-    .select('*')
-    .maybeSingle()
+  // Guard the update on the status AND edition_id we just read, so a
+  // concurrent flip/reassignment between the read above and this write
+  // can't silently apply on top of a state it never actually validated
+  // against (0 rows updated = lost the race → 409, not a false success).
+  let query = db.from('print_social_submissions').update(update).eq('id', id).eq('status', prior.status)
+  query = prior.edition_id ? query.eq('edition_id', prior.edition_id) : query.is('edition_id', null)
+  const { data, error } = await query.select('*').maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) {
-    return NextResponse.json({ error: 'Submission status changed concurrently — retry.' }, { status: 409 })
+    return NextResponse.json({ error: 'Submission changed concurrently — retry.' }, { status: 409 })
   }
 
   return NextResponse.json({ submission: toStudioSafeSocialSubmission(data as PrintSocialSubmission) })

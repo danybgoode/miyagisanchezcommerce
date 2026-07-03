@@ -227,4 +227,15 @@ test.describe('print-studio API · authed round-trip (owed provisioning)', () =>
     })
     expect(res.status()).toBe(400)
   })
+
+  test('PATCH .../studio/social/:id with a JSON `null` body → 400, not a 500 (was throwing on body.status)', async ({ request }) => {
+    test.skip(!token, 'Set PRINT_STUDIO_TOKEN to run the authed round-trip.')
+    test.skip(!socialId, 'Set MS_TEST_PRINT_STUDIO_SOCIAL_ID to run this check.')
+
+    const res = await request.patch(`/api/admin/print/studio/social/${socialId}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: 'null',
+    })
+    expect(res.status()).toBe(400)
+  })
 })
