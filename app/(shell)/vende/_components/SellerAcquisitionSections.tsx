@@ -82,13 +82,15 @@ type PremiumFeatures = {
   items: PremiumFeatureItem[]
 }
 
-// Interim "apply to be a promoter" nudge (epic 08 · promoter-funnel-v2 S1 · US-1.3), shown to a
-// not-yet-bound visitor whose primary CTA anchors here instead of a self-serve form that doesn't
-// exist until Sprint 2 — an in-page anchor, never a dead link.
+// "Apply to be a promoter" section (epic 08 · promoter-funnel-v2), shown to a not-yet-bound
+// visitor whose primary CTA anchors here. `form` (S2 · US-2.1) is an optional slot — when the
+// page supplies it, the real application form renders instead of the title+body copy; passing
+// only `title`/`body` keeps the section usable as a plain teaser for any future consumer.
 type ApplyTeaser = {
   id: string
   title: string
   body: string
+  form?: React.ReactNode
 }
 
 type LandingAiChannel = {
@@ -180,7 +182,8 @@ function ApplyTeaserSection({ teaser }: { teaser: ApplyTeaser }) {
         <h2 id={`${teaser.id}-title`} className="t-h3" style={{ letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
           {teaser.title}
         </h2>
-        <p className="t-lead" style={{ color: 'var(--fg-muted)' }}>{teaser.body}</p>
+        <p className="t-lead" style={{ color: 'var(--fg-muted)', marginBottom: teaser.form ? 'var(--s-5)' : 0 }}>{teaser.body}</p>
+        {teaser.form}
       </article>
     </section>
   )

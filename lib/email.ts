@@ -1495,3 +1495,70 @@ export async function sendAgentConfigAlert(ctx: {
   ].join('')
   await send(ctx.to, subject, body)
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PROMOTER APPLICATIONS (epic 08 · promoter-funnel-v2 · Sprint 2)
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** Admin (Daniel): a new self-serve promoter application landed. */
+export async function sendPromoterApplicationReceivedToAdmin(ctx: {
+  adminEmail: string
+  name: string
+  email: string
+  whatsapp: string
+  city: string | null
+  motivation: string | null
+  adminUrl: string
+}): Promise<void> {
+  const subject = `📝 Nueva solicitud de promotor — ${ctx.name}`
+  const body = [
+    h1('Nueva solicitud de promotor'),
+    table([
+      ['Nombre', esc(ctx.name)],
+      ['Email', `<a href="mailto:${esc(ctx.email)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.email)}</a>`],
+      ['WhatsApp', esc(ctx.whatsapp)],
+      ...(ctx.city ? [['Ciudad/zona', esc(ctx.city)] as [string, string]] : []),
+    ]),
+    ctx.motivation ? quote(ctx.motivation) : '',
+    cta('Revisar solicitudes', ctx.adminUrl),
+  ].join('')
+  await send(ctx.adminEmail, subject, body)
+}
+
+/** Applicant: approved — here's your PRM- code + how to finish signup. */
+export async function sendPromoterApplicationApproved(ctx: {
+  to: string
+  name: string
+  code: string
+  bindUrl: string
+}): Promise<void> {
+  const subject = '✅ Ya eres promotor — aquí está tu código'
+  const body = [
+    h1(`¡Felicidades, ${esc(ctx.name)}!`),
+    p('Tu solicitud para ser promotor de Miyagi Sánchez fue aprobada. Este es tu código personal:'),
+    amount(ctx.code, 'Tu código de promotor', true),
+    p('Para empezar a cerrar ventas:'),
+    table([
+      ['1', 'Crea tu cuenta en miyagisanchez.com (o inicia sesión si ya tienes una)'],
+      ['2', 'Entra a tu panel de promotor y captura tu código'],
+      ['3', 'Ábrelo y empieza a montar tiendas'],
+    ]),
+    cta('Ingresar mi código', ctx.bindUrl),
+    notice('Guarda este correo — tu código es tuyo y personal, no lo compartas.'),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
+
+/** Applicant: rejected — polite es-MX close. */
+export async function sendPromoterApplicationRejected(ctx: {
+  to: string
+  name: string
+}): Promise<void> {
+  const subject = 'Tu solicitud de promotor'
+  const body = [
+    h1(`Gracias por tu interés, ${esc(ctx.name)}`),
+    p('Revisamos tu solicitud para ser promotor de Miyagi Sánchez y, por ahora, no podemos avanzar con ella.'),
+    p('Puedes volver a aplicar más adelante si tu situación cambia. Gracias por el interés en el proyecto.'),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
