@@ -104,3 +104,30 @@ export const TRANSFER_SKU_LABEL: Record<TransferSku, string> = {
   subdomain: 'Subdominio propio',
   ml_sync: 'Sincronización Mercado Libre',
 }
+
+// ── Transfer-details completeness (the "never a dead-end destination" guard) ──
+
+/** Which admin transfer_details field is required for a promoter to actually
+ *  be able to send money via that method — an empty/missing field would show
+ *  the promoter a destination with nothing to transfer to. */
+const REQUIRED_DETAIL_FIELD: Record<TransferMethod, 'clabe' | 'dimo_phone' | 'codi_reference'> = {
+  spei: 'clabe',
+  dimo: 'dimo_phone',
+  codi: 'codi_reference',
+}
+
+/**
+ * True when the admin has configured the field the chosen method needs (a
+ * non-blank string). Cross-agent review flagged that a promoter could be
+ * offered "Transferir a Miyagi" via a method with no usable destination
+ * (admin never entered a CLABE/DiMo/CoDi) — this is the guard the route calls
+ * BEFORE creating a transfer request, so that dead-end never reaches a promoter.
+ */
+export function hasRequiredTransferDetail(
+  details: Partial<Record<'clabe' | 'bank_name' | 'account_holder' | 'dimo_phone' | 'codi_reference', string>>,
+  method: TransferMethod,
+): boolean {
+  const field = REQUIRED_DETAIL_FIELD[method]
+  const value = details[field]
+  return typeof value === 'string' && value.trim().length > 0
+}

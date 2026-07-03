@@ -111,11 +111,15 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    shows only today's Bearer-token flow, so a flag outage can never expose an
  *    unverified auth path. Flip ON only after the auth `api` specs are green and
  *    Daniel's live claude.ai connector round-trip smoke passes.
- *  - ENABLEMENT (`promoter.transfer_enabled`): default `false`. The net-remittance
- *    (SPEI/DiMo/CoDi) transfer option at the promoter close + its admin-approval
- *    surface (epic 08 · promoter-funnel-v2 Sprint 4). Default OFF ⇒ the close
- *    checkout only ever offers Stripe (today's behavior), so a flag outage can
- *    never expose an unverified cash-remittance money path. Flip ON only after
+ *  - ENABLEMENT (`promoter.transfer_enabled`): default `false`. Gates ONLY where a
+ *    new transfer can be CREATED — the "Transferir a Miyagi" option at the
+ *    promoter close (epic 08 · promoter-funnel-v2 Sprint 4). Default OFF ⇒ the
+ *    close checkout only ever offers Stripe (today's behavior), so a flag outage
+ *    can never expose an unverified cash-remittance money path. Deliberately
+ *    does NOT gate `/admin/promoter`'s review of already-reported transfers
+ *    (Clerk-admin-gated regardless) — a real cash transfer already collected
+ *    must stay approvable/rejectable even if the flag is later flipped off to
+ *    pause new closes; only the intake side is fail-safe. Flip ON only after
  *    the live transfer → approve → activation smoke passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {

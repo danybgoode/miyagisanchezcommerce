@@ -8,6 +8,7 @@ import {
   canTransitionTransfer,
   SKU_GRANT_KEYS,
   TRANSFER_SKU_LABEL,
+  hasRequiredTransferDetail,
   type TransferStatus,
 } from '../lib/promoter-transfer'
 
@@ -116,6 +117,23 @@ test.describe('promoter-transfer · per-SKU activation mapping (SKU_GRANT_KEYS)'
 
   test('TRANSFER_SKU_LABEL covers exactly the 3 in-scope SKUs (es-MX)', () => {
     for (const sku of TRANSFER_SKUS) expect(typeof TRANSFER_SKU_LABEL[sku]).toBe('string')
+  })
+})
+
+test.describe('promoter-transfer · transfer-details completeness (hasRequiredTransferDetail)', () => {
+  test('refuses when the required field for the method is missing/blank', () => {
+    expect(hasRequiredTransferDetail({}, 'spei')).toBe(false)
+    expect(hasRequiredTransferDetail({ clabe: '  ' }, 'spei')).toBe(false)
+    expect(hasRequiredTransferDetail({ dimo_phone: '' }, 'dimo')).toBe(false)
+    expect(hasRequiredTransferDetail({}, 'codi')).toBe(false)
+  })
+
+  test('accepts when the required field is a non-blank string, ignoring unrelated fields', () => {
+    expect(hasRequiredTransferDetail({ clabe: '012180001234567895' }, 'spei')).toBe(true)
+    expect(hasRequiredTransferDetail({ dimo_phone: '5512345678' }, 'dimo')).toBe(true)
+    expect(hasRequiredTransferDetail({ codi_reference: 'REF-123' }, 'codi')).toBe(true)
+    // A CLABE alone doesn't satisfy DiMo — each method checks ITS OWN field.
+    expect(hasRequiredTransferDetail({ clabe: '012180001234567895' }, 'dimo')).toBe(false)
   })
 })
 

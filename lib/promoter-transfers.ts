@@ -14,7 +14,7 @@
  */
 
 import { db } from '@/lib/supabase'
-import { computeOwedCents, isTransferMethod, type TransferSku, type TransferMethod, type TransferStatus } from '@/lib/promoter-transfer'
+import { computeOwedCents, isTransferMethod, hasRequiredTransferDetail, type TransferSku, type TransferMethod, type TransferStatus } from '@/lib/promoter-transfer'
 import { computeCommissionCents } from '@/lib/promoter-commission'
 import {
   resolvePromoterDiscount,
@@ -135,6 +135,14 @@ export async function startPromoterTransferClose(input: {
     getPromoterSkuPrices(),
     getCommissionRates(),
   ])
+
+  // Cross-agent review (PR 167) — refuse BEFORE creating a transfer request when
+  // the admin hasn't configured the destination the chosen method needs (e.g.
+  // no CLABE on file for SPEI). Without this, a promoter could be shown
+  // "Transferir a Miyagi" with nothing to actually transfer to.
+  if (!hasRequiredTransferDetail(settings.transfer_details ?? {}, transferMethod)) {
+    return { ok: false, status: 422, error: 'Aún no hay datos de transferencia configurados para este método. Contacta al administrador.' }
+  }
 
   const resolved = resolvePromoterDiscount({ promoter, settings, itemsCents: basePriceCents, sku, skuPrices })
   if (!resolved.ok) {
