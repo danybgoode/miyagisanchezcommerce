@@ -153,6 +153,15 @@ export async function GET(req: NextRequest) {
           mcp_tools: ['get_store_configuration', 'patch_store_configuration'],
         },
 
+        seller_orders: {
+          method: 'POST',
+          url: `${base}/api/ucp/mcp`,
+          description: "A seller's own agent can list its own orders across every sales channel — native Miyagi sales and Mercado Libre sales materialized into Medusa (ml-orders-native) — via the MCP tool list_orders. Returns each order's status, buyer, amount, source (miyagi|mercadolibre), tags, and shipment/tracking; filterable by status and source.",
+          auth: 'authorization_bearer_shop_token',
+          note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
+          mcp_tools: ['list_orders'],
+        },
+
         seller_domain_subscription: {
           method: 'POST',
           url: `${base}/api/ucp/mcp`,
