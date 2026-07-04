@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
@@ -35,6 +35,8 @@ interface Order {
   source?: string | null
   ml_order_id?: string | null
   ml_pack_id?: string | null
+  // Free-form seller tags (ml-orders-native S3 · US-7).
+  tags?: string[] | null
   marketplace_listings: { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }
     | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string }[]
   marketplace_shipments: OrderShipment[] | null
@@ -152,6 +154,17 @@ function OrderCard({ order }: { order: Order }) {
             <span>{relativeDate(order.created_at)}</span>
           </div>
 
+          {/* Tag chips */}
+          {order.tags && order.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {order.tags.map(tag => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-subtle)] text-[var(--color-muted)]">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Shipment tracking chip */}
           {shipment?.tracking_number && (
             <p className="mt-1.5 text-[11px] text-[var(--color-muted)] flex items-center gap-1">
@@ -192,19 +205,31 @@ export default function OrdersInbox({
   initialOrders: Order[]
 }) {
   const [filter, setFilter] = useState<FilterTab>('pending')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
 
   // Compute counts per tab
   const needsActionOrders = initialOrders.filter(o => needsAction(o))
   const shippedOrders     = initialOrders.filter(o => ['shipped', 'in_transit'].includes(o.status))
   const deliveredOrders   = initialOrders.filter(o => ['delivered', 'completed', 'fulfilled'].includes(o.status))
 
-  const displayedOrders = filter === 'pending'
+  const statusFilteredOrders = filter === 'pending'
     ? needsActionOrders
     : filter === 'shipped'
       ? shippedOrders
       : filter === 'delivered'
         ? deliveredOrders
         : initialOrders
+
+  // All distinct tags across every order (client-side — no pagination on this page).
+  const allTags = useMemo(() => {
+    const seen = new Set<string>()
+    for (const o of initialOrders) for (const t of o.tags ?? []) seen.add(t)
+    return Array.from(seen).sort((a, b) => a.localeCompare(b))
+  }, [initialOrders])
+
+  const displayedOrders = tagFilter
+    ? statusFilteredOrders.filter(o => (o.tags ?? []).includes(tagFilter))
+    : statusFilteredOrders
 
   const tabs: Array<{ key: FilterTab; label: string; count: number }> = [
     { key: 'pending',   label: 'Por enviar',  count: needsActionOrders.length },
@@ -264,6 +289,26 @@ export default function OrdersInbox({
                   {t.count}
                 </span>
               )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Tag filter (ml-orders-native S3 · US-7) */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => setTagFilter(prev => (prev === tag ? null : tag))}
+              className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                tagFilter === tag
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-subtle)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              {tag}
             </button>
           ))}
         </div>
