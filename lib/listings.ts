@@ -2,7 +2,7 @@ import { unstable_cache } from 'next/cache'
 import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
-import { buildQuery } from './listing-query'
+import { buildQuery, isPrintPlacementListing } from './listing-query'
 import {
   pickFeatured,
   curateGrid,
@@ -107,66 +107,73 @@ export const getShopListings = unstable_cache(
     if (!res.ok) return []
     const data = await res.json()
 
-    // Map seller products to Listing shape
+    // Map seller products to Listing shape. Print-ad placement products (sold
+    // only through the dedicated print-edition flow) are excluded here — this
+    // is the shop-storefront seam every buyer-facing surface reads through
+    // (marketplace /s/[slug], subdomain, custom domain, embed, sitemap, PDP
+    // "more from this shop"), matching the general-catalog exclusion already
+    // live in the backend /store/listings route.
     const seller = data.seller
-    return (data.products ?? []).map((p: any) => {
-      const meta = (p.metadata ?? {}) as Record<string, unknown>
-      const variant = p.variants?.[0]
-      const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
-      const priceObj = mxnPrice ?? variant?.prices?.[0]
-      const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
-      const manageInventory = !!variant?.manage_inventory
-      const availableQuantity = manageInventory
-        ? (variant?.inventory_items ?? [])
-            .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
-            .reduce((sum: number, lvl: any) =>
-              sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
-        : null
-      return {
-        id: p.id,
-        shop_id: seller?.id ?? '',
-        medusa_product_id: p.id,
-        title: p.title,
-        description: p.description ?? null,
-        price_cents: priceObj?.amount ?? fallbackPrice,
-        currency: (priceObj?.currency_code ?? (meta.currency as string | undefined) ?? 'mxn').toUpperCase(),
-        condition: (meta.condition as string) ?? null,
-        listing_type: p.type?.value ?? (meta.listing_type as string | undefined) ?? 'product',
-        category: p.categories?.[0]?.handle ?? null,
-        state: (meta.state as string) ?? null,
-        municipio: (meta.municipio as string) ?? null,
-        location: (meta.location as string) ?? null,
-        attrs: (meta.attrs as Record<string, unknown> | undefined) ?? {},
-        metadata: meta,
-        images: (p.images ?? []).map((img: any) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
-        tags: (p.tags ?? []).map((t: any) => t.value),
-        status: p.status === 'published' ? 'active' : p.status,
-        source_platform: (meta.source_platform as string) ?? null,
-        source_url: (meta.source_url as string) ?? null,
-        views: (meta.views as number) ?? 0,
-        manage_inventory: manageInventory,
-        available_quantity: availableQuantity,
-        in_stock: !manageInventory || (availableQuantity ?? 0) > 0,
-        created_at: p.created_at,
-        shop: seller ? {
-          id: seller.id,
-          slug: seller.slug,
-          name: seller.name,
-          description: seller.description ?? null,
-          location: seller.location ?? null,
-          logo_url: seller.logo_url ?? null,
-          clerk_user_id: seller.clerk_user_id ?? null,
-          verified: seller.verified ?? false,
-          source: seller.source ?? null,
-          source_url: seller.source_url ?? null,
-          metadata: seller.metadata ?? null,
-          created_at: seller.created_at ?? p.created_at,
-          custom_domain: null,
-          custom_domain_verified: false,
-          custom_domain_vercel_ok: false,
-        } : null,
-      } as Listing
-    })
+    return (data.products ?? [])
+      .filter((p: any) => !isPrintPlacementListing(p.metadata))
+      .map((p: any) => {
+        const meta = (p.metadata ?? {}) as Record<string, unknown>
+        const variant = p.variants?.[0]
+        const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
+        const priceObj = mxnPrice ?? variant?.prices?.[0]
+        const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
+        const manageInventory = !!variant?.manage_inventory
+        const availableQuantity = manageInventory
+          ? (variant?.inventory_items ?? [])
+              .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
+              .reduce((sum: number, lvl: any) =>
+                sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
+          : null
+        return {
+          id: p.id,
+          shop_id: seller?.id ?? '',
+          medusa_product_id: p.id,
+          title: p.title,
+          description: p.description ?? null,
+          price_cents: priceObj?.amount ?? fallbackPrice,
+          currency: (priceObj?.currency_code ?? (meta.currency as string | undefined) ?? 'mxn').toUpperCase(),
+          condition: (meta.condition as string) ?? null,
+          listing_type: p.type?.value ?? (meta.listing_type as string | undefined) ?? 'product',
+          category: p.categories?.[0]?.handle ?? null,
+          state: (meta.state as string) ?? null,
+          municipio: (meta.municipio as string) ?? null,
+          location: (meta.location as string) ?? null,
+          attrs: (meta.attrs as Record<string, unknown> | undefined) ?? {},
+          metadata: meta,
+          images: (p.images ?? []).map((img: any) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
+          tags: (p.tags ?? []).map((t: any) => t.value),
+          status: p.status === 'published' ? 'active' : p.status,
+          source_platform: (meta.source_platform as string) ?? null,
+          source_url: (meta.source_url as string) ?? null,
+          views: (meta.views as number) ?? 0,
+          manage_inventory: manageInventory,
+          available_quantity: availableQuantity,
+          in_stock: !manageInventory || (availableQuantity ?? 0) > 0,
+          created_at: p.created_at,
+          shop: seller ? {
+            id: seller.id,
+            slug: seller.slug,
+            name: seller.name,
+            description: seller.description ?? null,
+            location: seller.location ?? null,
+            logo_url: seller.logo_url ?? null,
+            clerk_user_id: seller.clerk_user_id ?? null,
+            verified: seller.verified ?? false,
+            source: seller.source ?? null,
+            source_url: seller.source_url ?? null,
+            metadata: seller.metadata ?? null,
+            created_at: seller.created_at ?? p.created_at,
+            custom_domain: null,
+            custom_domain_verified: false,
+            custom_domain_vercel_ok: false,
+          } : null,
+        } as Listing
+      })
   },
   ['shop-listings'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
