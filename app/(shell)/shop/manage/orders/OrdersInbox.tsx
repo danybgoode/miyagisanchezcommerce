@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
@@ -97,7 +98,15 @@ function needsAction(order: Order) {
 
 // ── Order card ────────────────────────────────────────────────────────────────
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({
+  order,
+  selected,
+  onToggleSelect,
+}: {
+  order: Order
+  selected: boolean
+  onToggleSelect: () => void
+}) {
   const listing  = getListing(order)
   const shipment = getShipment(order)
   const thumb    = listing?.images?.[0]?.url ?? null
@@ -111,14 +120,25 @@ function OrderCard({ order }: { order: Order }) {
   const mlBadge = mlOrderBadgeLabel(order)
 
   return (
-    <Link
-      href={`/shop/manage/orders/${order.id}`}
-      className={`no-underline block rounded-xl border transition-all hover:shadow-sm ${
-        urgent
-          ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
-          : 'border-[var(--color-border)] bg-white hover:border-[var(--color-accent)]'
-      }`}
-    >
+    <div className="flex items-center gap-2">
+      {/* Bulk-select checkbox (ml-orders-native S3 · US-8) — outside the Link so
+          it never triggers navigation. */}
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelect}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Seleccionar pedido ${order.id}`}
+        className="flex-shrink-0 w-4 h-4"
+      />
+      <Link
+        href={`/shop/manage/orders/${order.id}`}
+        className={`no-underline block flex-1 min-w-0 rounded-xl border transition-all hover:shadow-sm ${
+          urgent
+            ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
+            : 'border-[var(--color-border)] bg-white hover:border-[var(--color-accent)]'
+        }`}
+      >
       <div className="flex items-start gap-3 p-4">
         {/* Thumbnail */}
         <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
@@ -191,7 +211,8 @@ function OrderCard({ order }: { order: Order }) {
           <span className="ml-auto text-xs text-amber-600 font-semibold">Ver →</span>
         </div>
       )}
-    </Link>
+      </Link>
+    </div>
   )
 }
 
@@ -204,8 +225,12 @@ export default function OrdersInbox({
   shop: Shop
   initialOrders: Order[]
 }) {
+  const router = useRouter()
   const [filter, setFilter] = useState<FilterTab>('pending')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
 
   // Compute counts per tab
   const needsActionOrders = initialOrders.filter(o => needsAction(o))
@@ -230,6 +255,53 @@ export default function OrdersInbox({
   const displayedOrders = tagFilter
     ? statusFilteredOrders.filter(o => (o.tags ?? []).includes(tagFilter))
     : statusFilteredOrders
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  // Bulk fulfillment-status action (ml-orders-native S3 · US-8). Status-only
+  // transitions (no bulk carrier/tracking entry) — mixed ML + native selections
+  // work with zero special-casing (the backend endpoint is source-agnostic).
+  async function handleBulkStatus(status: 'processing' | 'shipped' | 'delivered') {
+    if (selected.size === 0) return
+    setBulkBusy(true)
+    setBulkMessage(null)
+    try {
+      const res = await fetch('/api/orders/bulk-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: Array.from(selected), status }),
+      })
+      const data = await res.json() as {
+        advanced?: string[]
+        skipped?: Array<{ order_id: string; reason: string }>
+        error?: string
+      }
+      if (!res.ok) {
+        setBulkMessage(data.error ?? 'Error al actualizar pedidos.')
+        return
+      }
+      const advancedCount = data.advanced?.length ?? 0
+      const skipped = data.skipped ?? []
+      let msg = `${advancedCount} pedido${advancedCount !== 1 ? 's' : ''} actualizado${advancedCount !== 1 ? 's' : ''}.`
+      if (skipped.length) {
+        const reasons = skipped.slice(0, 3).map(s => s.reason).join('; ')
+        msg += ` ${skipped.length} sin cambios: ${reasons}${skipped.length > 3 ? '…' : ''}`
+      }
+      setBulkMessage(msg)
+      setSelected(new Set())
+      router.refresh()
+    } catch {
+      setBulkMessage('Sin conexión.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
 
   const tabs: Array<{ key: FilterTab; label: string; count: number }> = [
     { key: 'pending',   label: 'Por enviar',  count: needsActionOrders.length },
@@ -314,6 +386,39 @@ export default function OrdersInbox({
         </div>
       )}
 
+      {/* Bulk action bar (ml-orders-native S3 · US-8) */}
+      {selected.size > 0 && (
+        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 bg-[var(--color-accent)] text-white rounded-xl px-4 py-2.5 mb-4">
+          <span className="text-sm font-medium">
+            {selected.size} seleccionado{selected.size !== 1 ? 's' : ''}
+          </span>
+          <div className="flex flex-wrap gap-1.5 ml-auto">
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('processing')}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              Procesando
+            </button>
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('shipped')}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              Enviado
+            </button>
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('delivered')}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              Entregado
+            </button>
+            <button type="button" disabled={bulkBusy} onClick={() => setSelected(new Set())}
+              className="text-xs font-medium px-2 py-1 rounded-lg hover:bg-white/10">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bulkMessage && (
+        <div className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 mb-4">
+          {bulkMessage}
+        </div>
+      )}
+
       {/* Orders list */}
       {displayedOrders.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-[var(--color-border)] rounded-xl">
@@ -344,7 +449,12 @@ export default function OrdersInbox({
       ) : (
         <div className="space-y-2.5">
           {displayedOrders.map(order => (
-            <OrderCard key={order.id} order={order} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              selected={selected.has(order.id)}
+              onToggleSelect={() => toggleSelect(order.id)}
+            />
           ))}
         </div>
       )}
