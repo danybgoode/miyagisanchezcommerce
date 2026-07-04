@@ -64,8 +64,11 @@ const COPY: Record<
   },
 }
 
+// `in` also matches inherited Object.prototype keys (e.g. `{event:'toString'}`
+// would pass `'toString' in COPY`) — hasOwnProperty is the correct own-key check
+// (cross-review catch).
 function isMlNotifyEvent(v: unknown): v is MlNotifyEvent {
-  return typeof v === 'string' && v in COPY
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(COPY, v)
 }
 
 export async function POST(req: NextRequest) {
