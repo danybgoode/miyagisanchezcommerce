@@ -1,6 +1,7 @@
 import type { Listing, Shop } from '@/lib/types'
 import type { HeroSettings } from '@/lib/shop-settings/types'
 import { formatPrice } from '@/lib/listings'
+import { httpUrl } from '@/lib/settings-import'
 import ClosetListingCard from './ClosetListingCard'
 
 /**
@@ -12,12 +13,17 @@ import ClosetListingCard from './ClosetListingCard'
  * `pinned_listing_ids`, preserving pin order — a removed/unpublished listing
  * simply isn't in that array anymore, so it drops out for free (no dangling
  * reference to handle, no extra Medusa call).
+ *
+ * `promo_image_url`/`promo_cta_link` are re-validated at render time (not just
+ * at write time) — defense-in-depth against a non-http(s) scheme ever
+ * reaching a public `src`/`href`.
  */
 export default function HeroSection({
   hero,
   listings,
   shop,
   accent,
+  textColor,
   sellerHasStripe,
   mpEnabled,
   hasClabe,
@@ -26,6 +32,7 @@ export default function HeroSection({
   listings: Listing[]
   shop: Shop
   accent: string
+  textColor: string
   sellerHasStripe: boolean
   mpEnabled: boolean
   hasClabe: boolean
@@ -69,22 +76,24 @@ export default function HeroSection({
     )
   }
 
-  if (!hero.promo_image_url) return null
+  const promoImage = hero.promo_image_url ? httpUrl(hero.promo_image_url) : null
+  if (!promoImage) return null
+  const promoLink = hero.promo_cta_link ? httpUrl(hero.promo_cta_link) : null
 
   return (
     <div className="max-w-6xl mx-auto px-4 mb-6">
       <div className="relative w-full aspect-[16/6] rounded-xl overflow-hidden">
         <img
-          src={hero.promo_image_url}
+          src={promoImage}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
         />
         {hero.promo_cta_text && (
           <div className="absolute inset-0 flex items-end p-4">
             <a
-              href={hero.promo_cta_link ?? '#'}
-              className="no-underline text-white text-sm font-semibold px-4 py-2 rounded-full"
-              style={{ backgroundColor: accent }}
+              href={promoLink ?? '#'}
+              className="no-underline text-sm font-semibold px-4 py-2 rounded-full"
+              style={{ backgroundColor: accent, color: textColor }}
             >
               {hero.promo_cta_text}
             </a>

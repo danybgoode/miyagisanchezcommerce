@@ -22,6 +22,7 @@ import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { PRESETS } from '@/lib/shop-settings/helpers'
 import { THEME_PRESETS, DEFAULT_THEME_PRESET_KEY } from '@/lib/shop-settings/theme-presets'
+import { httpUrl } from '@/lib/settings-import'
 import type { ThemeSettings, AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 
 export interface DisenoInitial {
@@ -76,7 +77,13 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
   const [announcementLink, setAnnouncementLink] = useState(initial.announcement?.link ?? '')
 
   const [heroMode, setHeroMode] = useState<'listings' | 'promo'>(initial.hero?.mode ?? 'listings')
-  const [heroPinnedIds, setHeroPinnedIds] = useState<string[]>(initial.hero?.pinned_listing_ids ?? [])
+  // Drop any pinned id that's no longer an active listing (unpublished/deleted
+  // since it was pinned) — otherwise it silently occupies one of the 4 slots
+  // with no way to see or free it, since the picker only renders `initial.listings`.
+  const availableListingIds = new Set(initial.listings.map(l => l.id))
+  const [heroPinnedIds, setHeroPinnedIds] = useState<string[]>(
+    (initial.hero?.pinned_listing_ids ?? []).filter(id => availableListingIds.has(id)),
+  )
   const [heroPromoImage, setHeroPromoImage] = useState(initial.hero?.promo_image_url ?? '')
   const [heroPromoCtaText, setHeroPromoCtaText] = useState(initial.hero?.promo_cta_text ?? '')
   const [heroPromoCtaLink, setHeroPromoCtaLink] = useState(initial.hero?.promo_cta_link ?? '')
@@ -398,7 +405,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             <div
               className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
               onClick={() => heroPromoInputRef.current?.click()}
-              style={heroPromoImage ? { backgroundImage: `url(${heroPromoImage})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
+              style={httpUrl(heroPromoImage) ? { backgroundImage: `url(${httpUrl(heroPromoImage)})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
             >
               {heroPromoUploading ? (
                 <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>

@@ -45,4 +45,30 @@ test.describe('own-shop premium presentation — MCP store-config round-trip (Sp
     expect(snapshot.configuration.profile?.hero).toBeUndefined()
     expect(snapshot.configuration.profile?.theme_preset).toBeUndefined()
   })
+
+  test('an agent CAN clear a previously-set announcement/hero/theme_preset via patch_store_configuration', () => {
+    // First set all three...
+    const set = validateConfig({
+      profile: {
+        announcement: { text: 'Oferta' },
+        hero: { mode: 'listings', pinned_listing_ids: ['prod_1'] },
+        theme_preset: 'papel',
+      },
+    })
+    const shopWithConfig = { name: 'Tienda', metadata: { settings: set.patch.settings } }
+    const configured = buildStoreConfigSnapshot(shopWithConfig)
+    expect(configured.configuration.profile?.announcement).toBeDefined()
+
+    // ...then clear all three with an explicit null, simulating the deep-merge
+    // landing on the already-configured shop.
+    const clear = validateConfig({ profile: { announcement: null, hero: null, theme_preset: null } })
+    const shopAfterClear = {
+      name: 'Tienda',
+      metadata: { settings: { ...(set.patch.settings as Record<string, unknown>), ...(clear.patch.settings as Record<string, unknown>) } },
+    }
+    const cleared = buildStoreConfigSnapshot(shopAfterClear)
+    expect(cleared.configuration.profile?.announcement).toBeUndefined()
+    expect(cleared.configuration.profile?.hero).toBeUndefined()
+    expect(cleared.configuration.profile?.theme_preset).toBeUndefined()
+  })
 })

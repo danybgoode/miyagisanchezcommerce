@@ -617,13 +617,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   ) : null
 
   return (
-    /* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid.
+    // Own-shop premium presentation (epic 07, Sprint 1, Story 1.3) — the preset
+    // attribute must sit on a full-bleed wrapper, not the max-w-constrained
+    // column below, or its surface color only paints the center column on wide
+    // viewports (mirrors the shop page's outer/inner split, page.tsx).
+    <div style={{ '--shop-accent': shopAccent } as React.CSSProperties} data-shop-preset={themePreset || undefined}>
+    {/* Mobile: single-col centered. Desktop: unconstrained width up to 960px, 2-col grid.
        Redesign (S1.1): drop the fixed mobile `pb-[120px]` — StickyBuyBar renders a
-       measured spacer matching the bar's real height instead, so content is never clipped. */
+       measured spacer matching the bar's real height instead, so content is never clipped. */}
     <div
       className={redesign ? 'max-w-[640px] md:max-w-[960px] mx-auto md:px-6 md:pb-12' : 'max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12'}
-      style={{ '--shop-accent': shopAccent } as React.CSSProperties}
-      data-shop-preset={themePreset || undefined}
     >
       {/* Push the product title + price into AgentContext so the navbar AI card's
           copied prompt names this product (S2.2). `effectivePrice` mirrors what the
@@ -1125,6 +1128,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )
       )}
+    </div>
     </div>
   )
 }

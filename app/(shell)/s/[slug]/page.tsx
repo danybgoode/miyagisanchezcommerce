@@ -10,6 +10,7 @@ import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
+import { readableTextOn } from '@/lib/platform-theme'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
@@ -143,6 +144,10 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
   const accent = theme.accent_color ?? 'var(--color-accent)'
   const hasBanner = !!theme.banner_url
+  // Readable text over the seller's own accent — a light/pastel accent needs
+  // dark ink instead of hardcoded white (reused by the announcement bar + the
+  // hero promo CTA button, both painted with `accent` as their background).
+  const accentTextColor = readableTextOn(theme.accent_color ?? undefined)
 
   const pageContent = (
     <div
@@ -156,7 +161,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
       <SetAgentContext shopName={shop.name} />
 
       {/* ── Announcement bar (own-shop premium presentation, Sprint 1) ──────── */}
-      <AnnouncementBar announcement={announcement} />
+      <AnnouncementBar announcement={announcement} textColor={accentTextColor} />
 
       {/* ── Banner + shop identity header ───────────────────────────────────── */}
       <div className="relative mb-16">
@@ -273,6 +278,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
         listings={listings}
         shop={shop}
         accent={accent}
+        textColor={accentTextColor}
         sellerHasStripe={sellerHasStripe}
         mpEnabled={mpEnabled}
         hasClabe={hasClabe}

@@ -68,4 +68,25 @@ test.describe('own-shop premium presentation — announcement + hero validation 
     expect(patch.settings?.hero).toBeUndefined()
     expect(patch.settings?.theme_preset).toBeUndefined()
   })
+
+  // An explicit `null` clears each field via MCP — an agent must be able to
+  // turn a feature back off, not just set it (found in cross-agent review).
+  test('an explicit null clears announcement/hero/theme_preset (agent can turn a feature back off)', () => {
+    const { patch, blocks } = validateConfig({ profile: { announcement: null, hero: null, theme_preset: null } })
+    expect(patch.settings?.announcement).toBeNull()
+    expect(patch.settings?.hero).toBeNull()
+    expect(patch.settings?.theme_preset).toBeNull()
+    expect(blocks[0].appliedFields).toEqual(expect.arrayContaining([
+      'announcement (cleared)', 'hero (cleared)', 'theme_preset (cleared)',
+    ]))
+  })
+
+  test('an invalid hero.promo_image_url / promo_cta_link reports an issue (agent gets feedback, not silence)', () => {
+    const { blocks } = validateConfig({
+      profile: { hero: { mode: 'promo', promo_image_url: 'not-a-url', promo_cta_link: 'not-a-url-either' } },
+    })
+    expect(blocks[0].issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('hero.promo_image_url'), expect.stringContaining('hero.promo_cta_link'),
+    ]))
+  })
 })
