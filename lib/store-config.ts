@@ -64,6 +64,26 @@ export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot
     ) as NonNullable<NonNullable<StoreConfigManifest['profile']>['social']>
     if (Object.keys(cleaned).length) profile.social = cleaned
   }
+  // Own-shop premium presentation (epic 07, Sprint 1) — announcement/hero/
+  // theme_preset are siblings of `theme` in the stored tree (not nested in
+  // it), so read them off `settings` directly.
+  const announcement = obj(settings.announcement)
+  if (announcement && typeof announcement.text === 'string' && announcement.text) {
+    profile.announcement = {
+      text: announcement.text,
+      link: typeof announcement.link === 'string' ? announcement.link : undefined,
+    }
+  }
+  const hero = obj(settings.hero)
+  if (hero && (hero.mode === 'listings' || hero.mode === 'promo')) {
+    const heroOut: NonNullable<StoreConfigManifest['profile']>['hero'] = { mode: hero.mode }
+    if (Array.isArray(hero.pinned_listing_ids)) heroOut.pinned_listing_ids = hero.pinned_listing_ids as string[]
+    if (typeof hero.promo_image_url === 'string') heroOut.promo_image_url = hero.promo_image_url
+    if (typeof hero.promo_cta_text === 'string') heroOut.promo_cta_text = hero.promo_cta_text
+    if (typeof hero.promo_cta_link === 'string') heroOut.promo_cta_link = hero.promo_cta_link
+    profile.hero = heroOut
+  }
+  if (typeof settings.theme_preset === 'string' && settings.theme_preset) profile.theme_preset = settings.theme_preset
   if (Object.keys(profile).length) configuration.profile = profile
 
   // ── pass-through declarative blocks (already secret-free) ─────────────────────

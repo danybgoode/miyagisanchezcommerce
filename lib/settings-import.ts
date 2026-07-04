@@ -11,6 +11,8 @@
  * (see MANUAL_SECTIONS): payments, custom domain, Cal.com, agent webhook secret.
  */
 
+import { isValidThemePresetKey } from './shop-settings/theme-presets'
+
 // ── Manifest shape (the declarative subset) ──────────────────────────────────
 
 export interface StoreConfigManifest {
@@ -26,6 +28,20 @@ export interface StoreConfigManifest {
     social?: {
       instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string
     }
+    // Own-shop premium presentation (epic 07, Sprint 1) — announcement bar,
+    // hero/featured section, curated visual preset. Grouped under "profile"
+    // since Diseño already owns this block; written to settings.announcement /
+    // settings.hero / settings.theme_preset respectively (siblings of
+    // settings.theme, not nested inside it).
+    announcement?: { text?: string; link?: string | null }
+    hero?: {
+      mode?: 'listings' | 'promo'
+      pinned_listing_ids?: string[]
+      promo_image_url?: string
+      promo_cta_text?: string
+      promo_cta_link?: string
+    }
+    theme_preset?: string
   }
   shipping?: {
     local_pickup?: boolean
@@ -241,6 +257,50 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
         if (Object.keys(social).length) { theme.social = social; f.push('social') }
       }
       if (Object.keys(theme).length) settings.theme = theme
+
+      // ── announcement bar (own-shop premium presentation, Sprint 1) ─────────
+      if (p.announcement !== undefined) {
+        if (isObj(p.announcement)) {
+          const text = str(p.announcement.text)
+          if (text && text.length <= 140) {
+            const link = p.announcement.link !== undefined ? httpUrl(p.announcement.link) : undefined
+            if (p.announcement.link !== undefined && p.announcement.link !== null && !link) {
+              iss.push('announcement.link debe ser una URL http/https')
+            } else {
+              settings.announcement = { text, link: link ?? null }
+              f.push('announcement')
+            }
+          } else iss.push('announcement.text es requerido (máx. 140 caracteres)')
+        } else iss.push('el bloque "announcement" debe ser un objeto')
+      }
+
+      // ── hero / featured section ─────────────────────────────────────────────
+      if (p.hero !== undefined) {
+        if (isObj(p.hero)) {
+          const h = p.hero
+          if (h.mode === 'listings' || h.mode === 'promo') {
+            const hero: Record<string, unknown> = { mode: h.mode }
+            if (Array.isArray(h.pinned_listing_ids)) {
+              const ids = h.pinned_listing_ids.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(0, 4)
+              hero.pinned_listing_ids = ids
+            }
+            const promoImage = h.promo_image_url !== undefined ? httpUrl(h.promo_image_url) : undefined
+            if (promoImage) hero.promo_image_url = promoImage
+            if (str(h.promo_cta_text)) hero.promo_cta_text = str(h.promo_cta_text)
+            const promoLink = h.promo_cta_link !== undefined ? httpUrl(h.promo_cta_link) : undefined
+            if (promoLink) hero.promo_cta_link = promoLink
+            settings.hero = hero
+            f.push('hero')
+          } else iss.push('hero.mode debe ser listings | promo')
+        } else iss.push('el bloque "hero" debe ser un objeto')
+      }
+
+      // ── curated visual preset ────────────────────────────────────────────────
+      if (p.theme_preset !== undefined) {
+        const key = str(p.theme_preset)
+        if (key && isValidThemePresetKey(key)) { settings.theme_preset = key; f.push('theme_preset') }
+        else iss.push('theme_preset no es un preset válido')
+      }
     } else iss.push('el bloque "profile" debe ser un objeto')
     record('profile', f, iss)
   }
