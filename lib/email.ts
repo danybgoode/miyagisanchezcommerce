@@ -762,6 +762,24 @@ export async function sendNewOrderToSeller(ctx: {
   await send(ctx.sellerEmail, subject, body)
 }
 
+// ── Seller: Mercado Libre order event (ml-orders-native S2 · US-5) ────────────
+//
+// One lean template for all four ML-order lifecycle events (new / shipped /
+// delivered / cancelled) rather than four near-duplicates — copy is fully
+// data-driven off `subject`/`headline`/`note`, which the caller (the backend's
+// notify bridge) selects per event kind.
+
+export async function sendMlOrderEventToSeller(ctx: {
+  sellerEmail: string
+  subject: string
+  headline: string
+  note: string
+  orderUrl: string
+}): Promise<void> {
+  const body = [h1(ctx.headline), p(ctx.note), cta('Ver pedido', ctx.orderUrl)].join('')
+  await send(ctx.sellerEmail, ctx.subject, body)
+}
+
 // ── Seller: buyer reported a manual payment ("Ya hice el pago") ───────────────
 //
 // The money-path keystone (Granular Notifications S3.1). Fires when a buyer taps
