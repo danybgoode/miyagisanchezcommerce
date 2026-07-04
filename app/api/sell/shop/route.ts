@@ -169,6 +169,17 @@ interface ShopUpdatePayload {
         twitter?: string
       }
     }
+    // Own-shop premium presentation (epic 07, Sprint 1) — siblings of `theme`,
+    // not nested inside it (see lib/shop-settings/types.ts).
+    announcement?: { text: string; link?: string | null } | null
+    hero?: {
+      mode: 'listings' | 'promo'
+      pinned_listing_ids?: string[]
+      promo_image_url?: string | null
+      promo_cta_text?: string | null
+      promo_cta_link?: string | null
+    } | null
+    theme_preset?: string | null
     offers?: {
       min_buyer_trust_level?: string
       negotiation?: {

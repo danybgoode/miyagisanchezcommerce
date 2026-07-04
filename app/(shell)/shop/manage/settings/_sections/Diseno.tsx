@@ -21,7 +21,8 @@ import { SectionTitle } from '../_components/SectionTitle'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { PRESETS } from '@/lib/shop-settings/helpers'
-import type { ThemeSettings } from '@/lib/shop-settings/types'
+import { THEME_PRESETS, DEFAULT_THEME_PRESET_KEY } from '@/lib/shop-settings/theme-presets'
+import type { ThemeSettings, AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 
 export interface DisenoInitial {
   /** Read-only — used only to personalize the slogan AI prompt (name is edited in Perfil). */
@@ -34,6 +35,12 @@ export interface DisenoInitial {
   phone: string | null
   whatsapp_cta: boolean | null
   local_pickup: boolean | null
+  /** Own-shop premium presentation (epic 07, Sprint 1). */
+  announcement: AnnouncementSettings | null
+  hero: HeroSettings | null
+  theme_preset: string | null
+  /** The shop's own active listings — the hero "pinned listings" picker (Diseño-only for Sprint 1). */
+  listings: Array<{ id: string; title: string; imageUrl: string | null }>
 }
 
 const ESCROW_LABEL = { off: 'Desactivada', optional: 'Opcional', required: 'Obligatoria' }
@@ -63,6 +70,29 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
   const [showPhone, setShowPhone] = useState(initial.show_phone === true && !!initial.phone)
   const [whatsappCta, setWhatsappCta] = useState(initial.whatsapp_cta === true && !!(t.social?.whatsapp))
   const [localPickup, setLocalPickup] = useState(initial.local_pickup ?? true)
+
+  // Own-shop premium presentation (epic 07, Sprint 1) ────────────────────────
+  const [announcementText, setAnnouncementText] = useState(initial.announcement?.text ?? '')
+  const [announcementLink, setAnnouncementLink] = useState(initial.announcement?.link ?? '')
+
+  const [heroMode, setHeroMode] = useState<'listings' | 'promo'>(initial.hero?.mode ?? 'listings')
+  const [heroPinnedIds, setHeroPinnedIds] = useState<string[]>(initial.hero?.pinned_listing_ids ?? [])
+  const [heroPromoImage, setHeroPromoImage] = useState(initial.hero?.promo_image_url ?? '')
+  const [heroPromoCtaText, setHeroPromoCtaText] = useState(initial.hero?.promo_cta_text ?? '')
+  const [heroPromoCtaLink, setHeroPromoCtaLink] = useState(initial.hero?.promo_cta_link ?? '')
+  const [heroPromoUploading, setHeroPromoUploading] = useState(false)
+  const heroPromoInputRef = useRef<HTMLInputElement>(null)
+
+  const [themePreset, setThemePreset] = useState(initial.theme_preset ?? DEFAULT_THEME_PRESET_KEY)
+
+  function togglePinnedListing(id: string) {
+    setHeroPinnedIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id)
+      if (prev.length >= 4) return prev
+      return [...prev, id]
+    })
+    mark()
+  }
 
   const activePreset = PRESETS.find(p => p.key === preset)
 
@@ -98,6 +128,12 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
   }
 
   async function handleSave() {
+    const hero: HeroSettings | null = heroMode === 'listings'
+      ? (heroPinnedIds.length ? { mode: 'listings', pinned_listing_ids: heroPinnedIds } : null)
+      : (heroPromoImage
+        ? { mode: 'promo', promo_image_url: heroPromoImage, promo_cta_text: heroPromoCtaText.trim() || null, promo_cta_link: heroPromoCtaLink.trim() || null }
+        : null)
+
     await save({
       logo_url: logoUrl,
       settings: {
@@ -119,6 +155,9 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             tiktok:    tiktok.trim().replace(/^@/, '') || null,
           },
         },
+        announcement: announcementText.trim() ? { text: announcementText.trim(), link: announcementLink.trim() || null } : null,
+        hero,
+        theme_preset: themePreset === DEFAULT_THEME_PRESET_KEY ? null : themePreset,
       },
     })
   }
@@ -262,6 +301,157 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          Anuncio — announcement bar (own-shop premium presentation, Sprint 1)
+      ════════════════════════════════════════════════════════════════════ */}
+      <section id="anuncio" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Anuncio</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Una barra corta arriba de tu tienda, con un enlace opcional. Déjala vacía para no mostrar nada.
+        </p>
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium">
+              Texto
+              <span className={`ml-2 text-xs font-normal ${announcementText.length > 120 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                {announcementText.length}/140
+              </span>
+            </label>
+          </div>
+          <input
+            value={announcementText}
+            onChange={e => { setAnnouncementText(e.target.value.slice(0, 140)); mark() }}
+            maxLength={140}
+            placeholder="Envío gratis desde $500 · Entrega urgente disponible"
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Enlace (opcional)</label>
+          <input
+            value={announcementLink}
+            onChange={e => { setAnnouncementLink(e.target.value); mark() }}
+            placeholder="https://…"
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+          />
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          Destacados — hero/featured section (own-shop premium presentation, Sprint 1)
+      ════════════════════════════════════════════════════════════════════ */}
+      <section id="destacados" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Destacados</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Muestra tus mejores anuncios o una imagen promocional arriba de la cuadrícula de tu tienda.
+        </p>
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => { setHeroMode('listings'); mark() }}
+            className={`flex-1 text-sm font-medium py-2 rounded-lg border-2 ${heroMode === 'listings' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
+          >
+            Anuncios fijados
+          </button>
+          <button
+            type="button"
+            onClick={() => { setHeroMode('promo'); mark() }}
+            className={`flex-1 text-sm font-medium py-2 rounded-lg border-2 ${heroMode === 'promo' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
+          >
+            Imagen promocional
+          </button>
+        </div>
+
+        {heroMode === 'listings' ? (
+          initial.listings.length === 0 ? (
+            <p className="text-xs text-[var(--color-muted)]">Aún no tienes anuncios activos para fijar.</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {initial.listings.map(l => {
+                const selected = heroPinnedIds.includes(l.id)
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => togglePinnedListing(l.id)}
+                    className={`relative text-left rounded-lg overflow-hidden border-2 ${selected ? 'border-[var(--color-accent)]' : 'border-transparent'}`}
+                  >
+                    {l.imageUrl ? (
+                      <img src={l.imageUrl} alt={l.title} className="w-full h-16 object-cover" />
+                    ) : (
+                      <div className="w-full h-16 bg-[var(--color-surface-alt)] flex items-center justify-center text-lg">📦</div>
+                    )}
+                    <p className="text-[10px] px-1 py-0.5 line-clamp-1">{l.title}</p>
+                    {selected && (
+                      <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center">✓</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <div
+              className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+              onClick={() => heroPromoInputRef.current?.click()}
+              style={heroPromoImage ? { backgroundImage: `url(${heroPromoImage})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
+            >
+              {heroPromoUploading ? (
+                <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>
+              ) : !heroPromoImage && (
+                <div className="text-center">
+                  <div className="text-2xl mb-1">🖼️</div>
+                  <div className="text-xs text-[var(--color-muted)]">Haz clic para subir imagen</div>
+                </div>
+              )}
+            </div>
+            <input ref={heroPromoInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f, setHeroPromoImage, setHeroPromoUploading); e.target.value = '' }} />
+            <input
+              value={heroPromoCtaText}
+              onChange={e => { setHeroPromoCtaText(e.target.value); mark() }}
+              placeholder="Texto del botón (ej. Ver colección)"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
+            <input
+              value={heroPromoCtaLink}
+              onChange={e => { setHeroPromoCtaLink(e.target.value); mark() }}
+              placeholder="Enlace del botón (https://…)"
+              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
+          </div>
+        )}
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          Tema — curated visual preset (own-shop premium presentation, Sprint 1)
+      ════════════════════════════════════════════════════════════════════ */}
+      <section id="tema" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <SectionTitle>Tema</SectionTitle>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Un preset de tipografía y tono de superficie sobre tu color de marca y banner (que no cambian).
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {THEME_PRESETS.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => { setThemePreset(p.key); mark() }}
+              title={p.description}
+              className={`text-left p-3 rounded-lg border-2 transition-all ${
+                themePreset === p.key
+                  ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
+                  : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-sm font-semibold">{p.label}</div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug line-clamp-2">{p.description}</div>
+            </button>
+          ))}
         </div>
       </section>
 

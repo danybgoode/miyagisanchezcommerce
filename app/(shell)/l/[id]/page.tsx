@@ -159,7 +159,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     contact_email?: string | null
     bank_transfer?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null }
   } | undefined
-  const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null } } | undefined
+  const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null }; accent_color?: string | null } | undefined
+  // Own-shop premium presentation (epic 07, Sprint 1, Story 1.3) — applies the
+  // seller's curated preset (surface tone + font pairing) here too, not just on
+  // the shop page; absent key renders today's PDP unchanged.
+  const shopAccent = themeSettings?.accent_color ?? 'var(--color-accent)'
+  const themePreset = shopSettings.theme_preset as string | null | undefined
   const shippingSettings = shopSettings.shipping as {
     local_pickup?: boolean
     pickup_spots?: Array<{ name?: string; address?: string; instructions?: string }>
@@ -617,6 +622,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
        measured spacer matching the bar's real height instead, so content is never clipped. */
     <div
       className={redesign ? 'max-w-[640px] md:max-w-[960px] mx-auto md:px-6 md:pb-12' : 'max-w-[640px] md:max-w-[960px] mx-auto pb-[120px] md:px-6 md:pb-12'}
+      style={{ '--shop-accent': shopAccent } as React.CSSProperties}
+      data-shop-preset={themePreset || undefined}
     >
       {/* Push the product title + price into AgentContext so the navbar AI card's
           copied prompt names this product (S2.2). `effectivePrice` mirrors what the

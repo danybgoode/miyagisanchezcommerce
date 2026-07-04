@@ -8,6 +8,7 @@ import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { getSubdomainSubscription } from '@/lib/subdomain-subscription'
 import { isEnabled } from '@/lib/flags'
+import { getShopListings } from '@/lib/listings'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
   ReturnsPolicySettings, SettingsTree, OffersSettings, OrdersSettings, NotificationsSettings,
@@ -99,6 +100,12 @@ export default async function SettingsSectionPage({
     ? await isEnabled('promoter.enabled')
     : false
 
+  // Own-shop premium presentation (epic 07, Sprint 1) — the hero/featured
+  // section's listing picker (Diseño only) reuses the same cached
+  // `getShopListings()` the public storefront reads, so a pinned id that's
+  // since been unpublished simply isn't offered/kept (no dangling reference).
+  const ownListings = section === 'diseno' ? await getShopListings(shopData.slug) : []
+
   const meta = shop.metadata as Record<string, unknown> | null
   const settings = (meta?.settings ?? {}) as Record<string, unknown>
   // Typed view of the settings tree for the extracted sections (each reads only its slice).
@@ -136,6 +143,14 @@ export default async function SettingsSectionPage({
           phone: st.checkout?.phone ?? null,
           whatsapp_cta: st.checkout?.whatsapp_cta ?? null,
           local_pickup: st.shipping?.local_pickup ?? null,
+          announcement: st.announcement ?? null,
+          hero: st.hero ?? null,
+          theme_preset: st.theme_preset ?? null,
+          listings: ownListings.map(l => ({
+            id: l.id,
+            title: l.title,
+            imageUrl: l.images?.[0]?.url ?? null,
+          })),
         }} />
       case 'negociacion':
         return <Negociacion initial={(st.offers ?? null) as OffersSettings | null} />
