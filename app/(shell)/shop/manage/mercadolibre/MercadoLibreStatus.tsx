@@ -243,7 +243,9 @@ export default function MercadoLibreStatus({
         )}
       </div>
 
-      {/* Two-way stock sync — entitlement-gated toggle OR upsell (S5 · US-14) */}
+      {/* Two-way stock sync — entitlement-gated toggle OR upsell (S5 · US-14).
+          Same ml_sync grant also gates order materialization (ml-orders-native
+          S2 · US-6) — a presentational note only, not a second paywall surface. */}
       {syncEnabledFlag && isConnected && (
         <div
           style={{
@@ -251,9 +253,10 @@ export default function MercadoLibreStatus({
             background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-1)',
           }}
         >
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Sincronización de inventario</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Sincronización de inventario y pedidos</h2>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 14px' }}>
             Mantén tu existencia igual en Mercado Libre y en Miyagi — cada venta descuenta de ambos, sin vender de más.
+            Tus pedidos de Mercado Libre también aparecen en tu bandeja de pedidos de Miyagi.
           </p>
 
           {syncEntitled ? (
@@ -281,7 +284,8 @@ export default function MercadoLibreStatus({
             <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--bg-sunk)', fontSize: 13 }}>
               <p style={{ margin: '0 0 10px', color: 'var(--fg)' }}>
                 La sincronización automática de inventario es una función de pago. Actívala para no vender de
-                más en ninguno de los dos canales.
+                más en ninguno de los dos canales — también hace que tus pedidos de Mercado Libre aparezcan
+                automáticamente en tu bandeja de pedidos de Miyagi.
               </p>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button

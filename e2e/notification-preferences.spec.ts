@@ -107,6 +107,13 @@ test.describe('notification preferences · event→group map', () => {
     expect(groupForEvent('return_requested')).toBe('returns')
   })
 
+  test('ml-orders-native S2 · all four ML lifecycle events route through orders (never self-notify-suppressed)', () => {
+    expect(groupForEvent('ml_order_new')).toBe('orders')
+    expect(groupForEvent('ml_order_shipped')).toBe('orders')
+    expect(groupForEvent('ml_order_delivered')).toBe('orders')
+    expect(groupForEvent('ml_order_cancelled')).toBe('orders')
+  })
+
   test('every settings group is wired to at least one event (no half-wired group)', () => {
     const wired = new Set(Object.values(EVENT_GROUP))
     for (const g of EVENT_GROUPS) expect(wired).toContain(g)

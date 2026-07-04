@@ -28,12 +28,22 @@ export type Channel = (typeof CHANNELS)[number]
  * seller of their own click is noise): `payment_confirmed`, `order_shipped`,
  * `order_delivered`. Their state vocabulary still lives in
  * `lib/manual-payment-state.ts`; the seam just doesn't echo them back to the actor.
+ *
+ * `ml_order_*` (ml-orders-native S2 · US-5): unlike native `order_shipped`/
+ * `order_delivered` above, an ML order's shipped/delivered/cancelled transitions
+ * are NEVER seller-initiated in Miyagi — they're driven by Mercado Libre / the
+ * backend reconcile job — so all four ML lifecycle events route through `orders`,
+ * consistent with (not an exception to) the self-notify rule.
  */
 export const EVENT_GROUP = {
   new_order: 'orders',
   offer_made: 'offers',
   buyer_reported_paid: 'payments',
   return_requested: 'returns',
+  ml_order_new: 'orders',
+  ml_order_shipped: 'orders',
+  ml_order_delivered: 'orders',
+  ml_order_cancelled: 'orders',
 } as const satisfies Record<string, EventGroup>
 export type SellerEventKind = keyof typeof EVENT_GROUP
 
