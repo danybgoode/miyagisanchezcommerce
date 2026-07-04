@@ -11,6 +11,8 @@
  * (see MANUAL_SECTIONS): payments, custom domain, Cal.com, agent webhook secret.
  */
 
+import { isValidThemePresetKey } from './shop-settings/theme-presets'
+
 // ── Manifest shape (the declarative subset) ──────────────────────────────────
 
 export interface StoreConfigManifest {
@@ -26,6 +28,22 @@ export interface StoreConfigManifest {
     social?: {
       instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string
     }
+    // Own-shop premium presentation (epic 07, Sprint 1) — announcement bar,
+    // hero/featured section, curated visual preset. Grouped under "profile"
+    // since Diseño already owns this block; written to settings.announcement /
+    // settings.hero / settings.theme_preset respectively (siblings of
+    // settings.theme, not nested inside it). Each accepts an explicit `null`
+    // to clear it via MCP (an agent must be able to turn a feature back off,
+    // not just set it — rule #3, agent-accessible).
+    announcement?: { text?: string; link?: string | null } | null
+    hero?: {
+      mode?: 'listings' | 'promo'
+      pinned_listing_ids?: string[]
+      promo_image_url?: string
+      promo_cta_text?: string
+      promo_cta_link?: string
+    } | null
+    theme_preset?: string | null
   }
   shipping?: {
     local_pickup?: boolean
@@ -155,7 +173,17 @@ export interface ValidatedConfig {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 const bool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined)
-const httpUrl = (v: unknown): string | undefined => {
+/**
+ * Reject anything that isn't already a well-formed http(s) URL — used for
+ * every user-controllable value that ends up in a rendered `href`/`src`
+ * (never coerce/repair, e.g. via `ensureUrlProtocol` — a bare reject keeps a
+ * `javascript:`/other-scheme value from surviving into storage at all).
+ * Exported so `app/api/sell/shop/route.ts`'s PATCH handler enforces the exact
+ * same rule the MCP/Storefront-as-Code path does — the seller-UI save path
+ * must not be the one route through which an unvalidated link reaches a
+ * public-facing href/src.
+ */
+export const httpUrl = (v: unknown): string | undefined => {
   const s = str(v)
   return s && /^https?:\/\//i.test(s) ? s : undefined
 }
@@ -241,6 +269,68 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
         if (Object.keys(social).length) { theme.social = social; f.push('social') }
       }
       if (Object.keys(theme).length) settings.theme = theme
+
+      // ── announcement bar (own-shop premium presentation, Sprint 1) ─────────
+      // An explicit `null` clears it — an agent must be able to turn this back
+      // off via MCP, not just set it (rule #3, agent-accessible).
+      if (p.announcement !== undefined) {
+        if (p.announcement === null) {
+          settings.announcement = null; f.push('announcement (cleared)')
+        } else if (isObj(p.announcement)) {
+          const text = str(p.announcement.text)
+          if (text && text.length <= 140) {
+            const link = p.announcement.link !== undefined && p.announcement.link !== null ? httpUrl(p.announcement.link) : undefined
+            if (p.announcement.link !== undefined && p.announcement.link !== null && !link) {
+              iss.push('announcement.link debe ser una URL http/https')
+            } else {
+              settings.announcement = { text, link: link ?? null }
+              f.push('announcement')
+            }
+          } else iss.push('announcement.text es requerido (máx. 140 caracteres)')
+        } else iss.push('el bloque "announcement" debe ser un objeto (o null para borrarlo)')
+      }
+
+      // ── hero / featured section ─────────────────────────────────────────────
+      if (p.hero !== undefined) {
+        if (p.hero === null) {
+          settings.hero = null; f.push('hero (cleared)')
+        } else if (isObj(p.hero)) {
+          const h = p.hero
+          if (h.mode === 'listings' || h.mode === 'promo') {
+            const hero: Record<string, unknown> = { mode: h.mode }
+            if (Array.isArray(h.pinned_listing_ids)) {
+              const ids = h.pinned_listing_ids.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(0, 4)
+              hero.pinned_listing_ids = ids
+            }
+            if (h.promo_image_url !== undefined) {
+              const promoImage = httpUrl(h.promo_image_url)
+              if (promoImage) hero.promo_image_url = promoImage
+              else iss.push('hero.promo_image_url debe ser una URL http/https')
+            }
+            if (str(h.promo_cta_text)) hero.promo_cta_text = str(h.promo_cta_text)
+            if (h.promo_cta_link !== undefined) {
+              const promoLink = httpUrl(h.promo_cta_link)
+              if (promoLink) hero.promo_cta_link = promoLink
+              else iss.push('hero.promo_cta_link debe ser una URL http/https')
+            }
+            settings.hero = hero
+            f.push('hero')
+          } else iss.push('hero.mode debe ser listings | promo')
+        } else iss.push('el bloque "hero" debe ser un objeto (o null para borrarlo)')
+      }
+
+      // ── curated visual preset ────────────────────────────────────────────────
+      // `null` clears it (reverts to today's look); the "default" registry key
+      // is a UI-only sentinel and is never itself a settable value.
+      if (p.theme_preset !== undefined) {
+        if (p.theme_preset === null) {
+          settings.theme_preset = null; f.push('theme_preset (cleared)')
+        } else {
+          const key = str(p.theme_preset)
+          if (key && isValidThemePresetKey(key)) { settings.theme_preset = key; f.push('theme_preset') }
+          else iss.push('theme_preset no es un preset válido')
+        }
+      }
     } else iss.push('el bloque "profile" debe ser un objeto')
     record('profile', f, iss)
   }

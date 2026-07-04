@@ -170,6 +170,21 @@ export function contrastRatio(a: string, b: string): number {
   return (high + 0.05) / (low + 0.05)
 }
 
+/**
+ * Readable text color for an arbitrary accent hex used as a background — white
+ * when it clears AA contrast, else the platform ink. Reused by any surface
+ * that paints a seller-chosen accent as a background (e.g. the own-shop
+ * announcement bar, `AnnouncementBar.tsx`) instead of hardcoding white, which
+ * goes illegible on a light/pastel seller accent. Falls back to white for an
+ * unparseable/absent hex — matches today's behavior for the platform default
+ * accent (a dark green, always AA-safe with white).
+ */
+export function readableTextOn(hex: string | undefined): string {
+  const parsed = parseHexColor(hex)
+  if (!parsed) return CORE_ACCENT_FOREGROUND
+  return contrastRatio(parsed.hex, '#ffffff') >= 4.5 ? CORE_ACCENT_FOREGROUND : INK
+}
+
 function channelToHex(value: number): string {
   return Math.min(255, Math.max(0, value)).toString(16).padStart(2, '0')
 }

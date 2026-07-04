@@ -6,6 +6,7 @@ import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { normalizeSupportSettings } from '@/lib/support-widget'
 import { tg } from '@/lib/telegram'
+import { httpUrl } from '@/lib/settings-import'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -169,6 +170,17 @@ interface ShopUpdatePayload {
         twitter?: string
       }
     }
+    // Own-shop premium presentation (epic 07, Sprint 1) — siblings of `theme`,
+    // not nested inside it (see lib/shop-settings/types.ts).
+    announcement?: { text: string; link?: string | null } | null
+    hero?: {
+      mode: 'listings' | 'promo'
+      pinned_listing_ids?: string[]
+      promo_image_url?: string | null
+      promo_cta_text?: string | null
+      promo_cta_link?: string | null
+    } | null
+    theme_preset?: string | null
     offers?: {
       min_buyer_trust_level?: string
       negotiation?: {
@@ -220,6 +232,24 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.description !== undefined && body.description.length > 500) {
     return NextResponse.json({ error: 'La descripción no puede superar los 500 caracteres.', field: 'description' }, { status: 422 })
+  }
+  // Own-shop premium presentation (epic 07, Sprint 1) — these render straight into
+  // a public href/src (AnnouncementBar/HeroSection), so this route enforces the
+  // exact same http(s)-only rule as the MCP/Storefront-as-Code path
+  // (lib/settings-import.ts's httpUrl) — the seller-UI save path must not be a
+  // second, unvalidated way for a non-http(s) scheme (e.g. `javascript:`) to
+  // reach a rendered link.
+  const announcementLink = body.settings?.announcement?.link
+  if (announcementLink !== undefined && announcementLink !== null && !httpUrl(announcementLink)) {
+    return NextResponse.json({ error: 'El enlace del anuncio debe ser una URL http/https.', field: 'announcement' }, { status: 422 })
+  }
+  const heroPromoImage = body.settings?.hero?.promo_image_url
+  if (heroPromoImage !== undefined && heroPromoImage !== null && !httpUrl(heroPromoImage)) {
+    return NextResponse.json({ error: 'La imagen del destacado debe ser una URL http/https.', field: 'hero' }, { status: 422 })
+  }
+  const heroPromoLink = body.settings?.hero?.promo_cta_link
+  if (heroPromoLink !== undefined && heroPromoLink !== null && !httpUrl(heroPromoLink)) {
+    return NextResponse.json({ error: 'El enlace del botón destacado debe ser una URL http/https.', field: 'hero' }, { status: 422 })
   }
 
   // ── Fetch current shop ────────────────────────────────────────────────────

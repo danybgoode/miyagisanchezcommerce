@@ -307,6 +307,21 @@ export function parseBaseCssTokens(css: string) {
   return tokens
 }
 
+/**
+ * Parse the CSS-variable declarations out of one arbitrary selector's block —
+ * e.g. an own-shop theme-preset scope like `[data-shop-preset="papel"]`
+ * (`app/globals.css`). Used by `e2e/theme-preset-contrast.spec.ts` to resolve
+ * each preset's override tokens on top of the base tree from
+ * `parseBaseCssTokens`, without re-implementing brace-matching.
+ */
+export function parseSelectorCssTokens(css: string, selector: string) {
+  const tokens = new Map<string, string>()
+  for (const match of extractBlock(css, selector).matchAll(/(--[a-zA-Z0-9-]+)\s*:\s*([^;]+);/g)) {
+    tokens.set(match[1], match[2].trim())
+  }
+  return tokens
+}
+
 export function auditDocumentedContrastPairs(css: string, pairs = documentedContrastPairs): ContrastResult[] {
   const tokens = parseBaseCssTokens(css)
   return pairs.map((pair) => {
@@ -328,10 +343,17 @@ export function formatContrastResult(result: ContrastResult) {
   return `${status} ${result.name}: ${result.foregroundToken} ${result.foreground} on ${result.backgroundToken} ${result.background} = ${result.ratio.toFixed(2)} (min ${result.minimumRatio})`
 }
 
+function blockPatternFor(marker: string): RegExp {
+  if (marker === ':root') return /^\s*:root\s*\{/m
+  if (marker === '@theme inline') return /^\s*@theme\s+inline\s*\{/m
+  // An arbitrary selector (e.g. an attribute selector like `[data-shop-preset="papel"]`) —
+  // escape regex metacharacters and match it followed by an opening brace.
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`${escaped}\\s*\\{`)
+}
+
 function extractBlock(css: string, marker: string) {
-  const blockPattern = marker === ':root'
-    ? /^\s*:root\s*\{/m
-    : /^\s*@theme\s+inline\s*\{/m
+  const blockPattern = blockPatternFor(marker)
   const match = blockPattern.exec(css)
   if (!match) throw new Error(`Missing CSS block marker: ${marker}`)
   const openIndex = match.index + match[0].lastIndexOf('{')
@@ -348,7 +370,7 @@ function extractBlock(css: string, marker: string) {
   throw new Error(`Missing closing brace for CSS block: ${marker}`)
 }
 
-function resolveTokenToHex(tokens: Map<string, string>, tokenName: string, seen = new Set<string>()): string {
+export function resolveTokenToHex(tokens: Map<string, string>, tokenName: string, seen = new Set<string>()): string {
   const value = tokens.get(tokenName)
   if (!value) throw new Error(`Missing CSS token: ${tokenName}`)
   if (seen.has(tokenName)) throw new Error(`Circular CSS token reference: ${Array.from(seen).join(' -> ')} -> ${tokenName}`)

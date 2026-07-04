@@ -8,6 +8,10 @@ import { getSlugRedirect } from '@/lib/slug-redirect'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
+import AnnouncementBar from './AnnouncementBar'
+import HeroSection from './HeroSection'
+import { readableTextOn } from '@/lib/platform-theme'
+import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
@@ -121,6 +125,10 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const calcom = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
   const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
   const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
+  // Own-shop premium presentation (epic 07, Sprint 1) — absent keys render today's storefront.
+  const announcement = settings.announcement as AnnouncementSettings | null | undefined
+  const hero = settings.hero as HeroSettings | null | undefined
+  const themePreset = settings.theme_preset as string | null | undefined
   const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
   const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
   const checkoutSett = (settings.checkout ?? {}) as { bank_transfer?: { clabe?: string | null } }
@@ -136,14 +144,24 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
   const accent = theme.accent_color ?? 'var(--color-accent)'
   const hasBanner = !!theme.banner_url
+  // Readable text over the seller's own accent — a light/pastel accent needs
+  // dark ink instead of hardcoded white (reused by the announcement bar + the
+  // hero promo CTA button, both painted with `accent` as their background).
+  const accentTextColor = readableTextOn(theme.accent_color ?? undefined)
 
   const pageContent = (
-    <div style={{ '--shop-accent': accent } as React.CSSProperties}>
+    <div
+      style={{ '--shop-accent': accent } as React.CSSProperties}
+      data-shop-preset={themePreset || undefined}
+    >
 
       {/* Push the shop name into AgentContext so the navbar AI card's copied prompt names
           this shop (S2.2). On white-label channels the AIAgentButton consumer isn't
           rendered, so the value is set but never read → harmless. */}
       <SetAgentContext shopName={shop.name} />
+
+      {/* ── Announcement bar (own-shop premium presentation, Sprint 1) ──────── */}
+      <AnnouncementBar announcement={announcement} textColor={accentTextColor} />
 
       {/* ── Banner + shop identity header ───────────────────────────────────── */}
       <div className="relative mb-16">
@@ -253,6 +271,18 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           )}
         </div>
       </div>
+
+      {/* ── Hero/featured section (own-shop premium presentation, Sprint 1) ──── */}
+      <HeroSection
+        hero={hero}
+        listings={listings}
+        shop={shop}
+        accent={accent}
+        textColor={accentTextColor}
+        sellerHasStripe={sellerHasStripe}
+        mpEnabled={mpEnabled}
+        hasClabe={hasClabe}
+      />
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">

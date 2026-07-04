@@ -145,6 +145,31 @@ export interface ShopSettingsData {
           twitter?: string | null
         }
       }
+      /** Own-shop premium presentation (epic 07, Sprint 1) — announcement bar. */
+      announcement?: {
+        text: string
+        link?: string | null
+      } | null
+      /**
+       * Hero/featured section. `pinned_listing_ids` is shop-level settings
+       * storing Medusa product ids — distinct from the marketplace-level
+       * Selección curation, which flags individual products via
+       * `metadata.featured` / `metadata.featured_rank` (`lib/home-curation.ts`).
+       * The two never share a storage location or a field name.
+       */
+      hero?: {
+        mode: 'listings' | 'promo'
+        pinned_listing_ids?: string[]
+        promo_image_url?: string | null
+        promo_cta_text?: string | null
+        promo_cta_link?: string | null
+      } | null
+      /**
+       * Curated visual preset key (font pairing + surface tone), distinct from
+       * the store-type `preset` above (checkout/shipping behavior). See
+       * `lib/shop-settings/theme-presets.ts`.
+       */
+      theme_preset?: string | null
     }
   } | null
 }
@@ -162,3 +187,5 @@ export type OrdersSettings = NonNullable<SettingsTree['orders']>
 export type NotificationsSettings = NonNullable<SettingsTree['notifications']>
 export type ThemeSettings = NonNullable<SettingsTree['theme']>
 export type ReturnsPolicySettings = NonNullable<SettingsTree['returns_policy']>
+export type AnnouncementSettings = NonNullable<SettingsTree['announcement']>
+export type HeroSettings = NonNullable<SettingsTree['hero']>

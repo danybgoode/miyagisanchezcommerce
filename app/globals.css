@@ -300,6 +300,18 @@
   --tracking-normal:   0;
   --tracking-wide:     0.04em;
   --tracking-mono:    -0.01em;
+
+  /* ─── Own-shop premium presentation — shop-scoped preset tokens (epic 07,
+     Sprint 1, Story 1.3) ───
+     Default to today's platform tokens so an unset `theme_preset` (or the
+     `default` picker option) is a zero-diff no-op. `[data-shop-preset="X"]`
+     blocks below override these per curated preset. */
+  --shop-surface:      var(--bg);
+  --shop-surface-alt:  var(--bg-elevated);
+  --shop-fg:           var(--fg);
+  --shop-fg-muted:     var(--fg-muted);
+  --shop-font-heading: var(--font-display);
+  --shop-font-body:    var(--font-sans);
 }
 
 /* ── CALM MODE ──────────────────────────────────────────────────────────── */
@@ -353,6 +365,67 @@
     inset 0 0 0 0.75px rgba(255, 255, 255, 0.06),
     inset 0 -0.5px 0 rgba(0, 0, 0, 0.4),
     0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+
+/* ============================================================================
+   OWN-SHOP PREMIUM PRESENTATION — curated theme presets (epic 07, Sprint 1,
+   Story 1.3). Each preset scopes surface-tone + font-pairing overrides under
+   `[data-shop-preset="<key>"]`, set on the shop storefront + PDP wrapper by
+   `theme_preset` (`lib/shop-settings/theme-presets.ts` is the key registry).
+   Font pairs are self-hosted/system stacks ONLY (no new webfont fetch, so the
+   static-shell perf work sees zero CLS delta) — `--font-display`/`--font-sans`
+   already cover the platform's one loaded font (Space Grotesk).
+
+   Contrast for every preset's fg/fg-muted vs surface/surface-alt pair is
+   asserted ≥ 4.5:1 by `e2e/theme-preset-contrast.spec.ts` (reusing the
+   seasonal-theme-engine's `contrastRatio()`, `lib/platform-theme.ts`).
+============================================================================ */
+
+[data-shop-preset] {
+  background: var(--shop-surface);
+  color: var(--shop-fg);
+  font-family: var(--shop-font-body);
+}
+[data-shop-preset] h1,
+[data-shop-preset] h2,
+[data-shop-preset] h3 {
+  font-family: var(--shop-font-heading);
+}
+
+[data-shop-preset="papel"] {
+  --shop-surface:      #f7f2e6;
+  --shop-surface-alt:  #efe7d3;
+  --shop-fg:           #241f16;
+  --shop-fg-muted:     #5f5546;
+  --shop-font-heading: ui-serif, Georgia, 'Times New Roman', serif;
+  --shop-font-body:    ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+[data-shop-preset="pizarra"] {
+  --shop-surface:      #eef0f2;
+  --shop-surface-alt:  #e2e6ea;
+  --shop-fg:           #171a1d;
+  --shop-fg-muted:     #565e65;
+  --shop-font-heading: ui-monospace, 'SF Mono', 'JetBrains Mono', monospace;
+  --shop-font-body:    ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+[data-shop-preset="lienzo"] {
+  --shop-surface:      #ffffff;
+  --shop-surface-alt:  #f4f4f4;
+  --shop-fg:           #141414;
+  --shop-fg-muted:     #5f5f60;
+  --shop-font-heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --shop-font-body:    'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-shop-preset="terracota"] {
+  --shop-surface:      #f6ece3;
+  --shop-surface-alt:  #efdfd0;
+  --shop-fg:           #2b1a12;
+  --shop-fg-muted:     #63503f;
+  --shop-font-heading: ui-serif, Georgia, serif;
+  --shop-font-body:    ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 /* ============================================================================
