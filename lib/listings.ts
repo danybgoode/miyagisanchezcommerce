@@ -118,13 +118,26 @@ export const getShopListings = unstable_cache(
       .filter((p: any) => !isPrintPlacementListing(p.metadata))
       .map((p: any) => {
         const meta = (p.metadata ?? {}) as Record<string, unknown>
-        const variant = p.variants?.[0]
-        const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
-        const priceObj = mxnPrice ?? variant?.prices?.[0]
+        // Price = min across all variants ("desde $X" for multi-variant
+        // configurator listings); inventory = summed across all variants.
+        // Mirrors apps/backend/src/api/store/_utils/listing.ts:toListingShape.
+        const variants: any[] = p.variants ?? []
+        const variantPrices = variants
+          .map((v: any) => {
+            const prices: any[] = v?.prices ?? []
+            const mxnPrice = prices.find((pr: any) => pr.currency_code === 'mxn')
+            return mxnPrice ?? prices[0]
+          })
+          .filter((pr): pr is { amount: number; currency_code: string } => !!pr)
+        const priceObj = variantPrices.length > 0
+          ? variantPrices.reduce((min, pr) => (pr.amount < min.amount ? pr : min))
+          : undefined
         const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
-        const manageInventory = !!variant?.manage_inventory
+        const manageInventory = variants.some((v: any) => !!v?.manage_inventory)
         const availableQuantity = manageInventory
-          ? (variant?.inventory_items ?? [])
+          ? variants
+              .filter((v: any) => v?.manage_inventory)
+              .flatMap((v: any) => v?.inventory_items ?? [])
               .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
               .reduce((sum: number, lvl: any) =>
                 sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)

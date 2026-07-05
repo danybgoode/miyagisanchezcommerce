@@ -260,7 +260,16 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
     const { product } = await productRes.json()
     productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
-    resolvedVariantId = resolvedVariantId ?? product?.variants?.[0]?.id ?? null
+    const productVariants: Array<{ id: string }> = product?.variants ?? []
+    if (!resolvedVariantId) {
+      // Only default to the sole variant on a legacy single-variant product —
+      // a multi-variant (configurator) listing must resolve its variant from
+      // the buyer's selected options before reaching this call.
+      if (productVariants.length > 1) {
+        throw new Error(`Product ${lineItem.productId} has multiple variants; variantId is required`)
+      }
+      resolvedVariantId = productVariants[0]?.id ?? null
+    }
     if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
 
     const eventTicket = eventTicketForProduct(lineItem.productId, productMetadata)
