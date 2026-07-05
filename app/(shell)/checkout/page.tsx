@@ -77,12 +77,16 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // once), but costs nothing to guard. A local const rather than mutating
   // `params` itself, since the searchParams object isn't guaranteed mutable.
   let variantId = Array.isArray(params.variantId) ? (params.variantId as string[])[0] : params.variantId
+  // Same array-pollution guard for offerId — getAcceptedOfferPrice()'s
+  // Supabase .eq() expects a scalar, not an array (cross-agent review catch,
+  // 2026-07-05).
+  const offerId = Array.isArray(params.offerId) ? (params.offerId as unknown as string[])[0] : params.offerId
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -94,8 +98,8 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const isClaimed = isShopClaimed(listing.shop)
   if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/l/${listing.id}`)
 
-  const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
-  if (params.offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
+  const offerPriceCents = await getAcceptedOfferPrice(offerId, listing.id, user.id)
+  if (offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
   let amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
@@ -212,7 +216,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           quantity={quantity}
           listingType={listing.listing_type}
           isDigital={isDigital}
-          offerId={params.offerId}
+          offerId={offerId}
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}
         />
