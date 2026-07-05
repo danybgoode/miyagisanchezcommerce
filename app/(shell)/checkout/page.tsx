@@ -76,7 +76,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // 2026-07-05). Harmless in practice today (only ConfiguratorBuyBox sets it,
   // once), but costs nothing to guard. A local const rather than mutating
   // `params` itself, since the searchParams object isn't guaranteed mutable.
-  const variantId = Array.isArray(params.variantId) ? (params.variantId as string[])[0] : params.variantId
+  let variantId = Array.isArray(params.variantId) ? (params.variantId as string[])[0] : params.variantId
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
@@ -99,6 +99,18 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   let amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
+
+  const isOfferCheckout = !!offerPriceCents
+  // An offer is entirely orthogonal to the configurator feature — negotiation
+  // predates it and was never variant-aware. A crafted URL appending
+  // &variantId=<expensive-variant> to a legitimate offer-checkout link must
+  // never be allowed to reach startCheckout(): the negotiated `amountCents`
+  // above already only ever reflects the offer's own price, but the variant
+  // actually added to the cart must ALSO stay whatever the offer's listing
+  // resolves to by default, never an attacker-chosen one (cross-agent review
+  // catch, 2026-07-05 — a real exploit vector, not just a display concern).
+  if (isOfferCheckout) variantId = undefined
+
   // Block checkout for sold-out (Medusa-managed) items — backend reserves stock on
   // order placement, so this saves the buyer a failed add-to-cart at the rail.
   // Skipped for a configurator checkout (explicit variantId): `listing.in_stock`
@@ -112,7 +124,6 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
   const image = listing.images?.[0]?.url ?? null
-  const isOfferCheckout = !!offerPriceCents
   const isDigital = listing.listing_type === 'digital'
 
   // Event admissions: buy N in one checkout (kill-switch + aforo clamped). Scoped

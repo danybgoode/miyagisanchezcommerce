@@ -264,8 +264,13 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     if (!resolvedVariantId) {
       // Only default to the sole variant on a legacy single-variant product —
       // a multi-variant (configurator) listing must resolve its variant from
-      // the buyer's selected options before reaching this call.
-      if (productVariants.length > 1) {
+      // the buyer's selected options before reaching this call. Exception:
+      // an accepted-offer redemption (offerId present) is variant-agnostic
+      // by design (negotiation predates the configurator feature and was
+      // never variant-aware) — never throw there, or a legacy accepted
+      // offer on a since-converted listing becomes permanently unpayable
+      // (cross-agent review catch, 2026-07-05).
+      if (productVariants.length > 1 && !offerId) {
         throw new Error(`Product ${lineItem.productId} has multiple variants; variantId is required`)
       }
       resolvedVariantId = productVariants[0]?.id ?? null
