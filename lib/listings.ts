@@ -140,10 +140,8 @@ export const getShopListings = unstable_cache(
         // Price = min across all variants ("desde $X" for multi-variant
         // configurator listings); inventory = summed across all variants.
         // Mirrors apps/backend/src/api/store/_utils/listing.ts:toListingShape.
-        // Excludes variants soft-disabled by the option-dimensions
-        // order-safety guard (cross-agent review catch, 2026-07-05) — a
-        // disabled variant is hidden/non-purchasable and must never deflate
-        // the displayed "desde $X" price.
+        // Excludes any variant flagged metadata.disabled (defensive; nothing
+        // sets this today — mirrors apps/backend's toListingShape filter).
         const variants: any[] = (p.variants ?? []).filter((v: any) => v?.metadata?.disabled !== true)
         const variantPrices = variants
           .map((v: any) => {
