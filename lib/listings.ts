@@ -3,6 +3,7 @@ import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
+import { readPriceGrid, type PriceGrid } from './price-grid'
 import {
   pickFeatured,
   curateGrid,
@@ -85,6 +86,24 @@ export const getListing = unstable_cache(
     return listing
   },
   ['listing'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
+/**
+ * A multi-variant (print-configurator) listing's per-variant quantity price
+ * ladder — fetched once (server-side, cached) from the backend's own Price
+ * rows, never a metadata mirror (custom-print-products Sprint 2, Story 2.3).
+ * Returns null for a normal single-variant listing (no tiers to show).
+ */
+export const getPriceGrid = unstable_cache(
+  async (id: string): Promise<PriceGrid | null> => {
+    const res = await medusaFetch(`/store/listings/${id}/price-grid`, {
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return null
+    return readPriceGrid(await res.json())
+  },
+  ['price-grid'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 

@@ -2,7 +2,8 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { getListing, getShopListings, getPriceGrid, formatPrice, conditionLabel } from '@/lib/listings'
+import ConfiguratorBuyBox from './ConfiguratorBuyBox'
 import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -99,8 +100,12 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // guard also covers custom-domain / subdomain channels, where /l/[id] passes
   // through middleware untouched.
   if (!isLikelyListingId(id)) notFound()
-  const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
+  const [listing, clerkUser, priceGrid] = await Promise.all([getListing(id), currentUser(), getPriceGrid(id)])
   if (!listing) notFound()
+  // A real print-configurator listing has >1 buyable variant; a legacy
+  // single-variant listing's price-grid (if any) is ignored — keeps every
+  // existing PDP behaviour untouched.
+  const hasConfigurator = !!priceGrid && priceGrid.variants.length > 1
 
   // Custom-domain boundary: a tenant store shows ONLY its own products. If this
   // PDP is reached on a custom domain (channel slug set by middleware) but the
@@ -428,6 +433,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               buyNowLabel={eventModel ? buyNowLabel : undefined}
               signInBuyLabel={eventModel ? signInBuyLabel : undefined}
             />
+          ) : hasConfigurator && priceGrid ? (
+            <ConfiguratorBuyBox
+              listingId={listing.id}
+              priceGrid={priceGrid}
+              isSignedIn={isSignedIn}
+              customDomain={customDomain}
+              currency={listing.currency}
+            />
           ) : agreedDealCents && activeDeal ? (
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
           ) : isSignedIn ? (
@@ -493,6 +506,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
         buyNowLabel={eventModel ? buyNowLabel : undefined}
         signInBuyLabel={eventModel ? signInBuyLabel : undefined}
+      />
+    ) : hasConfigurator && priceGrid ? (
+      <ConfiguratorBuyBox
+        listingId={listing.id}
+        priceGrid={priceGrid}
+        isSignedIn={isSignedIn}
+        customDomain={customDomain}
+        currency={listing.currency}
       />
     ) : agreedDealCents && activeDeal ? (
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />

@@ -1,7 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, formatPrice } from '@/lib/listings'
+import { getListing, getPriceGrid, formatPrice } from '@/lib/listings'
+import { unitPriceCentsFor } from '@/lib/price-grid'
 import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
@@ -16,6 +17,8 @@ type SearchParams = {
   provider?: CheckoutProvider
   /** Event admissions: how many tickets to buy (clamped to remaining seats). */
   qty?: string
+  /** Specific variant for a multi-variant (print-configurator) listing. */
+  variantId?: string
   /** Tenant custom domain the buyer hopped from (own-channel checkout). */
   origin?: string
 }
@@ -71,7 +74,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${params.variantId ? `&variantId=${params.variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -85,7 +88,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
   const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
   if (params.offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
-  const amountCents = offerPriceCents ?? listing.price_cents
+  let amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
   // Block checkout for sold-out (Medusa-managed) items — backend reserves stock on
@@ -107,6 +110,20 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const quantity = isOfferCheckout
     ? 1
     : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
+
+  // Multi-variant (print-configurator) listing: `listing.price_cents` is the
+  // MIN across all variants (a "desde $X" display price, see toListingShape),
+  // not necessarily the price of the buyer's chosen combination. Resolve the
+  // exact tier-correct unit price for variantId + quantity from the same
+  // price-grid the PDP buy box showed, so the checkout total can never drift
+  // from what the buyer saw (house rule: pay-button total = summary). Falls
+  // back to the already-validated amountCents if the grid/variant/tier is
+  // unresolvable (stale link, tier removed) rather than block checkout.
+  if (params.variantId && !isOfferCheckout) {
+    const priceGrid = await getPriceGrid(listing.id)
+    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, params.variantId, quantity) : null
+    if (resolved != null) amountCents = resolved
+  }
 
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
@@ -148,6 +165,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
         <CheckoutExperience
           listingId={listing.id}
+          variantId={params.variantId}
           sellerId={listing.shop!.id}
           amountCents={amountCents}
           currency={listing.currency}
