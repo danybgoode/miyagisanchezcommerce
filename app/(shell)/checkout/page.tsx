@@ -93,7 +93,13 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
   // Block checkout for sold-out (Medusa-managed) items — backend reserves stock on
   // order placement, so this saves the buyer a failed add-to-cart at the rail.
-  if (listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
+  // Skipped for a configurator checkout (explicit variantId): `listing.in_stock`
+  // is a single aggregate across ALL variants, so a mixed managed/unmanaged
+  // configurator listing (one variant genuinely out of stock, another
+  // unlimited) could wrongly block a buyer whose chosen variant is fine
+  // (cross-agent review catch, 2026-07-05) — Medusa's own per-variant
+  // reservation at order placement is the real authority for that variant.
+  if (!params.variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
 
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
@@ -107,22 +113,37 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // checkout is always a single unit too. Defaults to 1 everywhere else.
   const isEventListing = !!readEventDetails(listing)
   const quantityEnabled = (await isEnabled('events.quantity_enabled')) && isEventListing
+  // Configurator (multi-variant, tiered-price) checkout carries its OWN qty,
+  // independent of the event-admissions cap system above: `ticketQuantityCap`
+  // returns 1 whenever `enabled` is false (lib/ticket-quantity.ts:39), and
+  // `quantityEnabled` is only ever true for an EVENT listing — so routing a
+  // configurator's `?qty=N` through `clampTicketQuantity` silently floored
+  // EVERY configurator purchase to quantity 1, defeating the entire bulk-tier
+  // feature (cross-agent review catch, 2026-07-05, caught while verifying an
+  // unrelated finding). A configurator checkout is identified by the presence
+  // of `variantId` (only ConfiguratorBuyBox sets it).
+  const isConfiguratorCheckout = !!params.variantId && !isOfferCheckout
   const quantity = isOfferCheckout
     ? 1
-    : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
+    : isConfiguratorCheckout
+      ? Math.max(1, Math.floor(Number(params.qty ?? 1)) || 1)
+      : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
 
   // Multi-variant (print-configurator) listing: `listing.price_cents` is the
   // MIN across all variants (a "desde $X" display price, see toListingShape),
   // not necessarily the price of the buyer's chosen combination. Resolve the
   // exact tier-correct unit price for variantId + quantity from the same
   // price-grid the PDP buy box showed, so the checkout total can never drift
-  // from what the buyer saw (house rule: pay-button total = summary). Falls
-  // back to the already-validated amountCents if the grid/variant/tier is
-  // unresolvable (stale link, tier removed) rather than block checkout.
-  if (params.variantId && !isOfferCheckout) {
+  // from what the buyer saw (house rule: pay-button total = summary).
+  // Unresolvable (stale variantId, removed tier, grid fetch failure) redirects
+  // back to the PDP rather than silently substituting the cheaper "desde $X"
+  // price — a silent fallback here would show/charge less than the buyer's
+  // actual chosen combination (cross-agent review catch, 2026-07-05).
+  if (isConfiguratorCheckout) {
     const priceGrid = await getPriceGrid(listing.id)
-    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, params.variantId, quantity) : null
-    if (resolved != null) amountCents = resolved
+    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, params.variantId!, quantity) : null
+    if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
+    amountCents = resolved
   }
 
   return (

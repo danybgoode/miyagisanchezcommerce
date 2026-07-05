@@ -66,7 +66,7 @@ export default function ConfiguratorBuyBox({
   const canBuy = !!variant && unitCents != null
 
   const path = variant
-    ? `/checkout?listingId=${listingId}&variantId=${variant.id}&qty=${qty}`
+    ? `/checkout?listingId=${encodeURIComponent(listingId)}&variantId=${encodeURIComponent(variant.id)}&qty=${qty}`
     : `/checkout?listingId=${listingId}`
   const href = isSignedIn ? checkoutHopHref(path, customDomain) : signInHopHref(path, customDomain)
 
