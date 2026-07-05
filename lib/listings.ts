@@ -146,8 +146,15 @@ export const getShopListings = unstable_cache(
         const variantPrices = variants
           .map((v: any) => {
             const prices: any[] = v?.prices ?? []
-            const mxnPrice = prices.find((pr: any) => pr.currency_code === 'mxn')
-            return mxnPrice ?? prices[0]
+            const mxnPrices = prices.filter((pr: any) => pr.currency_code === 'mxn')
+            // A variant can carry multiple mxn prices (quantity tiers) — the
+            // display price must be the base (qty=1) entry, not whichever
+            // tier the API happens to return first (cross-agent review
+            // catch, 2026-07-05 — mirrors apps/backend's toListingShape fix).
+            const basePrice = mxnPrices.length > 0
+              ? mxnPrices.reduce((lowest: any, pr: any) => ((pr.min_quantity ?? 1) < (lowest.min_quantity ?? 1) ? pr : lowest))
+              : undefined
+            return basePrice ?? prices[0]
           })
           .filter((pr): pr is { amount: number; currency_code: string } => !!pr)
         const priceObj = variantPrices.length > 0
