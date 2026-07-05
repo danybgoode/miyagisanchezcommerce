@@ -70,18 +70,19 @@ async function getAcceptedOfferPrice(offerId: string | undefined, listingId: str
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   // Next.js gives `string[]` for a repeated query key (?variantId=A&variantId=B)
-  // regardless of the declared `SearchParams` type — coerce defensively so a
-  // malformed/duplicated URL can never reach unitPriceCentsFor() or
+  // regardless of the declared `SearchParams` type — coerce defensively into a
+  // local so a malformed/duplicated URL can never reach unitPriceCentsFor() or
   // startCheckout() as anything but a plain string (cross-agent review catch,
   // 2026-07-05). Harmless in practice today (only ConfiguratorBuyBox sets it,
-  // once), but costs nothing to guard.
-  if (Array.isArray(params.variantId)) params.variantId = (params.variantId as unknown as string[])[0]
+  // once), but costs nothing to guard. A local const rather than mutating
+  // `params` itself, since the searchParams object isn't guaranteed mutable.
+  const variantId = Array.isArray(params.variantId) ? (params.variantId as string[])[0] : params.variantId
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${params.variantId ? `&variantId=${params.variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -106,7 +107,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // unlimited) could wrongly block a buyer whose chosen variant is fine
   // (cross-agent review catch, 2026-07-05) — Medusa's own per-variant
   // reservation at order placement is the real authority for that variant.
-  if (!params.variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
+  if (!variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
 
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
@@ -129,7 +130,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // feature (cross-agent review catch, 2026-07-05, caught while verifying an
   // unrelated finding). A configurator checkout is identified by the presence
   // of `variantId` (only ConfiguratorBuyBox sets it).
-  const isConfiguratorCheckout = !!params.variantId && !isOfferCheckout
+  const isConfiguratorCheckout = !!variantId && !isOfferCheckout
   const quantity = isOfferCheckout
     ? 1
     : isConfiguratorCheckout
@@ -148,7 +149,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // actual chosen combination (cross-agent review catch, 2026-07-05).
   if (isConfiguratorCheckout) {
     const priceGrid = await getPriceGrid(listing.id)
-    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, params.variantId!, quantity) : null
+    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, variantId!, quantity) : null
     if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
     amountCents = resolved
   }
@@ -193,7 +194,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
         <CheckoutExperience
           listingId={listing.id}
-          variantId={params.variantId}
+          variantId={variantId}
           sellerId={listing.shop!.id}
           amountCents={amountCents}
           currency={listing.currency}
