@@ -102,10 +102,17 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   if (!isLikelyListingId(id)) notFound()
   const [listing, clerkUser, priceGrid] = await Promise.all([getListing(id), currentUser(), getPriceGrid(id)])
   if (!listing) notFound()
-  // A real print-configurator listing has >1 buyable variant; a legacy
-  // single-variant listing's price-grid (if any) is ignored — keeps every
-  // existing PDP behaviour untouched.
-  const hasConfigurator = !!priceGrid && priceGrid.variants.length > 1
+  // Show the configurator buy box whenever there's real multi-variant choice
+  // OR real quantity tiers to expose — either alone needs the live price
+  // grid + qty stepper, since the plain buy box has no quantity control at
+  // all. A single-variant listing CAN have quantity tiers on its own variant
+  // (Story 2.2's variant_tiers write path doesn't require option_dimensions
+  // first) — gating on variants.length > 1 alone would trap that seller's
+  // bulk pricing behind a buy box that only ever checks out qty=1 (cross-
+  // agent review catch, 2026-07-05). A legacy listing with no tiers at all
+  // (price-grid absent or single flat tier) keeps today's PDP untouched.
+  const hasConfigurator = !!priceGrid
+    && (priceGrid.variants.length > 1 || priceGrid.variants.some((v) => v.tiers.length > 1))
 
   // Custom-domain boundary: a tenant store shows ONLY its own products. If this
   // PDP is reached on a custom domain (channel slug set by middleware) but the

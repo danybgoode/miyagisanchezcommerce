@@ -95,7 +95,10 @@ export default function ConfiguratorBuyBox({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {dimensions.map((dim) => (
+      {/* Skip the dimension selector entirely for a single-variant listing
+          that only has quantity tiers (nothing to choose — the sole variant
+          always resolves) — just the qty stepper + live tier price below. */}
+      {priceGrid.variants.length > 1 && dimensions.map((dim) => (
         <div key={dim.title} style={rowStyle}>
           <span style={labelStyle}>{dim.title}</span>
           <select

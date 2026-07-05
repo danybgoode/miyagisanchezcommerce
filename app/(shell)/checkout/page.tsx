@@ -69,6 +69,13 @@ async function getAcceptedOfferPrice(offerId: string | undefined, listingId: str
 
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
+  // Next.js gives `string[]` for a repeated query key (?variantId=A&variantId=B)
+  // regardless of the declared `SearchParams` type — coerce defensively so a
+  // malformed/duplicated URL can never reach unitPriceCentsFor() or
+  // startCheckout() as anything but a plain string (cross-agent review catch,
+  // 2026-07-05). Harmless in practice today (only ConfiguratorBuyBox sets it,
+  // once), but costs nothing to guard.
+  if (Array.isArray(params.variantId)) params.variantId = (params.variantId as unknown as string[])[0]
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
