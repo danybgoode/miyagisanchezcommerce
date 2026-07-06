@@ -55,6 +55,8 @@ export interface CatalogImportRow {
   images?: string[]
   /** Shipping weight in grams (improves shipping quotes for physical items). */
   weight_grams?: number
+  /** Unit cost (COGS) in pesos — seller-private, feeds profit analytics. $0 valid. */
+  unit_cost?: number
 }
 
 export const CATALOG_CATEGORY_KEYS = CATEGORIES.map((c) => c.key) as CategoryKey[]
@@ -82,6 +84,7 @@ export const CATALOG_IMPORT_FIELDS: ImportFieldSpec[] = [
   { name: 'city', required: false, type: 'string', notes: 'Ciudad / municipio / alcaldía.' },
   { name: 'images', required: false, type: 'string[]', notes: 'URLs absolutas de imágenes. La primera es la portada.' },
   { name: 'weight_grams', required: false, type: 'number', notes: 'Peso de envío en gramos (mejora las cotizaciones).' },
+  { name: 'unit_cost', required: false, type: 'number', notes: 'Costo unitario en pesos (lo que te cuesta). Privado — alimenta tu análisis de ganancias. Acepta 0.' },
 ]
 
 // ── Example file (shown in the UI; also a valid sample to test the importer) ──
@@ -201,6 +204,7 @@ const HEADER_ALIASES: Record<string, keyof CatalogImportRow> = {
   city: 'city', ciudad: 'city', municipio: 'city', alcaldia: 'city',
   images: 'images', imagenes: 'images', image_url: 'images', imagen: 'images',
   weight_grams: 'weight_grams', peso: 'weight_grams', peso_gramos: 'weight_grams',
+  unit_cost: 'unit_cost', costo: 'unit_cost', costo_unitario: 'unit_cost', cost: 'unit_cost',
 }
 
 /** Split a single CSV line into cells (RFC-ish: handles quotes + escaped quotes). */
@@ -305,6 +309,16 @@ function stageRow(raw: Record<string, unknown>, line: number): StagedRow {
     const w = num(raw.weight_grams)
     if (w === undefined || w < 0) push('weight_grams', `Línea ${line}: el peso (gramos) debe ser un número.`, 'warning')
     else row.weight_grams = Math.round(w)
+  }
+
+  // unit_cost (optional; unlike price, $0 is a valid cost). Because 0 is
+  // valid here, `num()`'s strip-non-digits coercion would silently turn a
+  // non-numeric value ("gratis") into $0 — require an actual digit too.
+  if (raw.unit_cost !== undefined && raw.unit_cost !== null && String(raw.unit_cost).trim() !== '') {
+    const c = num(raw.unit_cost)
+    if (c === undefined || c < 0 || !/\d/.test(String(raw.unit_cost))) {
+      push('unit_cost', `Línea ${line}: el costo unitario debe ser un número de 0 o más (en pesos).`)
+    } else row.unit_cost = c
   }
 
   // location

@@ -71,6 +71,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     variant_prices?: Record<string, number>
     variant_id?: string
     variant_tiers?: Array<{ min_quantity: number; max_quantity: number | null; amount: number }>
+    // Unit cost (COGS) in centavos for the targeted variant — seller-private,
+    // stored on variant metadata (profit-analyzer S1). null clears it.
+    unit_cost_cents?: number | null
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -114,6 +117,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || body.variant_tiers.some(t => !t || !Number.isInteger(t.amount) || t.amount <= 0))) {
     return NextResponse.json({ error: 'Cada nivel necesita un precio entero en centavos mayor a 0.' }, { status: 422 })
   }
+  if (body.unit_cost_cents !== undefined && body.unit_cost_cents !== null
+    && (!Number.isInteger(body.unit_cost_cents) || body.unit_cost_cents < 0)) {
+    return NextResponse.json({ error: 'El costo unitario debe ser de $0 o más.', field: 'unit_cost' }, { status: 422 })
+  }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
@@ -131,7 +138,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || body.price_cents !== undefined || body.quantity !== undefined
     || body.weight_grams !== undefined || body.attrs !== undefined || customFields !== undefined
     || body.option_dimensions !== undefined || body.variant_prices !== undefined
-    || body.variant_tiers !== undefined
+    || body.variant_tiers !== undefined || body.unit_cost_cents !== undefined
   if (hasMedusaFields) {
     const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
       method: 'PATCH',
@@ -147,6 +154,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.variant_prices !== undefined && { variant_prices: body.variant_prices }),
         ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
         ...(body.variant_tiers !== undefined && { variant_tiers: body.variant_tiers }),
+        ...(body.unit_cost_cents !== undefined && { unit_cost_cents: body.unit_cost_cents }),
       }),
     })
 
