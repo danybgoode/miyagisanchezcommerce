@@ -52,6 +52,9 @@ function buildCreateBody(row: CatalogImportRow, images: Array<{ url: string; alt
     weight_grams: row.weight_grams ?? null,
     images,
     metadata: { external_id: row.external_id ?? null },
+    // Unit cost (COGS) in centavos → the created variant's private metadata
+    // (profit-analyzer S1 · US-1). Pesos → centavos, same convention as price.
+    ...(row.unit_cost != null ? { unit_cost_cents: Math.round(row.unit_cost * 100) } : {}),
   }
 }
 
@@ -70,6 +73,10 @@ function buildUpdateBody(row: CatalogImportRow) {
   if (priceCents != null) body.price_cents = priceCents
   // Quantity only applies to stockable products; sending it to a service 422s.
   if (isStockable(listingType) && row.quantity != null) body.quantity = Math.max(0, Math.floor(row.quantity))
+  // Unit cost (COGS) — resolves to the sole variant on the backend; a
+  // multi-variant listing 422s per-row ("especifica variant_id"), reported
+  // honestly in that row's result instead of killing the batch.
+  if (row.unit_cost != null) body.unit_cost_cents = Math.round(row.unit_cost * 100)
   return body
 }
 

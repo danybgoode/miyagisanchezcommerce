@@ -3,6 +3,7 @@ import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
+import { readPriceGrid, type PriceGrid } from './price-grid'
 import {
   pickFeatured,
   curateGrid,
@@ -88,6 +89,24 @@ export const getListing = unstable_cache(
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
+/**
+ * A multi-variant (print-configurator) listing's per-variant quantity price
+ * ladder — fetched once (server-side, cached) from the backend's own Price
+ * rows, never a metadata mirror (custom-print-products Sprint 2, Story 2.3).
+ * Returns null for a normal single-variant listing (no tiers to show).
+ */
+export const getPriceGrid = unstable_cache(
+  async (id: string): Promise<PriceGrid | null> => {
+    const res = await medusaFetch(`/store/listings/${id}/price-grid`, {
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return null
+    return readPriceGrid(await res.json())
+  },
+  ['price-grid'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
 export const getShop = unstable_cache(
   async (slug: string): Promise<Shop | null> => {
     const res = await medusaFetch(`/store/sellers/${slug}`)
@@ -118,13 +137,35 @@ export const getShopListings = unstable_cache(
       .filter((p: any) => !isPrintPlacementListing(p.metadata))
       .map((p: any) => {
         const meta = (p.metadata ?? {}) as Record<string, unknown>
-        const variant = p.variants?.[0]
-        const mxnPrice = variant?.prices?.find((pr: any) => pr.currency_code === 'mxn')
-        const priceObj = mxnPrice ?? variant?.prices?.[0]
+        // Price = min across all variants ("desde $X" for multi-variant
+        // configurator listings); inventory = summed across all variants.
+        // Mirrors apps/backend/src/api/store/_utils/listing.ts:toListingShape.
+        // Excludes any variant flagged metadata.disabled (defensive; nothing
+        // sets this today — mirrors apps/backend's toListingShape filter).
+        const variants: any[] = (p.variants ?? []).filter((v: any) => v?.metadata?.disabled !== true)
+        const variantPrices = variants
+          .map((v: any) => {
+            const prices: any[] = v?.prices ?? []
+            const mxnPrices = prices.filter((pr: any) => pr.currency_code === 'mxn')
+            // A variant can carry multiple mxn prices (quantity tiers) — the
+            // display price must be the base (qty=1) entry, not whichever
+            // tier the API happens to return first (cross-agent review
+            // catch, 2026-07-05 — mirrors apps/backend's toListingShape fix).
+            const basePrice = mxnPrices.length > 0
+              ? mxnPrices.reduce((lowest: any, pr: any) => ((pr.min_quantity ?? 1) < (lowest.min_quantity ?? 1) ? pr : lowest))
+              : undefined
+            return basePrice ?? prices[0]
+          })
+          .filter((pr): pr is { amount: number; currency_code: string } => !!pr)
+        const priceObj = variantPrices.length > 0
+          ? variantPrices.reduce((min, pr) => (pr.amount < min.amount ? pr : min))
+          : undefined
         const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
-        const manageInventory = !!variant?.manage_inventory
+        const manageInventory = variants.some((v: any) => !!v?.manage_inventory)
         const availableQuantity = manageInventory
-          ? (variant?.inventory_items ?? [])
+          ? variants
+              .filter((v: any) => v?.manage_inventory)
+              .flatMap((v: any) => v?.inventory_items ?? [])
               .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
               .reduce((sum: number, lvl: any) =>
                 sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)

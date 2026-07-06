@@ -6,8 +6,11 @@ import { AttrsSection, type Attrs, type ListingType } from '../../AttrsSection'
 import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { CITIES_BY_STATE } from '@/lib/types'
 import PersonalizationSection from './PersonalizationSection'
+import OpcionesSection from './OpcionesSection'
 import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { parsePesosToCents, parseCostPesosToCents } from '@/lib/opciones'
+import type { PriceGrid } from '@/lib/price-grid'
 
 interface ShortlinkInfo {
   shopSlug: string
@@ -33,7 +36,35 @@ interface EditableFields {
   estado_code?: string
 }
 
-export default function EditForm({ id, initial, shortlink }: { id: string; initial: EditableFields; shortlink?: ShortlinkInfo }) {
+export default function EditForm({
+  id,
+  initial,
+  shortlink,
+  priceGrid = null,
+  isActive = false,
+  knownMultiVariant = false,
+  variantCosts = {},
+}: {
+  id: string
+  initial: EditableFields
+  shortlink?: ShortlinkInfo
+  /** The listing's live price-grid (same route the PDP reads); null when unavailable. */
+  priceGrid?: PriceGrid | null
+  /** Supabase mirror status === 'active' (Medusa: published). */
+  isActive?: boolean
+  /**
+   * Mirror metadata `has_variants` — the publish-status-independent
+   * multi-variant signal (the price-grid is unreadable for paused/draft
+   * listings, so the grid alone can't gate the flat inputs there).
+   */
+  knownMultiVariant?: boolean
+  /**
+   * Per-variant unit costs (COGS) keyed by variant id, from the seller-scoped
+   * GET (seller-private — never on the public price-grid). Feeds the flat
+   * cost input (sole variant) and the per-combination cost editors.
+   */
+  variantCosts?: Record<string, number | null>
+}) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
   const [description, setDescription] = useState(initial.description ?? '')
@@ -42,6 +73,15 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
   )
   const [quantityRaw, setQuantityRaw] = useState(
     initial.available_quantity != null ? String(initial.available_quantity) : '',
+  )
+  // Unit cost (COGS) — flat input for single-variant listings only; the map
+  // holds exactly one entry there (multi-variant costs live in Opciones).
+  const initialCostCents = (() => {
+    const vals = Object.values(variantCosts ?? {})
+    return vals.length === 1 ? vals[0] : null
+  })()
+  const [costRaw, setCostRaw] = useState(
+    initialCostCents != null ? String(initialCostCents / 100) : '',
   )
   const [attrs, setAttrs] = useState<Attrs>(
     Object.fromEntries(
@@ -74,19 +114,36 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
   const isProduct = initial.listing_type === 'product'
   const priceReadOnly = isSubscription
 
-  function parsePriceCents(raw: string): number | null {
-    const n = parseFloat(raw.replace(/,/g, '').replace(/\s/g, ''))
-    if (isNaN(n) || n <= 0) return null
-    return Math.round(n * 100)
-  }
+  // Opciones (custom-print-products Story 2.4): a multi-variant listing has no
+  // single flat price/stock — the backend 422s a bare `price_cents`/`quantity`
+  // ("especifica variant_id"), and a tiered sole variant 422s `price_cents`
+  // ("usa variant_tiers"). Hide those legacy inputs and route everything
+  // through the Opciones section instead of letting the save fail.
+  const isMultiVariant = (priceGrid?.variants.length ?? 0) > 1 || knownMultiVariant
+  const soleVariantHasTiers = priceGrid?.variants.length === 1 && priceGrid.variants[0].tiers.length > 1
+  const hideFlatPrice = isMultiVariant || soleVariantHasTiers
+  const hideFlatQuantity = isMultiVariant
+
+  // Price/quantity are only SENT when actually changed (dirty check by parsed
+  // value, so "15" vs "15.00" isn't a change). Defense in depth alongside
+  // `knownMultiVariant`: a converted listing missing the mirror flag (e.g.
+  // converted via direct API before this UI existed) and paused has no
+  // readable price-grid, so the flat inputs render — without the dirty check,
+  // saving an unrelated field would submit the stale flat price and the
+  // backend would 422 the whole save with "especifica variant_id"
+  // (cross-agent review catches, Antigravity rounds 1-2, 2026-07-05).
 
   async function handleSave() {
     const errs: Record<string, string> = {}
     if (title.trim().length < 5) errs.title = 'El título debe tener al menos 5 caracteres.'
     if (title.trim().length > 100) errs.title = 'El título no puede superar los 100 caracteres.'
-    if (!priceReadOnly && priceRaw) {
-      const cents = parsePriceCents(priceRaw)
+    if (!priceReadOnly && !hideFlatPrice && priceRaw) {
+      const cents = parsePesosToCents(priceRaw)
       if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
+    }
+    if (!isSubscription && !isMultiVariant && costRaw.trim() !== ''
+      && parseCostPesosToCents(costRaw) === null) {
+      errs.unit_cost = 'El costo unitario debe ser de $0 o más.'
     }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
       errs.short_slug = 'Corrige el enlace corto antes de guardar.'
@@ -111,11 +168,20 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         custom_fields: sanitizeFieldDefs(customFields),
         ...(shortlink ? { short_slug: shortSlug.trim() || null } : {}),
       }
-      if (!priceReadOnly) {
-        body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
+      if (!priceReadOnly && !hideFlatPrice) {
+        const nextPriceCents = priceRaw ? parsePesosToCents(priceRaw) : null
+        if (nextPriceCents !== (initial.price_cents ?? null)) body.price_cents = nextPriceCents
       }
-      if (isProduct && quantityRaw.trim() !== '') {
-        body.quantity = Math.max(0, parseInt(quantityRaw) || 0)
+      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
+        const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
+        if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
+      }
+      // Unit cost (COGS) — dirty-checked by parsed value, same discipline as
+      // price/quantity; empty clears (null). Multi-variant costs save per
+      // combination in the Opciones section, never through this PUT.
+      if (!isSubscription && !isMultiVariant) {
+        const nextCostCents = costRaw.trim() !== '' ? parseCostPesosToCents(costRaw) : null
+        if (nextCostCents !== initialCostCents) body.unit_cost_cents = nextCostCents
       }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
@@ -219,6 +285,17 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         <PersonalizationSection fields={customFields} setFields={setCustomFields} />
       )}
 
+      {/* Opciones — priced dimensions + quantity tiers (products only; Story 2.4) */}
+      {isProduct && (
+        <OpcionesSection
+          productId={id}
+          priceGrid={priceGrid}
+          isActive={isActive}
+          currency={initial.currency}
+          variantCosts={variantCosts}
+        />
+      )}
+
       {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}
       {shortlink && (
         <div className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-surface-alt)]">
@@ -255,8 +332,8 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         </div>
       )}
 
-      {/* Price */}
-      {!priceReadOnly && (
+      {/* Price — hidden for multi-variant/tiered listings (managed per combination above) */}
+      {!priceReadOnly && !hideFlatPrice && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
             Precio ({initial.currency})
@@ -284,8 +361,36 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         </div>
       )}
 
-      {/* Quantity / restock */}
-      {isProduct && (
+      {/* Unit cost (COGS) — single-variant only; multi-variant costs live per
+          combination in Opciones. Seller-private: buyers never see it. */}
+      {!isSubscription && !isMultiVariant && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Costo unitario ({initial.currency}) <span className="text-[var(--color-muted)] font-normal">— privado</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-sm">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={costRaw}
+              onChange={e => setCostRaw(e.target.value)}
+              placeholder="0.00"
+              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                fieldErrors.unit_cost ? 'border-red-400' : 'border-[var(--color-border)]'
+              }`}
+            />
+          </div>
+          {fieldErrors.unit_cost && <p className="text-red-600 text-xs mt-1">{fieldErrors.unit_cost}</p>}
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Lo que te cuesta producir o adquirir una unidad. Solo tú lo ves — alimenta tu análisis
+            de ganancias. Déjalo vacío si no quieres registrarlo.
+          </p>
+        </div>
+      )}
+
+      {/* Quantity / restock — hidden for multi-variant listings (per-combination stock) */}
+      {isProduct && !hideFlatQuantity && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
             Cantidad disponible

@@ -8,13 +8,14 @@ import { isEnabled } from '@/lib/flags'
 import { getMlConnection } from '@/lib/ml-connection'
 import { getMlProductLink } from '@/lib/ml-publish-bridge'
 import type { MlLinkView } from '@/lib/ml-publish'
+import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Editar anuncio' }
 
 export default async function EditListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { userId } = await auth()
+  const { userId, getToken } = await auth()
   if (!userId) redirect('/sign-in')
 
   // Fetch listing + verify ownership
@@ -83,6 +84,45 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     }
   } catch { /* non-fatal */ }
 
+  // Opciones (custom-print-products Story 2.4): the listing's price-grid — the
+  // SAME route the public PDP reads, fetched FRESH (not the unstable_cache'd
+  // getPriceGrid) so the editor never shows a stale grid right after a save.
+  // The route only serves published listings, so skip drafts/paused (the
+  // section shows an "activate first" state instead).
+  const isActive = listing.status === 'active'
+  let priceGrid: PriceGrid | null = null
+  if (isActive && listing.listing_type === 'product') {
+    try {
+      const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+      const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+      const r = await fetch(`${base}/store/listings/${medusaProductId}/price-grid`, {
+        headers: { 'x-publishable-api-key': pub },
+        cache: 'no-store',
+      })
+      if (r.ok) priceGrid = readPriceGrid(await r.json())
+    } catch { /* non-fatal — section shows a reload state */ }
+  }
+
+  // Per-variant unit costs (COGS) — seller-private, so read via the
+  // seller-scoped GET (the public listing/price-grid reads never carry them;
+  // profit-analyzer S1 · US-1). Non-fatal: cost inputs start blank on error.
+  const variantCosts: Record<string, number | null> = {}
+  try {
+    const clerkJwt = await getToken()
+    if (clerkJwt) {
+      const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+      const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+      const r = await fetch(`${base}/store/sellers/me/products/${medusaProductId}`, {
+        headers: { 'x-publishable-api-key': pub, Authorization: `Bearer ${clerkJwt}` },
+        cache: 'no-store',
+      })
+      if (r.ok) {
+        const d = await r.json() as { variants?: Array<{ id: string; unit_cost_cents: number | null }> }
+        for (const v of d.variants ?? []) variantCosts[v.id] = v.unit_cost_cents
+      }
+    }
+  } catch { /* non-fatal */ }
+
   const typeLabel: Record<string, string> = {
     product: '📦 Producto',
     service: '🔧 Servicio',
@@ -138,6 +178,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
 
       <EditForm
         id={medusaProductId}
+        priceGrid={priceGrid}
+        isActive={isActive}
+        knownMultiVariant={listing.metadata?.has_variants === true}
+        variantCosts={variantCosts}
         shortlink={{
           shopSlug: shopData?.slug ?? '',
           code: (listing.metadata?.short_code as string | undefined) ?? '',
