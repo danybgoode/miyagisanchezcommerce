@@ -100,3 +100,79 @@ export function parsePesosToCents(raw: string): number | null {
   if (!Number.isFinite(n) || n <= 0) return null
   return Math.round(n * 100)
 }
+
+// ── Quantity tier ladder (per-variant price breaks) ─────────────────────────
+
+/** Same shape the backend's `variant_tiers` accepts and the price-grid returns. */
+export interface PriceTier {
+  min_quantity: number
+  max_quantity: number | null
+  amount: number
+}
+
+/** One editor row: the tier's starting quantity + its unit price in pesos. */
+export interface TierRowDraft {
+  minRaw: string
+  priceRaw: string
+}
+
+/** Existing ladder (from the price-grid) → editable rows. */
+export function rowsFromTiers(tiers: PriceTier[]): TierRowDraft[] {
+  return tiers.map(t => ({
+    minRaw: String(t.min_quantity),
+    priceRaw: String(t.amount / 100),
+  }))
+}
+
+export type BuildLadderResult = { ok: true; tiers: PriceTier[] } | { ok: false; message: string }
+
+/**
+ * Editor rows → a tier ladder that is valid BY CONSTRUCTION under the
+ * backend's `validateTierLadder` rules (covers [1, ∞), contiguous, last tier
+ * open-ended): each row only sets where its tier STARTS; every
+ * `max_quantity` is derived as the next tier's start − 1, the last is null.
+ * A single row = a flat price (min 1, open-ended). Never throws.
+ */
+export function buildTierLadder(rows: TierRowDraft[]): BuildLadderResult {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { ok: false, message: 'Se requiere al menos un nivel de precio.' }
+  }
+  const parsed: Array<{ min: number; amount: number }> = []
+  for (const row of rows) {
+    const min = Number(row.minRaw)
+    if (!Number.isInteger(min) || min < 1) {
+      return { ok: false, message: 'Cada nivel necesita un "desde" entero mayor o igual a 1.' }
+    }
+    const amount = parsePesosToCents(row.priceRaw)
+    if (amount == null) {
+      return { ok: false, message: 'Cada nivel necesita un precio mayor a 0.' }
+    }
+    parsed.push({ min, amount })
+  }
+  parsed.sort((a, b) => a.min - b.min)
+  if (parsed[0].min !== 1) {
+    return { ok: false, message: 'El primer nivel debe empezar en 1 pieza.' }
+  }
+  for (let i = 1; i < parsed.length; i++) {
+    if (parsed[i].min === parsed[i - 1].min) {
+      return { ok: false, message: 'Dos niveles no pueden empezar en la misma cantidad.' }
+    }
+  }
+  return {
+    ok: true,
+    tiers: parsed.map((p, i) => ({
+      min_quantity: p.min,
+      max_quantity: i < parsed.length - 1 ? parsed[i + 1].min - 1 : null,
+      amount: p.amount,
+    })),
+  }
+}
+
+/** "1–9", "10–49", "50+" — the live range label for row `i` given all rows. */
+export function tierRangeLabel(rows: TierRowDraft[], i: number): string {
+  const mins = rows.map(r => Number(r.minRaw)).filter(n => Number.isInteger(n) && n >= 1).sort((a, b) => a - b)
+  const min = Number(rows[i]?.minRaw)
+  if (!Number.isInteger(min) || min < 1) return '—'
+  const next = mins.find(m => m > min)
+  return next != null ? `${min}–${next - 1}` : `${min}+`
+}

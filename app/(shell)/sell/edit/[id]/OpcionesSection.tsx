@@ -17,6 +17,10 @@ import {
   sanitizeDimensions,
   validateDimensionsClient,
   parsePesosToCents,
+  rowsFromTiers,
+  buildTierLadder,
+  tierRangeLabel,
+  type TierRowDraft,
 } from '@/lib/opciones'
 
 /**
@@ -100,7 +104,13 @@ export default function OpcionesSection({
           </p>
         </div>
       ) : isMultiVariant ? (
-        <ConfiguredView variants={variants} dimensionTitles={dimensionTitles} currency={currency} />
+        <ConfiguredView
+          productId={productId}
+          variants={variants}
+          dimensionTitles={dimensionTitles}
+          currency={currency}
+          onSaved={refetchGrid}
+        />
       ) : (
         <DimensionsEditor
           productId={productId}
@@ -115,48 +125,320 @@ export default function OpcionesSection({
 
 // ── Configured view (dimensions exist) ───────────────────────────────────────
 
-/** Read-only render of the configured dimensions + per-combination prices. */
+/**
+ * Per-variant cards: each combination shows its price/tier summary and expands
+ * into an editor for its quantity-tier ladder (a flat price is a one-row
+ * ladder — everything saves through `variant_tiers`, one backend path) and,
+ * when inventory-managed, its stock (write-only: no store route exposes
+ * per-variant stock, so the input sets a new value rather than showing one).
+ */
 function ConfiguredView({
+  productId,
   variants,
   dimensionTitles,
   currency,
+  onSaved,
 }: {
+  productId: string
   variants: PriceGridVariant[]
   dimensionTitles: string[]
   currency: string
+  onSaved: () => Promise<void>
 }) {
   return (
     <div>
-      <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[var(--color-background)] text-left">
-                {dimensionTitles.map(t => (
-                  <th key={t} className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">{t}</th>
-                ))}
-                <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs text-right">Precio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {variants.map(v => (
-                <tr key={v.id} className="border-t border-[var(--color-border)]">
-                  {dimensionTitles.map(t => (
-                    <td key={t} className="px-3 py-2 text-[var(--color-text)]">{v.options[t] ?? '—'}</td>
-                  ))}
-                  <td className="px-3 py-2 text-right text-[var(--color-text)] whitespace-nowrap">
-                    <VariantPriceLabel variant={v} currency={currency} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-2">
+        {variants.map(v => (
+          <VariantCard
+            key={v.id}
+            productId={productId}
+            variant={v}
+            dimensionTitles={dimensionTitles}
+            currency={currency}
+            onSaved={onSaved}
+          />
+        ))}
       </div>
       <p className="text-xs text-[var(--color-muted)] mt-2">
         Las dimensiones de un anuncio con opciones no se pueden editar todavía — para cambiarlas,
         crea un anuncio nuevo. Los precios, niveles por cantidad y stock por combinación sí se
         pueden ajustar.
+      </p>
+    </div>
+  )
+}
+
+function VariantCard({
+  productId,
+  variant,
+  dimensionTitles,
+  currency,
+  onSaved,
+}: {
+  productId: string
+  variant: PriceGridVariant
+  dimensionTitles: string[]
+  currency: string
+  onSaved: () => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const comboLabel = dimensionTitles.map(t => variant.options[t]).filter(Boolean).join(' / ')
+
+  return (
+    <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-background)]">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-sm font-medium text-[var(--color-text)]">{comboLabel || 'Variante'}</span>
+        <span className="flex items-center gap-2 text-sm text-[var(--color-text)] whitespace-nowrap">
+          <VariantPriceLabel variant={variant} currency={currency} />
+          <span className="text-xs text-[var(--color-accent)] font-medium">{open ? 'Cerrar' : 'Editar'}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-[var(--color-border)] p-3 space-y-4">
+          <TierLadderEditor
+            productId={productId}
+            variantId={variant.id}
+            initialTiers={variant.tiers}
+            currency={currency}
+            onSaved={onSaved}
+          />
+          {variant.manage_inventory && (
+            <StockEditor productId={productId} variantId={variant.id} onSaved={onSaved} />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The variant's price ladder: one row per tier ("desde N piezas → $precio"),
+ * `max_quantity` always derived from the NEXT row's start (see
+ * `buildTierLadder`) so the seller structurally cannot create the gaps/
+ * overlaps the backend 422s on. One row = a flat price.
+ */
+function TierLadderEditor({
+  productId,
+  variantId,
+  initialTiers,
+  currency,
+  onSaved,
+}: {
+  productId: string
+  variantId: string
+  initialTiers: PriceGridVariant['tiers']
+  currency: string
+  onSaved: () => Promise<void>
+}) {
+  const [rows, setRows] = useState<TierRowDraft[]>(() =>
+    initialTiers.length > 0 ? rowsFromTiers(initialTiers) : [{ minRaw: '1', priceRaw: '' }],
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  function update(i: number, patch: Partial<TierRowDraft>) {
+    setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  }
+
+  async function handleSave() {
+    const built = buildTierLadder(rows)
+    if (!built.ok) { setError(built.message); return }
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/sell/listing/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_id: variantId, variant_tiers: built.tiers }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        // The backend's es-MX 422 (e.g. the overlap/gap ladder message)
+        // surfaces verbatim if anything slips past the constructive builder.
+        setError(data.error ?? 'Error al guardar los niveles de precio.')
+        return
+      }
+      setSaved(true)
+      await onSaved()
+    } catch {
+      setError('Sin conexión. Verifica tu internet e inténtalo de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-[var(--color-text)] mb-1">
+        Precio por cantidad ({currency})
+      </p>
+      <p className="text-xs text-[var(--color-muted)] mb-2">
+        Un solo nivel = precio fijo. Agrega niveles para dar descuento por volumen — cada nivel
+        aplica desde esa cantidad hasta donde empieza el siguiente.
+      </p>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <p>{error}</p>
+        </div>
+      )}
+      {saved && !error && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+          ✓ Niveles guardados.
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {rows.map((row, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+              Desde
+              <input
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={row.minRaw}
+                disabled={i === 0}
+                onChange={e => update(i, { minRaw: e.target.value.replace(/[^0-9]/g, '') })}
+                className="w-16 border border-[var(--color-border)] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-60"
+              />
+              pzas
+            </label>
+            <span className="text-xs text-[var(--color-muted)] w-14 text-center whitespace-nowrap">
+              ({tierRangeLabel(rows, i)})
+            </span>
+            <div className="relative flex-1 min-w-0">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-xs">$</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={row.priceRaw}
+                onChange={e => update(i, { priceRaw: e.target.value })}
+                placeholder="0.00"
+                className="w-full border border-[var(--color-border)] rounded pl-5 pr-2 py-1.5 text-sm text-right bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              />
+            </div>
+            <span className="text-xs text-[var(--color-muted)]">c/u</span>
+            <button
+              type="button"
+              onClick={() => setRows(rows.filter((_, j) => j !== i))}
+              disabled={i === 0}
+              aria-label="Quitar nivel"
+              className="text-red-500 hover:text-red-600 px-1 disabled:opacity-30"
+            >✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <button
+          type="button"
+          onClick={() => setRows([...rows, { minRaw: '', priceRaw: '' }])}
+          className="text-xs font-medium text-[var(--color-accent)] hover:underline"
+        >
+          + Agregar nivel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Guardando…' : 'Guardar niveles'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Write-only per-variant stock: no store route exposes per-variant quantities
+ * (the price-grid only carries `manage_inventory`), so this sets a new value
+ * rather than editing the current one — stated in the helper copy.
+ */
+function StockEditor({
+  productId,
+  variantId,
+  onSaved,
+}: {
+  productId: string
+  variantId: string
+  onSaved: () => Promise<void>
+}) {
+  const [raw, setRaw] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  async function handleSave() {
+    const qty = parseInt(raw, 10)
+    if (!Number.isInteger(qty) || qty < 0) { setError('Pon una cantidad de 0 o más.'); return }
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/sell/listing/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_id: variantId, quantity: qty }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setError(data.error ?? 'Error al guardar el stock.')
+        return
+      }
+      setSaved(true)
+      await onSaved()
+    } catch {
+      setError('Sin conexión. Verifica tu internet e inténtalo de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-[var(--color-text)] mb-1">Stock de esta combinación</p>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <p>{error}</p>
+        </div>
+      )}
+      {saved && !error && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+          ✓ Stock actualizado.
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={raw}
+          onChange={e => setRaw(e.target.value.replace(/[^0-9]/g, ''))}
+          placeholder="p. ej. 100"
+          className="w-28 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || raw.trim() === ''}
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Guardando…' : 'Guardar stock'}
+        </button>
+      </div>
+      <p className="text-xs text-[var(--color-muted)] mt-1">
+        Fija el stock disponible de esta combinación al valor que pongas (las combinaciones nuevas
+        empiezan en 0). Pon 0 para marcarla como agotada.
       </p>
     </div>
   )
