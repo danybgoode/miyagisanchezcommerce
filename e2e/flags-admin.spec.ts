@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 15 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(15)
+  test('covers all 16 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(16)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -37,6 +37,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // The personal-MCP-URL auth path (seller-agent-connect-mcp-url S2) — enablement,
     // fail-open OFF (legacy Bearer-token flow only until the auth path is verified).
     expect(FLAG_META['seller_agent.connector_url_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // The seller profit surface + ledger writes (profit-analyzer S1) — enablement,
+    // fail-open OFF (ships dark; append-only ledger + backfill make a late flip lossless).
+    expect(FLAG_META['ops.profit_enabled']).toEqual({ polarity: 'enablement', default: false })
     // Net-remittance promoter close (promoter-funnel-v2 S4) — enablement, fail-open OFF
     // (Stripe-only close checkout until the live transfer smoke passes).
     expect(FLAG_META['promoter.transfer_enabled']).toEqual({ polarity: 'enablement', default: false })

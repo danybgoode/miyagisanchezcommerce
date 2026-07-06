@@ -53,6 +53,9 @@ export const SELLER_NAV: SellerNavGroup[] = [
       { key: 'eventos', label: 'Eventos', href: '/shop/manage/eventos', icon: 'iconoir-calendar' },
       { key: 'sorteos', label: 'Sorteos', href: '/shop/manage/sweepstakes', icon: 'iconoir-gift' },
       { key: 'analitica', label: 'Analíticas', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
+      // Behind ops.profit_enabled: the page itself notFound()s while the flag
+      // is OFF (profit-analyzer S1 · US-3) — the nav entry is harmless dark.
+      { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins' },
       { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
       { key: 'mercadolibre', label: 'Mercado Libre', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
       { key: 'ajustes', label: 'Configuración', href: '/shop/manage/settings', icon: 'iconoir-settings' },

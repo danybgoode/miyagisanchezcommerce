@@ -71,6 +71,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // Net-remittance (SPEI/DiMo/CoDi) promoter close (epic 08 · promoter-funnel-v2 S4).
   // Enablement: default OFF ⇒ the close checkout only ever offers Stripe.
   'promoter.transfer_enabled': { polarity: 'enablement', default: false },
+  // Seller profit/margins dashboard + the backend financial-events ledger
+  // (epic 03 · profit-analyzer S1). Enablement: default OFF ⇒ the profit page
+  // 404s and the ledger writes are no-ops; append-only + the backfill route
+  // mean a late flip loses nothing. Flip ON after Daniel's margin smoke.
+  'ops.profit_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
