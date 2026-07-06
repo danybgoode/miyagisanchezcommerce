@@ -17,6 +17,7 @@ import {
   sanitizeDimensions,
   validateDimensionsClient,
   parsePesosToCents,
+  parseCostPesosToCents,
   rowsFromTiers,
   buildTierLadder,
   tierRangeLabel,
@@ -44,11 +45,14 @@ export default function OpcionesSection({
   priceGrid,
   isActive,
   currency,
+  variantCosts = {},
 }: {
   productId: string
   priceGrid: PriceGrid | null
   isActive: boolean
   currency: string
+  /** Per-variant unit costs (COGS) by variant id — seller-private (US-1). */
+  variantCosts?: Record<string, number | null>
 }) {
   const router = useRouter()
   // A post-save refetch overrides the server-provided grid until the server
@@ -117,6 +121,7 @@ export default function OpcionesSection({
           variants={variants}
           dimensionTitles={dimensionTitles}
           currency={currency}
+          variantCosts={variantCosts}
           onSaved={refetchGrid}
         />
       ) : (
@@ -145,12 +150,14 @@ function ConfiguredView({
   variants,
   dimensionTitles,
   currency,
+  variantCosts,
   onSaved,
 }: {
   productId: string
   variants: PriceGridVariant[]
   dimensionTitles: string[]
   currency: string
+  variantCosts: Record<string, number | null>
   onSaved: () => Promise<void>
 }) {
   return (
@@ -163,6 +170,7 @@ function ConfiguredView({
             variant={v}
             dimensionTitles={dimensionTitles}
             currency={currency}
+            initialCostCents={variantCosts[v.id] ?? null}
             onSaved={onSaved}
           />
         ))}
@@ -181,12 +189,14 @@ function VariantCard({
   variant,
   dimensionTitles,
   currency,
+  initialCostCents,
   onSaved,
 }: {
   productId: string
   variant: PriceGridVariant
   dimensionTitles: string[]
   currency: string
+  initialCostCents: number | null
   onSaved: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
@@ -212,6 +222,13 @@ function VariantCard({
             productId={productId}
             variantId={variant.id}
             initialTiers={variant.tiers}
+            currency={currency}
+            onSaved={onSaved}
+          />
+          <CostEditor
+            productId={productId}
+            variantId={variant.id}
+            initialCostCents={initialCostCents}
             currency={currency}
             onSaved={onSaved}
           />
@@ -361,6 +378,101 @@ function TierLadderEditor({
           {saving ? 'Guardando…' : 'Guardar niveles'}
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Per-variant unit cost (COGS) — seller-private (buyers never see it; the
+ * profit ledger snapshots it at sale time, so edits never rewrite history).
+ * Saves through the same PUT as price/stock ({ variant_id, unit_cost_cents });
+ * empty clears it (profit-analyzer S1 · US-1).
+ */
+function CostEditor({
+  productId,
+  variantId,
+  initialCostCents,
+  currency,
+  onSaved,
+}: {
+  productId: string
+  variantId: string
+  initialCostCents: number | null
+  currency: string
+  onSaved: () => Promise<void>
+}) {
+  const [raw, setRaw] = useState(initialCostCents != null ? String(initialCostCents / 100) : '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  async function handleSave() {
+    const cents = raw.trim() !== '' ? parseCostPesosToCents(raw) : null
+    if (raw.trim() !== '' && cents === null) { setError('El costo debe ser de $0 o más.'); return }
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/sell/listing/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_id: variantId, unit_cost_cents: cents }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setError(data.error ?? 'Error al guardar el costo.')
+        return
+      }
+      setSaved(true)
+      await onSaved()
+    } catch {
+      setError('Sin conexión. Verifica tu internet e inténtalo de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-[var(--color-text)] mb-1">
+        Costo unitario ({currency}) <span className="text-xs text-[var(--color-muted)] font-normal">— privado</span>
+      </p>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <p>{error}</p>
+        </div>
+      )}
+      {saved && !error && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+          ✓ Costo guardado.
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-xs">$</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={raw}
+            onChange={e => setRaw(e.target.value)}
+            placeholder="0.00"
+            className="w-28 border border-[var(--color-border)] rounded pl-5 pr-2 py-1.5 text-sm text-right bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Guardando…' : 'Guardar costo'}
+        </button>
+      </div>
+      <p className="text-xs text-[var(--color-muted)] mt-1">
+        Lo que te cuesta esta combinación. Solo tú lo ves — alimenta tu análisis de ganancias.
+        Déjalo vacío para quitarlo.
+      </p>
     </div>
   )
 }

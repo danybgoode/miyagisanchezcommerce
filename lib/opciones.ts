@@ -101,6 +101,13 @@ export function parsePesosToCents(raw: string): number | null {
   return Math.round(n * 100)
 }
 
+/** Like `parsePesosToCents` but for a unit COST (COGS), where $0 is valid. */
+export function parseCostPesosToCents(raw: string): number | null {
+  const n = parseFloat((raw ?? '').replace(/,/g, '').replace(/\s/g, ''))
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n * 100)
+}
+
 // ── Quantity tier ladder (per-variant price breaks) ─────────────────────────
 
 /** Same shape the backend's `variant_tiers` accepts and the price-grid returns. */
