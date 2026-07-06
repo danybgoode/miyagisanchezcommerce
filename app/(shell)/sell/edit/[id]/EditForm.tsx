@@ -247,7 +247,7 @@ export default function EditForm({
 
       {/* Opciones — priced dimensions + quantity tiers (products only; Story 2.4) */}
       {isProduct && (
-        <OpcionesSection priceGrid={priceGrid} isActive={isActive} currency={initial.currency} />
+        <OpcionesSection productId={id} priceGrid={priceGrid} isActive={isActive} currency={initial.currency} />
       )}
 
       {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}

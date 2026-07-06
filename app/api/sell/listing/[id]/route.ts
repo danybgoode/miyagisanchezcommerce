@@ -64,6 +64,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     attrs?: Record<string, unknown>
     custom_fields?: unknown
     short_slug?: string | null
+    // Opciones (custom-print-products 2.4) — priced option dimensions +
+    // per-variant quantity tiers. Contract + full validation live in the
+    // backend (`_utils/seller-product-update.ts`); the proxy only shape-checks.
+    option_dimensions?: Array<{ title: string; values: string[] }>
+    variant_prices?: Record<string, number>
+    variant_id?: string
+    variant_tiers?: Array<{ min_quantity: number; max_quantity: number | null; amount: number }>
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -95,6 +102,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.quantity !== undefined && body.quantity !== null && (body.quantity < 0 || !Number.isFinite(body.quantity))) {
     return NextResponse.json({ error: 'La cantidad no puede ser negativa.', field: 'quantity' }, { status: 422 })
   }
+  // Opciones payloads — shape checks only (integer-cents amounts; the backend
+  // owns the real validation and its es-MX messages surface verbatim below).
+  if (body.variant_prices !== undefined) {
+    const vals = Object.values(body.variant_prices ?? {})
+    if (vals.length === 0 || vals.some(v => !Number.isInteger(v) || v <= 0)) {
+      return NextResponse.json({ error: 'Cada combinación necesita un precio entero en centavos mayor a 0.' }, { status: 422 })
+    }
+  }
+  if (body.variant_tiers !== undefined && (!Array.isArray(body.variant_tiers)
+    || body.variant_tiers.some(t => !t || !Number.isInteger(t.amount) || t.amount <= 0))) {
+    return NextResponse.json({ error: 'Cada nivel necesita un precio entero en centavos mayor a 0.' }, { status: 422 })
+  }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
@@ -111,6 +130,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const hasMedusaFields = body.title !== undefined || body.description !== undefined
     || body.price_cents !== undefined || body.quantity !== undefined
     || body.weight_grams !== undefined || body.attrs !== undefined || customFields !== undefined
+    || body.option_dimensions !== undefined || body.variant_prices !== undefined
+    || body.variant_tiers !== undefined
   if (hasMedusaFields) {
     const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
       method: 'PATCH',
@@ -122,14 +143,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
         ...(body.attrs !== undefined && { attrs: body.attrs }),
         ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
+        ...(body.option_dimensions !== undefined && { option_dimensions: body.option_dimensions }),
+        ...(body.variant_prices !== undefined && { variant_prices: body.variant_prices }),
+        ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
+        ...(body.variant_tiers !== undefined && { variant_tiers: body.variant_tiers }),
       }),
     })
 
     if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })
     if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
     if (!res.ok) {
+      // Surface the backend's es-MX message verbatim, preserving 4xx statuses
+      // (the Opciones flow shows exact 422 texts — order-history refusal,
+      // tier-ladder gaps, mutual-exclusivity — instead of a generic error).
       const d = await res.json().catch(() => ({})) as { message?: string }
-      return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status: 500 })
+      const status = res.status >= 400 && res.status < 500 ? res.status : 500
+      return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status })
     }
   }
 
@@ -145,12 +174,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     mirrorMetadata = meta
   }
 
+  // A successful convert replaces the flat price with per-combination prices —
+  // keep the mirror's price_cents in sync as the cheapest combination (the
+  // "desde $X" display price the Medusa listing shape derives from variants).
+  const minVariantPrice = body.option_dimensions !== undefined && body.variant_prices
+    ? Math.min(...Object.values(body.variant_prices))
+    : undefined
+
   await db
     .from('marketplace_listings')
     .update({
       ...(body.title !== undefined && { title: body.title.trim() }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+      ...(minVariantPrice !== undefined && Number.isFinite(minVariantPrice) && { price_cents: minVariantPrice }),
       ...(mirrorMetadata !== undefined && { metadata: mirrorMetadata }),
       updated_at: new Date().toISOString(),
     })
