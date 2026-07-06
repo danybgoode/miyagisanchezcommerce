@@ -51,9 +51,13 @@ export default function OpcionesSection({
   currency: string
 }) {
   const router = useRouter()
-  // Local copy so a successful convert can swap in the refetched grid without
-  // waiting for the server re-render.
-  const [grid, setGrid] = useState<PriceGrid | null>(priceGrid)
+  // A post-save refetch overrides the server-provided grid until the server
+  // re-render catches up; otherwise the PROP stays authoritative — trapping
+  // the prop in useState would ignore later prop updates (e.g. the grid
+  // arriving after the seller activates a paused listing; cross-agent review
+  // catch, Antigravity, 2026-07-05).
+  const [localGrid, setLocalGrid] = useState<PriceGrid | null>(null)
+  const grid = localGrid ?? priceGrid
   const variants = grid?.variants ?? []
   const isMultiVariant = variants.length > 1
 
@@ -62,7 +66,7 @@ export default function OpcionesSection({
       const res = await fetch(`/api/sell/listing/${productId}/price-grid`, { cache: 'no-store' })
       if (res.ok) {
         const fresh = readPriceGrid(await res.json())
-        if (fresh) setGrid(fresh)
+        if (fresh) setLocalGrid(fresh)
       }
     } catch { /* keep the current grid; the server refresh below still lands */ }
     router.refresh()

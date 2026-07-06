@@ -9,6 +9,7 @@ import PersonalizationSection from './PersonalizationSection'
 import OpcionesSection from './OpcionesSection'
 import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { parsePesosToCents } from '@/lib/opciones'
 import type { PriceGrid } from '@/lib/price-grid'
 
 interface ShortlinkInfo {
@@ -100,18 +101,22 @@ export default function EditForm({
   const hideFlatPrice = isMultiVariant || soleVariantHasTiers
   const hideFlatQuantity = isMultiVariant
 
-  function parsePriceCents(raw: string): number | null {
-    const n = parseFloat(raw.replace(/,/g, '').replace(/\s/g, ''))
-    if (isNaN(n) || n <= 0) return null
-    return Math.round(n * 100)
-  }
+  // Initial raw values — price/quantity are only SENT when actually changed
+  // (dirty check). A converted (multi-variant) listing that is paused has no
+  // readable price-grid (the route serves published only), so `hideFlatPrice`
+  // can't kick in — without the dirty check, saving an unrelated field (e.g.
+  // the title) would submit the mirror's stale flat price and the backend
+  // would 422 the whole save with "especifica variant_id" (cross-agent review
+  // catch, Antigravity, 2026-07-05).
+  const initialPriceRaw = initial.price_cents != null ? String(initial.price_cents / 100) : ''
+  const initialQuantityRaw = initial.available_quantity != null ? String(initial.available_quantity) : ''
 
   async function handleSave() {
     const errs: Record<string, string> = {}
     if (title.trim().length < 5) errs.title = 'El título debe tener al menos 5 caracteres.'
     if (title.trim().length > 100) errs.title = 'El título no puede superar los 100 caracteres.'
     if (!priceReadOnly && !hideFlatPrice && priceRaw) {
-      const cents = parsePriceCents(priceRaw)
+      const cents = parsePesosToCents(priceRaw)
       if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
     }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
@@ -137,10 +142,10 @@ export default function EditForm({
         custom_fields: sanitizeFieldDefs(customFields),
         ...(shortlink ? { short_slug: shortSlug.trim() || null } : {}),
       }
-      if (!priceReadOnly && !hideFlatPrice) {
-        body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
+      if (!priceReadOnly && !hideFlatPrice && priceRaw !== initialPriceRaw) {
+        body.price_cents = priceRaw ? parsePesosToCents(priceRaw) : null
       }
-      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
+      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '' && quantityRaw !== initialQuantityRaw) {
         body.quantity = Math.max(0, parseInt(quantityRaw) || 0)
       }
 

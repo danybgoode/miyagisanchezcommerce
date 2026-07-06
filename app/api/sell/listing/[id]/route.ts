@@ -177,9 +177,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // A successful convert replaces the flat price with per-combination prices —
   // keep the mirror's price_cents in sync as the cheapest combination (the
   // "desde $X" display price the Medusa listing shape derives from variants).
-  const minVariantPrice = body.option_dimensions !== undefined && body.variant_prices
+  let minVariantPrice = body.option_dimensions !== undefined && body.variant_prices
     ? Math.min(...Object.values(body.variant_prices))
     : undefined
+
+  // A tier edit can change a variant's base (qty=1) price too — recompute the
+  // mirror from the live price-grid so "desde $X" never goes stale (cross-agent
+  // review catch, Antigravity, 2026-07-05). Same semantic as the backend's
+  // toListingShape: min across variants of each variant's LOWEST-min_quantity
+  // tier (the grid sorts tiers ascending, so tiers[0] is the base). Best-effort:
+  // a failed read just leaves the mirror as-is rather than failing the save.
+  if (body.variant_tiers !== undefined && minVariantPrice === undefined) {
+    try {
+      const gridRes = await fetch(`${MEDUSA_BASE}/store/listings/${id}/price-grid`, {
+        headers: { 'x-publishable-api-key': PUB_KEY },
+        cache: 'no-store',
+      })
+      if (gridRes.ok) {
+        const grid = (await gridRes.json())?.price_grid as
+          | { variants?: Array<{ tiers?: Array<{ amount?: number }> }> }
+          | undefined
+        const basePrices = (grid?.variants ?? [])
+          .map(v => v.tiers?.[0]?.amount)
+          .filter((a): a is number => typeof a === 'number' && a > 0)
+        if (basePrices.length > 0) minVariantPrice = Math.min(...basePrices)
+      }
+    } catch { /* best-effort — keep the current mirror price */ }
+  }
 
   await db
     .from('marketplace_listings')
