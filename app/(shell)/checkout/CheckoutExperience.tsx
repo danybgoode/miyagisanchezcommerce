@@ -81,6 +81,7 @@ function blankAddress(): CheckoutShippingAddress {
 export default function CheckoutExperience({
   sellerId,
   listingId,
+  variantId,
   items,
   amountCents,
   currency,
@@ -94,6 +95,8 @@ export default function CheckoutExperience({
 }: {
   sellerId: string
   listingId?: string
+  /** Specific variant for a multi-variant (configurator) listing's single-item path. */
+  variantId?: string | null
   items?: CartItem[]
   /** Unit price (single-item path) or bundle subtotal. */
   amountCents: number
@@ -791,6 +794,7 @@ export default function CheckoutExperience({
           <CheckoutPayButton
             provider={selectedPayment.id}
             listingId={listingId}
+            variantId={variantId}
             personalization={personalization}
             items={items}
             sellerId={sellerId}

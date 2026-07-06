@@ -2,7 +2,8 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, getShopListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { getListing, getShopListings, getPriceGrid, formatPrice, conditionLabel } from '@/lib/listings'
+import ConfiguratorBuyBox from './ConfiguratorBuyBox'
 import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -99,8 +100,19 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // guard also covers custom-domain / subdomain channels, where /l/[id] passes
   // through middleware untouched.
   if (!isLikelyListingId(id)) notFound()
-  const [listing, clerkUser] = await Promise.all([getListing(id), currentUser()])
+  const [listing, clerkUser, priceGrid] = await Promise.all([getListing(id), currentUser(), getPriceGrid(id)])
   if (!listing) notFound()
+  // Show the configurator buy box whenever there's real multi-variant choice
+  // OR real quantity tiers to expose — either alone needs the live price
+  // grid + qty stepper, since the plain buy box has no quantity control at
+  // all. A single-variant listing CAN have quantity tiers on its own variant
+  // (Story 2.2's variant_tiers write path doesn't require option_dimensions
+  // first) — gating on variants.length > 1 alone would trap that seller's
+  // bulk pricing behind a buy box that only ever checks out qty=1 (cross-
+  // agent review catch, 2026-07-05). A legacy listing with no tiers at all
+  // (price-grid absent or single flat tier) keeps today's PDP untouched.
+  const hasConfigurator = !!priceGrid
+    && (priceGrid.variants.length > 1 || priceGrid.variants.some((v) => v.tiers.length > 1))
 
   // Custom-domain boundary: a tenant store shows ONLY its own products. If this
   // PDP is reached on a custom domain (channel slug set by middleware) but the
@@ -429,7 +441,21 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               signInBuyLabel={eventModel ? signInBuyLabel : undefined}
             />
           ) : agreedDealCents && activeDeal ? (
+            // An already-accepted offer ALWAYS takes priority over the
+            // configurator box, even on a since-converted multi-variant
+            // listing — a legacy accepted deal must stay payable (cross-
+            // agent review catch, 2026-07-05: checking hasConfigurator first
+            // stranded an accepted offer behind an unrelated buy box with no
+            // way to actually redeem it).
             <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+          ) : hasConfigurator && priceGrid ? (
+            <ConfiguratorBuyBox
+              listingId={listing.id}
+              priceGrid={priceGrid}
+              isSignedIn={isSignedIn}
+              customDomain={customDomain}
+              currency={listing.currency}
+            />
           ) : isSignedIn ? (
             <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Comprar ahora — {effectivePrice}
@@ -445,7 +471,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </div>
         )
       )}
-      {!isPrintPlacement && hasBuyablePrice && activeDeal?.status !== 'accepted_unpaid' && (
+      {/* Negotiation doesn't compose with the configurator this sprint
+          (Daniel-confirmed scope call) — never let a buyer OPEN a new offer
+          on a multi-variant listing (an already-accepted legacy one still
+          renders above via the ternary regardless of hasConfigurator). */}
+      {!isPrintPlacement && hasBuyablePrice && !hasConfigurator && activeDeal?.status !== 'accepted_unpaid' && (
         <MakeOfferButton
           listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
           buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}
@@ -495,7 +525,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         signInBuyLabel={eventModel ? signInBuyLabel : undefined}
       />
     ) : agreedDealCents && activeDeal ? (
+      // Priority over hasConfigurator — see the identical note in the
+      // legacy `ctaButtons` block above (a legacy accepted offer must stay
+      // payable even on a since-converted multi-variant listing).
       <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+    ) : hasConfigurator && priceGrid ? (
+      <ConfiguratorBuyBox
+        listingId={listing.id}
+        priceGrid={priceGrid}
+        isSignedIn={isSignedIn}
+        customDomain={customDomain}
+        currency={listing.currency}
+      />
     ) : eventModel && ticketCap > 1 ? (
       // Paid event with > 1 seat (flag ON) → quantity stepper threads &qty=N.
       <EventBuyBox
@@ -583,7 +624,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       {barMode === 'buy' && (
         <>
           {redesignPrimaryCta}
-          {hasBuyablePrice && (
+          {/* Negotiation doesn't compose with the configurator this sprint —
+              see the identical note on the legacy ctaButtons block above. */}
+          {hasBuyablePrice && !hasConfigurator && (
             <MakeOfferButton
               listing={{ id: listing.id, title: listing.title, price_cents: listing.price_cents!, currency: listing.currency, imageUrl: listing.images?.[0]?.url ?? null }}
               buyerInfo={clerkUser ? { name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' '), email: clerkUser.emailAddresses[0]?.emailAddress ?? '' } : undefined}

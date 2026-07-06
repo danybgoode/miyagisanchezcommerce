@@ -1,7 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, formatPrice } from '@/lib/listings'
+import { getListing, getPriceGrid, formatPrice } from '@/lib/listings'
+import { unitPriceCentsFor } from '@/lib/price-grid'
 import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
@@ -16,6 +17,8 @@ type SearchParams = {
   provider?: CheckoutProvider
   /** Event admissions: how many tickets to buy (clamped to remaining seats). */
   qty?: string
+  /** Specific variant for a multi-variant (print-configurator) listing. */
+  variantId?: string
   /** Tenant custom domain the buyer hopped from (own-channel checkout). */
   origin?: string
 }
@@ -66,12 +69,24 @@ async function getAcceptedOfferPrice(offerId: string | undefined, listingId: str
 
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
+  // Next.js gives `string[]` for a repeated query key (?variantId=A&variantId=B)
+  // regardless of the declared `SearchParams` type — coerce defensively into a
+  // local so a malformed/duplicated URL can never reach unitPriceCentsFor() or
+  // startCheckout() as anything but a plain string (cross-agent review catch,
+  // 2026-07-05). Harmless in practice today (only ConfiguratorBuyBox sets it,
+  // once), but costs nothing to guard. A local const rather than mutating
+  // `params` itself, since the searchParams object isn't guaranteed mutable.
+  let variantId = Array.isArray(params.variantId) ? (params.variantId as string[])[0] : params.variantId
+  // Same array-pollution guard for offerId — getAcceptedOfferPrice()'s
+  // Supabase .eq() expects a scalar, not an array (cross-agent review catch,
+  // 2026-07-05).
+  const offerId = Array.isArray(params.offerId) ? (params.offerId as unknown as string[])[0] : params.offerId
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${params.offerId ? `&offerId=${params.offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -83,19 +98,36 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const isClaimed = isShopClaimed(listing.shop)
   if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/l/${listing.id}`)
 
-  const offerPriceCents = await getAcceptedOfferPrice(params.offerId, listing.id, user.id)
-  if (params.offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
-  const amountCents = offerPriceCents ?? listing.price_cents
+  const offerPriceCents = await getAcceptedOfferPrice(offerId, listing.id, user.id)
+  if (offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
+  let amountCents = offerPriceCents ?? listing.price_cents
   if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
   if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
+
+  const isOfferCheckout = !!offerPriceCents
+  // An offer is entirely orthogonal to the configurator feature — negotiation
+  // predates it and was never variant-aware. A crafted URL appending
+  // &variantId=<expensive-variant> to a legitimate offer-checkout link must
+  // never be allowed to reach startCheckout(): the negotiated `amountCents`
+  // above already only ever reflects the offer's own price, but the variant
+  // actually added to the cart must ALSO stay whatever the offer's listing
+  // resolves to by default, never an attacker-chosen one (cross-agent review
+  // catch, 2026-07-05 — a real exploit vector, not just a display concern).
+  if (isOfferCheckout) variantId = undefined
+
   // Block checkout for sold-out (Medusa-managed) items — backend reserves stock on
   // order placement, so this saves the buyer a failed add-to-cart at the rail.
-  if (listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
+  // Skipped for a configurator checkout (explicit variantId): `listing.in_stock`
+  // is a single aggregate across ALL variants, so a mixed managed/unmanaged
+  // configurator listing (one variant genuinely out of stock, another
+  // unlimited) could wrongly block a buyer whose chosen variant is fine
+  // (cross-agent review catch, 2026-07-05) — Medusa's own per-variant
+  // reservation at order placement is the real authority for that variant.
+  if (!variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
 
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
   const image = listing.images?.[0]?.url ?? null
-  const isOfferCheckout = !!offerPriceCents
   const isDigital = listing.listing_type === 'digital'
 
   // Event admissions: buy N in one checkout (kill-switch + aforo clamped). Scoped
@@ -104,9 +136,38 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // checkout is always a single unit too. Defaults to 1 everywhere else.
   const isEventListing = !!readEventDetails(listing)
   const quantityEnabled = (await isEnabled('events.quantity_enabled')) && isEventListing
+  // Configurator (multi-variant, tiered-price) checkout carries its OWN qty,
+  // independent of the event-admissions cap system above: `ticketQuantityCap`
+  // returns 1 whenever `enabled` is false (lib/ticket-quantity.ts:39), and
+  // `quantityEnabled` is only ever true for an EVENT listing — so routing a
+  // configurator's `?qty=N` through `clampTicketQuantity` silently floored
+  // EVERY configurator purchase to quantity 1, defeating the entire bulk-tier
+  // feature (cross-agent review catch, 2026-07-05, caught while verifying an
+  // unrelated finding). A configurator checkout is identified by the presence
+  // of `variantId` (only ConfiguratorBuyBox sets it).
+  const isConfiguratorCheckout = !!variantId && !isOfferCheckout
   const quantity = isOfferCheckout
     ? 1
-    : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
+    : isConfiguratorCheckout
+      ? Math.max(1, Math.floor(Number(params.qty ?? 1)) || 1)
+      : clampTicketQuantity(params.qty ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
+
+  // Multi-variant (print-configurator) listing: `listing.price_cents` is the
+  // MIN across all variants (a "desde $X" display price, see toListingShape),
+  // not necessarily the price of the buyer's chosen combination. Resolve the
+  // exact tier-correct unit price for variantId + quantity from the same
+  // price-grid the PDP buy box showed, so the checkout total can never drift
+  // from what the buyer saw (house rule: pay-button total = summary).
+  // Unresolvable (stale variantId, removed tier, grid fetch failure) redirects
+  // back to the PDP rather than silently substituting the cheaper "desde $X"
+  // price — a silent fallback here would show/charge less than the buyer's
+  // actual chosen combination (cross-agent review catch, 2026-07-05).
+  if (isConfiguratorCheckout) {
+    const priceGrid = await getPriceGrid(listing.id)
+    const resolved = priceGrid ? unitPriceCentsFor(priceGrid, variantId!, quantity) : null
+    if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
+    amountCents = resolved
+  }
 
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
@@ -148,13 +209,14 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
         <CheckoutExperience
           listingId={listing.id}
+          variantId={variantId}
           sellerId={listing.shop!.id}
           amountCents={amountCents}
           currency={listing.currency}
           quantity={quantity}
           listingType={listing.listing_type}
           isDigital={isDigital}
-          offerId={params.offerId}
+          offerId={offerId}
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}
         />

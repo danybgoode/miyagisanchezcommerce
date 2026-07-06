@@ -27,6 +27,8 @@ const PAY_LABEL: Record<CheckoutProvider, string> = {
 interface CheckoutPayButtonProps {
   provider: CheckoutProvider
   listingId?: string
+  /** Specific variant for a multi-variant (configurator) listing's single-item path. */
+  variantId?: string | null
   /** Personalization for the single-item path (bundle items carry their own). */
   personalization?: PersonalizationPayload | null
   items?: CartItem[]
@@ -55,6 +57,7 @@ interface CheckoutPayButtonProps {
 export default function CheckoutPayButton({
   provider,
   listingId,
+  variantId,
   personalization,
   items,
   sellerId,
@@ -97,6 +100,7 @@ export default function CheckoutPayButton({
       const clerkJwt = (await getToken()) ?? undefined
       const result = await startCheckout({
         productId: listingId,
+        variantId,
         personalization,
         quantity,
         items: items?.map(item => ({ productId: item.productId, variantId: item.variantId, personalization: item.personalization })),
