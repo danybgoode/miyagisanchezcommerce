@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
 import {
@@ -40,7 +41,7 @@ interface OrderTrackingProps {
     buyer_name: string | null
     buyer_email: string | null
     created_at: string
-    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string; type?: string }> }> | null
     event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment ("Pago directo") fields from the Medusa order
@@ -531,9 +532,12 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                     <p className="text-xs font-medium mb-1">{block.title}</p>
                   )}
                   {block.fields.map((f, fi) => (
-                    <div key={f.id ?? fi} className="flex gap-2 text-sm">
-                      <span className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</span>
-                      <span className="font-medium break-words">{f.value}</span>
+                    <div key={f.id ?? fi} className="text-sm">
+                      <PersonalizationEcho
+                        field={f}
+                        labelStyle={{ color: 'var(--color-muted)' }}
+                        valueStyle={{ fontWeight: 500 }}
+                      />
                     </div>
                   ))}
                 </div>

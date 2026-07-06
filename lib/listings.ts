@@ -4,6 +4,7 @@ import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
 import { readPriceGrid, type PriceGrid } from './price-grid'
+import { getCustomFields, type CustomFieldDef } from './personalization'
 import {
   pickFeatured,
   curateGrid,
@@ -88,6 +89,28 @@ export const getListing = unstable_cache(
   ['listing'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
+
+/**
+ * Fresh, side-effect-free read of a listing's custom-field defs, for a
+ * security-relevant server check (custom-print-products S3 Story 3.2's
+ * upload route resolving the REAL `allowed_formats`/`max_size_mb` for a
+ * field, never trusting a client-supplied limit). Deliberately does NOT use
+ * `getListing` — that helper increments the listing's view count as a side
+ * effect and is `unstable_cache`-wrapped, neither of which is wanted here
+ * (an upload isn't a "view", and we want the seller's latest limits, not a
+ * cached one). Returns `[]` on any failure — callers fall back to the
+ * global hard caps, never to an unbounded upload.
+ */
+export async function getListingCustomFieldsUncached(id: string): Promise<CustomFieldDef[]> {
+  try {
+    const res = await medusaFetch(`/store/listings/${id}`, { cache: 'no-store' })
+    if (!res.ok) return []
+    const data = await res.json()
+    return getCustomFields(data.listing?.metadata ?? null)
+  } catch {
+    return []
+  }
+}
 
 /**
  * A multi-variant (print-configurator) listing's per-variant quantity price

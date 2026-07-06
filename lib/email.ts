@@ -123,7 +123,17 @@ function quote(text: string): string {
 }
 
 /** Buyer personalization — shown in order emails so both sides have the spec. */
-export type EmailPersonalization = Array<{ title?: string; fields: Array<{ label?: string; value?: string }> }>
+export type EmailPersonalization = Array<{ title?: string; fields: Array<{ label?: string; value?: string; type?: string }> }>
+
+/** Only render a `file` value as a link/thumbnail when it looks like a real
+ *  URL under our own upload host — never trust an unchecked string into an
+ *  `<a href>`/`<img src>` inside an email. */
+function looksLikeUploadUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
+}
+function isImageLikeUrl(value: string): boolean {
+  return /\.(png|jpe?g|svg)(\?|$)/i.test(value)
+}
 
 function personalizationBlock(blocks?: EmailPersonalization | null): string {
   const clean = (blocks ?? []).filter(b => (b.fields ?? []).some(f => (f.value ?? '').trim()))
@@ -132,7 +142,17 @@ function personalizationBlock(blocks?: EmailPersonalization | null): string {
   const sections = clean.map(b => {
     const rows = (b.fields ?? [])
       .filter(f => (f.value ?? '').trim())
-      .map(f => `<div style="margin:2px 0"><span style="color:#6b6b67">${esc(f.label ?? '')}:</span> <span style="font-weight:600;color:#1a1a18">${esc(f.value ?? '')}</span></div>`)
+      .map(f => {
+        const value = f.value ?? ''
+        if (f.type === 'file' && looksLikeUploadUrl(value)) {
+          const href = esc(value)
+          const thumb = isImageLikeUrl(value)
+            ? `<br/><img src="${href}" alt="${esc(f.label ?? 'Arte')}" style="max-width:120px;border-radius:6px;margin-top:4px;display:block">`
+            : ''
+          return `<div style="margin:2px 0"><span style="color:#6b6b67">${esc(f.label ?? '')}:</span> <a href="${href}" style="color:#1d6f42;font-weight:600">Descargar original</a>${thumb}</div>`
+        }
+        return `<div style="margin:2px 0"><span style="color:#6b6b67">${esc(f.label ?? '')}:</span> <span style="font-weight:600;color:#1a1a18">${esc(value)}</span></div>`
+      })
       .join('')
     const head = multi && b.title ? `<div style="font-weight:600;margin:0 0 3px;color:#1a1a18">${esc(b.title)}</div>` : ''
     return `<div style="margin:0 0 8px">${head}${rows}</div>`

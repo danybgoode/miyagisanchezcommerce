@@ -5,7 +5,8 @@ import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
 import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
-import { type PersonalizationPayload, formatPersonalizationLines, readStashedPersonalization } from '@/lib/personalization'
+import { type PersonalizationPayload, type PersonalizationField, readStashedPersonalization } from '@/lib/personalization'
+import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '@/lib/checkout-fallback'
 import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
@@ -717,12 +718,10 @@ export default function CheckoutExperience({
 
           {/* ── Personalization echo (AC 3.1 — final review step) ─────────── */}
           {(() => {
-            const blocks: Array<{ title?: string; lines: string[] }> = []
-            const single = formatPersonalizationLines(personalization)
-            if (single.length) blocks.push({ lines: single })
+            const blocks: Array<{ title?: string; fields: PersonalizationField[] }> = []
+            if (personalization?.fields?.length) blocks.push({ fields: personalization.fields })
             for (const it of items ?? []) {
-              const lines = formatPersonalizationLines(it.personalization)
-              if (lines.length) blocks.push({ title: it.title, lines })
+              if (it.personalization?.fields?.length) blocks.push({ title: it.title, fields: it.personalization.fields })
             }
             if (!blocks.length) return null
             return (
@@ -734,8 +733,12 @@ export default function CheckoutExperience({
                 {blocks.map((b, bi) => (
                   <div key={bi} style={{ marginBottom: bi < blocks.length - 1 ? 6 : 0 }}>
                     {b.title && <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{b.title}</p>}
-                    {b.lines.map((line, i) => (
-                      <p key={i} style={{ fontSize: 12, color: 'var(--fg-muted)', wordBreak: 'break-word' }}>{line}</p>
+                    {b.fields.map((f, i) => (
+                      <PersonalizationEcho
+                        key={i}
+                        field={f}
+                        valueStyle={{ fontSize: 12, color: 'var(--fg-muted)', wordBreak: 'break-word' }}
+                      />
                     ))}
                   </div>
                 ))}

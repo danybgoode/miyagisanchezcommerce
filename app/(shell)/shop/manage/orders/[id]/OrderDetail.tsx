@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundIssuedBanner } from '@/lib/manual-payment-state'
 import {
   deriveRefundState, refundBadge, refundStateDetail, whoActsNextRefund, canSellerMarkTransferred,
@@ -54,7 +55,7 @@ interface OrderDetailProps {
     buyer_email: string | null
     created_at: string
     updated_at: string
-    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string; type?: string }> }> | null
     event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment + durable manual-payment lifecycle (curated top-level fields).
@@ -909,14 +910,17 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   {(order.personalization ?? []).length > 1 && block.title && (
                     <p className="text-xs font-medium text-[var(--color-text)] mb-1">{block.title}</p>
                   )}
-                  <dl className="space-y-1">
+                  <div className="space-y-1">
                     {block.fields.map((f, fi) => (
-                      <div key={f.id ?? fi} className="flex gap-2 text-sm">
-                        <dt className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</dt>
-                        <dd className="font-medium break-words">{f.value}</dd>
+                      <div key={f.id ?? fi} className="text-sm">
+                        <PersonalizationEcho
+                          field={f}
+                          labelStyle={{ color: 'var(--color-muted)' }}
+                          valueStyle={{ fontWeight: 500 }}
+                        />
                       </div>
                     ))}
-                  </dl>
+                  </div>
                 </div>
               ))}
             </div>
