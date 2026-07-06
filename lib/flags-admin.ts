@@ -71,6 +71,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // Net-remittance (SPEI/DiMo/CoDi) promoter close (epic 08 · promoter-funnel-v2 S4).
   // Enablement: default OFF ⇒ the close checkout only ever offers Stripe.
   'promoter.transfer_enabled': { polarity: 'enablement', default: false },
+  // Print-configurator buy box — variant/tier selection + artwork upload
+  // (custom-print-products epic S3.4). Kill-switch: default ON, matching
+  // `pdp_redesign`'s polarity — OFF instantly reverts every configurator
+  // listing to today's plain PDP buy box.
+  'configurator.enabled': { polarity: 'killswitch', default: true },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -131,6 +131,12 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    creating orders unsupervised. Sprint 1 gates on this GLOBAL flag only; a
  *    per-seller enable is Sprint 2 · US-6. Flip ON only after Daniel's live
  *    ML-sandbox order-materialization smoke passes.
+ *  - KILL-SWITCH (`configurator.enabled`): default `true`, matching
+ *    `pdp_redesign`'s polarity exactly. The whole print-configurator buy box
+ *    (custom-print-products epic, Sprint 3) — multi-variant/tier selection +
+ *    artwork upload. Flipping OFF instantly reverts every configurator
+ *    listing to today's plain PDP buy box (fail-safe); a flag outage keeps
+ *    the feature live rather than breaking an in-flight purchase.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -148,6 +154,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'subdomain.paywall_enabled': false,
   'seller_agent.connector_url_enabled': false,
   'promoter.transfer_enabled': false,
+  'configurator.enabled': true,
 }
 
 const TABLE = 'platform_flags'

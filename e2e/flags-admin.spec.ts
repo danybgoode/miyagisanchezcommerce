@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 15 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(15)
+  test('covers all 16 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(16)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -40,6 +40,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Net-remittance promoter close (promoter-funnel-v2 S4) — enablement, fail-open OFF
     // (Stripe-only close checkout until the live transfer smoke passes).
     expect(FLAG_META['promoter.transfer_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // The print-configurator buy box (custom-print-products S3.4) — kill-switch,
+    // fail-open ON (matches pdp_redesign's polarity; OFF reverts to today's plain PDP).
+    expect(FLAG_META['configurator.enabled']).toEqual({ polarity: 'killswitch', default: true })
   })
 })
 

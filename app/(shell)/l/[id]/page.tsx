@@ -100,7 +100,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // guard also covers custom-domain / subdomain channels, where /l/[id] passes
   // through middleware untouched.
   if (!isLikelyListingId(id)) notFound()
-  const [listing, clerkUser, priceGrid] = await Promise.all([getListing(id), currentUser(), getPriceGrid(id)])
+  const [listing, clerkUser, priceGrid, configuratorFlagOn] = await Promise.all([
+    getListing(id), currentUser(), getPriceGrid(id), isEnabled('configurator.enabled'),
+  ])
   if (!listing) notFound()
   // Show the configurator buy box whenever there's real multi-variant choice
   // OR real quantity tiers to expose — either alone needs the live price
@@ -111,8 +113,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // bulk pricing behind a buy box that only ever checks out qty=1 (cross-
   // agent review catch, 2026-07-05). A legacy listing with no tiers at all
   // (price-grid absent or single flat tier) keeps today's PDP untouched.
+  // The `configurator.enabled` kill-switch (custom-print-products S3.4) is
+  // AND'd in right here — every downstream read of `hasConfigurator`
+  // (both buy-box render branches AND the two negotiation-suppression
+  // checks) inherits the fail-safe fall-back to today's plain PDP for free.
   const hasConfigurator = !!priceGrid
     && (priceGrid.variants.length > 1 || priceGrid.variants.some((v) => v.tiers.length > 1))
+    && configuratorFlagOn
 
   // Custom-domain boundary: a tenant store shows ONLY its own products. If this
   // PDP is reached on a custom domain (channel slug set by middleware) but the
@@ -427,9 +434,33 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           hardcoded here; the checkout page is the single chooser. */}
       {!isPrintPlacement && showBuyButtons && activeDeal?.status !== 'pending' && activeDeal?.status !== 'countered' && (
         hasAnyPayment ? (
-          // Personalizable product → fields + validating CTA (handles signed-in /
-          // signed-out / accepted-offer). Non-personalized keeps the plain CTAs.
-          customFields.length > 0 ? (
+          // An already-accepted offer ALWAYS takes priority over every other
+          // buy box, even on a since-converted multi-variant listing — a
+          // legacy accepted deal must stay payable (cross-agent review
+          // catch, 2026-07-05: checking hasConfigurator first stranded an
+          // accepted offer behind an unrelated buy box with no way to
+          // actually redeem it). Then the configurator (multi-variant/
+          // tiered) buy box, now passed `customFields` so a configurator
+          // listing that ALSO has custom fields (e.g. a required artwork
+          // upload, S3.1) renders variant/tier selection AND those fields
+          // together — checking `customFields.length > 0` first here was a
+          // real bug (S3 research, 2026-07-06): it silently ignored variant/
+          // tier pricing on any configurator product that got a custom
+          // field, since PersonalizationBuyBox has no variant/tier concept
+          // at all. Plain `customFields.length > 0` now only fires for a
+          // non-configurator personalized product.
+          agreedDealCents && activeDeal ? (
+            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+          ) : hasConfigurator && priceGrid ? (
+            <ConfiguratorBuyBox
+              listingId={listing.id}
+              priceGrid={priceGrid}
+              isSignedIn={isSignedIn}
+              customDomain={customDomain}
+              currency={listing.currency}
+              customFields={customFields}
+            />
+          ) : customFields.length > 0 ? (
             <PersonalizationBuyBox
               listingId={listing.id}
               defs={customFields}
@@ -439,22 +470,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
               buyNowLabel={eventModel ? buyNowLabel : undefined}
               signInBuyLabel={eventModel ? signInBuyLabel : undefined}
-            />
-          ) : agreedDealCents && activeDeal ? (
-            // An already-accepted offer ALWAYS takes priority over the
-            // configurator box, even on a since-converted multi-variant
-            // listing — a legacy accepted deal must stay payable (cross-
-            // agent review catch, 2026-07-05: checking hasConfigurator first
-            // stranded an accepted offer behind an unrelated buy box with no
-            // way to actually redeem it).
-            <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
-          ) : hasConfigurator && priceGrid ? (
-            <ConfiguratorBuyBox
-              listingId={listing.id}
-              priceGrid={priceGrid}
-              isSignedIn={isSignedIn}
-              customDomain={customDomain}
-              currency={listing.currency}
             />
           ) : isSignedIn ? (
             <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
@@ -513,7 +528,21 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // logic in `ctaButtons` (personalization → offer-checkout → signed-in → signed-out),
   // with the no-online-payment fallback.
   const redesignPrimaryCta = hasAnyPayment ? (
-    customFields.length > 0 ? (
+    // Reordered (S3.4) — see the identical note + explanation in the legacy
+    // `ctaButtons` block above: an accepted offer wins first, then the
+    // configurator (now passed `customFields`), then plain personalization.
+    agreedDealCents && activeDeal ? (
+      <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
+    ) : hasConfigurator && priceGrid ? (
+      <ConfiguratorBuyBox
+        listingId={listing.id}
+        priceGrid={priceGrid}
+        isSignedIn={isSignedIn}
+        customDomain={customDomain}
+        currency={listing.currency}
+        customFields={customFields}
+      />
+    ) : customFields.length > 0 ? (
       <PersonalizationBuyBox
         listingId={listing.id}
         defs={customFields}
@@ -523,19 +552,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         offerId={agreedDealCents && activeDeal ? activeDeal.offerId : undefined}
         buyNowLabel={eventModel ? buyNowLabel : undefined}
         signInBuyLabel={eventModel ? signInBuyLabel : undefined}
-      />
-    ) : agreedDealCents && activeDeal ? (
-      // Priority over hasConfigurator — see the identical note in the
-      // legacy `ctaButtons` block above (a legacy accepted offer must stay
-      // payable even on a since-converted multi-variant listing).
-      <OfferCheckoutButton listingId={listing.id} offerId={activeDeal.offerId} amountCents={agreedDealCents} currency={activeDeal.currency} isSignedIn={isSignedIn} customDomain={customDomain} />
-    ) : hasConfigurator && priceGrid ? (
-      <ConfiguratorBuyBox
-        listingId={listing.id}
-        priceGrid={priceGrid}
-        isSignedIn={isSignedIn}
-        customDomain={customDomain}
-        currency={listing.currency}
       />
     ) : eventModel && ticketCap > 1 ? (
       // Paid event with > 1 seat (flag ON) → quantity stepper threads &qty=N.
