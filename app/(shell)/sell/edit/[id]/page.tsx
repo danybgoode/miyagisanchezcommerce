@@ -160,6 +160,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         id={medusaProductId}
         priceGrid={priceGrid}
         isActive={isActive}
+        knownMultiVariant={listing.metadata?.has_variants === true}
         shortlink={{
           shopSlug: shopData?.slug ?? '',
           code: (listing.metadata?.short_code as string | undefined) ?? '',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   readPriceGrid,
@@ -57,6 +57,10 @@ export default function OpcionesSection({
   // arriving after the seller activates a paused listing; cross-agent review
   // catch, Antigravity, 2026-07-05).
   const [localGrid, setLocalGrid] = useState<PriceGrid | null>(null)
+  // Every router.refresh() re-serializes the server prop (fetched no-store),
+  // so a fresh prop always supersedes the post-save override — without this,
+  // the override would shadow prop updates until a full remount.
+  useEffect(() => { setLocalGrid(null) }, [priceGrid])
   const grid = localGrid ?? priceGrid
   const variants = grid?.variants ?? []
   const isMultiVariant = variants.length > 1

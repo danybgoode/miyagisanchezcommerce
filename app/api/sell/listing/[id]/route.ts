@@ -163,14 +163,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // Merge a custom short slug into the mirror metadata (preserving short_code + the
-  // rest). Done as a read-merge-write so we never clobber other metadata.
+  // rest). Done as a read-merge-write so we never clobber other metadata. A
+  // successful convert also stamps `has_variants: true` — the publish-status-
+  // independent multi-variant signal the edit form needs, since the price-grid
+  // route can't answer for a paused/draft listing (cross-agent review catch,
+  // Antigravity round 2, 2026-07-05). Dimensions can never be removed, so the
+  // flag never needs clearing.
+  const convertSucceeded = body.option_dimensions !== undefined
   let mirrorMetadata: Record<string, unknown> | undefined
-  if (nextShortSlug !== undefined) {
+  if (nextShortSlug !== undefined || convertSucceeded) {
     const { data: row } = await db
       .from('marketplace_listings').select('metadata').eq('medusa_product_id', id).maybeSingle()
     const meta = ((row?.metadata ?? {}) as Record<string, unknown>)
-    if (nextShortSlug === null) delete (meta as Record<string, unknown>).short_slug
-    else meta.short_slug = nextShortSlug
+    if (nextShortSlug !== undefined) {
+      if (nextShortSlug === null) delete (meta as Record<string, unknown>).short_slug
+      else meta.short_slug = nextShortSlug
+    }
+    if (convertSucceeded) meta.has_variants = true
     mirrorMetadata = meta
   }
 

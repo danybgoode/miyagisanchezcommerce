@@ -42,6 +42,7 @@ export default function EditForm({
   shortlink,
   priceGrid = null,
   isActive = false,
+  knownMultiVariant = false,
 }: {
   id: string
   initial: EditableFields
@@ -50,6 +51,12 @@ export default function EditForm({
   priceGrid?: PriceGrid | null
   /** Supabase mirror status === 'active' (Medusa: published). */
   isActive?: boolean
+  /**
+   * Mirror metadata `has_variants` — the publish-status-independent
+   * multi-variant signal (the price-grid is unreadable for paused/draft
+   * listings, so the grid alone can't gate the flat inputs there).
+   */
+  knownMultiVariant?: boolean
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -96,20 +103,19 @@ export default function EditForm({
   // ("especifica variant_id"), and a tiered sole variant 422s `price_cents`
   // ("usa variant_tiers"). Hide those legacy inputs and route everything
   // through the Opciones section instead of letting the save fail.
-  const isMultiVariant = (priceGrid?.variants.length ?? 0) > 1
+  const isMultiVariant = (priceGrid?.variants.length ?? 0) > 1 || knownMultiVariant
   const soleVariantHasTiers = priceGrid?.variants.length === 1 && priceGrid.variants[0].tiers.length > 1
   const hideFlatPrice = isMultiVariant || soleVariantHasTiers
   const hideFlatQuantity = isMultiVariant
 
-  // Initial raw values — price/quantity are only SENT when actually changed
-  // (dirty check). A converted (multi-variant) listing that is paused has no
-  // readable price-grid (the route serves published only), so `hideFlatPrice`
-  // can't kick in — without the dirty check, saving an unrelated field (e.g.
-  // the title) would submit the mirror's stale flat price and the backend
-  // would 422 the whole save with "especifica variant_id" (cross-agent review
-  // catch, Antigravity, 2026-07-05).
-  const initialPriceRaw = initial.price_cents != null ? String(initial.price_cents / 100) : ''
-  const initialQuantityRaw = initial.available_quantity != null ? String(initial.available_quantity) : ''
+  // Price/quantity are only SENT when actually changed (dirty check by parsed
+  // value, so "15" vs "15.00" isn't a change). Defense in depth alongside
+  // `knownMultiVariant`: a converted listing missing the mirror flag (e.g.
+  // converted via direct API before this UI existed) and paused has no
+  // readable price-grid, so the flat inputs render — without the dirty check,
+  // saving an unrelated field would submit the stale flat price and the
+  // backend would 422 the whole save with "especifica variant_id"
+  // (cross-agent review catches, Antigravity rounds 1-2, 2026-07-05).
 
   async function handleSave() {
     const errs: Record<string, string> = {}
@@ -142,11 +148,13 @@ export default function EditForm({
         custom_fields: sanitizeFieldDefs(customFields),
         ...(shortlink ? { short_slug: shortSlug.trim() || null } : {}),
       }
-      if (!priceReadOnly && !hideFlatPrice && priceRaw !== initialPriceRaw) {
-        body.price_cents = priceRaw ? parsePesosToCents(priceRaw) : null
+      if (!priceReadOnly && !hideFlatPrice) {
+        const nextPriceCents = priceRaw ? parsePesosToCents(priceRaw) : null
+        if (nextPriceCents !== (initial.price_cents ?? null)) body.price_cents = nextPriceCents
       }
-      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '' && quantityRaw !== initialQuantityRaw) {
-        body.quantity = Math.max(0, parseInt(quantityRaw) || 0)
+      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
+        const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
+        if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
       }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
