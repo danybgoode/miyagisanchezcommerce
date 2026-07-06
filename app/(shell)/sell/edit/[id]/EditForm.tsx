@@ -6,8 +6,11 @@ import { AttrsSection, type Attrs, type ListingType } from '../../AttrsSection'
 import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { CITIES_BY_STATE } from '@/lib/types'
 import PersonalizationSection from './PersonalizationSection'
+import OpcionesSection from './OpcionesSection'
 import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { parsePesosToCents } from '@/lib/opciones'
+import type { PriceGrid } from '@/lib/price-grid'
 
 interface ShortlinkInfo {
   shopSlug: string
@@ -33,7 +36,28 @@ interface EditableFields {
   estado_code?: string
 }
 
-export default function EditForm({ id, initial, shortlink }: { id: string; initial: EditableFields; shortlink?: ShortlinkInfo }) {
+export default function EditForm({
+  id,
+  initial,
+  shortlink,
+  priceGrid = null,
+  isActive = false,
+  knownMultiVariant = false,
+}: {
+  id: string
+  initial: EditableFields
+  shortlink?: ShortlinkInfo
+  /** The listing's live price-grid (same route the PDP reads); null when unavailable. */
+  priceGrid?: PriceGrid | null
+  /** Supabase mirror status === 'active' (Medusa: published). */
+  isActive?: boolean
+  /**
+   * Mirror metadata `has_variants` — the publish-status-independent
+   * multi-variant signal (the price-grid is unreadable for paused/draft
+   * listings, so the grid alone can't gate the flat inputs there).
+   */
+  knownMultiVariant?: boolean
+}) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
   const [description, setDescription] = useState(initial.description ?? '')
@@ -74,18 +98,31 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
   const isProduct = initial.listing_type === 'product'
   const priceReadOnly = isSubscription
 
-  function parsePriceCents(raw: string): number | null {
-    const n = parseFloat(raw.replace(/,/g, '').replace(/\s/g, ''))
-    if (isNaN(n) || n <= 0) return null
-    return Math.round(n * 100)
-  }
+  // Opciones (custom-print-products Story 2.4): a multi-variant listing has no
+  // single flat price/stock — the backend 422s a bare `price_cents`/`quantity`
+  // ("especifica variant_id"), and a tiered sole variant 422s `price_cents`
+  // ("usa variant_tiers"). Hide those legacy inputs and route everything
+  // through the Opciones section instead of letting the save fail.
+  const isMultiVariant = (priceGrid?.variants.length ?? 0) > 1 || knownMultiVariant
+  const soleVariantHasTiers = priceGrid?.variants.length === 1 && priceGrid.variants[0].tiers.length > 1
+  const hideFlatPrice = isMultiVariant || soleVariantHasTiers
+  const hideFlatQuantity = isMultiVariant
+
+  // Price/quantity are only SENT when actually changed (dirty check by parsed
+  // value, so "15" vs "15.00" isn't a change). Defense in depth alongside
+  // `knownMultiVariant`: a converted listing missing the mirror flag (e.g.
+  // converted via direct API before this UI existed) and paused has no
+  // readable price-grid, so the flat inputs render — without the dirty check,
+  // saving an unrelated field would submit the stale flat price and the
+  // backend would 422 the whole save with "especifica variant_id"
+  // (cross-agent review catches, Antigravity rounds 1-2, 2026-07-05).
 
   async function handleSave() {
     const errs: Record<string, string> = {}
     if (title.trim().length < 5) errs.title = 'El título debe tener al menos 5 caracteres.'
     if (title.trim().length > 100) errs.title = 'El título no puede superar los 100 caracteres.'
-    if (!priceReadOnly && priceRaw) {
-      const cents = parsePriceCents(priceRaw)
+    if (!priceReadOnly && !hideFlatPrice && priceRaw) {
+      const cents = parsePesosToCents(priceRaw)
       if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
     }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
@@ -111,11 +148,13 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         custom_fields: sanitizeFieldDefs(customFields),
         ...(shortlink ? { short_slug: shortSlug.trim() || null } : {}),
       }
-      if (!priceReadOnly) {
-        body.price_cents = priceRaw ? parsePriceCents(priceRaw) : null
+      if (!priceReadOnly && !hideFlatPrice) {
+        const nextPriceCents = priceRaw ? parsePesosToCents(priceRaw) : null
+        if (nextPriceCents !== (initial.price_cents ?? null)) body.price_cents = nextPriceCents
       }
-      if (isProduct && quantityRaw.trim() !== '') {
-        body.quantity = Math.max(0, parseInt(quantityRaw) || 0)
+      if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
+        const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
+        if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
       }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
@@ -219,6 +258,11 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         <PersonalizationSection fields={customFields} setFields={setCustomFields} />
       )}
 
+      {/* Opciones — priced dimensions + quantity tiers (products only; Story 2.4) */}
+      {isProduct && (
+        <OpcionesSection productId={id} priceGrid={priceGrid} isActive={isActive} currency={initial.currency} />
+      )}
+
       {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}
       {shortlink && (
         <div className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-surface-alt)]">
@@ -255,8 +299,8 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         </div>
       )}
 
-      {/* Price */}
-      {!priceReadOnly && (
+      {/* Price — hidden for multi-variant/tiered listings (managed per combination above) */}
+      {!priceReadOnly && !hideFlatPrice && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
             Precio ({initial.currency})
@@ -284,8 +328,8 @@ export default function EditForm({ id, initial, shortlink }: { id: string; initi
         </div>
       )}
 
-      {/* Quantity / restock */}
-      {isProduct && (
+      {/* Quantity / restock — hidden for multi-variant listings (per-combination stock) */}
+      {isProduct && !hideFlatQuantity && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
             Cantidad disponible

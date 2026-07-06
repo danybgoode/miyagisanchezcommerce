@@ -64,6 +64,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     attrs?: Record<string, unknown>
     custom_fields?: unknown
     short_slug?: string | null
+    // Opciones (custom-print-products 2.4) — priced option dimensions +
+    // per-variant quantity tiers. Contract + full validation live in the
+    // backend (`_utils/seller-product-update.ts`); the proxy only shape-checks.
+    option_dimensions?: Array<{ title: string; values: string[] }>
+    variant_prices?: Record<string, number>
+    variant_id?: string
+    variant_tiers?: Array<{ min_quantity: number; max_quantity: number | null; amount: number }>
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -95,6 +102,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.quantity !== undefined && body.quantity !== null && (body.quantity < 0 || !Number.isFinite(body.quantity))) {
     return NextResponse.json({ error: 'La cantidad no puede ser negativa.', field: 'quantity' }, { status: 422 })
   }
+  // Opciones payloads — shape checks only (integer-cents amounts; the backend
+  // owns the real validation and its es-MX messages surface verbatim below).
+  if (body.variant_prices !== undefined) {
+    const vals = Object.values(body.variant_prices ?? {})
+    if (vals.length === 0 || vals.some(v => !Number.isInteger(v) || v <= 0)) {
+      return NextResponse.json({ error: 'Cada combinación necesita un precio entero en centavos mayor a 0.' }, { status: 422 })
+    }
+  }
+  if (body.variant_tiers !== undefined && (!Array.isArray(body.variant_tiers)
+    || body.variant_tiers.some(t => !t || !Number.isInteger(t.amount) || t.amount <= 0))) {
+    return NextResponse.json({ error: 'Cada nivel necesita un precio entero en centavos mayor a 0.' }, { status: 422 })
+  }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
@@ -111,6 +130,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const hasMedusaFields = body.title !== undefined || body.description !== undefined
     || body.price_cents !== undefined || body.quantity !== undefined
     || body.weight_grams !== undefined || body.attrs !== undefined || customFields !== undefined
+    || body.option_dimensions !== undefined || body.variant_prices !== undefined
+    || body.variant_tiers !== undefined
   if (hasMedusaFields) {
     const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
       method: 'PATCH',
@@ -122,27 +143,75 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
         ...(body.attrs !== undefined && { attrs: body.attrs }),
         ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
+        ...(body.option_dimensions !== undefined && { option_dimensions: body.option_dimensions }),
+        ...(body.variant_prices !== undefined && { variant_prices: body.variant_prices }),
+        ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
+        ...(body.variant_tiers !== undefined && { variant_tiers: body.variant_tiers }),
       }),
     })
 
     if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })
     if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
     if (!res.ok) {
+      // Surface the backend's es-MX message verbatim, preserving 4xx statuses
+      // (the Opciones flow shows exact 422 texts — order-history refusal,
+      // tier-ladder gaps, mutual-exclusivity — instead of a generic error).
       const d = await res.json().catch(() => ({})) as { message?: string }
-      return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status: 500 })
+      const status = res.status >= 400 && res.status < 500 ? res.status : 500
+      return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status })
     }
   }
 
   // Merge a custom short slug into the mirror metadata (preserving short_code + the
-  // rest). Done as a read-merge-write so we never clobber other metadata.
+  // rest). Done as a read-merge-write so we never clobber other metadata. A
+  // successful convert also stamps `has_variants: true` — the publish-status-
+  // independent multi-variant signal the edit form needs, since the price-grid
+  // route can't answer for a paused/draft listing (cross-agent review catch,
+  // Antigravity round 2, 2026-07-05). Dimensions can never be removed, so the
+  // flag never needs clearing.
+  const convertSucceeded = body.option_dimensions !== undefined
   let mirrorMetadata: Record<string, unknown> | undefined
-  if (nextShortSlug !== undefined) {
+  if (nextShortSlug !== undefined || convertSucceeded) {
     const { data: row } = await db
       .from('marketplace_listings').select('metadata').eq('medusa_product_id', id).maybeSingle()
     const meta = ((row?.metadata ?? {}) as Record<string, unknown>)
-    if (nextShortSlug === null) delete (meta as Record<string, unknown>).short_slug
-    else meta.short_slug = nextShortSlug
+    if (nextShortSlug !== undefined) {
+      if (nextShortSlug === null) delete (meta as Record<string, unknown>).short_slug
+      else meta.short_slug = nextShortSlug
+    }
+    if (convertSucceeded) meta.has_variants = true
     mirrorMetadata = meta
+  }
+
+  // A successful convert replaces the flat price with per-combination prices —
+  // keep the mirror's price_cents in sync as the cheapest combination (the
+  // "desde $X" display price the Medusa listing shape derives from variants).
+  let minVariantPrice = body.option_dimensions !== undefined && body.variant_prices
+    ? Math.min(...Object.values(body.variant_prices))
+    : undefined
+
+  // A tier edit can change a variant's base (qty=1) price too — recompute the
+  // mirror from the live price-grid so "desde $X" never goes stale (cross-agent
+  // review catch, Antigravity, 2026-07-05). Same semantic as the backend's
+  // toListingShape: min across variants of each variant's LOWEST-min_quantity
+  // tier (the grid sorts tiers ascending, so tiers[0] is the base). Best-effort:
+  // a failed read just leaves the mirror as-is rather than failing the save.
+  if (body.variant_tiers !== undefined && minVariantPrice === undefined) {
+    try {
+      const gridRes = await fetch(`${MEDUSA_BASE}/store/listings/${id}/price-grid`, {
+        headers: { 'x-publishable-api-key': PUB_KEY },
+        cache: 'no-store',
+      })
+      if (gridRes.ok) {
+        const grid = (await gridRes.json())?.price_grid as
+          | { variants?: Array<{ tiers?: Array<{ amount?: number }> }> }
+          | undefined
+        const basePrices = (grid?.variants ?? [])
+          .map(v => v.tiers?.[0]?.amount)
+          .filter((a): a is number => typeof a === 'number' && a > 0)
+        if (basePrices.length > 0) minVariantPrice = Math.min(...basePrices)
+      }
+    } catch { /* best-effort — keep the current mirror price */ }
   }
 
   await db
@@ -151,6 +220,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(body.title !== undefined && { title: body.title.trim() }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.price_cents !== undefined && { price_cents: body.price_cents }),
+      ...(minVariantPrice !== undefined && Number.isFinite(minVariantPrice) && { price_cents: minVariantPrice }),
       ...(mirrorMetadata !== undefined && { metadata: mirrorMetadata }),
       updated_at: new Date().toISOString(),
     })
