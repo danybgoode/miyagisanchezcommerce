@@ -290,9 +290,13 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
                 className={inputClass}
               />
               {carFacets && carFacets.modelo.length > 0 && (
+                // Plain value options — a datalist inserts the option's `value`, and
+                // count-in-text renders inconsistently across browsers; the marca
+                // <select> carries the counts. The modelo input stays free-text so a
+                // buyer can type a model the rail hasn't derived yet.
                 <datalist id="cars-modelo-options">
                   {carFacets.modelo.map(o => (
-                    <option key={o.value} value={o.value}>{`${o.label} (${o.count})`}</option>
+                    <option key={o.value} value={o.value} />
                   ))}
                 </datalist>
               )}

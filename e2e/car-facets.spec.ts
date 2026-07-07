@@ -23,6 +23,25 @@ test.describe('car-brands · canonicalBrandKey / canonicalBrand', () => {
     expect(canonicalBrandKey('  ')).toBe('')
   })
 
+  // Drift guard — these alias mappings are a hand-maintained MIRROR of the backend
+  // `_utils/car-listing.ts` BRAND_ALIAS_TO_KEY. If this frontend table drifts from
+  // the backend, a facet option's count (grouped here) stops matching what the
+  // backend `brand` filter returns. Any change to an alias must land in BOTH repos;
+  // this pins the shared contract so a silent one-sided edit reds the FE gate.
+  test('alias table matches the backend mirror (keep both repos in sync)', () => {
+    const expected: Record<string, string> = {
+      vw: 'volkswagen',
+      chevy: 'chevrolet',
+      mercedes: 'mercedes-benz',
+      'mercedes benz': 'mercedes-benz',
+      'general motors': 'gmc',
+      'great wall': 'gwm',
+    }
+    for (const [input, key] of Object.entries(expected)) {
+      expect(canonicalBrandKey(input), `alias "${input}" must map to "${key}" in both repos`).toBe(key)
+    }
+  })
+
   test('display gives proper casing for known brands, passes unknown through', () => {
     expect(canonicalBrand('vw')).toBe('Volkswagen')
     expect(canonicalBrand('BMW')).toBe('BMW')
