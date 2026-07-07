@@ -126,7 +126,7 @@ export default function Paginas({
 
         {faqItems.length === 0 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-            Sin preguntas todavía — el enlace "FAQ" no aparecerá en tu tienda.
+            Sin preguntas todavía — el enlace "Preguntas frecuentes" no aparecerá en tu tienda.
           </p>
         )}
 

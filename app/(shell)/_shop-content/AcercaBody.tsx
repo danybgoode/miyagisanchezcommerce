@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { authoredAboutBody } from '@/lib/shop-content'
 import type { Shop } from '@/lib/types'
 
 /**
@@ -15,7 +16,7 @@ import type { Shop } from '@/lib/types'
 export default function AcercaBody({ shop, basePath }: { shop: Shop; basePath: string }) {
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const about = settings.about as { body?: string } | null | undefined
-  const body = about?.body?.trim()
+  const body = authoredAboutBody(about)
   if (!body) notFound()
 
   return (

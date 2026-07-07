@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { normalizeLocale } from '@/lib/dictionary'
 import { ABOUT_PAGE, ABOUT_SECTIONS, aboutCopy } from '@/lib/about-content'

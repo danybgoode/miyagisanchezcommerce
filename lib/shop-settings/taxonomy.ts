@@ -120,7 +120,7 @@ export const SECTIONS: SectionDef[] = [
     // feature at /shop/manage/content (lib/seller-nav.ts's `contenido` entry).
     slug: 'paginas',
     title: 'Acerca y preguntas frecuentes',
-    cardTitle: 'Acerca y FAQ',
+    cardTitle: 'Acerca y preguntas',
     desc: 'Cuenta quién eres y responde las preguntas frecuentes de tu tienda.',
     icon: 'iconoir-page',
     color: 'var(--info)',

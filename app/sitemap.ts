@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getShop, getShopListings, getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug } from '@/lib/collection-derive'
 import { returnsWindowLabel } from '@/lib/trust-signals'
+import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 
 /**
  * Host-aware sitemap.
@@ -38,11 +39,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // content pages join the sitemap, same gate the nav links use.
       const settings = ((shop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
       const about = settings.about as { body?: string } | null | undefined
-      const faq = settings.faq as { items?: unknown[] } | null | undefined
+      const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
       const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
       contentPaths = [
-        about?.body?.trim() ? '/acerca' : null,
-        (faq?.items?.length ?? 0) > 0 ? '/faq' : null,
+        authoredAboutBody(about) ? '/acerca' : null,
+        wellFormedFaqItems(faq?.items).length > 0 ? '/faq' : null,
         returnsWindowLabel(returnsPolicy?.window) ? '/politicas' : null,
       ].filter((p): p is string => !!p)
     } catch {

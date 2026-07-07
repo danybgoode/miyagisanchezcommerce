@@ -13,6 +13,7 @@ import HeroSection from './HeroSection'
 import ShopCollectionNav from './ShopCollectionNav'
 import ShopContentLinks from './ShopContentLinks'
 import { returnsWindowLabel } from '@/lib/trust-signals'
+import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
@@ -144,10 +145,10 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // Own-shop premium presentation (epic 07, Sprint 3) — content-page footer
   // links. Unauthored pages are simply omitted (never a dead link).
   const about = settings.about as { body?: string } | null | undefined
-  const faq = settings.faq as { items?: Array<{ question: string; answer: string }> } | null | undefined
+  const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
   const contentPages = [
-    about?.body?.trim() && { href: '/acerca', label: 'Acerca' },
-    (faq?.items?.length ?? 0) > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
+    authoredAboutBody(about) && { href: '/acerca', label: 'Acerca' },
+    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
     returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: 'Políticas' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
   const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false

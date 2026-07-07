@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { wellFormedFaqItems } from '@/lib/shop-content'
 import type { Shop } from '@/lib/types'
 
 /**
@@ -7,12 +8,14 @@ import type { Shop } from '@/lib/types'
  *  - `app/(shell)/s/[slug]/faq/page.tsx` — marketplace path.
  *  - `app/(shell)/faq/page.tsx` — channel path (subdomain/custom domain).
  *
- * Unauthored (no `faq.items`) → notFound() — never a dead nav link.
+ * Unauthored (no well-formed `faq.items`) → notFound() — never a dead nav
+ * link. `wellFormedFaqItems` filters out any row missing a question/answer
+ * (defense against a non-editor write path persisting a blank row).
  */
 export default function FaqBody({ shop, basePath }: { shop: Shop; basePath: string }) {
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
-  const faq = settings.faq as { items?: Array<{ question: string; answer: string }> } | null | undefined
-  const items = faq?.items ?? []
+  const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
+  const items = wellFormedFaqItems(faq?.items)
   if (items.length === 0) notFound()
 
   return (
