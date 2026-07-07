@@ -60,11 +60,14 @@ test.describe('artwork upload · input validation', () => {
     // body approaching that platform ceiling fails to even parse as
     // formData(), so the cap must leave real headroom, not just look
     // reasonable). This fast-fail runs BEFORE the listing/field lookup, so a
-    // nonexistent listingId still exercises it — no seeded data needed. 5MB
-    // clears our cap while staying safely under whatever raw body-parse
-    // ceiling the runtime itself imposes, so this exercises OUR size check,
-    // not the platform's parse failure.
-    const oversize = Buffer.alloc(5 * 1024 * 1024, 0)
+    // nonexistent listingId still exercises it — no seeded data needed.
+    // 4.2MB clears our 4MB cap while staying under the ~4.5MB platform
+    // ceiling — a PREVIOUS 5MB payload here was actually ABOVE that
+    // ceiling, so against the real deployed Vercel preview it hit the
+    // platform's own 413 before ever reaching our app-level 400 (only ever
+    // passed locally, where the dev server enforces no such limit) — caught
+    // live on custom-print-products S4's CI run, 2026-07-07.
+    const oversize = Buffer.alloc(Math.floor(4.2 * 1024 * 1024), 0)
     const res = await request.post('/api/artwork/upload', {
       multipart: {
         file: { name: 'big.png', mimeType: 'image/png', buffer: oversize },
