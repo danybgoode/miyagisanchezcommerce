@@ -1622,29 +1622,29 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
     const args = (params?.arguments as Record<string, unknown> | undefined) ?? {}
 
     switch (name) {
-      case 'search_listings':      return { content: (await handleSearchListings(args, baseUrl)).content }
+      case 'search_listings':      { const r = await handleSearchListings(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_neighborhood_pulse': return { content: (await handleGetNeighborhoodPulse(args, baseUrl)).content }
-      case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
-      case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
-      case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
-      case 'get_support_options':  return { content: (await handleGetSupportOptions(args, baseUrl)).content }
-      case 'create_support_checkout': return { content: (await handleCreateSupportCheckout(args, baseUrl)).content }
-      case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl, authHeader)).content }
-      case 'get_shop':             return { content: (await handleGetShop(args, baseUrl)).content }
-      case 'check_availability':   return { content: (await handleCheckAvailability(args)).content }
-      case 'book_appointment':     return { content: (await handleBookAppointment(args)).content }
-      case 'get_buyer_trust':      return { content: (await handleGetBuyerTrust(args)).content }
+      case 'get_listing':          { const r = await handleGetListing(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_checkout_options': { const r = await handleGetCheckoutOptions(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_checkout':      { const r = await handleCreateCheckout(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_support_options':  { const r = await handleGetSupportOptions(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_support_checkout': { const r = await handleCreateSupportCheckout(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'make_offer':           { const r = await handleMakeOffer(args, baseUrl, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_shop':             { const r = await handleGetShop(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'check_availability':   { const r = await handleCheckAvailability(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'book_appointment':     { const r = await handleBookAppointment(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_buyer_trust':      { const r = await handleGetBuyerTrust(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'about_miyagi':         return { content: handleAboutMiyagi(baseUrl).content }
       case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
-      case 'get_store_configuration':   return { content: (await handleGetStoreConfiguration(authHeader)).content }
-      case 'patch_store_configuration': return { content: (await handlePatchStoreConfiguration(args, authHeader)).content }
-      case 'list_offers':               return { content: (await handleListOffers(args, authHeader)).content }
-      case 'respond_to_offer':          return { content: (await handleRespondToOffer(args, baseUrl, authHeader)).content }
-      case 'create_listing':            return { content: (await handleCreateListing(args, authHeader)).content }
-      case 'list_my_listings':          return { content: (await handleListMyListings(authHeader)).content }
+      case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'patch_store_configuration': { const r = await handlePatchStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_offers':               { const r = await handleListOffers(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'respond_to_offer':          { const r = await handleRespondToOffer(args, baseUrl, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_listing':            { const r = await handleCreateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'update_listing':            return { content: (await handleUpdateListing(args, authHeader)).content }
-      case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
+      case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
