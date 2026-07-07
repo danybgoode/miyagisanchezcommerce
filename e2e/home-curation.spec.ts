@@ -44,6 +44,7 @@ function makeListing(p: Partial<Listing> & { id: string }): Listing {
     condition: p.condition ?? 'good',
     listing_type: 'product',
     category: p.category ?? 'otros',
+    collections: p.collections ?? [],
     state: null,
     municipio: null,
     location: p.location ?? 'CDMX',

@@ -28,6 +28,8 @@ export type Listing = {
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'parts' | null
   listing_type: 'product' | 'service' | 'rental' | 'digital' | 'subscription'
   category: string | null
+  /** Seller-defined collection handles this listing belongs to (own-shop-premium-presentation S2). */
+  collections: string[]
   state: string | null
   municipio: string | null
   location: string | null

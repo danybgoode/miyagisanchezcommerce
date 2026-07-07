@@ -15,6 +15,7 @@ function eventListing(attrs: Record<string, unknown>): Listing {
     condition: null,
     listing_type: 'service',
     category: 'servicios',
+    collections: [],
     state: 'Ciudad de México',
     municipio: 'Cuauhtémoc',
     location: 'Cuauhtémoc, Ciudad de México',

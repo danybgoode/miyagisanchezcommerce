@@ -35,7 +35,7 @@ If a feature touches products, orders, payments, fulfillment, or returns → **i
 | Concern | Where it lives |
 |---|---|
 | Products / listings / variants | Medusa Products API |
-| Shops / sellers / vendors | `@medusajs/marketplace` plugin |
+| Shops / sellers / vendors | Custom `seller` module (`apps/backend/src/modules/seller/`) + module links (NOT `@medusajs/marketplace` — no such plugin is installed) |
 | Cart + checkout | Medusa Cart → Order flow |
 | Orders, order lifecycle | Medusa Orders API |
 | Payments (Stripe Connect, MercadoPago, SPEI) | Medusa payment providers in `apps/backend` |
