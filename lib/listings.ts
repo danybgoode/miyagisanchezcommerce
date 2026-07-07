@@ -223,6 +223,24 @@ export const getShopListings = unstable_cache(
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
+/**
+ * A shop's seller-defined collections (own-shop-premium-presentation S2),
+ * ordered by the seller's own sort_order. Public read — powers the shop's
+ * nav strip on every channel (marketplace/subdomain/custom domain).
+ */
+export const getShopCollections = unstable_cache(
+  async (sellerSlug: string): Promise<Array<{ id: string; handle: string; name: string; sort_order: number }>> => {
+    const res = await medusaFetch(`/store/sellers/${sellerSlug}/collections`, {
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.collections ?? []
+  },
+  ['shop-collections'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
 export async function getRecentListings(limit = 8): Promise<Listing[]> {
   const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
     next: { revalidate: CACHE.LISTING, tags: ['listings'] },

@@ -36,6 +36,15 @@ const SHOP_SLUG_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 const SHOP_SLUG_MIN = 3
 const SHOP_SLUG_MAX = 80
 
+// Collection short slugs (`/c/[collection]`, own-shop-premium-presentation S2):
+// the seller-namespace prefix is already stripped before this segment reaches
+// a URL (see lib/collection-derive.ts's shortCollectionSlug), so the shape
+// rule is the same charset as a shop slug but shorter — a collection name is
+// capped at 60 chars server-side (seller-collections.ts), well under 80.
+const COLLECTION_SLUG_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+const COLLECTION_SLUG_MIN = 1
+const COLLECTION_SLUG_MAX = 60
+
 /** True when `id` is shaped like a real Medusa product id (`/l/[id]`). */
 export function isLikelyListingId(id: string): boolean {
   return LISTING_ID_RE.test(id)
@@ -44,4 +53,23 @@ export function isLikelyListingId(id: string): boolean {
 /** True when `slug` is shaped like a real (or retired) seller slug (`/s/[slug]`). */
 export function isLikelyShopSlug(slug: string): boolean {
   return slug.length >= SHOP_SLUG_MIN && slug.length <= SHOP_SLUG_MAX && SHOP_SLUG_RE.test(slug)
+}
+
+/** True when `slug` is shaped like a real collection short slug (`/c/[collection]`). */
+export function isLikelyCollectionSlug(slug: string): boolean {
+  return slug.length >= COLLECTION_SLUG_MIN && slug.length <= COLLECTION_SLUG_MAX && COLLECTION_SLUG_RE.test(slug)
+}
+
+/**
+ * Boundary-isolation deny-list — a subdomain/custom-domain channel serves
+ * ONLY its own shop, so these paths (which would expose the platform slug or
+ * browse across shops) get redirected home by `middleware.ts` in BOTH the
+ * subdomain and custom-domain branches. Extracted as one pure predicate so
+ * both call sites AND this rule's regression spec
+ * (`e2e/collection-route-passthrough.spec.ts`) share a single source of
+ * truth — a future edit can't silently start blocking `/c/[collection]`
+ * (own-shop-premium-presentation S2) without the shared function changing.
+ */
+export function isBoundaryDeniedPath(path: string): boolean {
+  return path === '/s' || path.startsWith('/s/') || path === '/l' || path === '/l/'
 }

@@ -1,7 +1,7 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { getShop, getShopListings, formatPrice } from '@/lib/listings'
+import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { getSlugRedirect } from '@/lib/slug-redirect'
@@ -10,6 +10,7 @@ import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
+import ShopCollectionNav from './ShopCollectionNav'
 import { readableTextOn } from '@/lib/platform-theme'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
@@ -94,13 +95,22 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // SEO continuity: if this shop has a LIVE custom domain and we're being viewed
   // on the marketplace host (not already on that domain), 308-redirect legacy
   // /s/[slug] traffic to the tenant's own home so links + ranking move with them.
-  const onChannel = (await headers()).get('x-miyagi-channel') === 'custom'
+  const reqHeaders = await headers()
+  const onChannel = reqHeaders.get('x-miyagi-channel') === 'custom'
   if (!onChannel) {
     const domain = await getActiveCustomDomain(shop.slug)
     if (domain) permanentRedirect(`https://${domain}/`)
   }
+  // Collection nav-strip hrefs: rooted (`''`) on ANY channel (subdomain or
+  // custom domain — both already serve `/c/...` at the domain root), the
+  // full `/s/[slug]/c/...` prefix only on the marketplace host.
+  const channelValue = reqHeaders.get('x-miyagi-channel')
+  const navBasePath = (channelValue === 'custom' || channelValue === 'subdomain') ? '' : `/s/${shop.slug}`
 
-  const listings = await getShopListings(shop.slug)
+  const [listings, collections] = await Promise.all([
+    getShopListings(shop.slug),
+    getShopCollections(shop.slug),
+  ])
 
   // Extract theme from metadata
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
@@ -282,6 +292,17 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
         sellerHasStripe={sellerHasStripe}
         mpEnabled={mpEnabled}
         hasClabe={hasClabe}
+      />
+
+      {/* ── Collection nav strip (own-shop premium presentation, Sprint 2) ───── */}
+      <ShopCollectionNav
+        listings={listings}
+        collections={collections}
+        basePath={navBasePath}
+        sellerSlug={shop.slug}
+        accent={accent}
+        activeTextColor={accentTextColor}
+        activeShortSlug={null}
       />
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
