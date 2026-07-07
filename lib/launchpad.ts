@@ -27,13 +27,17 @@ import {
   safeCompare,
   makeCode,
 } from '@/lib/sweepstakes'
-import { uploadDigitalToR2, isR2DigitalConfigured } from '@/lib/r2'
-import { sendLaunchpadVerificationCode } from '@/lib/email'
+import { uploadDigitalToR2, isR2DigitalConfigured, getR2DigitalSignedUrl } from '@/lib/r2'
+import { sendLaunchpadVerificationCode, sendLaunchpadStatusEmail, sendLaunchpadPublishedEmail } from '@/lib/email'
+import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { sniffManuscript } from '@/lib/manuscript-sniff'
 import {
   MAX_MANUSCRIPT_SIZE_MB,
+  canTransition,
+  transitionRequiresNote,
   type LaunchpadSubmission,
   type ManuscriptFormat,
+  type SubmissionStatus,
 } from '@/lib/launchpad-types'
 
 export { isValidEmail } from '@/lib/sweepstakes'
@@ -78,6 +82,19 @@ export async function getLaunchpadShopBySlug(slug: string): Promise<LaunchpadSho
     .from('marketplace_shops')
     .select('id, slug, name, metadata')
     .eq('slug', slug)
+    .maybeSingle()
+  if (error || !data) return null
+  return parseShopRow(data as ShopRow)
+}
+
+/** Resolve the authenticated seller's own shop (for the review-queue routes). */
+export async function getLaunchpadShopForClerk(clerkUserId: string): Promise<LaunchpadShop | null> {
+  const { data, error } = await db
+    .from('marketplace_shops')
+    .select('id, slug, name, metadata')
+    .eq('clerk_user_id', clerkUserId)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   if (error || !data) return null
   return parseShopRow(data as ShopRow)
@@ -241,4 +258,205 @@ export async function createSubmission(input: CreateSubmissionInput): Promise<La
 
   if (error || !data) throw new Error(error?.message ?? 'submission failed')
   return data as LaunchpadSubmission
+}
+
+// ── Review queue (Story 1.2) — shop-scoped reads + transitions ───────────────
+
+/** Every submission for a shop, newest first. */
+export async function listSubmissionsForShop(shopId: string): Promise<LaunchpadSubmission[]> {
+  const { data } = await db
+    .from('launchpad_submissions')
+    .select('*')
+    .eq('shop_id', shopId)
+    .order('created_at', { ascending: false })
+  return (data ?? []) as LaunchpadSubmission[]
+}
+
+/** One submission, scoped to the shop (returns null if it belongs to another shop). */
+export async function getSubmissionForShop(shopId: string, id: string): Promise<LaunchpadSubmission | null> {
+  const { data } = await db
+    .from('launchpad_submissions')
+    .select('*')
+    .eq('id', id)
+    .eq('shop_id', shopId)
+    .maybeSingle()
+  return (data as LaunchpadSubmission | null) ?? null
+}
+
+export type TransitionResult =
+  | { ok: true; submission: LaunchpadSubmission }
+  | { ok: false; status: number; error: string }
+
+/**
+ * Move a submission to a new curation state (Story 1.2). Enforces the pure state
+ * machine + the note requirement, asserts shop ownership, persists, then emails
+ * the writer on the transition (es-MX). `reject`/`changes_requested` require a note.
+ */
+export async function transitionSubmission(input: {
+  shop: LaunchpadShop
+  id: string
+  to: SubmissionStatus
+  note?: string | null
+}): Promise<TransitionResult> {
+  const current = await getSubmissionForShop(input.shop.id, input.id)
+  if (!current) return { ok: false, status: 404, error: 'not_found' }
+
+  if (!canTransition(current.status, input.to)) {
+    return { ok: false, status: 422, error: 'invalid_transition' }
+  }
+  const note = input.note?.trim() || null
+  if (transitionRequiresNote(input.to) && !note) {
+    return { ok: false, status: 422, error: 'note_required' }
+  }
+
+  const { data, error } = await db
+    .from('launchpad_submissions')
+    .update({ status: input.to, review_note: note, updated_at: new Date().toISOString() })
+    .eq('id', input.id)
+    .eq('shop_id', input.shop.id)
+    .select('*')
+    .single()
+  if (error || !data) return { ok: false, status: 500, error: 'update_failed' }
+
+  const submission = data as LaunchpadSubmission
+  // Email the writer on the transition (best-effort — never fail the write on it).
+  try {
+    await sendLaunchpadStatusEmail({
+      to: submission.author_email,
+      authorName: submission.author_name,
+      title: submission.title,
+      shopName: input.shop.name,
+      status: input.to,
+      note,
+    })
+  } catch (e) {
+    console.error('[launchpad] status email failed (non-fatal):', e)
+  }
+
+  return { ok: true, submission }
+}
+
+/**
+ * A short-lived (5 min) signed URL to the manuscript file — shop-only download.
+ * Handles both the R2 private bucket and the Supabase private-bucket fallback.
+ */
+export async function getManuscriptSignedUrl(submission: LaunchpadSubmission): Promise<string | null> {
+  const key = submission.manuscript_key
+  const fileName = submission.manuscript_name ?? `manuscrito.${submission.manuscript_format}`
+  if (isR2DigitalConfigured()) {
+    try {
+      return await getR2DigitalSignedUrl(key, 300, fileName)
+    } catch (e) {
+      console.error('[launchpad] R2 signed URL failed:', e)
+    }
+  }
+  const { data } = await db.storage.from('digital-files').createSignedUrl(key, 300, { download: fileName })
+  return data?.signedUrl ?? null
+}
+
+// ── Publish (Story 1.3) — mint an approved submission as a draft digital product ─
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
+
+const FORMAT_MIME: Record<ManuscriptFormat, string> = {
+  pdf: 'application/pdf',
+  epub: 'application/epub+zip',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+export type PublishResult =
+  | { ok: true; productId: string; manageUrl: string }
+  | { ok: false; status: number; error: string }
+
+/**
+ * Mint an approved submission as a **draft** digital product under the shop,
+ * reusing the seller-product internal write path. The manuscript already lives
+ * in the private digital bucket (Story 1.1), so we point `metadata.digital_file`
+ * at its key — the existing digital-delivery webhooks then serve it to buyers
+ * unchanged. Synopsis → description, genre → category. Draft: the seller sets
+ * price + cover and activates from the listings dashboard. Idempotent: a second
+ * call returns the already-minted product.
+ */
+export async function publishSubmission(input: { shop: LaunchpadShop; id: string }): Promise<PublishResult> {
+  const submission = await getSubmissionForShop(input.shop.id, input.id)
+  if (!submission) return { ok: false, status: 404, error: 'not_found' }
+  if (submission.status !== 'approved') return { ok: false, status: 422, error: 'not_approved' }
+
+  // Already minted → idempotent no-op (never create a duplicate product).
+  if (submission.published_product_id) {
+    return { ok: true, productId: submission.published_product_id, manageUrl: '/shop/manage#anuncios' }
+  }
+  if (!input.shop.slug) return { ok: false, status: 422, error: 'shop_slug_missing' }
+
+  const fmt = submission.manuscript_format
+  const result = await createSellerProductViaInternal(input.shop.slug, {
+    title: submission.title,
+    description: submission.synopsis ?? null,
+    listing_type: 'digital',
+    status: 'draft',
+    ...(submission.genre ? { category: submission.genre } : {}),
+    metadata: {
+      digital_file: {
+        path: submission.manuscript_key,
+        name: submission.manuscript_name ?? `${submission.title}.${fmt}`,
+        size: submission.manuscript_size ?? 0,
+        mime: FORMAT_MIME[fmt],
+        label: fmt.toUpperCase(),
+      },
+      // Provenance — links the listing back to the submission so the activation
+      // seam can notify the writer with the live URL exactly once.
+      launchpad_submission_id: submission.id,
+    },
+  })
+
+  if (!result.ok || !result.product_id) {
+    return { ok: false, status: result.status || 500, error: result.error ?? 'mint_failed' }
+  }
+
+  await db
+    .from('launchpad_submissions')
+    .update({ published_product_id: result.product_id, updated_at: new Date().toISOString() })
+    .eq('id', submission.id)
+    .eq('shop_id', input.shop.id)
+
+  return { ok: true, productId: result.product_id, manageUrl: '/shop/manage#anuncios' }
+}
+
+/**
+ * Called from the listing-activation seam: when a launchpad-minted product is
+ * first ACTIVATED (draft → published), email the writer the live URL — once.
+ * Best-effort + idempotent (guarded by `published_notified_at`). No-op for any
+ * product that isn't a launchpad publication.
+ */
+export async function notifyWriterOnPublish(productId: string): Promise<void> {
+  const { data } = await db
+    .from('launchpad_submissions')
+    .select('*')
+    .eq('published_product_id', productId)
+    .is('published_notified_at', null)
+    .maybeSingle()
+  if (!data) return
+
+  const submission = data as LaunchpadSubmission
+  const { name: shopName } = await shopNameForId(submission.shop_id)
+  try {
+    await sendLaunchpadPublishedEmail({
+      to: submission.author_email,
+      authorName: submission.author_name,
+      title: submission.title,
+      shopName,
+      url: `${SITE_URL}/l/${productId}`,
+    })
+    await db
+      .from('launchpad_submissions')
+      .update({ published_notified_at: new Date().toISOString() })
+      .eq('id', submission.id)
+  } catch (e) {
+    console.error('[launchpad] published email failed (non-fatal):', e)
+  }
+}
+
+async function shopNameForId(shopId: string): Promise<{ name: string }> {
+  const { data } = await db.from('marketplace_shops').select('name, slug').eq('id', shopId).maybeSingle()
+  return { name: (data?.name ?? data?.slug ?? 'La librería') as string }
 }

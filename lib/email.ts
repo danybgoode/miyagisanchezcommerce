@@ -371,6 +371,71 @@ export async function sendLaunchpadVerificationCode(ctx: {
   await send(ctx.to, `Tu código para enviar tu manuscrito — ${ctx.shopName}`, body)
 }
 
+/** Writer: a curation-state change on their submission (Story 1.2). es-MX. */
+export async function sendLaunchpadStatusEmail(ctx: {
+  to: string
+  authorName: string
+  title: string
+  shopName: string
+  status: 'submitted' | 'in_review' | 'approved' | 'rejected' | 'changes_requested'
+  note?: string | null
+}): Promise<void> {
+  const work = esc(ctx.title)
+  const shop = esc(ctx.shopName)
+
+  const COPY: Record<typeof ctx.status, { subject: string; title: string; intro: string } | null> = {
+    submitted: null, // no email on re-entry to submitted (the writer just acted)
+    in_review: {
+      subject: `📖 ${ctx.shopName} está leyendo tu manuscrito`,
+      title: 'Tu manuscrito está en revisión',
+      intro: `${shop} recibió «${work}» y ya lo está leyendo. Te avisaremos en cuanto haya novedades.`,
+    },
+    approved: {
+      subject: `✅ ¡Aceptaron tu manuscrito! — ${ctx.title}`,
+      title: '¡Tu manuscrito fue aceptado!',
+      intro: `${shop} aceptó «${work}». Muy pronto lo publicarán como libro digital y te enviaremos el enlace.`,
+    },
+    changes_requested: {
+      subject: `✏️ Tu manuscrito necesita ajustes — ${ctx.title}`,
+      title: 'La librería te pide algunos ajustes',
+      intro: `${shop} revisó «${work}» y hay algo que ajustar antes de continuar. Cuando lo tengas listo, vuelve a enviarlo desde la página de convocatoria.`,
+    },
+    rejected: {
+      subject: `Sobre tu manuscrito — ${ctx.title}`,
+      title: 'Gracias por enviar tu obra',
+      intro: `${shop} revisó «${work}» y en esta ocasión no seguirá adelante con su publicación. Agradecemos que la hayas compartido y te deseamos mucho éxito.`,
+    },
+  }
+
+  const copy = COPY[ctx.status]
+  if (!copy) return
+
+  const body = [
+    h1(copy.title),
+    p(`Hola ${esc(ctx.authorName)},`),
+    p(copy.intro),
+    ...(ctx.note ? [quote(ctx.note)] : []),
+  ].join('')
+  await send(ctx.to, copy.subject, body)
+}
+
+/** Writer: their work is now live for sale (Story 1.3), with the public URL. */
+export async function sendLaunchpadPublishedEmail(ctx: {
+  to: string
+  authorName: string
+  title: string
+  shopName: string
+  url: string
+}): Promise<void> {
+  const body = [
+    h1('¡Tu obra ya está publicada! 🎉'),
+    p(`Hola ${esc(ctx.authorName)},`),
+    p(`${esc(ctx.shopName)} publicó «${esc(ctx.title)}». Ya está disponible para lectores y se entrega automáticamente al comprarla.`),
+    cta('Ver tu obra publicada', ctx.url),
+  ].join('')
+  await send(ctx.to, `📚 Ya está publicado: ${ctx.title}`, body)
+}
+
 // ── Events: email verification + RSVP confirmation ──────────────────────────
 function formatEventEmailDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleString(locale === 'en' ? 'en-US' : 'es-MX', {

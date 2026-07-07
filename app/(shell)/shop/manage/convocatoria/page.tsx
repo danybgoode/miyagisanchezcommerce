@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import ConvocatoriaSettingsClient from './ConvocatoriaSettingsClient'
+import SubmissionsQueue from './SubmissionsQueue'
 
 export const metadata = { title: 'Convocatoria — Miyagi Sánchez' }
 
@@ -43,6 +44,10 @@ export default async function ConvocatoriaManagePage() {
         }}
         publicUrl={`/s/${shop.slug}/convocatoria`}
       />
+
+      <div className="mt-8">
+        <SubmissionsQueue />
+      </div>
     </div>
   )
 }
