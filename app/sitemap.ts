@@ -1,7 +1,9 @@
 import type { MetadataRoute } from 'next'
 import { headers } from 'next/headers'
-import { getShopListings, getShopCollections } from '@/lib/listings'
+import { getShop, getShopListings, getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug } from '@/lib/collection-derive'
+import { returnsWindowLabel } from '@/lib/trust-signals'
+import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 
 /**
  * Host-aware sitemap.
@@ -24,14 +26,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Never 500 the sitemap on a backend hiccup — fall back to just the home URL.
     let listings: Awaited<ReturnType<typeof getShopListings>> = []
     let collections: Awaited<ReturnType<typeof getShopCollections>> = []
+    let contentPaths: string[] = []
     try {
-      [listings, collections] = await Promise.all([
+      const [l, c, shop] = await Promise.all([
         getShopListings(shopSlug),
         getShopCollections(shopSlug),
+        getShop(shopSlug),
       ])
+      listings = l
+      collections = c
+      // Own-shop premium presentation (epic 07, Sprint 3) — only authored
+      // content pages join the sitemap, same gate the nav links use.
+      const settings = ((shop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+      const about = settings.about as { body?: string } | null | undefined
+      const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
+      const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
+      contentPaths = [
+        authoredAboutBody(about) ? '/acerca' : null,
+        wellFormedFaqItems(faq?.items).length > 0 ? '/faq' : null,
+        returnsWindowLabel(returnsPolicy?.window) ? '/politicas' : null,
+      ].filter((p): p is string => !!p)
     } catch {
       listings = []
       collections = []
+      contentPaths = []
     }
     return [
       { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
@@ -44,6 +62,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: `${base}/c/${shortCollectionSlug(c.handle, shopSlug)}`,
         changeFrequency: 'weekly' as const,
         priority: 0.7,
+      })),
+      ...contentPaths.map((p) => ({
+        url: `${base}${p}`,
+        changeFrequency: 'monthly' as const,
+        priority: 0.6,
       })),
     ]
   }

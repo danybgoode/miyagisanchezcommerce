@@ -11,6 +11,9 @@ import ClosetListingCard from './ClosetListingCard'
 import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
 import ShopCollectionNav from './ShopCollectionNav'
+import ShopContentLinks from './ShopContentLinks'
+import { returnsWindowLabel } from '@/lib/trust-signals'
+import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
@@ -139,6 +142,15 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const announcement = settings.announcement as AnnouncementSettings | null | undefined
   const hero = settings.hero as HeroSettings | null | undefined
   const themePreset = settings.theme_preset as string | null | undefined
+  // Own-shop premium presentation (epic 07, Sprint 3) — content-page footer
+  // links. Unauthored pages are simply omitted (never a dead link).
+  const about = settings.about as { body?: string } | null | undefined
+  const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
+  const contentPages = [
+    authoredAboutBody(about) && { href: '/acerca', label: 'Acerca' },
+    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
+    returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: 'Políticas' },
+  ].filter(Boolean) as Array<{ href: string; label: string }>
   const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
   const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
   const checkoutSett = (settings.checkout ?? {}) as { bank_transfer?: { clabe?: string | null } }
@@ -351,6 +363,9 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           </>
         )}
       </div>
+
+      {/* ── Content-page links (own-shop premium presentation, Sprint 3) ──────── */}
+      <ShopContentLinks basePath={navBasePath} pages={contentPages} />
     </div>
   )
 
