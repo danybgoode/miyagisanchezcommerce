@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { STAMPS, type StampKey } from '@/lib/stamps'
+import { findOrCreateConversation } from '@/lib/conversations'
 
 function isUuid(value: string) {
   return /^[0-9a-f-]{36}$/i.test(value)
@@ -50,37 +51,30 @@ export async function POST(req: NextRequest) {
   if (shop.clerk_user_id === user.id) return NextResponse.json({ error: 'No puedes enviarte mensajes en tu propio anuncio.' }, { status: 422 })
 
   const stamp = STAMPS[body.stampKey ?? 'buyer_price_question'] ?? STAMPS.buyer_price_question
-  const now = new Date().toISOString()
 
-  const { data: conv, error: convError } = await db
-    .from('marketplace_conversations')
-    .upsert({
-      listing_id: listing.id,
-      shop_id: listing.shop_id,
-      buyer_clerk_user_id: user.id,
-      seller_clerk_user_id: shop.clerk_user_id,
-      seller_unread: 1,
-      last_event_at: now,
-      updated_at: now,
-    }, { onConflict: 'buyer_clerk_user_id,listing_id' })
-    .select('id')
-    .single()
-
-  if (convError || !conv) {
-    console.error('[conversations/start] upsert failed:', convError)
+  const conversationId = await findOrCreateConversation({
+    listingId: listing.id,
+    shopId: listing.shop_id,
+    buyerClerkUserId: user.id,
+    sellerClerkUserId: shop.clerk_user_id,
+  })
+  if (!conversationId) {
     return NextResponse.json({ error: 'No se pudo abrir la conversación.' }, { status: 500 })
   }
 
-  await db.from('marketplace_conversation_events').insert({
-    conversation_id: conv.id,
-    event_type: 'stamp_sent',
-    actor: 'buyer',
-    metadata: {
-      stamp_key: body.stampKey ?? 'buyer_price_question',
-      text: stamp.text,
-      listing_title: listing.title,
-    },
-  })
+  await Promise.all([
+    db.from('marketplace_conversation_events').insert({
+      conversation_id: conversationId,
+      event_type: 'stamp_sent',
+      actor: 'buyer',
+      metadata: {
+        stamp_key: body.stampKey ?? 'buyer_price_question',
+        text: stamp.text,
+        listing_title: listing.title,
+      },
+    }),
+    db.from('marketplace_conversations').update({ seller_unread: 1 }).eq('id', conversationId),
+  ])
 
-  return NextResponse.json({ conversationId: conv.id }, { status: 201 })
+  return NextResponse.json({ conversationId }, { status: 201 })
 }
