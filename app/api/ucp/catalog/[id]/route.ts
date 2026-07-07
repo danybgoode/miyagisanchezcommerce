@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { getPriceGrid } from '@/lib/listings'
 import type { Listing } from '@/lib/types'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -57,6 +58,7 @@ export async function GET(
 
   const data = await res.json()
   const listing = data.listing as Listing
+  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
 
-  return NextResponse.json(toUcpListing(listing, baseUrl), { headers: CORS })
+  return NextResponse.json(toUcpListing(listing, baseUrl, priceGrid), { headers: CORS })
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { isManualPaymentMethod, SHIP_BLOCKED_UI_NOTE, refundIssuedBanner } from '@/lib/manual-payment-state'
 import {
   deriveRefundState, refundBadge, refundStateDetail, whoActsNextRefund, canSellerMarkTransferred,
@@ -55,7 +56,7 @@ interface OrderDetailProps {
     buyer_email: string | null
     created_at: string
     updated_at: string
-    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string; type?: string }> }> | null
     event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment + durable manual-payment lifecycle (curated top-level fields).
@@ -70,6 +71,13 @@ interface OrderDetailProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Lightweight print-proof sign-off (custom-print-products S4 · 4.1).
+    proof_sent?: boolean | null
+    proof_image_url?: string | null
+    proof_size?: string | null
+    proof_quantity?: number | null
+    proof_price_cents?: number | null
+    proof_approved?: boolean | null
     // Which marketplace sold this (ml-orders-native S1 · US-3).
     source?: string | null
     ml_order_id?: string | null
@@ -565,6 +573,13 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   )
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [proofSent, setProofSent] = useState(!!order.proof_sent)
+  const [proofImageUrl, setProofImageUrl] = useState(order.proof_image_url ?? null)
+  const [proofSize, setProofSize] = useState(order.proof_size ?? null)
+  const [proofQuantity, setProofQuantity] = useState(order.proof_quantity ?? null)
+  const [proofPriceCents, setProofPriceCents] = useState(order.proof_price_cents ?? null)
+  const [proofApproved, setProofApproved] = useState(!!order.proof_approved)
+  const [sendingProof, setSendingProof] = useState(false)
   const [escrowCaptured, setEscrowCaptured] = useState(escrowCapturedInit)
   const [paymentReceived, setPaymentReceived] = useState(paymentReceivedInit)
   const [confirmingPayment, setConfirmingPayment] = useState(false)
@@ -848,6 +863,48 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  // Print-proof sign-off (custom-print-products S4 · 4.1). The restated
+  // size/quantity/price in the response comes from the ORDER itself
+  // (server-derived) — this handler never sends or trusts those numbers.
+  async function handleSendProof(file: File) {
+    setSendingProof(true)
+    try {
+      const uploadBody = new FormData()
+      uploadBody.append('file', file)
+      const uploadRes = await fetch('/api/sell/upload', { method: 'POST', body: uploadBody })
+      const uploadData = await uploadRes.json() as { url?: string; error?: string }
+      if (!uploadRes.ok || !uploadData.url) {
+        showToast(uploadData.error ?? 'No se pudo subir la foto.', 'error')
+        return
+      }
+
+      const res = await fetch(`/api/orders/${order.id}/proof`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: uploadData.url }),
+      })
+      const data = await res.json() as {
+        ok?: boolean; warning?: string; error?: string
+        size?: string; quantity?: number; priceCents?: number
+      }
+      if (!res.ok || !data.ok) {
+        showToast(data.error ?? 'No se pudo enviar la prueba.', 'error')
+        return
+      }
+      setProofSent(true)
+      setProofImageUrl(uploadData.url)
+      setProofSize(data.size ?? null)
+      setProofQuantity(data.quantity ?? null)
+      setProofPriceCents(data.priceCents ?? null)
+      setProofApproved(false)
+      showToast(data.warning ?? 'Prueba enviada al comprador.', data.warning ? 'error' : 'success')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setSendingProof(false)
+    }
+  }
+
   async function handleReleaseEscrow() {
     setReleasingEscrow(true)
     try {
@@ -955,19 +1012,69 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   {(order.personalization ?? []).length > 1 && block.title && (
                     <p className="text-xs font-medium text-[var(--color-text)] mb-1">{block.title}</p>
                   )}
-                  <dl className="space-y-1">
+                  <div className="space-y-1">
                     {block.fields.map((f, fi) => (
-                      <div key={f.id ?? fi} className="flex gap-2 text-sm">
-                        <dt className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</dt>
-                        <dd className="font-medium break-words">{f.value}</dd>
+                      <div key={f.id ?? fi} className="text-sm">
+                        <PersonalizationEcho
+                          field={f}
+                          labelStyle={{ color: 'var(--color-muted)' }}
+                          valueStyle={{ fontWeight: 500 }}
+                        />
                       </div>
                     ))}
-                  </dl>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+        {/* Print-proof sign-off (custom-print-products S4 · 4.1). Advisory
+            only — never gates shipping/status. The restated size/quantity/
+            price always comes from the order itself, never typed here. */}
+        <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+          <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <span>🖨️</span> Prueba de impresión
+          </h3>
+          {proofSent ? (
+            <div className="text-sm">
+              {proofImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={proofImageUrl} alt="Prueba de impresión" className="w-full max-w-[200px] rounded-lg mb-2" />
+              )}
+              <p className="text-[var(--color-muted)]">
+                {proofSize && <>Tamaño: {proofSize} · </>}
+                {proofQuantity != null && <>Cantidad: {proofQuantity} · </>}
+                {proofPriceCents != null && <>Precio: {formatPrice(proofPriceCents, order.currency)}</>}
+              </p>
+              <p className="mt-1 font-medium">
+                {proofApproved ? '✓ El comprador aprobó la prueba.' : 'Esperando aprobación del comprador.'}
+              </p>
+              {!proofApproved && (
+                <label className="inline-block mt-2 text-xs font-medium text-[var(--color-accent)] cursor-pointer">
+                  Reenviar prueba
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    disabled={sendingProof}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleSendProof(f); e.target.value = '' }}
+                  />
+                </label>
+              )}
+            </div>
+          ) : (
+            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium cursor-pointer disabled:opacity-60">
+              {sendingProof ? 'Enviando…' : 'Enviar prueba'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                disabled={sendingProof}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleSendProof(f); e.target.value = '' }}
+              />
+            </label>
+          )}
+        </div>
         {(order.event_tickets ?? []).length > 0 && (
           <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
             <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Boletos de entrada</h3>

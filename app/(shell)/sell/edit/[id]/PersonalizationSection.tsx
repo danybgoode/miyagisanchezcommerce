@@ -3,12 +3,19 @@
 import {
   type CustomFieldDef,
   type CustomFieldType,
+  type ArtworkFormat,
+  ARTWORK_FORMATS,
   CUSTOM_FIELD_TYPES,
   FIELD_TYPE_LABELS,
+  MAX_ARTWORK_SIZE_MB,
   MAX_CUSTOM_FIELDS,
   emptyFieldDef,
   typeCap,
 } from '@/lib/personalization'
+
+const ARTWORK_FORMAT_LABELS: Record<ArtworkFormat, string> = {
+  png: 'PNG', jpg: 'JPG', pdf: 'PDF', ai: 'AI', svg: 'SVG',
+}
 
 /**
  * Seller-facing editor for a listing's custom personalization fields.
@@ -45,7 +52,22 @@ export default function PersonalizationSection({
     if (type === 'select') patch.options = fields.find(f => f.id === id)?.options ?? []
     else patch.options = undefined
     patch.max_length = undefined
+    if (type === 'file') {
+      patch.allowed_formats = [...ARTWORK_FORMATS]
+      patch.max_size_mb = MAX_ARTWORK_SIZE_MB
+    } else {
+      patch.allowed_formats = undefined
+      patch.max_size_mb = undefined
+    }
     update(id, patch)
+  }
+  function toggleFormat(id: string, format: ArtworkFormat, current: ArtworkFormat[]) {
+    const has = current.includes(format)
+    const next = has ? current.filter(f => f !== format) : [...current, format]
+    // Never allow an empty allowlist from the UI — that would make a required
+    // file field impossible to satisfy (the sanitizer would default it back to
+    // "all formats" server-side anyway, but keep the editor honest about it).
+    update(id, { allowed_formats: next.length > 0 ? next : current })
   }
 
   return (
@@ -121,7 +143,7 @@ export default function PersonalizationSection({
             </div>
 
             {/* Placeholder (text types) */}
-            {field.type !== 'select' && (
+            {field.type !== 'select' && field.type !== 'file' && (
               <input
                 type="text"
                 value={field.placeholder ?? ''}
@@ -140,9 +162,44 @@ export default function PersonalizationSection({
               />
             )}
 
+            {/* Format allowlist + max size (file) */}
+            {field.type === 'file' && (
+              <div className="mb-2">
+                <p className="text-xs text-[var(--color-muted)] mb-1">Formatos permitidos</p>
+                <div className="flex flex-wrap gap-3 mb-2">
+                  {ARTWORK_FORMATS.map(fmt => (
+                    <label key={fmt} className="flex items-center gap-1.5 text-xs text-[var(--color-text)] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(field.allowed_formats ?? ARTWORK_FORMATS as unknown as ArtworkFormat[]).includes(fmt)}
+                        onChange={() => toggleFormat(field.id, fmt, field.allowed_formats ?? [...ARTWORK_FORMATS])}
+                        className="accent-[var(--color-accent)]"
+                      />
+                      {ARTWORK_FORMAT_LABELS[fmt]}
+                    </label>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                  Tamaño máx. (MB)
+                  <input
+                    type="number"
+                    min={1}
+                    max={MAX_ARTWORK_SIZE_MB}
+                    inputMode="numeric"
+                    value={field.max_size_mb ?? MAX_ARTWORK_SIZE_MB}
+                    onChange={e => {
+                      const n = parseInt(e.target.value, 10)
+                      update(field.id, { max_size_mb: Number.isFinite(n) && n > 0 ? Math.min(n, MAX_ARTWORK_SIZE_MB) : MAX_ARTWORK_SIZE_MB })
+                    }}
+                    className="w-20 border border-[var(--color-border)] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                  />
+                </label>
+              </div>
+            )}
+
             {/* Max length (text types) + required */}
             <div className="flex items-center justify-between gap-3 mt-1">
-              {field.type !== 'select' ? (
+              {field.type !== 'select' && field.type !== 'file' ? (
                 <label className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
                   Máx. caracteres
                   <input
