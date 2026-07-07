@@ -112,9 +112,18 @@ const promoterApplyLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:promoter_apply' })
 }
 
+// Artwork upload: max 20 per IP per 10 min — a fully public, unauthenticated
+// guest-upload surface (custom-print-products S3), generous enough for a
+// buyer retrying a slow mobile upload without opening the door to abuse.
+const artworkUploadLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '10 m'), prefix: 'rl:artwork' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -135,6 +144,7 @@ export async function checkRateLimit(
     : key === 'telegram_webhook'? telegramWebhookLimiter
     : key === 'telegram_link'   ? telegramLinkLimiter
     : key === 'promoter_apply'  ? promoterApplyLimiter
+    : key === 'artwork_upload'  ? artworkUploadLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

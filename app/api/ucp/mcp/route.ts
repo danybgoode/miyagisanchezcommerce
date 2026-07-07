@@ -25,6 +25,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { getPriceGrid } from '@/lib/listings'
+import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines } from '@/lib/price-grid'
+import { ingestArtworkBytes } from '@/lib/artwork-ingest'
+import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
+import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { isShopClaimed } from '@/lib/claim'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
@@ -155,7 +160,7 @@ const TOOLS = [
   },
   {
     name: 'create_checkout',
-    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options.',
+    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options. For a configurator listing (get_listing shows a price_grid — multiple sizes/materials and/or quantity price tiers), pass variant_id + quantity so the price is resolved correctly, and artwork_url when get_listing says artwork is required — the server downloads and validates it into storage.',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -164,6 +169,9 @@ const TOOLS = [
         method:      { type: 'string', enum: ['mercadopago','stripe'], default: 'mercadopago', description: 'Payment method' },
         buyer_email: { type: 'string', description: 'Buyer email (optional, pre-fills checkout form)' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — uses negotiated price instead of list price' },
+        variant_id:  { type: 'string', description: 'Configurator variant id from get_listing.price_grid.variants[].id — required for a listing that has a price_grid' },
+        quantity:    { type: 'number', description: 'Units to buy, resolves the quantity price tier from price_grid. Only used with variant_id. Defaults to 1.' },
+        artwork_url: { type: 'string', description: 'Publicly reachable URL to the buyer\'s artwork file. The server downloads it, validates format/size against the listing\'s real requirement, and stores its own copy — only used with variant_id.' },
       },
     },
   },
@@ -480,7 +488,8 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
   }
 
-  const items = (data.listings ?? []).map((l: Listing) => toUcpListing(l, baseUrl))
+  const items = await Promise.all((data.listings ?? []).map(async (l: Listing) =>
+    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
   if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
 
   const summary = items.map(item => {
@@ -552,7 +561,31 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 
   if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
 
-  const item = toUcpListing(listing, baseUrl)
+  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const item = toUcpListing(listing, baseUrl, priceGrid)
+
+  // Configurator options/tiers + the file-upload contract (custom-print-products
+  // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
+  // JSON blob just to learn a listing needs a variant_id + artwork_url.
+  const configuratorLines: string[] = []
+  if (item.price_grid && item.price_grid.variants.length > 0) {
+    configuratorLines.push('', '**Opciones y precios por cantidad:**')
+    for (const v of item.price_grid.variants) {
+      const optionsLabel = Object.entries(v.options).map(([k, val]) => `${k}: ${val}`).join(', ')
+      const tiers = v.tiers.map(t =>
+        `${t.min_quantity}${t.max_quantity ? `–${t.max_quantity}` : '+'} u. → $${(t.amount / 100).toFixed(2)} c/u`,
+      ).join(' · ')
+      configuratorLines.push(`- **${optionsLabel}** (variant_id: \`${v.id}\`): ${tiers}`)
+    }
+  }
+  const fileField = item.personalization_fields.find(f => f.type === 'file')
+  if (fileField) {
+    configuratorLines.push(
+      '',
+      `**Arte requerido:** ${fileField.required ? 'obligatorio' : 'opcional'} — formatos ${(fileField.allowed_formats ?? []).join(', ').toUpperCase() || 'estándar'}, máx ${fileField.max_size_mb ?? '?'} MB. Pásalo como \`artwork_url\` en create_checkout (el servidor lo descarga y valida).`,
+    )
+  }
+
   const details = [
     `# ${item.title}`,
     `**Precio:** ${item.price?.formatted ?? 'A consultar'}`,
@@ -567,6 +600,7 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
     `**Métodos:** ${[item.payment_methods.mercadopago && 'Mercado Pago', item.payment_methods.stripe && 'Stripe'].filter(Boolean).join(', ') || 'Ninguno configurado'}`,
     item.description ? `\n**Descripción:** ${item.description}` : '',
     `**URL:** ${item.url}`,
+    ...configuratorLines,
   ].filter(s => s !== '').join('\n')
 
   return { content: [{ type: 'text', text: details }, { type: 'text', text: JSON.stringify(item, null, 2) }] }
@@ -649,6 +683,14 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
 }
 
 async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: string) {
+  // Configurator path: a variant_id means this is a multi-variant/tiered
+  // listing, which MUST resolve its price through Medusa's own cart —
+  // the flat MP/Stripe preference below can't compute a tier price at all
+  // (custom-print-products S4 · 4.2).
+  if (args.variant_id) {
+    return handleCreateConfiguredCheckout(args)
+  }
+
   const method = String(args.method ?? 'mercadopago')
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
 
@@ -663,6 +705,92 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n**Abre este enlace para completar el pago:**\n${data.checkoutUrl}\n\nEl enlace es válido por 30 minutos.` }] }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+}
+
+/**
+ * Configurator checkout (custom-print-products S4 · 4.2) — agent parity for
+ * "pide 100 stickers de 7.5cm con este arte". Goes through the SAME Medusa
+ * cart flow the browser buy box uses (`startCheckout`), never the flat MP/
+ * Stripe preference, so the charged price always comes from Medusa's own
+ * tier resolution. Artwork is fetched server-side and validated through the
+ * IDENTICAL `ingestArtworkBytes` the human upload route uses — never a
+ * second, looser copy of that check.
+ */
+async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
+  const listingId = String(args.listing_id ?? '')
+  const variantId = String(args.variant_id ?? '')
+  const quantity = Math.max(1, Math.floor(Number(args.quantity ?? 1)) || 1)
+  const method = String(args.method ?? 'mercadopago')
+  const provider: CheckoutProvider = method === 'stripe' ? 'stripe' : 'mercadopago'
+  const buyerEmail = args.buyer_email ? String(args.buyer_email) : undefined
+
+  const priceGrid = await getPriceGrid(listingId)
+  if (!priceGrid) {
+    return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
+  }
+  const variant = priceGrid.variants.find(v => v.id === variantId)
+  if (!variant) {
+    return { isError: true, content: [{ type: 'text', text: `variant_id "${variantId}" was not found on this listing's price_grid — call get_listing again for the current variant ids.` }] }
+  }
+  const tier = resolveTierForQuantity(variant.tiers, quantity)
+  if (!tier) {
+    return { isError: true, content: [{ type: 'text', text: `No price tier covers a quantity of ${quantity} for this variant.` }] }
+  }
+
+  let listing: Listing | null = null
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    if (res.ok) listing = ((await res.json()) as { listing?: Listing }).listing ?? null
+  } catch { /* currency/custom-field checks below degrade if this fails */ }
+
+  const customFields = getCustomFields(listing?.metadata ?? null)
+  const fileField = customFields.find(f => f.type === 'file')
+  const currency = listing?.currency ?? 'MXN'
+
+  let personalization: PersonalizationPayload | null = null
+  if (args.artwork_url) {
+    if (!fileField) {
+      return { isError: true, content: [{ type: 'text', text: 'This listing has no artwork field — remove artwork_url.' }] }
+    }
+    let bytes: Uint8Array
+    try {
+      const artworkRes = await fetch(String(args.artwork_url), { signal: AbortSignal.timeout(15000) })
+      if (!artworkRes.ok) return { isError: true, content: [{ type: 'text', text: `Could not download artwork_url: HTTP ${artworkRes.status}` }] }
+      const contentLength = Number(artworkRes.headers.get('content-length') ?? '0')
+      if (contentLength > MAX_ARTWORK_SIZE_MB * 1024 * 1024) {
+        return { isError: true, content: [{ type: 'text', text: `Artwork exceeds the ${MAX_ARTWORK_SIZE_MB}MB limit.` }] }
+      }
+      bytes = new Uint8Array(await artworkRes.arrayBuffer())
+    } catch (e) {
+      return { isError: true, content: [{ type: 'text', text: `Network error downloading artwork_url: ${String(e)}` }] }
+    }
+    const ingest = await ingestArtworkBytes(bytes, listingId, fileField.id)
+    if (!ingest.ok) {
+      return { isError: true, content: [{ type: 'text', text: `Artwork rejected: ${ingest.error}` }] }
+    }
+    personalization = { fields: [{ id: fileField.id, label: fileField.label, value: ingest.url, type: 'file' }] }
+  } else if (fileField?.required) {
+    return { isError: true, content: [{ type: 'text', text: `This listing requires artwork ("${fileField.label}") — pass artwork_url.` }] }
+  }
+
+  const restatement = `${formatOptionsLines(variant.options).join(' · ')} · Cantidad: ${quantity} · Precio: ${formatPriceGridAmount(tier.amount * quantity, currency)}`
+
+  try {
+    const result = await startCheckout({
+      productId: listingId,
+      variantId,
+      quantity,
+      personalization,
+      provider,
+      buyerEmail,
+    })
+    if (result.redirect_url) {
+      return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n${restatement}\n\n**Abre este enlace para completar el pago:**\n${result.redirect_url}` }] }
+    }
+    return { content: [{ type: 'text', text: `✅ Order created (pago directo).\n\n${restatement}\n\nOrder: ${result.cart_id}` }] }
+  } catch (e) {
+    return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${(e as Error).message}` }] }
   }
 }
 
@@ -805,7 +933,8 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
     if (res.ok) {
       const d = await res.json() as { listings?: Listing[] }
-      listings = (d.listings ?? []).map(l => toUcpListing(l, baseUrl))
+      listings = await Promise.all((d.listings ?? []).map(async l =>
+        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
     }
   } catch { /* listings stays empty */ }
 

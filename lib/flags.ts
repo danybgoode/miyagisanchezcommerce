@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'ops.profit_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -131,6 +131,20 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    creating orders unsupervised. Sprint 1 gates on this GLOBAL flag only; a
  *    per-seller enable is Sprint 2 · US-6. Flip ON only after Daniel's live
  *    ML-sandbox order-materialization smoke passes.
+ *  - KILL-SWITCH (`configurator.enabled`): default `true`, matching
+ *    `pdp_redesign`'s polarity exactly. Gates ONLY the Sprint 3 addition to
+ *    the print-configurator buy box — custom fields (chiefly the artwork
+ *    upload). Deliberately does NOT gate Sprint 2's underlying variant/tier
+ *    selection + tier-correct checkout (`hasConfigurator` in
+ *    `app/(shell)/l/[id]/page.tsx`), which stays live regardless: that path
+ *    was already safely shipped, and the ONLY other checkout route for a
+ *    genuinely multi-variant listing throws rather than resolving a correct
+ *    price (`lib/cart.ts`), so routing a real configurator listing through
+ *    it when the flag is off would trade a safe experience for a broken one.
+ *    Flipping OFF reverts a configurator listing to Sprint 2's buy box with
+ *    no artwork/custom fields (seller coordinates artwork out-of-band via
+ *    messaging); a flag outage keeps the feature live rather than breaking
+ *    an in-flight purchase.
  *  - ENABLEMENT (`ops.profit_enabled`): default `false` (epic profit-analyzer,
  *    Sprint 1). The seller profit/margins surface: `/shop/manage/profit` 404s
  *    while OFF, and the backend's ledger writes + profit read API are no-ops —
@@ -154,6 +168,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'subdomain.paywall_enabled': false,
   'seller_agent.connector_url_enabled': false,
   'promoter.transfer_enabled': false,
+  'configurator.enabled': true,
   'ops.profit_enabled': false,
 }
 
