@@ -18,6 +18,7 @@
  */
 import 'server-only'
 
+import { randomUUID } from 'crypto'
 import { db } from '@/lib/supabase'
 import {
   cleanEmail,
@@ -108,7 +109,9 @@ export async function sendLaunchpadCode(shop: LaunchpadShop, email: string): Pro
   const code = makeCode()
   const codeHash = hashVerificationCode(shop.id, emailHash, code)
 
-  await db.from('launchpad_email_verifications').insert({
+  // Persist the code BEFORE emailing — if the insert fails, never email a code
+  // that verifyLaunchpadCode could never match (the route surfaces a 500 retry).
+  const { error: insertError } = await db.from('launchpad_email_verifications').insert({
     shop_id: shop.id,
     email_hash: emailHash,
     email: normalized,
@@ -116,6 +119,7 @@ export async function sendLaunchpadCode(shop: LaunchpadShop, email: string): Pro
     locale: 'es',
     expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
   })
+  if (insertError) throw new Error(`launchpad verification insert failed: ${insertError.message}`)
 
   await sendLaunchpadVerificationCode({ to: normalized, code, shopName: shop.name })
 }
@@ -358,6 +362,10 @@ export async function getManuscriptSignedUrl(submission: LaunchpadSubmission): P
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
 
+// Optimistic-lock sentinel written to `published_product_id` while a mint is in
+// flight, so a concurrent publish loses the conditional claim (see publishSubmission).
+const PENDING_PREFIX = 'pending:'
+
 const FORMAT_MIME: Record<ManuscriptFormat, string> = {
   pdf: 'application/pdf',
   epub: 'application/epub+zip',
@@ -383,10 +391,31 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
   if (submission.status !== 'approved') return { ok: false, status: 422, error: 'not_approved' }
 
   // Already minted → idempotent no-op (never create a duplicate product).
-  if (submission.published_product_id) {
+  if (submission.published_product_id && !submission.published_product_id.startsWith(PENDING_PREFIX)) {
     return { ok: true, productId: submission.published_product_id, manageUrl: '/shop/manage#anuncios' }
   }
   if (!input.shop.slug) return { ok: false, status: 422, error: 'shop_slug_missing' }
+
+  // Optimistic claim BEFORE the (external, non-transactional) mint: only the
+  // request that flips the null → sentinel wins; a concurrent double-click loses
+  // the conditional update and bails, so two products can never be minted.
+  const lockToken = `${PENDING_PREFIX}${randomUUID()}`
+  const { data: claimed } = await db
+    .from('launchpad_submissions')
+    .update({ published_product_id: lockToken, updated_at: new Date().toISOString() })
+    .eq('id', submission.id)
+    .eq('shop_id', input.shop.id)
+    .is('published_product_id', null)
+    .select('id')
+  if (!claimed || claimed.length === 0) {
+    // Lost the race — another request is minting or already minted. Return the
+    // real product if it's already linked, else signal a transient conflict.
+    const current = await getSubmissionForShop(input.shop.id, input.id)
+    if (current?.published_product_id && !current.published_product_id.startsWith(PENDING_PREFIX)) {
+      return { ok: true, productId: current.published_product_id, manageUrl: '/shop/manage#anuncios' }
+    }
+    return { ok: false, status: 409, error: 'already_publishing' }
+  }
 
   const fmt = submission.manuscript_format
   const result = await createSellerProductViaInternal(input.shop.slug, {
@@ -410,14 +439,25 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
   })
 
   if (!result.ok || !result.product_id) {
+    // Mint failed — release the claim so the seller can retry (and the queue
+    // shows "Publicar" again, not a stuck sentinel).
+    await db.from('launchpad_submissions')
+      .update({ published_product_id: null })
+      .eq('id', submission.id).eq('published_product_id', lockToken)
     return { ok: false, status: result.status || 500, error: result.error ?? 'mint_failed' }
   }
 
-  await db
+  const { error: linkError } = await db
     .from('launchpad_submissions')
     .update({ published_product_id: result.product_id, updated_at: new Date().toISOString() })
     .eq('id', submission.id)
     .eq('shop_id', input.shop.id)
+  if (linkError) {
+    // The product exists but we couldn't record the link — surface it rather than
+    // report success (the writer-notify + re-mint guard both key off this column).
+    console.error('[launchpad] publish link update failed:', linkError.message)
+    return { ok: false, status: 500, error: 'link_failed' }
+  }
 
   return { ok: true, productId: result.product_id, manageUrl: '/shop/manage#anuncios' }
 }

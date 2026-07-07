@@ -32,7 +32,9 @@ export async function GET() {
     manuscript_format: s.manuscript_format,
     manuscript_size: s.manuscript_size,
     review_note: s.review_note,
-    published_product_id: s.published_product_id,
+    // Hide the in-flight mint sentinel from the queue — only a real product id
+    // flips the card to "published" (see publishSubmission's optimistic lock).
+    published_product_id: s.published_product_id?.startsWith('pending:') ? null : s.published_product_id,
     created_at: s.created_at,
     updated_at: s.updated_at,
   }))

@@ -31,6 +31,8 @@ export async function POST(
       ? 'Manuscrito no encontrado.'
       : result.error === 'shop_slug_missing'
       ? 'Tu tienda no tiene un identificador (slug) configurado.'
+      : result.error === 'already_publishing'
+      ? 'Este manuscrito ya se está publicando. Espera un momento y actualiza.'
       : 'No se pudo publicar el manuscrito. Inténtalo de nuevo.'
     return NextResponse.json({ error: msg }, { status: result.status })
   }

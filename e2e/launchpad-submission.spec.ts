@@ -16,8 +16,11 @@ import {
  * so the magic-byte sniff (what makes it safe) is unit-tested exhaustively here
  * — deterministic, no seeded data, no network. The submission state machine is
  * likewise pure. The HTTP arm asserts the fail-safe: while `launchpad.enabled`
- * is OFF (default / seed), every public route rejects (423) BEFORE any
- * validation or DB work — a flag outage can never expose the upload surface.
+ * is OFF (default / seed), every public route rejects with 423 before any shop
+ * lookup, validation, or upload — a flag outage can never expose the upload
+ * surface. The IP rate-limiter runs one step earlier (matching the sweepstakes
+ * routes), so a flooded caller can see 429 first; the assertion accepts either
+ * rejection, both of which prove the request never reached real work.
  *
  * Deliberately does NOT assert a successful submit/upload — that needs the flag
  * ON + a real opted-in shop + a live email code, and would write a real object
