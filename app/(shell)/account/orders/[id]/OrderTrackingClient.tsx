@@ -57,6 +57,13 @@ interface OrderTrackingProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Lightweight print-proof sign-off (custom-print-products S4 · 4.1).
+    proof_sent?: boolean | null
+    proof_image_url?: string | null
+    proof_size?: string | null
+    proof_quantity?: number | null
+    proof_price_cents?: number | null
+    proof_approved?: boolean | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -543,6 +550,21 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {/* Print-proof sign-off (custom-print-products S4 · 4.1). Advisory
+            only — mirrors what the conversation thread shows, so the buyer
+            sees it here even if they never open the chat. */}
+        {order.proof_sent && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Prueba de impresión</h3>
+            {order.proof_image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
+            )}
+            <p className="text-sm">
+              {order.proof_approved ? '✓ Aprobaste esta prueba.' : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
+            </p>
           </div>
         )}
         {(order.event_tickets ?? []).length > 0 && (

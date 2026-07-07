@@ -21,7 +21,7 @@ export async function GET(
     .from('marketplace_conversations')
     .select(`
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
-      buyer_unread, seller_unread, offer_id,
+      buyer_unread, seller_unread, offer_id, medusa_order_id,
       marketplace_listings ( id, title, price_cents, currency, images, status, condition, location, listing_type ),
       marketplace_shops ( id, name, slug, logo_url, metadata, mp_enabled )
     `)
@@ -84,7 +84,8 @@ export async function GET(
         currency: offerWithCurrency.currency,
       }
     : null
-  const { ledger, orderId } = await resolveConversationLedger(ledgerOffer, offerId, role)
+  const medusaOrderIdHint = (conv as unknown as { medusa_order_id: string | null }).medusa_order_id
+  const { ledger, orderId } = await resolveConversationLedger(ledgerOffer, offerId, role, medusaOrderIdHint)
 
   return NextResponse.json({
     conversation: { ...conv, marketplace_offers: offerWithCurrency, checkout_provider: checkoutProvider },

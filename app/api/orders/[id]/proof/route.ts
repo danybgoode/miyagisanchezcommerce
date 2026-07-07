@@ -106,6 +106,9 @@ export async function POST(
       ok: true,
       conversationId: null,
       warning: 'La prueba quedó registrada en el pedido, pero no se pudo abrir el chat con el comprador.',
+      size: proof.proof_size,
+      quantity: proof.proof_quantity,
+      priceCents: proof.proof_price_cents,
     })
   }
 
@@ -121,6 +124,9 @@ export async function POST(
       ok: true,
       conversationId: null,
       warning: 'La prueba quedó registrada en el pedido, pero no se pudo abrir el chat con el comprador.',
+      size: proof.proof_size,
+      quantity: proof.proof_quantity,
+      priceCents: proof.proof_price_cents,
     })
   }
 
@@ -155,5 +161,11 @@ export async function POST(
     /* push failures never break the send */
   }
 
-  return NextResponse.json({ ok: true, conversationId })
+  return NextResponse.json({
+    ok: true,
+    conversationId,
+    size: proof.proof_size,
+    quantity: proof.proof_quantity,
+    priceCents: proof.proof_price_cents,
+  })
 }
