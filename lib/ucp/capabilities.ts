@@ -137,6 +137,7 @@ export const MCP_SELLER_TOOLS = [
   'update_listing',
   'set_listing_status',
   'list_orders',                // ml-orders-native S3 · US-9 (token-scoped)
+  'list_manuscript_submissions', // bookshop-launchpad S1.2 — writer submissions read (token-scoped)
   'get_domain_entitlement',     // custom-domain paywall S3 (token-scoped)
   'start_domain_subscription',  // custom-domain paywall S3 (token-scoped)
   'get_subdomain_entitlement',     // subdomain-pricing S2 (token-scoped)

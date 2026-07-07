@@ -121,9 +121,19 @@ const artworkUploadLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '10 m'), prefix: 'rl:artwork' })
 }
 
+// Launchpad public writes: manuscript submissions to a bookshop convocatoria —
+// verification codes, upload, and submit. A fully public, unauthenticated
+// surface (bookshop-launchpad S1.1), so this is a primary anti-abuse backstop.
+// Tighter than sweepstakes: each submit carries a file upload, not just a row.
+const launchpadLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: 'rl:launchpad' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -145,6 +155,7 @@ export async function checkRateLimit(
     : key === 'telegram_link'   ? telegramLinkLimiter
     : key === 'promoter_apply'  ? promoterApplyLimiter
     : key === 'artwork_upload'  ? artworkUploadLimiter
+    : key === 'launchpad'       ? launchpadLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

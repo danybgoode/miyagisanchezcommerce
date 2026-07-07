@@ -82,6 +82,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // 404s and the ledger writes are no-ops; append-only + the backfill route
   // mean a late flip loses nothing. Flip ON after Daniel's margin smoke.
   'ops.profit_enabled': { polarity: 'enablement', default: false },
+  // Bookshop launchpad — writer submission portal + review queue + campaigns
+  // (epic 03 · bookshop-launchpad). Enablement: default OFF ⇒ /s/[slug]/convocatoria
+  // + every /api/launchpad route 404s/rejects, and the seller Convocatoria surface
+  // is hidden. Flip ON after Daniel's Sprint 1 guest submit→approve→publish→buy smoke.
+  'launchpad.enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
