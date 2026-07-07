@@ -1711,7 +1711,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_neighborhood_pulse': return { content: (await handleGetNeighborhoodPulse(args, baseUrl)).content }
       case 'get_listing':          return { content: (await handleGetListing(args, baseUrl)).content }
       case 'get_checkout_options': return { content: (await handleGetCheckoutOptions(args, baseUrl)).content }
-      case 'create_checkout':      return { content: (await handleCreateCheckout(args, baseUrl)).content }
+      case 'create_checkout':      { const r = await handleCreateCheckout(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_support_options':  return { content: (await handleGetSupportOptions(args, baseUrl)).content }
       case 'create_support_checkout': return { content: (await handleCreateSupportCheckout(args, baseUrl)).content }
       case 'make_offer':           return { content: (await handleMakeOffer(args, baseUrl, authHeader)).content }
