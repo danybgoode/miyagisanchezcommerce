@@ -171,6 +171,20 @@ export interface ShopSettingsData {
        */
       theme_preset?: string | null
       /**
+       * Own-shop premium presentation (epic 07, Sprint 3) — the shop's Acerca
+       * (about) page body. Absent/empty body → the public Acerca route hides
+       * its nav link and 404s if visited directly, same gate every content
+       * page uses.
+       */
+      about?: { body: string } | null
+      /**
+       * FAQ question/answer pairs shown on the public FAQ page. Absent or
+       * empty `items` → same hidden-link/404 gate as `about` above. Políticas
+       * has NO field here — it merchandises the existing `returns_policy`
+       * (Devoluciones) setting instead of a separate authored value.
+       */
+      faq?: { items: Array<{ question: string; answer: string }> } | null
+      /**
        * Bookshop launchpad (epic 03) — writer-submission opt-in. When
        * `accepts_manuscripts` is true the public `/s/[slug]/convocatoria` portal
        * opens (also gated globally by the `launchpad.enabled` flag). `guidelines`
@@ -199,3 +213,5 @@ export type ThemeSettings = NonNullable<SettingsTree['theme']>
 export type ReturnsPolicySettings = NonNullable<SettingsTree['returns_policy']>
 export type AnnouncementSettings = NonNullable<SettingsTree['announcement']>
 export type HeroSettings = NonNullable<SettingsTree['hero']>
+export type AboutSettings = NonNullable<SettingsTree['about']>
+export type FaqSettings = NonNullable<SettingsTree['faq']>

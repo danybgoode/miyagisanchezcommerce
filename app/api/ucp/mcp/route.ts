@@ -277,7 +277,7 @@ const TOOLS = [
   },
   {
     name: 'get_store_configuration',
-    description: "SELLER TOOL. Read YOUR OWN shop's declarative configuration — profile/brand, shipping, negotiation, notifications, order handling, returns policy, and scheduling links. Requires a seller agent token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; it is scoped to that one shop. Never returns secrets (no payment keys, bank CLABE, Stripe/MercadoPago tokens, or Cal.com keys). Call this before patch_store_configuration to see current values and which sections still need a manual step.",
+    description: "SELLER TOOL. Read YOUR OWN shop's declarative configuration — profile/brand, shipping, negotiation, notifications, order handling, returns policy, scheduling links, and content pages (Acerca/FAQ). Requires a seller agent token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; it is scoped to that one shop. Never returns secrets (no payment keys, bank CLABE, Stripe/MercadoPago tokens, or Cal.com keys). Call this before patch_store_configuration to see current values and which sections still need a manual step.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -301,6 +301,7 @@ const TOOLS = [
             orders:         { type: 'object', description: 'processing_time, auto_accept, dispatch_window_days, auto_confirm_days' },
             returns_policy: { type: 'object', description: 'window, conditions, shipping_paid_by (buyer|seller), custom_note' },
             scheduling:     { type: 'object', description: 'links: [{label, url}] — booking links (Cal.com connection is separate/manual)' },
+            content:        { type: 'object', description: 'about {body}, faq {items: [{question, answer}]} — the shop\'s public Acerca/FAQ pages. Políticas has no field here; it mirrors returns_policy above.' },
           },
         },
       },

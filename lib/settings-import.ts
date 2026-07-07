@@ -63,6 +63,17 @@ export interface StoreConfigManifest {
   orders?: { processing_time?: string; auto_accept?: boolean; dispatch_window_days?: number; auto_confirm_days?: number }
   returns_policy?: { window?: string; conditions?: string; shipping_paid_by?: 'buyer' | 'seller'; custom_note?: string }
   scheduling?: { links?: Array<{ label: string; url: string }> }
+  /**
+   * Own-shop premium presentation (epic 07, Sprint 3) — Acerca (about) body
+   * and FAQ pairs, maps 1:1 to the "Páginas" settings section. Políticas has
+   * NO field here — the public Políticas page merchandises the existing
+   * `returns_policy` block above instead of a second authored value. Each
+   * accepts an explicit `null` to clear it via MCP (rule #3, agent-accessible).
+   */
+  content?: {
+    about?: { body?: string } | null
+    faq?: { items?: Array<{ question?: string; answer?: string }> } | null
+  }
 }
 
 /** The blocks a file can set, with a one-line description for the UI + prompt. */
@@ -74,6 +85,7 @@ export const CONFIG_BLOCKS: Array<{ key: keyof StoreConfigManifest; label: strin
   { key: 'orders', label: 'Gestión de pedidos', desc: 'Tiempo de procesamiento, auto-aceptar, ventana de despacho, auto-confirmar.' },
   { key: 'returns_policy', label: 'Devoluciones', desc: 'Ventana, condiciones, quién paga el envío y nota personalizada.' },
   { key: 'scheduling', label: 'Enlaces de agenda', desc: 'Enlaces para agendar (etiqueta + URL). La conexión a Cal.com es aparte.' },
+  { key: 'content', label: 'Acerca y FAQ', desc: 'Texto de Acerca de tu tienda y preguntas frecuentes (Políticas se toma de Devoluciones).' },
 ]
 
 /** Sections that need a manual step (OAuth / money / domain) and can't be set by file. */
@@ -435,6 +447,41 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
       if (links.length < manifest.scheduling.links.length) iss.push('algunos enlaces se omitieron (faltó label o URL válida)')
     } else iss.push('el bloque "scheduling" debe tener un arreglo "links"')
     record('scheduling', f, iss)
+  }
+
+  // ── content (Acerca + FAQ) ───────────────────────────────────────────────────
+  // Own-shop premium presentation (epic 07, Sprint 3). Políticas has no field
+  // here — it merchandises the `returns_policy` block above.
+  if (manifest.content !== undefined) {
+    const f: string[] = []; const iss: string[] = []
+    if (isObj(manifest.content)) {
+      const c = manifest.content
+
+      if (c.about !== undefined) {
+        if (c.about === null) {
+          settings.about = null; f.push('about (cleared)')
+        } else if (isObj(c.about)) {
+          const body = str(c.about.body)
+          if (body && body.length <= 600) { settings.about = { body }; f.push('about') }
+          else iss.push('content.about.body es requerido (máx. 600 caracteres)')
+        } else iss.push('el bloque "content.about" debe ser un objeto (o null para borrarlo)')
+      }
+
+      if (c.faq !== undefined) {
+        if (c.faq === null) {
+          settings.faq = null; f.push('faq (cleared)')
+        } else if (isObj(c.faq) && Array.isArray(c.faq.items)) {
+          const items = c.faq.items
+            .filter((it): it is { question?: string; answer?: string } => isObj(it))
+            .map((it) => ({ question: str(it.question), answer: str(it.answer) }))
+            .filter((it): it is { question: string; answer: string } => !!it.question && !!it.answer && it.question.length <= 140 && it.answer.length <= 600)
+            .slice(0, 12)
+          if (items.length) { settings.faq = { items }; f.push('faq') }
+          if (items.length < c.faq.items.length) iss.push('content.faq.items: algunas preguntas se omitieron (faltó pregunta/respuesta, o excedieron el límite de caracteres/cantidad)')
+        } else iss.push('el bloque "content.faq" debe tener un arreglo "items" (o null para borrarlo)')
+      }
+    } else iss.push('el bloque "content" debe ser un objeto')
+    record('content', f, iss)
   }
 
   if (Object.keys(settings).length) patch.settings = settings

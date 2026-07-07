@@ -100,6 +100,16 @@ export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot
   const scheduling = obj(settings.scheduling)
   if (scheduling && Array.isArray(scheduling.links)) configuration.scheduling = scheduling as StoreConfigManifest['scheduling']
 
+  // Own-shop premium presentation (epic 07, Sprint 3) — Acerca + FAQ. No
+  // `returns_policy` duplication here — that block above already covers
+  // Políticas.
+  const content: NonNullable<StoreConfigManifest['content']> = {}
+  const about = obj(settings.about)
+  if (about && typeof about.body === 'string' && about.body) content.about = { body: about.body }
+  const faq = obj(settings.faq)
+  if (faq && Array.isArray(faq.items) && faq.items.length) content.faq = { items: faq.items as Array<{ question: string; answer: string }> }
+  if (Object.keys(content).length) configuration.content = content
+
   const configured_blocks = CONFIG_BLOCKS
     .map((b) => b.key)
     .filter((k) => configuration[k] !== undefined)
