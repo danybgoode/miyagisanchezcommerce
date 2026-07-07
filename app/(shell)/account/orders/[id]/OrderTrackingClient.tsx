@@ -2,11 +2,14 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
 import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
+import { readPersonalization, stashPersonalization } from '@/lib/personalization'
+import { readPriceGrid, unitPriceCentsFor, formatPriceGridAmount } from '@/lib/price-grid'
 import {
   deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
   type RefundState, type ReturnRequestLike,
@@ -64,6 +67,14 @@ interface OrderTrackingProps {
     proof_quantity?: number | null
     proof_price_cents?: number | null
     proof_approved?: boolean | null
+    // Raw per-item ids for "Volver a pedir" (custom-print-products S4 · 4.3).
+    line_items?: Array<{
+      product_id: string | null
+      variant_id: string | null
+      quantity: number
+      unit_price_cents: number
+      personalization: unknown
+    }> | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -247,6 +258,7 @@ const RETURN_STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 export default function OrderTrackingClient({ order }: OrderTrackingProps) {
+  const router = useRouter()
   const meta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!meta.escrow_mode
   const escrowCaptured = !!meta.escrow_captured
@@ -260,6 +272,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [escrowConfirmed, setEscrowConfirmed] = useState(escrowCaptured)
 
   // Return request state
@@ -354,6 +367,40 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
   }, [])
+
+  // "Volver a pedir" (custom-print-products S4 · 4.3) — re-adds the same
+  // variant/quantity/artwork to the cart via the SAME hand-off the buy box
+  // uses (stash + /checkout query params), so the buyer picks a payment
+  // method fresh rather than silently re-charging the original one. Price
+  // always re-resolves at TODAY's tiers on /checkout — never carries over
+  // the old total — this only adds an explicit heads-up when it changed.
+  async function handleReorder() {
+    const item = (order.line_items ?? [])[0]
+    if (!item?.product_id || !item?.variant_id) {
+      showToast('Este pedido no se puede volver a pedir.', 'error')
+      return
+    }
+    setReordering(true)
+    try {
+      let priceNote = ''
+      try {
+        const res = await fetch(`/api/sell/listing/${item.product_id}/price-grid`)
+        if (res.ok) {
+          const grid = readPriceGrid(await res.json())
+          const currentUnit = grid ? unitPriceCentsFor(grid, item.variant_id, item.quantity) : null
+          if (currentUnit != null && currentUnit !== item.unit_price_cents) {
+            priceNote = ` Precio actualizado: ${formatPriceGridAmount(currentUnit * item.quantity, order.currency)}.`
+          }
+        }
+      } catch { /* price-diff note is best-effort; reorder still proceeds */ }
+
+      stashPersonalization(item.product_id, readPersonalization(item.personalization))
+      if (priceNote) showToast(priceNote.trim(), 'success')
+      router.push(`/checkout?listingId=${encodeURIComponent(item.product_id)}&variantId=${encodeURIComponent(item.variant_id)}&qty=${item.quantity}`)
+    } finally {
+      setReordering(false)
+    }
+  }
 
   const trackUrl = shipment?.tracking_number
     ? carrierTrackingUrl(shipment.carrier, shipment.tracking_number)
@@ -565,6 +612,21 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <p className="text-sm">
               {order.proof_approved ? '✓ Aprobaste esta prueba.' : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
             </p>
+          </div>
+        )}
+        {/* "Volver a pedir" (custom-print-products S4 · 4.3) — repeat sticker
+            runs are the core print-shop revenue pattern. Only once the order
+            is fulfilled, and only for a configurator order (a real variant_id). */}
+        {currentStatus === 'delivered' && !!(order.line_items ?? [])[0]?.variant_id && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <button
+              type="button"
+              onClick={handleReorder}
+              disabled={reordering}
+              className="w-full py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium disabled:opacity-60"
+            >
+              {reordering ? 'Preparando…' : 'Volver a pedir'}
+            </button>
           </div>
         )}
         {(order.event_tickets ?? []).length > 0 && (
