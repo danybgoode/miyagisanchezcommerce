@@ -113,13 +113,23 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // bulk pricing behind a buy box that only ever checks out qty=1 (cross-
   // agent review catch, 2026-07-05). A legacy listing with no tiers at all
   // (price-grid absent or single flat tier) keeps today's PDP untouched.
-  // The `configurator.enabled` kill-switch (custom-print-products S3.4) is
-  // AND'd in right here — every downstream read of `hasConfigurator`
-  // (both buy-box render branches AND the two negotiation-suppression
-  // checks) inherits the fail-safe fall-back to today's plain PDP for free.
+  //
+  // Deliberately NOT gated on `configurator.enabled` — this structural fact
+  // (Sprint 2, already safely shipped) must stay true regardless of the
+  // Sprint 3 flag. `hasConfigurator` also decides which checkout path a
+  // buy click resolves to (lib/cart.ts throws if a genuinely multi-variant
+  // product reaches checkout with no variantId), so flipping the flag off
+  // must NOT reroute a real configurator listing into that broken plain-
+  // checkout path — it would show a wrong ("desde $X" minimum) price
+  // throughout checkout, then fail at pay-time instead of charging
+  // correctly (cross-agent review catch, 2026-07-06). The flag instead
+  // gates only the NEW Sprint 3 addition — see `configuratorFlagOn` below,
+  // threaded into `customFields` at both render sites — so disabling it
+  // reverts to Sprint 2's already-proven variant/tier buy box (no artwork/
+  // personalization fields), never all the way back to a broken pre-
+  // Sprint-2 checkout.
   const hasConfigurator = !!priceGrid
     && (priceGrid.variants.length > 1 || priceGrid.variants.some((v) => v.tiers.length > 1))
-    && configuratorFlagOn
 
   // Custom-domain boundary: a tenant store shows ONLY its own products. If this
   // PDP is reached on a custom domain (channel slug set by middleware) but the
@@ -458,7 +468,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               isSignedIn={isSignedIn}
               customDomain={customDomain}
               currency={listing.currency}
-              customFields={customFields}
+              customFields={configuratorFlagOn ? customFields : []}
             />
           ) : customFields.length > 0 ? (
             <PersonalizationBuyBox
@@ -540,7 +550,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         isSignedIn={isSignedIn}
         customDomain={customDomain}
         currency={listing.currency}
-        customFields={customFields}
+        customFields={configuratorFlagOn ? customFields : []}
       />
     ) : customFields.length > 0 ? (
       <PersonalizationBuyBox

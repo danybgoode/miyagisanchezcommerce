@@ -40,8 +40,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Net-remittance promoter close (promoter-funnel-v2 S4) — enablement, fail-open OFF
     // (Stripe-only close checkout until the live transfer smoke passes).
     expect(FLAG_META['promoter.transfer_enabled']).toEqual({ polarity: 'enablement', default: false })
-    // The print-configurator buy box (custom-print-products S3.4) — kill-switch,
-    // fail-open ON (matches pdp_redesign's polarity; OFF reverts to today's plain PDP).
+    // The print-configurator's artwork/custom-fields addition (custom-print-products
+    // S3.4) — kill-switch, fail-open ON. Gates only the S3 addition, not
+    // Sprint 2's underlying variant/tier buy box (see lib/flags.ts's comment).
     expect(FLAG_META['configurator.enabled']).toEqual({ polarity: 'killswitch', default: true })
   })
 })

@@ -67,13 +67,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Falta el anuncio.' }, { status: 400 })
   }
 
-  // Never trust a client-supplied limit for a fully public surface — resolve
-  // the REAL field def from the listing; fall back to the global hard caps
-  // (never to an unbounded upload) if the listing/field lookup fails.
+  // Cheap fast-fail against the ABSOLUTE global ceiling before paying for a
+  // Medusa round-trip — a per-field cap can only ever be smaller than this,
+  // never larger (sanitizeFieldDefs clamps it), so this can never wrongly
+  // reject a file a real field would have accepted.
+  if (file.size > MAX_ARTWORK_SIZE_MB * 1024 * 1024) {
+    return NextResponse.json({
+      error: `El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). El máximo es ${MAX_ARTWORK_SIZE_MB} MB.`,
+    }, { status: 400 })
+  }
+
+  // Resolve the REAL field def from the listing — never trust a client-
+  // supplied limit for a fully public surface. Unlike the format/size limits
+  // (which fall back to the global hard cap when the listing/field lookup
+  // fails, biasing toward not blocking a legitimate buyer on a transient
+  // fetch hiccup), a field that doesn't resolve at all is rejected outright:
+  // without this, ANY caller could pass a fake listingId/fieldId and use
+  // this route as an unrestricted anonymous file host, bounded only by the
+  // global format/size caps rather than a real listing's actual field
+  // (cross-agent review catch, 2026-07-06).
   const defs = await getListingCustomFieldsUncached(listingId)
   const fieldDef = defs.find(d => d.id === fieldId && d.type === 'file')
-  const allowedFormats = fieldDef?.allowed_formats ?? [...ARTWORK_FORMATS]
-  const maxSizeMb = fieldDef?.max_size_mb ?? MAX_ARTWORK_SIZE_MB
+  if (!fieldDef) {
+    return NextResponse.json({ error: 'Campo de archivo no válido.' }, { status: 400 })
+  }
+  const allowedFormats = fieldDef.allowed_formats ?? [...ARTWORK_FORMATS]
+  const maxSizeMb = fieldDef.max_size_mb ?? MAX_ARTWORK_SIZE_MB
   const maxSizeBytes = Math.min(maxSizeMb, MAX_ARTWORK_SIZE_MB) * 1024 * 1024
 
   if (file.size > maxSizeBytes) {
@@ -86,8 +105,11 @@ export async function POST(req: NextRequest) {
   const sniffed = sniffFileFormat(bytes)
 
   if (!sniffed || !formatSatisfiesAllowlist(sniffed, allowedFormats)) {
+    // Reflect the field's ACTUAL allowlist, not the full static list — a
+    // seller who narrowed formats shouldn't have buyers told a format is
+    // fine when their listing doesn't actually accept it.
     return NextResponse.json({
-      error: 'Formato no soportado o el archivo no coincide con su tipo. Usa PNG, JPG, PDF, AI o SVG.',
+      error: `Formato no soportado o el archivo no coincide con su tipo. Usa ${allowedFormats.join(', ').toUpperCase()}.`,
     }, { status: 400 })
   }
 

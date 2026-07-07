@@ -71,10 +71,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // Net-remittance (SPEI/DiMo/CoDi) promoter close (epic 08 · promoter-funnel-v2 S4).
   // Enablement: default OFF ⇒ the close checkout only ever offers Stripe.
   'promoter.transfer_enabled': { polarity: 'enablement', default: false },
-  // Print-configurator buy box — variant/tier selection + artwork upload
-  // (custom-print-products epic S3.4). Kill-switch: default ON, matching
-  // `pdp_redesign`'s polarity — OFF instantly reverts every configurator
-  // listing to today's plain PDP buy box.
+  // Print-configurator artwork/custom-fields addition (custom-print-products
+  // S3.4) — NOT the underlying variant/tier buy box (Sprint 2, unaffected).
+  // Kill-switch: default ON, matching `pdp_redesign`'s polarity — OFF
+  // reverts a configurator listing to Sprint 2's buy box with no artwork
+  // field, never all the way back to a broken pre-Sprint-2 checkout.
   'configurator.enabled': { polarity: 'killswitch', default: true },
 }
 

@@ -386,6 +386,30 @@ export function parseSizeCm(dimensionValue: string | null | undefined): number |
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+// ── Rendering a `file` field's value safely ────────────────────────────────
+// A `file` field's value is normally an R2/Supabase URL our own upload route
+// returned — but line-item/order metadata is technically buyer/API-writable
+// via some paths (a buyer can edit sessionStorage or call the checkout APIs
+// directly), so every render site (checkout review, order screens, both
+// order emails) must check the value BEFORE putting it into an `<img src>`/
+// `<a href>`, never trust `type === 'file'` alone (cross-agent review catch,
+// 2026-07-06). Shared here so the check can't drift between the React
+// component (client) and the email HTML builder (server) — env-based host
+// checking isn't usable from a client component, so this validates
+// structurally instead: our own route always stores uploads under an
+// `/artwork/` key prefix, so requiring that path segment (+ https) closes
+// off the trivial case (an unrelated external image/link) without needing
+// env access. Residual risk: a determined attacker could still host content
+// behind a URL containing `/artwork/` in its path — same "cheap defense-in-
+// depth, not a hard boundary" honesty as the SVG sniffer's residual risk.
+export function isRenderableArtworkUrl(value: string): boolean {
+  return /^https:\/\/[^\s"'<>]+\/artwork\//i.test(value)
+}
+
+export function isImageLikeArtworkUrl(value: string): boolean {
+  return /\.(png|jpe?g|svg)(\?|$)/i.test(value)
+}
+
 /**
  * Resolve the buy-box CTA labels. A personalizable product normally reads
  * "Comprar ahora — $precio"; when it's *also* an event (which already computes

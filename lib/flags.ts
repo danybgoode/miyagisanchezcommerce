@@ -132,11 +132,19 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    per-seller enable is Sprint 2 · US-6. Flip ON only after Daniel's live
  *    ML-sandbox order-materialization smoke passes.
  *  - KILL-SWITCH (`configurator.enabled`): default `true`, matching
- *    `pdp_redesign`'s polarity exactly. The whole print-configurator buy box
- *    (custom-print-products epic, Sprint 3) — multi-variant/tier selection +
- *    artwork upload. Flipping OFF instantly reverts every configurator
- *    listing to today's plain PDP buy box (fail-safe); a flag outage keeps
- *    the feature live rather than breaking an in-flight purchase.
+ *    `pdp_redesign`'s polarity exactly. Gates ONLY the Sprint 3 addition to
+ *    the print-configurator buy box — custom fields (chiefly the artwork
+ *    upload). Deliberately does NOT gate Sprint 2's underlying variant/tier
+ *    selection + tier-correct checkout (`hasConfigurator` in
+ *    `app/(shell)/l/[id]/page.tsx`), which stays live regardless: that path
+ *    was already safely shipped, and the ONLY other checkout route for a
+ *    genuinely multi-variant listing throws rather than resolving a correct
+ *    price (`lib/cart.ts`), so routing a real configurator listing through
+ *    it when the flag is off would trade a safe experience for a broken one.
+ *    Flipping OFF reverts a configurator listing to Sprint 2's buy box with
+ *    no artwork/custom fields (seller coordinates artwork out-of-band via
+ *    messaging); a flag outage keeps the feature live rather than breaking
+ *    an in-flight purchase.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,

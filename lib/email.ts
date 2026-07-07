@@ -7,6 +7,7 @@ import { Resend } from 'resend'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
+import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -125,16 +126,6 @@ function quote(text: string): string {
 /** Buyer personalization — shown in order emails so both sides have the spec. */
 export type EmailPersonalization = Array<{ title?: string; fields: Array<{ label?: string; value?: string; type?: string }> }>
 
-/** Only render a `file` value as a link/thumbnail when it looks like a real
- *  URL under our own upload host — never trust an unchecked string into an
- *  `<a href>`/`<img src>` inside an email. */
-function looksLikeUploadUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value)
-}
-function isImageLikeUrl(value: string): boolean {
-  return /\.(png|jpe?g|svg)(\?|$)/i.test(value)
-}
-
 function personalizationBlock(blocks?: EmailPersonalization | null): string {
   const clean = (blocks ?? []).filter(b => (b.fields ?? []).some(f => (f.value ?? '').trim()))
   if (!clean.length) return ''
@@ -144,9 +135,15 @@ function personalizationBlock(blocks?: EmailPersonalization | null): string {
       .filter(f => (f.value ?? '').trim())
       .map(f => {
         const value = f.value ?? ''
-        if (f.type === 'file' && looksLikeUploadUrl(value)) {
+        // Only ever render a `file` value as a link/thumbnail when it looks
+        // like a real URL our own upload route produced — never trust an
+        // unchecked string into an `<a href>`/`<img src>` inside an email
+        // (order-item metadata is technically buyer/API-writable via some
+        // paths). See `isRenderableArtworkUrl` for what "looks like" means
+        // and its documented residual risk.
+        if (f.type === 'file' && isRenderableArtworkUrl(value)) {
           const href = esc(value)
-          const thumb = isImageLikeUrl(value)
+          const thumb = isImageLikeArtworkUrl(value)
             ? `<br/><img src="${href}" alt="${esc(f.label ?? 'Arte')}" style="max-width:120px;border-radius:6px;margin-top:4px;display:block">`
             : ''
           return `<div style="margin:2px 0"><span style="color:#6b6b67">${esc(f.label ?? '')}:</span> <a href="${href}" style="color:#1d6f42;font-weight:600">Descargar original</a>${thumb}</div>`

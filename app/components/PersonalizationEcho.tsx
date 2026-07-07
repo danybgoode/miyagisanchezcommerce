@@ -1,5 +1,7 @@
 'use client'
 
+import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
+
 /**
  * Loosely-typed on purpose: the buyer-order and seller-order screens each
  * declare their own local `Order.personalization` shape (optional id/label/
@@ -12,18 +14,6 @@ export interface EchoableField {
   label?: string
   value?: string
   type?: string
-}
-
-/** Only ever render a `file` value as `<img>`/`<a href>` when it looks like a
- *  URL under our own R2/Supabase public host — order-item metadata is
- *  technically buyer/API-writable via some paths, so an unchecked string
- *  never reaches a `src`/`href` attribute. */
-function looksLikeUploadUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value)
-}
-
-function isImageLike(value: string): boolean {
-  return /\.(png|jpe?g|svg)(\?|$)/i.test(value)
 }
 
 /**
@@ -45,11 +35,11 @@ export default function PersonalizationEcho({
   valueStyle?: React.CSSProperties
 }) {
   const value = field.value ?? ''
-  if (field.type === 'file' && looksLikeUploadUrl(value)) {
+  if (field.type === 'file' && isRenderableArtworkUrl(value)) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {field.label && <span style={labelStyle}>{field.label}:</span>}
-        {isImageLike(value) ? (
+        {isImageLikeArtworkUrl(value) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt={field.label || 'Arte del pedido'} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} />
         ) : (
