@@ -23,6 +23,13 @@ export type MlPublishResult = {
    * failed, so the seller must reconnect (distinct from a transient 'failed').
    */
   reason?: 'not_connected' | 'reauth_required' | 'no_category' | 'invalid_product' | 'already_linked' | 'failed'
+  /**
+   * ML's own rejection reason on a generic ('failed') write error — e.g. a
+   * price change blocked by an active promotion (Sprint 2 · US-5). Only
+   * populated for `reason: 'failed'`; the other typed reasons already carry
+   * a precise es-MX message at the call site.
+   */
+  message?: string | null
   action?: string
   created?: boolean
   ml_item_id?: string | null
@@ -128,7 +135,9 @@ export async function publishMlProduct(
       if (d.code === 'ML_REAUTH_REQUIRED') return { ok: false, reason: 'reauth_required' }
       return { ok: false, reason: d.code === 'ML_LINK_CONFLICT' ? 'already_linked' : 'not_connected' }
     }
-    return { ok: false, reason: 'failed' }
+    // Generic failure (502, etc.) — forward ML's own rejection message when the
+    // route surfaced one (e.g. blocked by an active promotion), never swallowed.
+    return { ok: false, reason: 'failed', message: typeof d.message === 'string' ? d.message : null }
   } catch {
     return { ok: false, reason: 'failed' }
   }
