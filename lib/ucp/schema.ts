@@ -34,6 +34,15 @@ export interface UcpShop {
   verified: boolean
   location: string | null
   url: string
+  /** Shop's Acerca (about) body (own-shop-premium-presentation S3). Null when unauthored. */
+  about: string | null
+  /** Devoluciones policy, merchandised here so an agent can ground a policy question. Null when unset. */
+  returns_policy: {
+    window: string
+    conditions?: string
+    shipping_paid_by?: 'buyer' | 'seller'
+    custom_note?: string | null
+  } | null
 }
 
 export interface UcpActions {
@@ -158,6 +167,26 @@ function formatPrice(cents: number, currency: string): string {
     .format(cents / 100)
 }
 
+/**
+ * Derive the UCP shop payload's `about`/`returns_policy` fields from
+ * `shop.metadata.settings` (own-shop-premium-presentation S3) — grounds "who
+ * is this shop" / "what's their return policy" for an agent, straight off
+ * every listing response. `returns_policy` merchandises the EXISTING
+ * Devoluciones setting, never a separate value.
+ */
+function deriveUcpShopExtras(shop: Shop): Pick<UcpShop, 'about' | 'returns_policy'> {
+  const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const about = (settings.about as { body?: string } | null | undefined)?.body?.trim() || null
+  const rp = settings.returns_policy as
+    | { window?: string; conditions?: string; shipping_paid_by?: 'buyer' | 'seller'; custom_note?: string | null }
+    | null
+    | undefined
+  const returns_policy = rp?.window
+    ? { window: rp.window, conditions: rp.conditions, shipping_paid_by: rp.shipping_paid_by, custom_note: rp.custom_note ?? null }
+    : null
+  return { about, returns_policy }
+}
+
 // ── Main transformer ───────────────────────────────────────────────────────────
 
 export function toUcpListing(
@@ -278,6 +307,7 @@ export function toUcpListing(
       verified: shop.verified ?? false,
       location: shop.location,
       url: `${baseUrl}/s/${shop.slug}`,
+      ...deriveUcpShopExtras(shop),
     } : {
       id: listing.shop_id,
       name: 'Unknown',
@@ -285,6 +315,8 @@ export function toUcpListing(
       verified: false,
       location: null,
       url: baseUrl,
+      about: null,
+      returns_policy: null,
     },
 
     actions: {
