@@ -37,6 +37,8 @@ import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
+import { isEnabled } from '@/lib/flags'
+import { listSubmissionsForShop } from '@/lib/launchpad'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
@@ -370,6 +372,16 @@ const TOOLS = [
         status: { type: 'string', description: 'Filter by order status (e.g. "shipped", "delivered")' },
         source: { type: 'string', enum: ['miyagi', 'mercadolibre'], description: 'Filter by sales channel' },
         limit:  { type: 'number', minimum: 1, maximum: 50, description: 'Max orders to return (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_manuscript_submissions',
+    description: "SELLER TOOL. List the writer manuscripts submitted to YOUR OWN bookshop's convocatoria (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each submission's title, author, genre, curation status (submitted/in_review/approved/rejected/changes_requested), and format — reviewing/approving/publishing happens in the seller portal.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['submitted', 'in_review', 'approved', 'rejected', 'changes_requested'], description: 'Filter by curation status' },
       },
     },
   },
@@ -1503,6 +1515,41 @@ async function handleListOrders(args: Record<string, unknown>, authHeader?: stri
   }
 }
 
+async function handleListManuscriptSubmissions(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
+  }
+
+  const statusFilter = typeof args.status === 'string' ? args.status : null
+  let subs = await listSubmissionsForShop(shop.id)
+  if (statusFilter) subs = subs.filter((s) => s.status === statusFilter)
+
+  if (subs.length === 0) return { content: [{ type: 'text', text: 'No tienes manuscritos que coincidan con ese filtro.' }] }
+
+  // Read-only agent view — never expose the private manuscript storage key.
+  const shaped = subs.map((s) => ({
+    id: s.id,
+    title: s.title,
+    author_name: s.author_name,
+    genre: s.genre,
+    status: s.status,
+    format: s.manuscript_format,
+    published_product_id: s.published_product_id,
+    created_at: s.created_at,
+  }))
+  const lines = shaped.map((s) =>
+    `• **${s.title}** — ${s.author_name} · ${s.status}${s.genre ? ` · ${s.genre}` : ''} (${s.format.toUpperCase()})`,
+  )
+  return {
+    content: [
+      { type: 'text', text: [`## Manuscritos recibidos (${shaped.length})`, ...lines].join('\n') },
+      { type: 'text', text: JSON.stringify({ submissions: shaped }, null, 2) },
+    ],
+  }
+}
+
 async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1819,6 +1866,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

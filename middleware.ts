@@ -136,6 +136,14 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         url.pathname = `/s/${slug}`
         return NextResponse.rewrite(url, { request: { headers } })
       }
+      // Bookshop launchpad convocatoria — serve the shop's submission portal
+      // natively at `/convocatoria` (white-label), keeping the subdomain in the
+      // bar (transparent rewrite; the `/s/…` form is boundary-denied above).
+      if (path === '/convocatoria') {
+        const url = req.nextUrl.clone()
+        url.pathname = `/s/${slug}/convocatoria`
+        return NextResponse.rewrite(url, { request: { headers } })
+      }
       return NextResponse.next({ request: { headers } })
     }
 
@@ -255,6 +263,14 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       if (path === '/') {
         const url = req.nextUrl.clone()
         url.pathname = `/s/${slug}`
+        return NextResponse.rewrite(url, { request: { headers } })
+      }
+      // Bookshop launchpad convocatoria — serve the shop's submission portal
+      // natively at `/convocatoria` (white-label), keeping the custom domain in
+      // the bar (transparent rewrite; the `/s/…` form is boundary-denied above).
+      if (path === '/convocatoria') {
+        const url = req.nextUrl.clone()
+        url.pathname = `/s/${slug}/convocatoria`
         return NextResponse.rewrite(url, { request: { headers } })
       }
 

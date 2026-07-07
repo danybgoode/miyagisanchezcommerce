@@ -8,6 +8,7 @@ import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
 import { closeMlProduct } from '@/lib/ml-publish-bridge'
+import { notifyWriterOnPublish } from '@/lib/launchpad'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -352,6 +353,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Pausing a Miyagi listing closes its linked ML item (US-8); reactivating is the
   // seller's explicit "Sincronizar" action, not an automatic relist.
   if (body.status === 'paused') await bestEffortCloseMl(userId, id)
+
+  // Bookshop launchpad (S1.3): first activation of a launchpad-minted listing
+  // emails the writer the live URL — once. No-op for any non-launchpad product.
+  if (body.status === 'active') await notifyWriterOnPublish(id).catch(() => {})
 
   return NextResponse.json({ id, status: body.status })
 }
