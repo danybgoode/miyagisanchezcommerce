@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { ingestArtworkBytes } from '@/lib/artwork-ingest'
+import { MAX_ARTWORK_SIZE_MB } from '@/lib/personalization'
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req)
@@ -45,6 +46,17 @@ export async function POST(req: NextRequest) {
   }
   if (!listingId) {
     return NextResponse.json({ error: 'Falta el anuncio.' }, { status: 400 })
+  }
+
+  // Cheap fast-fail against the ABSOLUTE global ceiling using File.size —
+  // BEFORE ever materializing the buffer into memory. `ingestArtworkBytes`
+  // re-checks this on the bytes too (defense in depth), but that check can't
+  // help here: by the time it runs, `.arrayBuffer()` has already paid the
+  // memory cost this fast-fail exists to avoid.
+  if (file.size > MAX_ARTWORK_SIZE_MB * 1024 * 1024) {
+    return NextResponse.json({
+      error: `El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). El máximo es ${MAX_ARTWORK_SIZE_MB} MB.`,
+    }, { status: 400 })
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer())

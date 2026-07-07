@@ -130,7 +130,7 @@ export async function POST(
     })
   }
 
-  await Promise.all([
+  const [eventResult, convResult] = await Promise.all([
     db.from('marketplace_conversation_events').insert({
       conversation_id: conversationId,
       event_type: 'proof_sent',
@@ -148,6 +148,19 @@ export async function POST(
       buyer_unread: 1,
     }).eq('id', conversationId),
   ])
+  if (eventResult.error || convResult.error) {
+    console.error('[orders/proof] conversation write failed:', eventResult.error ?? convResult.error)
+    // The order-metadata write above already succeeded — durably recorded —
+    // even though the in-chat message failed to send.
+    return NextResponse.json({
+      ok: true,
+      conversationId: null,
+      warning: 'La prueba quedó registrada en el pedido, pero no se pudo enviar el mensaje en el chat.',
+      size: proof.proof_size,
+      quantity: proof.proof_quantity,
+      priceCents: proof.proof_price_cents,
+    })
+  }
 
   try {
     await notify(buyerClerkUserId, {

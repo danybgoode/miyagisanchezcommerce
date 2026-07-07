@@ -38,7 +38,7 @@ export async function POST(
 
   const now = new Date().toISOString()
 
-  await Promise.all([
+  const [eventResult, convResult] = await Promise.all([
     db.from('marketplace_conversation_events').insert({
       conversation_id: id,
       event_type: 'proof_approved',
@@ -51,6 +51,10 @@ export async function POST(
       seller_unread: 1,
     }).eq('id', id),
   ])
+  if (eventResult.error || convResult.error) {
+    console.error('[proof/approve] write failed:', eventResult.error ?? convResult.error)
+    return NextResponse.json({ error: 'No se pudo registrar la aprobación. Inténtalo de nuevo.' }, { status: 500 })
+  }
 
   // Best-effort: flip the durable order flag so both order screens + the
   // ledger reflect it. A missing link (rare — e.g. the order-side write

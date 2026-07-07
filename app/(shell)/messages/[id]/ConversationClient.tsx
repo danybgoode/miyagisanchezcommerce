@@ -227,30 +227,42 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
 
 function ProofApproveButton({ conversationId, onApproved }: { conversationId: string; onApproved: () => void | Promise<void> }) {
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function approve() {
     setBusy(true)
+    setError(null)
     try {
-      await fetch(`/api/conversations/${conversationId}/proof/approve`, { method: 'POST' })
+      const res = await fetch(`/api/conversations/${conversationId}/proof/approve`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error ?? 'No se pudo aprobar. Inténtalo de nuevo.')
+        return
+      }
       await onApproved()
+    } catch {
+      setError('Sin conexión. Inténtalo de nuevo.')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <button
-      type="button"
-      onClick={approve}
-      disabled={busy}
-      style={{
-        marginTop: 8, width: '100%', padding: '8px 12px', borderRadius: 10,
-        border: 'none', background: 'var(--fg)', color: 'var(--fg-inverse)',
-        fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1,
-      }}
-    >
-      {busy ? '…' : 'Aprobar prueba'}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={approve}
+        disabled={busy}
+        style={{
+          marginTop: 8, width: '100%', padding: '8px 12px', borderRadius: 10,
+          border: 'none', background: 'var(--fg)', color: 'var(--fg-inverse)',
+          fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1,
+        }}
+      >
+        {busy ? '…' : 'Aprobar prueba'}
+      </button>
+      {error && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
+    </>
   )
 }
 

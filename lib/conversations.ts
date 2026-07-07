@@ -13,11 +13,13 @@ export interface FindOrCreateConversationParams {
   shopId: string
   buyerClerkUserId: string
   sellerClerkUserId: string
-  /** Stamped when the conversation is being opened FROM a known real order
-   *  (a buy-now purchase has no offer, so this is the only durable link the
-   *  transaction ledger can resolve state through). Never overwrites an
-   *  existing value on conflict — a conversation should stay linked to
-   *  whichever order first opened it. */
+  /** Stamped when the conversation is being opened/used FROM a known real
+   *  order (a buy-now purchase has no offer, so this is the only durable
+   *  link the transaction ledger can resolve state through). ALWAYS updates
+   *  to the latest value passed — the buyer/listing pair is the same across
+   *  repeat orders (e.g. "Volver a pedir"), so the ledger must track
+   *  whichever order the seller is CURRENTLY proofing, never stay pinned to
+   *  the first one (cross-agent review catch, 2026-07-07). */
   medusaOrderId?: string
 }
 
@@ -46,15 +48,17 @@ export async function findOrCreateConversation(
     return null
   }
 
-  // Only stamp medusa_order_id the FIRST time — never clobber an existing
-  // link (e.g. a second order for the same buyer/listing pair reuses the
-  // same conversation thread; the ledger stays pinned to whichever order
-  // opened it first).
-  if (medusaOrderId && !conv.medusa_order_id) {
-    await db
+  // Repoint the ledger's order link at whichever order this call concerns —
+  // a repeat order for the same buyer/listing pair reuses the same
+  // conversation thread, so staying pinned to the FIRST order would show
+  // the wrong order's payment/fulfillment/proof state once a second one
+  // exists (cross-agent review catch, 2026-07-07).
+  if (medusaOrderId && medusaOrderId !== conv.medusa_order_id) {
+    const { error: linkError } = await db
       .from('marketplace_conversations')
       .update({ medusa_order_id: medusaOrderId })
       .eq('id', conv.id)
+    if (linkError) console.error('[conversations] medusa_order_id link failed:', linkError)
   }
 
   return conv.id
