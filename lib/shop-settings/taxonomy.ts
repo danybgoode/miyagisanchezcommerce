@@ -115,6 +115,20 @@ export const SECTIONS: SectionDef[] = [
     manual: false,
   },
   {
+    // NOTE: slug is `paginas` ("Páginas de tienda"), NOT `contenido` — that
+    // word is already taken by the unrelated subscription-exclusive-content
+    // feature at /shop/manage/content (lib/seller-nav.ts's `contenido` entry).
+    slug: 'paginas',
+    title: 'Acerca y preguntas frecuentes',
+    cardTitle: 'Acerca y FAQ',
+    desc: 'Cuenta quién eres y responde las preguntas frecuentes de tu tienda.',
+    icon: 'iconoir-page',
+    color: 'var(--info)',
+    bg: 'var(--info-soft)',
+    group: 'tienda',
+    manual: false,
+  },
+  {
     slug: 'agentes',
     title: 'Agentes e integraciones',
     cardTitle: 'Agentes e integraciones',

@@ -32,7 +32,7 @@ function completedSections(shop: {
   calcom_ok: boolean; custom_domain: string | null
   orders_ok: boolean; returns_ok: boolean
   envios_ok: boolean; negociacion_ok: boolean; notificaciones_ok: boolean
-  diseno_ok: boolean; agentes_ok: boolean
+  diseno_ok: boolean; agentes_ok: boolean; paginas_ok: boolean
 }): Set<string> {
   const done = new Set<string>()
   if (shop.name && shop.description) done.add('perfil')
@@ -46,6 +46,7 @@ function completedSections(shop: {
   if (shop.notificaciones_ok) done.add('notificaciones')
   if (shop.diseno_ok) done.add('diseno')
   if (shop.agentes_ok) done.add('agentes')
+  if (shop.paginas_ok) done.add('paginas')
   return done
 }
 
@@ -74,6 +75,8 @@ export default async function SettingsIndexPage() {
   const shippingSettings = settings.shipping as { local_pickup?: boolean; envia_enabled?: boolean; pickup_spots?: unknown[]; origin_address?: Record<string, string | null> } | undefined
   const offersSettings = settings.offers as { min_buyer_trust_level?: string; negotiation?: { enabled?: boolean } } | undefined
   const notifSettings = settings.notifications as { email_new_view?: boolean; email_new_message?: boolean } | undefined
+  const aboutSettings = settings.about as { body?: string } | null | undefined
+  const faqSettings = settings.faq as { items?: unknown[] } | null | undefined
 
   // The native settings editor persists the whole settings tree on every save,
   // so an empty shell (e.g. default accent color, all-null origin address) is
@@ -103,6 +106,7 @@ export default async function SettingsIndexPage() {
     notificaciones_ok,
     diseno_ok,
     agentes_ok: !!(shop as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url,
+    paginas_ok: !!(aboutSettings?.body || (faqSettings?.items?.length ?? 0) > 0),
   }
 
   const done = completedSections(shopComputed)

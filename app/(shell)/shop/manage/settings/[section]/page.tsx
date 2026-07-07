@@ -22,6 +22,7 @@ import type { Metadata } from 'next'
 const Devoluciones    = dynamic(() => import('../_sections/Devoluciones'))
 const Perfil          = dynamic(() => import('../_sections/Perfil'))
 const Diseno          = dynamic(() => import('../_sections/Diseno'))
+const Paginas         = dynamic(() => import('../_sections/Paginas'))
 const Negociacion     = dynamic(() => import('../_sections/Negociacion'))
 const Envios          = dynamic(() => import('../_sections/Envios'))
 const Citas           = dynamic(() => import('../_sections/Citas'))
@@ -126,6 +127,11 @@ export default async function SettingsSectionPage({
     switch (section) {
       case 'politicas':
         return <Devoluciones initial={(st.returns_policy ?? null) as ReturnsPolicySettings | null} />
+      case 'paginas':
+        return <Paginas
+          initial={{ about: st.about ?? null, faq: st.faq ?? null }}
+          returnsConfigured={!!st.returns_policy?.window}
+        />
       case 'perfil':
         return <Perfil initial={{
           name: shopData.name,

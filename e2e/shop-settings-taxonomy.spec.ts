@@ -23,14 +23,15 @@ import {
  * map stays complete + the moved helpers keep their behavior. Pure; no network/auth.
  */
 
-// The 11 slugs the settings index links to and the [section] route accepts.
+// The 12 slugs the settings index links to and the [section] route accepts.
+// `paginas` (own-shop premium presentation, Sprint 3) added after `diseno`.
 const SLUGS = [
   'perfil', 'pagos', 'envios', 'negociacion', 'citas', 'notificaciones',
-  'diseno', 'agentes', 'canal', 'pedidos', 'politicas',
+  'diseno', 'paginas', 'agentes', 'canal', 'pedidos', 'politicas',
 ]
 
 test.describe('shop-settings-taxonomy · canonical map', () => {
-  test('exactly the 11 sections, in index order', () => {
+  test('exactly the 12 sections, in index order', () => {
     expect(orderedSections().map((s) => s.slug)).toEqual(SLUGS)
   })
 
