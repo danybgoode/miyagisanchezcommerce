@@ -19,7 +19,8 @@ test.describe('Seller listing creation MCP tool', () => {
         params: { name: 'create_listing', arguments: { title: 'Anuncio de prueba', category: 'otros' } },
       },
     })
-    const text: string = (await res.json()).result.content[0].text
-    expect(text).toContain('Unauthorized')
+    const result = (await res.json()).result
+    expect(result.content[0].text).toContain('Unauthorized')
+    expect(result.isError).toBe(true)
   })
 })

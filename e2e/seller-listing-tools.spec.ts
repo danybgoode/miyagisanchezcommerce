@@ -21,8 +21,11 @@ test.describe('Seller listing MCP tools', () => {
       const res = await request.post('/api/ucp/mcp', {
         data: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } },
       })
-      const text: string = (await res.json()).result.content[0].text
-      expect(text).toContain('Unauthorized')
+      const result = (await res.json()).result
+      expect(result.content[0].text).toContain('Unauthorized')
+      // isError must survive the tools/call dispatch — an agent branching on
+      // isError (not prose) needs this, not just "Unauthorized" in the text.
+      expect(result.isError).toBe(true)
     })
   }
 })
