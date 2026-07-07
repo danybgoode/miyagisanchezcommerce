@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { headers } from 'next/headers'
-import { getShopListings } from '@/lib/listings'
+import { getShopListings, getShopCollections } from '@/lib/listings'
+import { shortCollectionSlug } from '@/lib/collection-derive'
 
 /**
  * Host-aware sitemap.
@@ -22,10 +23,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const base = `https://${domain.split(':')[0]}`
     // Never 500 the sitemap on a backend hiccup — fall back to just the home URL.
     let listings: Awaited<ReturnType<typeof getShopListings>> = []
+    let collections: Awaited<ReturnType<typeof getShopCollections>> = []
     try {
-      listings = await getShopListings(shopSlug)
+      [listings, collections] = await Promise.all([
+        getShopListings(shopSlug),
+        getShopCollections(shopSlug),
+      ])
     } catch {
       listings = []
+      collections = []
     }
     return [
       { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
@@ -33,6 +39,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: `${base}/l/${l.id}`,
         changeFrequency: 'weekly' as const,
         priority: 0.8,
+      })),
+      ...collections.map((c) => ({
+        url: `${base}/c/${shortCollectionSlug(c.handle, shopSlug)}`,
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
       })),
     ]
   }

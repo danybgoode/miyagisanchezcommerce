@@ -16,6 +16,7 @@ import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 import { listingSpecs, type Spec } from '@/lib/listing-attributes'
 import { toRatePeriod, type RatePeriod } from '@/lib/rental-pricing'
+import { shortCollectionSlug } from '@/lib/collection-derive'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ export interface UcpListing {
   condition: string | null
   listing_type: string
   category: string | null
+  /** Seller-defined collection short slugs this listing belongs to (own-shop-premium-presentation S2). */
+  collections: string[]
   location: string | null
   state: string | null
   views: number
@@ -241,6 +244,10 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     condition: listing.condition,
     listing_type: listing.listing_type,
     category: listing.category,
+    // Seller-defined collection short slugs (own-shop-premium-presentation
+    // S2) — an agent can ground "which section is this in" and link to
+    // `${shop.url}/c/${slug}`. Empty when the shop has no collections.
+    collections: shop ? (listing.collections ?? []).map((h) => shortCollectionSlug(h, shop.slug)) : [],
     location: listing.location,
     state: listing.state,
     views: listing.views ?? 0,
