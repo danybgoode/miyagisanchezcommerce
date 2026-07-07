@@ -352,6 +352,25 @@ export async function sendSweepstakesConsolation(ctx: {
   await send(ctx.to, `${ui.consolationSubject} — ${ctx.campaignTitle}`, body)
 }
 
+// ── Bookshop launchpad: writer submission emails (es-MX only) ───────────────
+// The launchpad is not on the bilingual allow-list (AGENTS rule #5) — es-MX
+// literal copy, same shape as the print-ad editorial emails.
+
+/** Writer: the 6-char code that verifies their email before a manuscript lands. */
+export async function sendLaunchpadVerificationCode(ctx: {
+  to: string
+  code: string
+  shopName: string
+}): Promise<void> {
+  const body = [
+    h1('Confirma tu correo'),
+    p(`Estás por enviar tu manuscrito a ${esc(ctx.shopName)}. Ingresa este código para confirmar que este correo es tuyo:`),
+    amount(ctx.code, 'Tu código', true),
+    notice('El código vence en 15 minutos. Si no intentaste enviar un manuscrito, ignora este mensaje.'),
+  ].join('')
+  await send(ctx.to, `Tu código para enviar tu manuscrito — ${ctx.shopName}`, body)
+}
+
 // ── Events: email verification + RSVP confirmation ──────────────────────────
 function formatEventEmailDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleString(locale === 'en' ? 'en-US' : 'es-MX', {

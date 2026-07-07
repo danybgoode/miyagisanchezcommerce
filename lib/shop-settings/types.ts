@@ -170,6 +170,16 @@ export interface ShopSettingsData {
        * `lib/shop-settings/theme-presets.ts`.
        */
       theme_preset?: string | null
+      /**
+       * Bookshop launchpad (epic 03) — writer-submission opt-in. When
+       * `accepts_manuscripts` is true the public `/s/[slug]/convocatoria` portal
+       * opens (also gated globally by the `launchpad.enabled` flag). `guidelines`
+       * is the shop's es-MX submission-guidelines text shown on that portal.
+       */
+      launchpad?: {
+        accepts_manuscripts?: boolean
+        guidelines?: string | null
+      }
     }
   } | null
 }

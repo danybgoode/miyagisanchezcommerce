@@ -111,6 +111,10 @@ export default async function SettingsIndexPage() {
   // The entry card appears only once `ml.connect_enabled` is flipped on.
   const mlEnabled = await isEnabled('ml.connect_enabled')
 
+  // Bookshop launchpad (epic 03 · bookshop-launchpad) — writer submissions. The
+  // entry card appears only once `launchpad.enabled` is flipped on (fail-safe OFF).
+  const launchpadEnabled = await isEnabled('launchpad.enabled')
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Header */}
@@ -201,6 +205,22 @@ export default async function SettingsIndexPage() {
             <div className="flex-1 min-w-0">
               <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg)' }}>Mercado Libre</p>
               <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2, lineHeight: 1.4 }}>Conecta tu cuenta para sincronizar tu catálogo e inventario.</p>
+            </div>
+            <i className="iconoir-arrow-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', alignSelf: 'center', flexShrink: 0 }} />
+          </div>
+        </Link>
+      )}
+
+      {/* Bookshop launchpad (dark-shipped behind launchpad.enabled) */}
+      {launchpadEnabled && (
+        <Link href="/shop/manage/convocatoria" className="no-underline">
+          <div style={{ marginTop: 16, padding: '16px', background: 'var(--bg-elevated)', border: '1.5px solid var(--border)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-1)', display: 'flex', alignItems: 'flex-start', gap: 14 }} className="hover:shadow-[var(--shadow-2)]">
+            <div style={{ width: 40, height: 40, borderRadius: 'var(--r-md)', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className="iconoir-book" style={{ fontSize: 20, color: 'var(--accent)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg)' }}>Convocatoria de manuscritos</p>
+              <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2, lineHeight: 1.4 }}>Recibe manuscritos de escritores y publícalos como productos digitales.</p>
             </div>
             <i className="iconoir-arrow-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', alignSelf: 'center', flexShrink: 0 }} />
           </div>

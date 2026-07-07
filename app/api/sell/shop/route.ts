@@ -214,6 +214,11 @@ interface ShopUpdatePayload {
       default_visibility?: 'public' | 'private'
       support_product_id?: string | null
     }
+    // Bookshop launchpad (epic 03) — writer-submission opt-in + guidelines.
+    launchpad?: {
+      accepts_manuscripts?: boolean
+      guidelines?: string | null
+    }
   }
 }
 
@@ -250,6 +255,10 @@ export async function PATCH(req: NextRequest) {
   const heroPromoLink = body.settings?.hero?.promo_cta_link
   if (heroPromoLink !== undefined && heroPromoLink !== null && !httpUrl(heroPromoLink)) {
     return NextResponse.json({ error: 'El enlace del botón destacado debe ser una URL http/https.', field: 'hero' }, { status: 422 })
+  }
+  const launchpadGuidelines = body.settings?.launchpad?.guidelines
+  if (launchpadGuidelines !== undefined && launchpadGuidelines !== null && launchpadGuidelines.length > 2000) {
+    return NextResponse.json({ error: 'Las indicaciones de la convocatoria no pueden superar los 2000 caracteres.', field: 'launchpad' }, { status: 422 })
   }
 
   // ── Fetch current shop ────────────────────────────────────────────────────
