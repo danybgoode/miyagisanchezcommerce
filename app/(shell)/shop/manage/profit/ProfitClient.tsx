@@ -4,16 +4,22 @@ import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
   formatCents,
   formatPct,
+  classifyMarginKillers,
+  classifyUnderpriced,
   type OrderMarginRow,
   type SkuMarginRow,
   type PendingPiece,
 } from '@/lib/profit'
+import PricingCard from './PricingCard'
 
 /**
  * Profit dashboard v1 (profit-analyzer S1 · US-3) — presentational only; all
  * math lives in the pure `lib/profit.ts` seam the server page already ran.
  * Partial rows render honestly ("envío pendiente" etc.), never as $0-complete.
  * ML-fee column is entitlement-gated (`showMlFees`, ml_sync SKU).
+ *
+ * Sprint 2 adds: per-SKU target-margin + Apply (`PricingCard`, US-5) and
+ * margin-insight call-outs (US-6) below the per-SKU table.
  */
 
 const PENDING_LABEL: Record<PendingPiece, string> = {
@@ -47,6 +53,13 @@ export default function ProfitClient({
   showMlFees: boolean
   loadFailed: boolean
 }) {
+  const marginKillers = classifyMarginKillers(skuRows)
+  const underpriced = classifyUnderpriced(skuRows)
+  // Only SKUs with an addressable variant + a positive realized unit price
+  // can drive the Apply control (PricingCard itself no-ops otherwise too —
+  // this filter just avoids rendering an empty/broken card).
+  const pricingRows = skuRows.filter((r) => r.variant_id && r.units > 0 && r.revenue_cents > 0)
+
   const totals = orderRows.reduce(
     (acc, r) => ({
       revenue: acc.revenue + r.revenue_cents,
@@ -194,6 +207,42 @@ export default function ProfitClient({
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Margin insights (US-6) — pure ledger classifiers, no live ML call. */}
+      {(marginKillers.length > 0 || underpriced.length > 0) && (
+        <div className="space-y-3">
+          {marginKillers.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              <p className="text-sm font-semibold text-red-800">Perdiendo margen</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                {marginKillers.map((r) => r.title).join(' · ')} — el margen real está por debajo del 5%.
+                Ajusta el precio abajo.
+              </p>
+            </div>
+          )}
+          {underpriced.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-sm font-semibold text-amber-800">Con espacio para subir precio</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {underpriced.map((r) => r.title).join(' · ')} — ya tienen buen margen y podrían venderse
+                más caros. Ajusta el precio abajo.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Target-margin + one-click Apply (US-5) — one card per addressable SKU. */}
+      {pricingRows.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-2">Ajusta tus precios</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pricingRows.map((r) => (
+              <PricingCard key={r.variant_id ?? r.product_id} row={r} />
+            ))}
           </div>
         </div>
       )}
