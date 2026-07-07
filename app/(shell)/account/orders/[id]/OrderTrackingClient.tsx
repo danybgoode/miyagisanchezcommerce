@@ -9,7 +9,8 @@ import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
 import { readPersonalization, stashPersonalization } from '@/lib/personalization'
-import { readPriceGrid, unitPriceCentsFor, formatPriceGridAmount } from '@/lib/price-grid'
+import { readPriceGrid, unitPriceCentsFor } from '@/lib/price-grid'
+import { resolveReorderTarget, buildReorderCheckoutPath, reorderPriceChangeNote } from '@/lib/reorder'
 import {
   deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
   type RefundState, type ReturnRequestLike,
@@ -375,28 +376,26 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   // always re-resolves at TODAY's tiers on /checkout — never carries over
   // the old total — this only adds an explicit heads-up when it changed.
   async function handleReorder() {
-    const item = (order.line_items ?? [])[0]
-    if (!item?.product_id || !item?.variant_id) {
+    const target = resolveReorderTarget(order.line_items)
+    if (!target) {
       showToast('Este pedido no se puede volver a pedir.', 'error')
       return
     }
+    const item = (order.line_items ?? [])[0]
     setReordering(true)
     try {
-      let priceNote = ''
       try {
-        const res = await fetch(`/api/sell/listing/${item.product_id}/price-grid`)
+        const res = await fetch(`/api/sell/listing/${target.listingId}/price-grid`)
         if (res.ok) {
           const grid = readPriceGrid(await res.json())
-          const currentUnit = grid ? unitPriceCentsFor(grid, item.variant_id, item.quantity) : null
-          if (currentUnit != null && currentUnit !== item.unit_price_cents) {
-            priceNote = ` Precio actualizado: ${formatPriceGridAmount(currentUnit * item.quantity, order.currency)}.`
-          }
+          const currentUnit = grid ? unitPriceCentsFor(grid, target.variantId, target.quantity) : null
+          const note = reorderPriceChangeNote(item?.unit_price_cents ?? 0, currentUnit, target.quantity, order.currency)
+          if (note) showToast(note, 'success')
         }
       } catch { /* price-diff note is best-effort; reorder still proceeds */ }
 
-      stashPersonalization(item.product_id, readPersonalization(item.personalization))
-      if (priceNote) showToast(priceNote.trim(), 'success')
-      router.push(`/checkout?listingId=${encodeURIComponent(item.product_id)}&variantId=${encodeURIComponent(item.variant_id)}&qty=${item.quantity}`)
+      stashPersonalization(target.listingId, readPersonalization(item?.personalization))
+      router.push(buildReorderCheckoutPath(target))
     } finally {
       setReordering(false)
     }
@@ -617,7 +616,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         {/* "Volver a pedir" (custom-print-products S4 · 4.3) — repeat sticker
             runs are the core print-shop revenue pattern. Only once the order
             is fulfilled, and only for a configurator order (a real variant_id). */}
-        {currentStatus === 'delivered' && !!(order.line_items ?? [])[0]?.variant_id && (
+        {currentStatus === 'delivered' && !!resolveReorderTarget(order.line_items) && (
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
             <button
               type="button"
