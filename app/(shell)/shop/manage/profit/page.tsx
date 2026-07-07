@@ -13,6 +13,13 @@ import ProfitClient from './ProfitClient'
 
 export const metadata = { title: 'Ganancias — Mi tienda' }
 
+// The flag check runs BEFORE any dynamic API (flag → notFound → currentUser),
+// so without this Next prerenders the page at build time with the flag's
+// BUILD-TIME value — the launch flip of `ops.profit_enabled` served a baked
+// static 404 forever (caught live at flip, 2026-07-06). Force per-request
+// rendering so the flag is evaluated at runtime like every other gate.
+export const dynamic = 'force-dynamic'
+
 /**
  * Seller profit/margins dashboard (profit-analyzer S1 · US-3). Dark behind
  * `ops.profit_enabled` (flag → notFound, before auth — the flag decides
