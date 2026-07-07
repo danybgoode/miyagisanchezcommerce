@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { searchListings, formatPrice, conditionLabel } from '@/lib/listings'
+import { searchListings, getAutoFacets, formatPrice, conditionLabel } from '@/lib/listings'
 import { listingTypeBadge } from '@/lib/listing-query'
 import { db } from '@/lib/supabase'
 import type { SearchParams } from '@/lib/types'
@@ -27,7 +27,14 @@ function timeAgo(dateStr: string): string {
 
 export default async function ListingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, user] = await Promise.all([searchParams, currentUser()])
-  const { listings, total, page } = await searchListings(params)
+  // Autos facet rail rides alongside the grid fetch (cars-vertical S1.1); modelo
+  // options scope to the applied marca. Only for the autos category — every other
+  // category skips the extra call. Null (no facet_pool yet / non-autos) ⇒ the
+  // SearchBar falls back to its plain free-text autos panel.
+  const [{ listings, total, page }, carFacets] = await Promise.all([
+    searchListings(params),
+    params.category === 'autos' ? getAutoFacets(params.brand) : Promise.resolve(null),
+  ])
 
   // Fetch user's favorited listing IDs for quick heart rendering
   let favoritedIds = new Set<string>()
@@ -68,6 +75,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
         initialCategory={params.category}
         initialState={params.state}
         initialTotal={total}
+        carFacets={carFacets}
       />
 
       {/* Result count */}
@@ -89,6 +97,11 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           <i className="iconoir-search" style={{ fontSize: 40, display: 'block', marginBottom: 12, color: 'var(--fg-subtle)' }} />
           <p style={{ fontWeight: 500, color: 'var(--fg)', marginBottom: 4 }}>Sin resultados</p>
           <p style={{ fontSize: 13 }}>Intenta con otros términos o revisa los filtros.</p>
+          {Object.values(params).some(Boolean) && (
+            <Link href="/l" className="btn btn-secondary btn-sm no-underline" style={{ marginTop: 12, display: 'inline-block' }}>
+              Limpiar filtros
+            </Link>
+          )}
         </div>
       ) : (
         <>

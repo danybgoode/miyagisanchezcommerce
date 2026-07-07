@@ -15,10 +15,15 @@
  *   min_price    - minimum price in MXN pesos (not centavos)
  *   max_price    - maximum price in MXN pesos
  *   limit        - 1–50, default 20
- *   sort         - reciente (default) | precio_asc | precio_desc | popular
- *   brand        - car brand (partial match)
+ *   sort         - reciente (default) | precio_asc | precio_desc | popular | year_desc | year_asc | marca
+ *   brand        - car marca (alias/casing-aware, e.g. "Volkswagen" also matches "VW")
+ *   model        - car modelo (partial match)
  *   year_from    - car year (>=)
  *   year_to      - car year (<=)
+ *   km_from      - odometer km (>=)
+ *   km_to        - odometer km (<=)
+ *   transmission - automatico | manual | cvt
+ *   fuel         - gasolina | diesel | hibrido | electrico | gas_lp
  */
 
 import { NextRequest, NextResponse } from 'next/server'

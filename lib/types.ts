@@ -51,7 +51,10 @@ export type Listing = {
   shop?: Shop
 }
 
-export type SortOption = 'reciente' | 'precio_asc' | 'precio_desc' | 'popular'
+export type SortOption =
+  | 'reciente' | 'precio_asc' | 'precio_desc' | 'popular'
+  // Autos-parity sorts (cars-vertical S1.2)
+  | 'year_desc' | 'year_asc' | 'marca'
 
 export type SearchParams = {
   q?: string
@@ -67,6 +70,7 @@ export type SearchParams = {
   page?: string
   // Autos filters
   brand?: string
+  model?: string
   year_from?: string
   year_to?: string
   km_from?: string
