@@ -5,11 +5,16 @@ import { formatCents, formatPct, solveForPrice, type SkuMarginRow } from '@/lib/
 
 /**
  * Per-SKU target-margin control + one-click Apply (profit-analyzer S2 ·
- * US-5). Fetches the ML fee rate ONCE per card (not per slider tick) — the
- * slider recomputes `solveForPrice` locally from there. "Precio actual" is
- * the row's realized average unit price (revenue / units) — the ledger has
- * no live catalog-price read, so this is a labeled approximation, not the
- * literal current PDP price.
+ * US-5). Fetches the ML fee rate ONCE per card at mount (not per slider
+ * tick) — the slider recomputes `solveForPrice` locally from there for
+ * instant feedback. That cached rate was fetched AT THE ROW'S AVERAGE
+ * PRICE though, and a materially different candidate price could sit in a
+ * different ML fee bracket — so clicking Apply re-fetches the rate ONE more
+ * time, at the actual candidate price, before showing the confirm dialog
+ * (`startConfirm`), and it's that freshly-verified price that gets applied.
+ * "Precio actual" is the row's realized average unit price (revenue /
+ * units) — the ledger has no live catalog-price read, so this is a labeled
+ * approximation, not the literal current PDP price.
  */
 
 type FeeEstimate = { available: boolean; feePct?: number; fixedFeeCents?: number }
@@ -61,10 +66,21 @@ function ConfirmApplyDialog({
   )
 }
 
+async function fetchFeeEstimate(productId: string, priceCents: number): Promise<FeeEstimate> {
+  try {
+    const res = await fetch(`/api/sell/profit/fee-estimate?product_id=${encodeURIComponent(productId)}&price_cents=${priceCents}`)
+    if (!res.ok) return { available: false }
+    return (await res.json()) as FeeEstimate
+  } catch {
+    return { available: false }
+  }
+}
+
 export default function PricingCard({ row }: { row: SkuMarginRow }) {
   const [targetMarginPct, setTargetMarginPct] = useState(DEFAULT_TARGET_MARGIN_PCT)
   const [fee, setFee] = useState<FeeEstimate | null>(null)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [confirmPriceCents, setConfirmPriceCents] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<ApplyResult | null>(null)
 
@@ -74,10 +90,7 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
   useEffect(() => {
     if (!row.variant_id || currentPriceCents <= 0) return
     let cancelled = false
-    fetch(`/api/sell/profit/fee-estimate?product_id=${encodeURIComponent(row.product_id)}&price_cents=${currentPriceCents}`)
-      .then((r) => r.json())
-      .then((d: FeeEstimate) => { if (!cancelled) setFee(d) })
-      .catch(() => { if (!cancelled) setFee({ available: false }) })
+    fetchFeeEstimate(row.product_id, currentPriceCents).then((d) => { if (!cancelled) setFee(d) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.product_id, row.variant_id])
@@ -94,7 +107,37 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
     targetMarginPct: targetMarginPct / 100,
   })
 
+  // The card's cached fee rate was fetched at the row's realized average
+  // price — a price bracket ML quotes a materially different fee at (a low-
+  // price fixed-fee threshold, say) would make that estimate stale for a
+  // very different candidate price. Re-check the rate AT THE CANDIDATE PRICE
+  // right before confirming, so the number the seller actually applies is
+  // freshly validated, not the live-slider preview.
+  async function startConfirm() {
+    if (!solved.achievable) return
+    setVerifying(true)
+    setResult(null)
+    try {
+      const freshFee = await fetchFeeEstimate(row.product_id, solved.priceCents)
+      const freshSolved = solveForPrice({
+        cogsCents: costPerUnitCents,
+        shippingCents: 0,
+        fixedFeeCents: freshFee.available ? (freshFee.fixedFeeCents ?? 0) : 0,
+        feePct: freshFee.available ? (freshFee.feePct ?? 0) : 0,
+        targetMarginPct: targetMarginPct / 100,
+      })
+      if (!freshSolved.achievable) {
+        setResult({ error: 'La comisión verificada ya no permite ese margen. Ajusta el control e intenta de nuevo.' })
+        return
+      }
+      setConfirmPriceCents(freshSolved.priceCents)
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   async function apply() {
+    if (confirmPriceCents == null) return
     setPending(true)
     setResult(null)
     try {
@@ -104,17 +147,21 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
         body: JSON.stringify({
           product_id: row.product_id,
           variant_id: row.variant_id,
-          new_price_cents: solved.achievable ? solved.priceCents : undefined,
+          new_price_cents: confirmPriceCents,
           target_margin_pct: targetMarginPct / 100,
         }),
       })
       const d = await res.json()
-      setResult(d)
+      if (!res.ok) {
+        setResult({ error: d.error ?? d.message ?? 'No se pudo aplicar el precio.' })
+      } else {
+        setResult(d)
+      }
     } catch {
       setResult({ error: 'No se pudo aplicar el precio. Intenta de nuevo.' })
     } finally {
       setPending(false)
-      setShowConfirm(false)
+      setConfirmPriceCents(null)
     }
   }
 
@@ -149,11 +196,11 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
           )}
         </div>
         <button
-          onClick={() => setShowConfirm(true)}
-          disabled={!solved.achievable || pending}
+          onClick={startConfirm}
+          disabled={!solved.achievable || pending || verifying}
           className="px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] text-white font-medium disabled:opacity-40"
         >
-          Aplicar
+          {verifying ? 'Verificando…' : 'Aplicar'}
         </button>
       </div>
 
@@ -169,15 +216,15 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
         </p>
       )}
 
-      {showConfirm && solved.achievable && (
+      {confirmPriceCents != null && (
         <ConfirmApplyDialog
           row={row}
           currentPriceCents={currentPriceCents}
-          newPriceCents={solved.priceCents}
+          newPriceCents={confirmPriceCents}
           targetMarginPct={targetMarginPct}
           pending={pending}
           onConfirm={apply}
-          onCancel={() => setShowConfirm(false)}
+          onCancel={() => setConfirmPriceCents(null)}
         />
       )}
     </div>

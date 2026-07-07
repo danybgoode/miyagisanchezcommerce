@@ -300,7 +300,7 @@ export function classifyUnderpriced(rows: SkuMarginRow[]): SkuMarginRow[] {
     if (r.margin_pct < UNDERPRICED_MARGIN_THRESHOLD_PCT) return false
     const currentUnitPriceCents = r.revenue_cents / r.units
     const impliedFeePct = r.fees_cents / r.revenue_cents
-    const costPerUnitCents = r.cogs_cents / r.units
+    const costPerUnitCents = Math.round(r.cogs_cents / r.units)
     const solved = solveForPrice({
       cogsCents: costPerUnitCents,
       shippingCents: 0, // per-SKU rows exclude shipping by design (order-level)
