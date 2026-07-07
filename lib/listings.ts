@@ -3,6 +3,7 @@ import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
+import { deriveCarFacets, type CarFacets, type CarFacetInput } from './car-facets'
 import { splitCategoriesFrontend } from './collection-derive'
 import { readPriceGrid, type PriceGrid } from './price-grid'
 import { getCustomFields, type CustomFieldDef } from './personalization'
@@ -66,6 +67,34 @@ export async function countListings(params: SearchParams): Promise<number> {
 
   const data = await res.json()
   return data.total ?? 0
+}
+
+/**
+ * Autos facet rail (cars-vertical S1.1). One cached call for the compact
+ * `facet_pool` — the full visibility-filtered autos set, projected to
+ * make/model/year/km/price — then the pure `deriveCarFacets` builds the rail.
+ * Kept separate from the 30s grid fetch (searchListings) so the rail caches for
+ * 5 min (CACHE.CATEGORY) and never touches the grid's perf window.
+ *
+ * `marca` scopes the modelo options to the currently-selected brand. Degrades
+ * gracefully: if the backend hasn't yet deployed the `facet_pool` (async
+ * backend-first deploy window), returns null so the UI falls back to the plain
+ * free-text autos panel instead of erroring.
+ */
+export async function getAutoFacets(marca?: string): Promise<CarFacets | null> {
+  const res = await medusaFetch(`/store/listings?category=autos&facets=1`, {
+    next: { revalidate: CACHE.CATEGORY, tags: ['listings'] },
+  } as RequestInit)
+
+  if (!res.ok) {
+    console.error('[listings] getAutoFacets failed', res.status)
+    return null
+  }
+
+  const data = await res.json()
+  const pool = data.facet_pool as CarFacetInput[] | undefined
+  if (!Array.isArray(pool)) return null   // old backend, no facet_pool → graceful degrade
+  return deriveCarFacets(pool, { marca })
 }
 
 export const getListing = unstable_cache(

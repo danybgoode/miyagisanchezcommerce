@@ -5,6 +5,7 @@ import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
 import { buildQuery, resultCountLabel } from '@/lib/listing-query'
 import type { SearchParams, SortOption } from '@/lib/types'
+import type { CarFacets } from '@/lib/car-facets'
 
 type SearchBarProps = {
   initialQ?: string
@@ -12,6 +13,8 @@ type SearchBarProps = {
   initialState?: string
   params: SearchParams
   initialTotal?: number
+  /** Derived autos facet rail (cars-vertical S1.1); null ⇒ plain free-text panel. */
+  carFacets?: CarFacets | null
 }
 
 const SORT_OPTIONS: { value: SortOption | ''; label: string }[] = [
@@ -19,6 +22,14 @@ const SORT_OPTIONS: { value: SortOption | ''; label: string }[] = [
   { value: 'precio_asc', label: 'Menor precio' },
   { value: 'precio_desc', label: 'Mayor precio' },
   { value: 'popular', label: 'Más vistos' },
+]
+
+// Autos-only sorts (cars-vertical S1.2) — appended to the sort menu only when the
+// autos category is active (año newest/oldest, marca A–Z; tratocar parity).
+const AUTO_SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'year_desc', label: 'Más nuevos (año)' },
+  { value: 'year_asc', label: 'Más antiguos (año)' },
+  { value: 'marca', label: 'Marca (A–Z)' },
 ]
 
 const CONDITIONS = [
@@ -39,7 +50,7 @@ const PROPERTY_TYPES = [
   { value: 'otro', label: 'Otros' },
 ]
 
-export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal }: SearchBarProps) {
+export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
@@ -230,7 +241,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             defaultValue={params.sort ?? 'reciente'}
             className={selectClass}
           >
-            {SORT_OPTIONS.map(s => (
+            {(category === 'autos' ? [...SORT_OPTIONS, ...AUTO_SORT_OPTIONS] : SORT_OPTIONS).map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
@@ -255,25 +266,56 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           <div className="flex flex-wrap gap-2">
             <div className="flex-1 min-w-32">
               <label className={labelClass}>Marca</label>
-              <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder="Toyota, Honda..." className={inputClass} />
+              {/* Derived facet options + counts when the rail loaded; else free text. */}
+              {carFacets && carFacets.marca.length > 0 ? (
+                <select name="brand" defaultValue={params.brand ?? ''} className={selectClass}>
+                  <option value="">Todas las marcas</option>
+                  {carFacets.marca.map(o => (
+                    <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
+                  ))}
+                </select>
+              ) : (
+                <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder="Toyota, Honda..." className={inputClass} />
+              )}
             </div>
+            <div className="flex-1 min-w-32">
+              <label className={labelClass}>Modelo</label>
+              {/* Free-text input with datalist suggestions scoped to the applied marca. */}
+              <input
+                name="model"
+                type="text"
+                list="cars-modelo-options"
+                defaultValue={params.model ?? ''}
+                placeholder={params.brand ? 'Elige o escribe' : 'Corolla, Jetta...'}
+                className={inputClass}
+              />
+              {carFacets && carFacets.modelo.length > 0 && (
+                <datalist id="cars-modelo-options">
+                  {carFacets.modelo.map(o => (
+                    <option key={o.value} value={o.value}>{`${o.label} (${o.count})`}</option>
+                  ))}
+                </datalist>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <div className="w-28">
               <label className={labelClass}>Precio mín</label>
-              <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder="0" className={inputClass} />
+              <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder={carFacets?.precio ? String(carFacets.precio.min) : '0'} className={inputClass} />
             </div>
             <div className="w-28">
               <label className={labelClass}>Precio máx</label>
-              <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder="∞" className={inputClass} />
+              <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder={carFacets?.precio ? String(carFacets.precio.max) : '∞'} className={inputClass} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="w-24">
               <label className={labelClass}>Año desde</label>
-              <input name="year_from" type="number" defaultValue={params.year_from ?? ''} placeholder="2000" maxLength={4} className={inputClass} />
+              <input name="year_from" type="number" defaultValue={params.year_from ?? ''} placeholder={carFacets?.anio ? String(carFacets.anio.min) : '2000'} maxLength={4} className={inputClass} />
             </div>
             <div className="w-24">
               <label className={labelClass}>Año hasta</label>
-              <input name="year_to" type="number" defaultValue={params.year_to ?? ''} placeholder="2025" maxLength={4} className={inputClass} />
+              <input name="year_to" type="number" defaultValue={params.year_to ?? ''} placeholder={carFacets?.anio ? String(carFacets.anio.max) : '2025'} maxLength={4} className={inputClass} />
             </div>
             <div className="w-28">
               <label className={labelClass}>Kms desde</label>
@@ -281,16 +323,17 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             </div>
             <div className="w-28">
               <label className={labelClass}>Kms hasta</label>
-              <input name="km_to" type="number" defaultValue={params.km_to ?? ''} placeholder="∞" className={inputClass} />
+              <input name="km_to" type="number" defaultValue={params.km_to ?? ''} placeholder={carFacets?.km ? String(carFacets.km.max) : '∞'} className={inputClass} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="w-36">
               <label className={labelClass}>Transmisión</label>
+              {/* Values match the capture-form attrs slugs (lib/listing-attributes.ts). */}
               <select name="transmission" defaultValue={params.transmission ?? ''} className={selectClass}>
                 <option value="">Cualquiera</option>
                 <option value="manual">Manual</option>
-                <option value="automatica">Automática</option>
+                <option value="automatico">Automático</option>
                 <option value="cvt">CVT</option>
               </select>
             </div>
@@ -302,7 +345,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
                 <option value="diesel">Diésel</option>
                 <option value="electrico">Eléctrico</option>
                 <option value="hibrido">Híbrido</option>
-                <option value="gas">Gas</option>
+                <option value="gas_lp">Gas LP</option>
               </select>
             </div>
           </div>

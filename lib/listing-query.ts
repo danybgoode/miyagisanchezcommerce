@@ -75,7 +75,7 @@ export function buildQuery(params: SearchParams & { limit?: number | string }): 
   const allowed = [
     'q', 'category', 'state', 'municipio', 'condition', 'min_price', 'max_price',
     'location', 'sort', 'page', 'limit', 'listing_type',
-    'brand', 'year_from', 'year_to', 'km_from', 'km_to', 'transmission', 'fuel',
+    'brand', 'model', 'year_from', 'year_to', 'km_from', 'km_to', 'transmission', 'fuel',
     'rooms_min', 'rooms_max', 'surface_min', 'surface_max', 'property_type',
   ]
   const sp = new URLSearchParams()
