@@ -90,7 +90,15 @@ function listingStatusLabel(status?: string | null) {
 
 // ── Event renderer ────────────────────────────────────────────────────────────
 
-function EventBubble({ event, role }: { event: ConvEvent; role: 'buyer' | 'seller' }) {
+function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: {
+  event: ConvEvent
+  role: 'buyer' | 'seller'
+  conversationId: string
+  onRefresh: () => void | Promise<void>
+  /** Whether ANY proof_approved event already exists in this thread — hides
+   *  the "Aprobar prueba" CTA on every proof_sent bubble once approved. */
+  proofApproved: boolean
+}) {
   const meta = event.metadata
   const isMine = event.actor === role || (event.actor === `${role}_agent`)
   const isSystem = event.actor === 'system'
@@ -163,7 +171,99 @@ function EventBubble({ event, role }: { event: ConvEvent; role: 'buyer' | 'selle
     )
   }
 
+  // Print proof (custom-print-products S4 · 4.1): the restatement (size/qty/
+  // price) is ALWAYS what the server derived from the real order at send
+  // time — this bubble only ever displays event metadata, never re-derives
+  // or lets the viewer edit it (the StickerJunkie-pitfall guard).
+  if (event.event_type === 'proof_sent') {
+    const imageUrl = typeof meta.image_url === 'string' ? meta.image_url : null
+    const size = typeof meta.size === 'string' ? meta.size : null
+    const quantity = typeof meta.quantity === 'number' ? meta.quantity : null
+    const priceCents = typeof meta.price_cents === 'number' ? meta.price_cents : null
+    return (
+      <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', padding: '4px 16px' }}>
+        <div style={{
+          maxWidth: '80%', borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          padding: 12,
+          background: isMine ? 'var(--accent)' : 'var(--bg-elevated)',
+          border: isMine ? 'none' : '1px solid var(--border)',
+          boxShadow: 'var(--shadow-1)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--fg-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Prueba de impresión
+          </div>
+          {imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt="Prueba de impresión" style={{ width: '100%', maxWidth: 240, borderRadius: 10, display: 'block', marginBottom: 8 }} />
+          )}
+          <div style={{ fontSize: 13, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)', lineHeight: 1.5 }}>
+            {size && <div>Tamaño: {size}</div>}
+            {quantity != null && <div>Cantidad: {quantity}</div>}
+            {priceCents != null && <div>Precio: {fmt(priceCents, currency)}</div>}
+          </div>
+          {role === 'buyer' && (
+            proofApproved
+              ? <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: isMine ? 'var(--fg-inverse)' : 'var(--success)' }}>✓ Aprobada</div>
+              : <ProofApproveButton conversationId={conversationId} onApproved={onRefresh} />
+          )}
+          <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--fg-subtle)', marginTop: 6 }}>{formatTime(event.created_at)}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (event.event_type === 'proof_approved') {
+    return (
+      <div style={{ textAlign: 'center', padding: '6px 16px' }}>
+        <span style={{ fontSize: 12, color: 'var(--fg-muted)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '4px 12px', display: 'inline-block' }}>
+          ✓ Prueba aprobada
+        </span>
+      </div>
+    )
+  }
+
   return null
+}
+
+function ProofApproveButton({ conversationId, onApproved }: { conversationId: string; onApproved: () => void | Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function approve() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/proof/approve`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null
+        setError(data?.error ?? 'No se pudo aprobar. Inténtalo de nuevo.')
+        return
+      }
+      await onApproved()
+    } catch {
+      setError('Sin conexión. Inténtalo de nuevo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={approve}
+        disabled={busy}
+        style={{
+          marginTop: 8, width: '100%', padding: '8px 12px', borderRadius: 10,
+          border: 'none', background: 'var(--fg)', color: 'var(--fg-inverse)',
+          fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1,
+        }}
+      >
+        {busy ? '…' : 'Aprobar prueba'}
+      </button>
+      {error && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
+    </>
+  )
 }
 
 function renderSystemText(type: string, meta: Record<string, unknown>, currency: string): string {
@@ -885,7 +985,14 @@ export default function ConversationClient({ conversationId, initialConversation
               </span>
             </div>
             {dayEvents.map(ev => (
-              <EventBubble key={ev.id} event={ev} role={role} />
+              <EventBubble
+                key={ev.id}
+                event={ev}
+                role={role}
+                conversationId={conversationId}
+                onRefresh={refresh}
+                proofApproved={events.some(e => e.event_type === 'proof_approved')}
+              />
             ))}
           </div>
         ))}

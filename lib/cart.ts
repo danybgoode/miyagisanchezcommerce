@@ -54,6 +54,11 @@ const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 const MXN_REGION_ID = process.env.NEXT_PUBLIC_MEDUSA_MXN_REGION_ID
   ?? process.env.MEDUSA_MXN_REGION_ID
   ?? ''
+// Absolute base for the fire-and-forget manual-order email below — a plain
+// relative fetch() only resolves in a browser; the first true server-to-
+// server caller of startCheckout() (MCP checkout, custom-print-products
+// S4 · 4.2) would otherwise throw with no base and silently never send it.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 function medusaFetch(path: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -354,7 +359,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       // Stripe/MP webhooks that send them). Fire-and-forget — never block.
       // Skipped when the caller owns its own manual email (e.g. print-ad flow).
       if (!suppressManualEmail) {
-        fetch('/api/orders/finalize-manual', {
+        fetch(`${SITE_URL}/api/orders/finalize-manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ orderId: order.id }),

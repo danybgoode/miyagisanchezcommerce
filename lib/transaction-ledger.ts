@@ -60,6 +60,10 @@ export interface LedgerOrder {
   metadata?: Record<string, unknown> | null
   refund_state?: RefundState | null
   return_request?: ReturnRequestLike | null
+  /** Print-proof sign-off (custom-print-products S4 · 4.1) — advisory only,
+   *  never changes the dominant stage; just appends a detail line. */
+  proof_sent?: boolean | null
+  proof_approved?: boolean | null
 }
 
 export interface LedgerInput {
@@ -163,6 +167,23 @@ function refundAction(refund: RefundState, role: LedgerRole): LedgerAction | nul
   return { kind: 'view-order', label: 'Ver pedido' }
 }
 
+/**
+ * Print-proof sign-off (custom-print-products S4 · 4.1) — advisory only, so
+ * it never picks the dominant stage; it only ever appends a one-line detail
+ * onto whichever stage already won. Absent when neither flag is set.
+ */
+function proofDetailLine(order: LedgerOrder): string | undefined {
+  if (order.proof_approved) return '✓ Prueba aprobada'
+  if (order.proof_sent) return 'Prueba enviada — esperando aprobación'
+  return undefined
+}
+
+function withProofDetail(view: LedgerView, order: LedgerOrder | null | undefined): LedgerView {
+  const line = order ? proofDetailLine(order) : undefined
+  if (!line) return view
+  return { ...view, detail: view.detail ? `${view.detail} · ${line}` : line }
+}
+
 // ── The projection ───────────────────────────────────────────────────────────────
 
 export function buildTransactionLedger(input: LedgerInput): LedgerView {
@@ -194,7 +215,7 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
 
   // ── Dominant stage / headline — refund > payment/fulfillment > negotiation ──
   if (refund !== 'none') {
-    return {
+    return withProofDetail({
       stage: 'refund',
       badge: refundBadge(refund),
       detail: refundStateDetail(refund) || undefined,
@@ -203,13 +224,13 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
       timeline,
       action: refundAction(refund, role),
       isEmpty: false,
-    }
+    }, order)
   }
 
   if (hasOrder) {
     const manual = manualPaymentStateFromOrder(order!)
     if (manual) {
-      return {
+      return withProofDetail({
         stage: manual === 'processing' ? 'fulfillment' : 'payment',
         badge: manualPaymentBadge(manual),
         whoActsNext: manualWhoActsNext(manual, role),
@@ -217,10 +238,10 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
         timeline,
         action: manualAction(manual, role),
         isEmpty: false,
-      }
+      }, order)
     }
     // Card / MP order — captured at checkout, so payment is settled.
-    return {
+    return withProofDetail({
       stage: 'fulfillment',
       badge: 'Pago confirmado',
       whoActsNext: role === 'seller' ? 'Prepara la entrega' : 'El vendedor prepara tu pedido',
@@ -228,7 +249,7 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
       timeline,
       action: { kind: 'view-order', label: 'Ver pedido' },
       isEmpty: false,
-    }
+    }, order)
   }
 
   // ── Offer-only (no order yet) ──

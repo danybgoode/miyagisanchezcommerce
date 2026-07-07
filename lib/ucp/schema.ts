@@ -17,6 +17,7 @@ import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 import { listingSpecs, type Spec } from '@/lib/listing-attributes'
 import { toRatePeriod, type RatePeriod } from '@/lib/rental-pricing'
 import { shortCollectionSlug } from '@/lib/collection-derive'
+import type { PriceGrid } from '@/lib/price-grid'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,14 @@ export interface UcpListing {
   // An agent must collect these and submit them on the checkout session.
   personalization_fields: CustomFieldDef[]
 
+  // Configurator options + quantity-tiered pricing (custom-print-products S4 ·
+  // 4.2). Null for an ordinary single-variant/flat-price listing — an agent
+  // must resolve a variant_id + quantity from here before checkout when
+  // present. The actual charged price always comes from Medusa's own cart
+  // resolution at checkout (see lib/price-grid.ts); this is READ/discovery
+  // only.
+  price_grid: PriceGrid | null
+
   // Schema.org for LLM structured understanding
   schema_org: Record<string, unknown>
 }
@@ -151,7 +160,11 @@ function formatPrice(cents: number, currency: string): string {
 
 // ── Main transformer ───────────────────────────────────────────────────────────
 
-export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.com'): UcpListing {
+export function toUcpListing(
+  listing: Listing,
+  baseUrl = 'https://miyagisanchez.com',
+  priceGrid: PriceGrid | null = null,
+): UcpListing {
   const shop = listing.shop
   const publicListingId = listing.medusa_product_id ?? listing.id
 
@@ -299,6 +312,7 @@ export function toUcpListing(listing: Listing, baseUrl = 'https://miyagisanchez.
     specs: listingSpecs(listing),
     metadata: listingMeta,
     personalization_fields: getCustomFields(listingMeta),
+    price_grid: priceGrid,
     schema_org: schemaOrg,
   }
 }

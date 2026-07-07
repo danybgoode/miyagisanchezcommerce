@@ -3,8 +3,12 @@
 import { useRef, useImperativeHandle, forwardRef } from 'react'
 import {
   type CustomFieldDef,
+  type ArtworkFormat,
+  ARTWORK_FORMATS,
+  MAX_ARTWORK_SIZE_MB,
   effectiveMaxLength,
 } from '@/lib/personalization'
+import ArtworkFileInput from './ArtworkFileInput'
 
 export interface PersonalizationFieldsHandle {
   /** Focus a field by id (used to land the buyer on the first missing required one). */
@@ -17,6 +21,11 @@ export interface PersonalizationFieldsHandle {
  * counter (AC 2.2) and a clear optional/required label; never shows an abrupt
  * red box (AC 2.2). The parent focuses the first missing required field via the
  * imperative handle (AC 2.3).
+ *
+ * The `file` case (custom-print-products S3) delegates its upload mechanics
+ * entirely to `<ArtworkFileInput>` — this component stays network-unaware,
+ * receiving the resulting R2 URL through the same `onChange(id, value)`
+ * contract every other field type already uses.
  */
 const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
   defs: CustomFieldDef[]
@@ -24,7 +33,12 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
   onChange: (id: string, value: string) => void
   /** Field flagged as missing after a blocked submit — drives the gentle hint. */
   invalidFieldId?: string | null
-}>(function PersonalizationFields({ defs, values, onChange, invalidFieldId }, ref) {
+  /** Required for any listing with a `file` field (the upload route needs it). */
+  listingId?: string
+  /** Physical print size in cm, if known — feeds the low-res preflight (S3.3);
+   *  only the configurator context has this, so it's a no-op elsewhere. */
+  physicalCm?: number | null
+}>(function PersonalizationFields({ defs, values, onChange, invalidFieldId, listingId, physicalCm }, ref) {
   const refs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>>({})
 
   useImperativeHandle(ref, () => ({
@@ -54,7 +68,7 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
                 ? <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>
                 : <span style={{ color: 'var(--fg-subtle)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>(opcional)</span>}
             </label>
-            {def.type !== 'select' && (
+            {def.type !== 'select' && def.type !== 'file' && (
               <span style={{ fontSize: 11, color: value.length >= max ? 'var(--warning)' : 'var(--fg-subtle)' }}>
                 {value.length}/{max}
               </span>
@@ -65,7 +79,17 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
         return (
           <div key={def.id}>
             {labelRow}
-            {def.type === 'long_text' ? (
+            {def.type === 'file' ? (
+              <ArtworkFileInput
+                fieldId={def.id}
+                listingId={listingId ?? ''}
+                allowedFormats={def.allowed_formats ?? [...ARTWORK_FORMATS] as ArtworkFormat[]}
+                maxSizeMb={def.max_size_mb ?? MAX_ARTWORK_SIZE_MB}
+                value={value}
+                onChange={onChange}
+                physicalCm={physicalCm}
+              />
+            ) : def.type === 'long_text' ? (
               <textarea
                 id={`pf_${def.id}`}
                 ref={el => { refs.current[def.id] = el }}

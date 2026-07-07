@@ -27,6 +27,11 @@ export async function resolveConversationLedger(
   offer: LedgerOffer | null,
   offerId: string | null,
   role: 'buyer' | 'seller',
+  /** `marketplace_conversations.medusa_order_id` — the direct link a buy-now
+   *  (non-negotiated) purchase relies on, since it never gets an offer_id
+   *  (custom-print-products S4 · 4.1). Tried only when the offer-based
+   *  resolution above found nothing. */
+  medusaOrderIdHint?: string | null,
 ): Promise<ConversationLedger> {
   let order: LedgerOrder | null = null
   let orderId: string | null = null
@@ -70,6 +75,33 @@ export async function resolveConversationLedger(
       }
     }
   } catch { /* offer-only */ }
+
+  // Fallback: no offer-based order resolved above — the common case for a
+  // buy-now (non-negotiated) purchase, which never gets an offer_id at all.
+  // The conversation may still be linked directly to the real order.
+  if (!order && medusaOrderIdHint) {
+    try {
+      const { getToken } = await auth()
+      const clerkJwt = await getToken()
+      const endpoint = role === 'seller'
+        ? `${MEDUSA_BASE}/store/sellers/me/orders/${medusaOrderIdHint}`
+        : `${MEDUSA_BASE}/store/buyer/me/orders/${medusaOrderIdHint}`
+      const res = await fetch(endpoint, {
+        headers: {
+          'x-publishable-api-key': MEDUSA_PUB_KEY,
+          ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
+        },
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const { order: medusaOrder } = await res.json() as { order?: Record<string, unknown> }
+        if (medusaOrder) {
+          order = medusaOrder as LedgerOrder
+          orderId = medusaOrderIdHint
+        }
+      }
+    } catch { /* degrade to whatever we already have */ }
+  }
 
   return { ledger: buildTransactionLedger({ offer, order, role }), orderId }
 }

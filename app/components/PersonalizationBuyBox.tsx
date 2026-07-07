@@ -90,6 +90,7 @@ export default function PersonalizationBuyBox({
         values={values}
         onChange={onChange}
         invalidFieldId={invalidFieldId}
+        listingId={listingId}
       />
       <button
         type="button"

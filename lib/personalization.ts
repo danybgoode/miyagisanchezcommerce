@@ -16,7 +16,24 @@
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type CustomFieldType = 'short_text' | 'long_text' | 'select'
+export type CustomFieldType = 'short_text' | 'long_text' | 'select' | 'file'
+
+/** Artwork formats a buyer may upload for a `file` field — real magic-byte
+ *  sniffing enforces this server-side (`lib/file-sniff.ts`), never just the
+ *  client-declared extension/Content-Type. */
+export const ARTWORK_FORMATS = ['png', 'jpg', 'pdf', 'ai', 'svg'] as const
+export type ArtworkFormat = typeof ARTWORK_FORMATS[number]
+
+/**
+ * Hard server ceiling for an artwork upload, regardless of what a seller
+ * sets. Capped well under Vercel's documented 4.5MB request-body limit for
+ * Node.js Serverless Functions (this route can't run on the Edge runtime —
+ * it needs Buffer/aws-sdk for the R2 upload) — verified live against a real
+ * dev server: a request body approaching that range fails to even parse
+ * (`req.formData()` throws) before this app-level check ever runs, so the
+ * ceiling must leave real headroom, not just look reasonable on paper.
+ */
+export const MAX_ARTWORK_SIZE_MB = 4
 
 export interface CustomFieldDef {
   /** Stable id; also the key the buyer's value is stored under. */
@@ -31,13 +48,24 @@ export interface CustomFieldDef {
   required: boolean
   /** Choices for `select` only. */
   options?: string[]
+  /** Allowed upload formats for `file` only — defaults to all of `ARTWORK_FORMATS`. */
+  allowed_formats?: ArtworkFormat[]
+  /** Max upload size in MB for `file` only — clamped to `[1, MAX_ARTWORK_SIZE_MB]`. */
+  max_size_mb?: number
 }
 
-/** A single answered field, denormalised so downstream stages need no defs. */
+/**
+ * A single answered field, denormalised so downstream stages need no defs.
+ * `type` is optional (older orders predate it) — a reader that skips it just
+ * treats the value as plain text, which is always safe. For a `file` field,
+ * `value` IS the uploaded artwork's public R2 URL — never character-clamped
+ * like a text answer (see `buildPersonalizationPayload`).
+ */
 export interface PersonalizationField {
   id: string
   label: string
   value: string
+  type?: CustomFieldType
 }
 
 export interface PersonalizationPayload {
@@ -46,7 +74,7 @@ export interface PersonalizationPayload {
 
 // ── Limits ────────────────────────────────────────────────────────────────────
 
-export const CUSTOM_FIELD_TYPES: readonly CustomFieldType[] = ['short_text', 'long_text', 'select']
+export const CUSTOM_FIELD_TYPES: readonly CustomFieldType[] = ['short_text', 'long_text', 'select', 'file']
 export const MAX_CUSTOM_FIELDS = 10
 export const SHORT_TEXT_LIMIT = 80
 export const LONG_TEXT_LIMIT = 500
@@ -55,9 +83,17 @@ const MAX_PLACEHOLDER = 100
 const MAX_OPTION_LABEL = 60
 const MAX_OPTIONS = 20
 
-/** The hard character cap for a field, before applying a seller's `max_length`. */
+/**
+ * The hard character cap for a field, before applying a seller's `max_length`.
+ * `file`/`select` values aren't character-clamped at all (a URL, or a fixed
+ * choice) — this only matters for a caller that goes through
+ * `effectiveMaxLength` directly; `buildPersonalizationPayload` also
+ * special-cases both types below so a long R2 URL is never truncated.
+ */
 export function typeCap(type: CustomFieldType): number {
-  return type === 'long_text' ? LONG_TEXT_LIMIT : SHORT_TEXT_LIMIT
+  if (type === 'long_text') return LONG_TEXT_LIMIT
+  if (type === 'file') return Infinity
+  return SHORT_TEXT_LIMIT
 }
 
 /** The effective max characters a buyer may type into a field. */
@@ -122,11 +158,7 @@ export function sanitizeFieldDefs(raw: unknown): CustomFieldDef[] {
     const placeholder = clampStr(e.placeholder, MAX_PLACEHOLDER)
     if (placeholder) def.placeholder = placeholder
 
-    if (type !== 'select') {
-      const cap = typeCap(type)
-      const ml = Number(e.max_length)
-      if (Number.isFinite(ml) && ml > 0) def.max_length = Math.min(Math.floor(ml), cap)
-    } else {
+    if (type === 'select') {
       const options = Array.isArray(e.options)
         ? e.options
             .map(o => clampStr(o, MAX_OPTION_LABEL))
@@ -136,6 +168,23 @@ export function sanitizeFieldDefs(raw: unknown): CustomFieldDef[] {
       // A select with no options can't be answered — drop it.
       if (options.length === 0) continue
       def.options = options
+    } else if (type === 'file') {
+      const formats = Array.isArray(e.allowed_formats)
+        ? (e.allowed_formats as unknown[]).filter((f): f is ArtworkFormat =>
+            ARTWORK_FORMATS.includes(f as ArtworkFormat))
+        : []
+      // Empty/invalid allowlist → default to all formats, so a required file
+      // field is never impossible for a buyer to satisfy.
+      def.allowed_formats = formats.length > 0 ? formats : [...ARTWORK_FORMATS]
+
+      const sizeMb = Number(e.max_size_mb)
+      def.max_size_mb = Number.isFinite(sizeMb) && sizeMb > 0
+        ? Math.min(Math.floor(sizeMb), MAX_ARTWORK_SIZE_MB)
+        : MAX_ARTWORK_SIZE_MB
+    } else {
+      const cap = typeCap(type)
+      const ml = Number(e.max_length)
+      if (Number.isFinite(ml) && ml > 0) def.max_length = Math.min(Math.floor(ml), cap)
     }
 
     out.push(def)
@@ -182,6 +231,8 @@ export function validatePersonalization(
  * Build the structured, denormalised payload for the line item. Drops empty
  * answers, clamps each value to its field's effective max, and keeps the
  * seller's label alongside the value so every downstream stage is self-contained.
+ * `select` and `file` values are never character-clamped — a `file` value is
+ * an R2 URL, and truncating it would silently produce a broken link.
  */
 export function buildPersonalizationPayload(
   defs: CustomFieldDef[],
@@ -191,13 +242,19 @@ export function buildPersonalizationPayload(
   for (const def of defs) {
     const raw = (values[def.id] ?? '').trim()
     if (!raw) continue
-    const value = def.type === 'select' ? raw : raw.slice(0, effectiveMaxLength(def))
-    fields.push({ id: def.id, label: def.label, value })
+    const value = def.type === 'select' || def.type === 'file' ? raw : raw.slice(0, effectiveMaxLength(def))
+    fields.push({ id: def.id, label: def.label, value, type: def.type })
   }
   return fields.length > 0 ? { fields } : null
 }
 
-/** Narrow an unknown metadata value into a PersonalizationPayload, or null. */
+/**
+ * Narrow an unknown metadata value into a PersonalizationPayload, or null.
+ * `type` is validated against the known `CustomFieldType`s (never trusted
+ * as an arbitrary string) — line-item metadata is technically buyer/API-
+ * writable via some paths, and a render site branches on `type === 'file'`
+ * to decide whether to put a value into an `<img src>`/`<a href>`.
+ */
 export function readPersonalization(value: unknown): PersonalizationPayload | null {
   if (!value || typeof value !== 'object') return null
   const fields = (value as Record<string, unknown>).fields
@@ -209,7 +266,8 @@ export function readPersonalization(value: unknown): PersonalizationPayload | nu
     const label = typeof ff.label === 'string' ? ff.label : ''
     const val = typeof ff.value === 'string' ? ff.value : ''
     if (!val.trim()) continue
-    clean.push({ id: typeof ff.id === 'string' ? ff.id : '', label, value: val })
+    const type = CUSTOM_FIELD_TYPES.includes(ff.type as CustomFieldType) ? (ff.type as CustomFieldType) : undefined
+    clean.push({ id: typeof ff.id === 'string' ? ff.id : '', label, value: val, ...(type ? { type } : {}) })
   }
   return clean.length > 0 ? { fields: clean } : null
 }
@@ -272,6 +330,84 @@ export const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   short_text: 'Texto corto',
   long_text: 'Texto largo',
   select: 'Lista de opciones',
+  file: 'Arte / archivo',
+}
+
+// ── Artwork low-res preflight (warn, never block) ──────────────────────────────
+
+export interface ArtworkResolutionCheck {
+  warn: boolean
+  message?: string
+}
+
+/**
+ * Warn (never block) when an uploaded raster image is too low-res for the
+ * physical size it'll be printed at, at a target print quality of ~300 PPI.
+ * Only meaningful for raster formats with known pixel dimensions and a known
+ * physical size — an unparseable/unknown input silently skips the check
+ * (never confuse the buyer with a warning that doesn't actually apply).
+ */
+export function checkArtworkResolution({
+  pixelWidth,
+  pixelHeight,
+  physicalCm,
+  ppi = 300,
+}: {
+  pixelWidth?: number | null
+  pixelHeight?: number | null
+  physicalCm?: number | null
+  ppi?: number
+}): ArtworkResolutionCheck {
+  if (!pixelWidth || !pixelHeight || !physicalCm || pixelWidth <= 0 || pixelHeight <= 0 || physicalCm <= 0) {
+    return { warn: false }
+  }
+  const physicalInches = physicalCm / 2.54
+  const requiredPixels = physicalInches * ppi
+  const shortestSide = Math.min(pixelWidth, pixelHeight)
+  if (shortestSide >= requiredPixels) return { warn: false }
+  return {
+    warn: true,
+    message: `Tu imagen tiene resolución baja para el tamaño elegido (${physicalCm}cm) — puede verse borrosa al imprimir.`,
+  }
+}
+
+/**
+ * Best-effort extraction of a physical size in cm from a seller-authored
+ * dimension value like "10cm", "10 cm", "10 × 15 cm" (the number immediately
+ * before "cm" wins, e.g. 15 for "10 × 15 cm" — good enough for a warn-only
+ * heuristic, not a precise multi-dimension parse). Returns null when
+ * unparseable, so the caller can silently skip the preflight rather than guess.
+ */
+export function parseSizeCm(dimensionValue: string | null | undefined): number | null {
+  if (!dimensionValue) return null
+  const match = dimensionValue.match(/(\d+(?:\.\d+)?)\s*cm/i)
+  if (!match) return null
+  const n = parseFloat(match[1])
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+// ── Rendering a `file` field's value safely ────────────────────────────────
+// A `file` field's value is normally an R2/Supabase URL our own upload route
+// returned — but line-item/order metadata is technically buyer/API-writable
+// via some paths (a buyer can edit sessionStorage or call the checkout APIs
+// directly), so every render site (checkout review, order screens, both
+// order emails) must check the value BEFORE putting it into an `<img src>`/
+// `<a href>`, never trust `type === 'file'` alone (cross-agent review catch,
+// 2026-07-06). Shared here so the check can't drift between the React
+// component (client) and the email HTML builder (server) — env-based host
+// checking isn't usable from a client component, so this validates
+// structurally instead: our own route always stores uploads under an
+// `/artwork/` key prefix, so requiring that path segment (+ https) closes
+// off the trivial case (an unrelated external image/link) without needing
+// env access. Residual risk: a determined attacker could still host content
+// behind a URL containing `/artwork/` in its path — same "cheap defense-in-
+// depth, not a hard boundary" honesty as the SVG sniffer's residual risk.
+export function isRenderableArtworkUrl(value: string): boolean {
+  return /^https:\/\/[^\s"'<>]+\/artwork\//i.test(value)
+}
+
+export function isImageLikeArtworkUrl(value: string): boolean {
+  return /\.(png|jpe?g|svg)(\?|$)/i.test(value)
 }
 
 /**

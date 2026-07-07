@@ -2,10 +2,15 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { carrierLabel, carrierTrackingUrl } from '@/lib/envia'
 import AgentHandoff from '@/app/components/AgentHandoff'
+import PersonalizationEcho from '@/app/components/PersonalizationEcho'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import { isManualPaymentMethod } from '@/lib/manual-payment-state'
+import { readPersonalization, stashPersonalization } from '@/lib/personalization'
+import { readPriceGrid, unitPriceCentsFor } from '@/lib/price-grid'
+import { resolveReorderTarget, buildReorderCheckoutPath, reorderPriceChangeNote } from '@/lib/reorder'
 import {
   deriveRefundState, refundBadge, whoActsNextRefund, canBuyerConfirmReceipt,
   type RefundState, type ReturnRequestLike,
@@ -40,7 +45,7 @@ interface OrderTrackingProps {
     buyer_name: string | null
     buyer_email: string | null
     created_at: string
-    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string }> }> | null
+    personalization?: Array<{ title?: string; fields: Array<{ id?: string; label?: string; value?: string; type?: string }> }> | null
     event_tickets?: EventTicket[] | null
     metadata?: Record<string, unknown> | null
     // Direct-payment ("Pago directo") fields from the Medusa order
@@ -56,6 +61,21 @@ interface OrderTrackingProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Lightweight print-proof sign-off (custom-print-products S4 · 4.1).
+    proof_sent?: boolean | null
+    proof_image_url?: string | null
+    proof_size?: string | null
+    proof_quantity?: number | null
+    proof_price_cents?: number | null
+    proof_approved?: boolean | null
+    // Raw per-item ids for "Volver a pedir" (custom-print-products S4 · 4.3).
+    line_items?: Array<{
+      product_id: string | null
+      variant_id: string | null
+      quantity: number
+      unit_price_cents: number
+      personalization: unknown
+    }> | null
     manual_payment?: {
       spei?: { clabe: string; bank_name?: string | null; account_holder?: string | null } | null
       dimo?: { phone: string } | null
@@ -239,6 +259,7 @@ const RETURN_STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 export default function OrderTrackingClient({ order }: OrderTrackingProps) {
+  const router = useRouter()
   const meta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!meta.escrow_mode
   const escrowCaptured = !!meta.escrow_captured
@@ -252,6 +273,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
   const [currentStatus, setCurrentStatus] = useState(order.status)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [escrowConfirmed, setEscrowConfirmed] = useState(escrowCaptured)
 
   // Return request state
@@ -346,6 +368,38 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
   }, [])
+
+  // "Volver a pedir" (custom-print-products S4 · 4.3) — re-adds the same
+  // variant/quantity/artwork to the cart via the SAME hand-off the buy box
+  // uses (stash + /checkout query params), so the buyer picks a payment
+  // method fresh rather than silently re-charging the original one. Price
+  // always re-resolves at TODAY's tiers on /checkout — never carries over
+  // the old total — this only adds an explicit heads-up when it changed.
+  async function handleReorder() {
+    const target = resolveReorderTarget(order.line_items)
+    if (!target) {
+      showToast('Este pedido no se puede volver a pedir.', 'error')
+      return
+    }
+    const item = (order.line_items ?? [])[0]
+    setReordering(true)
+    try {
+      try {
+        const res = await fetch(`/api/sell/listing/${target.listingId}/price-grid`)
+        if (res.ok) {
+          const grid = readPriceGrid(await res.json())
+          const currentUnit = grid ? unitPriceCentsFor(grid, target.variantId, target.quantity) : null
+          const note = reorderPriceChangeNote(item?.unit_price_cents ?? 0, currentUnit, target.quantity, order.currency)
+          if (note) showToast(note, 'success')
+        }
+      } catch { /* price-diff note is best-effort; reorder still proceeds */ }
+
+      stashPersonalization(target.listingId, readPersonalization(item?.personalization))
+      router.push(buildReorderCheckoutPath(target))
+    } finally {
+      setReordering(false)
+    }
+  }
 
   const trackUrl = shipment?.tracking_number
     ? carrierTrackingUrl(shipment.carrier, shipment.tracking_number)
@@ -531,14 +585,47 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                     <p className="text-xs font-medium mb-1">{block.title}</p>
                   )}
                   {block.fields.map((f, fi) => (
-                    <div key={f.id ?? fi} className="flex gap-2 text-sm">
-                      <span className="text-[var(--color-muted)] flex-shrink-0">{f.label}:</span>
-                      <span className="font-medium break-words">{f.value}</span>
+                    <div key={f.id ?? fi} className="text-sm">
+                      <PersonalizationEcho
+                        field={f}
+                        labelStyle={{ color: 'var(--color-muted)' }}
+                        valueStyle={{ fontWeight: 500 }}
+                      />
                     </div>
                   ))}
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {/* Print-proof sign-off (custom-print-products S4 · 4.1). Advisory
+            only — mirrors what the conversation thread shows, so the buyer
+            sees it here even if they never open the chat. */}
+        {order.proof_sent && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Prueba de impresión</h3>
+            {order.proof_image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
+            )}
+            <p className="text-sm">
+              {order.proof_approved ? '✓ Aprobaste esta prueba.' : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
+            </p>
+          </div>
+        )}
+        {/* "Volver a pedir" (custom-print-products S4 · 4.3) — repeat sticker
+            runs are the core print-shop revenue pattern. Only once the order
+            is fulfilled, and only for a configurator order (a real variant_id). */}
+        {currentStatus === 'delivered' && !!resolveReorderTarget(order.line_items) && (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <button
+              type="button"
+              onClick={handleReorder}
+              disabled={reordering}
+              className="w-full py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium disabled:opacity-60"
+            >
+              {reordering ? 'Preparando…' : 'Volver a pedir'}
+            </button>
           </div>
         )}
         {(order.event_tickets ?? []).length > 0 && (
