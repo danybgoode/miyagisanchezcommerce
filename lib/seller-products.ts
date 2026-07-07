@@ -61,6 +61,8 @@ export interface SellerProductPatch {
   price_cents?: number | null
   quantity?: number | null
   status?: 'published' | 'draft'
+  /** Full replacement set of seller-owned collection ids (own-shop-premium-presentation S2). */
+  collection_ids?: string[]
 }
 
 /** PATCH the product through the backend internal route (x-internal-secret). */

@@ -133,6 +133,7 @@ export const MCP_SELLER_TOOLS = [
   'respond_to_offer',
   'create_listing',
   'list_my_listings',
+  'list_my_collections',       // own-shop-premium-presentation S2 (token-scoped)
   'update_listing',
   'set_listing_status',
   'list_orders',                // ml-orders-native S3 · US-9 (token-scoped)
