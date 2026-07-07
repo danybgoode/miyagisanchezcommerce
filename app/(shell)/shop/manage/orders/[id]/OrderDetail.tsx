@@ -17,6 +17,7 @@ import {
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
+import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-tags'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ interface OrderDetailProps {
     source?: string | null
     ml_order_id?: string | null
     ml_pack_id?: string | null
+    // Free-form seller tags (ml-orders-native S3 · US-7).
+    tags?: string[] | null
     marketplace_listings:
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }
       | { id: string; title: string; images: Array<{ url: string }> | null; listing_type: string; metadata: unknown }[]
@@ -648,6 +651,49 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     }
   }
 
+  // Free-form seller tags (S3 · US-7). Optimistic local update; the backend
+  // route re-normalizes authoritatively (trim/cap/dedupe), same shape as
+  // `lib/order-tags.ts`'s client-side preview layer.
+  const [tags, setTags] = useState<string[]>(order.tags ?? [])
+  const [tagInput, setTagInput] = useState('')
+  const [tagBusy, setTagBusy] = useState(false)
+
+  async function handleAddTag() {
+    const raw = tagInput.trim()
+    if (!raw) return
+    const optimistic = addTagLocal(tags, raw)
+    setTagBusy(true)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: raw }),
+      })
+      const data = await res.json() as { tags?: string[]; error?: string }
+      if (!res.ok) { showToast(data.error ?? 'No se pudo agregar la etiqueta.', 'error'); return }
+      setTags(data.tags ?? optimistic)
+      setTagInput('')
+    } catch {
+      showToast('Sin conexión.', 'error')
+    } finally {
+      setTagBusy(false)
+    }
+  }
+
+  async function handleRemoveTag(tag: string) {
+    const optimistic = removeTagLocal(tags, tag)
+    setTags(optimistic)
+    try {
+      const res = await fetch(`/api/orders/${order.id}/tags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remove: tag }),
+      })
+      const data = await res.json() as { tags?: string[]; error?: string }
+      if (res.ok && data.tags) setTags(data.tags)
+    } catch { /* optimistic removal stands; a refresh will reconcile */ }
+  }
+
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
     : order.marketplace_listings
@@ -958,6 +1004,50 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               <span className="text-sm leading-snug">{formatAddress(order.shipping_address)}</span>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Order tags (ml-orders-native S3 · US-7) */}
+      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Etiquetas</h2>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {tags.length === 0 && <span className="text-xs text-[var(--color-muted)]">Sin etiquetas.</span>}
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-subtle)] px-3 py-1 text-xs font-medium"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => handleRemoveTag(tag)}
+                aria-label={`Quitar etiqueta ${tag}`}
+                className="text-[var(--color-muted)] hover:text-red-600"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleAddTag() } }}
+            placeholder="Nueva etiqueta…"
+            maxLength={30}
+            disabled={tagBusy}
+            className="flex-1 text-sm border border-[var(--color-border)] rounded-lg px-3 py-1.5"
+          />
+          <button
+            type="button"
+            onClick={() => void handleAddTag()}
+            disabled={tagBusy || !tagInput.trim()}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] disabled:opacity-50"
+          >
+            Agregar
+          </button>
         </div>
       </section>
 

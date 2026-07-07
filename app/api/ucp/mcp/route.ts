@@ -46,6 +46,7 @@ import { buildStoreConfigSnapshot } from '@/lib/store-config'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
+import { listShopOrdersViaInternal } from '@/lib/agent-orders'
 import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
@@ -343,6 +344,18 @@ const TOOLS = [
     name: 'list_my_listings',
     description: "SELLER TOOL. List YOUR OWN shop's listings (all statuses, incl. paused) so you can manage them. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each listing's product_id, title, price, status, and type. Use product_id with update_listing / set_listing_status.",
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_orders',
+    description: "SELLER TOOL. List YOUR OWN shop's orders across every sales channel — native Miyagi sales and Mercado Libre sales materialized into Medusa (ml-orders-native) — with source/channel attribution and tags. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each order's id, status, buyer, amount, source (miyagi|mercadolibre), tags, and shipment/tracking.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Filter by order status (e.g. "shipped", "delivered")' },
+        source: { type: 'string', enum: ['miyagi', 'mercadolibre'], description: 'Filter by sales channel' },
+        limit:  { type: 'number', minimum: 1, maximum: 50, description: 'Max orders to return (default 20)' },
+      },
+    },
   },
   {
     name: 'update_listing',
@@ -1295,6 +1308,37 @@ async function handleListMyListings(authHeader?: string | null) {
   }
 }
 
+async function handleListOrders(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const result = await listShopOrdersViaInternal(shop.slug)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudieron leer los pedidos: ${result.error}` }] }
+
+  const statusFilter = typeof args.status === 'string' ? args.status : null
+  const sourceFilter = args.source === 'mercadolibre' || args.source === 'miyagi' ? args.source : null
+  const limit = typeof args.limit === 'number' ? Math.max(1, Math.min(50, Math.floor(args.limit))) : 20
+
+  let orders = result.orders ?? []
+  if (statusFilter) orders = orders.filter((o) => o.status === statusFilter)
+  if (sourceFilter) orders = orders.filter((o) => o.source === sourceFilter)
+  orders = orders.slice(0, limit)
+
+  if (orders.length === 0) return { content: [{ type: 'text', text: 'No tienes pedidos que coincidan con ese filtro.' }] }
+
+  const lines = orders.map((o) => {
+    const tags = o.tags.length ? ` · tags: ${o.tags.join(', ')}` : ''
+    return `• **${o.id}** — ${o.status} · ${o.source} · ${(o.amount_cents / 100).toFixed(2)} ${o.currency}${tags}\n  comprador: ${o.buyer_name ?? o.buyer_email ?? '—'}`
+  })
+  return {
+    content: [
+      { type: 'text', text: [`## Tus pedidos (${orders.length})`, ...lines].join('\n') },
+      { type: 'text', text: JSON.stringify({ orders }, null, 2) },
+    ],
+  }
+}
+
 async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1598,6 +1642,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'respond_to_offer':          return { content: (await handleRespondToOffer(args, baseUrl, authHeader)).content }
       case 'create_listing':            return { content: (await handleCreateListing(args, authHeader)).content }
       case 'list_my_listings':          return { content: (await handleListMyListings(authHeader)).content }
+      case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            return { content: (await handleUpdateListing(args, authHeader)).content }
       case 'set_listing_status':        return { content: (await handleSetListingStatus(args, authHeader)).content }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
