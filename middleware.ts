@@ -7,7 +7,7 @@ import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
 import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
 } from '@/lib/shortlink'
-import { isLikelyListingId, isLikelyShopSlug } from '@/lib/route-shape'
+import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib/route-shape'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 
 // Routes that require a signed-in user
@@ -113,7 +113,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       // Boundary isolation (same as custom domains): a subdomain serves ONLY its
       // own shop — never expose /s/ or the cross-shop /l index here.
       const path = req.nextUrl.pathname
-      if (path === '/s' || path.startsWith('/s/') || path === '/l' || path === '/l/') {
+      if (isBoundaryDeniedPath(path)) {
         const home = req.nextUrl.clone()
         home.pathname = '/'
         home.search = ''
@@ -232,7 +232,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       // neither the slug nor another seller's catalog ever surfaces here. (A
       // single foreign product `/l/[id]` is caught at the page level → 404.)
       const path = req.nextUrl.pathname
-      if (path === '/s' || path.startsWith('/s/') || path === '/l' || path === '/l/') {
+      if (isBoundaryDeniedPath(path)) {
         const home = req.nextUrl.clone()
         home.pathname = '/'
         home.search = ''

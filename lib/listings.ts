@@ -3,6 +3,7 @@ import type { Listing, Shop, SearchParams } from './types'
 import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
+import { splitCategoriesFrontend } from './collection-derive'
 import { readPriceGrid, type PriceGrid } from './price-grid'
 import { getCustomFields, type CustomFieldDef } from './personalization'
 import {
@@ -184,6 +185,7 @@ export const getShopListings = unstable_cache(
           ? variantPrices.reduce((min, pr) => (pr.amount < min.amount ? pr : min))
           : undefined
         const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
+        const { platformCategory, collections } = splitCategoriesFrontend(p.categories, seller?.slug)
         const manageInventory = variants.some((v: any) => !!v?.manage_inventory)
         const availableQuantity = manageInventory
           ? variants
@@ -203,7 +205,8 @@ export const getShopListings = unstable_cache(
           currency: (priceObj?.currency_code ?? (meta.currency as string | undefined) ?? 'mxn').toUpperCase(),
           condition: (meta.condition as string) ?? null,
           listing_type: p.type?.value ?? (meta.listing_type as string | undefined) ?? 'product',
-          category: p.categories?.[0]?.handle ?? null,
+          category: platformCategory?.handle ?? null,
+          collections: collections.map((c) => c.handle),
           state: (meta.state as string) ?? null,
           municipio: (meta.municipio as string) ?? null,
           location: (meta.location as string) ?? null,
@@ -240,6 +243,24 @@ export const getShopListings = unstable_cache(
       })
   },
   ['shop-listings'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
+/**
+ * A shop's seller-defined collections (own-shop-premium-presentation S2),
+ * ordered by the seller's own sort_order. Public read — powers the shop's
+ * nav strip on every channel (marketplace/subdomain/custom domain).
+ */
+export const getShopCollections = unstable_cache(
+  async (sellerSlug: string): Promise<Array<{ id: string; handle: string; name: string; sort_order: number }>> => {
+    const res = await medusaFetch(`/store/sellers/${sellerSlug}/collections`, {
+      next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+    } as RequestInit)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.collections ?? []
+  },
+  ['shop-collections'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 

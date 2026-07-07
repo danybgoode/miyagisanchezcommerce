@@ -47,6 +47,7 @@ export const SELLER_NAV: SellerNavGroup[] = [
     key: 'crecer',
     label: 'Crecer',
     entries: [
+      { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
       { key: 'promociones', label: 'Cupones', href: '/shop/manage/promotions', icon: 'iconoir-percentage-circle' },
       { key: 'suscripciones', label: 'Suscripciones', href: '/shop/manage/subscriptions', icon: 'iconoir-refresh-double' },
       { key: 'contenido', label: 'Contenido', href: '/shop/manage/content', icon: 'iconoir-book' },

@@ -53,6 +53,8 @@ import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingActi
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
 import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { getShopCollections } from '@/lib/listings'
+import { shortCollectionSlug } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
@@ -354,6 +356,11 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'list_my_collections',
+    description: "SELLER TOOL. List YOUR OWN shop's collections (Die-cut, Zines…) so you can assign listings to them. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each collection's name and short slug — pass the name(s) to update_listing's collection_names to assign a listing.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'list_orders',
     description: "SELLER TOOL. List YOUR OWN shop's orders across every sales channel — native Miyagi sales and Mercado Libre sales materialized into Medusa (ml-orders-native) — with source/channel attribution and tags. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each order's id, status, buyer, amount, source (miyagi|mercadolibre), tags, and shipment/tracking.",
     inputSchema: {
@@ -367,7 +374,7 @@ const TOOLS = [
   },
   {
     name: 'update_listing',
-    description: "SELLER TOOL. Update one of YOUR OWN listings: title, description, price, and/or stock quantity. Requires the shop agent token, scoped to one shop. Changing the price changes what buyers pay — it's audited and the seller is alerted. Get product_id from list_my_listings.",
+    description: "SELLER TOOL. Update one of YOUR OWN listings: title, description, price, stock quantity, and/or collection membership. Requires the shop agent token, scoped to one shop. Changing the price changes what buyers pay — it's audited and the seller is alerted. Get product_id from list_my_listings; get collection names from list_my_collections.",
     inputSchema: {
       type: 'object',
       required: ['product_id'],
@@ -377,6 +384,10 @@ const TOOLS = [
         description: { type: 'string', description: 'New description' },
         price_mxn:   { type: 'number', description: 'New price in MXN pesos (e.g. 1500 = $1,500)' },
         quantity:    { type: 'number', description: 'New stock quantity (physical products only)' },
+        collection_names: {
+          type: 'array', items: { type: 'string' },
+          description: 'Full replacement set of collection names (from list_my_collections) this listing should belong to. Omit to leave unchanged; pass [] to clear.',
+        },
       },
     },
   },
@@ -1442,6 +1453,24 @@ async function handleListMyListings(authHeader?: string | null) {
   }
 }
 
+async function handleListMyCollections(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const collections = await getShopCollections(shop.slug)
+  if (collections.length === 0) return { content: [{ type: 'text', text: 'Aún no tienes colecciones. Créalas en el portal de tu tienda (Colecciones).' }] }
+
+  const shaped = collections.map((c) => ({ name: c.name, slug: shortCollectionSlug(c.handle, shop.slug!) }))
+  const lines = shaped.map((c) => `• **${c.name}** (slug: \`${c.slug}\`)`)
+  return {
+    content: [
+      { type: 'text', text: [`## Tus colecciones (${shaped.length})`, ...lines].join('\n') },
+      { type: 'text', text: JSON.stringify({ collections: shaped }, null, 2) },
+    ],
+  }
+}
+
 async function handleListOrders(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1483,14 +1512,25 @@ async function handleUpdateListing(args: Record<string, unknown>, authHeader?: s
   const owned = await shopOwnsProduct(shop.id, productId)
   if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
 
-  const patch: { title?: string; description?: string | null; price_cents?: number | null; quantity?: number | null } = {}
+  const patch: { title?: string; description?: string | null; price_cents?: number | null; quantity?: number | null; collection_ids?: string[] } = {}
   const fields: string[] = []
   if (typeof args.title === 'string') { patch.title = args.title; fields.push('title') }
   if (typeof args.description === 'string') { patch.description = args.description; fields.push('description') }
   if (typeof args.price_mxn === 'number') { patch.price_cents = Math.round(args.price_mxn * 100); fields.push('price') }
   if (typeof args.quantity === 'number') { patch.quantity = Math.max(0, Math.floor(args.quantity)); fields.push('quantity') }
+  if (Array.isArray(args.collection_names)) {
+    const requestedNames = args.collection_names.filter((n): n is string => typeof n === 'string')
+    const shopCollections = await getShopCollections(shop.slug)
+    const byName = new Map(shopCollections.map((c) => [c.name.toLowerCase(), c]))
+    const unknown = requestedNames.filter((n) => !byName.has(n.toLowerCase()))
+    if (unknown.length > 0) {
+      return { isError: true, content: [{ type: 'text', text: `No reconozco estas colecciones: ${unknown.join(', ')}. Usa list_my_collections para ver los nombres exactos.` }] }
+    }
+    patch.collection_ids = requestedNames.map((n) => byName.get(n.toLowerCase())!.id)
+    fields.push('collections')
+  }
   if (fields.length === 0) {
-    return { isError: true, content: [{ type: 'text', text: 'Indica al menos un campo a cambiar: title, description, price_mxn o quantity.' }] }
+    return { isError: true, content: [{ type: 'text', text: 'Indica al menos un campo a cambiar: title, description, price_mxn, quantity o collection_names.' }] }
   }
 
   const result = await patchSellerProductViaInternal(shop.slug, productId, patch)
@@ -1776,6 +1816,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'respond_to_offer':          { const r = await handleRespondToOffer(args, baseUrl, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_listing':            { const r = await handleCreateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

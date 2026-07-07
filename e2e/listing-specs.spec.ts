@@ -21,6 +21,7 @@ function listing(category: string, attrs: Record<string, unknown>): Listing {
     condition: 'good',
     listing_type: 'product',
     category,
+    collections: [],
     state: 'Jalisco',
     municipio: 'Guadalajara',
     location: 'Guadalajara, Jalisco',
