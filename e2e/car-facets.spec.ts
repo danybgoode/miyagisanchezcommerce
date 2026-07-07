@@ -34,6 +34,7 @@ test.describe('car-brands · canonicalBrandKey / canonicalBrand', () => {
       chevy: 'chevrolet',
       mercedes: 'mercedes-benz',
       'mercedes benz': 'mercedes-benz',
+      mercedesbenz: 'mercedes-benz',
       'general motors': 'gmc',
       'great wall': 'gwm',
     }
