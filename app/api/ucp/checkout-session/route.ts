@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { getPriceGrid } from '@/lib/listings'
 import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
@@ -474,7 +475,7 @@ export async function POST(req: NextRequest) {
         ? 'Compra Protegida disponible — puedes activarla para mayor seguridad.'
         : 'Sin Compra Protegida en esta tienda.',
     },
-    listing: toUcpListing(listing, baseUrl),
+    listing: toUcpListing(listing, baseUrl, await getPriceGrid(listing.medusa_product_id ?? listing.id)),
     personalization: {
       submitted: submittedPersonalization,
       required_complete: customFields.length === 0 ? true : personalizationCheck.ok,

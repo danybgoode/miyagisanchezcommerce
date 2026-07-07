@@ -25,6 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
+import { getPriceGrid } from '@/lib/listings'
 import { isShopClaimed } from '@/lib/claim'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
@@ -467,7 +468,8 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
   }
 
-  const items = (data.listings ?? []).map((l: Listing) => toUcpListing(l, baseUrl))
+  const items = await Promise.all((data.listings ?? []).map(async (l: Listing) =>
+    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
   if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
 
   const summary = items.map(item => {
@@ -539,7 +541,31 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 
   if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
 
-  const item = toUcpListing(listing, baseUrl)
+  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const item = toUcpListing(listing, baseUrl, priceGrid)
+
+  // Configurator options/tiers + the file-upload contract (custom-print-products
+  // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
+  // JSON blob just to learn a listing needs a variant_id + artwork_url.
+  const configuratorLines: string[] = []
+  if (item.price_grid && item.price_grid.variants.length > 0) {
+    configuratorLines.push('', '**Opciones y precios por cantidad:**')
+    for (const v of item.price_grid.variants) {
+      const optionsLabel = Object.entries(v.options).map(([k, val]) => `${k}: ${val}`).join(', ')
+      const tiers = v.tiers.map(t =>
+        `${t.min_quantity}${t.max_quantity ? `–${t.max_quantity}` : '+'} u. → $${(t.amount / 100).toFixed(2)} c/u`,
+      ).join(' · ')
+      configuratorLines.push(`- **${optionsLabel}** (variant_id: \`${v.id}\`): ${tiers}`)
+    }
+  }
+  const fileField = item.personalization_fields.find(f => f.type === 'file')
+  if (fileField) {
+    configuratorLines.push(
+      '',
+      `**Arte requerido:** ${fileField.required ? 'obligatorio' : 'opcional'} — formatos ${(fileField.allowed_formats ?? []).join(', ').toUpperCase() || 'estándar'}, máx ${fileField.max_size_mb ?? '?'} MB. Pásalo como \`artwork_url\` en create_checkout (el servidor lo descarga y valida).`,
+    )
+  }
+
   const details = [
     `# ${item.title}`,
     `**Precio:** ${item.price?.formatted ?? 'A consultar'}`,
@@ -554,6 +580,7 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
     `**Métodos:** ${[item.payment_methods.mercadopago && 'Mercado Pago', item.payment_methods.stripe && 'Stripe'].filter(Boolean).join(', ') || 'Ninguno configurado'}`,
     item.description ? `\n**Descripción:** ${item.description}` : '',
     `**URL:** ${item.url}`,
+    ...configuratorLines,
   ].filter(s => s !== '').join('\n')
 
   return { content: [{ type: 'text', text: details }, { type: 'text', text: JSON.stringify(item, null, 2) }] }
@@ -787,7 +814,8 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
     if (res.ok) {
       const d = await res.json() as { listings?: Listing[] }
-      listings = (d.listings ?? []).map(l => toUcpListing(l, baseUrl))
+      listings = await Promise.all((d.listings ?? []).map(async l =>
+        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
     }
   } catch { /* listings stays empty */ }
 
