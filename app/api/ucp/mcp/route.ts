@@ -117,10 +117,15 @@ const TOOLS = [
         min_price:    { type: 'number', description: 'Minimum price in MXN pesos' },
         max_price:    { type: 'number', description: 'Maximum price in MXN pesos' },
         limit:        { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of results' },
-        sort:         { type: 'string', enum: ['reciente','precio_asc','precio_desc','popular'], default: 'reciente', description: 'Sort order' },
-        brand:        { type: 'string', description: 'Car brand (use with category=autos)' },
+        sort:         { type: 'string', enum: ['reciente','precio_asc','precio_desc','popular','year_desc','year_asc','marca'], default: 'reciente', description: 'Sort order (year_desc/year_asc/marca are autos-specific)' },
+        brand:        { type: 'string', description: 'Car marca — alias/casing-aware, e.g. "Volkswagen" also matches "VW" (use with category=autos)' },
+        model:        { type: 'string', description: 'Car modelo, partial match (use with category=autos)' },
         year_from:    { type: 'number', description: 'Car year minimum (use with category=autos)' },
         year_to:      { type: 'number', description: 'Car year maximum (use with category=autos)' },
+        km_from:      { type: 'number', description: 'Odometer km minimum (use with category=autos)' },
+        km_to:        { type: 'number', description: 'Odometer km maximum (use with category=autos)' },
+        transmission: { type: 'string', enum: ['automatico','manual','cvt'], description: 'Transmission (use with category=autos)' },
+        fuel:         { type: 'string', enum: ['gasolina','diesel','hibrido','electrico','gas_lp'], description: 'Fuel type (use with category=autos)' },
       },
     },
   },
@@ -487,8 +492,13 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
   if (args.min_price)    params.set('min_price', String(args.min_price))
   if (args.max_price)    params.set('max_price', String(args.max_price))
   if (args.brand)        params.set('brand', String(args.brand))
+  if (args.model)        params.set('model', String(args.model))
   if (args.year_from)    params.set('year_from', String(args.year_from))
   if (args.year_to)      params.set('year_to', String(args.year_to))
+  if (args.km_from)      params.set('km_from', String(args.km_from))
+  if (args.km_to)        params.set('km_to', String(args.km_to))
+  if (args.transmission) params.set('transmission', String(args.transmission))
+  if (args.fuel)         params.set('fuel', String(args.fuel))
   if (args.sort)         params.set('sort', String(args.sort))
 
   let data: { listings?: Listing[] }
