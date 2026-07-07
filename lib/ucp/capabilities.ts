@@ -135,6 +135,7 @@ export const MCP_SELLER_TOOLS = [
   'list_my_listings',
   'update_listing',
   'set_listing_status',
+  'list_orders',                // ml-orders-native S3 · US-9 (token-scoped)
   'get_domain_entitlement',     // custom-domain paywall S3 (token-scoped)
   'start_domain_subscription',  // custom-domain paywall S3 (token-scoped)
   'get_subdomain_entitlement',     // subdomain-pricing S2 (token-scoped)
@@ -159,6 +160,7 @@ export const UCP_CAPABILITIES = [
   'support_widget',      // Buy Me a Coffee-style guest support contributions
   'mcp_server',
   'seller_configuration', // get/patch_store_configuration (token-scoped, Sprint 4)
+  'seller_orders',        // list_orders — ml-orders-native S3 · US-9 (token-scoped)
   'seller_onboarding',    // Onboarding 0 — published setup spec + emit prompt (get_setup_spec)
   'seller_domain_subscription', // custom-domain SKU — entitlement + checkout over MCP, recurring + one-time cadence (token-scoped)
 ] as const

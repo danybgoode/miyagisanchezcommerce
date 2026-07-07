@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -145,6 +145,12 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    no artwork/custom fields (seller coordinates artwork out-of-band via
  *    messaging); a flag outage keeps the feature live rather than breaking
  *    an in-flight purchase.
+ *  - ENABLEMENT (`ops.profit_enabled`): default `false` (epic profit-analyzer,
+ *    Sprint 1). The seller profit/margins surface: `/shop/manage/profit` 404s
+ *    while OFF, and the backend's ledger writes + profit read API are no-ops —
+ *    the whole epic ships dark. The ledger is append-only and the backfill
+ *    route heals any flag-off gap, so flipping ON later loses nothing. Flip ON
+ *    once Daniel's COGS → sale → margin-row smoke passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -163,6 +169,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'seller_agent.connector_url_enabled': false,
   'promoter.transfer_enabled': false,
   'configurator.enabled': true,
+  'ops.profit_enabled': false,
 }
 
 const TABLE = 'platform_flags'

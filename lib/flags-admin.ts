@@ -77,6 +77,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // reverts a configurator listing to Sprint 2's buy box with no artwork
   // field, never all the way back to a broken pre-Sprint-2 checkout.
   'configurator.enabled': { polarity: 'killswitch', default: true },
+  // Seller profit/margins dashboard + the backend financial-events ledger
+  // (epic 03 · profit-analyzer S1). Enablement: default OFF ⇒ the profit page
+  // 404s and the ledger writes are no-ops; append-only + the backfill route
+  // mean a late flip loses nothing. Flip ON after Daniel's margin smoke.
+  'ops.profit_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

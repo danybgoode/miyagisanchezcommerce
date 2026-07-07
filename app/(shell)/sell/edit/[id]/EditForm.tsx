@@ -9,7 +9,7 @@ import PersonalizationSection from './PersonalizationSection'
 import OpcionesSection from './OpcionesSection'
 import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
-import { parsePesosToCents } from '@/lib/opciones'
+import { parsePesosToCents, parseCostPesosToCents } from '@/lib/opciones'
 import type { PriceGrid } from '@/lib/price-grid'
 
 interface ShortlinkInfo {
@@ -43,6 +43,7 @@ export default function EditForm({
   priceGrid = null,
   isActive = false,
   knownMultiVariant = false,
+  variantCosts = {},
 }: {
   id: string
   initial: EditableFields
@@ -57,6 +58,12 @@ export default function EditForm({
    * listings, so the grid alone can't gate the flat inputs there).
    */
   knownMultiVariant?: boolean
+  /**
+   * Per-variant unit costs (COGS) keyed by variant id, from the seller-scoped
+   * GET (seller-private — never on the public price-grid). Feeds the flat
+   * cost input (sole variant) and the per-combination cost editors.
+   */
+  variantCosts?: Record<string, number | null>
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -66,6 +73,15 @@ export default function EditForm({
   )
   const [quantityRaw, setQuantityRaw] = useState(
     initial.available_quantity != null ? String(initial.available_quantity) : '',
+  )
+  // Unit cost (COGS) — flat input for single-variant listings only; the map
+  // holds exactly one entry there (multi-variant costs live in Opciones).
+  const initialCostCents = (() => {
+    const vals = Object.values(variantCosts ?? {})
+    return vals.length === 1 ? vals[0] : null
+  })()
+  const [costRaw, setCostRaw] = useState(
+    initialCostCents != null ? String(initialCostCents / 100) : '',
   )
   const [attrs, setAttrs] = useState<Attrs>(
     Object.fromEntries(
@@ -125,6 +141,10 @@ export default function EditForm({
       const cents = parsePesosToCents(priceRaw)
       if (cents !== null && cents <= 0) errs.price = 'El precio debe ser mayor a $0.'
     }
+    if (!isSubscription && !isMultiVariant && costRaw.trim() !== ''
+      && parseCostPesosToCents(costRaw) === null) {
+      errs.unit_cost = 'El costo unitario debe ser de $0 o más.'
+    }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
       errs.short_slug = 'Corrige el enlace corto antes de guardar.'
     }
@@ -155,6 +175,13 @@ export default function EditForm({
       if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
         const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
         if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
+      }
+      // Unit cost (COGS) — dirty-checked by parsed value, same discipline as
+      // price/quantity; empty clears (null). Multi-variant costs save per
+      // combination in the Opciones section, never through this PUT.
+      if (!isSubscription && !isMultiVariant) {
+        const nextCostCents = costRaw.trim() !== '' ? parseCostPesosToCents(costRaw) : null
+        if (nextCostCents !== initialCostCents) body.unit_cost_cents = nextCostCents
       }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
@@ -260,7 +287,13 @@ export default function EditForm({
 
       {/* Opciones — priced dimensions + quantity tiers (products only; Story 2.4) */}
       {isProduct && (
-        <OpcionesSection productId={id} priceGrid={priceGrid} isActive={isActive} currency={initial.currency} />
+        <OpcionesSection
+          productId={id}
+          priceGrid={priceGrid}
+          isActive={isActive}
+          currency={initial.currency}
+          variantCosts={variantCosts}
+        />
       )}
 
       {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}
@@ -325,6 +358,34 @@ export default function EditForm({
       {isSubscription && (
         <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-muted)]">
           💡 Los precios de suscripción se gestionan en los planes del anuncio.
+        </div>
+      )}
+
+      {/* Unit cost (COGS) — single-variant only; multi-variant costs live per
+          combination in Opciones. Seller-private: buyers never see it. */}
+      {!isSubscription && !isMultiVariant && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Costo unitario ({initial.currency}) <span className="text-[var(--color-muted)] font-normal">— privado</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-sm">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={costRaw}
+              onChange={e => setCostRaw(e.target.value)}
+              placeholder="0.00"
+              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                fieldErrors.unit_cost ? 'border-red-400' : 'border-[var(--color-border)]'
+              }`}
+            />
+          </div>
+          {fieldErrors.unit_cost && <p className="text-red-600 text-xs mt-1">{fieldErrors.unit_cost}</p>}
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Lo que te cuesta producir o adquirir una unidad. Solo tú lo ves — alimenta tu análisis
+            de ganancias. Déjalo vacío si no quieres registrarlo.
+          </p>
         </div>
       )}
 
