@@ -104,8 +104,8 @@ test.describe('deriveShopCollections', () => {
     const entries = deriveShopCollections(
       listings,
       [
-        { id: 'cat_diecut', handle: 'miyagiprints-die-cut', name: 'Die-cut', metadata: { sort_order: 0 } },
-        { id: 'cat_zines', handle: 'miyagiprints-zines', name: 'Zines', metadata: { sort_order: 1 } },
+        { id: 'cat_diecut', handle: 'miyagiprints-die-cut', name: 'Die-cut', sort_order: 0 },
+        { id: 'cat_zines', handle: 'miyagiprints-zines', name: 'Zines', sort_order: 1 },
       ],
       '/s/miyagiprints',
       'miyagiprints',
@@ -116,13 +116,27 @@ test.describe('deriveShopCollections', () => {
     expect(entries[2].count).toBe(2)
   })
 
+  test('sorts by sort_order even when the input array arrives UNSORTED — a live bug caught by cross-review: the sort previously read a nonexistent .metadata.sort_order field on this exact shape and silently no-opped', () => {
+    const entries = deriveShopCollections(
+      [],
+      [
+        { id: 'cat_c', handle: 'miyagiprints-c', name: 'C', sort_order: 2 },
+        { id: 'cat_a', handle: 'miyagiprints-a', name: 'A', sort_order: 0 },
+        { id: 'cat_b', handle: 'miyagiprints-b', name: 'B', sort_order: 1 },
+      ],
+      '',
+      'miyagiprints',
+    )
+    expect(entries.map((e) => e.label)).toEqual(['Todos', 'A', 'B', 'C'])
+  })
+
   test('multi-collection membership on one listing is preserved in counts', () => {
     const listings = [makeListing({ id: 'p1', collections: ['miyagiprints-a', 'miyagiprints-b'] })]
     const entries = deriveShopCollections(
       listings,
       [
-        { id: 'cat_a', handle: 'miyagiprints-a', name: 'A' },
-        { id: 'cat_b', handle: 'miyagiprints-b', name: 'B' },
+        { id: 'cat_a', handle: 'miyagiprints-a', name: 'A', sort_order: 0 },
+        { id: 'cat_b', handle: 'miyagiprints-b', name: 'B', sort_order: 1 },
       ],
       '',
       'miyagiprints',

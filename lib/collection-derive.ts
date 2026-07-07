@@ -68,6 +68,25 @@ export interface ShopCollectionNavEntry {
 }
 
 /**
+ * The shape `getShopCollections()` (lib/listings.ts) actually returns —
+ * `sort_order` flattened to a top-level field (mirroring the backend's
+ * `SellerCollection`), NOT nested under `metadata` like the raw Medusa
+ * category rows `CategoryRow`/`splitCategoriesFrontend` read. Conflating the
+ * two shapes here previously made `deriveShopCollections`'s own sort a
+ * silent no-op — `metadata` is always absent on this shape, so `sortOrder()`
+ * returned `MAX_SAFE_INTEGER` for every row and `Array.sort` degenerated to
+ * "whatever order the array arrived in" (cross-agent review catch,
+ * 2026-07-07 — the backend happens to pre-sort its response, which is why
+ * this never visibly broke, but the frontend sort itself was dead code).
+ */
+export interface ShopCollectionRow {
+  id: string
+  handle: string
+  name: string
+  sort_order: number
+}
+
+/**
  * Nav-strip entries for a shop's collections: "Todos" always first (even with
  * zero collections), then each collection the seller owns, ordered by
  * `sort_order`. `basePath` is the channel-appropriate prefix — `/s/${slug}`
@@ -78,11 +97,11 @@ export interface ShopCollectionNavEntry {
  */
 export function deriveShopCollections(
   listings: Listing[],
-  allCollections: CategoryRow[],
+  allCollections: ShopCollectionRow[],
   basePath: string,
   sellerSlug: string,
 ): ShopCollectionNavEntry[] {
-  const sorted = [...allCollections].sort((a, b) => sortOrder(a.metadata) - sortOrder(b.metadata))
+  const sorted = [...allCollections].sort((a, b) => a.sort_order - b.sort_order)
   const entries: ShopCollectionNavEntry[] = [
     { href: basePath || '/', label: 'Todos', shortSlug: null, count: listings.length },
   ]
