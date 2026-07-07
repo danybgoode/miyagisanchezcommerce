@@ -573,7 +573,12 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 }
 
 async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: string) {
-  const body: Record<string, string> = { listing_id: String(args.listing_id ?? '') }
+  const listingId = String(args.listing_id ?? '')
+  if (!listingId) {
+    return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+  }
+
+  const body: Record<string, string> = { listing_id: listingId }
   if (args.offer_id)    body.offer_id    = String(args.offer_id)
   if (args.buyer_email) body.buyer_email = String(args.buyer_email)
 
