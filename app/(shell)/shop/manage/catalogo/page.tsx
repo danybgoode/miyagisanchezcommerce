@@ -39,18 +39,18 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   if (sellerRes.status === 404) redirect('/sell')
   if (!sellerRes.ok) throw new Error('No se pudo cargar tu catálogo.')
 
-  const page = Math.max(1, parseInt(params.page ?? '1'))
+  const parsedPage = parseInt(params.page ?? '1', 10)
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const offset = (page - 1) * CATALOG_PAGE_SIZE
 
   const qs = buildCatalogQuery(params, { limit: CATALOG_PAGE_SIZE, offset })
   const productsRes = await medusaFetch(`/store/sellers/me/products${qs}`, clerkJwt)
-  const data = productsRes.ok
-    ? await productsRes.json() as {
-        listings?: CatalogListing[]
-        count?: number
-        status_counts?: Record<string, number>
-      }
-    : { listings: [], count: 0, status_counts: {} }
+  if (!productsRes.ok) throw new Error('No se pudo cargar tu catálogo.')
+  const data = await productsRes.json() as {
+    listings?: CatalogListing[]
+    count?: number
+    status_counts?: Record<string, number>
+  }
 
   // Deploy-lag safety — same soft-delete mirror check as the dashboard
   // (lib/listing-lifecycle.ts): a product Medusa hasn't natively soft-deleted
@@ -81,7 +81,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const total = data.count ?? listings.length
   const totalPages = Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE))
   const statusCounts = data.status_counts ?? {}
-  const hasAnyFilter = Object.values(params).some(Boolean)
+  const hasAnyFilter = Object.entries(params).some(([key, val]) => key !== 'page' && Boolean(val))
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
