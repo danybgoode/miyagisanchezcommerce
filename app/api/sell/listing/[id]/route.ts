@@ -358,12 +358,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (viabilityError) return NextResponse.json({ error: viabilityError }, { status: 422 })
   }
 
-  // Map frontend status → Medusa product status
+  // Map frontend status → Medusa product status. "paused" and a never-published
+  // draft both land on Medusa's native `status: 'draft'` — `metadata.paused` is
+  // the only thing that tells them apart (toListingShape reads it), so it's set
+  // in the SAME call that flips status, never a separate round-trip.
   const medusaStatus = body.status === 'active' ? 'published' : 'draft'
 
   const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
     method: 'PATCH',
-    body: JSON.stringify({ status: medusaStatus }),
+    body: JSON.stringify({ status: medusaStatus, metadata: { paused: body.status === 'paused' } }),
   })
 
   if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })

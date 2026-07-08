@@ -7,12 +7,11 @@
  * the nav can't drift from the routes or the test. No new pages are created here:
  * every href targets an existing manage sub-page (or the dashboard).
  *
- * Note on "Anuncios": there is no separate listings route — the `/shop/manage`
- * dashboard *is* the listings grid ("Mis anuncios"), so Anuncios links to the
- * `#anuncios` anchor on that section. Resumen and Anuncios therefore share the
- * `/shop/manage` pathname; `activeSellerNavHref` breaks the tie toward Resumen
- * (declared first) so the dashboard highlights Resumen, with Anuncios as a
- * jump-link within it.
+ * Four rail groups: Operar / Catálogo / Crecer / Configuración (catalog-management
+ * epic, Sprint 1 · Story 1.1). "Anuncios" now points at the real `/shop/manage/catalogo`
+ * table (Sprint 1 · Story 1.2) instead of the old `/shop/manage#anuncios` jump-link —
+ * the dashboard keeps only a compact summary card. "Precios" is deliberately NOT added
+ * yet — that page ships in a later catalog-management sprint; the nav never links a 404.
  */
 
 export interface SellerNavEntry {
@@ -40,14 +39,24 @@ export const SELLER_NAV: SellerNavGroup[] = [
       { key: 'resumen', label: 'Resumen', href: '/shop/manage', icon: 'iconoir-dashboard-dots' },
       { key: 'pedidos', label: 'Pedidos', href: '/shop/manage/orders', icon: 'iconoir-package' },
       { key: 'ofertas', label: 'Ofertas', href: '/shop/manage/offers', icon: 'iconoir-hand-cash' },
-      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage#anuncios', icon: 'iconoir-pricetags' },
+    ],
+  },
+  {
+    key: 'catalogo',
+    label: 'Catálogo',
+    entries: [
+      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-pricetags' },
+      { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
+      // Renamed from "Mercado Libre" — same page, now framed as the channels hub
+      // (catalog-management epic: "ML becomes 'Canales'").
+      { key: 'canales', label: 'Canales', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
+      { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
     ],
   },
   {
     key: 'crecer',
     label: 'Crecer',
     entries: [
-      { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
       { key: 'promociones', label: 'Cupones', href: '/shop/manage/promotions', icon: 'iconoir-percentage-circle' },
       { key: 'suscripciones', label: 'Suscripciones', href: '/shop/manage/subscriptions', icon: 'iconoir-refresh-double' },
       { key: 'contenido', label: 'Contenido', href: '/shop/manage/content', icon: 'iconoir-book' },
@@ -57,19 +66,32 @@ export const SELLER_NAV: SellerNavGroup[] = [
       // Behind ops.profit_enabled: the page itself notFound()s while the flag
       // is OFF (profit-analyzer S1 · US-3) — the nav entry is harmless dark.
       { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins' },
-      { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
-      { key: 'mercadolibre', label: 'Mercado Libre', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
+    ],
+  },
+  {
+    key: 'configuracion',
+    label: 'Configuración',
+    entries: [
       { key: 'ajustes', label: 'Configuración', href: '/shop/manage/settings', icon: 'iconoir-settings' },
     ],
   },
 ]
 
 /**
- * Mobile bottom bar = the four Operar entries (Resumen·Pedidos·Ofertas·Anuncios)
- * plus a "Más" disclosure. The overflow behind "Más" is the Crecer group.
+ * Mobile bottom bar = Resumen · Pedidos · Ofertas · Anuncios (unchanged from
+ * before the Catálogo split — Anuncios stays one tap away even though it now
+ * lives in the Catálogo group object) plus a "Más" disclosure. The overflow
+ * behind "Más" is the rest of Catálogo, then Crecer, then Configuración.
  */
-export const SELLER_NAV_MOBILE_PRIMARY: SellerNavEntry[] = SELLER_NAV[0].entries
-export const SELLER_NAV_MOBILE_OVERFLOW: SellerNavEntry[] = SELLER_NAV[1].entries
+export const SELLER_NAV_MOBILE_PRIMARY: SellerNavEntry[] = [
+  ...SELLER_NAV[0].entries,
+  SELLER_NAV[1].entries[0],
+]
+export const SELLER_NAV_MOBILE_OVERFLOW: SellerNavEntry[] = [
+  ...SELLER_NAV[1].entries.slice(1),
+  ...SELLER_NAV[2].entries,
+  ...SELLER_NAV[3].entries,
+]
 
 /** Pathname portion of an href (drops any `#hash`). */
 function hrefPath(href: string): string {
@@ -79,9 +101,9 @@ function hrefPath(href: string): string {
 
 /**
  * The single active entry href for a pathname. Longest pathname-prefix wins
- * (so `/shop/manage/orders` highlights Pedidos, not Resumen); ties resolve to
- * the first declared (so `/shop/manage` highlights Resumen, not the Anuncios
- * jump-link). Returns null when nothing matches.
+ * (so `/shop/manage/orders` highlights Pedidos, not Resumen, and
+ * `/shop/manage/catalogo` highlights Anuncios, not Resumen); ties resolve to
+ * the first declared. Returns null when nothing matches.
  */
 export function activeSellerNavHref(pathname: string): string | null {
   if (!pathname) return null
@@ -131,8 +153,7 @@ function activeSellerNavEntry(pathname: string): SellerNavEntry | null {
 export function sellerBreadcrumbTrail(pathname: string, extra: SellerCrumb[] = []): SellerCrumb[] {
   const trail: SellerCrumb[] = [{ label: 'Resumen', href: DASHBOARD_HREF }]
   const entry = activeSellerNavEntry(pathname)
-  // Skip the Resumen/Anuncios entries that share the dashboard pathname — they'd
-  // just duplicate the home crumb.
+  // Skip the Resumen entry itself (it'd just duplicate the home crumb).
   if (entry && hrefPath(entry.href) !== DASHBOARD_HREF) {
     trail.push({ label: entry.label, href: hrefPath(entry.href) })
   }
