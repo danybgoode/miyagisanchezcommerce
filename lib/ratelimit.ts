@@ -131,9 +131,18 @@ const launchpadLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: 'rl:launchpad' })
 }
 
+// Launchpad voting: the public /v/[slug] verification + vote surface (S3.2). A
+// vote is a single row (no upload), and a campaign page is shared widely, so this
+// is looser than the manuscript-upload bucket but still a real anti-abuse cap.
+const launchpadVoteLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: 'rl:launchpad_vote' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -156,6 +165,7 @@ export async function checkRateLimit(
     : key === 'promoter_apply'  ? promoterApplyLimiter
     : key === 'artwork_upload'  ? artworkUploadLimiter
     : key === 'launchpad'       ? launchpadLimiter
+    : key === 'launchpad_vote'  ? launchpadVoteLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

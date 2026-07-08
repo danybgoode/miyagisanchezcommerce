@@ -53,6 +53,26 @@ export default async function ConvocatoriaManagePage() {
       <div className="mt-8">
         <SubmissionsQueue />
       </div>
+
+      {/* Voting campaigns (Sprint 3): rally votes → unlock the 50% print coupon. */}
+      <a
+        href="/shop/manage/convocatoria/campanas"
+        className="mt-8"
+        style={{
+          display: 'block', border: '1px solid var(--color-border)', borderRadius: 12,
+          padding: 16, textDecoration: 'none', color: 'inherit',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <strong style={{ fontSize: 15 }}>Campañas de votación</strong>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', marginTop: 4 }}>
+              La comunidad vota por las obras; al alcanzar el umbral se desbloquea el cupón de impresión.
+            </p>
+          </div>
+          <span aria-hidden style={{ fontSize: 20, color: 'var(--fg-subtle)' }}>→</span>
+        </div>
+      </a>
     </div>
   )
 }
