@@ -929,6 +929,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingUrl={bookingUrl}
             repuve={repuve}
             specs={listingSpecs(listing)}
+            priceCents={listing.price_cents}
+            attrs={listing.attrs ?? (listing.metadata?.attrs as Record<string, unknown> | undefined) ?? {}}
           />
         )}
 
