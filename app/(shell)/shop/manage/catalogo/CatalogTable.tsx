@@ -196,8 +196,11 @@ export default function CatalogTable({ listings: initialListings }: { listings: 
                 <td className="p-3 whitespace-nowrap">{stockLabel(listing)}</td>
                 <td className="p-3">
                   <div className="flex gap-1 flex-wrap">
-                    {listing.channels.includes('miyagi') && <span className="badge badge-soft">Miyagi</span>}
-                    {listing.channels.includes('ml') && <span className="badge badge-soft">ML</span>}
+                    {/* Deploy-lag safety: backend Cloud Run has no per-branch preview, so a
+                        moment can exist where this page is live before the backend's `channels`
+                        field is — degrade to the always-true Miyagi badge rather than throw. */}
+                    {(listing.channels ?? ['miyagi']).includes('miyagi') && <span className="badge badge-soft">Miyagi</span>}
+                    {(listing.channels ?? []).includes('ml') && <span className="badge badge-soft">ML</span>}
                   </div>
                 </td>
                 <td className="p-3">
