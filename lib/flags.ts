@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -159,6 +159,15 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    to read. Default OFF ⇒ today's coordination flow (PDP AskSeller; the backend
  *    422s a rental checkout). Flip ON once Sprints 2–3 are live and Daniel's
  *    flag-ON money smoke (Stripe + SPEI) passes.
+ *  - KILL-SWITCH (`notifications.buyer_moneypath_enabled`): default `true` (epic
+ *    buyer-notifications-money-path, Sprint 1). Gates the Medusa-order buyer-id
+ *    resolution the seller-triggered dispatch routes (ship-manual, ship,
+ *    return-request/[requestId]) now read off `normalizeMedusaOrder`'s
+ *    `buyer_clerk_user_id`, plus (Sprint 2) the Compras dispatch on the payment
+ *    webhooks. Flag OFF ⇒ those routes treat the buyer id as null — the exact
+ *    guest fall-through (email-only) that ran before this epic. A flag outage
+ *    keeps the new gating live (the deliberate act is disabling it), consistent
+ *    with every other kill-switch here.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -180,6 +189,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'configurator.enabled': true,
   'ops.profit_enabled': false,
   'launchpad.enabled': false,
+  'notifications.buyer_moneypath_enabled': true,
 }
 
 const TABLE = 'platform_flags'
