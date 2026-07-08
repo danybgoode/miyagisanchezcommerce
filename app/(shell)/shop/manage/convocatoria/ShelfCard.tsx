@@ -22,7 +22,7 @@ export default function ShelfCard() {
   const [state, setState] = useState<ShelfState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ assigned: number; url: string | null } | null>(null)
+  const [done, setDone] = useState<{ assigned: number; failed: number; url: string | null } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -38,9 +38,9 @@ export default function ShelfCard() {
     setError(null)
     try {
       const res = await fetch('/api/sell/launchpad/shelf', { method: 'POST' })
-      const d = await res.json() as { assigned?: number; collection_url?: string | null; error?: string }
+      const d = await res.json() as { assigned?: number; failed?: number; collection_url?: string | null; error?: string }
       if (!res.ok) { setError(d.error ?? 'No se pudo crear el estante. Inténtalo de nuevo.'); return }
-      setDone({ assigned: d.assigned ?? 0, url: d.collection_url ?? null })
+      setDone({ assigned: d.assigned ?? 0, failed: d.failed ?? 0, url: d.collection_url ?? null })
     } catch {
       setError('Sin conexión. Verifica tu internet e inténtalo de nuevo.')
     } finally {
@@ -50,15 +50,17 @@ export default function ShelfCard() {
 
   // Success state — persists after the (now empty) suggestion clears.
   if (done) {
+    const partial = done.failed > 0
     return (
-      <div style={{ border: '1px solid var(--success)', borderRadius: 'var(--r-lg)', padding: 16, background: 'var(--bg-sunk)' }}>
-        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>
-          ✓ Estante Convocatoria listo
+      <div style={{ border: `1px solid ${partial ? 'var(--warning)' : 'var(--success)'}`, borderRadius: 'var(--r-lg)', padding: 16, background: 'var(--bg-sunk)' }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: partial ? 'var(--warning)' : 'var(--success)' }}>
+          {partial ? 'Estante Convocatoria — parcial' : 'Estante Convocatoria listo'}
         </p>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>
           {done.assigned > 0
             ? `Agregamos ${done.assigned} ${done.assigned === 1 ? 'obra' : 'obras'} a tu estante Convocatoria.`
             : 'Tu estante Convocatoria ya está al día.'}
+          {partial && ` No se pudieron agregar ${done.failed} — recarga e inténtalo de nuevo.`}
           {' '}Aparece como una sección en tu tienda.
         </p>
         {done.url && (

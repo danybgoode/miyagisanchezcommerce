@@ -44,7 +44,7 @@ function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
 
 interface RawCollection { id: string; name: string; handle: string }
 interface RawCategory { id: string }
-interface RawProduct { id: string; metadata?: Record<string, unknown> | null; categories?: RawCategory[] }
+interface RawProduct { id: string; status?: string; metadata?: Record<string, unknown> | null; categories?: RawCategory[] }
 
 /** Read the shop's collections + published launchpad works, shaped for the pure
  *  deriver. A launchpad work is any product carrying the mint's provenance
@@ -68,7 +68,10 @@ async function loadShelfState(clerkJwt: string): Promise<{
   const prodJson = (await prodRes.json()) as { products?: RawProduct[]; seller?: { slug?: string } }
   const products = prodJson.products ?? []
   const works: ShelfWork[] = products
-    .filter((p) => !!(p.metadata ?? {})['launchpad_submission_id'])
+    // A published launchpad work: carries the mint provenance AND is live
+    // (status 'published'). Drafts/unactivated works aren't shelf-worthy yet —
+    // the card copy says "obras publicadas" and a draft wouldn't show anyway.
+    .filter((p) => !!(p.metadata ?? {})['launchpad_submission_id'] && p.status === 'published')
     .map((p) => ({
       productId: p.id,
       // Keep only the seller-collection categories (drop the platform-taxonomy
@@ -145,6 +148,7 @@ export async function POST() {
   // (collection_ids is a full-replacement set — never drop an existing one).
   const worksById = new Map(state.works.map((w) => [w.productId, w]))
   let assigned = 0
+  let failed = 0
   for (const wid of s.missingWorkIds) {
     const work = worksById.get(wid)
     const nextIds = Array.from(new Set([...(work?.collectionIds ?? []), convocatoria.id]))
@@ -153,12 +157,16 @@ export async function POST() {
       body: JSON.stringify({ collection_ids: nextIds }),
     })
     if (patchRes.ok) assigned++
+    else failed++
   }
 
   const shortSlug = shortCollectionSlug(convocatoria.handle, state.sellerSlug)
+  // Report partial failures honestly — a silently-skipped PATCH would leave works
+  // unshelved while the card claims success (a write nobody checks, LEARNINGS).
   return NextResponse.json({
-    ok: true,
+    ok: failed === 0,
     assigned,
+    failed,
     collection_id: convocatoria.id,
     collection_url: shortSlug ? `/s/${state.sellerSlug}/c/${shortSlug}` : null,
   })
