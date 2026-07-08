@@ -1,4 +1,4 @@
-export type SellerPersonaId = 'vende' | 'creadores' | 'mundial' | 'negocios' | 'servicios'
+export type SellerPersonaId = 'vende' | 'creadores' | 'mundial' | 'negocios' | 'servicios' | 'autos'
 export type SellerAcquisitionVariant = 'a' | 'b'
 
 const UTM_KEYS = [
@@ -62,6 +62,12 @@ export const SELLER_PERSONA_ROUTES: Record<SellerPersonaId, SellerPersonaRoute> 
     pagePath: '/vende/servicios',
     from: 'servicios',
     type: 'service',
+    status: 'live',
+  },
+  autos: {
+    id: 'autos',
+    pagePath: '/vende/autos',
+    from: 'autos',
     status: 'live',
   },
 }

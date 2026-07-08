@@ -168,6 +168,14 @@
           "body": "Consultations, sessions, packages, maintenance, or appointment-based work.",
           "icon": "iconoir-user-star",
           "statusLabel": ""
+        },
+        {
+          "personaId": "autos",
+          "eyebrow": "",
+          "title": "I sell cars",
+          "body": "Dealer lot, agency, or a private sale — with specs, inspection, and warranty.",
+          "icon": "iconoir-car",
+          "statusLabel": ""
         }
       ],
       "stepsTitle": "How it works",
@@ -608,6 +616,98 @@
           "heroTitle": "Turn your service into a page that schedules and collects.",
           "primaryCta": "Sell my service",
           "closingCta": "Sell my service"
+        }
+      }
+    },
+    "autos": {
+      "metadata": {
+        "title": "Sell cars with specs, inspection, and monthly-payment display — Miyagi Sanchez",
+        "description": "Publish your car catalog with specs, an inspection report, warranty, and an informative monthly-payment hint. Real search by make, model, year, and price. No commissions.",
+        "ogAlt": "Miyagi Sanchez for selling cars: specs, inspection, and monthly-payment display, with no commissions."
+      },
+      "eyebrow": "",
+      "heroTitle": "Sell cars with the trust of a professional dealer lot.",
+      "heroLead": "Publish your catalog with specs, an inspection report, and a warranty. Buyers filter by make, model, year, price, and mileage — like a specialized site, but inside the marketplace.",
+      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/vende/autos and tell you if it works for your car catalog.",
+      "primaryCta": "Publish my car catalog",
+      "secondaryCta": "See cars on the marketplace",
+      "heroStats": [
+        {
+          "value": "0%",
+          "label": "platform commission"
+        },
+        {
+          "value": "5",
+          "label": "real filters: make, model, year, price, mileage"
+        },
+        {
+          "value": "$/mo",
+          "label": "informative monthly payment on every listing"
+        }
+      ],
+      "proofTitle": "Built to sell cars, not just post listings",
+      "proofLead": "Every car gets specs, real filters, and the trust signals a buyer expects before deciding.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-car",
+          "title": "Full spec sheet",
+          "body": "Make, model, year, mileage, transmission, and color in a clear table — your buyer decides with data, not just photos."
+        },
+        {
+          "icon": "iconoir-search",
+          "title": "Search by make, year, and price",
+          "body": "Your catalog is genuinely filterable: make, model, year, price, and mileage, with honest counts — not a flat list."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Inspection report and warranty",
+          "body": "Upload your inspection (PDF or link) and your warranty. Buyers see them right on the listing, next to the price."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% commission",
+          "body": "You do not pay a percentage for selling your cars. Your margin stays with you — the monthly-payment hint (\"$/mo\") is informative only, with a mandatory disclaimer."
+        }
+      ],
+      "stepsTitle": "From your current catalog to an online lot",
+      "steps": [
+        {
+          "title": "Upload your catalog",
+          "body": "Paste your inventory or let your agent import it with make, model, year, and price for each car."
+        },
+        {
+          "title": "Add inspection and warranty",
+          "body": "Upload each unit's report and set your warranty — so buyers decide with confidence."
+        },
+        {
+          "title": "Share your link",
+          "body": "Every car gets its own page, filterable by make, model, year, and price, ready to share."
+        }
+      ],
+      "socialTitle": "For dealer lots, agencies, and private sellers",
+      "socialBody": "Give your buyer specs, inspection, warranty, and an informative monthly payment before they message you — they arrive closer to deciding.",
+      "socialStats": [
+        {
+          "value": "Specs",
+          "label": "specs + inspection + warranty"
+        },
+        {
+          "value": "Filters",
+          "label": "make, model, year, price, mileage"
+        },
+        {
+          "value": "0%",
+          "label": "no commission per sale"
+        }
+      ],
+      "closingTitle": "Your car catalog deserves more than a list of ads.",
+      "closingBody": "Publish your inventory, add inspection and warranty, and let buyers filter like on a specialized site — no commission, and under your own brand.",
+      "closingCta": "Publish my catalog",
+      "variants": {
+        "b": {
+          "heroTitle": "Turn your car catalog into an online lot.",
+          "primaryCta": "Publish my cars",
+          "closingCta": "Publish my cars"
         }
       }
     },

@@ -19,6 +19,7 @@ const sellerPages = [
   { path: '/vende/creadores', meta: es.sellerAcquisition.creadores.metadata },
   { path: '/vende/negocios', meta: es.sellerAcquisition.negocios.metadata },
   { path: '/vende/servicios', meta: es.sellerAcquisition.servicios.metadata },
+  { path: '/vende/autos', meta: es.sellerAcquisition.autos.metadata },
 ]
 
 test.describe('seller acquisition · SEO and OpenGraph', () => {
