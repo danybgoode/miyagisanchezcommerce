@@ -301,7 +301,7 @@ const TOOLS = [
           type: 'object',
           description: 'Partial store config. Include only the blocks to change. Mirrors the shape returned by get_store_configuration.',
           properties: {
-            profile:        { type: 'object', description: 'name, description, state, city, tagline, accent_color (#rrggbb), logo_url, banner_url (absolute http/https URLs — ingested to our storage), social {instagram,facebook,whatsapp,tiktok,twitter}' },
+            profile:        { type: 'object', description: 'name, description, state, city, tagline, accent_color (#rrggbb), logo_url, banner_url (absolute http/https URLs — ingested to our storage), social {instagram,facebook,whatsapp,tiktok,twitter}. Also carries the own-shop premium presentation fields: theme_preset (a curated visual preset key, e.g. "papel"/"pizarra"/"lienzo"/"terracota", or null for the default look), announcement ({text, link?} or null to clear), hero ({mode:"listings"|"promo", pinned_listing_ids?, promo_image_url?, promo_cta_text?, promo_cta_link?} or null to clear).' },
             shipping:       { type: 'object', description: 'local_pickup, envia_enabled, allowed_carriers[], rate_display (recommended|cheapest|all), handling_fee_cents, package_defaults, origin_address, pickup_spots[]' },
             offers:         { type: 'object', description: 'min_buyer_trust_level, negotiation {enabled, auto_accept_pct, auto_decline_pct, auto_counter_pct} (percentages 0–100)' },
             notifications:  { type: 'object', description: 'email_new_view, email_new_message (booleans)' },
@@ -340,7 +340,7 @@ const TOOLS = [
   },
   {
     name: 'create_listing',
-    description: "SELLER TOOL. Create a brand-new listing in YOUR OWN shop. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Price is in MXN pesos (price_mxn, not centavos). Image URLs are fetched into our storage. A physical `product` whose shop hasn't configured both a delivery method AND a payment method is saved as a draft (paused) with an explanation — it won't go live until the shop is sale-ready. Returns the new product_id (use it with update_listing / set_listing_status).",
+    description: "SELLER TOOL. Create a brand-new listing in YOUR OWN shop. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Price is in MXN pesos (price_mxn, not centavos). Image URLs are fetched into our storage. A physical `product` whose shop hasn't configured both a delivery method AND a payment method is saved as a draft (paused) with an explanation — it won't go live until the shop is sale-ready. For category=autos, the vehicle-spec and financing/trust fields below feed the facet browse, $/mes display, and inspection/warranty PDP surfaces — omit any you don't have. Returns the new product_id (use it with update_listing / set_listing_status).",
     inputSchema: {
       type: 'object',
       required: ['title', 'category'],
@@ -357,6 +357,21 @@ const TOOLS = [
         city:         { type: 'string', description: 'City / municipio / alcaldía.' },
         images:       { type: 'array', items: { type: 'string' }, description: 'Absolute image URLs (http/https). The first is the cover. Max 6.' },
         weight_grams: { type: 'number', description: 'Shipping weight in grams (improves shipping quotes).' },
+        // Autos vehicle specs + financing/trust (cars-vertical-tratocar-parity S3) — only
+        // used when category=autos; feeds the same metadata.attrs.* bag the seller capture
+        // form and bulk import write (lib/listing-attributes.ts / lib/catalog-import.ts).
+        make:                        { type: 'string', description: 'Autos only. Car brand, e.g. "Volkswagen".' },
+        model:                       { type: 'string', description: 'Autos only. Car model, e.g. "Jetta".' },
+        year:                        { type: 'number', description: 'Autos only. Model year.' },
+        km:                          { type: 'number', description: 'Autos only. Odometer reading.' },
+        fuel_type:                   { type: 'string', description: 'Autos only. e.g. gasolina, diesel, hibrido, electrico, gas_lp.' },
+        transmission:                { type: 'string', description: 'Autos only. e.g. automatico, manual, cvt.' },
+        color:                       { type: 'string', description: 'Autos only. Exterior color.' },
+        financing_down_payment_pct:  { type: 'number', description: 'Autos only. Down payment as a % of price, for the $/mes display.' },
+        financing_months:            { type: 'number', description: 'Autos only. Financing term in months, for the $/mes display.' },
+        warranty_text:               { type: 'string', description: 'Autos only. Warranty description, e.g. "6 meses motor y transmisión".' },
+        warranty_months:             { type: 'number', description: 'Autos only. Warranty length in months.' },
+        inspection_report_url:       { type: 'string', description: 'Autos only. Absolute http(s) URL to the inspection report (PDF or page).' },
       },
     },
   },
@@ -1383,6 +1398,10 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
 
   // Shape the agent's args into a catalog-import row and re-validate server-side
   // (never trust the agent) — reuses the exact rules the bulk importer enforces.
+  // Autos fields flow through unchanged: stageRow() (called inside validateRows)
+  // already assembles metadata.attrs.* from these flat columns when
+  // category==='autos' (cars-vertical-tratocar-parity S2.3) — same path bulk
+  // import uses, so no new attrs-building logic is needed here.
   const raw: Record<string, unknown> = {
     title: args.title,
     category: args.category,
@@ -1396,6 +1415,18 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
     city: args.city,
     images: args.images,
     weight_grams: args.weight_grams,
+    make: args.make,
+    model: args.model,
+    year: args.year,
+    km: args.km,
+    fuel_type: args.fuel_type,
+    transmission: args.transmission,
+    color: args.color,
+    financing_down_payment_pct: args.financing_down_payment_pct,
+    financing_months: args.financing_months,
+    warranty_text: args.warranty_text,
+    warranty_months: args.warranty_months,
+    inspection_report_url: args.inspection_report_url,
   }
   const [staged] = validateRows([raw])
   if (!staged?.valid) {
@@ -1434,6 +1465,7 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
     weight_grams: row.weight_grams ?? null,
     status,
     images: ingest.images,
+    ...(row.attrs && Object.keys(row.attrs).length > 0 ? { attrs: row.attrs } : {}),
   })
   if (!result.ok || !result.product_id) {
     return { isError: true, content: [{ type: 'text', text: `No se pudo crear el anuncio: ${result.error}` }] }

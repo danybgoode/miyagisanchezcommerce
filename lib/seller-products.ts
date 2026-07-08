@@ -104,6 +104,10 @@ export interface SellerProductCreate {
   status?: 'published' | 'draft'
   images?: Array<{ url: string; alt?: string }>
   metadata?: Record<string, unknown>
+  /** Type/category-specific attrs (e.g. autos make/model/year, financing, inspection,
+   *  warranty) — mirrors the internal backend route's own `attrs` body field, which
+   *  flows straight into product `metadata.attrs`. */
+  attrs?: Record<string, unknown>
 }
 
 /** Create a product through the backend internal route (x-internal-secret). The
