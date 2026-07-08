@@ -626,7 +626,7 @@
     "autos": {
       "metadata": {
         "title": "Vende autos con ficha, inspección y mensualidad — Miyagi Sánchez",
-        "description": "Publica tu catálogo de autos con specs, reporte de inspección, garantía y mensualidad informativa. Búsqueda real por marca, modelo, año y precio. 0% de comisión.",
+        "description": "Publica tu catálogo de autos con ficha técnica, reporte de inspección, garantía y mensualidad informativa. Búsqueda real por marca, modelo, año y precio. 0% de comisión.",
         "ogAlt": "Miyagi Sánchez para venta de autos: ficha técnica, inspección y mensualidad, sin comisiones."
       },
       "eyebrow": "",
@@ -693,7 +693,7 @@
       "socialStats": [
         {
           "value": "Ficha",
-          "label": "specs + inspección + garantía"
+          "label": "ficha técnica + inspección + garantía"
         },
         {
           "value": "Filtros",
