@@ -39,6 +39,8 @@ import Gallery from './Gallery'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
+import ExcerptPanel from './ExcerptPanel'
+import { excerptModel } from '@/lib/excerpt'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
@@ -325,6 +327,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const digitalLed = redesign && isDigital
   const digitalInfo = digitalLed ? digitalFileInfo(digitalFile) : null
   const digitalSpecRows = digitalLed ? digitalSpecs(digitalFile, listing.metadata) : []
+  // Excerpt "Lee un adelanto" (bookshop launchpad S2.1) — a free text sample on a
+  // digital listing. Renders whenever present (naturally dark: no excerpt exists
+  // until a seller adds one with `launchpad.enabled` on); absent = today's PDP.
+  const excerpt = isDigital ? excerptModel(listing.metadata) : null
   // Autos (S5.1) lead with the REPUVE verification anchor + the vehicle spec set
   // (the buyer's fraud anxiety first), with a primary "Agendar prueba de manejo".
   // The buy/offer bar stays available below (a car is buyable), so this is a
@@ -907,6 +913,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             )}
           </div>
         )}
+
+        {/* ── Excerpt "Lee un adelanto" (S2.1) — inline free text sample for a
+            digital listing, right below the digital hero. Channel-agnostic. ──── */}
+        {excerpt && <ExcerptPanel text={excerpt.text} />}
 
         {/* ── Autos hero (S5.1) — REPUVE verification anchor + vehicle specs lead
             the page, with a primary "Agendar prueba de manejo". Owns the autos

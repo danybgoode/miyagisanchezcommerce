@@ -1,6 +1,7 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
 import { getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyCollectionSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { shortCollectionSlug } from '@/lib/collection-derive'
@@ -113,6 +114,7 @@ export default async function CollectionPage({
                   href: `/l/${listing.id}`,
                   formattedPrice: formatPrice(listing),
                   status: listing.status,
+                  hasExcerpt: hasExcerpt(listing.metadata),
                 }}
               />
             ))}

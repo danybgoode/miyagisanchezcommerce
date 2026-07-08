@@ -11,6 +11,7 @@ import { sanitizeFieldDefs, type CustomFieldDef } from '@/lib/personalization'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { parsePesosToCents, parseCostPesosToCents } from '@/lib/opciones'
 import type { PriceGrid } from '@/lib/price-grid'
+import { EXCERPT_MAX_CHARS } from '@/lib/excerpt'
 
 interface ShortlinkInfo {
   shopSlug: string
@@ -44,6 +45,8 @@ export default function EditForm({
   isActive = false,
   knownMultiVariant = false,
   variantCosts = {},
+  launchpadEnabled = false,
+  initialExcerpt = '',
 }: {
   id: string
   initial: EditableFields
@@ -64,6 +67,14 @@ export default function EditForm({
    * cost input (sole variant) and the per-combination cost editors.
    */
   variantCosts?: Record<string, number | null>
+  /**
+   * Bookshop launchpad S2.1 — true only for a digital listing while
+   * `launchpad.enabled` is ON (the page pre-ANDs the type + flag). Shows the
+   * "Lee un adelanto" excerpt editor; the PDP viewer renders on presence.
+   */
+  launchpadEnabled?: boolean
+  /** The stored excerpt text (from the Medusa product metadata), '' when none. */
+  initialExcerpt?: string
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -94,6 +105,8 @@ export default function EditForm({
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>(
     () => sanitizeFieldDefs(initial.custom_fields),
   )
+  // "Lee un adelanto" excerpt text (bookshop launchpad S2.1) — digital only.
+  const [excerpt, setExcerpt] = useState(initialExcerpt ?? '')
   const [listingState, setListingState] = useState(initial.state ?? '')
   const [listingCity, setListingCity] = useState(initial.municipio ?? '')
   const hasLegacyLocation = !!(initial.state && !initial.estado_code)
@@ -183,6 +196,10 @@ export default function EditForm({
         const nextCostCents = costRaw.trim() !== '' ? parseCostPesosToCents(costRaw) : null
         if (nextCostCents !== initialCostCents) body.unit_cost_cents = nextCostCents
       }
+      // Excerpt (S2.1) — only sent when the field is available (digital + flag)
+      // AND changed; the route normalizes + clears on empty. Sending the raw
+      // value keeps the client dumb (the server owns the trim/cap rules).
+      if (launchpadEnabled && excerpt !== initialExcerpt) body.excerpt = excerpt
 
       const res = await fetch(`/api/sell/listing/${id}`, {
         method: 'PUT',
@@ -269,6 +286,28 @@ export default function EditForm({
           placeholder="Describe tu anuncio..."
         />
       </div>
+
+      {/* Excerpt — "Lee un adelanto" free sample (digital + launchpad.enabled).
+          Stored on the product metadata; renders inline on the PDP. */}
+      {launchpadEnabled && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Adelanto — &quot;Lee un adelanto&quot;
+          </label>
+          <textarea
+            value={excerpt}
+            onChange={e => setExcerpt(e.target.value)}
+            rows={8}
+            maxLength={EXCERPT_MAX_CHARS}
+            className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-y"
+            placeholder="Pega aquí un fragmento gratuito (por ejemplo, el primer capítulo). Los lectores podrán leerlo en la página del producto antes de comprar."
+          />
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Muestra un fragmento gratis para dar ganas de leer más. El archivo completo sigue
+            siendo privado hasta la compra. Déjalo vacío para no mostrar adelanto. {excerpt.length.toLocaleString('es-MX')}/{EXCERPT_MAX_CHARS.toLocaleString('es-MX')}
+          </p>
+        </div>
+      )}
 
       {/* Category-specific attrs */}
       {initial.category && (

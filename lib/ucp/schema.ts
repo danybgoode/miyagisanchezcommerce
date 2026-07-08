@@ -17,6 +17,7 @@ import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 import { listingSpecs, type Spec } from '@/lib/listing-attributes'
 import { toRatePeriod, type RatePeriod } from '@/lib/rental-pricing'
 import { shortCollectionSlug } from '@/lib/collection-derive'
+import { hasExcerpt } from '@/lib/excerpt'
 import type { PriceGrid } from '@/lib/price-grid'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
@@ -87,6 +88,9 @@ export interface UcpListing {
   category: string | null
   /** Seller-defined collection short slugs this listing belongs to (own-shop-premium-presentation S2). */
   collections: string[]
+  /** True when a digital listing carries a free "Lee un adelanto" text excerpt an
+   *  agent can surface before buying/voting (bookshop launchpad S2.1). */
+  has_excerpt: boolean
   location: string | null
   state: string | null
   views: number
@@ -290,6 +294,7 @@ export function toUcpListing(
     // S2) — an agent can ground "which section is this in" and link to
     // `${shop.url}/c/${slug}`. Empty when the shop has no collections.
     collections: shop ? (listing.collections ?? []).map((h) => shortCollectionSlug(h, shop.slug)) : [],
+    has_excerpt: hasExcerpt(listingMeta),
     location: listing.location,
     state: listing.state,
     views: listing.views ?? 0,

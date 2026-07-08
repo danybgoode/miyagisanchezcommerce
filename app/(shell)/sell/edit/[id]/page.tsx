@@ -9,6 +9,7 @@ import { getMlConnection } from '@/lib/ml-connection'
 import { getMlProductLink } from '@/lib/ml-publish-bridge'
 import type { MlLinkView } from '@/lib/ml-publish'
 import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
+import { excerptModel } from '@/lib/excerpt'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Editar anuncio' }
@@ -63,6 +64,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   let medusaAttrs: Record<string, unknown> = {}
   let medusaCategory = ''
   let medusaCustomFields: unknown = []
+  // Excerpt (bookshop launchpad S2.1) lives on the Medusa product metadata (same
+  // bag as custom_fields), not the Supabase mirror — read it from the same fetch.
+  let initialExcerpt = ''
   try {
     const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
     const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -80,6 +84,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         medusaAttrs = (ml.attrs as Record<string, unknown>) ?? {}
         medusaCategory = (ml.category as string) ?? ''
         medusaCustomFields = (ml.metadata as Record<string, unknown> | undefined)?.custom_fields ?? []
+        initialExcerpt = excerptModel(ml.metadata as Record<string, unknown> | undefined)?.text ?? ''
       }
     }
   } catch { /* non-fatal */ }
@@ -142,6 +147,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     if (connection?.status === 'connected') mlPublishLink = link
   }
 
+  // Excerpt editor (bookshop launchpad S2.1) — only for digital listings, gated
+  // on `launchpad.enabled` (fail-safe OFF). The PDP viewer renders on presence.
+  const launchpadEnabled = listing.listing_type === 'digital' && (await isEnabled('launchpad.enabled'))
+
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
@@ -182,6 +191,8 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         isActive={isActive}
         knownMultiVariant={listing.metadata?.has_variants === true}
         variantCosts={variantCosts}
+        launchpadEnabled={launchpadEnabled}
+        initialExcerpt={initialExcerpt}
         shortlink={{
           shopSlug: shopData?.slug ?? '',
           code: (listing.metadata?.short_code as string | undefined) ?? '',
