@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { validateRows } from '../lib/catalog-import'
 
 /**
  * Seller listing creation tool (Seller Agent Operations · Sprint 3).
@@ -43,5 +44,46 @@ test.describe('Seller listing creation MCP tool', () => {
     ]) {
       expect(props, `create_listing inputSchema must declare "${field}"`).toContain(field)
     }
+  })
+
+  // Closes the gap the schema-presence test above can't: proves the fields actually
+  // reach metadata.attrs, not just that they're advertised. handleCreateListing's
+  // `raw` object mirrors this field list verbatim (see the code comment there) and
+  // feeds it into the exact same validateRows() bulk import already reuses — so
+  // this is the real regression guard for "create_listing silently drops autos attrs".
+  test('handleCreateListing\'s field-forwarding shape actually assembles metadata.attrs for autos', () => {
+    const raw = {
+      title: 'Volkswagen Jetta 2020 seminuevo',
+      category: 'autos',
+      price: 285000,
+      make: 'vw',
+      model: 'Jetta',
+      year: 2020,
+      km: 45000,
+      fuel_type: 'gasolina',
+      transmission: 'automatico',
+      color: 'gris',
+      financing_down_payment_pct: 20,
+      financing_months: 48,
+      warranty_text: '6 meses motor y transmisión',
+      warranty_months: 6,
+      inspection_report_url: 'https://example.com/inspeccion.pdf',
+    }
+    const [staged] = validateRows([raw])
+    expect(staged.valid).toBe(true)
+    expect(staged.row.attrs).toMatchObject({
+      make: 'Volkswagen',
+      model: 'Jetta',
+      year: 2020,
+      km: 45000,
+      fuel_type: 'gasolina',
+      transmission: 'automatico',
+      color: 'gris',
+      financing_down_payment_pct: 20,
+      financing_months: 48,
+      warranty_text: '6 meses motor y transmisión',
+      warranty_months: 6,
+      inspection_report_url: 'https://example.com/inspeccion.pdf',
+    })
   })
 })
