@@ -158,7 +158,7 @@ const TOOLS = [
   },
   {
     name: 'get_checkout_options',
-    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND contact-first methods (bank transfer/SPEI with CLABE, cash on pickup, WhatsApp) with full instructions. Always call this before create_checkout so you can present the buyer their best options.',
+    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND contact-first methods (bank transfer/SPEI with CLABE, cash on pickup, WhatsApp) with full instructions. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -166,12 +166,14 @@ const TOOLS = [
         listing_id:  { type: 'string', description: 'Listing UUID' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
         buyer_email: { type: 'string', description: 'Buyer email (optional)' },
+        check_in:    { type: 'string', description: 'Rental check-in date, YYYY-MM-DD. Only applies to rental listings — send with check_out for an exact bookable total.' },
+        check_out:   { type: 'string', description: 'Rental check-out date, YYYY-MM-DD. Send with check_in.' },
       },
     },
   },
   {
     name: 'create_checkout',
-    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options. For a configurator listing (get_listing shows a price_grid — multiple sizes/materials and/or quantity price tiers), pass variant_id + quantity so the price is resolved correctly, and artwork_url when get_listing says artwork is required — the server downloads and validates it into storage.',
+    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options. For a configurator listing (get_listing shows a price_grid — multiple sizes/materials and/or quantity price tiers), pass variant_id + quantity so the price is resolved correctly, and artwork_url when get_listing says artwork is required — the server downloads and validates it into storage. NOT rental-aware — it charges a bare one-unit rate with no dates. For a RENTAL listing, always use get_checkout_options with check_in/check_out instead: it returns a checkout_url that charges the correct nights×rate+deposit total.',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -661,6 +663,8 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
   const body: Record<string, string> = { listing_id: listingId }
   if (args.offer_id)    body.offer_id    = String(args.offer_id)
   if (args.buyer_email) body.buyer_email = String(args.buyer_email)
+  if (args.check_in)    body.check_in    = String(args.check_in)
+  if (args.check_out)   body.check_out   = String(args.check_out)
 
   try {
     const res = await fetch(`${baseUrl}/api/ucp/checkout-session`, {
@@ -684,6 +688,12 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
         reason_unavailable?: string
       }>
       escrow?: { available: boolean; required: boolean; description: string }
+      rental_quote?: {
+        check_in: string; check_out: string; nights: number; units: number
+        rate_period: string; rent_cents: number; deposit_cents: number
+        total_cents: number; formatted: string
+      } | null
+      rental_pricing_hint?: string | null
     }
 
     const opts = session.payment_options ?? []
@@ -707,6 +717,9 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
     const summary = [
       `## Opciones de pago para este anuncio`,
       session.price ? `**Precio:** ${session.price.formatted}${session.price.is_offer_price ? ' (precio negociado ✅)' : ''}` : '',
+      session.rental_quote
+        ? `🗓️ **Reserva:** ${session.rental_quote.check_in} → ${session.rental_quote.check_out} (${session.rental_quote.nights} noches) — **Total: ${session.rental_quote.formatted}** (renta + depósito). Este es el monto real que se cobrará, usa el checkout_url de un método instantáneo o las instrucciones del método manual arriba.`
+        : session.rental_pricing_hint ? `🗓️ ${session.rental_pricing_hint}` : '',
       session.escrow?.available ? `🛡️ ${session.escrow.description}` : '',
       '',
       `### Disponibles (${available.length})`,
