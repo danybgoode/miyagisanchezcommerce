@@ -170,6 +170,10 @@ export interface StartCheckoutParams {
   /** Skip the generic manual-order confirmation email (caller sends its own,
    *  e.g. the print-ad flow sends a print-specific payment-pending email). */
   suppressManualEmail?: boolean
+  /** Rental listing: the buyer's chosen date range. ONLY dates — the backend
+   *  server-recomputes the total (nights × rate + deposit) from these dates plus
+   *  the listing's own rate/attrs; there is no amount field here to tamper with. */
+  rental?: { check_in: string; check_out: string }
 }
 
 export interface StartCheckoutResult {
@@ -206,6 +210,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     originDomain,
     support,
     suppressManualEmail,
+    rental,
   } = params
 
   // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
@@ -321,6 +326,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(escrow ? { escrow: true } : {}),
       ...(originDomain ? { origin_domain: originDomain } : {}),
       ...(support ? { support } : {}),
+      ...(rental ? { rental } : {}),
       ...(shippingQuote ? {
         shipping_quote: {
           rate_id: shippingQuote.rateId,

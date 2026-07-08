@@ -36,6 +36,7 @@ import {
   type ReturnRequestLike,
 } from './refund-state'
 import { offerTurn, offerStatusLabel, type OfferStatus } from './offers'
+import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from './rental-booking'
 
 export type LedgerRole = ManualPaymentRole // 'buyer' | 'seller'
 
@@ -64,6 +65,11 @@ export interface LedgerOrder {
    *  never changes the dominant stage; just appends a detail line. */
   proof_sent?: boolean | null
   proof_approved?: boolean | null
+  /** Rental line-item pricing (epic 02) — advisory only, same as proof above:
+   *  never changes the dominant stage, just appends dates + total to the detail. */
+  rental_booking?: RentalBookingLike | null
+  rental_booking_state?: RentalBookingState | null
+  currency?: string | null
 }
 
 export interface LedgerInput {
@@ -184,6 +190,23 @@ function withProofDetail(view: LedgerView, order: LedgerOrder | null | undefined
   return { ...view, detail: view.detail ? `${view.detail} · ${line}` : line }
 }
 
+/**
+ * Rental line-item pricing (epic 02) — advisory only, same contract as
+ * `withProofDetail` above: never picks the dominant stage, just appends the
+ * dates + total onto whichever stage already won. Absent for a non-rental order.
+ */
+function rentalDetailLine(order: LedgerOrder): string | undefined {
+  if (!order.rental_booking) return undefined
+  const lines = formatRentalBookingLines(order.rental_booking, order.currency ?? 'MXN')
+  return `📅 ${lines.dates} · ${lines.total}`
+}
+
+function withRentalDetail(view: LedgerView, order: LedgerOrder | null | undefined): LedgerView {
+  const line = order ? rentalDetailLine(order) : undefined
+  if (!line) return view
+  return { ...view, detail: view.detail ? `${view.detail} · ${line}` : line }
+}
+
 // ── The projection ───────────────────────────────────────────────────────────────
 
 export function buildTransactionLedger(input: LedgerInput): LedgerView {
@@ -215,7 +238,7 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
 
   // ── Dominant stage / headline — refund > payment/fulfillment > negotiation ──
   if (refund !== 'none') {
-    return withProofDetail({
+    return withRentalDetail(withProofDetail({
       stage: 'refund',
       badge: refundBadge(refund),
       detail: refundStateDetail(refund) || undefined,
@@ -224,13 +247,13 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
       timeline,
       action: refundAction(refund, role),
       isEmpty: false,
-    }, order)
+    }, order), order)
   }
 
   if (hasOrder) {
     const manual = manualPaymentStateFromOrder(order!)
     if (manual) {
-      return withProofDetail({
+      return withRentalDetail(withProofDetail({
         stage: manual === 'processing' ? 'fulfillment' : 'payment',
         badge: manualPaymentBadge(manual),
         whoActsNext: manualWhoActsNext(manual, role),
@@ -238,10 +261,10 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
         timeline,
         action: manualAction(manual, role),
         isEmpty: false,
-      }, order)
+      }, order), order)
     }
     // Card / MP order — captured at checkout, so payment is settled.
-    return withProofDetail({
+    return withRentalDetail(withProofDetail({
       stage: 'fulfillment',
       badge: 'Pago confirmado',
       whoActsNext: role === 'seller' ? 'Prepara la entrega' : 'El vendedor prepara tu pedido',
@@ -249,7 +272,7 @@ export function buildTransactionLedger(input: LedgerInput): LedgerView {
       timeline,
       action: { kind: 'view-order', label: 'Ver pedido' },
       isEmpty: false,
-    }, order)
+    }, order), order)
   }
 
   // ── Offer-only (no order yet) ──

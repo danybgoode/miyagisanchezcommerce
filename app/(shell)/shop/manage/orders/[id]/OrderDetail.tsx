@@ -18,6 +18,7 @@ import {
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
+import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
 import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-tags'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -71,6 +72,9 @@ interface OrderDetailProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Rental line-item pricing (epic 02) — dates + itemized deposit (S1.3 backend, S2.3 rendering).
+    rental_booking_state?: RentalBookingState | null
+    rental_booking?: RentalBookingLike | null
     // Lightweight print-proof sign-off (custom-print-products S4 · 4.1).
     proof_sent?: boolean | null
     proof_image_url?: string | null
@@ -1335,6 +1339,23 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           )}
         </div>
       )}
+
+      {/* Rental booking (epic 02, S2.3) — dates + itemized deposit, ahead of the
+          generic "Entrega acordada" banner below (a rental's fulfillment_method
+          maps into isCoordOrder, so both can render — this one carries the
+          actual dates/deposit the generic banner has no concept of). */}
+      {order.rental_booking && (() => {
+        const lines = formatRentalBookingLines(order.rental_booking, order.currency)
+        return (
+          <div className="border border-[var(--border)] bg-[var(--bg-sunk)] rounded-xl p-4 mb-5">
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1">📅 Reserva de renta</p>
+            <p className="text-sm font-semibold">{lines.dates}</p>
+            <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
+            {lines.deposit && <p className="text-xs text-[var(--fg-muted)]">{lines.deposit}</p>}
+            <p className="text-sm font-bold mt-2">Total: {lines.total}</p>
+          </div>
+        )
+      })()}
 
       {isCoordOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
         <div className="border border-purple-200 bg-purple-50/60 rounded-xl p-4 mb-5">

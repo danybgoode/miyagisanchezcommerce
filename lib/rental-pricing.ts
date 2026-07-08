@@ -59,6 +59,23 @@ export function nightsBetween(checkIn: string | null | undefined, checkOut: stri
   return nights > 0 ? nights : 0
 }
 
+/**
+ * Strict `YYYY-MM-DD` calendar validity. `Date.parse` silently NORMALISES impossible
+ * day-of-month values (`2026-06-31` → Jul 1, `2026-02-30` → Mar 2), so on the money
+ * path `nightsBetween` alone would charge a phantom night and stamp a nonsense date.
+ * This round-trips the parsed date to reject anything that rolled over. (Out-of-range
+ * MONTHS already parse to NaN; this closes the day-of-month gap.) Ported byte-for-byte
+ * from the backend seam (`apps/backend/src/lib/rental-pricing.ts`) — the SAME check
+ * both sides must apply, or the FE could render a breakdown for a date the backend
+ * then 422s as `RENTAL_INVALID_DATES`.
+ */
+export function isValidYmd(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [y, m, d] = value.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
 /** Billed units for a night count at a given period (ceil — a partial period bills whole). */
 export function rentalUnits(nights: number, period: RatePeriod): number {
   if (nights <= 0) return 0
@@ -84,6 +101,23 @@ export function computeRentalTotal(input: RentalPriceInput): RentalPrice {
     depositCents: deposit,
     totalCents: rentCents + deposit,
   }
+}
+
+/**
+ * Read the refundable deposit off a product's `metadata.attrs` and normalise to CENTS.
+ *
+ * ⚠️ The seller stores `attrs.deposit` in PESOS (e.g. `2000` = $2,000 = 200000 cents),
+ * unlike the rate, which Medusa already stores as integer cents (the variant price).
+ * This is the ONE seam that bridges the two units — everything else in this module is
+ * cents-in. Absent / non-numeric / non-positive → 0 (a seller with no deposit set).
+ * Ported byte-for-byte from the backend seam — the same normalization both sides use.
+ */
+export function readDepositCents(attrs: Record<string, unknown> | null | undefined): number {
+  const raw = attrs?.deposit
+  const pesos =
+    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw.trim()) : Number.NaN
+  if (!Number.isFinite(pesos) || pesos <= 0) return 0
+  return Math.round(pesos * 100)
 }
 
 /** es-MX label for the billed units, e.g. "3 noches", "2 semanas", "1 mes". */

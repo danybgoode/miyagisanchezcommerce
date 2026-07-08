@@ -92,6 +92,7 @@ export default function CheckoutExperience({
   listingType = 'product',
   isDigital = false,
   originDomain,
+  rental,
   onStarted,
 }: {
   sellerId: string
@@ -109,6 +110,8 @@ export default function CheckoutExperience({
   listingType?: string
   isDigital?: boolean
   originDomain?: string
+  /** Rental: buyer's chosen date range. ONLY dates — never an amount. */
+  rental?: { check_in: string; check_out: string }
   onStarted?: () => void
 }) {
   // Single-item event admissions can be N units; the bundle path keeps quantity 1
@@ -167,10 +170,13 @@ export default function CheckoutExperience({
   const [coordinatedFallback, setCoordinatedFallback] = useState(false)
 
   // ── Coupon code ───────────────────────────────────────────────────────────
-  // Not offered when an accepted offer is in play (coupons don't stack on offers,
-  // mirroring the backend rule). Validation is a real-time preview; start-checkout
-  // re-checks authoritatively and recomputes the charged amount.
-  const couponsAllowed = !offerAmountCents
+  // Not offered when an accepted offer OR a rental booking is in play (coupons
+  // don't stack on either, mirroring the backend rule — start-checkout silently
+  // ignores `coupon_code` whenever a rentalBooking is present, so leaving this UI
+  // open for a rental checkout would show a discount the backend never actually
+  // charges, breaking the pay-button-total-equals-charge house rule). Validation
+  // is a real-time preview; start-checkout re-checks authoritatively.
+  const couponsAllowed = !offerAmountCents && !rental
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountCents: number } | null>(null)
   const [couponValidating, setCouponValidating] = useState(false)
@@ -814,6 +820,7 @@ export default function CheckoutExperience({
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
             shippingQuote={coordinatedActive ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
+            rental={rental}
             disabled={!canPay}
             onStarted={onStarted}
           />

@@ -25,6 +25,7 @@ import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
+import type { RentalBookingLike } from '@/lib/rental-booking'
 import {
   CUSTOM_DOMAIN_CHECKOUT_KIND,
   setCustomDomainSubscriptionStatus,
@@ -517,6 +518,8 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           personalization,
           eventTickets,
           storeDomain,
+          rentalBooking: (orderMeta.rental_booking as RentalBookingLike | undefined) ?? null,
+          currency,
         }).catch(e => console.error('[email] coord buyer:', e))
       } else {
         sendOrderConfirmedToBuyer({
@@ -568,6 +571,8 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
                 orderId: medusaOrderId ?? cart_id,
                 orderUrl: sellerOrderUrl,
                 personalization,
+                rentalBooking: (orderMeta.rental_booking as RentalBookingLike | undefined) ?? null,
+                currency,
               })
             }
             if (isShipping) {

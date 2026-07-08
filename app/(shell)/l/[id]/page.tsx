@@ -47,7 +47,7 @@ import { formatOfferAmount } from '@/lib/offers'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
-import { toRatePeriod } from '@/lib/rental-pricing'
+import { toRatePeriod, readDepositCents } from '@/lib/rental-pricing'
 import { digitalFileInfo, digitalSpecs } from '@/lib/digital-delivery'
 import type { Metadata } from 'next'
 
@@ -317,9 +317,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // safely (deposit 0, period día) so a rental with no capture still works.
   const isRental = listing.listing_type === 'rental'
   const rentalAttrs = (listing.metadata?.attrs ?? {}) as Record<string, unknown>
-  const rentalDepositCents = Math.max(0, Math.round((Number(rentalAttrs.deposit) || 0) * 100))
+  const rentalDepositCents = readDepositCents(rentalAttrs)
   const rentalPeriod = toRatePeriod(rentalAttrs.rate_period)
   const rentalLed = redesign && isRental && showBuyerActions && hasBuyablePrice
+  // S2.2 — the flag that lets "Reservar estas fechas" deep-link to a real charge
+  // instead of opening an AskSeller conversation. Read unconditionally (cheap,
+  // cached) rather than gating on `rentalLed` so a stray future caller of
+  // RentalBooking never accidentally inherits a stale default.
+  const rentalPricingEnabled = isRental ? await isEnabled('checkout.rental_pricing_enabled') : false
   const suppressGenericBar = serviceLed || rentalLed
   // Digital (S4.3) leads with an "entrega al instante" banner; specs reinterpreted
   // as formato · tamaño. Digital already renders its buy inline (excluded from the
@@ -876,6 +881,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             currency={listing.currency}
             isSignedIn={isSignedIn}
             bookingUrl={bookingUrl}
+            rentalPricingEnabled={rentalPricingEnabled}
+            sellerHasPaymentMethod={hasAnyPayment}
           />
         )}
 

@@ -21,6 +21,7 @@ import {
   type PickupAppointmentState, type PickupAppointmentLike,
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
+import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,9 @@ interface OrderTrackingProps {
     // Pickup propose-and-confirm appointment (S2).
     pickup_appointment_state?: PickupAppointmentState | null
     pickup_appointment?: PickupAppointmentLike | null
+    // Rental line-item pricing (epic 02) — dates + itemized deposit (S1.3 backend, S2.3 rendering).
+    rental_booking_state?: RentalBookingState | null
+    rental_booking?: RentalBookingLike | null
     // Lightweight print-proof sign-off (custom-print-products S4 · 4.1).
     proof_sent?: boolean | null
     proof_image_url?: string | null
@@ -785,6 +789,22 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                 {confirmingPickup ? 'Confirmando…' : '✓ Confirmar esta hora'}
               </button>
             )}
+          </section>
+        )
+      })()}
+
+      {/* Rental booking (epic 02, S2.3) — dates + itemized deposit for a rental
+          order, right next to the refund action below (the deposit returns
+          through the same refund machinery). */}
+      {order.rental_booking && (() => {
+        const lines = formatRentalBookingLines(order.rental_booking, order.currency)
+        return (
+          <section className="border rounded-xl p-4 mb-5 border-[var(--border)] bg-[var(--bg-sunk)]">
+            <h2 className="font-semibold text-sm mb-1">📅 Reserva de renta</h2>
+            <p className="text-sm font-semibold">{lines.dates}</p>
+            <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
+            {lines.deposit && <p className="text-xs text-[var(--fg-muted)]">{lines.deposit}</p>}
+            <p className="text-sm font-bold mt-2">Total: {lines.total}</p>
           </section>
         )
       })()}

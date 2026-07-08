@@ -8,6 +8,7 @@ import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
 import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
+import { formatRentalBookingLines, type RentalBookingLike } from '@/lib/rental-booking'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -174,6 +175,21 @@ function eventTicketBlock(tickets?: EventTicket[] | null): string {
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 6px">Boleto de entrada</div>
     <div style="margin:0 0 8px;color:#6b6b67">El QR contiene este token único. Preséntalo en la puerta.</div>
     ${rows}
+  </div>`
+}
+
+/** Rental booking — dates + itemized deposit (epic 02 · rental-backend-line-item-pricing,
+ *  S2.3). `rb` absent (a non-rental order) renders nothing, matching the
+ *  personalization/event-ticket block contract. */
+function rentalBookingBlock(rb?: RentalBookingLike | null, currency = 'MXN'): string {
+  if (!rb) return ''
+  const lines = formatRentalBookingLines(rb, currency)
+  return `<div style="margin:0 0 20px;padding:12px 14px;background:#f0f0ec;border-left:3px solid #1d6f42;font-size:13px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1d6f42;margin:0 0 6px">Reserva de renta</div>
+    <div style="font-weight:600;color:#1a1a18;margin:0 0 4px">${esc(lines.dates)}</div>
+    <div style="color:#6b6b67;margin:0 0 2px">${esc(lines.breakdown)}</div>
+    ${lines.deposit ? `<div style="color:#6b6b67">${esc(lines.deposit)}</div>` : ''}
+    <div style="font-weight:700;color:#1a1a18;margin-top:6px">Total: ${esc(lines.total)}</div>
   </div>`
 }
 
@@ -1213,6 +1229,9 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
   eventTickets?: EventTicket[] | null
   /** Own-channel order → brand the email to the seller's custom domain. */
   storeDomain?: string | null
+  /** Rental line-item pricing (epic 02) — dates + itemized deposit, when set. */
+  rentalBooking?: RentalBookingLike | null
+  currency?: string
 }): Promise<void> {
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
   const subject = `Compra confirmada — coordina la entrega con ${ctx.shopName}`
@@ -1233,6 +1252,7 @@ export async function sendCoordinatedOrderToBuyer(ctx: {
     ]),
     personalizationBlock(ctx.personalization),
     eventTicketBlock(ctx.eventTickets),
+    rentalBookingBlock(ctx.rentalBooking, ctx.currency),
     notice('El vendedor tiene hasta <strong>24 horas</strong> para contactarte. Guarda este correo como comprobante de tu compra.', 'info'),
     whatsappUrl
       ? cta('Contactar por WhatsApp', whatsappUrl)
@@ -1255,6 +1275,9 @@ export async function sendCoordinatedOrderToSeller(ctx: {
   orderId: string
   orderUrl: string
   personalization?: EmailPersonalization | null
+  /** Rental line-item pricing (epic 02) — dates + itemized deposit, when set. */
+  rentalBooking?: RentalBookingLike | null
+  currency?: string
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — acuerda la entrega con el comprador`
 
@@ -1266,6 +1289,7 @@ export async function sendCoordinatedOrderToSeller(ctx: {
       ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
     ]),
     personalizationBlock(ctx.personalization),
+    rentalBookingBlock(ctx.rentalBooking, ctx.currency),
     amount(ctx.amountPaid, 'Monto recibido (en camino a tu cuenta)', true),
     notice('El comprador eligió <strong>entrega acordada</strong>. Tienes <strong>24 horas</strong> para contactarlo y definir cómo y cuándo le entregas el artículo.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),
@@ -1390,6 +1414,9 @@ export async function sendManualOrderToBuyer(ctx: {
   manualPayment: ManualPaymentSnapshot
   orderUrl: string
   personalization?: EmailPersonalization | null
+  /** Rental line-item pricing (epic 02) — dates + itemized deposit, when set. */
+  rentalBooking?: RentalBookingLike | null
+  currency?: string
 }): Promise<void> {
   const greeting = ctx.buyerName ? `¡Gracias, ${ctx.buyerName}!` : '¡Gracias por tu compra!'
   const subject = `Pedido registrado — completa tu pago en ${ctx.shopName}`
@@ -1405,6 +1432,7 @@ export async function sendManualOrderToBuyer(ctx: {
       ...rows,
     ]),
     personalizationBlock(ctx.personalization),
+    rentalBookingBlock(ctx.rentalBooking, ctx.currency),
     notice('Una vez que el vendedor reciba tu pago, lo confirmará y procesará tu pedido. Guarda este correo.', 'info'),
     cta('Ver mi pedido', ctx.orderUrl),
   ].join('')
@@ -1421,6 +1449,9 @@ export async function sendManualOrderToSeller(ctx: {
   shopName: string
   orderUrl: string
   personalization?: EmailPersonalization | null
+  /** Rental line-item pricing (epic 02) — dates + itemized deposit, when set. */
+  rentalBooking?: RentalBookingLike | null
+  currency?: string
 }): Promise<void> {
   const subject = `📦 Nuevo pedido — pago directo pendiente`
   const body = [
@@ -1431,6 +1462,7 @@ export async function sendManualOrderToSeller(ctx: {
       ...(ctx.buyerEmail ? [['Email', `<a href="mailto:${esc(ctx.buyerEmail)}" style="color:#1d6f42;text-decoration:none">${esc(ctx.buyerEmail)}</a>`] as [string, string]] : []),
     ]),
     personalizationBlock(ctx.personalization),
+    rentalBookingBlock(ctx.rentalBooking, ctx.currency),
     amount(ctx.amount, 'Monto del pedido', true),
     notice('El comprador pagará por <strong>pago directo</strong> (SPEI / DiMo / efectivo). Cuando recibas el pago, márcalo como confirmado en tu panel para procesar el pedido.', 'warn'),
     cta('Gestionar pedido', ctx.orderUrl),
