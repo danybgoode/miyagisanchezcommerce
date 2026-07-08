@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  AUTOS_TRUST_GROUP,
   CATEGORY_GROUPS,
   EVENT_FIELDS,
   GENERIC_CATEGORIES,
@@ -8,6 +9,7 @@ import {
   RENTAL_GROUP,
   type AttrField,
 } from '@/lib/listing-attributes'
+import { InspectionReportField } from './InspectionReportField'
 
 export type Attrs = Record<string, string | number | boolean>
 
@@ -96,7 +98,21 @@ export function AttrsSection({ category, listingType, attrs, setAttr }: {
   // The category attribute panel (independent of the rental pricing panel below).
   const categoryContent = (() => {
     // Product-paneled categories take precedence over the service fallback.
-    if (['autos', 'inmuebles', 'moda', 'electronica'].includes(category)) {
+    // Autos additionally get the financing/warranty panel + inspection-report
+    // field (cars-vertical S2.1) — pricing/trust data, not vehicle specs.
+    if (category === 'autos') {
+      return (
+        <div className="space-y-3">
+          {panel(CATEGORY_GROUPS.autos)}
+          {panel(AUTOS_TRUST_GROUP)}
+          <InspectionReportField
+            value={(attrs.inspection_report_url as string) ?? ''}
+            onChange={v => setAttr('inspection_report_url', v)}
+          />
+        </div>
+      )
+    }
+    if (['inmuebles', 'moda', 'electronica'].includes(category)) {
       return panel(CATEGORY_GROUPS[category])
     }
     // Services get their own panel + the optional event block.
