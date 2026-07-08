@@ -32,6 +32,16 @@ test.describe('buyer-messages · completeness', () => {
     }
   })
 
+  test('order_confirmed/payment_confirmed include the amount when passed', () => {
+    for (const kind of ['order_confirmed', 'payment_confirmed'] as const) {
+      const withAmount = buildBuyerMessage(kind, { ...SAMPLE, amountPaid: '$1,200' })
+      const withoutAmount = buildBuyerMessage(kind, SAMPLE)
+      expect(withAmount.telegram, kind).toContain('$1,200')
+      expect(withAmount.push.body, kind).toContain('$1,200')
+      expect(withoutAmount.telegram, kind).not.toContain('$1,200')
+    }
+  })
+
   test('partial vs full refund changes the accepted copy', () => {
     const full = buildBuyerMessage('return_accepted', { ...SAMPLE, refundAmount: '$250', isPartial: false })
     const partial = buildBuyerMessage('return_accepted', { ...SAMPLE, refundAmount: '$100', isPartial: true })
