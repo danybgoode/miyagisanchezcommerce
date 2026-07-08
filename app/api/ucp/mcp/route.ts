@@ -750,6 +750,25 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     return handleCreateConfiguredCheckout(args)
   }
 
+  // Rental guard (S3.1 cross-review catch): this endpoint charges a bare
+  // one-unit rate with no dates — it is NOT rental-aware. A rental listing
+  // must go through get_checkout_options(check_in, check_out) instead, whose
+  // checkout_url already points at the dated /checkout page (the real S1/S2
+  // charge rail). The tool description alone doesn't stop a model from
+  // calling this directly, so block it here too. Fail-open on a lookup
+  // failure — this is defense-in-depth on top of that primary fix, not the
+  // only guard, so a transient Medusa hiccup shouldn't block every OTHER
+  // (non-rental) checkout through this endpoint.
+  try {
+    const listingRes = await fetch(`${MEDUSA_BASE}/store/listings/${String(args.listing_id ?? '')}`, { headers: MEDUSA_HEADERS })
+    if (listingRes.ok) {
+      const listingData = await listingRes.json() as { listing?: { listing_type?: string } }
+      if (listingData.listing?.listing_type === 'rental') {
+        return { isError: true, content: [{ type: 'text', text: 'Este anuncio es una renta — create_checkout no calcula noches × tarifa + depósito y cobraría un monto incorrecto. Usa get_checkout_options con check_in/check_out para obtener el checkout_url correcto.' }] }
+      }
+    }
+  } catch { /* lookup failed — fall through rather than block a non-rental checkout on a transient error */ }
+
   const method = String(args.method ?? 'mercadopago')
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
 

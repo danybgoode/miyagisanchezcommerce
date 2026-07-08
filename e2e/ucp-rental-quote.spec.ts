@@ -170,6 +170,14 @@ test.describe('ucp checkout-session · rental quoting (fixture-gated)', () => {
 
     expect(session.rental_quote).toBeFalsy()
     expect(session.rental_pricing_hint).toBeTruthy()
+
+    // Cross-agent review catch: a rejected dated request must NOT leave the
+    // date-blind instant methods (MP/Stripe) available — that would let an
+    // agent "succeed" at a one-unit charge for the exact dates just refused.
+    const mp = (session.payment_options ?? []).find((o: { method: string }) => o.method === 'mercadopago')
+    const stripe = (session.payment_options ?? []).find((o: { method: string }) => o.method === 'stripe')
+    if (mp) expect(mp.available).toBe(false)
+    if (stripe) expect(stripe.available).toBe(false)
   })
 })
 

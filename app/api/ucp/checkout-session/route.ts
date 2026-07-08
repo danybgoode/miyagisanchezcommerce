@@ -269,6 +269,14 @@ export async function POST(req: NextRequest) {
   const rentalAttrs = (listing.metadata?.attrs ?? {}) as Record<string, unknown>
   let rentalQuote: UcpRentalQuote | null = null
   let rentalPricingHintText: string | null = null
+  // An agent explicitly asked to book dates and got rejected (bad range, flag
+  // off, etc.) — distinct from never asking at all. Cross-agent review catch:
+  // without this, the instant-method options below would silently fall back to
+  // the date-blind legacy endpoints, letting the agent "succeed" at a one-unit
+  // charge for the exact request that was just refused. Instant methods are
+  // blocked in this state (below); manual/contact-first methods stay available
+  // since a human seller confirms before any money moves.
+  let rentalDatesRejected = false
 
   if (isRentalListing) {
     if (check_in && check_out) {
@@ -287,6 +295,7 @@ export async function POST(req: NextRequest) {
         priceCents = result.quote.total_cents
       } else {
         rentalPricingHintText = result.reason
+        rentalDatesRejected = true
       }
     } else {
       rentalPricingHintText = rentalPricingHint({ rateCents: priceCents ?? 0, attrs: rentalAttrs, currency })
@@ -342,8 +351,8 @@ export async function POST(req: NextRequest) {
   )
   const beHas = (k: PaymentMethodKey) => (beMethods ? beMethods.has(k) : null)
   // available = backend says so (when reachable) else local; price/claim always required.
-  const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed
-  const stripeAvailable = (beHas('stripe') ?? hasStripe) && hasPrice && isClaimed
+  const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed && !rentalDatesRejected
+  const stripeAvailable = (beHas('stripe') ?? hasStripe) && hasPrice && isClaimed && !rentalDatesRejected
   const bankAvailable = (beHas('bank_transfer') ?? (hasBankTransfer && !isDigital)) && hasPrice
   const cashAvailable = (beHas('cash_on_pickup') ?? (localPickup && !isDigital)) && isClaimed
 
@@ -392,6 +401,7 @@ export async function POST(req: NextRequest) {
     ...(!isClaimed && { reason_unavailable: 'Este anuncio aún no tiene vendedor registrado.' }),
     ...(isDigital && { reason_unavailable: 'Los productos digitales se pagan con tarjeta vía Stripe.' }),
     ...(!hasPrice && { reason_unavailable: 'Este anuncio no tiene precio definido.' }),
+    ...(rentalDatesRejected && { reason_unavailable: 'Las fechas enviadas no son reservables (ver rental_pricing_hint) — este método no puede cobrar una renta sin una cotización válida.' }),
   }
 
   // 2. Stripe
@@ -404,6 +414,7 @@ export async function POST(req: NextRequest) {
     escrow_compatible: escrowMode !== 'off',
     checkout_url: stripeAvailable ? (rentalCheckoutUrl ?? `${baseUrl}/api/stripe/checkout`) : undefined,
     ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
+    ...(rentalDatesRejected && { reason_unavailable: 'Las fechas enviadas no son reservables (ver rental_pricing_hint) — este método no puede cobrar una renta sin una cotización válida.' }),
   }
 
   // 3. Bank transfer (SPEI)
