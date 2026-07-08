@@ -109,6 +109,7 @@ export default function BuyerNotificationPreferences() {
     try {
       const res = await fetch('/api/account/telegram/link', { method: 'DELETE' })
       if (!res.ok) throw new Error(String(res.status))
+      const d = await res.json().catch(() => ({ rowDeleted: true }))
       setLinked(false)
       // Locally clear Telegram toggles so the grid matches the (now inert) column.
       if (prefs) {
@@ -119,7 +120,11 @@ export default function BuyerNotificationPreferences() {
           ),
         )
       }
-      setTgMsg('Telegram desconectado para tus compras.')
+      setTgMsg(
+        d.rowDeleted
+          ? 'Telegram desconectado.'
+          : 'Telegram desconectado para tus compras. Tu Telegram de vendedor sigue conectado.',
+      )
     } catch {
       setTgMsg('No se pudo desconectar. Inténtalo de nuevo.')
     } finally {
