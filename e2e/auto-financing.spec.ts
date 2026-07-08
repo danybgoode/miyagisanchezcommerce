@@ -16,6 +16,7 @@ test.describe('auto-financing · financingDisplay (S2.1)', () => {
     expect(d).not.toBeNull()
     expect(d!.monthlyLabel).toContain('/mes')
     expect(d!.monthlyLabel).toContain('5,000')
+    expect(d!.monthlyCents).toBe(500_000) // $5,000.00 in cents — the raw value the UCP catalog reads
     expect(d!.disclaimer).toBe(FINANCING_DISCLAIMER)
   })
 
@@ -59,6 +60,7 @@ test.describe('auto-financing · warrantyDisplay (S2.1)', () => {
     expect(w).not.toBeNull()
     expect(w!.chipLabel).toBe('Garantía: 6 meses')
     expect(w!.text).toBeNull()
+    expect(w!.months).toBe(6)
   })
 
   test('text only (no months) → generic chip, text carried for detail', () => {
@@ -66,12 +68,14 @@ test.describe('auto-financing · warrantyDisplay (S2.1)', () => {
     expect(w).not.toBeNull()
     expect(w!.chipLabel).toBe('Garantía')
     expect(w!.text).toBe('6 meses motor y transmisión')
+    expect(w!.months).toBeNull()
   })
 
   test('both present → months drive the chip, text still carried', () => {
     const w = warrantyDisplay({ text: 'Motor y transmisión', months: 12 })
     expect(w!.chipLabel).toBe('Garantía: 12 meses')
     expect(w!.text).toBe('Motor y transmisión')
+    expect(w!.months).toBe(12)
   })
 
   test('neither present → null (renders nothing)', () => {

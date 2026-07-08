@@ -55,6 +55,10 @@ function buildCreateBody(row: CatalogImportRow, images: Array<{ url: string; alt
     // Unit cost (COGS) in centavos → the created variant's private metadata
     // (profit-analyzer S1 · US-1). Pesos → centavos, same convention as price.
     ...(row.unit_cost != null ? { unit_cost_cents: Math.round(row.unit_cost * 100) } : {}),
+    // Autos vehicle specs + financing/trust (cars-vertical S2.3) — assembled
+    // by stageRow() into row.attrs, mirroring the backend's own non-empty
+    // guard (seller-product-create.ts only writes attrs when non-empty).
+    ...(row.attrs && Object.keys(row.attrs).length > 0 ? { attrs: row.attrs } : {}),
   }
 }
 
@@ -77,6 +81,12 @@ function buildUpdateBody(row: CatalogImportRow) {
   // multi-variant listing 422s per-row ("especifica variant_id"), reported
   // honestly in that row's result instead of killing the batch.
   if (row.unit_cost != null) body.unit_cost_cents = Math.round(row.unit_cost * 100)
+  // Only include attrs when the row actually specifies vehicle-spec/trust
+  // columns — the backend's attrs update is a shallow merge (confirmed in
+  // apps/backend seller-product-update.ts), so omitting the key here never
+  // wipes attrs a seller already set by hand; sending an empty object would
+  // be a needless no-op write on every re-import row that skips these columns.
+  if (row.attrs && Object.keys(row.attrs).length > 0) body.attrs = row.attrs
   return body
 }
 

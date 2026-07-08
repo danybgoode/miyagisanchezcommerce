@@ -37,6 +37,9 @@ export interface FinancingInput {
 export interface FinancingDisplay {
   /** "$X,XXX/mes" es-MX currency-formatted. */
   monthlyLabel: string
+  /** Raw monthly amount in cents (Medusa convention) — for a consumer that
+   *  needs the number, not just the formatted label (e.g. the UCP catalog). */
+  monthlyCents: number
   disclaimer: string
 }
 
@@ -57,10 +60,10 @@ export function financingDisplay(input: FinancingInput): FinancingDisplay | null
   if (months == null || months <= 0) return null
 
   const financedCents = priceCents * (1 - pct / 100)
-  const monthlyPesos = financedCents / months / 100
-  if (!Number.isFinite(monthlyPesos) || monthlyPesos <= 0) return null
+  const monthlyCents = Math.round(financedCents / months)
+  if (!Number.isFinite(monthlyCents) || monthlyCents <= 0) return null
 
-  const formatted = monthlyPesos.toLocaleString('es-MX', {
+  const formatted = (monthlyCents / 100).toLocaleString('es-MX', {
     style: 'currency',
     currency: 'MXN',
     maximumFractionDigits: 0,
@@ -68,6 +71,7 @@ export function financingDisplay(input: FinancingInput): FinancingDisplay | null
 
   return {
     monthlyLabel: `${formatted}/mes`,
+    monthlyCents,
     disclaimer: FINANCING_DISCLAIMER,
   }
 }
@@ -83,6 +87,7 @@ export interface WarrantyDisplay {
   /** "Garantía: 6 meses" (months) or "Garantía" (text only). */
   chipLabel: string
   text: string | null
+  months: number | null
 }
 
 /** Returns null when neither warranty field is present. */
@@ -96,6 +101,7 @@ export function warrantyDisplay(input: WarrantyInput): WarrantyDisplay | null {
   return {
     chipLabel: hasMonths ? `Garantía: ${months} meses` : 'Garantía',
     text,
+    months: hasMonths ? months : null,
   }
 }
 
