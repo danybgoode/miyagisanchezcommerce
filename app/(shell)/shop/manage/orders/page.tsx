@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import OrdersInbox from './OrdersInbox'
+import { stripBuyerClerkId } from '@/lib/order-buyer'
 
 export const metadata = { title: 'Pedidos — Miyagi Sánchez' }
 
@@ -43,8 +44,11 @@ export default async function OrdersPage() {
       cache: 'no-store',
     })
     if (res.ok) {
-      const { orders: data } = await res.json() as { orders?: typeof orders }
-      orders = data ?? []
+      const { orders: data } = await res.json() as { orders?: Array<Record<string, unknown>> }
+      // Strip the buyer's Clerk id before it crosses into the 'use client'
+      // OrdersInbox component — it's a server-side-only dispatch-gating field
+      // (buyer-notifications-money-path S1), never meant to reach the browser.
+      orders = (data ?? []).map(stripBuyerClerkId) as unknown as typeof orders
     }
   } catch { /* show empty inbox */ }
 

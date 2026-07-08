@@ -24,6 +24,7 @@ import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 import { tg } from '@/lib/telegram'
 
 const MEDUSA_BASE    = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -111,10 +112,14 @@ export async function POST(
         const shopName   = ((order.marketplace_shops as Record<string, unknown> | null)?.name as string) ?? 'Mi tienda'
 
         if (buyerEmail) {
-          // Medusa orders don't carry the buyer's Clerk id (normalizer returns
-          // null) → guest fall-through sends the email exactly as today. Buyer
-          // pref gating applies where the id is known (legacy path below).
-          const buyerClerkId = (order.buyer_clerk_user_id as string | null) ?? null
+          // Buyer pref gating (buyer-notifications-money-path S1) — flag-gated
+          // read of the now-resolved buyer_clerk_user_id (normalizeMedusaOrder,
+          // S1.1). Flag defaults ON; it's OFF only after a deliberate admin flip.
+          // Either the flag is off, or the buyer id itself is null (guest order,
+          // or a pre-S1.1 order) — either way this resolves to dispatchToBuyer's
+          // existing guest fall-through, which sends the email as today.
+          const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+          const buyerClerkId = resolveBuyerClerkId((order.buyer_clerk_user_id as string | null) ?? null, buyerMoneypathEnabled)
           const msg = buildBuyerMessage('order_shipped', { listingTitle, url: `${SITE_URL}/account/orders/${id}` })
           void dispatchToBuyer(
             { clerkUserId: buyerClerkId, email: buyerEmail },

@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 19 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(19)
+  test('covers all 20 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(20)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -50,6 +50,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Rental line-item pricing (rental-backend-line-item-pricing S1) — enablement,
     // fail-open OFF (backend 422s a rental checkout until the money smoke passes).
     expect(FLAG_META['checkout.rental_pricing_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // Medusa-order buyer-id resolution for Envíos/Devoluciones dispatch
+    // (buyer-notifications-money-path S1) — kill-switch, fail-open ON.
+    expect(FLAG_META['notifications.buyer_moneypath_enabled']).toEqual({ polarity: 'killswitch', default: true })
   })
 })
 
