@@ -14,6 +14,8 @@ import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 import { db } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
+import { isEnabled } from '@/lib/flags'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY    = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -84,9 +86,14 @@ export async function PATCH(
         const refundAmountCents = data.refund_amount_cents ?? data.return_request?.refund_amount_cents ?? 0
         const refundFormatted   = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(refundAmountCents / 100)
 
-        // Medusa orders don't carry the buyer's Clerk id → guest fall-through
-        // sends the email as today (buyer pref gating applies to legacy orders).
-        const buyerRecipient = { clerkUserId: null, email: buyerEmail }
+        // Buyer pref gating (buyer-notifications-money-path S1) — flag-gated read
+        // of the now-resolved buyer_clerk_user_id (normalizeMedusaOrder, S1.1);
+        // flag off or absent → guest fall-through sends the email as today.
+        const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+        const buyerRecipient = {
+          clerkUserId: resolveBuyerClerkId((order.buyer_clerk_user_id as string | null) ?? null, buyerMoneypathEnabled),
+          email: buyerEmail,
+        }
         const buyerOrderUrlMedusa = `${siteUrl}/account/orders/${id}`
         if (body.action === 'decline') {
           const m = buildBuyerMessage('return_declined', { listingTitle, url: buyerOrderUrlMedusa })

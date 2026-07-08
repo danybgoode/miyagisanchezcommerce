@@ -19,6 +19,8 @@ import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { tg } from '@/lib/telegram'
 import { canSellerShip, SHIP_BLOCKED_REASON } from '@/lib/manual-payment-state'
+import { isEnabled } from '@/lib/flags'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -46,14 +48,15 @@ export async function POST(
   let shopName = 'Miyagi Sánchez'
   let buyerEmail: string | null = null
   let buyerName: string | null = null
-  // Buyer Clerk id for pref gating — null for Medusa orders (normalizer returns
-  // null) and guests → dispatchToBuyer's guest fall-through sends the email as today.
+  // Buyer Clerk id for pref gating — resolved below in each branch;
+  // dispatchToBuyer's guest fall-through sends the email as today when null.
   let buyerClerkId: string | null = null
 
   // ── Medusa order (ID starts with "order_") ────────────────────────────────
   if (id.startsWith('order_')) {
     const { getToken } = await auth()
     const clerkJwt = await getToken()
+    const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
 
     // Fetch order from Medusa to get buyer info for email
     try {
@@ -64,7 +67,7 @@ export async function POST(
         },
       })
       if (orderRes.ok) {
-        const { order } = await orderRes.json() as { order: { buyer_email?: string; buyer_name?: string; payment_method?: string | null; payment_received?: boolean; marketplace_listings?: { title?: string }; marketplace_shops?: { name?: string } } }
+        const { order } = await orderRes.json() as { order: { buyer_email?: string; buyer_name?: string; buyer_clerk_user_id?: string | null; payment_method?: string | null; payment_received?: boolean; marketplace_listings?: { title?: string }; marketplace_shops?: { name?: string } } }
         // Courtesy fail-fast (S2.2): block shipping an unpaid manual order before the
         // PATCH round-trip. The backend PATCH gate is the authoritative enforcement.
         if (!canSellerShip(order)) {
@@ -72,6 +75,7 @@ export async function POST(
         }
         buyerEmail = order.buyer_email ?? null
         buyerName = order.buyer_name ?? null
+        buyerClerkId = resolveBuyerClerkId(order.buyer_clerk_user_id ?? null, buyerMoneypathEnabled)
         listingTitle = order.marketplace_listings?.title ?? listingTitle
         shopName = order.marketplace_shops?.name ?? shopName
       }
