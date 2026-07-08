@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import {
   computeRentalTotal,
@@ -10,22 +11,25 @@ import {
   formatRentalCents,
   type RatePeriod,
 } from '@/lib/rental-pricing'
+import { resolveRentalBookingCta } from '@/lib/rental-booking-cta'
 
 /**
- * RentalBooking — PDP redesign (epic 01) Sprint 4, S4.2.
+ * RentalBooking — PDP redesign (epic 01) Sprint 4, S4.2; flag flip in Sprint 2
+ * (epic 02 · rental-backend-line-item-pricing), Story 2.2.
  *
  * A rental leads with this date-range picker instead of the boxed buy/offer bar:
  * pick check-in / check-out → the EXACT total (`días × precio + depósito`) appears
- * beside the price as an ESTIMATE. The deposit is shown up front, before any date
- * is picked. All the math is the pure `lib/rental-pricing.ts` seam, so the
- * displayed estimate is spec-proven exact.
+ * beside the price. All the math is the pure `lib/rental-pricing.ts` seam, so the
+ * displayed total is spec-proven exact.
  *
- * No money mutation: a rental is fulfilled by coordination (fulfillment = coord),
- * and the generic /checkout charges a single unit of `price_cents` — it does NOT
- * honor the date range or deposit — so "Reservar estas fechas" opens a conversation
- * with the seller to confirm dates, the total, and the deposit/payment, rather than
- * sending the buyer to a checkout that would contradict the shown total.
- * `booking_url` (if any) is a secondary availability link.
+ * Behind `checkout.rental_pricing_enabled` (`rentalPricingEnabled` prop, read by
+ * the PDP page): when ON and the seller has a payment method configured, "Reservar
+ * estas fechas" deep-links straight to `/checkout` with the chosen dates — the
+ * backend server-recomputes and charges the exact total shown here. When OFF (or
+ * the seller has no payment method), the button opens an AskSeller conversation
+ * instead, byte-for-byte as before. `resolveRentalBookingCta` (`lib/rental-booking-cta.ts`)
+ * is the single decision point, so the flag-OFF regression is asserted directly
+ * against that pure function. `booking_url` (if any) is a secondary availability link.
  */
 export default function RentalBooking({
   listingId,
@@ -35,6 +39,8 @@ export default function RentalBooking({
   currency,
   isSignedIn,
   bookingUrl,
+  rentalPricingEnabled,
+  sellerHasPaymentMethod,
 }: {
   listingId: string
   dailyRateCents: number
@@ -43,6 +49,10 @@ export default function RentalBooking({
   currency: string
   isSignedIn: boolean
   bookingUrl: string | null
+  /** `checkout.rental_pricing_enabled` — OFF keeps today's AskSeller flow. */
+  rentalPricingEnabled: boolean
+  /** Whether the seller has ≥1 online/selectable payment path configured. */
+  sellerHasPaymentMethod: boolean
 }) {
   // Today in Mexico City (not UTC) — a UTC `today` rolls to tomorrow after ~18:00
   // local (UTC-6), which would block a same-day check-in. en-CA renders YYYY-MM-DD.
@@ -53,6 +63,7 @@ export default function RentalBooking({
   const nights = nightsBetween(checkIn, checkOut)
   const price = computeRentalTotal({ rateCents: dailyRateCents, depositCents, nights, period })
   const hasRange = price.units > 0
+  const cta = resolveRentalBookingCta({ hasRange, rentalPricingEnabled, sellerHasPaymentMethod, listingId, checkIn, checkOut })
 
   return (
     <div data-testid="pdp-rental-booking" style={{ marginBottom: 20, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
@@ -118,15 +129,31 @@ export default function RentalBooking({
         </div>
       )}
 
-      {/* Primary action — coordinate the reservation with the seller (a rental is
-          fulfilled by coordination; the generic checkout would mischarge a single
-          unit and ignore the deposit, so we don't send the buyer there). */}
+      {/* Primary action — checkout.rental_pricing_enabled ON + seller has a payment
+          method: deep-link straight to checkout with these dates (the backend
+          server-recomputes and charges the exact total shown above). Otherwise,
+          byte-for-byte today's flow: open an AskSeller conversation to coordinate
+          the reservation. `resolveRentalBookingCta` is the single decision point. */}
       {hasRange ? (
         <div data-testid="pdp-rental-reservar">
-          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" />
-          <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
-            Coordinarás el cobro y el depósito con el vendedor.
-          </p>
+          {cta.mode === 'checkout' ? (
+            <>
+              <Link href={cta.href} className="btn btn-dark btn-lg" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }}>
+                <i className="iconoir-calendar-check" style={{ fontSize: 16 }} />
+                Reservar estas fechas
+              </Link>
+              <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
+                El depósito se cobra junto con la renta.
+              </p>
+            </>
+          ) : (
+            <>
+              <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" />
+              <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
+                Coordinarás el cobro y el depósito con el vendedor.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div

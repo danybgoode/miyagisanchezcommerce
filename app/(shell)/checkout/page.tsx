@@ -8,6 +8,8 @@ import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity } from '@/lib/ticket-quantity'
 import { readEventDetails } from '@/lib/event-listing'
+import { resolveRentalCheckoutDisplay } from '@/lib/rental-checkout-display'
+import { rentalUnitsLabel, formatRentalCents, type RentalPrice } from '@/lib/rental-pricing'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
 
@@ -21,6 +23,9 @@ type SearchParams = {
   variantId?: string
   /** Tenant custom domain the buyer hopped from (own-channel checkout). */
   origin?: string
+  /** Rental: the buyer's chosen date range (from the PDP date picker). */
+  checkIn?: string
+  checkOut?: string
 }
 
 function formatCents(cents: number, currency: string) {
@@ -81,12 +86,17 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // Supabase .eq() expects a scalar, not an array (cross-agent review catch,
   // 2026-07-05).
   const offerId = Array.isArray(params.offerId) ? (params.offerId as unknown as string[])[0] : params.offerId
+  // Same array-pollution guard for the rental date params — a crafted
+  // ?checkIn=A&checkIn=B must never reach resolveRentalCheckoutDisplay() as
+  // anything but a plain string.
+  const checkIn = Array.isArray(params.checkIn) ? (params.checkIn as unknown as string[])[0] : params.checkIn
+  const checkOut = Array.isArray(params.checkOut) ? (params.checkOut as unknown as string[])[0] : params.checkOut
   const rawListingId = params.listingId
   if (!rawListingId) redirect('/l')
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}${checkIn ? `&checkIn=${checkIn}` : ''}${checkOut ? `&checkOut=${checkOut}` : ''}`)}`)
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
@@ -146,7 +156,11 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // unrelated finding). A configurator checkout is identified by the presence
   // of `variantId` (only ConfiguratorBuyBox sets it).
   const isConfiguratorCheckout = !!variantId && !isOfferCheckout
-  const quantity = isOfferCheckout
+  // Rental: the buyer picked dates on the PDP date picker (Story 2.2's CTA is the
+  // only path that sets both params). A rental books ONE unit for a date range —
+  // never multi-quantity — matching the backend's `RENTAL_CART_UNSUPPORTED` guard.
+  const isRentalCheckout = !isOfferCheckout && !isConfiguratorCheckout && listing.listing_type === 'rental' && !!checkIn && !!checkOut
+  const quantity = isOfferCheckout || isRentalCheckout
     ? 1
     : isConfiguratorCheckout
       ? Math.max(1, Math.floor(Number(params.qty ?? 1)) || 1)
@@ -167,6 +181,27 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     const resolved = priceGrid ? unitPriceCentsFor(priceGrid, variantId!, quantity) : null
     if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
     amountCents = resolved
+  }
+
+  // Rental: the total is ALWAYS server-recomputed from dates + the listing's own
+  // rate/attrs — never a client-sent amount (tamper guarantee, matching the
+  // backend's `resolveRentalCheckout`). Flag off, bad dates, a non-rental listing,
+  // or a zero rate all redirect back to the PDP rather than falling through to a
+  // single-unit charge that would silently ignore the date range and deposit.
+  let rentalBreakdown: RentalPrice | null = null
+  if (isRentalCheckout) {
+    const rentalEnabled = await isEnabled('checkout.rental_pricing_enabled')
+    const result = resolveRentalCheckoutDisplay({
+      enabled: rentalEnabled,
+      isRentalListing: listing.listing_type === 'rental',
+      checkIn,
+      checkOut,
+      rateCents: listing.price_cents ?? 0,
+      attrs: listing.attrs,
+    })
+    if (!result.ok) redirect(`/l/${listing.id}?checkout=unavailable`)
+    rentalBreakdown = result.breakdown
+    amountCents = result.breakdown.totalCents
   }
 
   return (
@@ -191,7 +226,23 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>{listing.title}</p>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 3 }}>{listing.shop?.name}</p>
-              {isOfferCheckout ? (
+              {isRentalCheckout && rentalBreakdown ? (
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>Reserva de renta</p>
+                  <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
+                    {checkIn} → {checkOut} · {rentalUnitsLabel(rentalBreakdown.units, rentalBreakdown.period)}
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>
+                    {formatRentalCents(listing.price_cents ?? 0, listing.currency)} × {rentalUnitsLabel(rentalBreakdown.units, rentalBreakdown.period)} = {formatRentalCents(rentalBreakdown.rentCents, listing.currency)}
+                  </p>
+                  {rentalBreakdown.depositCents > 0 && (
+                    <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+                      Depósito reembolsable: {formatRentalCents(rentalBreakdown.depositCents, listing.currency)}
+                    </p>
+                  )}
+                  <p style={{ fontSize: 22, fontWeight: 800, marginTop: 6 }}>{formatCents(amountCents, listing.currency)}</p>
+                </div>
+              ) : isOfferCheckout ? (
                 <div style={{ marginTop: 8 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>Precio acordado</p>
                   <p style={{ fontSize: 22, fontWeight: 800 }}>{formatCents(amountCents, listing.currency)}</p>
@@ -219,6 +270,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           offerId={offerId}
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}
+          rental={isRentalCheckout ? { check_in: checkIn!, check_out: checkOut! } : undefined}
         />
       </div>
     </main>

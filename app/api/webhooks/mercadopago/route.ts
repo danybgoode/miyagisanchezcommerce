@@ -32,6 +32,7 @@ import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
 import { awardSweepstakesPurchaseBonusForOrder } from '@/lib/sweepstakes'
 import { issuePaidTicketsForOrder } from '@/lib/paid-event-tickets'
+import type { RentalBookingLike } from '@/lib/rental-booking'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -598,6 +599,8 @@ async function handleMedusaMpPayment({
           personalization,
           eventTickets,
           storeDomain,
+          rentalBooking: (orderMeta.rental_booking as RentalBookingLike | undefined) ?? null,
+          currency,
         }).catch(e => console.error('[mp email] coord buyer:', e))
       } else {
         sendOrderConfirmedToBuyer({
@@ -645,6 +648,8 @@ async function handleMedusaMpPayment({
                 orderId: medusaOrderId ?? cartId,
                 orderUrl: sellerOrderUrl2,
                 personalization,
+                rentalBooking: (orderMeta.rental_booking as RentalBookingLike | undefined) ?? null,
+                currency,
               })
             }
             return sendSaleCompletedToSeller({

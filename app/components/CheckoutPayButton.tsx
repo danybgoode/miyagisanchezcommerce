@@ -50,6 +50,8 @@ interface CheckoutPayButtonProps {
   shippingAddress?: CheckoutShippingAddress
   shippingQuote?: CheckoutShippingQuote
   originDomain?: string
+  /** Rental: buyer's chosen date range. ONLY dates — never an amount. */
+  rental?: { check_in: string; check_out: string }
   disabled?: boolean
   onStarted?: () => void
 }
@@ -74,6 +76,7 @@ export default function CheckoutPayButton({
   shippingAddress,
   shippingQuote,
   originDomain,
+  rental,
   disabled,
   onStarted,
 }: CheckoutPayButtonProps) {
@@ -119,6 +122,7 @@ export default function CheckoutPayButton({
         shippingAddress,
         shippingQuote,
         originDomain,
+        rental,
       })
       onStarted?.()
       if (result.redirect_url) {
