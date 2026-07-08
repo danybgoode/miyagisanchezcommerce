@@ -39,6 +39,8 @@ import { revalidateTag } from 'next/cache'
 import { resolveAgentShop } from '@/lib/agent-auth'
 import { isEnabled } from '@/lib/flags'
 import { listSubmissionsForShop } from '@/lib/launchpad'
+import { listCampaignsForShop } from '@/lib/launchpad-campaigns'
+import { thresholdReached } from '@/lib/launchpad-campaign-types'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
@@ -387,6 +389,16 @@ const TOOLS = [
       type: 'object',
       properties: {
         status: { type: 'string', enum: ['submitted', 'in_review', 'approved', 'rejected', 'changes_requested'], description: 'Filter by curation status' },
+      },
+    },
+  },
+  {
+    name: 'list_launchpad_campaigns',
+    description: "SELLER TOOL. List YOUR OWN bookshop's voting campaigns (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each campaign's title, status (draft/active/closed_met/closed_unmet/cancelled), vote count vs threshold, reward discount %, candidate-work count, public /v/[slug] URL, and — when unlocked — the minted coupon code. Creating/activating campaigns happens in the seller portal.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['draft', 'active', 'closed_met', 'closed_unmet', 'cancelled'], description: 'Filter by campaign status' },
       },
     },
   },
@@ -1560,6 +1572,46 @@ async function handleListManuscriptSubmissions(args: Record<string, unknown>, au
   }
 }
 
+async function handleListLaunchpadCampaigns(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
+  }
+
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
+  const statusFilter = typeof args.status === 'string' ? args.status : null
+  let campaigns = await listCampaignsForShop(shop.id)
+  if (statusFilter) campaigns = campaigns.filter((c) => c.status === statusFilter)
+
+  if (campaigns.length === 0) return { content: [{ type: 'text', text: 'No tienes campañas que coincidan con ese filtro.' }] }
+
+  const shaped = campaigns.map((c) => ({
+    id: c.id,
+    slug: c.slug,
+    title: c.title,
+    status: c.status,
+    vote_count: c.vote_count,
+    vote_threshold: c.vote_threshold,
+    threshold_reached: thresholdReached(c.vote_count, c.vote_threshold),
+    reward_percent: c.reward_percent,
+    reward_product_id: c.reward_product_id,
+    work_count: c.works.length,
+    coupon_code: c.status === 'closed_met' ? c.coupon_code : null,
+    ends_at: c.ends_at,
+    public_url: `${site}/v/${c.slug}`,
+  }))
+  const lines = shaped.map((c) =>
+    `• **${c.title ?? '(sin título)'}** — ${c.status} · ${c.vote_count}/${c.vote_threshold} votos · ${c.reward_percent}% · ${c.work_count} obra(s)${c.coupon_code ? ` · cupón: ${c.coupon_code}` : ''}`,
+  )
+  return {
+    content: [
+      { type: 'text', text: [`## Campañas de votación (${shaped.length})`, ...lines].join('\n') },
+      { type: 'text', text: JSON.stringify({ campaigns: shaped }, null, 2) },
+    ],
+  }
+}
+
 async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1877,6 +1929,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_launchpad_campaigns': { const r = await handleListLaunchpadCampaigns(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
