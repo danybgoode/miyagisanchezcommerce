@@ -106,25 +106,25 @@ export default function VoteClient(props: Props) {
             <span>{voteCount}/{props.threshold} votos</span>
             <span>{props.rewardPercent}% de descuento al llegar a la meta</span>
           </div>
-          <div style={{ height: 12, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{ width: `${pct}%`, height: '100%', background: thresholdReached ? '#16a34a' : '#2563eb', transition: 'width .3s' }} />
+          <div style={{ height: 12, background: 'var(--color-border)', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: thresholdReached ? 'var(--color-success)' : 'var(--color-info)', transition: 'width .3s' }} />
           </div>
           {thresholdReached && (
-            <p style={{ marginTop: 8, color: '#166534', fontSize: 14, fontWeight: 600 }}>
+            <p style={{ marginTop: 8, color: 'var(--color-success)', fontSize: 14, fontWeight: 600 }}>
               🎉 ¡Se alcanzó la meta! Quien votó recibirá el cupón de impresión por correo.
             </p>
           )}
         </div>
 
         {props.status === 'closed_unmet' && (
-          <p style={{ marginTop: 16, color: '#991b1b', fontSize: 14 }}>Esta campaña cerró sin alcanzar la meta. ¡Gracias a quienes participaron!</p>
+          <p style={{ marginTop: 16, color: 'var(--color-danger)', fontSize: 14 }}>Esta campaña cerró sin alcanzar la meta. ¡Gracias a quienes participaron!</p>
         )}
         {props.status === 'cancelled' && (
-          <p style={{ marginTop: 16, color: '#6b7280', fontSize: 14 }}>Esta campaña fue cancelada.</p>
+          <p style={{ marginTop: 16, color: 'var(--color-muted)', fontSize: 14 }}>Esta campaña fue cancelada.</p>
         )}
 
         {(notice || error) && (
-          <div role="status" style={{ marginTop: 16, padding: 12, borderRadius: 8, fontSize: 14, background: error ? '#fef2f2' : '#ecfdf5', color: error ? '#991b1b' : '#065f46' }}>
+          <div role="status" style={{ marginTop: 16, padding: 12, borderRadius: 8, fontSize: 14, background: error ? 'var(--color-danger-soft)' : 'var(--color-success-soft)', color: error ? 'var(--color-danger)' : 'var(--color-success)' }}>
             {error ?? notice}
           </div>
         )}
@@ -132,7 +132,7 @@ export default function VoteClient(props: Props) {
         {/* Candidate works */}
         <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {props.works.map((w) => (
-            <div key={w.productId} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+            <div key={w.productId} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: 16 }}>
               <div style={{ display: 'flex', gap: 12 }}>
                 {w.image && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -141,11 +141,11 @@ export default function VoteClient(props: Props) {
                 <div style={{ flex: 1 }}>
                   <strong style={{ fontSize: 16 }}>{w.title}</strong>
                   {w.excerptSnippet && (
-                    <p style={{ fontSize: 13, color: '#4b5563', marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                    <p style={{ fontSize: 13, color: 'var(--color-muted)', marginTop: 6, whiteSpace: 'pre-wrap' }}>
                       {w.excerptSnippet}{w.hasMoreExcerpt ? '…' : ''}
                     </p>
                   )}
-                  <Link href={w.href} style={{ fontSize: 13, color: '#2563eb', display: 'inline-block', marginTop: 6 }}>
+                  <Link href={w.href} style={{ fontSize: 13, color: 'var(--color-info)', display: 'inline-block', marginTop: 6 }}>
                     Lee un adelanto →
                   </Link>
                 </div>
@@ -186,12 +186,12 @@ export default function VoteClient(props: Props) {
         </div>
 
         {props.terms && (
-          <details style={{ marginTop: 24, fontSize: 13, color: '#6b7280' }}>
+          <details style={{ marginTop: 24, fontSize: 13, color: 'var(--color-muted)' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Términos de la campaña</summary>
             <p style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>{props.terms}</p>
           </details>
         )}
-        <p style={{ marginTop: 24, fontSize: 12, color: '#9ca3af' }}>
+        <p style={{ marginTop: 24, fontSize: 12, color: 'var(--fg-subtle)' }}>
           Un voto por correo por obra. Alcanzar la meta desbloquea un cupón de descuento sobre la impresión del libro; no es un sorteo.
         </p>
       </div>
@@ -208,8 +208,8 @@ function codeError(reason?: string): string {
   }
 }
 
-const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }
 function primaryBtn(disabled: boolean): React.CSSProperties {
-  return { background: disabled ? '#9ca3af' : '#111827', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
+  return { background: disabled ? 'var(--color-muted)' : 'var(--color-accent)', color: 'var(--color-accent-foreground)', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
 }
-const ghostBtn: React.CSSProperties = { background: 'transparent', color: '#374151', border: '1px solid #d1d5db', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }
+const ghostBtn: React.CSSProperties = { background: 'transparent', color: 'var(--color-foreground)', border: '1px solid var(--border-strong)', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }

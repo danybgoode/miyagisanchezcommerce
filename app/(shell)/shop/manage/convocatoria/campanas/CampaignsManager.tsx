@@ -132,18 +132,18 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
     } finally { setBusy(false) }
   }
 
-  if (loading) return <p style={{ color: '#666' }}>Cargando…</p>
+  if (loading) return <p style={{ color: 'var(--color-muted)' }}>Cargando…</p>
 
   return (
     <div>
       {error && (
-        <div role="alert" style={{ background: '#fef2f2', color: '#991b1b', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+        <div role="alert" style={{ background: 'var(--color-danger-soft)', color: 'var(--color-danger)', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
           {error}
         </div>
       )}
 
       {/* New campaign form */}
-      <section style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 24 }}>
+      <section style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
         <h2 style={{ fontWeight: 600, fontSize: 16, marginBottom: 12 }}>Nueva campaña</h2>
 
         <label style={labelStyle}>Título</label>
@@ -173,14 +173,14 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
           {rewardCandidates.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
         </select>
         {rewardCandidates.length === 0 && (
-          <p style={{ fontSize: 12, color: '#b45309', marginTop: -4, marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: -4, marginBottom: 8 }}>
             No tienes productos de impresión configurables. Crea uno con tamaños/encuadernación o precios por cantidad.
           </p>
         )}
 
         <label style={labelStyle}>Obras candidatas</label>
         {works.length === 0 ? (
-          <p style={{ fontSize: 13, color: '#666' }}>Publica obras desde la convocatoria para poder incluirlas.</p>
+          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Publica obras desde la convocatoria para poder incluirlas.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
             {works.map((w) => (
@@ -200,25 +200,25 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
       {/* Existing campaigns */}
       <h2 style={{ fontWeight: 600, fontSize: 16, marginBottom: 12 }}>Tus campañas</h2>
       {campaigns.length === 0 ? (
-        <p style={{ color: '#666', fontSize: 14 }}>Aún no has creado campañas.</p>
+        <p style={{ color: 'var(--color-muted)', fontSize: 14 }}>Aún no has creado campañas.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {campaigns.map((c) => (
-            <div key={c.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+            <div key={c.id} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <strong style={{ fontSize: 15 }}>{c.title ?? '(sin título)'}</strong>
                 <span style={badgeStyle(c.status)}>{STATUS_LABEL[c.status]}</span>
               </div>
-              <p style={{ fontSize: 13, color: '#666', marginTop: 6 }}>
+              <p style={{ fontSize: 13, color: 'var(--color-muted)', marginTop: 6 }}>
                 {c.vote_count}/{c.vote_threshold} votos · {c.reward_percent}% de descuento · {c.works.length} obra(s)
               </p>
               {c.status === 'active' && (
                 <p style={{ fontSize: 13, marginTop: 6 }}>
-                  Página pública: <a href={`/v/${c.slug}`} style={{ color: '#2563eb' }}>/v/{c.slug}</a>
+                  Página pública: <a href={`/v/${c.slug}`} style={{ color: 'var(--color-info)' }}>/v/{c.slug}</a>
                 </p>
               )}
               {c.status === 'closed_met' && c.coupon_code && (
-                <p style={{ fontSize: 13, marginTop: 6, color: '#166534' }}>Cupón desbloqueado: <code>{c.coupon_code}</code></p>
+                <p style={{ fontSize: 13, marginTop: 6, color: 'var(--color-success)' }}>Cupón desbloqueado: <code>{c.coupon_code}</code></p>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 {c.status === 'draft' && (
@@ -232,22 +232,22 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
           ))}
         </div>
       )}
-      <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 24 }}>Tienda: {shopSlug}</p>
+      <p style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 24 }}>Tienda: {shopSlug}</p>
     </div>
   )
 }
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, marginTop: 12, marginBottom: 4 }
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 8, boxSizing: 'border-box' }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 14, marginBottom: 8, boxSizing: 'border-box' }
 
 function primaryBtn(disabled: boolean): React.CSSProperties {
-  return { background: disabled ? '#9ca3af' : '#111827', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
+  return { background: disabled ? 'var(--color-muted)' : 'var(--color-accent)', color: 'var(--color-accent-foreground)', border: 'none', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
 }
 function secondaryBtn(disabled: boolean): React.CSSProperties {
-  return { background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
+  return { background: 'var(--color-surface)', color: 'var(--color-danger)', border: '1px solid var(--color-danger)', padding: '9px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: disabled ? 'default' : 'pointer' }
 }
 function badgeStyle(status: Campaign['status']): React.CSSProperties {
-  const bg = status === 'active' ? '#dcfce7' : status === 'closed_met' ? '#dbeafe' : status === 'draft' ? '#f3f4f6' : '#fee2e2'
-  const fg = status === 'active' ? '#166534' : status === 'closed_met' ? '#1e40af' : status === 'draft' ? '#374151' : '#991b1b'
+  const bg = status === 'active' ? 'var(--color-success-soft)' : status === 'closed_met' ? 'var(--color-info-soft)' : status === 'draft' ? 'var(--surface-muted)' : 'var(--color-danger-soft)'
+  const fg = status === 'active' ? 'var(--color-success)' : status === 'closed_met' ? 'var(--color-info)' : status === 'draft' ? 'var(--color-foreground)' : 'var(--color-danger)'
   return { background: bg, color: fg, fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }
 }

@@ -36,7 +36,7 @@ export default async function CampanasPage() {
           { label: 'Campañas', href: null },
         ]} />
         <h1 style={{ fontWeight: 700, fontSize: 22, marginTop: 8 }}>Campañas de votación</h1>
-        <p style={{ color: '#666', fontSize: 14, marginTop: 6 }}>
+        <p style={{ color: 'var(--color-muted)', fontSize: 14, marginTop: 6 }}>
           La comunidad vota por las obras. Al alcanzar el umbral de votos, se desbloquea un cupón de
           descuento sobre la impresión del libro.
         </p>
