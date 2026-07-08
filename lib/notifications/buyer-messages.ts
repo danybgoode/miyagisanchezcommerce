@@ -10,8 +10,10 @@ import type { NotifyEvent } from '@/lib/notify'
  * keep living in `lib/email.ts`; this module is only the push + Telegram surfaces.
  */
 
-/** Buyer events that deliver push + Telegram in Sprint 2 (Compras → Sprint 3). */
+/** Buyer events that deliver push + Telegram. */
 export type BuyerMessageKind =
+  | 'order_confirmed'
+  | 'payment_confirmed'
   | 'order_shipped'
   | 'order_delivered'
   | 'offer_accepted'
@@ -23,6 +25,8 @@ export type BuyerMessageKind =
   | 'refund_transfer_sent'
 
 export const BUYER_MESSAGE_KINDS: readonly BuyerMessageKind[] = [
+  'order_confirmed',
+  'payment_confirmed',
   'order_shipped',
   'order_delivered',
   'offer_accepted',
@@ -39,6 +43,8 @@ export type BuyerMessageParams = {
   listingTitle: string
   /** The relevant in-app link (order detail / conversation / listing). */
   url: string
+  /** Formatted total paid (e.g. "$250") — order_confirmed/payment_confirmed only. */
+  amountPaid?: string
   /** Formatted refund amount (e.g. "$250") — return_accepted only. */
   refundAmount?: string
   /** Whether a return refund is partial — return_accepted only. */
@@ -60,6 +66,32 @@ export function escapeHtml(s: string): string {
 export function buildBuyerMessage(kind: BuyerMessageKind, p: BuyerMessageParams): BuiltBuyerMessage {
   const t = escapeHtml(p.listingTitle)
   switch (kind) {
+    case 'order_confirmed':
+      return {
+        push: {
+          kind: 'order',
+          title: '¡Compra confirmada! 🎉',
+          body: p.amountPaid ? `${p.listingTitle} — ${p.amountPaid}` : p.listingTitle,
+          url: p.url,
+        },
+        telegram:
+          `🎉 <b>¡Compra confirmada!</b>\n${t}` +
+          (p.amountPaid ? `\nTotal: ${escapeHtml(p.amountPaid)}` : '') +
+          `\nGracias por tu compra en Miyagi Sánchez.`,
+      }
+    case 'payment_confirmed':
+      return {
+        push: {
+          kind: 'order',
+          title: '¡Pago confirmado! ✅',
+          body: p.amountPaid ? `${p.listingTitle} — ${p.amountPaid}` : p.listingTitle,
+          url: p.url,
+        },
+        telegram:
+          `✅ <b>¡Pago confirmado!</b>\n${t}` +
+          (p.amountPaid ? `\nTotal: ${escapeHtml(p.amountPaid)}` : '') +
+          `\nGracias por tu compra en Miyagi Sánchez.`,
+      }
     case 'order_shipped':
       return {
         push: { kind: 'order', title: 'Tu pedido va en camino 📦', body: p.listingTitle, url: p.url },

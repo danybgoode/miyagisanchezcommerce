@@ -11,7 +11,10 @@ import {
   sendPickupOrderToBuyer,
   sendPickupOrderToSeller,
 } from '@/lib/email'
-import { dispatchToSeller } from '@/lib/notifications/dispatch'
+import { dispatchToSeller, dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
+import { isEnabled } from '@/lib/flags'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 import { formatOfferAmount } from '@/lib/offers'
 import { personalizationFromOrderItems, type PersonalizationBlock } from '@/lib/personalization'
 import { markListingPurchased } from '@/lib/offer-state'
@@ -56,10 +59,18 @@ function formatMxnCents(cents: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cents / 100)
 }
 
-/** Complete a Medusa cart → creates the Medusa order. Returns the order ID. */
-async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[] } | null> {
+/**
+ * Complete a Medusa cart → creates the Medusa order. Returns the order ID.
+ *
+ * `fields=%2Bcustomer.metadata` ADDS the customer relation's metadata to Medusa's
+ * default field set instead of replacing it (`+` prefix; percent-encoded because a
+ * literal `+` in a query string decodes as a space) — every field this function
+ * already reads (id/metadata/items) stays intact. Buyer notifications money-path
+ * Sprint 2: threads `customer.metadata.clerk_user_id` through for pref-gated dispatch.
+ */
+async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[]; buyerClerkId: string | null } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete?fields=%2Bcustomer.metadata`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,8 +86,9 @@ async function completeMedusaCart(cartId: string): Promise<{ orderId: string | n
     const orderId = data?.order?.id ?? null
     const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
     const personalization = personalizationFromOrderItems(data?.order?.items)
+    const buyerClerkId = (data?.order?.customer?.metadata?.clerk_user_id as string | undefined) ?? null
     console.log('[stripe webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return { orderId, metadata, personalization }
+    return { orderId, metadata, personalization, buyerClerkId }
   } catch (e) {
     console.error('[stripe webhook] completeMedusaCart error:', cartId, e)
     return null
@@ -392,6 +404,10 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
   const completed = await completeMedusaCart(cart_id)
   const medusaOrderId = completed?.orderId ?? null
   const orderMeta = completed?.metadata ?? {}
+  // Buyer notifications money-path (epic 05, S2) — flag-gated, null-safe; flag off
+  // ⇒ null, reproducing today's mirror row exactly.
+  const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+  const buyerClerkId = resolveBuyerClerkId(completed?.buyerClerkId ?? null, buyerMoneypathEnabled)
   const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
   const isSupportPayment = supportMeta?.kind === 'support' || session.metadata?.checkout_kind === 'support'
   let eventTickets: Awaited<ReturnType<typeof issuePaidTicketsForOrder>> = []
@@ -420,6 +436,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
       currency,
       buyerEmail,
       buyerName,
+      buyerClerkId,
       fulfillmentMethod: fulfillment_method ?? null,
       pickupSpotId: pickup_spot_id ?? null,
       shippingAmountCents,
@@ -537,6 +554,17 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
           storeDomain,
         }).catch(e => console.error('[email] medusa order confirmed buyer:', e))
       }
+
+      // ── Compras (Push/Telegram) — additive only; the email above is untouched ──
+      const buyerMsg = buildBuyerMessage('order_confirmed', {
+        listingTitle: listingInfo.title,
+        url: orderUrl,
+        amountPaid: amountFormatted,
+      })
+      void dispatchToBuyer(
+        { clerkUserId: buyerClerkId, email: buyerEmail },
+        { group: 'buyer.compras', push: buyerMsg.push, telegram: buyerMsg.telegram },
+      )
 
       // ── Seller notification (orders group: email + push, through the seam) ──
       // Default-on parity: the same fulfillment-branch email still fires unless
