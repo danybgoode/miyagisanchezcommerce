@@ -551,8 +551,9 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
   }
 
+  const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   const items = await Promise.all((data.listings ?? []).map(async (l: Listing) =>
-    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
+    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
   if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
 
   const summary = items.map(item => {
@@ -625,7 +626,8 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
   if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
 
   const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
-  const item = toUcpListing(listing, baseUrl, priceGrid)
+  const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
+  const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled)
 
   // Configurator options/tiers + the file-upload contract (custom-print-products
   // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
@@ -1026,8 +1028,9 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
     if (res.ok) {
       const d = await res.json() as { listings?: Listing[] }
+      const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
       listings = await Promise.all((d.listings ?? []).map(async l =>
-        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
+        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
     }
   } catch { /* listings stays empty */ }
 

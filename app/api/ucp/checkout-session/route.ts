@@ -558,7 +558,10 @@ export async function POST(req: NextRequest) {
         ? 'Compra Protegida disponible — puedes activarla para mayor seguridad.'
         : 'Sin Compra Protegida en esta tienda.',
     },
-    listing: toUcpListing(listing, baseUrl, await getPriceGrid(listing.medusa_product_id ?? listing.id)),
+    listing: toUcpListing(
+      listing, baseUrl, await getPriceGrid(listing.medusa_product_id ?? listing.id),
+      await isEnabled('catalog.inventory_channels_enabled'),
+    ),
     personalization: {
       submitted: submittedPersonalization,
       required_complete: customFields.length === 0 ? true : personalizationCheck.ok,

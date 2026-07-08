@@ -30,8 +30,13 @@ export interface ShopTrustInputs {
   paymentProtected: boolean
 }
 
-/** Order-processing windows → positive es-MX labels. Mirrors the PDP/shop page. */
-const PROCESSING_LABELS: Record<string, string> = {
+/**
+ * Order-processing windows → positive es-MX labels. Mirrors the PDP/shop page.
+ * Exported so the catalog-management epic's per-listing "sobre pedido —
+ * envío estimado" note (Sprint 2 · Story 2.1) can reuse the same vocabulary
+ * as this shop-wide setting without a second, drifting copy of the map.
+ */
+export const PROCESSING_LABELS: Record<string, string> = {
   '1d': '1 día hábil',
   '1-3d': '1–3 días hábiles',
   '3-5d': '3–5 días hábiles',

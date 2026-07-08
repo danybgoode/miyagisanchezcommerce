@@ -12,6 +12,8 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { parsePesosToCents, parseCostPesosToCents } from '@/lib/opciones'
 import type { PriceGrid } from '@/lib/price-grid'
 import { EXCERPT_MAX_CHARS } from '@/lib/excerpt'
+import { deriveInventoryMode, type InventoryMode } from '@/lib/inventory-mode'
+import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 
 interface ShortlinkInfo {
   shopSlug: string
@@ -31,6 +33,12 @@ interface EditableFields {
   attrs: Record<string, unknown>
   custom_fields?: unknown
   available_quantity: number | null
+  /** Whether the variant tracks finite stock — catalog-management S2 · 2.1. */
+  manage_inventory?: boolean
+  /** Native Medusa "sobre pedido" flag — catalog-management S2 · 2.1. */
+  allow_backorder?: boolean
+  /** Seller's estimated dispatch note for a backorder listing — catalog-management S2 · 2.1. */
+  dispatch_estimate?: string | null
   images: Array<{ url: string; alt?: string }>
   state?: string
   municipio?: string
@@ -47,6 +55,7 @@ export default function EditForm({
   variantCosts = {},
   launchpadEnabled = false,
   initialExcerpt = '',
+  inventoryChannelsEnabled = false,
 }: {
   id: string
   initial: EditableFields
@@ -75,6 +84,12 @@ export default function EditForm({
   launchpadEnabled?: boolean
   /** The stored excerpt text (from the Medusa product metadata), '' when none. */
   initialExcerpt?: string
+  /**
+   * catalog.inventory_channels_enabled (catalog-management epic, Sprint 2 ·
+   * Story 2.1) — fail-safe OFF: while OFF, only today's flat "Cantidad
+   * disponible" input renders (no mode a buy box won't honor).
+   */
+  inventoryChannelsEnabled?: boolean
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -85,6 +100,13 @@ export default function EditForm({
   const [quantityRaw, setQuantityRaw] = useState(
     initial.available_quantity != null ? String(initial.available_quantity) : '',
   )
+  // Inventory mode (catalog-management epic, Sprint 2 · Story 2.1).
+  const initialInventoryMode = deriveInventoryMode({
+    manage_inventory: initial.manage_inventory ?? true,
+    allow_backorder: initial.allow_backorder ?? false,
+  })
+  const [inventoryMode, setInventoryMode] = useState<InventoryMode>(initialInventoryMode)
+  const [dispatchEstimate, setDispatchEstimate] = useState(initial.dispatch_estimate ?? '')
   // Unit cost (COGS) — flat input for single-variant listings only; the map
   // holds exactly one entry there (multi-variant costs live in Opciones).
   const initialCostCents = (() => {
@@ -188,6 +210,21 @@ export default function EditForm({
       if (isProduct && !hideFlatQuantity && quantityRaw.trim() !== '') {
         const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
         if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
+      }
+      // Inventory mode + dispatch estimate — catalog-management S2 · 2.1.
+      // Flag-gated at the selector UI level (only 'tracked' is offered while
+      // OFF), but dirty-check by value regardless so a no-op save never sends
+      // a field the backend would otherwise have to interpret.
+      if (isProduct && !hideFlatQuantity && inventoryChannelsEnabled && inventoryMode !== initialInventoryMode) {
+        body.inventory_mode = inventoryMode
+      }
+      if (isProduct && !hideFlatQuantity && inventoryChannelsEnabled) {
+        const nextDispatchEstimate = inventoryMode === 'backorder' && dispatchEstimate.trim() !== ''
+          ? dispatchEstimate.trim()
+          : null
+        if (nextDispatchEstimate !== (initial.dispatch_estimate ?? null)) {
+          body.dispatch_estimate = nextDispatchEstimate
+        }
       }
       // Unit cost (COGS) — dirty-checked by parsed value, same discipline as
       // price/quantity; empty clears (null). Multi-variant costs save per
@@ -428,28 +465,87 @@ export default function EditForm({
         </div>
       )}
 
-      {/* Quantity / restock — hidden for multi-variant listings (per-combination stock) */}
+      {/* Inventory mode + quantity/restock — hidden for multi-variant listings (per-combination stock) */}
       {isProduct && !hideFlatQuantity && (
         <div>
-          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-            Cantidad disponible
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            inputMode="numeric"
-            value={quantityRaw}
-            onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="0"
-            className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
-              fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
-            }`}
-          />
-          {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
-          <p className="text-xs text-[var(--color-muted)] mt-1">
-            Pon 0 para marcar como agotado. No afecta pedidos en curso.
-          </p>
+          {inventoryChannelsEnabled && (
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Modo de inventario
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {([
+                  { value: 'tracked', label: 'Rastreado' },
+                  { value: 'unlimited', label: 'Sin límite' },
+                  { value: 'backorder', label: 'Sobre pedido' },
+                ] as { value: InventoryMode; label: string }[]).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setInventoryMode(opt.value)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                      inventoryMode === opt.value
+                        ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {inventoryMode === 'tracked' && (
+            <>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Cantidad disponible
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={quantityRaw}
+                onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="0"
+                className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                  fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
+                }`}
+              />
+              {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                Pon 0 para marcar como agotado. No afecta pedidos en curso.
+              </p>
+            </>
+          )}
+
+          {inventoryChannelsEnabled && inventoryMode === 'unlimited' && (
+            <p className="text-xs text-[var(--color-muted)]">
+              Este producto nunca se marca como agotado — no se rastrea cantidad.
+            </p>
+          )}
+
+          {inventoryChannelsEnabled && inventoryMode === 'backorder' && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Envío estimado
+              </label>
+              <select
+                value={dispatchEstimate}
+                onChange={e => setDispatchEstimate(e.target.value)}
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              >
+                <option value="">Selecciona…</option>
+                {Object.entries(PROCESSING_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                El comprador verá &quot;Sobre pedido&quot; y este tiempo de envío estimado. Nunca se marca como agotado.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

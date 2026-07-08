@@ -14,7 +14,13 @@ export interface CatalogListing {
   status: string
   manage_inventory: boolean
   available_quantity: number | null
+  /** Reserved units (in-flight orders); null = unlimited (catalog-management S2 · 2.1). */
+  reserved_quantity?: number | null
   in_stock: boolean
+  /** Native Medusa "sobre pedido" flag (catalog-management S2 · 2.1). */
+  allow_backorder?: boolean
+  /** Seller's estimated dispatch note for a backorder listing (catalog-management S2 · 2.1). */
+  dispatch_estimate?: string | null
   channels: string[]
   images: Array<{ url: string; alt?: string | null }>
   created_at: string
@@ -25,6 +31,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pausado: { label: 'Pausado', color: 'bg-amber-100 text-amber-700' },
   borrador: { label: 'Borrador', color: 'bg-gray-100 text-gray-600' },
   agotado: { label: 'Agotado', color: 'bg-red-100 text-red-600' },
+  sobre_pedido: { label: 'Sobre pedido', color: 'bg-blue-100 text-blue-700' },
 }
 
 function formatPrice(cents: number | null, currency: string) {
@@ -33,9 +40,15 @@ function formatPrice(cents: number | null, currency: string) {
 }
 
 function stockLabel(listing: CatalogListing) {
+  if (listing.manage_inventory && listing.allow_backorder) {
+    return listing.dispatch_estimate ? `Sobre pedido — ${listing.dispatch_estimate}` : 'Sobre pedido'
+  }
   if (!listing.manage_inventory) return 'Sin límite'
   if (!listing.in_stock) return 'Agotado'
-  return `${listing.available_quantity ?? 0} disponibles`
+  const reserved = listing.reserved_quantity ?? 0
+  return reserved > 0
+    ? `${listing.available_quantity ?? 0} disponibles (${reserved} reservados)`
+    : `${listing.available_quantity ?? 0} disponibles`
 }
 
 interface ToastState { message: string; type: 'success' | 'error' }

@@ -67,6 +67,12 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   // Excerpt (bookshop launchpad S2.1) lives on the Medusa product metadata (same
   // bag as custom_fields), not the Supabase mirror — read it from the same fetch.
   let initialExcerpt = ''
+  // Inventory mode (catalog-management epic, Sprint 2 · Story 2.1) — read off
+  // the same public listing fetch (these fields are public on ListingShape,
+  // unlike unit_cost_cents which is variant-metadata-private).
+  let initialManageInventory = true
+  let initialAllowBackorder = false
+  let initialDispatchEstimate: string | null = null
   try {
     const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
     const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -85,6 +91,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         medusaCategory = (ml.category as string) ?? ''
         medusaCustomFields = (ml.metadata as Record<string, unknown> | undefined)?.custom_fields ?? []
         initialExcerpt = excerptModel(ml.metadata as Record<string, unknown> | undefined)?.text ?? ''
+        initialManageInventory = ml.manage_inventory !== false
+        initialAllowBackorder = ml.allow_backorder === true
+        initialDispatchEstimate = (ml.dispatch_estimate as string | undefined) ?? null
       }
     }
   } catch { /* non-fatal */ }
@@ -151,6 +160,11 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   // on `launchpad.enabled` (fail-safe OFF). The PDP viewer renders on presence.
   const launchpadEnabled = listing.listing_type === 'digital' && (await isEnabled('launchpad.enabled'))
 
+  // Inventory-mode selector (catalog-management epic, Sprint 2 · Story 2.1) —
+  // fail-safe OFF: while OFF only today's flat quantity input renders, never a
+  // mode a buy box won't honor.
+  const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
+
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
@@ -193,6 +207,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         variantCosts={variantCosts}
         launchpadEnabled={launchpadEnabled}
         initialExcerpt={initialExcerpt}
+        inventoryChannelsEnabled={inventoryChannelsEnabled}
         shortlink={{
           shopSlug: shopData?.slug ?? '',
           code: (listing.metadata?.short_code as string | undefined) ?? '',
@@ -206,6 +221,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           listing_type: listing.listing_type,
           category: medusaCategory,
           available_quantity: availableQuantity,
+          manage_inventory: initialManageInventory,
+          allow_backorder: initialAllowBackorder,
+          dispatch_estimate: initialDispatchEstimate,
           attrs: medusaAttrs,
           custom_fields: medusaCustomFields,
           images: (listing.images ?? []) as Array<{ url: string; alt?: string }>,

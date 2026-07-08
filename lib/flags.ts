@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'catalog.inventory_channels_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -168,6 +168,20 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    guest fall-through (email-only) that ran before this epic. A flag outage
  *    keeps the new gating live (the deliberate act is disabling it), consistent
  *    with every other kill-switch here.
+ *  - ENABLEMENT (`catalog.inventory_channels_enabled`): default `false`
+ *    (catalog-management epic, Sprint 2). Mirrors the backend key of the same
+ *    name — gates the sin-límite/sobre-pedido inventory-mode selector UI, the
+ *    buyer-facing backorder-unblocks-the-buy-box behavior on the PDP, the
+ *    per-channel (Miyagi/ML) table toggles, and the ML price-override editor.
+ *    Real enforcement lives in the BACKEND (the write routes + the `/store/
+ *    listings` marketplace-browse filter reject/no-op when this reads false);
+ *    this FE key hides the not-yet-safe UI so a flag outage can never let a
+ *    seller pick a mode the buy box won't honor, or flip a channel toggle the
+ *    backend will silently reject. Default OFF ⇒ today's exact behavior
+ *    (tracked-only inventory, coupled ML publish state, no price override).
+ *    Flip ON only after Daniel's live money-path smoke (buy a sin-límite + a
+ *    sobre-pedido product end-to-end) and an ML toggle round-trip on a real
+ *    ML test listing both pass.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -190,6 +204,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ops.profit_enabled': false,
   'launchpad.enabled': false,
   'notifications.buyer_moneypath_enabled': true,
+  'catalog.inventory_channels_enabled': false,
 }
 
 const TABLE = 'platform_flags'

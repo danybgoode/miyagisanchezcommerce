@@ -49,6 +49,8 @@ import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
 import { toRatePeriod, readDepositCents } from '@/lib/rental-pricing'
 import { digitalFileInfo, digitalSpecs } from '@/lib/digital-delivery'
+import { deriveInventoryMode, deriveBuyBoxBehavior } from '@/lib/inventory-mode'
+import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -217,7 +219,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   )
   const bookingText = calcomSettings?.event_type_title ?? schedulingLinks[0]?.label ?? null
   const pickupSpots = shippingSettings?.local_pickup ? (shippingSettings.pickup_spots ?? []) : []
-  const PROCESSING_LABELS: Record<string, string> = { '1d': '1 día hábil', '1-3d': '1–3 días hábiles', '3-5d': '3–5 días hábiles', '1-2w': '1–2 semanas' }
   const processingLabel = ordersSettings?.processing_time ? PROCESSING_LABELS[ordersSettings.processing_time] ?? ordersSettings.processing_time : null
   // Only show a positive return window as a trust signal — "no returns" is never surfaced
   // on the PDP (it's the implicit default and negative framing; disputes still apply via
@@ -288,9 +289,25 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     ? formatOfferAmount(agreedDealCents, activeDealCurrency)
     : formatPrice(listing)
   const showBuyerActions = isClaimed && !isOwnListing
-  // Sold out only when Medusa Inventory tracks the item and stock hit 0. Legacy
-  // (unmanaged) listings have in_stock === undefined → never blocked.
-  const soldOut = listing.in_stock === false
+  // Inventory modes (catalog-management epic, Sprint 2 · Story 2.1) — a
+  // "sobre pedido" (backorder) listing never blocks the buy box even at
+  // qty 0 (Medusa's own reserveInventoryStep/completeCartWorkflow already
+  // honor allow_backorder natively, no custom checkout code needed here).
+  // Flag-gated: when OFF, force allow_backorder false so this reduces to
+  // today's EXACT behavior (tracked-only — sold out only when Medusa
+  // Inventory tracks the item and stock hit 0; unmanaged listings have
+  // in_stock === undefined → never blocked) — the buyer-facing behavior
+  // change is a true kill-switch, reading the fields themselves is not.
+  const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
+  const inventoryMode = deriveInventoryMode({
+    manage_inventory: !!listing.manage_inventory,
+    allow_backorder: inventoryChannelsEnabled ? !!listing.allow_backorder : false,
+  })
+  const buyBoxBehavior = deriveBuyBoxBehavior({ mode: inventoryMode, in_stock: listing.in_stock ?? true })
+  const soldOut = buyBoxBehavior.blocked
+  const dispatchEstimateLabel = listing.dispatch_estimate
+    ? (PROCESSING_LABELS[listing.dispatch_estimate] ?? listing.dispatch_estimate)
+    : null
   const showBuyButtons = !isDigital && !isSubscription && hasBuyablePrice && showBuyerActions && !soldOut
   // Personalization fields configured by the seller (Medusa product metadata).
   const customFields = getCustomFields(listing.metadata)
@@ -807,10 +824,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 3 }}>Tu precio acordado</p>
           )}
           <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{effectivePrice}</p>
-          {soldOut && (
+          {buyBoxBehavior.showAgotado && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
               <i className="iconoir-cancel" style={{ fontSize: 12 }} />
               Agotado
+            </span>
+          )}
+          {buyBoxBehavior.showDispatchNote && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--info)', background: 'var(--info-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
+              <i className="iconoir-clock" style={{ fontSize: 12 }} />
+              Sobre pedido{dispatchEstimateLabel ? ` — envío estimado ${dispatchEstimateLabel}` : ''}
             </span>
           )}
           {agreedDealCents && listing.price_cents && (
@@ -1072,7 +1095,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
 
         {/* ── Sold-out notice (replaces buy CTAs) ─────────────────────────────── */}
-        {soldOut && showBuyerActions && !isDigital && !isSubscription && hasBuyablePrice && (
+        {buyBoxBehavior.showAgotado && showBuyerActions && !isDigital && !isSubscription && hasBuyablePrice && (
           <div style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
             <i className="iconoir-cancel" style={{ fontSize: 22, color: 'var(--danger)' }} />
             <p style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>Artículo agotado</p>

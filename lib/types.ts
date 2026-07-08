@@ -45,8 +45,14 @@ export type Listing = {
   manage_inventory?: boolean
   /** Available units (stocked − reserved) for managed items; null = unlimited. */
   available_quantity?: number | null
+  /** Reserved units (in-flight orders) for managed items; null = unlimited. */
+  reserved_quantity?: number | null
   /** False only when a managed item has sold out. Absent ⇒ treat as in stock. */
   in_stock?: boolean
+  /** Native Medusa "sobre pedido" flag (catalog-management epic, Sprint 2 · Story 2.1). */
+  allow_backorder?: boolean
+  /** Seller's estimated dispatch note for a backorder listing (e.g. '1-3d'). */
+  dispatch_estimate?: string | null
   created_at: string
   shop?: Shop
 }

@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test'
 import { deriveCatalogStatus, countByCatalogStatus, CATALOG_STATUS_FILTERS } from '../lib/catalog-status'
 
 /**
- * Catalog status deriver — pure logic (api gate, no browser). Covers all four
- * first-class states plus the agotado-precedence rule (catalog-management
- * epic, Sprint 1 · Story 1.3) — this is the regression test for the
- * pausado/borrador gap: before the backend's `metadata.paused` fix, a paused
- * listing was indistinguishable from a never-published draft after a reload.
+ * Catalog status deriver — pure logic (api gate, no browser). Covers all five
+ * first-class states plus the agotado/sobre_pedido-precedence rules
+ * (catalog-management epic, Sprint 1 · Story 1.3, extended Sprint 2 · Story 2.1)
+ * — this is the regression test for the pausado/borrador gap: before the
+ * backend's `metadata.paused` fix, a paused listing was indistinguishable from
+ * a never-published draft after a reload.
  */
 
 test.describe('catalog-status · deriveCatalogStatus', () => {
@@ -18,6 +19,29 @@ test.describe('catalog-status · deriveCatalogStatus', () => {
 
   test('published + managed + sold out → agotado (takes precedence over activo)', () => {
     expect(deriveCatalogStatus({ status: 'active', manage_inventory: true, in_stock: false })).toBe('agotado')
+  })
+
+  test('published + managed + backorder → sobre_pedido, regardless of in_stock (catalog-management S2 · 2.1)', () => {
+    expect(deriveCatalogStatus({
+      status: 'active', manage_inventory: true, allow_backorder: true, in_stock: false,
+    })).toBe('sobre_pedido')
+    expect(deriveCatalogStatus({
+      status: 'active', manage_inventory: true, allow_backorder: true, in_stock: true,
+    })).toBe('sobre_pedido')
+  })
+
+  test('sobre_pedido takes precedence over agotado — qty 0 never reads as "vanished" for a backorder item', () => {
+    const result = deriveCatalogStatus({
+      status: 'active', manage_inventory: true, allow_backorder: true, in_stock: false,
+    })
+    expect(result).not.toBe('agotado')
+    expect(result).toBe('sobre_pedido')
+  })
+
+  test('unmanaged (sin límite) is never sobre_pedido even if allow_backorder is stray-true', () => {
+    expect(deriveCatalogStatus({
+      status: 'active', manage_inventory: false, allow_backorder: true,
+    })).toBe('activo')
   })
 
   test('draft (never published) → borrador', () => {
@@ -44,16 +68,25 @@ test.describe('catalog-status · countByCatalogStatus', () => {
       { status: 'paused' },
       { status: 'paused' },
     ])
-    expect(counts).toEqual({ activo: 1, agotado: 1, borrador: 1, pausado: 2 })
+    expect(counts).toEqual({ activo: 1, agotado: 1, borrador: 1, pausado: 2, sobre_pedido: 0 })
+  })
+
+  test('tallies a batch including a sobre_pedido listing', () => {
+    const counts = countByCatalogStatus([
+      { status: 'active', manage_inventory: true, allow_backorder: true, in_stock: false },
+      { status: 'active' },
+    ])
+    expect(counts).toEqual({ activo: 1, agotado: 0, borrador: 0, pausado: 0, sobre_pedido: 1 })
   })
 
   test('empty batch → all zeros', () => {
-    expect(countByCatalogStatus([])).toEqual({ activo: 0, borrador: 0, pausado: 0, agotado: 0 })
+    expect(countByCatalogStatus([])).toEqual({ activo: 0, borrador: 0, pausado: 0, agotado: 0, sobre_pedido: 0 })
   })
 })
 
 test.describe('catalog-status · CATALOG_STATUS_FILTERS', () => {
-  test('exposes exactly the four first-class states', () => {
-    expect(CATALOG_STATUS_FILTERS.map((f) => f.value)).toEqual(['activo', 'agotado', 'borrador', 'pausado'])
+  test('exposes exactly the five first-class states', () => {
+    expect(CATALOG_STATUS_FILTERS.map((f) => f.value))
+      .toEqual(['activo', 'agotado', 'sobre_pedido', 'borrador', 'pausado'])
   })
 })

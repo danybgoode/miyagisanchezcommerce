@@ -32,6 +32,7 @@ import { isEmbedRequest } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 import { getPriceGrid } from '@/lib/listings'
+import { isEnabled } from '@/lib/flags'
 import type { Listing } from '@/lib/types'
 
 const MAX_LIMIT = 50
@@ -95,11 +96,12 @@ export async function GET(req: NextRequest) {
 
   const data = await res.json()
   const listings = (data.listings ?? []) as Listing[]
+  const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   // Price-grid per item (custom-print-products S4 · 4.2 — exposes configurator
   // options/tiers to agents). `limit` already caps the page, and getPriceGrid
   // is cache-backed, so this stays cheap; null for an ordinary listing.
   const items = await Promise.all(listings.map(async (l: Listing) =>
-    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id))))
+    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
 
   return NextResponse.json(
     {
