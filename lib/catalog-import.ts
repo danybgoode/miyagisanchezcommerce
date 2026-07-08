@@ -10,6 +10,8 @@
  */
 
 import { CATEGORIES, type CategoryKey } from './types'
+import { CATEGORY_GROUPS } from './listing-attributes'
+import { canonicalBrand } from './car-brands'
 
 // ── Enums (mirror the sell wizard + backend) ─────────────────────────────────
 
@@ -57,6 +59,28 @@ export interface CatalogImportRow {
   weight_grams?: number
   /** Unit cost (COGS) in pesos — seller-private, feeds profit analytics. $0 valid. */
   unit_cost?: number
+  // ── Autos vehicle specs (cars-vertical S2.3) ────────────────────────────────
+  // Mirrors lib/listing-attributes.ts CATEGORY_GROUPS.autos keys 1:1 so an
+  // imported car lands in metadata.attrs.* exactly like a manually-captured
+  // one (same facet rail, same PDP AutoHero specs table). Autos-only.
+  make?: string
+  model?: string
+  year?: number
+  km?: number
+  fuel_type?: string
+  transmission?: string
+  color?: string
+  // ── Autos financing/trust (cars-vertical S2.3) ──────────────────────────────
+  // Mirrors AUTOS_TRUST_GROUP + the inspection-report field. Autos-only.
+  financing_down_payment_pct?: number
+  financing_months?: number
+  warranty_text?: string
+  warranty_months?: number
+  inspection_report_url?: string
+  /** Assembled by stageRow() from the autos fields above — the actual
+   *  metadata.attrs bag app/api/sell/import/route.ts writes. Not a raw input
+   *  column itself (not listed in CATALOG_IMPORT_FIELDS). */
+  attrs?: Record<string, unknown>
 }
 
 export const CATALOG_CATEGORY_KEYS = CATEGORIES.map((c) => c.key) as CategoryKey[]
@@ -85,6 +109,18 @@ export const CATALOG_IMPORT_FIELDS: ImportFieldSpec[] = [
   { name: 'images', required: false, type: 'string[]', notes: 'URLs absolutas de imágenes. La primera es la portada.' },
   { name: 'weight_grams', required: false, type: 'number', notes: 'Peso de envío en gramos (mejora las cotizaciones).' },
   { name: 'unit_cost', required: false, type: 'number', notes: 'Costo unitario en pesos (lo que te cuesta). Privado — alimenta tu análisis de ganancias. Acepta 0.' },
+  { name: 'make', required: false, type: 'string', notes: 'Solo autos: marca (Toyota, Honda, VW…). Se normaliza automáticamente.' },
+  { name: 'model', required: false, type: 'string', notes: 'Solo autos: modelo (Corolla, Civic…).' },
+  { name: 'year', required: false, type: 'number', notes: 'Solo autos: año del vehículo.' },
+  { name: 'km', required: false, type: 'number', notes: 'Solo autos: kilometraje.' },
+  { name: 'fuel_type', required: false, type: 'enum', notes: 'Solo autos: gasolina | diesel | hibrido | electrico | gas_lp.' },
+  { name: 'transmission', required: false, type: 'enum', notes: 'Solo autos: automatico | manual | cvt.' },
+  { name: 'color', required: false, type: 'string', notes: 'Solo autos: color del vehículo.' },
+  { name: 'financing_down_payment_pct', required: false, type: 'number', notes: 'Solo autos: enganche como % del precio (0-100), para mostrar "$/mes".' },
+  { name: 'financing_months', required: false, type: 'number', notes: 'Solo autos: meses de financiamiento, para mostrar "$/mes".' },
+  { name: 'warranty_text', required: false, type: 'string', notes: 'Solo autos: detalle de la garantía.' },
+  { name: 'warranty_months', required: false, type: 'number', notes: 'Solo autos: meses de garantía.' },
+  { name: 'inspection_report_url', required: false, type: 'string', notes: 'Solo autos: URL absoluta al reporte de inspección (PDF).' },
 ]
 
 // ── Example file (shown in the UI; also a valid sample to test the importer) ──
@@ -205,7 +241,31 @@ const HEADER_ALIASES: Record<string, keyof CatalogImportRow> = {
   images: 'images', imagenes: 'images', image_url: 'images', imagen: 'images',
   weight_grams: 'weight_grams', peso: 'weight_grams', peso_gramos: 'weight_grams',
   unit_cost: 'unit_cost', costo: 'unit_cost', costo_unitario: 'unit_cost', cost: 'unit_cost',
+  // Autos vehicle specs (cars-vertical S2.3)
+  make: 'make', marca: 'make',
+  model: 'model', modelo: 'model',
+  year: 'year', anio: 'year', 'año': 'year',
+  km: 'km', kilometraje: 'km',
+  fuel_type: 'fuel_type', combustible: 'fuel_type',
+  transmission: 'transmission', transmision: 'transmission', 'transmisión': 'transmission',
+  color: 'color',
+  // Autos financing/trust (cars-vertical S2.3)
+  financing_down_payment_pct: 'financing_down_payment_pct', enganche: 'financing_down_payment_pct', enganche_pct: 'financing_down_payment_pct',
+  financing_months: 'financing_months', meses_financiamiento: 'financing_months',
+  warranty_text: 'warranty_text', garantia: 'warranty_text', 'garantía': 'warranty_text',
+  warranty_months: 'warranty_months', meses_garantia: 'warranty_months',
+  inspection_report_url: 'inspection_report_url', reporte_inspeccion: 'inspection_report_url', url_inspeccion: 'inspection_report_url',
 }
+
+// Known autos enum values — read from lib/listing-attributes.ts (the single
+// source of truth for the seller capture form) rather than duplicated here,
+// so an import row and a manually-captured listing never drift apart.
+const AUTOS_FUEL_VALUES = new Set(
+  (CATEGORY_GROUPS.autos.fields.find((f) => f.key === 'fuel_type')?.options ?? []).map((o) => o.value),
+)
+const AUTOS_TRANSMISSION_VALUES = new Set(
+  (CATEGORY_GROUPS.autos.fields.find((f) => f.key === 'transmission')?.options ?? []).map((o) => o.value),
+)
 
 /** Split a single CSV line into cells (RFC-ish: handles quotes + escaped quotes). */
 function parseCsvLine(line: string): string[] {
@@ -331,6 +391,76 @@ function stageRow(raw: Record<string, unknown>, line: number): StagedRow {
     const bad = images.filter((u) => !/^https?:\/\//i.test(u))
     if (bad.length) push('images', `Línea ${line}: ${bad.length} imagen(es) no son URLs absolutas (deben empezar con http/https).`, 'warning')
     row.images = images.filter((u) => /^https?:\/\//i.test(u))
+  }
+
+  // Autos vehicle specs + financing/trust (cars-vertical S2.3) — assembled
+  // into row.attrs (mirrors metadata.attrs.* the seller capture form writes)
+  // only for category === 'autos'. Unknown enum values or malformed URLs
+  // degrade with a non-blocking warning (dropped, not a failing row) rather
+  // than rejecting the whole listing over one enrichment field — same
+  // graceful-passthrough discipline as canonicalBrand().
+  if (row.category === 'autos') {
+    const attrs: Record<string, unknown> = {}
+
+    const make = str(raw.make)
+    if (make) attrs.make = canonicalBrand(make)
+    const model = str(raw.model)
+    if (model) attrs.model = model
+    const color = str(raw.color)
+    if (color) attrs.color = color
+
+    if (raw.year !== undefined && raw.year !== null && String(raw.year).trim() !== '') {
+      const y = num(raw.year)
+      if (y === undefined) push('year', `Línea ${line}: el año debe ser un número, se omitió.`, 'warning')
+      else attrs.year = Math.round(y)
+    }
+
+    if (raw.km !== undefined && raw.km !== null && String(raw.km).trim() !== '') {
+      const k = num(raw.km)
+      if (k === undefined || k < 0) push('km', `Línea ${line}: el kilometraje debe ser un número de 0 o más, se omitió.`, 'warning')
+      else attrs.km = Math.round(k)
+    }
+
+    const fuel = str(raw.fuel_type).toLowerCase()
+    if (fuel) {
+      if (AUTOS_FUEL_VALUES.has(fuel)) attrs.fuel_type = fuel
+      else push('fuel_type', `Línea ${line}: combustible '${fuel}' no reconocido, se omitió.`, 'warning')
+    }
+
+    const transmission = str(raw.transmission).toLowerCase()
+    if (transmission) {
+      if (AUTOS_TRANSMISSION_VALUES.has(transmission)) attrs.transmission = transmission
+      else push('transmission', `Línea ${line}: transmisión '${transmission}' no reconocida, se omitió.`, 'warning')
+    }
+
+    if (raw.financing_down_payment_pct !== undefined && raw.financing_down_payment_pct !== null && String(raw.financing_down_payment_pct).trim() !== '') {
+      const pct = num(raw.financing_down_payment_pct)
+      if (pct === undefined || pct < 0 || pct >= 100) push('financing_down_payment_pct', `Línea ${line}: el enganche (%) debe estar entre 0 y 100, se omitió.`, 'warning')
+      else attrs.financing_down_payment_pct = pct
+    }
+
+    if (raw.financing_months !== undefined && raw.financing_months !== null && String(raw.financing_months).trim() !== '') {
+      const m = num(raw.financing_months)
+      if (m === undefined || m <= 0) push('financing_months', `Línea ${line}: los meses de financiamiento deben ser un número mayor a 0, se omitió.`, 'warning')
+      else attrs.financing_months = Math.round(m)
+    }
+
+    const warrantyText = str(raw.warranty_text)
+    if (warrantyText) attrs.warranty_text = warrantyText
+
+    if (raw.warranty_months !== undefined && raw.warranty_months !== null && String(raw.warranty_months).trim() !== '') {
+      const wm = num(raw.warranty_months)
+      if (wm === undefined || wm < 0) push('warranty_months', `Línea ${line}: los meses de garantía deben ser un número de 0 o más, se omitió.`, 'warning')
+      else attrs.warranty_months = Math.round(wm)
+    }
+
+    const inspectionUrl = str(raw.inspection_report_url)
+    if (inspectionUrl) {
+      if (/^https?:\/\//i.test(inspectionUrl)) attrs.inspection_report_url = inspectionUrl
+      else push('inspection_report_url', `Línea ${line}: la URL del reporte de inspección debe empezar con http/https, se omitió.`, 'warning')
+    }
+
+    if (Object.keys(attrs).length > 0) row.attrs = attrs
   }
 
   return { line, row, issues, valid: !issues.some((i) => i.level === 'error') }

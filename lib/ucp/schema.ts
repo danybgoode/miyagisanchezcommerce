@@ -16,6 +16,7 @@ import { getCustomFields, type CustomFieldDef } from '@/lib/personalization'
 import { readEventDetails, type ListingEventDetails } from '@/lib/event-listing'
 import { listingSpecs, type Spec } from '@/lib/listing-attributes'
 import { toRatePeriod, type RatePeriod } from '@/lib/rental-pricing'
+import { financingDisplay, warrantyDisplay, inspectionDisplay } from '@/lib/auto-financing'
 import { shortCollectionSlug } from '@/lib/collection-derive'
 import { hasExcerpt } from '@/lib/excerpt'
 import type { PriceGrid } from '@/lib/price-grid'
@@ -107,6 +108,17 @@ export interface UcpListing {
   // reads `price` as the rate PER this period (plus a refundable deposit), rather
   // than quoting the per-period rate as the full price. null for non-rentals.
   rental: { rate_period: RatePeriod; deposit_cents: number } | null
+
+  // Autos financing/trust surfaces (cars-vertical S2.3) — the same $/mes
+  // hint + disclaimer, warranty, and inspection-report link AutoHero renders
+  // on the PDP, so an agent reads the identical trust signals a buyer sees.
+  // null for non-autos listings; each sub-field independently null when the
+  // seller hasn't set it (mirrors `rental`'s presence pattern).
+  auto_trust: {
+    monthly_payment: { amount_cents: number; formatted: string; disclaimer: string } | null
+    warranty: { text: string | null; months: number | null } | null
+    inspection_report_url: string | null
+  } | null
 
   // Commerce capabilities
   shop: UcpShop
@@ -238,6 +250,24 @@ export function toUcpListing(
   const repuveChecked = !!(listingMeta.repuve)
   const identityRequired = escrowMode === 'required'
 
+  // Autos financing/trust surfaces (cars-vertical S2.3) — same attrs bag,
+  // same pure projections AutoHero.tsx and the /l card chip use.
+  const autosAttrs = (listingMeta.attrs ?? {}) as Record<string, unknown>
+  const financing = listing.category === 'autos'
+    ? financingDisplay({ priceCents: listing.price_cents, downPaymentPct: autosAttrs.financing_down_payment_pct, months: autosAttrs.financing_months })
+    : null
+  const warranty = listing.category === 'autos'
+    ? warrantyDisplay({ text: autosAttrs.warranty_text, months: autosAttrs.warranty_months })
+    : null
+  const inspection = listing.category === 'autos'
+    ? inspectionDisplay({ url: autosAttrs.inspection_report_url })
+    : null
+  const autoTrust = listing.category === 'autos' ? {
+    monthly_payment: financing ? { amount_cents: financing.monthlyCents, formatted: financing.monthlyLabel, disclaimer: financing.disclaimer } : null,
+    warranty: warranty ? { text: warranty.text, months: warranty.months } : null,
+    inspection_report_url: inspection?.url ?? null,
+  } : null
+
   // ── Offer constraints ───────────────────────────────────────────────────────
   const offerConstraints: UcpOfferConstraints | null = makeOffer
     ? { min_offer_cents: null, expires_hours: 48 }
@@ -304,6 +334,7 @@ export function toUcpListing(
     available_quantity: listing.available_quantity ?? null,
     event,
     rental,
+    auto_trust: autoTrust,
 
     shop: shop ? {
       id: shop.id,

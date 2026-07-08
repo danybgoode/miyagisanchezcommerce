@@ -200,6 +200,28 @@ export const RENTAL_GROUP: AttrGroup = {
   fields: RENTAL_FIELDS,
 }
 
+/**
+ * Autos financing/trust capture (cars-vertical S2.1) — financing hint, warranty.
+ * NOT product specs (that's CATEGORY_GROUPS.autos above) — this is pricing/
+ * decision data with its own PDP surface (AutoHero's financing chip, warranty
+ * chip, inspection link), so intentionally EXCLUDED from attributeSchema()/
+ * listingSpecs() (same rationale as RENTAL_FIELDS). The inspection report
+ * (PDF upload OR URL) is captured by a bespoke field, not a schema entry here —
+ * see app/(shell)/sell/InspectionReportField.tsx (stored at attrs.inspection_report_url).
+ */
+export const AUTOS_TRUST_FIELDS: AttrField[] = [
+  { key: 'financing_down_payment_pct', label: 'Enganche (%)', type: 'number', placeholder: '20', min: 0, max: 100 },
+  { key: 'financing_months', label: 'Meses de financiamiento', type: 'number', placeholder: '48', min: 1, max: 84 },
+  { key: 'warranty_text', label: 'Garantía (detalle)', type: 'text', placeholder: 'Ej: 6 meses motor y transmisión', maxLength: 120 },
+  { key: 'warranty_months', label: 'Meses de garantía', type: 'number', placeholder: '6', min: 0, max: 60 },
+]
+
+export const AUTOS_TRUST_GROUP: AttrGroup = {
+  title: 'Financiamiento y garantía',
+  panelClass: 'border-cyan-200 bg-cyan-50/60',
+  fields: AUTOS_TRUST_FIELDS,
+}
+
 /** Categories that show only a generic brand/color capture (and specs). */
 export const GENERIC_CATEGORIES = [
   'hogar', 'herramientas', 'deportes', 'mascotas', 'negocios', 'cursos', 'creatividad', 'comunidad', 'otros',

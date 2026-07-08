@@ -4,6 +4,7 @@ import { CATEGORIES } from './types'
 import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
 import { deriveCarFacets, type CarFacets, type CarFacetInput } from './car-facets'
+import { financingDisplay } from './auto-financing'
 import { splitCategoriesFrontend } from './collection-derive'
 import { readPriceGrid, type PriceGrid } from './price-grid'
 import { getCustomFields, type CustomFieldDef } from './personalization'
@@ -413,6 +414,24 @@ export function conditionLabel(condition: Listing['condition']): string {
     parts: 'Para piezas',
   }
   return condition ? (map[condition] ?? condition) : ''
+}
+
+/**
+ * "$X,XXX/mes" muted chip for the /l card grid (cars-vertical S2.2) — autos
+ * only. null when the listing has no financing hint set (card renders
+ * nothing, today's card unchanged). Thin delegator — all the math stays in
+ * lib/auto-financing.ts, shared with the PDP hero and the UCP catalog.
+ */
+export function financingChip(listing: Listing): string | null {
+  if (listing.category !== 'autos') return null
+  const metadata = (listing.metadata ?? {}) as Record<string, unknown>
+  const attrs = listing.attrs ?? (metadata.attrs as Record<string, unknown> | undefined) ?? {}
+  const financing = financingDisplay({
+    priceCents: listing.price_cents,
+    downPaymentPct: attrs.financing_down_payment_pct,
+    months: attrs.financing_months,
+  })
+  return financing ? financing.monthlyLabel : null
 }
 
 /** Slim listing shape for the print-builder's curation drawers (US-4 + the print-studio catalog). */

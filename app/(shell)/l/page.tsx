@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { searchListings, getAutoFacets, formatPrice, conditionLabel } from '@/lib/listings'
+import { searchListings, getAutoFacets, formatPrice, conditionLabel, financingChip } from '@/lib/listings'
 import { listingTypeBadge } from '@/lib/listing-query'
 import { db } from '@/lib/supabase'
 import type { SearchParams } from '@/lib/types'
@@ -129,6 +129,10 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                     {listing.title}
                   </p>
                   <p className="t-price" style={{ fontSize: 15 }}>{formatPrice(listing)}</p>
+                  {(() => {
+                    const chip = financingChip(listing)
+                    return chip && <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 1 }}>{chip}</p>
+                  })()}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {listingTypeBadge(listing.listing_type) && (
                       <span className="badge badge-soft" style={{ fontSize: 10, color: 'var(--accent)' }}>
