@@ -193,7 +193,7 @@ export default function SubmissionsQueue() {
                 )}
                 {item.status === 'approved' && item.published_product_id && (
                   <a
-                    href="/shop/manage#anuncios"
+                    href="/shop/manage/catalogo"
                     className="text-sm px-3 py-1.5 rounded-lg border border-[var(--color-border)] font-medium no-underline hover:bg-[var(--color-surface-alt)]"
                   >
                     Editar borrador y activar →

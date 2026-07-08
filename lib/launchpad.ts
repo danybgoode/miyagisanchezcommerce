@@ -392,7 +392,7 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
 
   // Already minted → idempotent no-op (never create a duplicate product).
   if (submission.published_product_id && !submission.published_product_id.startsWith(PENDING_PREFIX)) {
-    return { ok: true, productId: submission.published_product_id, manageUrl: '/shop/manage#anuncios' }
+    return { ok: true, productId: submission.published_product_id, manageUrl: '/shop/manage/catalogo' }
   }
   if (!input.shop.slug) return { ok: false, status: 422, error: 'shop_slug_missing' }
 
@@ -412,7 +412,7 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
     // real product if it's already linked, else signal a transient conflict.
     const current = await getSubmissionForShop(input.shop.id, input.id)
     if (current?.published_product_id && !current.published_product_id.startsWith(PENDING_PREFIX)) {
-      return { ok: true, productId: current.published_product_id, manageUrl: '/shop/manage#anuncios' }
+      return { ok: true, productId: current.published_product_id, manageUrl: '/shop/manage/catalogo' }
     }
     return { ok: false, status: 409, error: 'already_publishing' }
   }
@@ -459,7 +459,7 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
     return { ok: false, status: 500, error: 'link_failed' }
   }
 
-  return { ok: true, productId: result.product_id, manageUrl: '/shop/manage#anuncios' }
+  return { ok: true, productId: result.product_id, manageUrl: '/shop/manage/catalogo' }
 }
 
 /**
