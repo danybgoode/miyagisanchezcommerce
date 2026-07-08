@@ -21,6 +21,7 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage',
   '/shop/manage/orders',
   '/shop/manage/offers',
+  '/shop/manage/catalogo',
   '/shop/manage/analytics',
   '/shop/manage/profit',
   '/shop/manage/collections',
@@ -66,8 +67,8 @@ test.describe('seller-mode · isSellerModePath', () => {
 })
 
 test.describe('seller-mode · SELLER_NAV config', () => {
-  test('has the two expected groups in order', () => {
-    expect(SELLER_NAV.map(g => g.label)).toEqual(['Operar', 'Crecer'])
+  test('has the four expected groups in order', () => {
+    expect(SELLER_NAV.map(g => g.label)).toEqual(['Operar', 'Catálogo', 'Crecer', 'Configuración'])
   })
 
   test('every entry targets a real manage route (no new pages)', () => {
@@ -79,17 +80,21 @@ test.describe('seller-mode · SELLER_NAV config', () => {
   })
 
   test('labels match the sprint spec', () => {
-    expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
-    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual([
-      'Colecciones', 'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias', 'Importar catálogo', 'Mercado Libre', 'Configuración',
+    expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas'])
+    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual(['Anuncios', 'Colecciones', 'Canales', 'Importar catálogo'])
+    expect(SELLER_NAV[2].entries.map(e => e.label)).toEqual([
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
     ])
+    expect(SELLER_NAV[3].entries.map(e => e.label)).toEqual(['Configuración'])
   })
 
-  test('mobile primary is the four Operar entries; Más overflow is the Crecer group', () => {
+  test('mobile primary is Resumen · Pedidos · Ofertas · Anuncios; Más overflow is the rest', () => {
     expect(SELLER_NAV_MOBILE_PRIMARY.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
     expect(SELLER_NAV_MOBILE_OVERFLOW.length).toBeGreaterThan(0)
     expect(SELLER_NAV_MOBILE_OVERFLOW.map(e => e.label)).toEqual([
-      'Colecciones', 'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias', 'Importar catálogo', 'Mercado Libre', 'Configuración',
+      'Colecciones', 'Canales', 'Importar catálogo',
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
+      'Configuración',
     ])
   })
 
@@ -105,13 +110,14 @@ test.describe('seller-mode · SELLER_NAV config', () => {
 })
 
 test.describe('seller-mode · activeSellerNavHref', () => {
-  test('dashboard highlights Resumen (tie-break beats the Anuncios jump-link)', () => {
+  test('dashboard highlights Resumen', () => {
     expect(activeSellerNavHref('/shop/manage')).toBe('/shop/manage')
   })
 
   test('a sub-page highlights its own entry by longest prefix', () => {
     expect(activeSellerNavHref('/shop/manage/orders')).toBe('/shop/manage/orders')
     expect(activeSellerNavHref('/shop/manage/orders/ord_42')).toBe('/shop/manage/orders')
+    expect(activeSellerNavHref('/shop/manage/catalogo')).toBe('/shop/manage/catalogo')
     expect(activeSellerNavHref('/shop/manage/settings')).toBe('/shop/manage/settings')
     expect(activeSellerNavHref('/shop/manage/settings/payments')).toBe('/shop/manage/settings')
     expect(activeSellerNavHref('/shop/manage/analytics')).toBe('/shop/manage/analytics')
