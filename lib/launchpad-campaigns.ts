@@ -469,13 +469,28 @@ export async function castVote(input: {
     return { ok: false, status: 422, error: 'unknown_work' }
   }
 
-  const verified = await verifyCampaignCode(campaign, input.email, input.code)
-  if (!verified) return { ok: false, status: 422, error: 'invalid_code' }
-
   const email = cleanEmail(input.email)
   const emailHash = hashSweepstakesEmail(email)
 
-  // Idempotent insert: the UNIQUE key makes a repeat vote a no-op (ignoreDuplicates).
+  // Idempotency FIRST — a repeat vote for the same work returns `already_voted`
+  // WITHOUT verifying (and burning) a fresh code. Only a genuinely new vote spends
+  // a code, so a double-submit / retry never wastes one.
+  const { data: existingVote } = await db
+    .from('launchpad_campaign_votes')
+    .select('id')
+    .eq('campaign_id', campaign.id)
+    .eq('work_product_id', input.workProductId)
+    .eq('email_hash', emailHash)
+    .maybeSingle()
+  if (existingVote) {
+    const count = await getCampaignVoteCount(campaign.id)
+    return { ok: true, already_voted: true, vote_count: count, threshold_reached: thresholdReached(count, campaign.vote_threshold) }
+  }
+
+  const verified = await verifyCampaignCode(campaign, input.email, input.code)
+  if (!verified) return { ok: false, status: 422, error: 'invalid_code' }
+
+  // Idempotent insert: the UNIQUE key makes a concurrent repeat vote a no-op.
   const { data: inserted, error } = await db
     .from('launchpad_campaign_votes')
     .upsert(

@@ -68,12 +68,19 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
         fetch('/api/sell/launchpad/campaigns'),
         fetch('/api/sell/launchpad/campaigns/options'),
       ])
-      if (cRes.ok) setCampaigns(((await cRes.json()).campaigns ?? []) as Campaign[])
-      if (oRes.ok) {
-        const o = await oRes.json()
-        setWorks((o.works ?? []) as Work[])
-        setRewardCandidates((o.reward_candidates ?? []) as Work[])
+      // Surface a real load failure instead of showing an empty state that looks
+      // like "no campaigns / no products" when the backend is down or unauthorized.
+      if (!cRes.ok || !oRes.ok) {
+        setError('No se pudieron cargar tus campañas. Recarga la página o inténtalo más tarde.')
+        return
       }
+      setError(null)
+      setCampaigns(((await cRes.json()).campaigns ?? []) as Campaign[])
+      const o = await oRes.json()
+      setWorks((o.works ?? []) as Work[])
+      setRewardCandidates((o.reward_candidates ?? []) as Work[])
+    } catch {
+      setError('No se pudieron cargar tus campañas. Revisa tu conexión e inténtalo de nuevo.')
     } finally {
       setLoading(false)
     }

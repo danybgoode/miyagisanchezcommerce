@@ -75,8 +75,6 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
     .eq('id', campaign.shop_id)
     .maybeSingle()
 
-  const closed = campaign.status === 'closed_met' || campaign.status === 'closed_unmet' || campaign.status === 'cancelled'
-
   return (
     <VoteClient
       slug={campaign.slug}
@@ -89,11 +87,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
       endsAt={campaign.ends_at}
       status={campaign.status}
       open={campaignAcceptsVotes(campaign)}
-      closed={closed}
       works={works}
       shopName={shop?.name ?? null}
       shopUrl={shop?.slug ? `/s/${shop.slug}` : null}
-      publicUrl={`${SITE_URL}/v/${campaign.slug}`}
     />
   )
 }

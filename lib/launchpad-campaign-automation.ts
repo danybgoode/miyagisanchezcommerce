@@ -230,25 +230,16 @@ export async function closeCampaignIfThresholdMet(campaignId: string): Promise<C
  * land (belt-and-suspenders). Replay-safe via the same claims.
  */
 export async function runCampaignCloseCron(): Promise<{ scanned: number; met: number; unmet: number; errors: number }> {
-  const nowIso = new Date().toISOString()
-  // Ended campaigns still active → must close one way or the other.
-  const { data: ended } = await db
+  // Scan EVERY active campaign (no `ends_at` filter — a null-ends_at row would
+  // match neither `lte` nor `gt`, silently escaping recovery). `decideCampaignClose`
+  // then sorts each: mint (over threshold), close_unmet (ended below), or skip
+  // (still live). Active campaigns are few, so a full scan is cheap.
+  const { data: activeRows } = await db
     .from('launchpad_campaigns')
     .select('id')
     .eq('status', 'active')
-    .lte('ends_at', nowIso)
 
-  // Not-yet-ended but already-over-threshold (a missed vote-route mint).
-  const { data: active } = await db
-    .from('launchpad_campaigns')
-    .select('id')
-    .eq('status', 'active')
-    .gt('ends_at', nowIso)
-
-  const ids = new Set<string>([
-    ...((ended ?? []).map((r) => (r as { id: string }).id)),
-    ...((active ?? []).map((r) => (r as { id: string }).id)),
-  ])
+  const ids = new Set<string>((activeRows ?? []).map((r) => (r as { id: string }).id))
 
   let met = 0, unmet = 0, errors = 0
   for (const id of ids) {

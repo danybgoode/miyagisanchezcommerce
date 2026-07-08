@@ -29,11 +29,9 @@ interface Props {
   endsAt: string | null
   status: 'draft' | 'active' | 'closed_met' | 'closed_unmet' | 'cancelled'
   open: boolean
-  closed: boolean
   works: CampaignWorkView[]
   shopName: string | null
   shopUrl: string | null
-  publicUrl: string
 }
 
 type Stage = 'idle' | 'code_sent' | 'voted'
@@ -112,6 +110,11 @@ export default function VoteClient(props: Props) {
           {thresholdReached && (
             <p style={{ marginTop: 8, color: 'var(--color-success)', fontSize: 14, fontWeight: 600 }}>
               🎉 ¡Se alcanzó la meta! Quien votó recibirá el cupón de impresión por correo.
+            </p>
+          )}
+          {props.open && props.endsAt && (
+            <p style={{ marginTop: 8, color: 'var(--color-muted)', fontSize: 12 }}>
+              Cierra el {new Date(props.endsAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           )}
         </div>
