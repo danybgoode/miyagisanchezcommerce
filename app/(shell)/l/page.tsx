@@ -129,9 +129,10 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                     {listing.title}
                   </p>
                   <p className="t-price" style={{ fontSize: 15 }}>{formatPrice(listing)}</p>
-                  {financingChip(listing) && (
-                    <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 1 }}>{financingChip(listing)}</p>
-                  )}
+                  {(() => {
+                    const chip = financingChip(listing)
+                    return chip && <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 1 }}>{chip}</p>
+                  })()}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {listingTypeBadge(listing.listing_type) && (
                       <span className="badge badge-soft" style={{ fontSize: 10, color: 'var(--accent)' }}>

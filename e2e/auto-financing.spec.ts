@@ -52,6 +52,16 @@ test.describe('auto-financing · financingDisplay (S2.1)', () => {
     expect(d).not.toBeNull()
     expect(d!.monthlyLabel).toContain('10,000')
   })
+
+  test('a fractional months value is rounded to a whole month, not silently divided against', () => {
+    const rounded = financingDisplay({ priceCents: 120_000_00, downPaymentPct: 0, months: 11.6 }) // rounds to 12
+    const exact = financingDisplay({ priceCents: 120_000_00, downPaymentPct: 0, months: 12 })
+    expect(rounded!.monthlyCents).toBe(exact!.monthlyCents)
+  })
+
+  test('a fractional months value that rounds to 0 → null (not a division by a sub-1 term)', () => {
+    expect(financingDisplay({ priceCents: 120_000_00, downPaymentPct: 0, months: 0.4 })).toBeNull()
+  })
 })
 
 test.describe('auto-financing · warrantyDisplay (S2.1)', () => {

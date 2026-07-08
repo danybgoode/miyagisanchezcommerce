@@ -56,7 +56,10 @@ export function financingDisplay(input: FinancingInput): FinancingDisplay | null
   const pct = toFiniteNumber(input.downPaymentPct)
   if (pct == null || pct < 0 || pct >= 100) return null
 
-  const months = toFiniteNumber(input.months)
+  // Rounded to a whole month — a fractional term (e.g. a stray "12.5") would
+  // otherwise silently divide by a non-integer and still "look" valid.
+  const rawMonths = toFiniteNumber(input.months)
+  const months = rawMonths != null ? Math.round(rawMonths) : null
   if (months == null || months <= 0) return null
 
   const financedCents = priceCents * (1 - pct / 100)
