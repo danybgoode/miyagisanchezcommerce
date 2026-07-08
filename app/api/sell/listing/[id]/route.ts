@@ -9,6 +9,7 @@ import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
 import { closeMlProduct } from '@/lib/ml-publish-bridge'
 import { notifyWriterOnPublish } from '@/lib/launchpad'
+import { normalizeExcerpt, type Excerpt } from '@/lib/excerpt'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -75,6 +76,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Unit cost (COGS) in centavos for the targeted variant — seller-private,
     // stored on variant metadata (profit-analyzer S1). null clears it.
     unit_cost_cents?: number | null
+    // Free "Lee un adelanto" text sample for a digital listing (bookshop
+    // launchpad S2.1). Stored on product metadata.excerpt; null/empty clears it.
+    // Behind `launchpad.enabled` (checked below).
+    excerpt?: string | null
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -126,6 +131,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
 
+  // Excerpt (bookshop launchpad S2.1) — gated on `launchpad.enabled`. Only touch
+  // this field when it's present so the flag never affects an ordinary save; if
+  // OFF, reject just this field (the editor is hidden while the flag is off, so
+  // this only fires for a direct API call). `undefined` = not sent; `null` clears.
+  let excerptUpdate: Excerpt | null | undefined
+  if (body.excerpt !== undefined) {
+    if (!(await isEnabled('launchpad.enabled'))) {
+      return NextResponse.json({ error: 'No disponible.', field: 'excerpt' }, { status: 423 })
+    }
+    excerptUpdate = normalizeExcerpt(body.excerpt)
+  }
+
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
@@ -138,8 +155,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const hasMedusaFields = body.title !== undefined || body.description !== undefined
     || body.price_cents !== undefined || body.quantity !== undefined
     || body.weight_grams !== undefined || body.attrs !== undefined || customFields !== undefined
+    || excerptUpdate !== undefined
     || body.option_dimensions !== undefined || body.variant_prices !== undefined
     || body.variant_tiers !== undefined || body.unit_cost_cents !== undefined
+  // Compose ONE metadata object so custom_fields + excerpt never collide as two
+  // `metadata` keys in the literal. The backend shallow-merges body.metadata into
+  // the product's existing metadata (seller-product-update.ts), so sending only
+  // the changed keys is safe; `excerpt: null` clears it.
+  const metadataUpdate: Record<string, unknown> = {}
+  if (customFields !== undefined) metadataUpdate.custom_fields = customFields
+  if (excerptUpdate !== undefined) metadataUpdate.excerpt = excerptUpdate
   if (hasMedusaFields) {
     const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
       method: 'PATCH',
@@ -150,7 +175,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.quantity !== undefined && body.quantity !== null && { quantity: Math.max(0, Math.floor(body.quantity)) }),
         ...(body.weight_grams !== undefined && { weight_grams: body.weight_grams }),
         ...(body.attrs !== undefined && { attrs: body.attrs }),
-        ...(customFields !== undefined && { metadata: { custom_fields: customFields } }),
+        ...(Object.keys(metadataUpdate).length > 0 && { metadata: metadataUpdate }),
         ...(body.option_dimensions !== undefined && { option_dimensions: body.option_dimensions }),
         ...(body.variant_prices !== undefined && { variant_prices: body.variant_prices }),
         ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
