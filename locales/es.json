@@ -172,6 +172,14 @@
           "body": "Consultas, sesiones, paquetes, mantenimiento o trabajo por cita.",
           "icon": "iconoir-user-star",
           "statusLabel": ""
+        },
+        {
+          "personaId": "autos",
+          "eyebrow": "",
+          "title": "Vendo autos",
+          "body": "Lote, agencia o venta particular — con ficha técnica, inspección y garantía.",
+          "icon": "iconoir-car",
+          "statusLabel": ""
         }
       ],
       "stepsTitle": "Cómo funciona",
@@ -612,6 +620,98 @@
           "heroTitle": "Convierte tu servicio en una página que agenda y cobra.",
           "primaryCta": "Vender mi servicio",
           "closingCta": "Vender mi servicio"
+        }
+      }
+    },
+    "autos": {
+      "metadata": {
+        "title": "Vende autos con ficha, inspección y mensualidad — Miyagi Sánchez",
+        "description": "Publica tu catálogo de autos con ficha técnica, reporte de inspección, garantía y mensualidad informativa. Búsqueda real por marca, modelo, año y precio. 0% de comisión.",
+        "ogAlt": "Miyagi Sánchez para venta de autos: ficha técnica, inspección y mensualidad, sin comisiones."
+      },
+      "eyebrow": "",
+      "heroTitle": "Vende autos con la confianza de un lote profesional.",
+      "heroLead": "Publica tu catálogo con ficha técnica, reporte de inspección y garantía. El comprador filtra por marca, modelo, año, precio y kilometraje — como en un sitio especializado, pero dentro del marketplace.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/autos y te diga si sirve para tu catálogo de autos.",
+      "primaryCta": "Publicar mi catálogo de autos",
+      "secondaryCta": "Ver autos en el marketplace",
+      "heroStats": [
+        {
+          "value": "0%",
+          "label": "comisión de plataforma"
+        },
+        {
+          "value": "5",
+          "label": "filtros reales: marca, modelo, año, precio, km"
+        },
+        {
+          "value": "$/mes",
+          "label": "mensualidad informativa en cada ficha"
+        }
+      ],
+      "proofTitle": "Hecho para vender autos, no solo publicar anuncios",
+      "proofLead": "Cada auto tiene ficha técnica, filtros reales y las señales de confianza que un comprador espera antes de decidir.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-car",
+          "title": "Ficha técnica completa",
+          "body": "Marca, modelo, año, kilometraje, transmisión y color en una tabla clara — tu comprador decide con datos, no solo con fotos."
+        },
+        {
+          "icon": "iconoir-search",
+          "title": "Búsqueda por marca, año y precio",
+          "body": "Tu catálogo es filtrable de verdad: marca, modelo, año, precio y kilometraje, con conteos reales — no una lista plana."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Reporte de inspección y garantía",
+          "body": "Sube tu inspección (PDF o link) y tu garantía. El comprador los ve directo en la ficha, junto al precio."
+        },
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% de comisión",
+          "body": "No pagas un porcentaje por vender tus autos. Tu margen se queda contigo — la mensualidad (\"$/mes\") es solo informativa, con aviso obligatorio."
+        }
+      ],
+      "stepsTitle": "De tu catálogo actual a un lote en línea",
+      "steps": [
+        {
+          "title": "Sube tu catálogo",
+          "body": "Pega tu inventario o deja que tu agente lo importe con marca, modelo, año y precio de cada auto."
+        },
+        {
+          "title": "Agrega inspección y garantía",
+          "body": "Sube el reporte de cada unidad y define tu garantía — así tu comprador decide con confianza."
+        },
+        {
+          "title": "Comparte tu link",
+          "body": "Cada auto tiene su propia página, filtrable por marca, modelo, año y precio, lista para compartir."
+        }
+      ],
+      "socialTitle": "Para lotes, agencias y particulares que venden autos",
+      "socialBody": "Dale a tu comprador ficha técnica, inspección, garantía y mensualidad informativa antes de escribirte — llega con la decisión más cerca.",
+      "socialStats": [
+        {
+          "value": "Ficha",
+          "label": "ficha técnica + inspección + garantía"
+        },
+        {
+          "value": "Filtros",
+          "label": "marca, modelo, año, precio, km"
+        },
+        {
+          "value": "0%",
+          "label": "sin comisión por venta"
+        }
+      ],
+      "closingTitle": "Tu catálogo de autos merece más que una lista de anuncios.",
+      "closingBody": "Publica tu inventario, agrega inspección y garantía, y deja que el comprador filtre como en un sitio especializado — sin comisión y con tu propia marca.",
+      "closingCta": "Publicar mi catálogo",
+      "variants": {
+        "b": {
+          "heroTitle": "Convierte tu catálogo de autos en un lote en línea.",
+          "primaryCta": "Publicar mis autos",
+          "closingCta": "Publicar mis autos"
         }
       }
     },

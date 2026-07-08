@@ -28,6 +28,7 @@ type AnchorCopy = SellerAcquisitionCopy['anchor']
 type CreatorCopy = SellerAcquisitionCopy['creadores']
 type LocalBusinessCopy = SellerAcquisitionCopy['negocios']
 type ServicesCopy = SellerAcquisitionCopy['servicios']
+type AutosCopy = SellerAcquisitionCopy['autos']
 type VariantCapablePage = {
   heroTitle: string
   primaryCta: string
@@ -128,6 +129,25 @@ export function buildServicesPageConfig(
     secondaryCta: {
       label: page.secondaryCta,
       href: sellerPersonaRouterHref('vende', query),
+    },
+  }
+}
+
+export function buildAutosPageConfig(
+  copy: SellerAcquisitionCopy,
+  query: QueryParams,
+): SellerAcquisitionPageConfig {
+  const page = copy.autos
+
+  return {
+    ...baseConfig(copy, page, 'autos', query),
+    pageId: 'autos',
+    // Unlike the archetype personas (negocios/servicios), the secondary CTA here points at a
+    // real, already-live proof — the autos facet browse (cars-vertical-tratocar-parity S1/S2)
+    // — instead of routing back into the generic persona picker.
+    secondaryCta: {
+      label: page.secondaryCta,
+      href: '/l?category=autos',
     },
   }
 }
@@ -266,7 +286,7 @@ export function buildPromoterPageConfig(
 
 function baseConfig(
   copy: SellerAcquisitionCopy,
-  page: AnchorCopy | CreatorCopy | LocalBusinessCopy | ServicesCopy,
+  page: AnchorCopy | CreatorCopy | LocalBusinessCopy | ServicesCopy | AutosCopy,
   personaId: SellerPersonaId,
   query: QueryParams,
 ): SellerAcquisitionPageConfig {
