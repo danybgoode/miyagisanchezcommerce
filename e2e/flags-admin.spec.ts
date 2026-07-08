@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 18 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(18)
+  test('covers all 19 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(19)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -47,6 +47,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // S3.4) — kill-switch, fail-open ON. Gates only the S3 addition, not
     // Sprint 2's underlying variant/tier buy box (see lib/flags.ts's comment).
     expect(FLAG_META['configurator.enabled']).toEqual({ polarity: 'killswitch', default: true })
+    // Rental line-item pricing (rental-backend-line-item-pricing S1) — enablement,
+    // fail-open OFF (backend 422s a rental checkout until the money smoke passes).
+    expect(FLAG_META['checkout.rental_pricing_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 
