@@ -17,6 +17,10 @@ import {
   sendManualOrderToSeller,
   type ManualPaymentSnapshot,
 } from '@/lib/email'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
+import { isEnabled } from '@/lib/flags'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
   const orderId = body.orderId
   if (!orderId) return NextResponse.json({ error: 'orderId required' }, { status: 400 })
 
-  const { getToken } = await auth()
+  const { userId, getToken } = await auth()
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
@@ -90,6 +94,21 @@ export async function POST(req: NextRequest) {
         rentalBooking: order.rental_booking ?? null,
         currency: order.currency ?? 'MXN',
       }).catch(e => console.error('[finalize-manual] buyer email:', e))
+
+      // ── Compras (Push/Telegram) — additive only; the email above is untouched.
+      // Buyer-authed route: the buyer IS the JWT owner, so their own Clerk id
+      // comes straight from auth() — no metadata round-trip needed.
+      const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+      const buyerClerkId = resolveBuyerClerkId(userId ?? null, buyerMoneypathEnabled)
+      const buyerMsg = buildBuyerMessage('payment_confirmed', {
+        listingTitle,
+        url: buyerOrderUrl,
+        amountPaid: amountStr,
+      })
+      void dispatchToBuyer(
+        { clerkUserId: buyerClerkId, email: buyerEmail },
+        { group: 'buyer.compras', push: buyerMsg.push, telegram: buyerMsg.telegram },
+      )
     }
 
     // Seller email — new order, confirm payment when received
