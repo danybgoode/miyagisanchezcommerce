@@ -53,6 +53,7 @@ export default function EditForm({
   isActive = false,
   knownMultiVariant = false,
   variantCosts = {},
+  variantMlPrices = {},
   launchpadEnabled = false,
   initialExcerpt = '',
   inventoryChannelsEnabled = false,
@@ -76,6 +77,12 @@ export default function EditForm({
    * cost input (sole variant) and the per-combination cost editors.
    */
   variantCosts?: Record<string, number | null>
+  /**
+   * Optional Mercado Libre-specific price override, in centavos, keyed by
+   * variant id — same seller-scoped GET/seller-private discipline as
+   * `variantCosts` (catalog-management epic, Sprint 2 · Story 2.3).
+   */
+  variantMlPrices?: Record<string, number | null>
   /**
    * Bookshop launchpad S2.1 — true only for a digital listing while
    * `launchpad.enabled` is ON (the page pre-ANDs the type + flag). Shows the
@@ -115,6 +122,15 @@ export default function EditForm({
   })()
   const [costRaw, setCostRaw] = useState(
     initialCostCents != null ? String(initialCostCents / 100) : '',
+  )
+  // ML price override (catalog-management S2 · 2.3) — same single-variant-
+  // only resolution as unit cost above.
+  const initialMlPriceCents = (() => {
+    const vals = Object.values(variantMlPrices ?? {})
+    return vals.length === 1 ? vals[0] : null
+  })()
+  const [mlPriceRaw, setMlPriceRaw] = useState(
+    initialMlPriceCents != null ? String(initialMlPriceCents / 100) : '',
   )
   const [attrs, setAttrs] = useState<Attrs>(
     Object.fromEntries(
@@ -180,6 +196,10 @@ export default function EditForm({
       && parseCostPesosToCents(costRaw) === null) {
       errs.unit_cost = 'El costo unitario debe ser de $0 o más.'
     }
+    if (inventoryChannelsEnabled && !isSubscription && !isMultiVariant && mlPriceRaw.trim() !== ''
+      && parseCostPesosToCents(mlPriceRaw) === null) {
+      errs.ml_price = 'El precio de Mercado Libre debe ser de $0 o más.'
+    }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
       errs.short_slug = 'Corrige el enlace corto antes de guardar.'
     }
@@ -232,6 +252,12 @@ export default function EditForm({
       if (!isSubscription && !isMultiVariant) {
         const nextCostCents = costRaw.trim() !== '' ? parseCostPesosToCents(costRaw) : null
         if (nextCostCents !== initialCostCents) body.unit_cost_cents = nextCostCents
+      }
+      // ML price override (catalog-management S2 · 2.3) — same dirty-check
+      // discipline; empty clears (null). Single-variant only.
+      if (inventoryChannelsEnabled && !isSubscription && !isMultiVariant) {
+        const nextMlPriceCents = mlPriceRaw.trim() !== '' ? parseCostPesosToCents(mlPriceRaw) : null
+        if (nextMlPriceCents !== initialMlPriceCents) body.ml_price_cents = nextMlPriceCents
       }
       // Excerpt (S2.1) — only sent when the field is available (digital + flag)
       // AND changed; the route normalizes + clears on empty. Sending the raw
@@ -461,6 +487,33 @@ export default function EditForm({
           <p className="text-xs text-[var(--color-muted)] mt-1">
             Lo que te cuesta producir o adquirir una unidad. Solo tú lo ves — alimenta tu análisis
             de ganancias. Déjalo vacío si no quieres registrarlo.
+          </p>
+        </div>
+      )}
+
+      {/* ML price override — single-variant only, catalog-management S2 · 2.3 */}
+      {inventoryChannelsEnabled && !isSubscription && !isMultiVariant && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Precio en Mercado Libre ({initial.currency}) <span className="text-[var(--color-muted)] font-normal">— opcional</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-sm">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={mlPriceRaw}
+              onChange={e => setMlPriceRaw(e.target.value)}
+              placeholder="Igual que el precio en Miyagi"
+              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                fieldErrors.ml_price ? 'border-red-400' : 'border-[var(--color-border)]'
+              }`}
+            />
+          </div>
+          {fieldErrors.ml_price && <p className="text-red-600 text-xs mt-1">{fieldErrors.ml_price}</p>}
+          <p className="text-xs text-[var(--color-muted)] mt-1">
+            Precio distinto solo para Mercado Libre — así sus comisiones no suben tu precio en Miyagi.
+            Déjalo vacío para usar el mismo precio en ambos.
           </p>
         </div>
       )}

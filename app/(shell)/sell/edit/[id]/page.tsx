@@ -120,7 +120,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   // Per-variant unit costs (COGS) — seller-private, so read via the
   // seller-scoped GET (the public listing/price-grid reads never carry them;
   // profit-analyzer S1 · US-1). Non-fatal: cost inputs start blank on error.
+  // ML price override (catalog-management S2 · 2.3) rides the same seller-
+  // scoped GET, same seller-private discipline.
   const variantCosts: Record<string, number | null> = {}
+  const variantMlPrices: Record<string, number | null> = {}
   try {
     const clerkJwt = await getToken()
     if (clerkJwt) {
@@ -131,8 +134,13 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         cache: 'no-store',
       })
       if (r.ok) {
-        const d = await r.json() as { variants?: Array<{ id: string; unit_cost_cents: number | null }> }
-        for (const v of d.variants ?? []) variantCosts[v.id] = v.unit_cost_cents
+        const d = await r.json() as {
+          variants?: Array<{ id: string; unit_cost_cents: number | null; ml_price_cents: number | null }>
+        }
+        for (const v of d.variants ?? []) {
+          variantCosts[v.id] = v.unit_cost_cents
+          variantMlPrices[v.id] = v.ml_price_cents
+        }
       }
     }
   } catch { /* non-fatal */ }
@@ -205,6 +213,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         isActive={isActive}
         knownMultiVariant={listing.metadata?.has_variants === true}
         variantCosts={variantCosts}
+        variantMlPrices={variantMlPrices}
         launchpadEnabled={launchpadEnabled}
         initialExcerpt={initialExcerpt}
         inventoryChannelsEnabled={inventoryChannelsEnabled}

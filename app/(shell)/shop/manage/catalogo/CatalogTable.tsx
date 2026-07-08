@@ -25,6 +25,8 @@ export interface CatalogListing {
   dispatch_estimate?: string | null
   /** Marketplace-browse visibility toggle (catalog-management S2 · 2.2) — absent = true. */
   miyagi_visible?: boolean
+  /** Optional Mercado Libre-specific price override, in centavos (catalog-management S2 · 2.3). */
+  ml_price_cents?: number | null
   channels: string[]
   images: Array<{ url: string; alt?: string | null }>
   created_at: string
@@ -293,7 +295,14 @@ export default function CatalogTable({
                   </Link>
                 </td>
                 <td className="p-3 text-[var(--color-muted)]">{listing.sku ?? '—'}</td>
-                <td className="p-3 font-semibold whitespace-nowrap">{formatPrice(listing.price_cents, listing.currency)}</td>
+                <td className="p-3 font-semibold whitespace-nowrap">
+                  {formatPrice(listing.price_cents, listing.currency)}
+                  {listing.ml_price_cents != null && listing.ml_price_cents !== listing.price_cents && (
+                    <div className="text-xs font-normal text-[var(--color-muted)]">
+                      ML: {formatPrice(listing.ml_price_cents, listing.currency)}
+                    </div>
+                  )}
+                </td>
                 <td className="p-3 whitespace-nowrap">{stockLabel(listing)}</td>
                 <td className="p-3">
                   <div className="flex gap-1 flex-wrap items-center">

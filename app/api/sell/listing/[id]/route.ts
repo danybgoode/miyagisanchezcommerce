@@ -111,6 +111,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Unit cost (COGS) in centavos for the targeted variant — seller-private,
     // stored on variant metadata (profit-analyzer S1). null clears it.
     unit_cost_cents?: number | null
+    // Optional Mercado Libre-specific price override in centavos for the
+    // targeted variant — seller-private, stored on variant metadata
+    // (catalog-management S2 · 2.3). null clears it (falls back to price_cents).
+    ml_price_cents?: number | null
     // Free "Lee un adelanto" text sample for a digital listing (bookshop
     // launchpad S2.1). Stored on product metadata.excerpt; null/empty clears it.
     // Behind `launchpad.enabled` (checked below).
@@ -170,6 +174,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     && (!Number.isInteger(body.unit_cost_cents) || body.unit_cost_cents < 0)) {
     return NextResponse.json({ error: 'El costo unitario debe ser de $0 o más.', field: 'unit_cost' }, { status: 422 })
   }
+  if (body.ml_price_cents !== undefined && body.ml_price_cents !== null
+    && (!Number.isInteger(body.ml_price_cents) || body.ml_price_cents < 0)) {
+    return NextResponse.json({ error: 'El precio de Mercado Libre debe ser de $0 o más.', field: 'ml_price' }, { status: 422 })
+  }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
   }
@@ -201,6 +209,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || excerptUpdate !== undefined
     || body.option_dimensions !== undefined || body.variant_prices !== undefined
     || body.variant_tiers !== undefined || body.unit_cost_cents !== undefined
+    || body.ml_price_cents !== undefined
     || body.inventory_mode !== undefined || body.dispatch_estimate !== undefined
     || body.miyagi_visible !== undefined || body.ml_enabled !== undefined
   // Compose ONE metadata object so custom_fields + excerpt never collide as two
@@ -226,6 +235,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
         ...(body.variant_tiers !== undefined && { variant_tiers: body.variant_tiers }),
         ...(body.unit_cost_cents !== undefined && { unit_cost_cents: body.unit_cost_cents }),
+        ...(body.ml_price_cents !== undefined && { ml_price_cents: body.ml_price_cents }),
         ...(body.inventory_mode !== undefined && { inventory_mode: body.inventory_mode }),
         ...(body.dispatch_estimate !== undefined && { dispatch_estimate: body.dispatch_estimate }),
         ...(body.miyagi_visible !== undefined && { miyagi_visible: body.miyagi_visible }),
