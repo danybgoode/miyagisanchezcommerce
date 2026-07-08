@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
         manualPayment: order.manual_payment as ManualPaymentSnapshot,
         orderUrl: buyerOrderUrl,
         personalization: order.personalization ?? [],
+        rentalBooking: order.rental_booking ?? null,
+        currency: order.currency ?? 'MXN',
       }).catch(e => console.error('[finalize-manual] buyer email:', e))
     }
 
@@ -104,6 +106,8 @@ export async function POST(req: NextRequest) {
           shopName,
           orderUrl: sellerOrderUrl,
           personalization: order.personalization ?? [],
+          rentalBooking: order.rental_booking ?? null,
+          currency: order.currency ?? 'MXN',
         }).catch(e => console.error('[finalize-manual] seller email:', e))
       }
     }
