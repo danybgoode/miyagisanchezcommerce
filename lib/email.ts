@@ -497,6 +497,18 @@ export async function sendLaunchpadCampaignResultEmail(ctx: {
   await send(ctx.to, ctx.met ? `🎉 Meta alcanzada: ${ctx.campaignTitle}` : `Campaña cerrada: ${ctx.campaignTitle}`, body)
 }
 
+/** Voter: the campaign closed WITHOUT reaching the threshold — honest, no coupon. */
+export async function sendLaunchpadCampaignVoterUnmet(ctx: {
+  to: string
+  campaignTitle: string
+}): Promise<void> {
+  const body = [
+    h1('La campaña cerró'),
+    p(`«${esc(ctx.campaignTitle)}» no alcanzó la meta de votos, así que en esta ocasión no se generó el cupón de impresión. ¡Gracias por participar y por apoyar a los autores!`),
+  ].join('')
+  await send(ctx.to, `Sobre «${ctx.campaignTitle}»`, body)
+}
+
 // ── Events: email verification + RSVP confirmation ──────────────────────────
 function formatEventEmailDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleString(locale === 'en' ? 'en-US' : 'es-MX', {

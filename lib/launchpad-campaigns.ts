@@ -144,6 +144,14 @@ export async function getCampaignBySlug(slug: string): Promise<CampaignWithMeta 
   return { ...campaign, works: await worksFor(campaign.id), vote_count: await getCampaignVoteCount(campaign.id) }
 }
 
+/** Internal read by id (no shop scope) — used by the close/mint automation. */
+export async function getCampaignByIdInternal(id: string): Promise<CampaignWithMeta | null> {
+  const { data } = await db.from('launchpad_campaigns').select('*').eq('id', id).maybeSingle()
+  if (!data) return null
+  const campaign = data as LaunchpadCampaign
+  return { ...campaign, works: await worksFor(campaign.id), vote_count: await getCampaignVoteCount(campaign.id) }
+}
+
 // ── Ownership + CPP checks ───────────────────────────────────────────────────
 
 /** True iff `productId` is a published listing owned by this shop (Medusa seller). */

@@ -187,3 +187,27 @@ export function isDuplicateVote(
   for (const k of existing) if (k === key) return true
   return false
 }
+
+/** What the close automation should do with one campaign (Story 3.3). */
+export type CloseDecision = 'mint' | 'close_unmet' | 'skip' | 'noop'
+
+/**
+ * The pure close/mint decision, shared by the vote-route hook and the daily cron:
+ * - not `active`               → `noop` (already terminal / not live)
+ * - threshold reached          → `mint` (close met + product-scoped coupon), regardless of end date
+ * - ended below threshold      → `close_unmet` (honest close, no coupon)
+ * - live and below threshold   → `skip` (leave it running)
+ */
+export function decideCampaignClose(input: {
+  status: CampaignStatus
+  voteCount: number
+  threshold: number
+  endsAt: string | null
+  now?: number
+}): CloseDecision {
+  if (input.status !== 'active') return 'noop'
+  if (thresholdReached(input.voteCount, input.threshold)) return 'mint'
+  const now = input.now ?? Date.now()
+  const ended = !!input.endsAt && new Date(input.endsAt).getTime() <= now
+  return ended ? 'close_unmet' : 'skip'
+}

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { isEnabled } from '@/lib/flags'
 import { getCampaignBySlug, castVote } from '@/lib/launchpad-campaigns'
+import { closeCampaignIfThresholdMet } from '@/lib/launchpad-campaign-automation'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,8 +51,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: VOTE_ERROR_MESSAGE[result.error] ?? 'No se pudo registrar tu voto.', reason: result.error }, { status: result.status })
   }
 
-  // NOTE: when `threshold_reached`, Story 3.3 fires the reward mint here
-  // (idempotent, best-effort). Wired in with the automation module.
+  // Threshold reached → mint the product-scoped reward coupon + notify,
+  // idempotently (Story 3.3). Best-effort: a mint hiccup must never make the
+  // voter's own vote look failed (the daily cron will retry the mint).
+  if (result.threshold_reached) {
+    try { await closeCampaignIfThresholdMet(campaign.id) }
+    catch (e) { console.error('[launchpad-campaign] mint-on-threshold failed (non-fatal):', e) }
+  }
 
   return NextResponse.json({
     ok: true,

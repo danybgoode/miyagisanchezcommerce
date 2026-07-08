@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/domain-lapse-sweep",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/launchpad-campaigns",
+      "schedule": "0 6 * * *"
     }
   ],
   "git": {
