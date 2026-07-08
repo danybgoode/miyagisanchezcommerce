@@ -7,12 +7,23 @@ import { sanitizeFieldDefs } from '@/lib/personalization'
 import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
-import { closeMlProduct } from '@/lib/ml-publish-bridge'
+import { closeMlProduct, publishMlProduct } from '@/lib/ml-publish-bridge'
 import { notifyWriterOnPublish } from '@/lib/launchpad'
 import { normalizeExcerpt, type Excerpt } from '@/lib/excerpt'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+
+async function getShopSlug(userId: string): Promise<string | null> {
+  const { data: shop } = await db
+    .from('marketplace_shops')
+    .select('slug')
+    .eq('clerk_user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  return shop?.slug ?? null
+}
 
 /**
  * Best-effort: when a Miyagi product is archived (paused/deleted), close its
@@ -24,16 +35,40 @@ const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 async function bestEffortCloseMl(userId: string, productId: string): Promise<void> {
   try {
     if (!(await isEnabled('ml.publish_enabled'))) return
-    const { data: shop } = await db
-      .from('marketplace_shops')
-      .select('slug')
-      .eq('clerk_user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (shop?.slug) await closeMlProduct(shop.slug, productId)
+    const slug = await getShopSlug(userId)
+    if (slug) await closeMlProduct(slug, productId)
   } catch {
     /* never block the archive on a ML failure */
+  }
+}
+
+/**
+ * Reconcile the live ML listing right after a successful `ml_enabled` toggle
+ * write (catalog-management epic, Sprint 2 · Story 2.2) — mirrors the
+ * pause/delete → bestEffortCloseMl cascade above, but triggered by the new
+ * per-product toggle instead. Never throws (the metadata write already
+ * succeeded regardless of what ML does). Returns `needs_category: true` only
+ * when turning ON hits a never-linked product with no category yet (decision:
+ * the table toggle works in-place for already-linked products; a never-linked
+ * one deep-links to the edit page's existing predict→confirm flow instead of
+ * building a second one here).
+ */
+async function reconcileMlToggle(
+  userId: string,
+  productId: string,
+  mlEnabled: boolean,
+): Promise<{ needs_category?: boolean }> {
+  try {
+    const slug = await getShopSlug(userId)
+    if (!slug) return {}
+    if (!mlEnabled) {
+      await closeMlProduct(slug, productId)
+      return {}
+    }
+    const result = await publishMlProduct(slug, productId)
+    return result.ok || result.reason !== 'no_category' ? {} : { needs_category: true }
+  } catch {
+    return {}
   }
 }
 
@@ -80,6 +115,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // launchpad S2.1). Stored on product metadata.excerpt; null/empty clears it.
     // Behind `launchpad.enabled` (checked below).
     excerpt?: string | null
+    // Inventory mode (catalog-management S2 · 2.1) — the backend translates
+    // to the two native variant flags; validated + gated there.
+    inventory_mode?: 'tracked' | 'unlimited' | 'backorder'
+    dispatch_estimate?: string | null
+    // Per-channel publish toggles (catalog-management S2 · 2.2) — gated on
+    // `catalog.inventory_channels_enabled` on the backend.
+    miyagi_visible?: boolean
+    ml_enabled?: boolean
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -158,6 +201,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || excerptUpdate !== undefined
     || body.option_dimensions !== undefined || body.variant_prices !== undefined
     || body.variant_tiers !== undefined || body.unit_cost_cents !== undefined
+    || body.inventory_mode !== undefined || body.dispatch_estimate !== undefined
+    || body.miyagi_visible !== undefined || body.ml_enabled !== undefined
   // Compose ONE metadata object so custom_fields + excerpt never collide as two
   // `metadata` keys in the literal. The backend shallow-merges body.metadata into
   // the product's existing metadata (seller-product-update.ts), so sending only
@@ -181,6 +226,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.variant_id !== undefined && { variant_id: body.variant_id }),
         ...(body.variant_tiers !== undefined && { variant_tiers: body.variant_tiers }),
         ...(body.unit_cost_cents !== undefined && { unit_cost_cents: body.unit_cost_cents }),
+        ...(body.inventory_mode !== undefined && { inventory_mode: body.inventory_mode }),
+        ...(body.dispatch_estimate !== undefined && { dispatch_estimate: body.dispatch_estimate }),
+        ...(body.miyagi_visible !== undefined && { miyagi_visible: body.miyagi_visible }),
+        ...(body.ml_enabled !== undefined && { ml_enabled: body.ml_enabled }),
       }),
     })
 
@@ -260,7 +309,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     })
     .eq('medusa_product_id', id)
 
-  return NextResponse.json({ id, updated: true, short_slug: nextShortSlug })
+  // Reconcile the live ML listing right after a successful ml_enabled toggle
+  // write (catalog-management S2 · 2.2) — mirrors the pause/delete cascade.
+  const mlToggleResult = body.ml_enabled !== undefined
+    ? await reconcileMlToggle(userId, id, body.ml_enabled)
+    : {}
+
+  return NextResponse.json({ id, updated: true, short_slug: nextShortSlug, ...mlToggleResult })
 }
 
 // ── Checkout viability check ──────────────────────────────────────────────────

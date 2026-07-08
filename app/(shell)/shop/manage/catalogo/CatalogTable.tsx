@@ -2,7 +2,9 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
+import { deriveChannelBadges } from '@/lib/catalog-channels'
 
 export interface CatalogListing {
   id: string
@@ -21,6 +23,8 @@ export interface CatalogListing {
   allow_backorder?: boolean
   /** Seller's estimated dispatch note for a backorder listing (catalog-management S2 · 2.1). */
   dispatch_estimate?: string | null
+  /** Marketplace-browse visibility toggle (catalog-management S2 · 2.2) — absent = true. */
+  miyagi_visible?: boolean
   channels: string[]
   images: Array<{ url: string; alt?: string | null }>
   created_at: string
@@ -100,7 +104,18 @@ function DeleteDialog({
   )
 }
 
-export default function CatalogTable({ listings: initialListings }: { listings: CatalogListing[] }) {
+export default function CatalogTable({
+  listings: initialListings,
+  channelsFlagEnabled = false,
+  mlEntitled = false,
+}: {
+  listings: CatalogListing[]
+  /** catalog.inventory_channels_enabled (catalog-management S2 · 2.2) — fail-safe OFF: no toggle UI renders while OFF. */
+  channelsFlagEnabled?: boolean
+  /** `ml_sync` entitlement — disables (not hides) the ML toggle with an upsell hint when false. */
+  mlEntitled?: boolean
+}) {
+  const router = useRouter()
   const [listings, setListings] = useState(initialListings)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -140,6 +155,78 @@ export default function CatalogTable({ listings: initialListings }: { listings: 
       }
     } catch {
       setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: prevStatus === 'pausado' ? 'paused' : 'active' } : l)))
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      markPending(id, false)
+    }
+  }
+
+  // Miyagi marketplace-browse visibility toggle (catalog-management S2 · 2.2)
+  // — independent of pause/activate: only affects `/l` browse, never this
+  // seller's own storefront. Same optimistic/rollback/toast pattern as
+  // handleToggle above.
+  async function handleMiyagiToggle(listing: CatalogListing) {
+    const id = listing.id
+    const prevVisible = listing.miyagi_visible !== false
+    const next = !prevVisible
+    markPending(id, true)
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, miyagi_visible: next } : l)))
+
+    try {
+      const res = await fetch(`/api/sell/listing/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ miyagi_visible: next }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) {
+        setListings((prev) => prev.map((l) => (l.id === id ? { ...l, miyagi_visible: prevVisible } : l)))
+        showToast(data.error ?? 'Error al cambiar la visibilidad.', 'error')
+      } else {
+        showToast(next ? 'Visible en el marketplace Miyagi.' : 'Oculto del marketplace Miyagi (sigue en tu tienda).', 'success')
+      }
+    } catch {
+      setListings((prev) => prev.map((l) => (l.id === id ? { ...l, miyagi_visible: prevVisible } : l)))
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      markPending(id, false)
+    }
+  }
+
+  // Mercado Libre publish toggle (catalog-management S2 · 2.2). Always
+  // attempts the toggle write in place (works whether the product was
+  // previously linked+closed or genuinely never linked) — the backend tells
+  // us via `needs_category` when turning ON hit a never-linked product with
+  // no ML category yet, in which case we deep-link to the edit page's
+  // existing predict→confirm flow instead of building a second one here.
+  async function handleMlToggle(listing: CatalogListing) {
+    const id = listing.id
+    const wasOn = (listing.channels ?? []).includes('ml')
+    const next = !wasOn
+    const rollbackChannels = listing.channels ?? ['miyagi']
+    markPending(id, true)
+    setListings((prev) => prev.map((l) => (l.id === id
+      ? { ...l, channels: next ? [...(l.channels ?? ['miyagi']), 'ml'] : (l.channels ?? []).filter((c) => c !== 'ml') }
+      : l)))
+
+    try {
+      const res = await fetch(`/api/sell/listing/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ml_enabled: next }),
+      })
+      const data = await res.json() as { error?: string; needs_category?: boolean }
+      if (!res.ok) {
+        setListings((prev) => prev.map((l) => (l.id === id ? { ...l, channels: rollbackChannels } : l)))
+        showToast(data.error ?? 'Error al cambiar Mercado Libre.', 'error')
+      } else if (next && data.needs_category) {
+        showToast('Elige una categoría de Mercado Libre para terminar de publicar…', 'success')
+        router.push(`/sell/edit/${id}`)
+      } else {
+        showToast(next ? 'Publicado en Mercado Libre.' : 'Desactivado en Mercado Libre.', 'success')
+      }
+    } catch {
+      setListings((prev) => prev.map((l) => (l.id === id ? { ...l, channels: rollbackChannels } : l)))
       showToast('Sin conexión. Inténtalo de nuevo.', 'error')
     } finally {
       markPending(id, false)
@@ -186,6 +273,7 @@ export default function CatalogTable({ listings: initialListings }: { listings: 
           {listings.map((listing) => {
             const status = deriveCatalogStatus(listing)
             const meta = STATUS_LABEL[status]
+            const badges = deriveChannelBadges(listing)
             const thumb = listing.images?.[0]?.url
             const isPending = pendingIds.has(listing.id)
             const canToggle = status === 'activo' || status === 'agotado' || status === 'pausado'
@@ -208,12 +296,33 @@ export default function CatalogTable({ listings: initialListings }: { listings: 
                 <td className="p-3 font-semibold whitespace-nowrap">{formatPrice(listing.price_cents, listing.currency)}</td>
                 <td className="p-3 whitespace-nowrap">{stockLabel(listing)}</td>
                 <td className="p-3">
-                  <div className="flex gap-1 flex-wrap">
-                    {/* Deploy-lag safety: backend Cloud Run has no per-branch preview, so a
-                        moment can exist where this page is live before the backend's `channels`
-                        field is — degrade to the always-true Miyagi badge rather than throw. */}
-                    {(listing.channels ?? ['miyagi']).includes('miyagi') && <span className="badge badge-soft">Miyagi</span>}
-                    {(listing.channels ?? []).includes('ml') && <span className="badge badge-soft">ML</span>}
+                  <div className="flex gap-1 flex-wrap items-center">
+                    {badges.miyagi && <span className="badge badge-soft">Miyagi</span>}
+                    {badges.ml && <span className="badge badge-soft">ML</span>}
+                    {channelsFlagEnabled && (
+                      <button
+                        type="button"
+                        onClick={() => handleMiyagiToggle(listing)}
+                        disabled={isPending}
+                        title={listing.miyagi_visible !== false
+                          ? 'Ocultar del marketplace Miyagi (sigue en tu tienda)'
+                          : 'Mostrar en el marketplace Miyagi'}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
+                      >
+                        {listing.miyagi_visible !== false ? 'Ocultar Miyagi' : 'Mostrar Miyagi'}
+                      </button>
+                    )}
+                    {channelsFlagEnabled && (
+                      <button
+                        type="button"
+                        onClick={() => handleMlToggle(listing)}
+                        disabled={isPending || !mlEntitled}
+                        title={!mlEntitled ? 'Requiere la integración de Mercado Libre' : undefined}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
+                      >
+                        {badges.ml ? 'Quitar de ML' : 'Publicar en ML'}
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td className="p-3">
