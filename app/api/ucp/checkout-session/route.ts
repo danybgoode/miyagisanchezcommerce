@@ -33,6 +33,7 @@ import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity, ticketTotalLabel } from '@/lib/ticket-quantity'
 import { readEventDetails } from '@/lib/event-listing'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { resolveUcpRentalQuote, rentalPricingHint, type UcpRentalQuote } from '@/lib/ucp/rental-quote'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
 
@@ -94,6 +95,17 @@ interface UcpCheckoutSession {
     amount_cents:      number
     formatted:         string
   } | null
+  // Rental line-item pricing (epic 02) — S3.1. Present (non-null) only when
+  // `check_in`/`check_out` were sent for a rental listing AND resolved to a
+  // valid, flag-enabled quote, computed by the SAME pure seam `/checkout`'s
+  // rental mode uses — never a client-sent amount. When present, `price`/
+  // `line_total` above already reflect this quote's `total_cents`.
+  rental_quote:        UcpRentalQuote | null
+  // Rental listings only: the per-period rate/deposit label + a nudge to send
+  // dates (no dates sent), or the agent-legible reason a dated quote couldn't
+  // be produced (dates sent but rejected). `null` once a quote succeeds, and
+  // always `null` for a non-rental listing.
+  rental_pricing_hint: string | null
   payment_options:     PaymentOption[]
   recommended_method:  PaymentMethodKey | null
   available_count:     number
@@ -191,14 +203,14 @@ export async function POST(req: NextRequest) {
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
 
-  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown; quantity?: number }
+  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown; quantity?: number; check_in?: string; check_out?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS })
   }
 
-  const { listing_id, offer_id, buyer_email, buyer_name } = body
+  const { listing_id, offer_id, buyer_email, buyer_name, check_in, check_out } = body
   if (!listing_id) {
     return NextResponse.json({ error: 'listing_id is required' }, { status: 400, headers: CORS })
   }
@@ -241,17 +253,66 @@ export async function POST(req: NextRequest) {
   }
 
   const currency   = listing.currency ?? 'MXN'
-  const hasPrice   = priceCents != null && priceCents > 0
   const isDigital  = listing.listing_type === 'digital'
   const isClaimed  = isShopClaimed(shop)
 
+  // ── Rental quoting (S3.1) — dates in, server-recomputed total out. Reuses
+  // the SAME pure seam `/checkout`'s rental mode uses (`resolveRentalCheckoutDisplay`
+  // via lib/ucp/rental-quote.ts), so an agent's quote can never drift from the
+  // web checkout's. Read-only: no charge happens here — a successful quote just
+  // overrides `price`/`line_total` (below) to the real bookable total and points
+  // the instant checkout_urls at the dated `/checkout` page (the actual S1/S2
+  // charge rail). Without dates, today's per-unit-price behavior is untouched —
+  // only the new `rental_pricing_hint` is added so the rate reads as per-period,
+  // never the full price.
+  const isRentalListing = listing.listing_type === 'rental'
+  const rentalAttrs = (listing.metadata?.attrs ?? {}) as Record<string, unknown>
+  let rentalQuote: UcpRentalQuote | null = null
+  let rentalPricingHintText: string | null = null
+  // An agent explicitly asked to book dates and got rejected (bad range, flag
+  // off, etc.) — distinct from never asking at all. Cross-agent review catch:
+  // without this, the instant-method options below would silently fall back to
+  // the date-blind legacy endpoints, letting the agent "succeed" at a one-unit
+  // charge for the exact request that was just refused. Instant methods are
+  // blocked in this state (below); manual/contact-first methods stay available
+  // since a human seller confirms before any money moves.
+  let rentalDatesRejected = false
+
+  if (isRentalListing) {
+    if (check_in && check_out) {
+      const rentalEnabled = await isEnabled('checkout.rental_pricing_enabled')
+      const result = resolveUcpRentalQuote({
+        enabled: rentalEnabled,
+        isRentalListing: true,
+        checkIn: check_in,
+        checkOut: check_out,
+        rateCents: priceCents ?? 0,
+        attrs: rentalAttrs,
+        currency,
+      })
+      if (result.ok) {
+        rentalQuote = result.quote
+        priceCents = result.quote.total_cents
+      } else {
+        rentalPricingHintText = result.reason
+        rentalDatesRejected = true
+      }
+    } else {
+      rentalPricingHintText = rentalPricingHint({ rateCents: priceCents ?? 0, attrs: rentalAttrs, currency })
+    }
+  }
+
+  const hasPrice   = priceCents != null && priceCents > 0
+
   // Event admissions: an agent can request N tickets (surface parity, AGENTS #3).
   // Scoped to EVENT listings + clamped to the kill-switch + remaining seats. An
-  // accepted offer is 1 unit. Issuance for the agent path is deferred (see the
-  // `quantity` note on the type).
+  // accepted offer — or a resolved rental quote (always exactly one date range,
+  // never multi-unit, mirroring the backend's `RENTAL_CART_UNSUPPORTED` guard) —
+  // is 1 unit. Issuance for the agent path is deferred (see the `quantity` note
+  // on the type).
   const isEventListing = !!readEventDetails(listing)
   const quantityEnabled = (await isEnabled('events.quantity_enabled')) && isEventListing
-  const quantity = isOfferPrice
+  const quantity = isOfferPrice || rentalQuote != null
     ? 1
     : clampTicketQuantity(body.quantity ?? 1, { available: listing.available_quantity, enabled: quantityEnabled })
   const lineTotalCents = hasPrice ? priceCents! * quantity : null
@@ -290,8 +351,8 @@ export async function POST(req: NextRequest) {
   )
   const beHas = (k: PaymentMethodKey) => (beMethods ? beMethods.has(k) : null)
   // available = backend says so (when reachable) else local; price/claim always required.
-  const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed
-  const stripeAvailable = (beHas('stripe') ?? hasStripe) && hasPrice && isClaimed
+  const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed && !rentalDatesRejected
+  const stripeAvailable = (beHas('stripe') ?? hasStripe) && hasPrice && isClaimed && !rentalDatesRejected
   const bankAvailable = (beHas('bank_transfer') ?? (hasBankTransfer && !isDigital)) && hasPrice
   const cashAvailable = (beHas('cash_on_pickup') ?? (localPickup && !isDigital)) && isClaimed
 
@@ -302,12 +363,30 @@ export async function POST(req: NextRequest) {
   // (no Medusa cart), so a quantity param there would be a misleading no-op.
   // Real agent buy-N rides the deferred issuance follow-up.
 
+  // Rental (S3.1): the legacy /api/mp/checkout + /api/stripe/checkout endpoints
+  // below have NO rental awareness — they'd charge a bare one-unit rate,
+  // silently ignoring the date range and deposit. When a valid dated quote
+  // exists, point the instant methods at the dated `/checkout` page instead —
+  // the real S1/S2 rail that server-recomputes and charges `rentalQuote.total_cents`.
+  const rentalCheckoutUrl = rentalQuote
+    ? `${baseUrl}/checkout?${new URLSearchParams({
+        listingId: listing.medusa_product_id ?? listing.id,
+        checkIn:   rentalQuote.check_in,
+        checkOut:  rentalQuote.check_out,
+      }).toString()}`
+    : null
+  // Manual/contact-first methods: mention the reserved dates + deposit so a
+  // seller confirming by hand isn't confused about what they're accepting.
+  const rentalNote = rentalQuote
+    ? ` Reserva ${rentalQuote.check_in} → ${rentalQuote.check_out} (${rentalQuote.nights} noches)${rentalQuote.deposit_cents > 0 ? `, incluye depósito reembolsable de ${formatMxn(rentalQuote.deposit_cents, currency)}` : ''}.`
+    : ''
+
   // 1. MercadoPago
   let mpCheckoutUrl: string | undefined
   if (mpAvailable) {
     // Pre-generate MP preference lazily — we return the POST endpoint + params instead
     // (avoids burning an MP API call on every session request)
-    mpCheckoutUrl = `${baseUrl}/api/mp/checkout`
+    mpCheckoutUrl = rentalCheckoutUrl ?? `${baseUrl}/api/mp/checkout`
   }
 
   const mpOption: PaymentOption = {
@@ -322,6 +401,7 @@ export async function POST(req: NextRequest) {
     ...(!isClaimed && { reason_unavailable: 'Este anuncio aún no tiene vendedor registrado.' }),
     ...(isDigital && { reason_unavailable: 'Los productos digitales se pagan con tarjeta vía Stripe.' }),
     ...(!hasPrice && { reason_unavailable: 'Este anuncio no tiene precio definido.' }),
+    ...(rentalDatesRejected && { reason_unavailable: 'Las fechas enviadas no son reservables (ver rental_pricing_hint) — este método no puede cobrar una renta sin una cotización válida.' }),
   }
 
   // 2. Stripe
@@ -332,8 +412,9 @@ export async function POST(req: NextRequest) {
     available: stripeAvailable,
     instant:   true,
     escrow_compatible: escrowMode !== 'off',
-    checkout_url: stripeAvailable ? `${baseUrl}/api/stripe/checkout` : undefined,
+    checkout_url: stripeAvailable ? (rentalCheckoutUrl ?? `${baseUrl}/api/stripe/checkout`) : undefined,
     ...(!hasStripe && { reason_unavailable: 'El vendedor no ha conectado Stripe.' }),
+    ...(rentalDatesRejected && { reason_unavailable: 'Las fechas enviadas no son reservables (ver rental_pricing_hint) — este método no puede cobrar una renta sin una cotización válida.' }),
   }
 
   // 3. Bank transfer (SPEI)
@@ -345,7 +426,7 @@ export async function POST(req: NextRequest) {
     instant:   false,
     escrow_compatible: false,  // manual confirmation — can't hold in escrow
     ...(hasBankTransfer && {
-      instructions: `Transfiere ${ hasPrice ? formatMxn(priceCents!, currency) : '' } a la cuenta indicada y envía tu comprobante al vendedor.`,
+      instructions: `Transfiere ${ hasPrice ? formatMxn(priceCents!, currency) : '' } a la cuenta indicada y envía tu comprobante al vendedor.${rentalNote}`,
       bank_details: {
         clabe:          String(bankTransfer.clabe ?? ''),
         bank_name:      (bankTransfer.bank_name as string | null) ?? null,
@@ -364,11 +445,11 @@ export async function POST(req: NextRequest) {
     instant:   false,
     escrow_compatible: false,
     ...(hasPickupContact && {
-      instructions: 'Contacta al vendedor para coordinar lugar y hora de entrega.',
+      instructions: `Contacta al vendedor para coordinar lugar y hora de entrega.${rentalNote}`,
       contact_url:  checkout.whatsapp_cta && whatsappPhone ? whatsappLink(whatsappPhone, listing.title) : `tel:${shopPhone}`,
     }),
     ...(localPickup && !shopPhone && {
-      instructions: 'Escríbele al vendedor para coordinar la entrega.',
+      instructions: `Escríbele al vendedor para coordinar la entrega.${rentalNote}`,
     }),
     ...(!localPickup && { reason_unavailable: 'El vendedor no ofrece entrega en mano.' }),
     ...(isDigital && { reason_unavailable: 'Producto digital — no requiere entrega en persona.' }),
@@ -462,6 +543,8 @@ export async function POST(req: NextRequest) {
       amount_cents: lineTotalCents,
       formatted:    ticketTotalLabel(priceCents!, quantity, currency),
     } : null,
+    rental_quote:        rentalQuote,
+    rental_pricing_hint: rentalPricingHintText,
     payment_options:    allOptions,
     recommended_method: recommended,
     available_count:    available.length,
