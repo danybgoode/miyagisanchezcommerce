@@ -12,7 +12,11 @@ import { resolveRentalCheckoutDisplay } from '../lib/rental-checkout-display'
  * smoke is owed to Daniel (flag is OFF in prod) — see sprint-2.md.
  */
 
-const NOW = Date.parse('2026-06-10T00:00:00Z')
+// Noon in Mexico City (UTC-6, no DST) — unambiguously "2026-06-10" in both UTC
+// and Mexico City, so the past-date tests below aren't accidentally sensitive
+// to which timezone "today" is computed in (see the MX-vs-UTC bug this exact
+// ambiguity caused, fixed in rental-checkout-display.ts — cross-agent review).
+const NOW = Date.parse('2026-06-10T18:00:00Z')
 const BASE = { enabled: true, isRentalListing: true, rateCents: 120_000, attrs: { rate_period: 'dia', deposit: 2000 }, nowMs: NOW }
 
 test.describe('rental-checkout-display · resolveRentalCheckoutDisplay', () => {
@@ -53,6 +57,16 @@ test.describe('rental-checkout-display · resolveRentalCheckoutDisplay', () => {
 
   test('today as check-in is allowed (not "past")', () => {
     const result = resolveRentalCheckoutDisplay({ ...BASE, checkIn: '2026-06-10', checkOut: '2026-06-12' })
+    expect(result.ok).toBe(true)
+  })
+
+  test('MX-vs-UTC regression: a same-day check-in picked in the evening (Mexico City) is NOT rejected as "past"', () => {
+    // 2026-06-11T02:00:00Z = 2026-06-10 20:00 in Mexico City (UTC-6, no DST) — UTC
+    // has already rolled to the 11th while it's still the 10th locally. A pure-UTC
+    // "today" would wrongly reject checkIn='2026-06-10' as in the past, even though
+    // the PDP's own `today` (Mexico City) accepted it moments earlier.
+    const eveningMx = Date.parse('2026-06-11T02:00:00Z')
+    const result = resolveRentalCheckoutDisplay({ ...BASE, nowMs: eveningMx, checkIn: '2026-06-10', checkOut: '2026-06-12' })
     expect(result.ok).toBe(true)
   })
 

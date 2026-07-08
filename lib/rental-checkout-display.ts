@@ -38,7 +38,7 @@ export interface RentalCheckoutDisplayInput {
   rateCents: number
   /** The product's `metadata.attrs` (rate_period + deposit-in-pesos live here). */
   attrs: Record<string, unknown> | null | undefined
-  /** UTC midnight "today" (ms), injectable for tests — defaults to `Date.now()`. */
+  /** "Now", injectable for tests — defaults to `Date.now()`. */
   nowMs?: number
 }
 
@@ -46,9 +46,16 @@ export type RentalCheckoutDisplayResult =
   | { ok: true; breakdown: RentalPrice }
   | { ok: false }
 
-function todayUtcMs(nowMs: number): number {
-  const d = new Date(nowMs)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+/**
+ * "Today" in Mexico City, as YYYY-MM-DD — matching `RentalBooking.tsx`'s own
+ * `today` (`toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })`).
+ * A pure-UTC "past" check would disagree with the PDP after ~18:00 local
+ * (UTC-6, no DST): UTC has already rolled to tomorrow while it's still today
+ * in Mexico City, so a same-day check-in the PDP happily accepted would get
+ * rejected here as "in the past" — caught by cross-agent review, 2026-07-08.
+ */
+function todayMx(nowMs: number): string {
+  return new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
 }
 
 /**
@@ -65,8 +72,7 @@ export function resolveRentalCheckoutDisplay(input: RentalCheckoutDisplayInput):
   if (!isValidYmd(checkIn) || !isValidYmd(checkOut)) return { ok: false }
 
   const nowMs = input.nowMs ?? Date.now()
-  const checkInMs = Date.parse(`${checkIn}T00:00:00Z`)
-  if (checkInMs < todayUtcMs(nowMs)) return { ok: false }
+  if (checkIn < todayMx(nowMs)) return { ok: false }
 
   const nights = nightsBetween(checkIn, checkOut)
   if (nights <= 0) return { ok: false }

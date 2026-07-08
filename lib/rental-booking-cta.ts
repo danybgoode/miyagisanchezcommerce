@@ -31,10 +31,11 @@ export type RentalBookingCta =
 
 export function resolveRentalBookingCta(input: RentalBookingCtaInput): RentalBookingCta {
   if (input.hasRange && input.rentalPricingEnabled && input.sellerHasPaymentMethod) {
-    return {
-      mode: 'checkout',
-      href: `/checkout?listingId=${input.listingId}&checkIn=${input.checkIn}&checkOut=${input.checkOut}`,
-    }
+    // URLSearchParams, not raw template interpolation — a listing id/date is
+    // trusted today, but this is a URL-construction seam and should encode
+    // regardless (cross-agent review catch, 2026-07-08).
+    const qs = new URLSearchParams({ listingId: input.listingId, checkIn: input.checkIn, checkOut: input.checkOut })
+    return { mode: 'checkout', href: `/checkout?${qs.toString()}` }
   }
   return { mode: 'ask_seller' }
 }
