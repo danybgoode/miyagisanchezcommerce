@@ -19,12 +19,25 @@ import { db } from '@/lib/supabase'
 import { resolveSweepstakesSeller } from '@/lib/sweepstakes-seller'
 import { getPriceGrid, getListing } from '@/lib/listings'
 import {
+  cleanEmail,
+  hashSweepstakesEmail,
+  hashVerificationCode,
+  safeCompare,
+  makeCode,
+  isValidEmail,
+} from '@/lib/sweepstakes'
+import { sendLaunchpadCampaignVoteCode } from '@/lib/email'
+import {
   canTransitionCampaign,
+  campaignAcceptsVotes,
   isConfigurablePriceGrid,
+  thresholdReached,
   validateCampaignActivation,
   type LaunchpadCampaign,
   type LaunchpadCampaignWork,
 } from '@/lib/launchpad-campaign-types'
+
+export { isValidEmail } from '@/lib/sweepstakes'
 
 export type SellerContext = NonNullable<Awaited<ReturnType<typeof resolveSweepstakesSeller>>>
 
@@ -369,4 +382,110 @@ export async function cancelCampaign(context: SellerContext, campaignId: string)
   if (error) return { ok: false, status: 500, error: 'cancel_failed' }
   const full = await getCampaignForShop(context.shop.id, campaignId)
   return full ? { ok: true, campaign: full } : { ok: false, status: 500, error: 'reload_failed' }
+}
+
+// ── Public voting (Story 3.2) ────────────────────────────────────────────────
+// Email-code verification scoped by CAMPAIGN id, persisting to
+// `launchpad_campaign_verifications` — the exact shape as the sweepstakes/S1
+// launchpad flows, just a different scope table.
+
+const CODE_TTL_MS = 15 * 60 * 1000
+
+/** Send a 6-char code to a voter about to cast a vote. Persists before emailing. */
+export async function sendCampaignVoteCode(campaign: LaunchpadCampaign, email: string): Promise<void> {
+  const normalized = cleanEmail(email)
+  const emailHash = hashSweepstakesEmail(normalized)
+  const code = makeCode()
+  const codeHash = hashVerificationCode(campaign.id, emailHash, code)
+
+  const { error } = await db.from('launchpad_campaign_verifications').insert({
+    campaign_id: campaign.id,
+    email_hash: emailHash,
+    email: normalized,
+    code_hash: codeHash,
+    locale: 'es',
+    expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString(),
+  })
+  if (error) throw new Error(`campaign verification insert failed: ${error.message}`)
+
+  await sendLaunchpadCampaignVoteCode({ to: normalized, code, campaignTitle: campaign.title ?? 'la votación' })
+}
+
+/** Verify a code (consumes on success). Same 5-attempt / 15-min TTL as the launchpad/sweepstakes flows. */
+export async function verifyCampaignCode(campaign: LaunchpadCampaign, email: string, code: string): Promise<boolean> {
+  const normalized = cleanEmail(email)
+  const emailHash = hashSweepstakesEmail(normalized)
+  const { data } = await db
+    .from('launchpad_campaign_verifications')
+    .select('id, code_hash, attempts, expires_at, consumed_at')
+    .eq('campaign_id', campaign.id)
+    .eq('email_hash', emailHash)
+    .is('consumed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data || data.consumed_at || data.attempts >= 5 || new Date(data.expires_at).getTime() < Date.now()) return false
+
+  const expected = hashVerificationCode(campaign.id, emailHash, code)
+  const ok = safeCompare(expected, data.code_hash)
+  await db
+    .from('launchpad_campaign_verifications')
+    .update({ attempts: (data.attempts ?? 0) + 1, ...(ok ? { consumed_at: new Date().toISOString() } : {}) })
+    .eq('id', data.id)
+  return ok
+}
+
+export type CastVoteResult =
+  | { ok: true; already_voted: boolean; vote_count: number; threshold_reached: boolean }
+  | { ok: false; status: number; error: string }
+
+/**
+ * Record one verified vote for a work in a campaign. Enforces: campaign open
+ * (active + before end date), the work IS a candidate of this campaign, and the
+ * code verifies. Idempotent on the DB UNIQUE (campaign_id, work_product_id,
+ * email_hash) — a repeat vote for the same work returns `already_voted` rather
+ * than erroring. Returns the fresh honest vote count + whether the threshold is
+ * now reached (the caller fires the mint — Story 3.3).
+ */
+export async function castVote(input: {
+  campaign: CampaignWithMeta
+  workProductId: string
+  email: string
+  code: string
+}): Promise<CastVoteResult> {
+  const { campaign } = input
+  if (!campaignAcceptsVotes(campaign)) return { ok: false, status: 422, error: 'not_open' }
+  if (!isValidEmail(input.email)) return { ok: false, status: 422, error: 'invalid_email' }
+  if (!campaign.works.some((w) => w.product_id === input.workProductId)) {
+    return { ok: false, status: 422, error: 'unknown_work' }
+  }
+
+  const verified = await verifyCampaignCode(campaign, input.email, input.code)
+  if (!verified) return { ok: false, status: 422, error: 'invalid_code' }
+
+  const email = cleanEmail(input.email)
+  const emailHash = hashSweepstakesEmail(email)
+
+  // Idempotent insert: the UNIQUE key makes a repeat vote a no-op (ignoreDuplicates).
+  const { data: inserted, error } = await db
+    .from('launchpad_campaign_votes')
+    .upsert(
+      { campaign_id: campaign.id, work_product_id: input.workProductId, email, email_hash: emailHash, locale: 'es' },
+      { onConflict: 'campaign_id,work_product_id,email_hash', ignoreDuplicates: true },
+    )
+    .select('id')
+  if (error) {
+    console.error('[launchpad-campaign] vote insert failed:', error.message)
+    return { ok: false, status: 500, error: 'vote_failed' }
+  }
+  const alreadyVoted = !inserted || inserted.length === 0
+
+  const voteCount = await getCampaignVoteCount(campaign.id)
+  return {
+    ok: true,
+    already_voted: alreadyVoted,
+    vote_count: voteCount,
+    threshold_reached: thresholdReached(voteCount, campaign.vote_threshold),
+  }
 }

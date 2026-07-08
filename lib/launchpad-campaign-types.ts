@@ -153,3 +153,37 @@ export function campaignProgress(voteCount: number, threshold: number): number {
   if (threshold <= 0) return 0
   return Math.max(0, Math.min(1, voteCount / threshold))
 }
+
+/**
+ * Is the campaign currently accepting votes? Only an `active` campaign whose end
+ * date hasn't passed. Pure — the route/cron supplies `now`. (A campaign past its
+ * end date but still `active` is closed by the automation, not by this check.)
+ */
+export function campaignAcceptsVotes(
+  campaign: Pick<LaunchpadCampaign, 'status' | 'ends_at'>,
+  now = Date.now(),
+): boolean {
+  if (campaign.status !== 'active') return false
+  if (campaign.ends_at && new Date(campaign.ends_at).getTime() <= now) return false
+  return true
+}
+
+/**
+ * The dedup key for a single vote — "one vote per email per WORK". Mirrors the
+ * DB UNIQUE (campaign_id, work_product_id, email_hash); scoping is by campaign,
+ * so the key omits the campaign id (callers are always within one campaign).
+ */
+export function voteKey(workProductId: string, emailHash: string): string {
+  return `${workProductId}:${emailHash}`
+}
+
+/** Would this vote duplicate an existing one? A voter may vote once PER work. */
+export function isDuplicateVote(
+  existing: Iterable<string>,
+  workProductId: string,
+  emailHash: string,
+): boolean {
+  const key = voteKey(workProductId, emailHash)
+  for (const k of existing) if (k === key) return true
+  return false
+}

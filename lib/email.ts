@@ -436,6 +436,67 @@ export async function sendLaunchpadPublishedEmail(ctx: {
   await send(ctx.to, `📚 Ya está publicado: ${ctx.title}`, body)
 }
 
+// ── Bookshop launchpad: voting-campaign emails (Sprint 3, es-MX only) ────────
+
+/** Voter: the 6-char code that verifies their email before a vote is recorded. */
+export async function sendLaunchpadCampaignVoteCode(ctx: {
+  to: string
+  code: string
+  campaignTitle: string
+}): Promise<void> {
+  const body = [
+    h1('Confirma tu voto'),
+    p(`Estás por votar en «${esc(ctx.campaignTitle)}». Ingresa este código para confirmar que este correo es tuyo:`),
+    amount(ctx.code, 'Tu código', true),
+    notice('El código vence en 15 minutos. Si no intentaste votar, ignora este mensaje.'),
+  ].join('')
+  await send(ctx.to, `Tu código para votar — ${ctx.campaignTitle}`, body)
+}
+
+/** Voter: threshold reached → the product-scoped coupon they unlocked (Story 3.3). */
+export async function sendLaunchpadCampaignCouponEmail(ctx: {
+  to: string
+  campaignTitle: string
+  couponCode: string
+  percent: number
+  productUrl: string
+  expiresAt: string | null
+}): Promise<void> {
+  const expiry = ctx.expiresAt
+    ? new Date(ctx.expiresAt).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'long' })
+    : null
+  const body = [
+    h1('¡Se alcanzó la meta! 🎉'),
+    p(`Gracias a votos como el tuyo, «${esc(ctx.campaignTitle)}» llegó a su meta. Desbloqueaste un ${ctx.percent}% de descuento en la impresión del libro:`),
+    amount(ctx.couponCode, 'Tu cupón', true),
+    ...(expiry ? [notice(`Válido hasta el ${expiry}. Aplica solo a este libro.`)] : [notice('Aplica solo a este libro.')]),
+    cta('Imprimir el libro con tu descuento', ctx.productUrl),
+  ].join('')
+  await send(ctx.to, `🎁 Desbloqueaste ${ctx.percent}% en «${ctx.campaignTitle}»`, body)
+}
+
+/** Writer/seller: the campaign closed — met (coupon minted) or unmet (honest). */
+export async function sendLaunchpadCampaignResultEmail(ctx: {
+  to: string
+  campaignTitle: string
+  met: boolean
+  voteCount: number
+  threshold: number
+  couponCode?: string | null
+}): Promise<void> {
+  const body = ctx.met
+    ? [
+        h1('Tu campaña alcanzó la meta 🎉'),
+        p(`«${esc(ctx.campaignTitle)}» cerró con ${ctx.voteCount}/${ctx.threshold} votos. Se generó el cupón de impresión y se avisó a quienes votaron.`),
+        ...(ctx.couponCode ? [amount(ctx.couponCode, 'Cupón generado', true)] : []),
+      ].join('')
+    : [
+        h1('Tu campaña cerró sin alcanzar la meta'),
+        p(`«${esc(ctx.campaignTitle)}» cerró con ${ctx.voteCount}/${ctx.threshold} votos. No se generó ningún cupón. Gracias por convocar a tu comunidad — puedes crear una nueva campaña cuando quieras.`),
+      ].join('')
+  await send(ctx.to, ctx.met ? `🎉 Meta alcanzada: ${ctx.campaignTitle}` : `Campaña cerrada: ${ctx.campaignTitle}`, body)
+}
+
 // ── Events: email verification + RSVP confirmation ──────────────────────────
 function formatEventEmailDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleString(locale === 'en' ? 'en-US' : 'es-MX', {
