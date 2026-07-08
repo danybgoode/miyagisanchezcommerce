@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -151,9 +151,18 @@ export type FlagKey = 'checkout.stripe_enabled' | 'domain.paywall_enabled' | 'pd
  *    the whole epic ships dark. The ledger is append-only and the backfill
  *    route heals any flag-off gap, so flipping ON later loses nothing. Flip ON
  *    once Daniel's COGS → sale → margin-row smoke passes.
+ *  - ENABLEMENT (`checkout.rental_pricing_enabled`): default `false` (epic
+ *    rental-backend-line-item-pricing, Sprint 1). Charges a rental booking as
+ *    nights × rate + deposit at checkout. Real enforcement lives in the BACKEND
+ *    start-checkout branch (already merged); this FE key exists so the flag is
+ *    visible + toggleable in /admin/flags and for the Sprint 2 PDP/checkout wiring
+ *    to read. Default OFF ⇒ today's coordination flow (PDP AskSeller; the backend
+ *    422s a rental checkout). Flip ON once Sprints 2–3 are live and Daniel's
+ *    flag-ON money smoke (Stripe + SPEI) passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
+  'checkout.rental_pricing_enabled': false,
   'domain.paywall_enabled': false,
   'pdp_redesign': true,
   'events.quantity_enabled': false,

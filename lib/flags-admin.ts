@@ -43,6 +43,10 @@ export interface FlagMeta {
  */
 export const FLAG_META: Record<FlagKey, FlagMeta> = {
   'checkout.stripe_enabled': { polarity: 'killswitch', default: true },
+  // Rental booking charged as nights × rate + deposit (rental-backend-line-item-pricing
+  // S1, backend rail already merged). Enablement: default OFF ⇒ today's coordination
+  // flow (the backend 422s a rental checkout). Flip ON after S2–S3 + the money smoke.
+  'checkout.rental_pricing_enabled': { polarity: 'enablement', default: false },
   'pdp_redesign': { polarity: 'killswitch', default: true },
   'domain.paywall_enabled': { polarity: 'enablement', default: false },
   'events.quantity_enabled': { polarity: 'enablement', default: false },
