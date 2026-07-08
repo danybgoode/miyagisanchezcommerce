@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { getSlugRedirect } from '@/lib/slug-redirect'
@@ -356,6 +357,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                     href: `/l/${listing.id}`,
                     formattedPrice: formatPrice(listing),
                     status: listing.status,
+                    hasExcerpt: hasExcerpt(listing.metadata),
                   }}
                 />
               ))}

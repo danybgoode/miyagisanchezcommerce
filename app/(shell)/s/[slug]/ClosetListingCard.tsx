@@ -18,7 +18,7 @@ export default function ClosetListingCard({
   item,
   accent,
 }: {
-  item: CartItem & { href: string; imageUrl: string | null; formattedPrice?: string; status?: string }
+  item: CartItem & { href: string; imageUrl: string | null; formattedPrice?: string; status?: string; hasExcerpt?: boolean }
   accent: string
 }) {
   const { addItem, removeItem, items: cartItems } = useCart()
@@ -35,6 +35,11 @@ export default function ClosetListingCard({
         )}
         <div className="p-2.5 pb-1">
           <p className="text-xs font-medium text-[var(--color-text)] line-clamp-2 leading-snug">{item.title}</p>
+          {item.hasExcerpt && (
+            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+              📖 Adelanto
+            </span>
+          )}
           <p className="text-sm font-bold mt-1" style={{ color: accent }}>
             {item.formattedPrice ?? formatPrice(item.price_cents, item.currency)}
           </p>

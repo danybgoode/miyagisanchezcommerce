@@ -5,6 +5,7 @@ import { isEnabled } from '@/lib/flags'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import ConvocatoriaSettingsClient from './ConvocatoriaSettingsClient'
 import SubmissionsQueue from './SubmissionsQueue'
+import ShelfCard from './ShelfCard'
 
 export const metadata = { title: 'Convocatoria — Miyagi Sánchez' }
 
@@ -44,6 +45,10 @@ export default async function ConvocatoriaManagePage() {
         }}
         publicUrl={`/s/${shop.slug}/convocatoria`}
       />
+
+      <div className="mt-8">
+        <ShelfCard />
+      </div>
 
       <div className="mt-8">
         <SubmissionsQueue />
