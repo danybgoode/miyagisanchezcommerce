@@ -87,8 +87,11 @@ export async function PATCH(
         const refundFormatted   = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(refundAmountCents / 100)
 
         // Buyer pref gating (buyer-notifications-money-path S1) — flag-gated read
-        // of the now-resolved buyer_clerk_user_id (normalizeMedusaOrder, S1.1);
-        // flag off or absent → guest fall-through sends the email as today.
+        // of the now-resolved buyer_clerk_user_id (normalizeMedusaOrder, S1.1).
+        // Flag defaults ON; it's OFF only after a deliberate admin flip. Either
+        // the flag is off, or the buyer id itself is null (guest order, or a
+        // pre-S1.1 order) — either way this resolves to dispatchToBuyer's
+        // existing guest fall-through, which sends the email as today.
         const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
         const buyerRecipient = {
           clerkUserId: resolveBuyerClerkId((order.buyer_clerk_user_id as string | null) ?? null, buyerMoneypathEnabled),

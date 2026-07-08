@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@clerk/nextjs/server'
 import OrderDetail from './OrderDetail'
+import { stripBuyerClerkId } from '@/lib/order-buyer'
 
 export const metadata = { title: 'Detalle de pedido — Miyagi Sánchez' }
 
@@ -30,8 +31,12 @@ export default async function OrderDetailPage({
 
   if (!res.ok) notFound()
 
-  const { order } = await res.json() as { order: Parameters<typeof OrderDetail>[0]['order'] }
-  if (!order) notFound()
+  const { order: rawOrder } = await res.json() as { order?: Record<string, unknown> }
+  if (!rawOrder) notFound()
+  // Strip the buyer's Clerk id before it crosses into the 'use client' OrderDetail
+  // component — it's a server-side-only dispatch-gating field (buyer-notifications-
+  // money-path S1), never meant to reach the browser.
+  const order = stripBuyerClerkId(rawOrder) as Parameters<typeof OrderDetail>[0]['order']
 
   return <OrderDetail order={order} />
 }

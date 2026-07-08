@@ -14,3 +14,17 @@ export function resolveBuyerClerkId(
 ): string | null {
   return flagEnabled ? (rawClerkUserId ?? null) : null
 }
+
+/**
+ * Strips `buyer_clerk_user_id` before an order object crosses the server/client
+ * boundary. It's a stable Clerk auth identifier — server-side dispatch routes
+ * (ship-manual/ship/return-request) need it, but a seller's browser never should
+ * (found in cross-agent review: the seller orders list/detail pages spread the
+ * full normalizeMedusaOrder object into a 'use client' component's props).
+ */
+export function stripBuyerClerkId<T extends Record<string, unknown>>(
+  obj: T,
+): Omit<T, 'buyer_clerk_user_id'> {
+  const { buyer_clerk_user_id: _omit, ...rest } = obj as T & { buyer_clerk_user_id?: unknown }
+  return rest
+}

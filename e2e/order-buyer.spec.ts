@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { resolveBuyerClerkId } from '../lib/order-buyer'
+import { resolveBuyerClerkId, stripBuyerClerkId } from '../lib/order-buyer'
 
 /**
  * Pure-seam coverage for buyer-id resolution at Medusa-order dispatch sites
  * (epic 05 · buyer-notifications-money-path S1.2). No browser, no network —
  * proves the flag-off short-circuit and null-safety the ship-manual/ship/
- * return-request[requestId] routes rely on.
+ * return-request[requestId] routes rely on, and the client-boundary strip
+ * the seller orders list/detail pages rely on (cross-agent review finding).
  */
 
 test.describe('order-buyer · resolveBuyerClerkId', () => {
@@ -22,5 +23,18 @@ test.describe('order-buyer · resolveBuyerClerkId', () => {
   test('flag on + null/undefined (guest, or pre-S1.1 normalizer) → null', () => {
     expect(resolveBuyerClerkId(null, true)).toBeNull()
     expect(resolveBuyerClerkId(undefined, true)).toBeNull()
+  })
+})
+
+test.describe('order-buyer · stripBuyerClerkId', () => {
+  test('removes buyer_clerk_user_id, keeps every other field', () => {
+    const out = stripBuyerClerkId({ id: 'order_1', buyer_clerk_user_id: 'user_abc123', buyer_email: 'a@b.com' })
+    expect(out).toEqual({ id: 'order_1', buyer_email: 'a@b.com' })
+    expect('buyer_clerk_user_id' in out).toBe(false)
+  })
+
+  test('is a no-op when the field is already absent', () => {
+    const out = stripBuyerClerkId({ id: 'order_1', buyer_email: 'a@b.com' })
+    expect(out).toEqual({ id: 'order_1', buyer_email: 'a@b.com' })
   })
 })

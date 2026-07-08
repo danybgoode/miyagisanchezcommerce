@@ -12,5 +12,5 @@
 -- that ran before this epic.
 -- ON CONFLICT DO NOTHING so re-running never clobbers a live flip.
 INSERT INTO platform_flags (key, enabled, polarity, description) VALUES
-  ('notifications.buyer_moneypath_enabled', true, 'kill-switch', 'Gates Medusa-order buyer-id resolution in seller-triggered ship/return dispatch + (S2) Compras webhook dispatch (buyer-notifications-money-path). OFF ⇒ guest fall-through, today''s email-only behavior.')
+  ('notifications.buyer_moneypath_enabled', true, 'killswitch', 'Gates Medusa-order buyer-id resolution in seller-triggered ship/return dispatch + (S2) Compras webhook dispatch (buyer-notifications-money-path). OFF ⇒ guest fall-through, today''s email-only behavior.')
 ON CONFLICT (key) DO NOTHING;
