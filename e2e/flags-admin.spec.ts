@@ -15,13 +15,13 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 22 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(22)
+  test('covers all 23 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(23)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
       // Every enablement fails open OFF; kill-switches default ON *except* ml.sync_enabled
-      // (fail-CLOSED by function, seeds OFF).
+      // and catalog.bulk_enabled (fail-CLOSED by function, seed OFF).
       if (meta.polarity === 'enablement') expect(meta.default).toBe(false)
     }
     // Spot-check the two live kill-switches default ON and one enablement defaults OFF.
@@ -56,6 +56,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Runtime copy-override merge seam + Sprint 3 announcements
     // (admin-content-and-announcements) — kill-switch, fail-open ON.
     expect(FLAG_META['content.overrides_enabled']).toEqual({ polarity: 'killswitch', default: true })
+    // Staged bulk actions (catalog-management S3) — kill-switch, fail-CLOSED like
+    // ml.sync_enabled: a bulk action can mutate hundreds of products in one call.
+    expect(FLAG_META['catalog.bulk_enabled']).toEqual({ polarity: 'killswitch', default: false })
   })
 })
 
