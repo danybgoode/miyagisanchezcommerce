@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { resolveAnnouncementStatus, type AnnouncementStatus } from '@/lib/announcements-merge'
 
 /** One `platform_announcements` row, as rendered on the admin surface. */
 export type AnnouncementView = {
@@ -15,16 +16,7 @@ export type AnnouncementView = {
   updatedAt: string | null
 }
 
-type Status = 'programado' | 'activo' | 'expirado' | 'inactivo'
-
-function statusOf(a: AnnouncementView, now: number): Status {
-  if (!a.active) return 'inactivo'
-  const starts = a.startsAt ? Date.parse(a.startsAt) : null
-  const ends = a.endsAt ? Date.parse(a.endsAt) : null
-  if (starts !== null && now < starts) return 'programado'
-  if (ends !== null && now >= ends) return 'expirado'
-  return 'activo'
-}
+type Status = AnnouncementStatus
 
 const STATUS_LABEL: Record<Status, string> = {
   programado: 'Programado',
@@ -327,7 +319,7 @@ export default function AnunciosAdminClient({ announcements }: { announcements: 
       )}
 
       {sorted.map((a) => {
-        const status = statusOf(a, now)
+        const status = resolveAnnouncementStatus(a, now)
         return (
           <div key={a.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span

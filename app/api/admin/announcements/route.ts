@@ -143,8 +143,9 @@ export const DELETE = withAdmin(async (req: NextRequest) => {
   const parsed = parseAnnouncementDeleteBody(body)
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-  const { error } = await db.from(TABLE).delete().eq('id', parsed.id)
+  const { data, error } = await db.from(TABLE).delete().eq('id', parsed.id).select('id')
   if (error) return NextResponse.json({ error: 'No se pudo eliminar el anuncio.' }, { status: 500 })
+  if (!data || data.length === 0) return NextResponse.json({ error: 'Ese anuncio no existe.' }, { status: 404 })
 
   revalidateTag('announcements', 'default')
   return NextResponse.json({ ok: true })
