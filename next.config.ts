@@ -2,6 +2,10 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle for the Cloud Run container (09-platform-infra
+  // frontend-vercel-to-cloudrun, S1.2). Vercel ignores `output: 'standalone'`
+  // and keeps using its own build output, so this is a no-op there.
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
