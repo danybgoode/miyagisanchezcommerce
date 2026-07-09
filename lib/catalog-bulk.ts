@@ -9,6 +9,7 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
+import { isEnabled } from '@/lib/flags'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -152,7 +153,7 @@ export interface StoredBatchItem {
   patch: Record<string, unknown> | null
   valid: boolean
   error_message: string | null
-  status: 'pending' | 'applied' | 'failed'
+  status: 'pending' | 'applying' | 'applied' | 'failed'
 }
 
 /** Read a batch back (survives refresh — the Shopify failure mode). Returns
@@ -179,15 +180,38 @@ export type ApplyResult =
   | { ok: false; status: number; error: string }
 
 /**
- * Apply a staged batch. Idempotent: an item already `applied` is skipped
- * (reported, not re-executed) rather than re-sent. Three action types need
- * FRONTEND orchestration (side effects that live outside `updateSellerProduct`)
- * and are applied one item at a time via the matching shared helper:
- * `pause_activate` → `setListingStatus()` (viability gate, metadata.paused,
- * Supabase mirror, ML close); `delete` → `deleteListing()` (Supabase mirror,
- * ML close); `publish_channel` targeting 'ml' → `toggleMlChannel()`
- * (entitlement check, ML publish/close reconcile). Every other action type
- * (price, `publish_channel` targeting 'miyagi', category, collection_assign,
+ * Atomically claim this batch's pending, valid items — a single
+ * UPDATE...WHERE status='pending' RETURNING flips them to 'applying' and
+ * returns exactly the rows THIS call claimed. Two concurrent apply requests
+ * on the same batch can never both claim the same item: Postgres' row-level
+ * locking on the UPDATE serializes them, so the second request's WHERE
+ * status='pending' simply matches nothing for any row the first already
+ * claimed (closes a TOCTOU race a plain read-then-process-then-write
+ * pattern would have — cross-agent review catch).
+ */
+async function claimPendingItems(batchId: string): Promise<StoredBatchItem[]> {
+  const { data } = await db
+    .from('catalog_bulk_batch_items')
+    .update({ status: 'applying' })
+    .eq('batch_id', batchId)
+    .eq('status', 'pending')
+    .eq('valid', true)
+    .select('*')
+  return (data ?? []) as StoredBatchItem[]
+}
+
+/**
+ * Apply a staged batch. Idempotent: an item already `applied` (or currently
+ * being applied by a concurrent request) is skipped, never re-executed —
+ * `claimPendingItems()` is what makes that atomic, not a plain filter over an
+ * already-fetched read. Three action types need FRONTEND orchestration
+ * (side effects that live outside `updateSellerProduct`) and are applied one
+ * item at a time via the matching shared helper: `pause_activate` →
+ * `setListingStatus()` (viability gate, metadata.paused, Supabase mirror, ML
+ * close); `delete` → `deleteListing()` (Supabase mirror, ML close);
+ * `publish_channel` targeting 'ml' → `toggleMlChannel()` (entitlement check,
+ * ML publish/close reconcile). Every other action type (price,
+ * `publish_channel` targeting 'miyagi', category, collection_assign,
  * inventory_mode) has no such side effects and goes through ONE call to the
  * backend's `bulk-apply` batch endpoint — never N sequential route calls
  * either way, since even the per-item frontend paths are in-process function
@@ -197,15 +221,25 @@ export async function applyBulkBatch(
   batchId: string,
   ctx: { userId: string; clerkJwt: string; actorType?: 'seller' | 'agent' },
 ): Promise<ApplyResult> {
+  // Re-checked here (not just at stage time) — an already-staged batch must
+  // not become applicable just because it was staged while the flag was ON;
+  // the flag can flip OFF in between (cross-agent review catch: the generic
+  // backend bulk-apply route already 423s on this, but the three
+  // frontend-orchestrated action types below never reach that route, so
+  // without this check they'd bypass the kill-switch entirely).
+  if (!(await isEnabled('catalog.bulk_enabled'))) {
+    return { ok: false, status: 423, error: 'Esta función aún no está disponible.' }
+  }
+
   const found = await getBulkBatch(batchId, ctx.userId)
   if (!found) return { ok: false, status: 404, error: 'Lote no encontrado.' }
   const { batch, items } = found
 
-  const pending = items.filter((i) => i.status === 'pending' && i.valid)
-  const skipped = items.filter((i) => i.status !== 'pending').length
+  const alreadySettled = items.filter((i) => i.status === 'applied' || i.status === 'failed').length
+  const pending = await claimPendingItems(batchId)
 
   if (pending.length === 0) {
-    return { ok: true, applied: 0, failed: 0, skipped: items.length }
+    return { ok: true, applied: 0, failed: 0, skipped: alreadySettled }
   }
 
   await db.from('catalog_bulk_batches').update({ status: 'applying', updated_at: new Date().toISOString() }).eq('id', batchId)
@@ -273,7 +307,7 @@ export async function applyBulkBatch(
     })
     .eq('id', batchId)
 
-  return { ok: true, applied, failed, skipped }
+  return { ok: true, applied, failed, skipped: alreadySettled }
 }
 
 async function recordItemResult(
@@ -400,6 +434,9 @@ export async function applyBulkBatchAsAgent(
   batchId: string,
   shop: { id: string; clerk_user_id: string; slug: string | null },
 ): Promise<ApplyResult> {
+  if (!(await isEnabled('catalog.bulk_enabled'))) {
+    return { ok: false, status: 423, error: 'Esta función aún no está disponible.' }
+  }
   if (!shop.slug) return { ok: false, status: 422, error: 'Tu tienda no tiene un identificador (slug) configurado.' }
 
   const found = await getBulkBatch(batchId, shop.clerk_user_id)
@@ -409,11 +446,11 @@ export async function applyBulkBatchAsAgent(
   const unsupported = isAgentUnsupportedAction(batch.action)
   if (unsupported) return { ok: false, status: 422, error: unsupported }
 
-  const pending = items.filter((i) => i.status === 'pending' && i.valid)
-  const skipped = items.filter((i) => i.status !== 'pending').length
+  const alreadySettled = items.filter((i) => i.status === 'applied' || i.status === 'failed').length
+  const pending = await claimPendingItems(batchId)
 
   if (pending.length === 0) {
-    return { ok: true, applied: 0, failed: 0, skipped: items.length }
+    return { ok: true, applied: 0, failed: 0, skipped: alreadySettled }
   }
 
   await db.from('catalog_bulk_batches').update({ status: 'applying', updated_at: new Date().toISOString() }).eq('id', batchId)
@@ -450,5 +487,5 @@ export async function applyBulkBatchAsAgent(
     })
     .eq('id', batchId)
 
-  return { ok: true, applied, failed, skipped }
+  return { ok: true, applied, failed, skipped: alreadySettled }
 }

@@ -10,7 +10,7 @@ interface BatchItem {
   after: Record<string, unknown>
   valid: boolean
   error_message: string | null
-  status: 'pending' | 'applied' | 'failed'
+  status: 'pending' | 'applying' | 'applied' | 'failed'
 }
 
 interface Batch {
@@ -140,6 +140,7 @@ export default function BulkDiffPreview({
                       <td className="p-2 text-[var(--color-muted)]">{formatValue(item.before)}</td>
                       <td className="p-2 font-medium">{item.valid ? formatValue(item.after) : '—'}</td>
                       <td className="p-2">
+                        {item.status === 'applying' && <span className="inline-block rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-semibold">Aplicando…</span>}
                         {item.status === 'applied' && <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs font-semibold">Aplicado</span>}
                         {item.status === 'failed' && <span className="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold" title={item.error_message ?? undefined}>Falló</span>}
                         {item.status === 'pending' && item.valid && <span className="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-semibold">Pendiente</span>}

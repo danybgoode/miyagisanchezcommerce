@@ -38,10 +38,16 @@ CREATE TABLE catalog_bulk_batch_items (
   patch          JSONB,                                          -- the SellerProductUpdateBody to apply (null if invalid)
   valid          BOOLEAN     NOT NULL DEFAULT true,
   error_message  TEXT,
-  status         TEXT        NOT NULL DEFAULT 'pending',         -- pending|applied|failed
+  status         TEXT        NOT NULL DEFAULT 'pending',         -- pending|applying|applied|failed
   created_at     TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  -- 'applying' is the atomic-claim state: apply() flips pending→applying via a
+  -- single UPDATE...WHERE status='pending' RETURNING (never a plain read-then-
+  -- write), so two concurrent apply calls on the same batch can't both claim
+  -- the same row — Postgres' row-level locking on the UPDATE makes the claim
+  -- itself atomic (cross-agent review catch: the original read-then-process-
+  -- then-write pattern had a TOCTOU race between concurrent requests).
   CONSTRAINT catalog_bulk_batch_items_status_check
-    CHECK (status IN ('pending', 'applied', 'failed'))
+    CHECK (status IN ('pending', 'applying', 'applied', 'failed'))
 );
 
 CREATE INDEX idx_catalog_bulk_batch_items_batch ON catalog_bulk_batch_items(batch_id);
@@ -73,3 +79,19 @@ CREATE TABLE catalog_bulk_audit_log (
 
 CREATE INDEX idx_catalog_bulk_audit_batch ON catalog_bulk_audit_log(batch_id);
 CREATE INDEX idx_catalog_bulk_audit_created ON catalog_bulk_audit_log(created_at DESC);
+
+-- ── RLS: ON, no policies ─────────────────────────────────────────────────────
+-- Same pattern as platform_flags/platform_copy_overrides (the newest
+-- precedent in this migration history, not the older supply_batches/
+-- admin_audit_log tables these were otherwise modeled on) — this Supabase
+-- project is SHARED across despachobonsai tenants, and these rows carry
+-- seller-scoped product ids + before/after commerce values + mutation
+-- intent. RLS ON with zero policies means the anon key gets zero rows from
+-- any of these tables regardless of query; only the service-role client
+-- (both apps' server-side `db`) can read/write. Ownership itself is still
+-- enforced at the application layer (getBulkBatch's seller_id check) — this
+-- is defense in depth on the shared-project boundary, not a replacement for
+-- it (cross-agent review catch).
+ALTER TABLE catalog_bulk_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE catalog_bulk_batch_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE catalog_bulk_audit_log ENABLE ROW LEVEL SECURITY;
