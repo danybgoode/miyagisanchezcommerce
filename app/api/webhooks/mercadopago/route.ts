@@ -27,6 +27,10 @@ import { markListingPurchased } from '@/lib/offer-state'
 import { deliverOrderWebhook } from '@/lib/ucp/webhooks'
 import { tg } from '@/lib/telegram'
 import { upsertOrderMirror } from '@/lib/order-mirror'
+import { dispatchToBuyer } from '@/lib/notifications/dispatch'
+import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
+import { isEnabled } from '@/lib/flags'
+import { resolveBuyerClerkId } from '@/lib/order-buyer'
 import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { handlePrintAdPaid } from '@/lib/print-server'
 import { maybeRewardReferralOnOrder } from '@/lib/referrals'
@@ -38,8 +42,16 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 const MEDUSA_INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
-/** Patch the MP payment session with the real payment ID, then complete the Medusa cart. Returns order ID. */
-async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[] } | null> {
+/**
+ * Patch the MP payment session with the real payment ID, then complete the Medusa
+ * cart. Returns the order ID.
+ *
+ * `fields=%2Bcustomer.metadata` ADDS the customer relation's metadata to Medusa's
+ * default field set instead of replacing it (`+` prefix; percent-encoded because a
+ * literal `+` in a query string decodes as a space) — buyer notifications money-path
+ * Sprint 2: threads `customer.metadata.clerk_user_id` through for pref-gated dispatch.
+ */
+async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Promise<{ orderId: string | null; metadata: Record<string, unknown>; personalization: PersonalizationBlock[]; buyerClerkId: string | null } | null> {
   try {
     // Step 1: authorize the session with the real MP payment ID
     const authRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/mp-authorize`, {
@@ -57,7 +69,7 @@ async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Pr
     }
 
     // Step 2: complete the cart (authorizePayment will see status: approved now)
-    const completeRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+    const completeRes = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete?fields=%2Bcustomer.metadata`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,18 +85,22 @@ async function completeMedusaCartWithMp(cartId: string, mpPaymentId: string): Pr
     const orderId = data?.order?.id ?? null
     const metadata = (data?.order?.metadata ?? {}) as Record<string, unknown>
     const personalization = personalizationFromOrderItems(data?.order?.items)
+    const buyerClerkId = (data?.order?.customer?.metadata?.clerk_user_id as string | undefined) ?? null
     console.log('[mp webhook] Medusa cart completed:', cartId, '→ order:', orderId)
-    return { orderId, metadata, personalization }
+    return { orderId, metadata, personalization, buyerClerkId }
   } catch (e) {
     console.error('[mp webhook] completeMedusaCartWithMp error:', cartId, e)
     return null
   }
 }
 
-/** Complete a Medusa cart (session already authorized by the backend mp-ipn). */
-async function completeMedusaCart(cartId: string): Promise<string | null> {
+/**
+ * Complete a Medusa cart (session already authorized by the backend mp-ipn).
+ * Same `+customer.metadata` field-append as `completeMedusaCartWithMp` above.
+ */
+async function completeMedusaCart(cartId: string): Promise<{ orderId: string | null; buyerClerkId: string | null } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete`, {
+    const res = await fetch(`${MEDUSA_BASE}/store/carts/${cartId}/complete?fields=%2Bcustomer.metadata`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': MEDUSA_PUB_KEY },
     })
@@ -93,7 +109,9 @@ async function completeMedusaCart(cartId: string): Promise<string | null> {
       return null
     }
     const data = await res.json().catch(() => ({}))
-    return data?.order?.id ?? null
+    const orderId = data?.order?.id ?? null
+    const buyerClerkId = (data?.order?.customer?.metadata?.clerk_user_id as string | undefined) ?? null
+    return { orderId, buyerClerkId }
   } catch (e) {
     console.error('[mp webhook] complete error:', cartId, e)
     return null
@@ -147,8 +165,13 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
   const offerId = (meta.offer_id as string | undefined) ?? null
   const shippingAmountCents = Number(meta.shipping_amount_cents ?? 0) || 0
 
-  const medusaOrderId = await completeMedusaCart(cartId)
+  const completed = await completeMedusaCart(cartId)
+  const medusaOrderId = completed?.orderId ?? null
   if (!medusaOrderId) return
+  // Buyer notifications money-path (epic 05, S2) — flag-gated, null-safe; flag off
+  // ⇒ null, reproducing today's mirror row exactly.
+  const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+  const buyerClerkId = resolveBuyerClerkId(completed?.buyerClerkId ?? null, buyerMoneypathEnabled)
   const eventTickets = await issuePaidTicketsForOrder(medusaOrderId)
 
   // Print-ad placement? Mark paid, send print emails, skip the generic order flow.
@@ -171,6 +194,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     currency,
     buyerEmail,
     buyerName,
+    buyerClerkId,
     fulfillmentMethod: (meta.fulfillment_method as string) ?? null,
     pickupSpotId: (meta.pickup_spot_id as string) ?? null,
     shippingAmountCents,
@@ -221,6 +245,18 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
         shopName: listingInfo.seller_name, isDigital: false,
         eventTickets,
       }).catch(e => console.error('[mp email] marketplace buyer:', e))
+
+      // ── Compras (Push/Telegram) — additive only; the email above is untouched ──
+      const buyerMsg = buildBuyerMessage('order_confirmed', {
+        listingTitle: listingInfo.title,
+        url: listingUrl,
+        amountPaid: amountFormatted,
+      })
+      void dispatchToBuyer(
+        { clerkUserId: buyerClerkId, email: be },
+        { group: 'buyer.compras', push: buyerMsg.push, telegram: buyerMsg.telegram },
+      )
+
       if (listingInfo.seller_clerk_id) {
         getSellerEmail(listingInfo.seller_clerk_id).then(sellerEmail => {
           if (sellerEmail) return sendSaleCompletedToSeller({
@@ -493,6 +529,10 @@ async function handleMedusaMpPayment({
   const completed = await completeMedusaCartWithMp(cartId, paymentId)
   const medusaOrderId = completed?.orderId ?? null
   const orderMeta = completed?.metadata ?? {}
+  // Buyer notifications money-path (epic 05, S2) — flag-gated, null-safe; flag off
+  // ⇒ null, reproducing today's mirror row exactly.
+  const buyerMoneypathEnabled = await isEnabled('notifications.buyer_moneypath_enabled')
+  const buyerClerkId = resolveBuyerClerkId(completed?.buyerClerkId ?? null, buyerMoneypathEnabled)
   const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
   const isSupportPayment = supportMeta?.kind === 'support'
   let eventTickets: Awaited<ReturnType<typeof issuePaidTicketsForOrder>> = []
@@ -510,6 +550,7 @@ async function handleMedusaMpPayment({
       currency,
       buyerEmail,
       buyerName,
+      buyerClerkId,
       fulfillmentMethod: fulfillmentMethod ?? null,
       pickupSpotId: pickupSpotId ?? null,
       shippingAmountCents: shippingAmountCents ?? 0,
@@ -616,6 +657,17 @@ async function handleMedusaMpPayment({
           storeDomain,
         }).catch(e => console.error('[mp email] medusa buyer:', e))
       }
+
+      // ── Compras (Push/Telegram) — additive only; the email above is untouched ──
+      const buyerMsg = buildBuyerMessage('order_confirmed', {
+        listingTitle: listingInfo.title,
+        url: orderUrl2,
+        amountPaid: amountFormatted,
+      })
+      void dispatchToBuyer(
+        { clerkUserId: buyerClerkId, email: buyerEmail },
+        { group: 'buyer.compras', push: buyerMsg.push, telegram: buyerMsg.telegram },
+      )
 
       // ── Seller email ──────────────────────────────────────────────────────
       if (listingInfo.seller_clerk_id) {

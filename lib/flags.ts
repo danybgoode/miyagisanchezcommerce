@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'catalog.inventory_channels_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -168,6 +168,13 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    guest fall-through (email-only) that ran before this epic. A flag outage
  *    keeps the new gating live (the deliberate act is disabling it), consistent
  *    with every other kill-switch here.
+ *  - KILL-SWITCH (`content.overrides_enabled`): default `true` (epic
+ *    admin-content-and-announcements, Sprint 1). Gates the runtime copy-override
+ *    merge seam (`lib/copy-overrides.ts`) layered onto `getDictionary()`, plus the
+ *    Sprint 3 announcement banners. Flag OFF ⇒ every surface renders pure
+ *    compile-time `locales/*.json` copy and no banners — the deliberate rollback
+ *    if an override or announcement ever needs pulling instantly. A flag outage
+ *    keeps overrides live (matching every other kill-switch's fail-open posture).
  *  - ENABLEMENT (`catalog.inventory_channels_enabled`): default `false`
  *    (catalog-management epic, Sprint 2). Mirrors the backend key of the same
  *    name — gates the sin-límite/sobre-pedido inventory-mode selector UI, the
@@ -204,6 +211,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'ops.profit_enabled': false,
   'launchpad.enabled': false,
   'notifications.buyer_moneypath_enabled': true,
+  'content.overrides_enabled': true,
   'catalog.inventory_channels_enabled': false,
 }
 

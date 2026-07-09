@@ -39,6 +39,8 @@ export interface OrderMirrorInput {
   currency: string
   buyerEmail: string | null
   buyerName: string | null
+  /** Buyer's Clerk id (flag-gated, null-safe) — buyer notifications money-path S2. */
+  buyerClerkId?: string | null
   fulfillmentMethod?: string | null
   pickupSpotId?: string | null
   shippingAmountCents?: number
@@ -79,6 +81,7 @@ export async function upsertOrderMirror(input: OrderMirrorInput): Promise<OrderM
     ...(input.mpPaymentId ? { mp_payment_id: input.mpPaymentId } : {}),
     buyer_email: input.buyerEmail,
     buyer_name: input.buyerName,
+    buyer_clerk_user_id: input.buyerClerkId ?? null,
     amount_cents: input.amountCents,
     currency: input.currency,
     status: 'paid',

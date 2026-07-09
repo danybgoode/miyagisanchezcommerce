@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { currentUser } from '@clerk/nextjs/server'
 import es from '@/locales/es.json'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { isEnabled } from '@/lib/flags'
 import { getPromoterByClerkId, getPromoterSettings, getCommissionRates, getPromoterSkuPrices } from '@/lib/promoter'
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function PromoterResourcesPage() {
-  const ui = (await getDictionary('es')).sellerAcquisition
+  const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const [enabled, user, commissionRates, promoterSettings, skuPrices] = await Promise.all([
     isEnabled('promoter.enabled'),
     currentUser(),

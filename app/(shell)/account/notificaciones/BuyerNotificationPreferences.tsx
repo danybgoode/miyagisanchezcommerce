@@ -19,13 +19,13 @@ import NotificationPreferencesGrid from '@/app/components/NotificationPreference
  * /api/account/notification-preferences. Renders the shared
  * NotificationPreferencesGrid (same component the seller panel uses). es-MX.
  *
- * Sprint 2 — Email + Push live; Telegram live once connected:
+ * Sprint 2 — every cell live except the forced receipt:
  *   • Compras × Email is locked "Siempre" (the receipt — forced-on in the resolver).
- *   • Envíos/Ofertas/Devoluciones × Email + Push toggle live and persist.
+ *   • Every other cell (including Compras × Push/Telegram) toggles live and persists
+ *     — Compras now dispatches through the seam from the Stripe/MP webhooks +
+ *     finalize-manual (Sprint 2.1/2.2).
  *   • Telegram toggles activate once the person links a chat (shared with the
  *     seller portal); the connect/test/disconnect block lives below the grid.
- *   • Compras × Push/Telegram stay inert ("pronto") — Compras events flow through
- *     the seam in Sprint 3 (they fire from the payment webhooks).
  */
 
 const CHANNEL_LABELS: Record<Channel, string> = {
@@ -34,12 +34,10 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   telegram: 'Telegram',
 }
 
-// Which cells are NOT yet togglable in Sprint 2:
-//   • Telegram for every group until the person links a chat.
-//   • Compras × Push and Compras × Telegram (Compras events arrive in Sprint 3).
-// (Compras × Email is locked separately as the forced receipt, via isBuyerForcedCell.)
-function lockedS2(group: string, channel: Channel, linked: boolean): boolean {
-  if (group === 'buyer.compras' && (channel === 'push' || channel === 'telegram')) return true
+// The only cell NOT yet togglable: Telegram for any group until the person links
+// a chat. (Compras × Email is locked separately as the forced receipt, via
+// isBuyerForcedCell — Compras × Push/Telegram are live like every other group.)
+function lockedS2(_group: string, channel: Channel, linked: boolean): boolean {
   if (channel === 'telegram') return !linked
   return false
 }
@@ -111,6 +109,7 @@ export default function BuyerNotificationPreferences() {
     try {
       const res = await fetch('/api/account/telegram/link', { method: 'DELETE' })
       if (!res.ok) throw new Error(String(res.status))
+      const d = await res.json().catch(() => ({ rowDeleted: true }))
       setLinked(false)
       // Locally clear Telegram toggles so the grid matches the (now inert) column.
       if (prefs) {
@@ -121,7 +120,11 @@ export default function BuyerNotificationPreferences() {
           ),
         )
       }
-      setTgMsg('Telegram desconectado para tus compras.')
+      setTgMsg(
+        d.rowDeleted
+          ? 'Telegram desconectado.'
+          : 'Telegram desconectado para tus compras. Tu Telegram de vendedor sigue conectado.',
+      )
     } catch {
       setTgMsg('No se pudo desconectar. Inténtalo de nuevo.')
     } finally {
@@ -188,13 +191,7 @@ export default function BuyerNotificationPreferences() {
                 : prefs[g as BuyerEventGroup][ch]
           }
           channelHint={ch => (ch === 'telegram' && !linked ? 'Conecta para activar' : null)}
-          cellNote={(g, ch) =>
-            isBuyerForcedCell(g as BuyerEventGroup, ch)
-              ? 'Siempre'
-              : g === 'buyer.compras' && (ch === 'push' || ch === 'telegram')
-                ? 'pronto'
-                : null
-          }
+          cellNote={(g, ch) => (isBuyerForcedCell(g as BuyerEventGroup, ch) ? 'Siempre' : null)}
         />
       ) : null}
 

@@ -96,6 +96,10 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // (epic 05 · buyer-notifications-money-path S1). Kill-switch: default ON ⇒ OFF
   // reverts to the guest fall-through (email-only) that ran before this epic.
   'notifications.buyer_moneypath_enabled': { polarity: 'killswitch', default: true },
+  // Runtime copy-override merge seam + Sprint 3 announcements (epic
+  // admin-content-and-announcements). Kill-switch: default ON ⇒ OFF reverts every
+  // surface to pure compile-time locales/*.json copy with no banners.
+  'content.overrides_enabled': { polarity: 'killswitch', default: true },
   // Inventory modes (sin límite / sobre pedido) + per-channel (Miyagi/ML) publish
   // toggles + ML price override (epic 03 · catalog-management S2). Enablement:
   // default OFF ⇒ today's exact behavior (tracked-only inventory, coupled ML
