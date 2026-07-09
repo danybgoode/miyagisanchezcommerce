@@ -59,7 +59,7 @@ export type AboutCopy = {
 
 export type AboutSection = {
   id: AboutSectionId
-  /** `true` for the founder + pricing placeholders that render as "próximamente". */
+  /** `true` only for the `founder` placeholder, which renders as "próximamente". */
   stub: boolean
   es: AboutCopy
   en: AboutCopy
