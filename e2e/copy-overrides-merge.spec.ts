@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { getAtPath, setAtPath, flattenNamespace, flattenDictionary } from '../lib/copy-tree'
 import { applyCopyOverrides, resolveOverriddenDictionary, type OverrideRow } from '../lib/copy-overrides-merge'
+import esDictionary from '../locales/es.json' with { type: 'json' }
 
 // Pure-seam coverage for the runtime copy-override reader (epic 08 ·
 // admin-content-and-announcements). No browser, no network — proves the
@@ -153,5 +154,26 @@ test.describe('resolveOverriddenDictionary · injectable-deps core (flag-OFF / n
       'es',
     )
     expect((result as typeof dict).sellerAcquisition.anchor.heroTitle).toBe('Editado en vivo')
+  })
+
+  // admin-content-and-announcements S2.2 — proves a `home.*` override renders, against the
+  // REAL compiled dictionary (not a synthetic fixture like `dict` above), so this fails loud
+  // if the `home` namespace is ever renamed/restructured without updating the homepage's
+  // `getOverriddenDictionary('es').home` read (app/(site)/page.tsx).
+  test('a home.* override applies against the real dictionary, unaffected namespaces untouched', async () => {
+    const result = await resolveOverriddenDictionary(
+      {
+        isEnabled: async () => true,
+        getOverrides: async () => [
+          { namespace: 'home', key: 'ribbon.body', locale: 'es', value: 'Promoción de temporada — envíos gratis.' },
+        ],
+        getDictionary: async () => esDictionary as never,
+      },
+      'es',
+    )
+    const home = (result as typeof esDictionary).home
+    expect(home.ribbon.body).toBe('Promoción de temporada — envíos gratis.')
+    expect(home.ribbon.cta).toBe(esDictionary.home.ribbon.cta) // sibling key unaffected
+    expect(home.selection.heading).toBe(esDictionary.home.selection.heading) // sibling section unaffected
   })
 })

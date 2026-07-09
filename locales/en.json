@@ -1153,5 +1153,120 @@
       "downloadTicketQr": "Download ticket QR",
       "viewEvent": "View event"
     }
+  },
+  "home": {
+    "ribbon": {
+      "body": "Buy and sell in Mexico — free, protected, and with offers.",
+      "cta": "How it works →"
+    },
+    "selection": {
+      "heading": "This week's picks",
+      "cta": "View all →"
+    },
+    "categories": {
+      "heading": "Categories"
+    },
+    "featured": {
+      "badge": "Featured"
+    },
+    "emptyState": {
+      "heading": "The marketplace is taking shape",
+      "body": "The first listings will appear here soon.",
+      "publishCta": "Publish the first one",
+      "secondaryCta": "Take a walk through the neighborhood"
+    },
+    "terminalCta": {
+      "heading": "Join the community",
+      "body": "Save favorites, make offers, and open your shop — no commissions.",
+      "primaryCta": "Create account",
+      "secondaryCta": "Keep exploring"
+    }
+  },
+  "acerca": {
+    "page": {
+      "eyebrow": "About",
+      "title": "What miyagisanchez.com is — and why sell here",
+      "lead": "An agent-native marketplace for Mexico. Don’t take our word for it — ask your own AI.",
+      "primaryCtaLabel": "Start free",
+      "secondaryCtaLabel": "For sellers",
+      "stubBadge": "Coming soon",
+      "langToggleLabel": "Español",
+      "metaTitle": "About miyagisanchez.com — what it is and why sell here",
+      "metaDescription": "What miyagisanchez.com is, why sell, how to start, and what it costs. An agent-native marketplace for Mexico. 0% commission."
+    },
+    "sections": {
+      "what_is": {
+        "heading": "What is miyagisanchez.com?",
+        "lead": "A marketplace for Mexico where anyone can sell — built so your own AI assistant can understand it, browse it, and set it up for you.",
+        "body": [
+          "miyagisanchez.com is a multi-seller, peer-to-peer (P2P) marketplace for Mexico. Any person or business opens a shop, lists what they sell, and reaches buyers across several channels, with no cost to start.",
+          "It is built on Medusa (the commerce engine) and is agent-native: it follows the open UCP and MCP standards, so an AI assistant can browse the catalog, negotiate, and buy without needing a browser."
+        ],
+        "points": [
+          { "title": "Multi-seller", "body": "Many independent shops on a single platform." },
+          { "title": "Built for Mexico", "body": "Local payments and methods: SPEI, cash, MercadoPago, and Stripe." },
+          { "title": "Agent-native", "body": "Your AI can read us and act on your behalf via UCP and MCP." }
+        ]
+      },
+      "why_sell": {
+        "heading": "Why sell here?",
+        "lead": "No commission, on every channel, with your own AI assistant doing the heavy lifting.",
+        "body": [
+          "Selling is free: we charge 0% commission per sale. You keep what you sell.",
+          "Your catalog lives once and appears in many places: the marketplace, your own branded domain, a widget you paste on any site, and an API/agent for programmatic purchases."
+        ],
+        "points": [
+          { "title": "0% commission", "body": "We don’t charge per sale. Listing and selling are free." },
+          { "title": "Multi-channel", "body": "Marketplace, own domain, embeddable widget, and API/agents — one catalog." },
+          { "title": "AI commerce", "body": "Buyers and agents can browse and negotiate offers natively." },
+          { "title": "Express migration", "body": "Import your catalog from a file, pasted text, or JSON; the AI structures it for you." }
+        ]
+      },
+      "how_to_start": {
+        "heading": "How to start",
+        "lead": "From zero to a stocked shop in minutes — and your agent can do almost all of it.",
+        "body": [
+          "Create your account (about 20 seconds with Google) and enter onboarding. Import your catalog by uploading a file, pasting text, or loading a JSON: the AI parses it and creates your products.",
+          "Have an AI assistant? Ask it to read miyagisanchez.com and prepare your shop: the brand dressing and products ready to import. You review and publish."
+        ],
+        "points": [
+          { "title": "1. Sign up", "body": "About 20 seconds with Google." },
+          { "title": "2. Import", "body": "File, pasted text, or JSON → the AI structures your catalog." },
+          { "title": "3. Publish", "body": "Review, tweak, and open your shop." }
+        ]
+      },
+      "cost_transparency": {
+        "heading": "How (and why) we keep costs low",
+        "lead": "You and your agent do the creative work; we run thin rails.",
+        "body": [
+          "Sellers’ AI assistants do much of the work: cataloging, copywriting, pricing, and maintaining the shop. We provide the rails.",
+          "We build on Medusa primitives and reuse before rebuilding, with agent surfaces (UCP/MCP) instead of bespoke tooling. That keeps our infrastructure cost low — and that is why selling can be free."
+        ]
+      },
+      "pricing": {
+        "heading": "Pricing",
+        "lead": "Selling is free (0% commission). The optional premium services are a custom subdomain and a custom domain.",
+        "body": [
+          "Your shop is always free: your URL at miyagisanchez.com/s/your-shop costs nothing and never expires, with 0% commission.",
+          "Custom subdomain: $199 MXN/year (~$17/mo) or $25 MXN/mo. Your shop as a standalone site at your-shop.miyagisanchez.com (no platform bar). The yearly plan is cheaper; the monthly one has no commitment. You can switch between monthly and yearly anytime with no double charge. It renews automatically; cancel anytime and your shop stays live and free at your URL miyagisanchez.com/s/your-shop.",
+          "Custom domain: $499 MXN/year (~$42/mo). Connect your own domain (yourshop.com) with SSL and our infrastructure, with no miyagisanchez.com in the URL. It renews yearly; you can cancel anytime and your shop stays live on your free URL."
+        ]
+      },
+      "founder": {
+        "heading": "Who is behind this",
+        "lead": "Coming soon.",
+        "body": [
+          "Coming soon: an anonymized founder profile (no personal data) that validates the experience behind the project, plus a personal note from the founder. It is not published yet — we don’t invent claims."
+        ]
+      },
+      "philosophy": {
+        "heading": "Philosophy",
+        "lead": "Bring ecommerce best practices to everyone — free, and at the highest level.",
+        "body": [
+          "We believe the AI assistant is the distribution channel and the onboarding engine. Instead of asking you to trust us, we tell you to ask your own Claude, Gemini, or ChatGPT about miyagisanchez.com: your agent reads us, explains it in your terms, and — if it makes sense — sets up your shop.",
+          "We provide the rails; you focus on the creative and the strategy. The mission is to democratize commerce best practices — trust, offer negotiation, and AI-native shopping — so anyone can sell at the quality of the giants, at no cost."
+        ]
+      }
+    }
   }
 }

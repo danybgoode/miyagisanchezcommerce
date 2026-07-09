@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { normalizeLocale } from '@/lib/dictionary'
-import { ABOUT_PAGE, ABOUT_SECTIONS, aboutCopy } from '@/lib/about-content'
+import { ABOUT_PAGE, aboutCopy } from '@/lib/about-content'
+import { getOverriddenAboutPage, getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { AboutPage } from './_components/AboutSections'
 import { getShop } from '@/lib/listings'
 import AcercaBody from '../_shop-content/AcercaBody'
@@ -49,10 +50,13 @@ export default async function AcercaPage({ searchParams }: AcercaPageProps) {
 
   const { lang } = await searchParams
   const locale = normalizeLocale(lang)
-  const page = ABOUT_PAGE[locale]
+  const [page, sections] = await Promise.all([
+    getOverriddenAboutPage(locale),
+    getOverriddenAboutSections(),
+  ])
 
   // JSON-LD Organization — grounded description from the what_is section (real text, agent-fetchable).
-  const whatIs = ABOUT_SECTIONS.find((s) => s.id === 'what_is')
+  const whatIs = sections.find((s) => s.id === 'what_is')
   const description = whatIs ? aboutCopy(whatIs, locale).body[0] : page.metaDescription
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -69,7 +73,7 @@ export default async function AcercaPage({ searchParams }: AcercaPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <AboutPage locale={locale} />
+      <AboutPage locale={locale} page={page} sections={sections} />
     </>
   )
 }

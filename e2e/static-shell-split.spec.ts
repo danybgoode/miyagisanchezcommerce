@@ -10,9 +10,8 @@ import { readFileSync } from 'node:fs'
  *     and a white-label `/embed/*` path still suppresses it.
  *
  * The static invariant is proved by source-introspection (the honest check — an HTTP
- * call can't see "this layout doesn't read headers"; in S1 the homepage page itself
- * still calls currentUser() so `/` is still dynamic until S2). Mirrors the file-read
- * pattern in marketplace-positioning.spec.ts.
+ * call can't see "this layout doesn't read headers"). Mirrors the file-read pattern in
+ * marketplace-positioning.spec.ts.
  */
 
 const SEARCH_MARKER = '¿Qué estás buscando?' // platform header search — absent on white-label
@@ -45,16 +44,24 @@ test.describe('static-shell split · static invariant', () => {
 
   // admin-content-and-announcements S1.1 — the copy-override reader is deliberately
   // ISR-safe (unstable_cache, see lib/copy-overrides.ts) SO THAT a future sprint can
-  // read it from this static chain without forcing `/` dynamic. Sprint 1 doesn't key
-  // the homepage at all (only /vende), so this is a regression tripwire: if a later
-  // change wires overrides into the homepage via the wrong (per-request) primitive,
-  // this fails loud instead of silently flipping `/` off `○`.
-  test('the static homepage chain does not import the copy-override reader', () => {
+  // read it from this static chain without forcing `/` dynamic. Sprint 2 (S2.2) is that
+  // future sprint: `app/(site)/page.tsx` now imports `getOverriddenDictionary` to key its
+  // editorial strings under `home.*` — via the sanctioned unstable_cache-backed primitive,
+  // NOT a per-request one, so this no longer needs to forbid the import outright. What
+  // still matters: the copy-override read must stay scoped to the PAGE (rendered only for
+  // `/`), never leak into the SHARED layout chain (rendered for every route under `(site)`)
+  // — that would be a much bigger blast-radius change than Sprint 2 intended. `next
+  // build`'s route table is the ground truth that `/` is still `○` (checked in
+  // sprint-2.md's smoke walkthrough); this spec keeps guarding the real header/auth
+  // culprits on the two shared layout files (page-level prose can't be regex-matched
+  // reliably, hence checking layouts only here — they carry no such comments).
+  test('the shared (site) layout chain still imports neither headers nor the copy-override reader', () => {
     const rootLayout = source('app/layout.tsx')
     const siteLayout = source('app/(site)/layout.tsx')
-    const sitePage = source('app/(site)/page.tsx')
 
-    for (const file of [rootLayout, siteLayout, sitePage]) {
+    for (const file of [rootLayout, siteLayout]) {
+      expect(file).not.toContain('next/headers')
+      expect(file).not.toMatch(/\bheaders\(/)
       expect(file).not.toContain('lib/copy-overrides')
     }
   })

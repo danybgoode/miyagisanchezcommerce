@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UCP_CAPABILITIES, MCP_TOOL_NAMES } from '@/lib/ucp/capabilities'
 import { aboutManifestBlock } from '@/lib/about-agent'
+import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   const host = req.headers.get('host') ?? 'miyagisanchez.com'
   const proto = host.includes('localhost') ? 'http' : 'https'
   const base = `${proto}://${host}`
+  const aboutSections = await getOverriddenAboutSections()
 
   return NextResponse.json(
     {
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
       // → lib/about-agent.ts); carries the relay-language directive so the reading
       // agent presents it in the user's own language. See the agent-readable about
       // surface epic (07).
-      about: aboutManifestBlock(base),
+      about: aboutManifestBlock(base, aboutSections),
 
       endpoints: {
         catalog: {

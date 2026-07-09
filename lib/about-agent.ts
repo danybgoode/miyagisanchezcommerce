@@ -13,15 +13,28 @@
  * ship N locales; the agent is the localization layer.
  *
  * Pure: no DB, no Medusa, no Supabase, no `next/*` imports — so the Playwright `api`
- * runner can unit-test every surface's payload directly.
+ * runner can unit-test every surface's payload directly. Every function below takes an
+ * OPTIONAL `sections` param, defaulting to the pure `ABOUT_SECTIONS` — that default is
+ * what keeps this module import-safe for the unit tests. Real route callers (Sprint 2 of
+ * admin-content-and-announcements) instead pass the admin-overridden sections from
+ * `lib/about-content-overrides.ts`'s `getOverriddenAboutSections()`, so an admin copy
+ * edit reaches every one of these surfaces too.
  */
 
 import {
   ABOUT_SECTIONS,
   ABOUT_CTA_HREF,
   ABOUT_SELLERS_HREF,
-  getAboutSection,
+  type AboutSection,
+  type AboutSectionId,
 } from './about-content'
+
+/** Same lookup as `about-content.ts`'s `getAboutSection`, but over a passed-in list. */
+function findSection(sections: readonly AboutSection[], id: AboutSectionId): AboutSection {
+  const section = sections.find((s) => s.id === id)
+  if (!section) throw new Error(`Unknown about section: ${id}`)
+  return section
+}
 
 /**
  * The canonical relay-language directive. Carried VERBATIM by every agent-facing
@@ -49,12 +62,12 @@ export function aboutAgentLinks(base: string) {
  * Full structured about content, both locales — the MCP resource payload. Carries
  * the relay directive so an MCP client answers in the user's language.
  */
-export function aboutStructured() {
+export function aboutStructured(sections: readonly AboutSection[] = ABOUT_SECTIONS) {
   return {
     relay_language: RELAY_LANGUAGE_DIRECTIVE,
     canonical_locale: 'es' as const,
     locales: ['es', 'en'] as const,
-    sections: ABOUT_SECTIONS.map((s) => ({
+    sections: sections.map((s) => ({
       id: s.id,
       stub: s.stub,
       es: s.es,
@@ -69,12 +82,12 @@ export function aboutStructured() {
  * relay directive. Kept compact so the manifest doesn't bloat; the full structured
  * story lives in the MCP resource and on `/acerca`.
  */
-export function aboutManifestBlock(base: string) {
-  const whatIs = getAboutSection('what_is')
-  const whySell = getAboutSection('why_sell')
-  const howToStart = getAboutSection('how_to_start')
-  const cost = getAboutSection('cost_transparency')
-  const pricing = getAboutSection('pricing')
+export function aboutManifestBlock(base: string, sections: readonly AboutSection[] = ABOUT_SECTIONS) {
+  const whatIs = findSection(sections, 'what_is')
+  const whySell = findSection(sections, 'why_sell')
+  const howToStart = findSection(sections, 'how_to_start')
+  const cost = findSection(sections, 'cost_transparency')
+  const pricing = findSection(sections, 'pricing')
 
   return {
     relay_language: RELAY_LANGUAGE_DIRECTIVE,
@@ -86,7 +99,7 @@ export function aboutManifestBlock(base: string) {
     how_to_start: (howToStart.en.points ?? []).map((p) => `${p.title} — ${p.body}`),
     cost_transparency: cost.en.body[0],
     pricing: pricing.en.lead ?? pricing.en.body[0],
-    sections: ABOUT_SECTIONS.map((s) => ({
+    sections: sections.map((s) => ({
       id: s.id,
       stub: s.stub,
       heading: { es: s.es.heading, en: s.en.heading },
@@ -96,8 +109,8 @@ export function aboutManifestBlock(base: string) {
 }
 
 /** The MCP `about_miyagi` resource descriptor + payload. */
-export function aboutMcpResource(base: string) {
-  const structured = { ...aboutStructured(), links: aboutAgentLinks(base) }
+export function aboutMcpResource(base: string, sections: readonly AboutSection[] = ABOUT_SECTIONS) {
+  const structured = { ...aboutStructured(sections), links: aboutAgentLinks(base) }
   return {
     uri: 'about://miyagi',
     name: 'about_miyagi',
@@ -117,13 +130,13 @@ export function aboutMcpResource(base: string) {
  * summary, curated links, and section blocks. English-primary with an es summary
  * block (we don't localize past es/en — the directive covers the rest).
  */
-export function aboutLlmsTxt(base: string): string {
+export function aboutLlmsTxt(base: string, sections: readonly AboutSection[] = ABOUT_SECTIONS): string {
   const links = aboutAgentLinks(base)
-  const whatIsEn = getAboutSection('what_is').en
-  const whySellEn = getAboutSection('why_sell').en
-  const howToStartEn = getAboutSection('how_to_start').en
-  const whatIsEs = getAboutSection('what_is').es
-  const whySellEs = getAboutSection('why_sell').es
+  const whatIsEn = findSection(sections, 'what_is').en
+  const whySellEn = findSection(sections, 'why_sell').en
+  const howToStartEn = findSection(sections, 'how_to_start').en
+  const whatIsEs = findSection(sections, 'what_is').es
+  const whySellEs = findSection(sections, 'why_sell').es
 
   const whyPoints = (whySellEn.points ?? []).map((p) => `- **${p.title}** — ${p.body}`).join('\n')
   const startPoints = (howToStartEn.points ?? []).map((p) => `- ${p.title} — ${p.body}`).join('\n')
