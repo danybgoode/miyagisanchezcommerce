@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import ucpUseCases from '@/ucp-use-cases.json'
 import { UCP_ENDPOINTS, MCP_BUYER_TOOLS, MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
-import { getAboutSection } from '@/lib/about-content'
 import { RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
+import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupPrompt, EXAMPLE_SETUP, SETUP_SPEC_VERSION, SETUP_LANGUAGE_DIRECTIVE } from '@/lib/setup-spec'
 
 export const metadata: Metadata = {
@@ -28,13 +28,16 @@ const PAYMENT_METHODS = [
   { label: 'Transferencia SPEI', note: 'transferencia bancaria directa (manual)' },
 ]
 
-// Supply-side "why sell" content, rendered from the single source (lib/about-content.ts)
-// so this section can never drift from /acerca, the manifest, /llms.txt, or the MCP resource.
-const WHY_SELL = getAboutSection('why_sell').es
-const HOW_TO_START = getAboutSection('how_to_start').es
-const COST = getAboutSection('cost_transparency').es
+export default async function AgentPage() {
+  // Supply-side "why sell" content, rendered from the admin-overridden single source
+  // (locales/*.json `acerca` namespace, via lib/about-content-overrides.ts) so this
+  // section can never drift from /acerca, the manifest, /llms.txt, or the MCP resource —
+  // and reflects any admin copy edit the same way those surfaces do.
+  const sections = await getOverriddenAboutSections()
+  const WHY_SELL = sections.find((s) => s.id === 'why_sell')!.es
+  const HOW_TO_START = sections.find((s) => s.id === 'how_to_start')!.es
+  const COST = sections.find((s) => s.id === 'cost_transparency')!.es
 
-export default function AgentPage() {
   return (
     <div
       className="app-shell"

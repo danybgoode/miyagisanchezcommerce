@@ -67,6 +67,7 @@ import { db } from '@/lib/supabase'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import { getNeighborhoodPulseAgentView } from '@/lib/neighborhood-pulse-agent'
 import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
+import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupSpec } from '@/lib/setup-spec'
 import type { Listing } from '@/lib/types'
 
@@ -2080,8 +2081,9 @@ async function handleSwitchSubdomainCadence(args: Record<string, unknown>, authH
 
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
-function handleAboutMiyagi(baseUrl: string) {
-  const resource = aboutMcpResource(baseUrl)
+async function handleAboutMiyagi(baseUrl: string) {
+  const sections = await getOverriddenAboutSections()
+  const resource = aboutMcpResource(baseUrl, sections)
   // Tool result: the structured story as a JSON text block. The directive is
   // embedded so the client answers in the user's own language.
   return { content: [{ type: 'text', text: resource.text }] }
@@ -2115,13 +2117,15 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
 
   // MCP resources — the about/why-sell story as a native resource.
   if (method === 'resources/list') {
-    const r = aboutMcpResource(baseUrl)
+    const sections = await getOverriddenAboutSections()
+    const r = aboutMcpResource(baseUrl, sections)
     return { resources: [{ uri: r.uri, name: r.name, title: r.title, description: r.description, mimeType: r.mimeType }] }
   }
 
   if (method === 'resources/read') {
     const uri = String((params?.uri as string | undefined) ?? '')
-    const r = aboutMcpResource(baseUrl)
+    const sections = await getOverriddenAboutSections()
+    const r = aboutMcpResource(baseUrl, sections)
     if (uri !== r.uri) return null // unknown resource → MethodNotFound-style miss
     return { contents: [{ uri: r.uri, mimeType: r.mimeType, text: r.text }] }
   }
@@ -2143,7 +2147,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'check_availability':   { const r = await handleCheckAvailability(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'book_appointment':     { const r = await handleBookAppointment(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_buyer_trust':      { const r = await handleGetBuyerTrust(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'about_miyagi':         return { content: handleAboutMiyagi(baseUrl).content }
+      case 'about_miyagi':         return { content: (await handleAboutMiyagi(baseUrl)).content }
       case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
       case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'patch_store_configuration': { const r = await handlePatchStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

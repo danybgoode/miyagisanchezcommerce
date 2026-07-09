@@ -8,11 +8,14 @@
  * hardcoded `'es'` locale and never expose the `en` copy to anyone.
  *
  * Today's genuinely bilingual namespaces (confirmed 2026-07-08 by reading every
- * `getDictionary()` call site): `terms` (`app/(shell)/terminos`, `?lang=en`) and
- * `sweepstakes` (the public sweepstakes flow, `app/g/[slug]`). `sellerAcquisition`
- * is es-only by deliberate code choice (the `/vende` family hardcodes `'es'`) even
- * though `en.json` carries unused translations for it. The embed widget's locale
- * toggle isn't dictionary-backed at all (no `embed` namespace exists).
+ * `getDictionary()` call site): `terms` (`app/(shell)/terminos`, `?lang=en`),
+ * `sweepstakes` (the public sweepstakes flow, `app/g/[slug]`), and `acerca` (the
+ * `/acerca` page's `?lang=en` toggle — Sprint 2 of admin-content-and-announcements
+ * migrated it here from its own standalone `lib/about-content.ts` data module; see
+ * `lib/about-content-overrides.ts`). `sellerAcquisition` is es-only by deliberate
+ * code choice (the `/vende` family hardcodes `'es'`) even though `en.json` carries
+ * unused translations for it. The embed widget's locale toggle isn't dictionary-backed
+ * at all (no `embed` namespace exists).
  *
  * The admin copy-override editor (`/admin/contenido`) shows an `en` field ONLY for
  * a namespace on this list; the write route rejects an `en`-locale override for
@@ -23,7 +26,7 @@
  * namespace here alongside actually wiring `getDictionary(locale)` at its call
  * site(s), never one without the other.
  */
-export const BILINGUAL_NAMESPACES = ['terms', 'sweepstakes'] as const
+export const BILINGUAL_NAMESPACES = ['terms', 'sweepstakes', 'acerca'] as const
 
 export type BilingualNamespace = typeof BILINGUAL_NAMESPACES[number]
 

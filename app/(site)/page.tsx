@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import {
   getFeaturedListing,
   getCuratedListings,
@@ -54,12 +55,14 @@ export default async function HomePage() {
   // now prerendered at BUILD time, a thrown Medusa/Supabase fetch (e.g. a transient
   // backend hiccup during the Vercel build) would otherwise fail the whole deploy. Here
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
-  const [featured, grid, categories, pulse] = await Promise.all([
+  const [featured, grid, categories, pulse, dict] = await Promise.all([
     getFeaturedListing(now).catch(() => null),
     getCuratedListings(now).catch(() => []),
     getCategoryCounts().catch(() => []),
     getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
+    getOverriddenDictionary('es'),
   ])
+  const home = dict.home
 
   const seleccion: Listing[] = [...(featured ? [featured] : []), ...grid]
 
@@ -84,10 +87,10 @@ export default async function HomePage() {
       >
         <i className="iconoir-shield-check" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
         <span style={{ fontSize: 13, color: 'var(--fg)' }}>
-          Compra y vende en México — gratis, protegido y con ofertas.
+          {home.ribbon.body}
         </span>
         <Link href="/acerca" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          Cómo funciona →
+          {home.ribbon.cta}
         </Link>
       </div>
 
@@ -201,10 +204,10 @@ export default async function HomePage() {
           <section className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
-                Selección de la semana
+                {home.selection.heading}
               </h2>
               <Link href="/l" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
-                Ver todo →
+                {home.selection.cta}
               </Link>
             </div>
 
@@ -229,7 +232,7 @@ export default async function HomePage() {
                       className="badge"
                       style={{ position: 'absolute', top: 10, left: 10, fontSize: 11, fontWeight: 600, background: 'var(--accent)', color: 'var(--fg-inverse)' }}
                     >
-                      Destacado
+                      {home.featured.badge}
                     </span>
                   </div>
                   <div className="p-3">
@@ -306,11 +309,11 @@ export default async function HomePage() {
         </FavoritesProvider>
       )}
 
-      {/* Categorías con vida — only categories with ≥1 active listing, with live counts */}
+      {/* Categorías — only categories with ≥1 active listing, with live counts */}
       {categories.length > 0 && (
         <section className="mb-8">
           <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 16 }}>
-            Categorías
+            {home.categories.heading}
           </h2>
           <div className="card-panel">
             {categories.map((cat, i) => (
@@ -339,19 +342,19 @@ export default async function HomePage() {
       {seleccion.length === 0 && categories.length === 0 && (
         <div className="text-center py-16" style={{ color: 'var(--fg-muted)' }}>
           <i className="iconoir-shop" style={{ fontSize: 48, color: 'var(--fg-subtle)', display: 'block', marginBottom: 12 }} />
-          <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>El marketplace está tomando forma</p>
-          <p style={{ fontSize: 14, marginBottom: 16 }}>Las primeras publicaciones aparecerán aquí pronto.</p>
+          <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>{home.emptyState.heading}</p>
+          <p style={{ fontSize: 14, marginBottom: 16 }}>{home.emptyState.body}</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* Recruit CTA is auth-aware: signed-out → /vende pitch (prerenders into the
                 static HTML), signed-in → /sell publish wizard. Both via the client AuthShow,
                 so no headers() and / stays static. (Empty-state path — marketplace non-empty today.) */}
             <AuthShow when="signed-out">
-              <Link href="/vende" className="btn btn-primary btn-sm">Publica lo primero</Link>
+              <Link href="/vende" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
             </AuthShow>
             <AuthShow when="signed-in">
-              <Link href="/sell" className="btn btn-primary btn-sm">Publica lo primero</Link>
+              <Link href="/sell" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
             </AuthShow>
-            <Link href="/vecindario" className="btn btn-secondary btn-sm">Pasea por el vecindario</Link>
+            <Link href="/vecindario" className="btn btn-secondary btn-sm">{home.emptyState.secondaryCta}</Link>
           </div>
         </div>
       )}
@@ -376,14 +379,14 @@ export default async function HomePage() {
             }}
           >
             <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 4 }}>
-              Únete a la comunidad
+              {home.terminalCta.heading}
             </p>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
-              Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.
+              {home.terminalCta.body}
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Link href="/sign-up" data-testid="home-unete-signup" className="btn btn-primary">Crear cuenta</Link>
-              <Link href="/l" className="btn btn-secondary">Seguir explorando</Link>
+              <Link href="/sign-up" data-testid="home-unete-signup" className="btn btn-primary">{home.terminalCta.primaryCta}</Link>
+              <Link href="/l" className="btn btn-secondary">{home.terminalCta.secondaryCta}</Link>
             </div>
           </section>
         </AuthShow>

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { aboutLlmsTxt } from '@/lib/about-agent'
+import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 
 /**
  * GET /llms.txt — the llms.txt convention for LLM-powered assistants
@@ -16,8 +17,9 @@ export async function GET(req: NextRequest) {
   const host = req.headers.get('host') ?? 'miyagisanchez.com'
   const proto = host.includes('localhost') ? 'http' : 'https'
   const base = `${proto}://${host}`
+  const aboutSections = await getOverriddenAboutSections()
 
-  return new Response(aboutLlmsTxt(base), {
+  return new Response(aboutLlmsTxt(base, aboutSections), {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, s-maxage=3600',
