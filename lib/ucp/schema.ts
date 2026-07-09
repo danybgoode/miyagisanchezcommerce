@@ -20,6 +20,7 @@ import { financingDisplay, warrantyDisplay, inspectionDisplay } from '@/lib/auto
 import { shortCollectionSlug } from '@/lib/collection-derive'
 import { hasExcerpt } from '@/lib/excerpt'
 import type { PriceGrid } from '@/lib/price-grid'
+import { deriveInventoryMode } from '@/lib/inventory-mode'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,12 @@ export interface UcpListing {
   // Stock — true unless a Medusa-managed item has sold out (null = unlimited)
   in_stock: boolean
   available_quantity: number | null
+  /**
+   * Inventory mode (catalog-management epic, Sprint 2 · Story 2.1) — an agent
+   * reads 'backorder' the same honest signal a human buyer sees on the PDP
+   * ("sobre pedido"), rather than a plain in_stock:false.
+   */
+  inventory_mode: 'tracked' | 'unlimited' | 'backorder'
 
   // Event admission metadata, present when the listing carries event attrs.
   event: ListingEventDetails | null
@@ -209,6 +216,9 @@ export function toUcpListing(
   listing: Listing,
   baseUrl = 'https://miyagisanchez.com',
   priceGrid: PriceGrid | null = null,
+  // Fail-closed default (matches DEFAULT_FLAGS['catalog.inventory_channels_enabled'])
+  // for any caller that hasn't been threaded to pass the real flag value yet.
+  inventoryChannelsEnabled = false,
 ): UcpListing {
   const shop = listing.shop
   const publicListingId = listing.medusa_product_id ?? listing.id
@@ -226,8 +236,15 @@ export function toUcpListing(
     ?.escrow_mode as 'off' | 'optional' | 'required' | undefined ?? 'off'
 
   // ── Stock ─────────────────────────────────────────────────────────────────
-  // Sold out only when Medusa Inventory tracks the item and stock hit 0.
-  const inStock = listing.in_stock !== false
+  // Sold out only when Medusa Inventory tracks the item and stock hit 0 — a
+  // backorder ("sobre pedido") listing never blocks (mirrors the PDP's
+  // deriveBuyBoxBehavior). Flag-gated the same way as the PDP: OFF forces
+  // allow_backorder false, so this reduces to today's exact behavior.
+  const inventoryMode = deriveInventoryMode({
+    manage_inventory: !!listing.manage_inventory,
+    allow_backorder: inventoryChannelsEnabled ? !!listing.allow_backorder : false,
+  })
+  const inStock = inventoryMode === 'backorder' ? true : listing.in_stock !== false
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const hasPrice = listing.price_cents != null && listing.price_cents > 0
@@ -296,7 +313,9 @@ export function toUcpListing(
       '@type': 'Offer',
       price: (listing.price_cents! / 100).toFixed(2),
       priceCurrency: listing.currency ?? 'MXN',
-      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      availability: inventoryMode === 'backorder'
+        ? 'https://schema.org/BackOrder'
+        : inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       seller: shop ? { '@type': 'Organization', name: shop.name } : undefined,
     } : undefined,
     itemCondition: listing.condition ? `https://schema.org/${
@@ -332,6 +351,7 @@ export function toUcpListing(
 
     in_stock: inStock,
     available_quantity: listing.available_quantity ?? null,
+    inventory_mode: inventoryMode,
     event,
     rental,
     auto_trust: autoTrust,

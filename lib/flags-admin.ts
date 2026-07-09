@@ -100,6 +100,14 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // admin-content-and-announcements). Kill-switch: default ON ⇒ OFF reverts every
   // surface to pure compile-time locales/*.json copy with no banners.
   'content.overrides_enabled': { polarity: 'killswitch', default: true },
+  // Inventory modes (sin límite / sobre pedido) + per-channel (Miyagi/ML) publish
+  // toggles + ML price override (epic 03 · catalog-management S2). Enablement:
+  // default OFF ⇒ today's exact behavior (tracked-only inventory, coupled ML
+  // publish state, no price override) — real enforcement lives in the BACKEND
+  // (write routes + the /store/listings marketplace-browse filter). Flip ON
+  // after Daniel's money-path smoke (buy a sin-límite + a sobre-pedido product
+  // end-to-end) and an ML toggle round-trip on a real ML test listing.
+  'catalog.inventory_channels_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

@@ -12,6 +12,8 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { parsePesosToCents, parseCostPesosToCents } from '@/lib/opciones'
 import type { PriceGrid } from '@/lib/price-grid'
 import { EXCERPT_MAX_CHARS } from '@/lib/excerpt'
+import { deriveInventoryMode, type InventoryMode } from '@/lib/inventory-mode'
+import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 
 interface ShortlinkInfo {
   shopSlug: string
@@ -31,6 +33,12 @@ interface EditableFields {
   attrs: Record<string, unknown>
   custom_fields?: unknown
   available_quantity: number | null
+  /** Whether the variant tracks finite stock — catalog-management S2 · 2.1. */
+  manage_inventory?: boolean
+  /** Native Medusa "sobre pedido" flag — catalog-management S2 · 2.1. */
+  allow_backorder?: boolean
+  /** Seller's estimated dispatch note for a backorder listing — catalog-management S2 · 2.1. */
+  dispatch_estimate?: string | null
   images: Array<{ url: string; alt?: string }>
   state?: string
   municipio?: string
@@ -45,8 +53,10 @@ export default function EditForm({
   isActive = false,
   knownMultiVariant = false,
   variantCosts = {},
+  variantMlPrices = {},
   launchpadEnabled = false,
   initialExcerpt = '',
+  inventoryChannelsEnabled = false,
 }: {
   id: string
   initial: EditableFields
@@ -68,6 +78,12 @@ export default function EditForm({
    */
   variantCosts?: Record<string, number | null>
   /**
+   * Optional Mercado Libre-specific price override, in centavos, keyed by
+   * variant id — same seller-scoped GET/seller-private discipline as
+   * `variantCosts` (catalog-management epic, Sprint 2 · Story 2.3).
+   */
+  variantMlPrices?: Record<string, number | null>
+  /**
    * Bookshop launchpad S2.1 — true only for a digital listing while
    * `launchpad.enabled` is ON (the page pre-ANDs the type + flag). Shows the
    * "Lee un adelanto" excerpt editor; the PDP viewer renders on presence.
@@ -75,6 +91,12 @@ export default function EditForm({
   launchpadEnabled?: boolean
   /** The stored excerpt text (from the Medusa product metadata), '' when none. */
   initialExcerpt?: string
+  /**
+   * catalog.inventory_channels_enabled (catalog-management epic, Sprint 2 ·
+   * Story 2.1) — fail-safe OFF: while OFF, only today's flat "Cantidad
+   * disponible" input renders (no mode a buy box won't honor).
+   */
+  inventoryChannelsEnabled?: boolean
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -85,6 +107,13 @@ export default function EditForm({
   const [quantityRaw, setQuantityRaw] = useState(
     initial.available_quantity != null ? String(initial.available_quantity) : '',
   )
+  // Inventory mode (catalog-management epic, Sprint 2 · Story 2.1).
+  const initialInventoryMode = deriveInventoryMode({
+    manage_inventory: initial.manage_inventory ?? true,
+    allow_backorder: initial.allow_backorder ?? false,
+  })
+  const [inventoryMode, setInventoryMode] = useState<InventoryMode>(initialInventoryMode)
+  const [dispatchEstimate, setDispatchEstimate] = useState(initial.dispatch_estimate ?? '')
   // Unit cost (COGS) — flat input for single-variant listings only; the map
   // holds exactly one entry there (multi-variant costs live in Opciones).
   const initialCostCents = (() => {
@@ -93,6 +122,15 @@ export default function EditForm({
   })()
   const [costRaw, setCostRaw] = useState(
     initialCostCents != null ? String(initialCostCents / 100) : '',
+  )
+  // ML price override (catalog-management S2 · 2.3) — same single-variant-
+  // only resolution as unit cost above.
+  const initialMlPriceCents = (() => {
+    const vals = Object.values(variantMlPrices ?? {})
+    return vals.length === 1 ? vals[0] : null
+  })()
+  const [mlPriceRaw, setMlPriceRaw] = useState(
+    initialMlPriceCents != null ? String(initialMlPriceCents / 100) : '',
   )
   const [attrs, setAttrs] = useState<Attrs>(
     Object.fromEntries(
@@ -158,6 +196,10 @@ export default function EditForm({
       && parseCostPesosToCents(costRaw) === null) {
       errs.unit_cost = 'El costo unitario debe ser de $0 o más.'
     }
+    if (inventoryChannelsEnabled && !isSubscription && !isMultiVariant && mlPriceRaw.trim() !== ''
+      && parseCostPesosToCents(mlPriceRaw) === null) {
+      errs.ml_price = 'El precio de Mercado Libre debe ser de $0 o más.'
+    }
     if (shortStatus === 'taken' || shortStatus === 'invalid') {
       errs.short_slug = 'Corrige el enlace corto antes de guardar.'
     }
@@ -189,12 +231,33 @@ export default function EditForm({
         const nextQuantity = Math.max(0, parseInt(quantityRaw) || 0)
         if (nextQuantity !== (initial.available_quantity ?? null)) body.quantity = nextQuantity
       }
+      // Inventory mode + dispatch estimate — catalog-management S2 · 2.1.
+      // Flag-gated at the selector UI level (only 'tracked' is offered while
+      // OFF), but dirty-check by value regardless so a no-op save never sends
+      // a field the backend would otherwise have to interpret.
+      if (isProduct && !hideFlatQuantity && inventoryChannelsEnabled && inventoryMode !== initialInventoryMode) {
+        body.inventory_mode = inventoryMode
+      }
+      if (isProduct && !hideFlatQuantity && inventoryChannelsEnabled) {
+        const nextDispatchEstimate = inventoryMode === 'backorder' && dispatchEstimate.trim() !== ''
+          ? dispatchEstimate.trim()
+          : null
+        if (nextDispatchEstimate !== (initial.dispatch_estimate ?? null)) {
+          body.dispatch_estimate = nextDispatchEstimate
+        }
+      }
       // Unit cost (COGS) — dirty-checked by parsed value, same discipline as
       // price/quantity; empty clears (null). Multi-variant costs save per
       // combination in the Opciones section, never through this PUT.
       if (!isSubscription && !isMultiVariant) {
         const nextCostCents = costRaw.trim() !== '' ? parseCostPesosToCents(costRaw) : null
         if (nextCostCents !== initialCostCents) body.unit_cost_cents = nextCostCents
+      }
+      // ML price override (catalog-management S2 · 2.3) — same dirty-check
+      // discipline; empty clears (null). Single-variant only.
+      if (inventoryChannelsEnabled && !isSubscription && !isMultiVariant) {
+        const nextMlPriceCents = mlPriceRaw.trim() !== '' ? parseCostPesosToCents(mlPriceRaw) : null
+        if (nextMlPriceCents !== initialMlPriceCents) body.ml_price_cents = nextMlPriceCents
       }
       // Excerpt (S2.1) — only sent when the field is available (digital + flag)
       // AND changed; the route normalizes + clears on empty. Sending the raw
@@ -428,28 +491,120 @@ export default function EditForm({
         </div>
       )}
 
-      {/* Quantity / restock — hidden for multi-variant listings (per-combination stock) */}
-      {isProduct && !hideFlatQuantity && (
+      {/* ML price override — single-variant only, catalog-management S2 · 2.3 */}
+      {inventoryChannelsEnabled && !isSubscription && !isMultiVariant && (
         <div>
           <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-            Cantidad disponible
+            Precio en Mercado Libre ({initial.currency}) <span className="text-[var(--color-muted)] font-normal">— opcional</span>
           </label>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            inputMode="numeric"
-            value={quantityRaw}
-            onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
-            placeholder="0"
-            className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
-              fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
-            }`}
-          />
-          {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] text-sm">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={mlPriceRaw}
+              onChange={e => setMlPriceRaw(e.target.value)}
+              placeholder="Igual que el precio en Miyagi"
+              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                fieldErrors.ml_price ? 'border-red-400' : 'border-[var(--color-border)]'
+              }`}
+            />
+          </div>
+          {fieldErrors.ml_price && <p className="text-red-600 text-xs mt-1">{fieldErrors.ml_price}</p>}
           <p className="text-xs text-[var(--color-muted)] mt-1">
-            Pon 0 para marcar como agotado. No afecta pedidos en curso.
+            Precio distinto solo para Mercado Libre — así sus comisiones no suben tu precio en Miyagi.
+            Déjalo vacío para usar el mismo precio en ambos.
           </p>
+        </div>
+      )}
+
+      {/* Inventory mode + quantity/restock — hidden for multi-variant listings (per-combination stock) */}
+      {isProduct && !hideFlatQuantity && (
+        <div>
+          {inventoryChannelsEnabled && (
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Modo de inventario
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {([
+                  { value: 'tracked', label: 'Rastreado' },
+                  { value: 'unlimited', label: 'Sin límite' },
+                  { value: 'backorder', label: 'Sobre pedido' },
+                ] as { value: InventoryMode; label: string }[]).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setInventoryMode(opt.value)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                      inventoryMode === opt.value
+                        ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Falls back to the flat quantity input whenever the flag is OFF, even for a
+              listing whose stored mode is 'unlimited'/'backorder' (e.g. set while the
+              flag was ON, then flipped off) — otherwise the whole quantity section goes
+              blank with no way to act (cross-agent review catch). Saving a quantity here
+              already re-enables manage_inventory via the existing quantity-write block
+              below, giving the seller a real path back to tracked mode. */}
+          {(inventoryMode === 'tracked' || !inventoryChannelsEnabled) && (
+            <>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Cantidad disponible
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={quantityRaw}
+                onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="0"
+                className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                  fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
+                }`}
+              />
+              {fieldErrors.quantity && <p className="text-red-600 text-xs mt-1">{fieldErrors.quantity}</p>}
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                Pon 0 para marcar como agotado. No afecta pedidos en curso.
+              </p>
+            </>
+          )}
+
+          {inventoryChannelsEnabled && inventoryMode === 'unlimited' && (
+            <p className="text-xs text-[var(--color-muted)]">
+              Este producto nunca se marca como agotado — no se rastrea cantidad.
+            </p>
+          )}
+
+          {inventoryChannelsEnabled && inventoryMode === 'backorder' && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Envío estimado
+              </label>
+              <select
+                value={dispatchEstimate}
+                onChange={e => setDispatchEstimate(e.target.value)}
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              >
+                <option value="">Selecciona…</option>
+                {Object.entries(PROCESSING_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                El comprador verá &quot;Sobre pedido&quot; y este tiempo de envío estimado. Nunca se marca como agotado.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

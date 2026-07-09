@@ -217,13 +217,19 @@ export const getShopListings = unstable_cache(
         const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
         const { platformCategory, collections } = splitCategoriesFrontend(p.categories, seller?.slug)
         const manageInventory = variants.some((v: any) => !!v?.manage_inventory)
-        const availableQuantity = manageInventory
+        const allowBackorder = variants.some((v: any) => !!v?.allow_backorder)
+        const managedLevels = manageInventory
           ? variants
               .filter((v: any) => v?.manage_inventory)
               .flatMap((v: any) => v?.inventory_items ?? [])
               .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
-              .reduce((sum: number, lvl: any) =>
-                sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
+          : []
+        const availableQuantity = manageInventory
+          ? managedLevels.reduce((sum: number, lvl: any) =>
+              sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
+          : null
+        const reservedQuantity = manageInventory
+          ? managedLevels.reduce((sum: number, lvl: any) => sum + Number(lvl?.reserved_quantity ?? 0), 0)
           : null
         return {
           id: p.id,
@@ -250,7 +256,10 @@ export const getShopListings = unstable_cache(
           views: (meta.views as number) ?? 0,
           manage_inventory: manageInventory,
           available_quantity: availableQuantity,
+          reserved_quantity: reservedQuantity,
           in_stock: !manageInventory || (availableQuantity ?? 0) > 0,
+          allow_backorder: allowBackorder,
+          dispatch_estimate: (meta.dispatch_estimate as string | undefined) ?? null,
           created_at: p.created_at,
           shop: seller ? {
             id: seller.id,

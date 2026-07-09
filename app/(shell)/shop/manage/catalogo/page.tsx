@@ -5,6 +5,8 @@ import { db } from '@/lib/supabase'
 import { filterOutDeleted, DELETED_STATUS } from '@/lib/listing-lifecycle'
 import { CATEGORIES } from '@/lib/types'
 import { CATALOG_STATUS_FILTERS } from '@/lib/catalog-status'
+import { isEnabled } from '@/lib/flags'
+import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
 import { buildCatalogQuery, buildCatalogPageUrl, CATALOG_PAGE_SIZE, type CatalogSearchParams } from '@/lib/catalog-query'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import CatalogFilterBar from './CatalogFilterBar'
@@ -59,7 +61,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   let deletedIds = new Set<string>()
   const { data: shop } = await db
     .from('marketplace_shops')
-    .select('id')
+    .select('id, slug, metadata')
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -82,6 +84,16 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const totalPages = Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE))
   const statusCounts = data.status_counts ?? {}
   const hasAnyFilter = Object.entries(params).some(([key, val]) => key !== 'page' && Boolean(val))
+
+  // Per-channel publish toggles (catalog-management epic, Sprint 2 · Story
+  // 2.2) — fail-safe OFF: the table's Miyagi/ML toggles render only while the
+  // flag is ON. ML additionally needs the same `ml_sync` entitlement gate the
+  // /shop/manage/mercadolibre page already uses (reuses the shop row already
+  // fetched above for the deleted-ids check — no second Supabase query).
+  const channelsFlagEnabled = await isEnabled('catalog.inventory_channels_enabled')
+  const mlEntitled = channelsFlagEnabled
+    ? (await resolveMlSyncEntitlement(shop?.metadata, { sellerClerkId: user.id })).entitled
+    : false
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -126,7 +138,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
         </div>
       ) : (
         <>
-          <CatalogTable listings={listings} />
+          <CatalogTable listings={listings} channelsFlagEnabled={channelsFlagEnabled} mlEntitled={mlEntitled} />
 
           {totalPages > 1 && (
             <div className="flex gap-1 justify-center flex-wrap mt-6">
