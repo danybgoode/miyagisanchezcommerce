@@ -10,6 +10,7 @@
  * Sprint 1 listed Coupons, Print, and the external scraper link-out. S2.2
  * appends Supply (re-homed), Vecindario (extracted from Print), and Referrals;
  * S2.3 appends Audit (the admin_audit_log viewer); S3 appends Tenants.
+ * admin-content-and-announcements S1.2 appends Contenido (the copy-override editor).
  */
 
 export type AdminRisk = 'low' | 'med' | 'high'
@@ -71,6 +72,14 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/seleccion',
     icon: 'iconoir-star',
     risk: 'med',
+  },
+  {
+    key: 'contenido',
+    label: 'Contenido',
+    description: 'Edita copy de marketing en vivo y prepara anuncios (sin redeploy).',
+    href: '/admin/contenido',
+    icon: 'iconoir-text-box-edit',
+    risk: 'low',
   },
   {
     key: 'referrals',
