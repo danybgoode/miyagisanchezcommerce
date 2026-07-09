@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import es from '@/locales/es.json'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import {
   resolveSellerAcquisitionVariant,
   sellerPersonaCtaHref,
@@ -45,7 +45,7 @@ type MundialPageProps = {
 export default async function MundialSellerPage({ searchParams }: MundialPageProps) {
   const query = await searchParams
   const variant = resolveSellerAcquisitionVariant(query)
-  const sellerAcquisition = (await getDictionary('es')).sellerAcquisition
+  const sellerAcquisition = (await getOverriddenDictionary('es')).sellerAcquisition
   const ui = applySellerAcquisitionPageVariant(sellerAcquisition.mundial, variant)
   const selfCheck = sellerAcquisition.shared.selfCheck
   const sellCta = sellerPersonaCtaHref('mundial', query)

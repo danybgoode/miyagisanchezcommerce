@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
 
@@ -43,7 +43,7 @@ const css = `
 `
 
 export default async function PromoterSellSheetPage() {
-  const ui = (await getDictionary('es')).sellerAcquisition
+  const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const p = ui.promotor
 
   return (

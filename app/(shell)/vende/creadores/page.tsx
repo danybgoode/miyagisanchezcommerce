@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import es from '@/locales/es.json'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { sellerPersonaCtaHref } from '@/lib/seller-acquisition'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildCreatorPageConfig } from '../_components/page-config'
@@ -38,7 +38,7 @@ type CreatorPageProps = {
 
 export default async function CreatorSellerPage({ searchParams }: CreatorPageProps) {
   const query = await searchParams
-  const ui = (await getDictionary('es')).sellerAcquisition
+  const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const config = buildCreatorPageConfig(ui, query)
 
   const jsonLd = {

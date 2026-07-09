@@ -42,6 +42,22 @@ test.describe('static-shell split · static invariant', () => {
     expect(shellLayout).toContain('x-miyagi-channel')
     expect(shellLayout).toContain('x-miyagi-embed')
   })
+
+  // admin-content-and-announcements S1.1 — the copy-override reader is deliberately
+  // ISR-safe (unstable_cache, see lib/copy-overrides.ts) SO THAT a future sprint can
+  // read it from this static chain without forcing `/` dynamic. Sprint 1 doesn't key
+  // the homepage at all (only /vende), so this is a regression tripwire: if a later
+  // change wires overrides into the homepage via the wrong (per-request) primitive,
+  // this fails loud instead of silently flipping `/` off `○`.
+  test('the static homepage chain does not import the copy-override reader', () => {
+    const rootLayout = source('app/layout.tsx')
+    const siteLayout = source('app/(site)/layout.tsx')
+    const sitePage = source('app/(site)/page.tsx')
+
+    for (const file of [rootLayout, siteLayout, sitePage]) {
+      expect(file).not.toContain('lib/copy-overrides')
+    }
+  })
 })
 
 test.describe('static-shell split · channels unbroken', () => {

@@ -14,10 +14,17 @@ import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'referrals', 'promoter', 'audit', 'tenants', 'flags', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'tenants', 'flags', 'scraping',
     ])
+  })
+
+  test('admin-content-and-announcements S1.2 registers the runtime copy-override editor', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.contenido?.href).toBe('/admin/contenido')
+    expect(byKey.contenido?.external).toBeUndefined()
+    expect(byKey.contenido?.risk).toBe('low')
   })
 
   test('feature-flags control surface registers as an internal, high-risk section', () => {

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import es from '@/locales/es.json'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { sellerPersonaCtaHref } from '@/lib/seller-acquisition'
 import { SellerAcquisitionPage } from './_components/SellerAcquisitionSections'
 import { buildAnchorPageConfig } from './_components/page-config'
@@ -40,7 +40,7 @@ type VendePageProps = {
 
 export default async function VendePage({ searchParams }: VendePageProps) {
   const query = await searchParams
-  const ui = (await getDictionary('es')).sellerAcquisition
+  const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const config = buildAnchorPageConfig(ui, query)
 
   const jsonLd = {
