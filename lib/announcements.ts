@@ -20,7 +20,7 @@ import 'server-only'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
-import { resolveActiveAnnouncement, type AnnouncementRow, type Audience } from '@/lib/announcements-merge'
+import { resolveActiveAnnouncement, sanitizeAnnouncementCta, type AnnouncementRow, type Audience } from '@/lib/announcements-merge'
 
 const TABLE = 'platform_announcements'
 
@@ -106,5 +106,6 @@ export async function getActiveAnnouncement(audience: Audience): Promise<Announc
   const rows = await getAnnouncements()
   if (rows.length === 0) return null
 
-  return resolveActiveAnnouncement(rows, audience, Date.now())
+  const active = resolveActiveAnnouncement(rows, audience, Date.now())
+  return active && sanitizeAnnouncementCta(active)
 }

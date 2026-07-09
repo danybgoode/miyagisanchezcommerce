@@ -74,6 +74,18 @@ function toDatetimeLocal(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// `<input type="datetime-local">` yields a naive string with NO timezone info. `new
+// Date(naive)` parses it in the BROWSER's local timezone (correct — the admin's real
+// clock), so converting to a real ISO string here, client-side, is what makes the
+// round-trip correct. Sending the naive string as-is would let the SERVER's
+// `Date.parse` reinterpret it in the server's own timezone (UTC on Vercel) — hours off
+// from what a Mexico-based admin actually picked.
+function toIsoOrNull(datetimeLocal: string): string | null {
+  if (!datetimeLocal) return null
+  const ms = new Date(datetimeLocal).getTime()
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString()
+}
+
 type FormState = {
   id: string | null
   audience: 'seller' | 'buyer'
@@ -151,8 +163,8 @@ export default function AnunciosAdminClient({ announcements }: { announcements: 
           text: form.text,
           ctaLabel: form.ctaLabel || null,
           ctaLink: form.ctaLink || null,
-          startsAt: form.startsAt || null,
-          endsAt: form.endsAt || null,
+          startsAt: toIsoOrNull(form.startsAt),
+          endsAt: toIsoOrNull(form.endsAt),
           active: form.active,
           replaceExisting,
         }),

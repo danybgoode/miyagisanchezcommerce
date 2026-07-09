@@ -60,11 +60,18 @@ export function parseAnnouncementWriteBody(body: unknown): AnnouncementWritePars
   if (ctaLabel !== undefined && ctaLabel !== null && typeof ctaLabel !== 'string') {
     return { ok: false, error: 'Etiqueta de CTA inválida.' }
   }
+  const trimmedCtaLabel = typeof ctaLabel === 'string' ? ctaLabel.trim() : ''
   let parsedCtaLink: string | null = null
   if (ctaLink !== undefined && ctaLink !== null && ctaLink !== '') {
     const valid = httpUrl(ctaLink)
     if (!valid) return { ok: false, error: 'El link del CTA debe ser una URL http(s) válida.' }
     parsedCtaLink = valid
+  }
+  // Both renderers (SellerAnnouncementStrip, HomeAnnouncementCard) require BOTH label
+  // and link to show a CTA at all — a label-only or link-only save would look accepted
+  // here but silently never render, so reject the half-filled case up front instead.
+  if (Boolean(trimmedCtaLabel) !== Boolean(parsedCtaLink)) {
+    return { ok: false, error: 'El CTA necesita tanto una etiqueta como un link (o ninguno de los dos).' }
   }
 
   const startsParsed = toIsoOrNull(startsAt, 'Fecha de inicio')
@@ -87,7 +94,7 @@ export function parseAnnouncementWriteBody(body: unknown): AnnouncementWritePars
     id: (id as string | undefined) ?? null,
     audience,
     text: text.trim(),
-    ctaLabel: (ctaLabel as string | undefined)?.trim() || null,
+    ctaLabel: trimmedCtaLabel || null,
     ctaLink: parsedCtaLink,
     startsAt: startsParsed.value,
     endsAt: endsParsed.value,

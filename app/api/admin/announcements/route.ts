@@ -90,12 +90,22 @@ export const POST = withAdmin(async (req: NextRequest) => {
     )
   }
 
+  const { userId } = await auth()
+  const nowIso = new Date().toISOString()
+
+  // The partial unique index only allows one `active` row per audience, so a replace
+  // must deactivate the old row before the new one can be written active — there's no
+  // single-statement swap. If deactivation succeeds but the write below then fails
+  // (network blip, validation surprise), reactivate the old row as a best-effort
+  // rollback rather than leaving the audience with zero active campaigns.
   if (decision.deactivateId) {
-    const { error } = await db.from(TABLE).update({ active: false }).eq('id', decision.deactivateId)
+    const { error } = await db
+      .from(TABLE)
+      .update({ active: false, updated_at: nowIso, updated_by: userId ?? null })
+      .eq('id', decision.deactivateId)
     if (error) return NextResponse.json({ error: 'No se pudo reemplazar la campaña activa.' }, { status: 500 })
   }
 
-  const { userId } = await auth()
   const writeRow = {
     audience: parsed.audience,
     text: parsed.text,
@@ -104,14 +114,19 @@ export const POST = withAdmin(async (req: NextRequest) => {
     starts_at: parsed.startsAt,
     ends_at: parsed.endsAt,
     active: parsed.active,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
     updated_by: userId ?? null,
   }
 
   const { data: saved, error: writeError } = parsed.id
     ? await db.from(TABLE).update(writeRow).eq('id', parsed.id).select().single()
     : await db.from(TABLE).insert(writeRow).select().single()
-  if (writeError) return NextResponse.json({ error: 'No se pudo guardar el anuncio.' }, { status: 500 })
+  if (writeError) {
+    if (decision.deactivateId) {
+      await db.from(TABLE).update({ active: true }).eq('id', decision.deactivateId)
+    }
+    return NextResponse.json({ error: 'No se pudo guardar el anuncio.' }, { status: 500 })
+  }
 
   revalidateTag('announcements', 'default')
   return NextResponse.json({ ok: true, announcement: saved })

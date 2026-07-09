@@ -3,6 +3,7 @@ import {
   resolveAnnouncementStatus,
   resolveActiveAnnouncement,
   decideActivationConflict,
+  sanitizeAnnouncementCta,
   type AnnouncementRow,
 } from '../lib/announcements-merge'
 
@@ -116,5 +117,22 @@ test.describe('decideActivationConflict — one-active-per-audience', () => {
     const existing = row({ id: 'self', audience: 'seller' })
     const decision = decideActivationConflict([existing], 'seller', { active: true, excludeId: 'self' })
     expect(decision).toEqual({ ok: true, deactivateId: null })
+  })
+})
+
+test.describe('sanitizeAnnouncementCta — render-time defense-in-depth', () => {
+  test('a valid https CTA link passes through unchanged', () => {
+    const r = row({ ctaLabel: 'Ver más', ctaLink: 'https://miyagisanchez.com/l' })
+    expect(sanitizeAnnouncementCta(r)).toEqual(r)
+  })
+
+  test('a non-http(s) CTA link (e.g. one that reached storage via another path) is nulled', () => {
+    const r = row({ ctaLabel: 'Ver más', ctaLink: 'javascript:alert(1)' })
+    expect(sanitizeAnnouncementCta(r).ctaLink).toBeNull()
+  })
+
+  test('no CTA link is a no-op', () => {
+    const r = row({ ctaLabel: null, ctaLink: null })
+    expect(sanitizeAnnouncementCta(r)).toEqual(r)
   })
 })

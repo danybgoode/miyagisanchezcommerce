@@ -5,10 +5,13 @@
  * announcement primitive — schedule/status resolution and the one-active-per-audience
  * activation decision. Kept free of `next/*` and `server-only` (mirrors
  * `lib/copy-overrides-merge.ts` / `lib/flags-cache.ts`) so it's unit-testable with zero
- * network. `lib/announcements.ts` composes `resolveActiveAnnouncement`, binding the real
- * Supabase/flags dependencies; `app/api/admin/announcements/route.ts` composes
- * `decideActivationConflict` for the write path.
+ * network. `lib/announcements.ts` composes `resolveActiveAnnouncement`/`sanitizeAnnouncementCta`,
+ * binding the real Supabase/flags dependencies; `app/api/admin/announcements/route.ts`
+ * composes `decideActivationConflict` for the write path. `httpUrl` (`lib/settings-import.ts`)
+ * has no `next/*`/`server-only` imports of its own, so pulling it in here keeps this module
+ * unit-testable with zero network.
  */
+import { httpUrl } from './settings-import'
 
 export type Audience = 'seller' | 'buyer'
 
@@ -53,6 +56,20 @@ export function resolveActiveAnnouncement(
   now: number,
 ): AnnouncementRow | null {
   return rows.find((r) => r.audience === audience && resolveAnnouncementStatus(r, now) === 'activo') ?? null
+}
+
+/**
+ * Defense-in-depth (mirrors `AnnouncementBar.tsx`'s own-shop precedent): re-validate the
+ * CTA link at RENDER time, not just at the admin write. The write route already rejects a
+ * non-http(s) scheme, but this is the choke point both public placements
+ * (`SellerAnnouncementStrip`, `HomeAnnouncementCard`, via `getActiveAnnouncement`) read
+ * through, so it stays safe even against a row that reached storage via any other path (a
+ * future direct DB write, a migration, a validator bug). Nulling `ctaLink` alone is enough —
+ * both renderers already require BOTH `ctaLabel` and `ctaLink` to show a CTA at all.
+ */
+export function sanitizeAnnouncementCta(row: AnnouncementRow): AnnouncementRow {
+  if (!row.ctaLink || httpUrl(row.ctaLink)) return row
+  return { ...row, ctaLink: null }
 }
 
 export type ActivationDecision =

@@ -67,6 +67,21 @@ test.describe('announcements-admin · parseAnnouncementWriteBody', () => {
     expect(r).toEqual({ ok: false, error: 'El link del CTA debe ser una URL http(s) válida.' })
   })
 
+  test('rejects a CTA label with no link — both renderers require both fields or neither', () => {
+    const r = parseAnnouncementWriteBody({ audience: 'seller', text: 'x', ctaLabel: 'Ver más', active: true })
+    expect(r).toEqual({ ok: false, error: 'El CTA necesita tanto una etiqueta como un link (o ninguno de los dos).' })
+  })
+
+  test('rejects a CTA link with no label', () => {
+    const r = parseAnnouncementWriteBody({
+      audience: 'seller',
+      text: 'x',
+      ctaLink: 'https://miyagisanchez.com',
+      active: true,
+    })
+    expect(r).toEqual({ ok: false, error: 'El CTA necesita tanto una etiqueta como un link (o ninguno de los dos).' })
+  })
+
   test('rejects an endsAt at or before startsAt', () => {
     const r = parseAnnouncementWriteBody({
       audience: 'seller',
