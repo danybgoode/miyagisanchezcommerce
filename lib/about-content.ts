@@ -1,19 +1,30 @@
 /**
- * Single bilingual (es/en) content source for the agent-readable "about / why-sell" surface.
+ * Original-authored bilingual (es/en) content for the "about / why-sell" surface — the
+ * literal reference values this module was seeded from, still regression-tested here
+ * by `e2e/about-content.spec.ts`.
  *
- * Author once, render many: the human `/acerca` page (Sprint 1) and — in Sprint 2 — the agent
- * surfaces (`/agent`, `/api/ucp/manifest`, `/llms.txt`, the MCP `about_miyagi` resource) all read
- * from here, so one edit updates every surface and they can never drift.
+ * Sprint 2 of admin-content-and-announcements (2026-07-08) migrated the LIVE, admin-
+ * overridable copy into a new `acerca` namespace in `locales/{es,en}.json` (seeded
+ * identically to the values below) — every real render path (the human `/acerca` page,
+ * `/agent`, `/api/ucp/manifest`, `/llms.txt`, the MCP `about_miyagi` resource) now reads
+ * that dictionary copy through `lib/about-content-overrides.ts`'s
+ * `getOverriddenAboutPage()` / `getOverriddenAboutSections()`, NOT the constants below
+ * directly — so an admin edit in `/admin/contenido` reaches every one of those surfaces.
+ * This module stays a plain, literal, next/*-free data module (so it keeps importing
+ * cleanly under the Playwright `api` runner) and is the "author once" origin + the
+ * regression-tested defaults; `locales/*.json`'s `acerca` namespace is the "render many,
+ * override-able" copy. Keep the two in sync by hand when editing shipped copy in code.
  *
  * Language policy (agent-relay model): es-MX is the canonical source of truth; `en` is a faithful
  * translation and the lingua-franca second locale. We deliberately hold ONLY es + en — the long tail
  * of user languages is covered in Sprint 2 by instructing the reading agent to relay our content in
  * the user's own language. `/acerca` is the one deliberate human page on the bilingual allow-list
- * (AGENTS rule 5).
+ * (AGENTS rule 5) — see `lib/bilingual-namespaces.ts`.
  *
- * Grounding: the five non-stub sections are written from shipped facts only. `founder` and `pricing`
- * are explicit, clearly-marked `stub: true` placeholders — no invented founder claims, no invented
- * prices. Daniel fills them later (founder's note + anonymized profile; premium pricing TBD).
+ * Grounding: six of the seven sections are written from shipped facts only. `founder` is the
+ * ONLY `stub: true` placeholder (no invented founder claims — Daniel fills it in later). `pricing`
+ * is fully shipped, real content (`stub: false`) — it publishes the live custom-subdomain/
+ * custom-domain prices, not a placeholder.
  *
  * Pure data + tiny accessors. No DB, no Medusa, no Supabase, no `next/*` imports — so the Playwright
  * `api` runner can unit-test it directly.

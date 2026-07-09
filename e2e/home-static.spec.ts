@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import es from '../locales/es.json' with { type: 'json' }
 
 /**
  * marketplace-static-shell S2 — the homepage is now a STATIC, de-personalized curated
@@ -43,5 +44,18 @@ test.describe('static homepage · curated shell, no personalization', () => {
     // Curated shell markers — the value-prop ribbon (always) + the Selección heading.
     expect(html).toContain('data-testid="home-ribbon"')
     expect(html).toContain('Selección de la semana')
+  })
+
+  // admin-content-and-announcements S2.2 — the homepage's editorial strings now flow
+  // through `getOverriddenDictionary('es').home` (locales/es.json's `home` namespace)
+  // instead of being hardcoded JSX literals. Asserting against the imported dictionary
+  // values (not a hardcoded string) means this fails loud if the wiring is ever reverted
+  // to a literal, and self-updates if the copy is edited in `locales/es.json` directly.
+  test('the ribbon renders the home.ribbon dictionary copy (no live override applied)', async ({ request }) => {
+    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    expect(html).toContain(es.home.ribbon.body)
+    expect(html).toContain(es.home.ribbon.cta)
   })
 })

@@ -1,21 +1,29 @@
 import Link from 'next/link'
 import {
   ABOUT_CTA_HREF,
-  ABOUT_PAGE,
-  ABOUT_SECTIONS,
   ABOUT_SELLERS_HREF,
   aboutCopy,
   type AboutLocale,
+  type AboutPageCopy,
   type AboutSection,
 } from '@/lib/about-content'
 
 /**
- * Human-facing `/acerca` page, rendered from the single bilingual content source.
+ * Human-facing `/acerca` page, rendered from the admin-overridden content
+ * (`lib/about-content-overrides.ts`, fetched by the parent `page.tsx` and passed in as
+ * `page`/`sections` props) so an admin edit in `/admin/contenido` shows up here.
  * Reuses the #4 design tokens + the #6 (`/vende`) section idiom — semantic HTML, token-only
  * styling (no raw hex), agent-fetchable text.
  */
-export function AboutPage({ locale }: { locale: AboutLocale }) {
-  const page = ABOUT_PAGE[locale]
+export function AboutPage({
+  locale,
+  page,
+  sections,
+}: {
+  locale: AboutLocale
+  page: AboutPageCopy
+  sections: AboutSection[]
+}) {
   const langToggleHref = locale === 'es' ? '/acerca?lang=en' : '/acerca'
 
   return (
@@ -68,7 +76,7 @@ export function AboutPage({ locale }: { locale: AboutLocale }) {
       </header>
 
       <div style={{ display: 'grid', gap: 'var(--s-9)' }}>
-        {ABOUT_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <AboutSectionBlock
             key={section.id}
             section={section}
@@ -78,7 +86,7 @@ export function AboutPage({ locale }: { locale: AboutLocale }) {
         ))}
       </div>
 
-      <ClosingCta locale={locale} />
+      <ClosingCta page={page} />
     </main>
   )
 }
@@ -140,8 +148,7 @@ function AboutSectionBlock({
   )
 }
 
-function ClosingCta({ locale }: { locale: AboutLocale }) {
-  const page = ABOUT_PAGE[locale]
+function ClosingCta({ page }: { page: AboutPageCopy }) {
   return (
     <section
       aria-label={page.primaryCtaLabel}
