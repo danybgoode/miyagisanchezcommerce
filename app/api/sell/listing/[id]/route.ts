@@ -5,96 +5,12 @@ import { sanitizeFieldDefs } from '@/lib/personalization'
 import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
-import { closeMlProduct, publishMlProduct } from '@/lib/ml-publish-bridge'
-import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
 import { normalizeExcerpt, type Excerpt } from '@/lib/excerpt'
-import { setListingStatus } from '@/lib/listing-status'
+import { setListingStatus, deleteListing } from '@/lib/listing-status'
+import { isMlSyncEntitled, reconcileMlToggle } from '@/lib/ml-channel-toggle'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-async function getShopSlug(userId: string): Promise<string | null> {
-  const { data: shop } = await db
-    .from('marketplace_shops')
-    .select('slug')
-    .eq('clerk_user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  return shop?.slug ?? null
-}
-
-/**
- * `ml_sync` entitlement check for turning the ML toggle ON (catalog-management
- * S2 · 2.2) — defense in depth alongside the backend's own gate inside
- * `publishOrSyncProduct`: without this, a non-entitled seller's direct PUT
- * would still flip `ml_enabled: true` in Medusa metadata even though the
- * subsequent reconcile is correctly rejected server-side, leaving a confusing
- * "enabled but never actually published" state (cross-agent review catch).
- * Fails closed (not entitled) on any lookup error.
- */
-async function isMlSyncEntitled(userId: string): Promise<boolean> {
-  try {
-    const { data: shop } = await db
-      .from('marketplace_shops')
-      .select('metadata')
-      .eq('clerk_user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    const entitlement = await resolveMlSyncEntitlement(shop?.metadata, { sellerClerkId: userId })
-    return entitlement.entitled
-  } catch {
-    return false
-  }
-}
-
-/**
- * Best-effort: when a Miyagi product is archived (paused/deleted), close its
- * linked Mercado Libre item so the two never drift (epic 03 · S3 · US-8). Gated
- * on `ml.publish_enabled`; NEVER fails the archive on a ML hiccup. Only runs the
- * (flag-gated) shop lookup + close when publish is enabled, so it's a true no-op
- * while the feature ships dark.
- */
-async function bestEffortCloseMl(userId: string, productId: string): Promise<void> {
-  try {
-    if (!(await isEnabled('ml.publish_enabled'))) return
-    const slug = await getShopSlug(userId)
-    if (slug) await closeMlProduct(slug, productId)
-  } catch {
-    /* never block the archive on a ML failure */
-  }
-}
-
-/**
- * Reconcile the live ML listing right after a successful `ml_enabled` toggle
- * write (catalog-management epic, Sprint 2 · Story 2.2) — mirrors the
- * pause/delete → bestEffortCloseMl cascade above, but triggered by the new
- * per-product toggle instead. Never throws (the metadata write already
- * succeeded regardless of what ML does). Returns `needs_category: true` only
- * when turning ON hits a never-linked product with no category yet (decision:
- * the table toggle works in-place for already-linked products; a never-linked
- * one deep-links to the edit page's existing predict→confirm flow instead of
- * building a second one here).
- */
-async function reconcileMlToggle(
-  userId: string,
-  productId: string,
-  mlEnabled: boolean,
-): Promise<{ needs_category?: boolean }> {
-  try {
-    const slug = await getShopSlug(userId)
-    if (!slug) return {}
-    if (!mlEnabled) {
-      await closeMlProduct(slug, productId)
-      return {}
-    }
-    const result = await publishMlProduct(slug, productId)
-    return result.ok || result.reason !== 'no_category' ? {} : { needs_category: true }
-  } catch {
-    return {}
-  }
-}
 
 function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -397,6 +313,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // ── DELETE — unpublish listing ────────────────────────────────────────────────
+// Orchestration (Supabase mirror + ML-close cascade) lives in
+// lib/listing-status.ts's deleteListing() — shared with the catalog
+// bulk-apply path (catalog-management S3 · 3.2).
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { userId, getToken } = await auth()
@@ -407,20 +326,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, { method: 'DELETE' })
-
-  if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para eliminar este anuncio.' }, { status: 403 })
-  if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (!res.ok) return NextResponse.json({ error: 'Error al eliminar el anuncio.' }, { status: 500 })
-
-  await db
-    .from('marketplace_listings')
-    .update({ status: 'deleted', updated_at: new Date().toISOString() })
-    .eq('medusa_product_id', id)
-
-  // Deleting a Miyagi listing closes its linked ML item (US-8) — keyed off the
-  // linkage, so it still works now that the product is soft-deleted.
-  await bestEffortCloseMl(userId, id)
+  const result = await deleteListing(id, { userId, clerkJwt })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
   return NextResponse.json({ id, deleted: true })
 }

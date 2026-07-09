@@ -29,6 +29,11 @@ export type BulkActionPayload =
   | { type: 'price_set'; price_cents: number }
   | { type: 'price_pct'; percent: number }
   | { type: 'pause_activate'; status: 'active' | 'paused' }
+  | { type: 'publish_channel'; channel: 'miyagi' | 'ml'; enabled: boolean }
+  | { type: 'category'; category_handle: string; category_label: string }
+  | { type: 'collection_assign'; collection_ids: string[]; collection_labels: string[] }
+  | { type: 'inventory_mode'; mode: 'tracked' | 'unlimited' | 'backorder'; dispatch_estimate?: string | null }
+  | { type: 'delete' }
 
 export interface BulkFilterParams {
   q?: string
@@ -163,14 +168,22 @@ export type ApplyResult =
 
 /**
  * Apply a staged batch. Idempotent: an item already `applied` is skipped
- * (reported, not re-executed) rather than re-sent. Routes `pause_activate`
- * batches through `setListingStatus()` per item (the frontend orchestration
- * — ML close, viability gate, Supabase mirror); every other action type goes
- * through ONE call to the backend's `bulk-apply` batch endpoint.
+ * (reported, not re-executed) rather than re-sent. Three action types need
+ * FRONTEND orchestration (side effects that live outside `updateSellerProduct`)
+ * and are applied one item at a time via the matching shared helper:
+ * `pause_activate` → `setListingStatus()` (viability gate, metadata.paused,
+ * Supabase mirror, ML close); `delete` → `deleteListing()` (Supabase mirror,
+ * ML close); `publish_channel` targeting 'ml' → `toggleMlChannel()`
+ * (entitlement check, ML publish/close reconcile). Every other action type
+ * (price, `publish_channel` targeting 'miyagi', category, collection_assign,
+ * inventory_mode) has no such side effects and goes through ONE call to the
+ * backend's `bulk-apply` batch endpoint — never N sequential route calls
+ * either way, since even the per-item frontend paths are in-process function
+ * calls within this single request, not recursive HTTP round-trips.
  */
 export async function applyBulkBatch(
   batchId: string,
-  ctx: { userId: string; clerkJwt: string },
+  ctx: { userId: string; clerkJwt: string; actorType?: 'seller' | 'agent' },
 ): Promise<ApplyResult> {
   const found = await getBulkBatch(batchId, ctx.userId)
   if (!found) return { ok: false, status: 404, error: 'Lote no encontrado.' }
@@ -189,13 +202,31 @@ export async function applyBulkBatch(
   let failed = 0
 
   const actionType = batch.action.type
+  const actorType = ctx.actorType ?? 'seller'
 
   if (batch.action.type === 'pause_activate') {
     const target = batch.action.status
     const { setListingStatus } = await import('@/lib/listing-status')
     for (const item of pending) {
       const result = await setListingStatus(item.product_id, target, { userId: ctx.userId, clerkJwt: ctx.clerkJwt })
-      await recordItemResult(batchId, item, result.ok, ctx.userId, actionType, result.ok ? undefined : result.error)
+      await recordItemResult(batchId, item, result.ok, ctx.userId, actorType, actionType, result.ok ? undefined : result.error)
+      if (result.ok) applied++
+      else failed++
+    }
+  } else if (batch.action.type === 'delete') {
+    const { deleteListing } = await import('@/lib/listing-status')
+    for (const item of pending) {
+      const result = await deleteListing(item.product_id, { userId: ctx.userId, clerkJwt: ctx.clerkJwt })
+      await recordItemResult(batchId, item, result.ok, ctx.userId, actorType, actionType, result.ok ? undefined : result.error)
+      if (result.ok) applied++
+      else failed++
+    }
+  } else if (batch.action.type === 'publish_channel' && batch.action.channel === 'ml') {
+    const enabled = batch.action.enabled
+    const { toggleMlChannel } = await import('@/lib/ml-channel-toggle')
+    for (const item of pending) {
+      const result = await toggleMlChannel(item.product_id, enabled, { userId: ctx.userId, clerkJwt: ctx.clerkJwt })
+      await recordItemResult(batchId, item, result.ok, ctx.userId, actorType, actionType, result.ok ? undefined : result.error)
       if (result.ok) applied++
       else failed++
     }
@@ -214,7 +245,7 @@ export async function applyBulkBatch(
     for (const item of pending) {
       const r = byId.get(item.product_id)
       const ok = r?.ok ?? false
-      await recordItemResult(batchId, item, ok, ctx.userId, actionType, ok ? undefined : (r?.error ?? 'Error desconocido.'))
+      await recordItemResult(batchId, item, ok, ctx.userId, actorType, actionType, ok ? undefined : (r?.error ?? 'Error desconocido.'))
       if (ok) applied++
       else failed++
     }
@@ -238,6 +269,7 @@ async function recordItemResult(
   item: StoredBatchItem,
   ok: boolean,
   actorId: string,
+  actorType: 'seller' | 'agent',
   actionType: string,
   error?: string,
 ): Promise<void> {
@@ -250,7 +282,7 @@ async function recordItemResult(
     batch_id: batchId,
     item_id: item.id,
     product_id: item.product_id,
-    actor_type: 'seller',
+    actor_type: actorType,
     actor_id: actorId,
     action: actionType,
     before: item.before,

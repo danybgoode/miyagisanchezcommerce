@@ -150,3 +150,32 @@ export async function setListingStatus(
 
   return { ok: true }
 }
+
+export type DeleteListingResult = { ok: true } | { ok: false; status: number; error: string }
+
+/**
+ * Soft-delete a listing — extracted from the DELETE handler in
+ * `app/api/sell/listing/[id]/route.ts` (catalog-management S3 · 3.2) so the
+ * bulk `delete` action shares the exact same Supabase-mirror + ML-close
+ * cascade as a single-row delete, instead of a raw backend call that would
+ * skip both.
+ */
+export async function deleteListing(
+  id: string,
+  ctx: { userId: string; clerkJwt: string },
+): Promise<DeleteListingResult> {
+  const res = await medusaFetch(`/store/sellers/me/products/${id}`, ctx.clerkJwt, { method: 'DELETE' })
+
+  if (res.status === 403) return { ok: false, status: 403, error: 'No tienes permiso para eliminar este anuncio.' }
+  if (res.status === 404) return { ok: false, status: 404, error: 'Anuncio no encontrado.' }
+  if (!res.ok) return { ok: false, status: 500, error: 'Error al eliminar el anuncio.' }
+
+  await db
+    .from('marketplace_listings')
+    .update({ status: 'deleted', updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', id)
+
+  await bestEffortCloseMl(ctx.userId, id)
+
+  return { ok: true }
+}

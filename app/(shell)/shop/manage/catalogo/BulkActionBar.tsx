@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
+import { CATEGORIES } from '@/lib/types'
 
-export type BulkActionType = 'price_set' | 'price_pct' | 'pause_activate'
+export type BulkActionType =
+  | 'price_set' | 'price_pct' | 'pause_activate' | 'publish_channel'
+  | 'category' | 'collection_assign' | 'inventory_mode' | 'delete'
 
 interface BulkActionBarProps {
   selectedCount: number
@@ -15,12 +18,21 @@ interface BulkActionBarProps {
   onClearSelection: () => void
 }
 
+interface SellerCollection { id: string; handle: string; name: string }
+
+const DISPATCH_ESTIMATES = [
+  { value: '1-3d', label: '1–3 días hábiles' },
+  { value: '3-5d', label: '3–5 días hábiles' },
+  { value: '1-2w', label: '1–2 semanas' },
+]
+
 /**
- * Bulk action builder — catalog-management epic, Sprint 3 · Story 3.1. Shown
- * when at least one row is selected. Offers "seleccionar todos (N)" across
- * the active filter (not just the visible page — the Shopify 50-row-session
- * failure mode this epic is designed against), then stages the chosen action
- * for a diff preview (nothing is written here).
+ * Bulk action builder — catalog-management epic, Sprint 3 · Stories 3.1
+ * (price/pause_activate) + 3.2 (full action set). Shown when at least one
+ * row is selected. Offers "seleccionar todos (N)" across the active filter
+ * (not just the visible page — the Shopify 50-row-session failure mode this
+ * epic is designed against), then stages the chosen action for a diff
+ * preview (nothing is written here).
  */
 export default function BulkActionBar({
   selectedCount,
@@ -36,10 +48,34 @@ export default function BulkActionBar({
   const [priceCents, setPriceCents] = useState('')
   const [percent, setPercent] = useState('')
   const [pauseTarget, setPauseTarget] = useState<'active' | 'paused'>('paused')
+  const [channel, setChannel] = useState<'miyagi' | 'ml'>('miyagi')
+  const [channelEnabled, setChannelEnabled] = useState(true)
+  const [categoryKey, setCategoryKey] = useState<string>(CATEGORIES[0]?.key ?? '')
+  const [collections, setCollections] = useState<SellerCollection[]>([])
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(new Set())
+  const [inventoryMode, setInventoryMode] = useState<'tracked' | 'unlimited' | 'backorder'>('tracked')
+  const [dispatchEstimate, setDispatchEstimate] = useState(DISPATCH_ESTIMATES[0].value)
   const [staging, setStaging] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (actionType !== 'collection_assign' || collections.length > 0) return
+    fetch('/api/sell/collections')
+      .then((r) => r.json())
+      .then((data: { collections?: SellerCollection[] }) => setCollections(data.collections ?? []))
+      .catch(() => {})
+  }, [actionType, collections.length])
+
   const effectiveCount = acrossFilter ? totalFiltered : selectedCount
+
+  function toggleCollection(id: string) {
+    setSelectedCollectionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   async function handleStage() {
     setError(null)
@@ -59,8 +95,29 @@ export default function BulkActionBar({
         return
       }
       action = { type: 'price_pct', percent: pct }
-    } else {
+    } else if (actionType === 'pause_activate') {
       action = { type: 'pause_activate', status: pauseTarget }
+    } else if (actionType === 'publish_channel') {
+      action = { type: 'publish_channel', channel, enabled: channelEnabled }
+    } else if (actionType === 'category') {
+      const cat = CATEGORIES.find((c) => c.key === categoryKey)
+      if (!cat) {
+        setError('Elige una categoría válida.')
+        return
+      }
+      action = { type: 'category', category_handle: cat.key, category_label: cat.label }
+    } else if (actionType === 'collection_assign') {
+      const ids = [...selectedCollectionIds]
+      const labels = collections.filter((c) => selectedCollectionIds.has(c.id)).map((c) => c.name)
+      action = { type: 'collection_assign', collection_ids: ids, collection_labels: labels }
+    } else if (actionType === 'inventory_mode') {
+      action = {
+        type: 'inventory_mode',
+        mode: inventoryMode,
+        ...(inventoryMode === 'backorder' && { dispatch_estimate: dispatchEstimate }),
+      }
+    } else {
+      action = { type: 'delete' }
     }
 
     setStaging(true)
@@ -125,6 +182,11 @@ export default function BulkActionBar({
             <option value="price_pct">Cambiar precio (%)</option>
             <option value="price_set">Fijar precio</option>
             <option value="pause_activate">Pausar / activar</option>
+            <option value="publish_channel">Publicar / ocultar por canal</option>
+            <option value="category">Cambiar categoría</option>
+            <option value="collection_assign">Asignar colecciones</option>
+            <option value="inventory_mode">Modo de inventario</option>
+            <option value="delete">Eliminar</option>
           </select>
         </div>
 
@@ -168,7 +230,105 @@ export default function BulkActionBar({
           </div>
         )}
 
-        <button type="button" onClick={handleStage} disabled={staging} className="btn btn-primary btn-sm disabled:opacity-50">
+        {actionType === 'publish_channel' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Canal</label>
+              <select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value as 'miyagi' | 'ml')}
+                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+              >
+                <option value="miyagi">Miyagi (marketplace)</option>
+                <option value="ml">Mercado Libre</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Acción</label>
+              <select
+                value={channelEnabled ? 'on' : 'off'}
+                onChange={(e) => setChannelEnabled(e.target.value === 'on')}
+                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+              >
+                <option value="on">Publicar</option>
+                <option value="off">Ocultar</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {actionType === 'category' && (
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Nueva categoría</label>
+            <select
+              value={categoryKey}
+              onChange={(e) => setCategoryKey(e.target.value)}
+              className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+            >
+              {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        {actionType === 'collection_assign' && (
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Colecciones (reemplaza las actuales)</label>
+            {collections.length === 0 ? (
+              <p className="text-xs text-[var(--color-muted)]">No tienes colecciones — créalas en Catálogo → Colecciones.</p>
+            ) : (
+              <div className="flex gap-2 flex-wrap max-w-md">
+                {collections.map((c) => (
+                  <label key={c.id} className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 cursor-pointer">
+                    <input type="checkbox" checked={selectedCollectionIds.has(c.id)} onChange={() => toggleCollection(c.id)} />
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {actionType === 'inventory_mode' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Modo</label>
+              <select
+                value={inventoryMode}
+                onChange={(e) => setInventoryMode(e.target.value as 'tracked' | 'unlimited' | 'backorder')}
+                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+              >
+                <option value="tracked">Rastreado</option>
+                <option value="unlimited">Sin límite</option>
+                <option value="backorder">Sobre pedido</option>
+              </select>
+            </div>
+            {inventoryMode === 'backorder' && (
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Envío estimado</label>
+                <select
+                  value={dispatchEstimate}
+                  onChange={(e) => setDispatchEstimate(e.target.value)}
+                  className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+                >
+                  {DISPATCH_ESTIMATES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+              </div>
+            )}
+          </>
+        )}
+
+        {actionType === 'delete' && (
+          <p className="text-xs text-[var(--color-muted)] max-w-xs">
+            Previsualiza antes de aplicar — esta acción no se puede deshacer.
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleStage}
+          disabled={staging || (actionType === 'collection_assign' && collections.length === 0)}
+          className="btn btn-primary btn-sm disabled:opacity-50"
+        >
           {staging ? 'Preparando…' : 'Previsualizar'}
         </button>
       </div>
