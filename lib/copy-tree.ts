@@ -114,3 +114,39 @@ export function flattenNamespace(namespace: string, value: unknown): FlatCopyEnt
 export function flattenDictionary(dict: Record<string, unknown>): FlatCopyEntry[] {
   return Object.entries(dict).flatMap(([namespace, value]) => flattenNamespace(namespace, value))
 }
+
+/**
+ * The inverse of `flattenValue` — BUILDS a nested object/array structure from a
+ * list of dot-path entries, starting from nothing. Unlike `setAtPath` (which
+ * refuses to fabricate new shape — the merge seam's "never create" contract),
+ * this is deliberately permissive: it's used only for round-tripping a bulk
+ * export/import file back into a `{namespace: {locale: {...tree}}}` JSON shape
+ * (`lib/copy-overrides-import.ts`), where the SET of paths itself already came
+ * from `flattenDictionary` over the real dictionary — the shape is trusted by
+ * construction, not being invented from untrusted input.
+ */
+export function unflattenRows(entries: readonly { key: string; value: string }[]): Record<string, unknown> {
+  let result: Record<string, unknown> = {}
+  for (const entry of entries) {
+    result = setDeepCreate(result, splitPath(entry.key), entry.value) as Record<string, unknown>
+  }
+  return result
+}
+
+function setDeepCreate(node: unknown, segments: readonly string[], value: string): unknown {
+  const [segment, ...rest] = segments
+  const childIsArray = rest.length > 0 && isIndexSegment(rest[0])
+
+  if (isIndexSegment(segment)) {
+    const arr = Array.isArray(node) ? node.slice() : []
+    const idx = Number(segment)
+    arr[idx] = rest.length === 0 ? value : setDeepCreate(arr[idx] ?? (childIsArray ? [] : {}), rest, value)
+    return arr
+  }
+
+  const record = (node && typeof node === 'object' && !Array.isArray(node) ? node : {}) as Record<string, unknown>
+  return {
+    ...record,
+    [segment]: rest.length === 0 ? value : setDeepCreate(record[segment] ?? (childIsArray ? [] : {}), rest, value),
+  }
+}
