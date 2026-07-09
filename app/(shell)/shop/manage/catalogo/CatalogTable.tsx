@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
+import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 
 export interface CatalogListing {
   id: string
@@ -47,7 +48,9 @@ function formatPrice(cents: number | null, currency: string) {
 
 function stockLabel(listing: CatalogListing) {
   if (listing.manage_inventory && listing.allow_backorder) {
-    return listing.dispatch_estimate ? `Sobre pedido — ${listing.dispatch_estimate}` : 'Sobre pedido'
+    if (!listing.dispatch_estimate) return 'Sobre pedido'
+    const label = PROCESSING_LABELS[listing.dispatch_estimate] ?? listing.dispatch_estimate
+    return `Sobre pedido — ${label}`
   }
   if (!listing.manage_inventory) return 'Sin límite'
   if (!listing.in_stock) return 'Agotado'

@@ -549,7 +549,13 @@ export default function EditForm({
             </div>
           )}
 
-          {inventoryMode === 'tracked' && (
+          {/* Falls back to the flat quantity input whenever the flag is OFF, even for a
+              listing whose stored mode is 'unlimited'/'backorder' (e.g. set while the
+              flag was ON, then flipped off) — otherwise the whole quantity section goes
+              blank with no way to act (cross-agent review catch). Saving a quantity here
+              already re-enables manage_inventory via the existing quantity-write block
+              below, giving the seller a real path back to tracked mode. */}
+          {(inventoryMode === 'tracked' || !inventoryChannelsEnabled) && (
             <>
               <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
                 Cantidad disponible

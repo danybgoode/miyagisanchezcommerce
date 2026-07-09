@@ -139,7 +139,14 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         }
         for (const v of d.variants ?? []) {
           variantCosts[v.id] = v.unit_cost_cents
-          variantMlPrices[v.id] = v.ml_price_cents
+          // `?? null` guards the backend-deploy-lag window where an older
+          // backend build's response omits `ml_price_cents` entirely
+          // (`undefined`, not `null`) — without the coercion, EditForm's
+          // `initialMlPriceCents` resolves to `undefined`, which is
+          // strictly !== null, so an untouched form would spuriously look
+          // "dirty" and send `ml_price_cents: null` on any unrelated save
+          // (cross-agent review catch).
+          variantMlPrices[v.id] = v.ml_price_cents ?? null
         }
       }
     }

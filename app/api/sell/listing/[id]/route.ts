@@ -8,6 +8,7 @@ import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
 import { closeMlProduct, publishMlProduct } from '@/lib/ml-publish-bridge'
+import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
 import { notifyWriterOnPublish } from '@/lib/launchpad'
 import { normalizeExcerpt, type Excerpt } from '@/lib/excerpt'
 
@@ -23,6 +24,31 @@ async function getShopSlug(userId: string): Promise<string | null> {
     .limit(1)
     .maybeSingle()
   return shop?.slug ?? null
+}
+
+/**
+ * `ml_sync` entitlement check for turning the ML toggle ON (catalog-management
+ * S2 · 2.2) — defense in depth alongside the backend's own gate inside
+ * `publishOrSyncProduct`: without this, a non-entitled seller's direct PUT
+ * would still flip `ml_enabled: true` in Medusa metadata even though the
+ * subsequent reconcile is correctly rejected server-side, leaving a confusing
+ * "enabled but never actually published" state (cross-agent review catch).
+ * Fails closed (not entitled) on any lookup error.
+ */
+async function isMlSyncEntitled(userId: string): Promise<boolean> {
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('clerk_user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    const entitlement = await resolveMlSyncEntitlement(shop?.metadata, { sellerClerkId: userId })
+    return entitlement.entitled
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -177,6 +203,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.ml_price_cents !== undefined && body.ml_price_cents !== null
     && (!Number.isInteger(body.ml_price_cents) || body.ml_price_cents < 0)) {
     return NextResponse.json({ error: 'El precio de Mercado Libre debe ser de $0 o más.', field: 'ml_price' }, { status: 422 })
+  }
+  // Turning the ML toggle ON requires the `ml_sync` entitlement — checked
+  // here (not just client-side) so a direct PUT can't flip `ml_enabled` in
+  // Medusa metadata for a non-entitled shop and leave a confusing
+  // "enabled but never published" state (the backend's own gate inside
+  // publishOrSyncProduct rejects the actual ML write either way, but
+  // catching it before any write happens is the honest response).
+  if (body.ml_enabled === true && !(await isMlSyncEntitled(userId))) {
+    return NextResponse.json(
+      { error: 'Esta tienda no tiene el complemento de Mercado Libre habilitado.', field: 'ml_enabled' },
+      { status: 402 },
+    )
   }
   if (Object.keys(body).length === 0) {
     return NextResponse.json({ error: 'Sin cambios.' }, { status: 422 })
