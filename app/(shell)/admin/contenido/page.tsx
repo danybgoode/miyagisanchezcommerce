@@ -5,6 +5,7 @@ import { flattenDictionary } from '@/lib/copy-tree'
 import { isBilingualNamespace } from '@/lib/bilingual-namespaces'
 import ContenidoAdminClient, { type OverrideKeyView, type OrphanOverrideView } from './ContenidoAdminClient'
 import ContenidoImportExportPanel from './ContenidoImportExportPanel'
+import AnunciosAdminClient, { type AnnouncementView } from './AnunciosAdminClient'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Contenido — Admin' }
@@ -16,6 +17,18 @@ type OverrideRow = {
   value: string
   updated_at: string | null
   updated_by: string | null
+}
+
+type AnnouncementDbRow = {
+  id: string
+  audience: string
+  text: string
+  cta_label: string | null
+  cta_link: string | null
+  starts_at: string | null
+  ends_at: string | null
+  active: boolean
+  updated_at: string | null
 }
 
 /**
@@ -83,10 +96,35 @@ export default async function AdminContenidoPage() {
     .filter((r) => !knownPaths.has(`${r.namespace}.${r.key}`))
     .map((r) => ({ namespace: r.namespace, key: r.key, locale: r.locale, value: r.value }))
 
+  // Same "always live, never stale to the admin who just saved" reasoning as the
+  // override rows above — a direct, uncached `db` read (announcements.ts's
+  // `unstable_cache` reader is for the public-facing render paths only).
+  let announcementRows: AnnouncementDbRow[] = []
+  try {
+    const { data } = await db
+      .from('platform_announcements')
+      .select('id, audience, text, cta_label, cta_link, starts_at, ends_at, active, updated_at')
+    announcementRows = (data ?? []) as AnnouncementDbRow[]
+  } catch {
+    // Non-fatal — the panel can refresh.
+  }
+  const announcements: AnnouncementView[] = announcementRows.map((r) => ({
+    id: r.id,
+    audience: r.audience === 'buyer' ? 'buyer' : 'seller',
+    text: r.text,
+    ctaLabel: r.cta_label,
+    ctaLink: r.cta_link,
+    startsAt: r.starts_at,
+    endsAt: r.ends_at,
+    active: r.active,
+    updatedAt: r.updated_at,
+  }))
+
   return (
     <>
       <ContenidoImportExportPanel />
       <ContenidoAdminClient keys={keys} orphans={orphans} />
+      <AnunciosAdminClient announcements={announcements} />
     </>
   )
 }

@@ -15,6 +15,7 @@ import FavoritesProvider from '@/app/components/FavoritesProvider'
 import HomePersonalizationProvider from '@/app/components/HomePersonalizationProvider'
 import HomeRetomaOffers from '@/app/components/HomeRetomaOffers'
 import HomeSellerModule from '@/app/components/HomeSellerModule'
+import HomeAnnouncementCard from '@/app/components/HomeAnnouncementCard'
 import AuthShow from '@/app/components/AuthShow'
 import {
   NEIGHBORHOOD_PULSE_COPY,
@@ -22,6 +23,7 @@ import {
   publicSubmitterLabel,
 } from '@/lib/neighborhood-pulse'
 import { getNeighborhoodPulseItems } from '@/lib/neighborhood-pulse-server'
+import { getActiveAnnouncement } from '@/lib/announcements'
 
 // Prerender `/` as a static CDN asset, revalidated on the curated-content window
 // (= CACHE.LISTING, lib/cache-policy.ts SSOT — kept a literal because Next requires
@@ -55,12 +57,13 @@ export default async function HomePage() {
   // now prerendered at BUILD time, a thrown Medusa/Supabase fetch (e.g. a transient
   // backend hiccup during the Vercel build) would otherwise fail the whole deploy. Here
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
-  const [featured, grid, categories, pulse, dict] = await Promise.all([
+  const [featured, grid, categories, pulse, dict, buyerAnnouncement] = await Promise.all([
     getFeaturedListing(now).catch(() => null),
     getCuratedListings(now).catch(() => []),
     getCategoryCounts().catch(() => []),
     getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
     getOverriddenDictionary('es'),
+    getActiveAnnouncement('buyer').catch(() => null), // S3.3 — understated homepage card, ISR-safe read
   ])
   const home = dict.home
 
@@ -93,6 +96,20 @@ export default async function HomePage() {
           {home.ribbon.cta}
         </Link>
       </div>
+
+      {/* Sprint 3 — understated, dismissable buyer announcement. Real ISR-rendered
+          server data (not a client fetch); renders nothing when there's no active
+          buyer campaign. */}
+      <HomeAnnouncementCard
+        announcement={
+          buyerAnnouncement && {
+            id: buyerAnnouncement.id,
+            text: buyerAnnouncement.text,
+            ctaLabel: buyerAnnouncement.ctaLabel,
+            ctaLink: buyerAnnouncement.ctaLink,
+          }
+        }
+      />
 
       {/* S4 — signed-in personalization islands (top slot): retoma rail + offer alerts.
           Hydrate client-side from the S3 Cloud Run endpoint; render nothing otherwise so

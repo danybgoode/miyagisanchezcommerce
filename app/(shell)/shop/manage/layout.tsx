@@ -1,6 +1,8 @@
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import SellerNav from './SellerNav'
+import SellerAnnouncementStrip from './SellerAnnouncementStrip'
+import { getActiveAnnouncement } from '@/lib/announcements'
 
 /**
  * Seller-mode shell for `/shop/manage/*`.
@@ -26,6 +28,8 @@ export default async function SellerManageLayout({ children }: { children: React
   // White-label host → the root ChannelLayout already owns the chrome. Render the
   // manage pages plainly inside it; no seller shell, no stacked bars.
   if (whiteLabel) return <>{children}</>
+
+  const announcement = await getActiveAnnouncement('seller')
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -82,6 +86,12 @@ export default async function SellerManageLayout({ children }: { children: React
           </Link>
         </div>
       </div>
+
+      <SellerAnnouncementStrip
+        announcement={
+          announcement && { id: announcement.id, text: announcement.text, ctaLabel: announcement.ctaLabel, ctaLink: announcement.ctaLink }
+        }
+      />
 
       {/* ── Rail + content ── */}
       <div
