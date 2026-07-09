@@ -52,6 +52,7 @@ import { switchSubdomainCadence } from '@/lib/subdomain-switch'
 import { coerceSubdomainInterval } from '@/lib/subdomain-billing'
 import { SUBDOMAIN_PRICE_LABEL, SUBDOMAIN_PRICE_MONTHLY_LABEL } from '@/lib/subdomain-pricing'
 import { buildStoreConfigSnapshot } from '@/lib/store-config'
+import { stageBulkActionAsAgent, applyBulkBatchAsAgent, getBulkBatch, type BulkActionPayload, type BulkFilterParams } from '@/lib/catalog-bulk'
 import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
@@ -447,6 +448,52 @@ const TOOLS = [
       properties: {
         product_id: { type: 'string', description: 'Product id from list_my_listings' },
         status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
+      },
+    },
+  },
+  {
+    name: 'stage_bulk_action',
+    description: "SELLER TOOL. Propose a bulk change across many of YOUR OWN listings at once (e.g. \"sube 10% los precios de la colección Zines\") — resolves the matching products and returns a before/after diff PREVIEW for each one, WITHOUT changing anything yet. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Target EITHER explicit product_ids (from list_my_listings) OR a filter (category/channel/stock/status — same filters the Catálogo table uses). One action per call: price_set (fixed price_mxn), price_pct (percent, e.g. 10 or -10), category (category_handle, e.g. \"autos\"), collection_assign (collection_ids — full replacement, get ids from list_my_collections), or inventory_mode (mode: tracked/unlimited/backorder, + dispatch_estimate for backorder). NOT supported by this tool: pausing/activating, deleting, or Mercado Libre publish toggles in bulk — use set_listing_status / update_listing one at a time for those. Returns a batch_id + counts (total/valid/invalid) + a short sample of the diff — pass batch_id to apply_bulk_action to actually apply it (the confirm step; nothing changes until then).",
+    inputSchema: {
+      type: 'object',
+      required: ['action'],
+      properties: {
+        product_ids: { type: 'array', items: { type: 'string' }, description: 'Explicit product ids from list_my_listings (use this OR filter, not both)' },
+        filter: {
+          type: 'object',
+          description: 'Target every listing matching this filter instead of an explicit list',
+          properties: {
+            category: { type: 'string', description: 'Category handle (e.g. "autos")' },
+            channel:  { type: 'string', enum: ['miyagi', 'ml'], description: 'Only listings visible on this channel' },
+            stock:    { type: 'string', enum: ['in_stock', 'agotado', 'unlimited'], description: 'Stock state' },
+            status:   { type: 'string', enum: ['activo', 'agotado', 'borrador', 'pausado', 'sobre_pedido'], description: 'Listing status' },
+          },
+        },
+        action: {
+          type: 'object',
+          description: 'Exactly one bulk action to preview',
+          required: ['type'],
+          properties: {
+            type: { type: 'string', enum: ['price_set', 'price_pct', 'category', 'collection_assign', 'inventory_mode'] },
+            price_mxn: { type: 'number', description: "For type='price_set' — the fixed new price in MXN pesos" },
+            percent: { type: 'number', description: "For type='price_pct' — e.g. 10 for +10%, -10 for -10%" },
+            category_handle: { type: 'string', description: "For type='category' — the target category handle (e.g. \"autos\")" },
+            collection_ids: { type: 'array', items: { type: 'string' }, description: "For type='collection_assign' — full replacement set, from list_my_collections" },
+            mode: { type: 'string', enum: ['tracked', 'unlimited', 'backorder'], description: "For type='inventory_mode'" },
+            dispatch_estimate: { type: 'string', description: "For type='inventory_mode' with mode='backorder' — e.g. '1-3d'" },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: 'apply_bulk_action',
+    description: 'SELLER TOOL. Apply a batch previously staged by stage_bulk_action — the confirm step. Requires the shop agent token, scoped to one shop; the batch_id itself acts as the confirmation token (you already saw the diff from stage_bulk_action before calling this). Idempotent: re-running on an already-applied batch reports "ya aplicado" for those rows rather than re-executing. Returns counts: applied / failed / skipped.',
+    inputSchema: {
+      type: 'object',
+      required: ['batch_id'],
+      properties: {
+        batch_id: { type: 'string', description: 'batch_id returned by stage_bulk_action' },
       },
     },
   },
@@ -1758,6 +1805,117 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   return { content: [{ type: 'text', text: `✅ Anuncio ${status === 'active' ? 'activado' : 'pausado'}.` }] }
 }
 
+const BULK_CATEGORY_LABELS: Record<string, string> = {
+  autos: 'Autos y motos', inmuebles: 'Inmuebles', electronica: 'Electrónica', hogar: 'Hogar y jardín',
+  moda: 'Moda y ropa', deportes: 'Deportes', servicios: 'Servicios', mascotas: 'Mascotas',
+  herramientas: 'Herramientas', negocios: 'Negocios B2B', cursos: 'Cursos y talleres',
+  comunidad: 'Membresía / comunidad', creatividad: 'Arte y diseño', otros: 'Otros',
+}
+
+/**
+ * Translate the MCP tool's plain args shape into the internal
+ * `BulkActionPayload` the staging pipeline expects — mirrors
+ * `BulkActionBar.tsx`'s equivalent translation on the web-portal side, so
+ * both actors stage the exact same action shape (catalog-management epic,
+ * Sprint 3 · Story 3.3).
+ */
+async function buildBulkActionPayload(
+  shop: { slug: string | null },
+  raw: Record<string, unknown>,
+): Promise<{ ok: true; action: BulkActionPayload } | { ok: false; error: string }> {
+  const type = String(raw.type ?? '')
+  if (type === 'price_set') {
+    const priceMxn = raw.price_mxn
+    if (typeof priceMxn !== 'number' || priceMxn <= 0) return { ok: false, error: 'price_mxn debe ser un número mayor a 0.' }
+    return { ok: true, action: { type: 'price_set', price_cents: Math.round(priceMxn * 100) } }
+  }
+  if (type === 'price_pct') {
+    const percent = raw.percent
+    if (typeof percent !== 'number' || percent === 0) return { ok: false, error: 'percent debe ser un número distinto de 0 (ej. 10 o -10).' }
+    return { ok: true, action: { type: 'price_pct', percent } }
+  }
+  if (type === 'category') {
+    const categoryHandle = String(raw.category_handle ?? '')
+    if (!categoryHandle) return { ok: false, error: 'category_handle es requerido.' }
+    return { ok: true, action: { type: 'category', category_handle: categoryHandle, category_label: BULK_CATEGORY_LABELS[categoryHandle] ?? categoryHandle } }
+  }
+  if (type === 'collection_assign') {
+    const ids = Array.isArray(raw.collection_ids) ? raw.collection_ids.filter((i): i is string => typeof i === 'string') : []
+    const shopCollections = shop.slug ? await getShopCollections(shop.slug) : []
+    const byId = new Map(shopCollections.map((c) => [c.id, c.name]))
+    return { ok: true, action: { type: 'collection_assign', collection_ids: ids, collection_labels: ids.map((id) => byId.get(id) ?? id) } }
+  }
+  if (type === 'inventory_mode') {
+    const mode = raw.mode
+    if (mode !== 'tracked' && mode !== 'unlimited' && mode !== 'backorder') {
+      return { ok: false, error: 'mode debe ser "tracked", "unlimited" o "backorder".' }
+    }
+    return { ok: true, action: { type: 'inventory_mode', mode, dispatch_estimate: typeof raw.dispatch_estimate === 'string' ? raw.dispatch_estimate : undefined } }
+  }
+  return { ok: false, error: 'type de acción no reconocido o no disponible por el agente (usa la app web para pausar/activar, eliminar, o publicar en Mercado Libre en bloque).' }
+}
+
+async function handleStageBulkAction(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('catalog.bulk_enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const rawAction = args.action as Record<string, unknown> | undefined
+  if (!rawAction?.type) return { isError: true, content: [{ type: 'text', text: 'action es requerido.' }] }
+  const built = await buildBulkActionPayload(shop, rawAction)
+  if (!built.ok) return { isError: true, content: [{ type: 'text', text: built.error }] }
+
+  const productIds = Array.isArray(args.product_ids) ? args.product_ids.filter((i): i is string => typeof i === 'string') : undefined
+  const filter = args.filter as BulkFilterParams | undefined
+  if (!productIds?.length && !filter) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica product_ids o filter.' }] }
+  }
+
+  const result = await stageBulkActionAsAgent(shop, { ids: productIds, filter }, built.action)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: result.error }] }
+
+  const found = await getBulkBatch(result.batch_id, shop.clerk_user_id)
+  const sample = (found?.items ?? []).slice(0, 5).map((i) => {
+    const afterStr = Object.values(i.after).join(', ') || '—'
+    const beforeStr = Object.values(i.before).join(', ') || '—'
+    return i.valid ? `• ${i.title}: ${beforeStr} → ${afterStr}` : `• ${i.title}: ⚠ ${i.error_message}`
+  }).join('\n')
+
+  return {
+    content: [{
+      type: 'text',
+      text: `Lote preparado (batch_id: ${result.batch_id}) — ${result.total} producto(s), ${result.valid_count} válido(s)` +
+        (result.invalid_count > 0 ? `, ${result.invalid_count} con error` : '') +
+        `.\n\nMuestra:\n${sample || '(sin productos)'}` +
+        `\n\nNada se ha aplicado todavía. Llama a apply_bulk_action con batch_id="${result.batch_id}" para confirmar y aplicar.`,
+    }],
+  }
+}
+
+async function handleApplyBulkAction(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('catalog.bulk_enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const batchId = String(args.batch_id ?? '')
+  if (!batchId) return { isError: true, content: [{ type: 'text', text: 'batch_id es requerido.' }] }
+
+  const result = await applyBulkBatchAsAgent(batchId, shop)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: result.error }] }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const parts = [`✅ ${result.applied} aplicado(s)`]
+  if (result.failed > 0) parts.push(`⚠ ${result.failed} falló/fallaron`)
+  if (result.skipped > 0) parts.push(`${result.skipped} ya aplicado(s) previamente`)
+  return { content: [{ type: 'text', text: parts.join(' · ') + '.' }] }
+}
+
 // ── Custom-domain paywall (epic 07 · S3) — seller-agent domain SKU tools ──────
 
 async function handleGetDomainEntitlement(authHeader?: string | null) {
@@ -1999,6 +2157,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'list_launchpad_campaigns': { const r = await handleListLaunchpadCampaigns(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'apply_bulk_action':         { const r = await handleApplyBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

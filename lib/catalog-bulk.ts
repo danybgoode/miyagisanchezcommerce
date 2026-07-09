@@ -13,6 +13,8 @@ import { db } from '@/lib/supabase'
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
+const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
+
 function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
     ...options,
@@ -22,6 +24,16 @@ function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
       Authorization: `Bearer ${clerkJwt}`,
       ...(options?.headers ?? {}),
     },
+  })
+}
+
+/** Service-to-service call for the MCP agent path (no Clerk JWT) — mirrors
+ * `lib/seller-products.ts`'s `patchSellerProductViaInternal`. */
+function internalFetch(path: string, body: unknown) {
+  return fetch(`${MEDUSA_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+    body: JSON.stringify(body),
   })
 }
 
@@ -290,4 +302,153 @@ async function recordItemResult(
     result: ok ? 'applied' : 'failed',
     error_message: ok ? null : (error ?? null),
   })
+}
+
+// ── MCP agent path (catalog-management epic, Sprint 3 · Story 3.3) ──────────
+// The agent has no Clerk JWT — calls go through the shared-secret
+// `/internal/seller-products/bulk-stage`/`bulk-apply` routes instead, keyed
+// by shop slug (mirrors `lib/seller-products.ts`'s `patchSellerProductViaInternal`
+// for the single-item MCP tools). Batches land in the SAME
+// `catalog_bulk_batches` table as the web path — `seller_id` is the shop's
+// `clerk_user_id` either way, so ownership/history is unified regardless of
+// which actor staged the batch.
+
+/** Action types that need FRONTEND-only orchestration the internal-secret
+ * layer has no access to (Supabase mirror, ML cascade, checkout-viability
+ * gate) — rejected for the agent path with a clear message rather than
+ * silently skipping those side effects. Story 3.3 scope. */
+function isAgentUnsupportedAction(action: BulkActionPayload): string | null {
+  if (action.type === 'pause_activate') return 'Pausar/activar en bloque aún no está disponible por el agente — usa la app web.'
+  if (action.type === 'delete') return 'Eliminar en bloque aún no está disponible por el agente — usa la app web.'
+  if (action.type === 'publish_channel' && action.channel === 'ml') {
+    return 'Publicar/ocultar en Mercado Libre en bloque aún no está disponible por el agente — usa la app web.'
+  }
+  return null
+}
+
+export async function stageBulkActionAsAgent(
+  shop: { id: string; clerk_user_id: string; slug: string | null },
+  target: { filter?: BulkFilterParams; ids?: string[] },
+  action: BulkActionPayload,
+): Promise<StageResult> {
+  if (!shop.slug) return { ok: false, status: 422, error: 'Tu tienda no tiene un identificador (slug) configurado.' }
+  const unsupported = isAgentUnsupportedAction(action)
+  if (unsupported) return { ok: false, status: 422, error: unsupported }
+
+  const res = await internalFetch('/internal/seller-products/bulk-stage', {
+    seller_slug: shop.slug,
+    filter: target.filter ?? null,
+    ids: target.ids ?? null,
+    action,
+  })
+
+  if (res.status === 423) return { ok: false, status: 423, error: 'Esta función aún no está disponible.' }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    return { ok: false, status: res.status, error: body.message ?? 'Error al preparar el lote.' }
+  }
+
+  const data = await res.json() as { total: number; valid_count: number; invalid_count: number; items: BulkDiffItem[] }
+
+  const { data: batch, error: batchError } = await db
+    .from('catalog_bulk_batches')
+    .insert({
+      seller_id: shop.clerk_user_id,
+      actor_type: 'agent',
+      actor_id: shop.id,
+      action,
+      status: 'ready',
+      total_count: data.total,
+      valid_count: data.valid_count,
+      failed_count: 0,
+      applied_count: 0,
+    })
+    .select('id')
+    .single()
+
+  if (batchError || !batch) return { ok: false, status: 500, error: 'Error al guardar el lote.' }
+
+  if (data.items.length > 0) {
+    const { error: itemsError } = await db.from('catalog_bulk_batch_items').insert(
+      data.items.map((item) => ({
+        batch_id: batch.id,
+        product_id: item.id,
+        title: item.title,
+        before: item.before,
+        after: item.after,
+        patch: item.patch,
+        valid: item.valid,
+        error_message: item.error,
+        status: 'pending',
+      })),
+    )
+    if (itemsError) return { ok: false, status: 500, error: 'Error al guardar los productos del lote.' }
+  }
+
+  return { ok: true, batch_id: batch.id, total: data.total, valid_count: data.valid_count, invalid_count: data.invalid_count }
+}
+
+/**
+ * Apply a batch staged by (or for) this shop, as the agent actor. Same
+ * idempotent-skip semantics as `applyBulkBatch()`. Only reachable for action
+ * types `stageBulkActionAsAgent` would have staged (never `pause_activate`/
+ * `delete`/`publish_channel(ml)`), so no special per-action branching is
+ * needed here — every batch this function is ever asked to apply is already
+ * a plain field-patch action, routed through the internal bulk-apply route.
+ */
+export async function applyBulkBatchAsAgent(
+  batchId: string,
+  shop: { id: string; clerk_user_id: string; slug: string | null },
+): Promise<ApplyResult> {
+  if (!shop.slug) return { ok: false, status: 422, error: 'Tu tienda no tiene un identificador (slug) configurado.' }
+
+  const found = await getBulkBatch(batchId, shop.clerk_user_id)
+  if (!found) return { ok: false, status: 404, error: 'Lote no encontrado.' }
+  const { batch, items } = found
+
+  const unsupported = isAgentUnsupportedAction(batch.action)
+  if (unsupported) return { ok: false, status: 422, error: unsupported }
+
+  const pending = items.filter((i) => i.status === 'pending' && i.valid)
+  const skipped = items.filter((i) => i.status !== 'pending').length
+
+  if (pending.length === 0) {
+    return { ok: true, applied: 0, failed: 0, skipped: items.length }
+  }
+
+  await db.from('catalog_bulk_batches').update({ status: 'applying', updated_at: new Date().toISOString() }).eq('id', batchId)
+
+  const res = await internalFetch('/internal/seller-products/bulk-apply', {
+    seller_slug: shop.slug,
+    items: pending.map((i) => ({ id: i.product_id, patch: i.patch })),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    await db.from('catalog_bulk_batches').update({ status: 'partially_failed', updated_at: new Date().toISOString() }).eq('id', batchId)
+    return { ok: false, status: res.status, error: body.message ?? 'Error al aplicar el lote.' }
+  }
+
+  const { results } = await res.json() as { results: Array<{ id: string; ok: boolean; error?: string }> }
+  const byId = new Map(results.map((r) => [r.id, r]))
+  let applied = 0
+  let failed = 0
+  for (const item of pending) {
+    const r = byId.get(item.product_id)
+    const ok = r?.ok ?? false
+    await recordItemResult(batchId, item, ok, shop.id, 'agent', batch.action.type, ok ? undefined : (r?.error ?? 'Error desconocido.'))
+    if (ok) applied++
+    else failed++
+  }
+
+  await db
+    .from('catalog_bulk_batches')
+    .update({
+      status: failed > 0 ? 'partially_failed' : 'applied',
+      applied_count: applied,
+      failed_count: failed,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', batchId)
+
+  return { ok: true, applied, failed, skipped }
 }
