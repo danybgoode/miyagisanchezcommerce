@@ -29,6 +29,15 @@ const buttonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const inputStyle: React.CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '6px 8px',
+  fontSize: 13,
+  background: 'var(--bg)',
+  color: 'var(--fg)',
+}
+
 function rowKey(r: { namespace: string; key: string; locale: string }): string {
   return `${r.namespace}.${r.key}.${r.locale}`
 }
@@ -64,6 +73,8 @@ function formatForFile(file: File): 'csv' | 'xlsx' | 'json' | null {
  * are shown but can't be selected — the dictionary defines the universe.
  */
 export default function ContenidoImportExportPanel() {
+  const [scopeNamespace, setScopeNamespace] = useState('')
+  const [scopeSection, setScopeSection] = useState('')
   const [diff, setDiff] = useState<ImportDiffRow[] | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -157,14 +168,39 @@ export default function ContenidoImportExportPanel() {
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 24 }}>
       <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 4px', color: 'var(--fg)' }}>Exportar / importar en bloque</h2>
       <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 12px' }}>
-        Exporta todo el copy, edítalo en una hoja de cálculo, y vuelve a importarlo. Solo se aplican las
-        filas que revises y confirmes abajo — nunca se escribe nada al leer el archivo.
+        Exporta el copy (todo, o filtrado por página/sección), edítalo en una hoja de cálculo, y vuelve a
+        importarlo. Solo se aplican las filas que revises y confirmes abajo — nunca se escribe nada al leer
+        el archivo.
       </p>
 
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <input
+          type="text"
+          placeholder="Página (namespace) — opcional, ej. sellerAcquisition"
+          value={scopeNamespace}
+          onChange={(e) => setScopeNamespace(e.target.value)}
+          style={{ ...inputStyle, flex: 'none', width: 260 }}
+        />
+        <input
+          type="text"
+          placeholder="Sección — opcional, ej. anchor"
+          value={scopeSection}
+          onChange={(e) => setScopeSection(e.target.value)}
+          style={{ ...inputStyle, flex: 'none', width: 180 }}
+        />
+      </div>
+
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        <a href="/api/admin/content-overrides/export?format=csv" style={buttonStyle}>Exportar CSV</a>
-        <a href="/api/admin/content-overrides/export?format=xlsx" style={buttonStyle}>Exportar XLSX</a>
-        <a href="/api/admin/content-overrides/export?format=json" style={buttonStyle}>Exportar JSON</a>
+        {(['csv', 'xlsx', 'json'] as const).map((format) => {
+          const params = new URLSearchParams({ format })
+          if (scopeNamespace) params.set('namespace', scopeNamespace)
+          if (scopeSection) params.set('section', scopeSection)
+          return (
+            <a key={format} href={`/api/admin/content-overrides/export?${params.toString()}`} style={buttonStyle}>
+              Exportar {format.toUpperCase()}
+            </a>
+          )
+        })}
       </div>
 
       <input
