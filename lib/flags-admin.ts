@@ -108,6 +108,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // after Daniel's money-path smoke (buy a sin-límite + a sobre-pedido product
   // end-to-end) and an ML toggle round-trip on a real ML test listing.
   'catalog.inventory_channels_enabled': { polarity: 'enablement', default: false },
+  // Staged bulk actions — select-across-filter → diff preview → apply (epic 03 ·
+  // catalog-management S3). Kill-switch, fail-CLOSED like ml.sync_enabled: a bulk
+  // action can mutate hundreds of products in one call, so default OFF hides the
+  // selection/bulk UI until Daniel's live smoke.
+  'catalog.bulk_enabled': { polarity: 'killswitch', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

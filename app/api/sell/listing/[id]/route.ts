@@ -1,102 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
-import { getShopStripe } from '@/lib/stripe'
 import { sanitizeFieldDefs } from '@/lib/personalization'
 import { validateSlug } from '@/lib/slug'
 import { isShortlinkSegmentTaken } from '@/lib/shortlink-server'
 import { isEnabled } from '@/lib/flags'
-import { closeMlProduct, publishMlProduct } from '@/lib/ml-publish-bridge'
-import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
-import { notifyWriterOnPublish } from '@/lib/launchpad'
 import { normalizeExcerpt, type Excerpt } from '@/lib/excerpt'
+import { setListingStatus, deleteListing } from '@/lib/listing-status'
+import { isMlSyncEntitled, reconcileMlToggle } from '@/lib/ml-channel-toggle'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-async function getShopSlug(userId: string): Promise<string | null> {
-  const { data: shop } = await db
-    .from('marketplace_shops')
-    .select('slug')
-    .eq('clerk_user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  return shop?.slug ?? null
-}
-
-/**
- * `ml_sync` entitlement check for turning the ML toggle ON (catalog-management
- * S2 · 2.2) — defense in depth alongside the backend's own gate inside
- * `publishOrSyncProduct`: without this, a non-entitled seller's direct PUT
- * would still flip `ml_enabled: true` in Medusa metadata even though the
- * subsequent reconcile is correctly rejected server-side, leaving a confusing
- * "enabled but never actually published" state (cross-agent review catch).
- * Fails closed (not entitled) on any lookup error.
- */
-async function isMlSyncEntitled(userId: string): Promise<boolean> {
-  try {
-    const { data: shop } = await db
-      .from('marketplace_shops')
-      .select('metadata')
-      .eq('clerk_user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    const entitlement = await resolveMlSyncEntitlement(shop?.metadata, { sellerClerkId: userId })
-    return entitlement.entitled
-  } catch {
-    return false
-  }
-}
-
-/**
- * Best-effort: when a Miyagi product is archived (paused/deleted), close its
- * linked Mercado Libre item so the two never drift (epic 03 · S3 · US-8). Gated
- * on `ml.publish_enabled`; NEVER fails the archive on a ML hiccup. Only runs the
- * (flag-gated) shop lookup + close when publish is enabled, so it's a true no-op
- * while the feature ships dark.
- */
-async function bestEffortCloseMl(userId: string, productId: string): Promise<void> {
-  try {
-    if (!(await isEnabled('ml.publish_enabled'))) return
-    const slug = await getShopSlug(userId)
-    if (slug) await closeMlProduct(slug, productId)
-  } catch {
-    /* never block the archive on a ML failure */
-  }
-}
-
-/**
- * Reconcile the live ML listing right after a successful `ml_enabled` toggle
- * write (catalog-management epic, Sprint 2 · Story 2.2) — mirrors the
- * pause/delete → bestEffortCloseMl cascade above, but triggered by the new
- * per-product toggle instead. Never throws (the metadata write already
- * succeeded regardless of what ML does). Returns `needs_category: true` only
- * when turning ON hits a never-linked product with no category yet (decision:
- * the table toggle works in-place for already-linked products; a never-linked
- * one deep-links to the edit page's existing predict→confirm flow instead of
- * building a second one here).
- */
-async function reconcileMlToggle(
-  userId: string,
-  productId: string,
-  mlEnabled: boolean,
-): Promise<{ needs_category?: boolean }> {
-  try {
-    const slug = await getShopSlug(userId)
-    if (!slug) return {}
-    if (!mlEnabled) {
-      await closeMlProduct(slug, productId)
-      return {}
-    }
-    const result = await publishMlProduct(slug, productId)
-    return result.ok || result.reason !== 'no_category' ? {} : { needs_category: true }
-  } catch {
-    return {}
-  }
-}
 
 function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -366,74 +280,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ id, updated: true, short_slug: nextShortSlug, ...mlToggleResult })
 }
 
-// ── Checkout viability check ──────────────────────────────────────────────────
-// Returns an error string if the listing cannot support a complete buyer journey,
-// or null if it's OK to publish.
-//
-// Rule (no "coordinate after purchase"): a physical product can only be published
-// when the seller has BOTH a concrete delivery method (shipping or local pickup)
-// AND a concrete payment method (MercadoPago, Stripe, SPEI, or DiMo). WhatsApp/
-// phone are contact affordances, not payment methods. Other listing types
-// (digital/service/rental) always have a viable path.
-
-function normalizeClabe(v: unknown): string {
-  return typeof v === 'string' ? v.replace(/\D/g, '') : ''
-}
-
-async function checkCheckoutViability(listingId: string, clerkJwt: string): Promise<string | null> {
-  try {
-    // Load the listing and its seller's shop metadata
-    const [listingRes, sellerRes] = await Promise.all([
-      medusaFetch(`/store/listings/${listingId}`, clerkJwt),
-      medusaFetch('/store/sellers/me', clerkJwt),
-    ])
-    if (!listingRes.ok || !sellerRes.ok) return null // non-fatal — allow publish on error
-
-    const { listing } = await listingRes.json() as { listing: Record<string, unknown> }
-    const { seller }  = await sellerRes.json()  as { seller: Record<string, unknown> }
-
-    // Only check physical products — digital/service/rental always have a path
-    const listingType = (listing?.metadata as Record<string, unknown> | null)?.listing_type as string ?? 'product'
-    if (listingType !== 'product') return null
-
-    const shopMeta   = (seller?.metadata ?? {}) as Record<string, unknown>
-    const settings   = (shopMeta.settings ?? {}) as Record<string, unknown>
-    const shipping   = (settings.shipping  ?? {}) as Record<string, unknown>
-    const checkout   = (settings.checkout  ?? {}) as Record<string, unknown>
-
-    // 1. Concrete delivery — shipping (Envia origin set) or local pickup.
-    const hasLiveShipping = shipping.envia_enabled !== false && (() => {
-      const oa = (shipping.origin_address ?? {}) as Record<string, string | null>
-      return !!(oa.street && oa.city && oa.postal_code && (oa.state_code || oa.state))
-    })()
-    const hasLocalPickup = !!shipping.local_pickup
-    const hasDelivery = hasLiveShipping || hasLocalPickup
-
-    // 2. Concrete payment — online (MP/Stripe) or manual (SPEI/DiMo). Cash needs
-    //    pickup so it's covered by the delivery check; WhatsApp/phone don't count.
-    const stripe = getShopStripe(shopMeta)
-    const hasStripe = !!(stripe.charges_enabled && stripe.account_id && stripe.enabled !== false)
-    const hasMp     = sellerHasMpConnected(shopMeta)
-    const bankTransfer = (checkout.bank_transfer ?? {}) as Record<string, unknown>
-    const hasSpei   = bankTransfer.enabled !== false && normalizeClabe(bankTransfer.clabe).length === 18
-    const dimo      = (checkout.dimo ?? {}) as Record<string, unknown>
-    const hasDimo   = dimo.enabled === true && normalizeClabe(dimo.phone).length >= 10
-    const hasPayment = hasStripe || hasMp || hasSpei || hasDimo
-
-    if (hasDelivery && hasPayment) return null
-
-    const missing: string[] = []
-    if (!hasDelivery) missing.push('una forma de entrega (envío a domicilio o recolección en mano)')
-    if (!hasPayment)  missing.push('un método de pago (MercadoPago, Stripe, SPEI o DiMo)')
-
-    return `Para activar este anuncio configura ${missing.join(' y ')}. ` +
-      'Ve a Mi tienda → Configuración → Pagos y Envíos.'
-  } catch {
-    return null // on unexpected error, allow publish (fail open)
-  }
-}
-
 // ── PATCH — update listing status ─────────────────────────────────────────────
+// Checkout-viability check + status-change orchestration now live in
+// lib/listing-status.ts (catalog-management S3 · 3.1 extraction) — shared
+// with the catalog bulk-apply path.
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { userId, getToken } = await auth()
@@ -452,47 +302,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  // ── Checkout viability gate (activating only) ────────────────────────────────
-  // A product listing with coord-only delivery can only be published if the seller
-  // has at least one manual payment method configured — otherwise buyers have no
-  // way to complete a purchase and the checkout is unreachable.
-  if (body.status === 'active') {
-    const viabilityError = await checkCheckoutViability(id, clerkJwt)
-    if (viabilityError) return NextResponse.json({ error: viabilityError }, { status: 422 })
-  }
-
-  // Map frontend status → Medusa product status. "paused" and a never-published
-  // draft both land on Medusa's native `status: 'draft'` — `metadata.paused` is
-  // the only thing that tells them apart (toListingShape reads it), so it's set
-  // in the SAME call that flips status, never a separate round-trip.
-  const medusaStatus = body.status === 'active' ? 'published' : 'draft'
-
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: medusaStatus, metadata: { paused: body.status === 'paused' } }),
-  })
-
-  if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para modificar este anuncio.' }, { status: 403 })
-  if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (!res.ok) return NextResponse.json({ error: 'Error al actualizar el anuncio.' }, { status: 500 })
-
-  await db
-    .from('marketplace_listings')
-    .update({ status: body.status, updated_at: new Date().toISOString() })
-    .eq('medusa_product_id', id)
-
-  // Pausing a Miyagi listing closes its linked ML item (US-8); reactivating is the
-  // seller's explicit "Sincronizar" action, not an automatic relist.
-  if (body.status === 'paused') await bestEffortCloseMl(userId, id)
-
-  // Bookshop launchpad (S1.3): first activation of a launchpad-minted listing
-  // emails the writer the live URL — once. No-op for any non-launchpad product.
-  if (body.status === 'active') await notifyWriterOnPublish(id).catch(() => {})
+  // Orchestration (viability gate, metadata.paused, Supabase mirror, ML-close
+  // cascade, launchpad notify) lives in lib/listing-status.ts — shared with
+  // the catalog bulk-apply path (catalog-management S3 · 3.1) so a bulk pause
+  // can't bypass the Sprint 1.3 pausado/borrador fix.
+  const result = await setListingStatus(id, body.status as 'active' | 'paused', { userId, clerkJwt })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
   return NextResponse.json({ id, status: body.status })
 }
 
 // ── DELETE — unpublish listing ────────────────────────────────────────────────
+// Orchestration (Supabase mirror + ML-close cascade) lives in
+// lib/listing-status.ts's deleteListing() — shared with the catalog
+// bulk-apply path (catalog-management S3 · 3.2).
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { userId, getToken } = await auth()
@@ -503,20 +326,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  const res = await medusaFetch(`/store/sellers/me/products/${id}`, clerkJwt, { method: 'DELETE' })
-
-  if (res.status === 403) return NextResponse.json({ error: 'No tienes permiso para eliminar este anuncio.' }, { status: 403 })
-  if (res.status === 404) return NextResponse.json({ error: 'Anuncio no encontrado.' }, { status: 404 })
-  if (!res.ok) return NextResponse.json({ error: 'Error al eliminar el anuncio.' }, { status: 500 })
-
-  await db
-    .from('marketplace_listings')
-    .update({ status: 'deleted', updated_at: new Date().toISOString() })
-    .eq('medusa_product_id', id)
-
-  // Deleting a Miyagi listing closes its linked ML item (US-8) — keyed off the
-  // linkage, so it still works now that the product is soft-deleted.
-  await bestEffortCloseMl(userId, id)
+  const result = await deleteListing(id, { userId, clerkJwt })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
   return NextResponse.json({ id, deleted: true })
 }

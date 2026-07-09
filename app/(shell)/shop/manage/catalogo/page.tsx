@@ -94,6 +94,9 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const mlEntitled = channelsFlagEnabled
     ? (await resolveMlSyncEntitlement(shop?.metadata, { sellerClerkId: user.id })).entitled
     : false
+  // Staged bulk actions (catalog-management epic, Sprint 3) — fail-safe OFF:
+  // no selection checkboxes/bulk bar render while OFF.
+  const bulkFlagEnabled = await isEnabled('catalog.bulk_enabled')
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -138,7 +141,14 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
         </div>
       ) : (
         <>
-          <CatalogTable listings={listings} channelsFlagEnabled={channelsFlagEnabled} mlEntitled={mlEntitled} />
+          <CatalogTable
+            listings={listings}
+            channelsFlagEnabled={channelsFlagEnabled}
+            mlEntitled={mlEntitled}
+            bulkFlagEnabled={bulkFlagEnabled}
+            totalFiltered={total}
+            filterParams={params}
+          />
 
           {totalPages > 1 && (
             <div className="flex gap-1 justify-center flex-wrap mt-6">

@@ -2,10 +2,13 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
+import type { CatalogSearchParams } from '@/lib/catalog-query'
+import BulkActionBar from './BulkActionBar'
+import BulkDiffPreview from './BulkDiffPreview'
 
 export interface CatalogListing {
   id: string
@@ -113,18 +116,54 @@ export default function CatalogTable({
   listings: initialListings,
   channelsFlagEnabled = false,
   mlEntitled = false,
+  bulkFlagEnabled = false,
+  totalFiltered = 0,
+  filterParams = {},
 }: {
   listings: CatalogListing[]
   /** catalog.inventory_channels_enabled (catalog-management S2 · 2.2) — fail-safe OFF: no toggle UI renders while OFF. */
   channelsFlagEnabled?: boolean
   /** `ml_sync` entitlement — disables (not hides) the ML toggle with an upsell hint when false. */
   mlEntitled?: boolean
+  /** catalog.bulk_enabled (catalog-management S3) — fail-safe OFF: no selection/bulk UI renders while OFF. */
+  bulkFlagEnabled?: boolean
+  /** Total count matching the active filter (server-reported, not just this page) — powers "seleccionar todos (N)". */
+  totalFiltered?: number
+  /** The active table filter (q/status/category/channel/stock/sort) — passed through to a "select all across filter" bulk stage. */
+  filterParams?: CatalogSearchParams
 }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [listings, setListings] = useState(initialListings)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<ToastState | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CatalogListing | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const activeBatchId = searchParams.get('batch')
+
+  function setBatchInUrl(batchId: string | null) {
+    const sp = new URLSearchParams(searchParams.toString())
+    if (batchId) sp.set('batch', batchId)
+    else sp.delete('batch')
+    router.push(sp.toString() ? `${pathname}?${sp.toString()}` : pathname)
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) =>
+      prev.size === listings.length ? new Set() : new Set(listings.map((l) => l.id)),
+    )
+  }
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -261,10 +300,33 @@ export default function CatalogTable({
   }
 
   return (
-    <div className="overflow-x-auto border border-[var(--color-border)] rounded-xl">
+    <div>
+      {bulkFlagEnabled && selectedIds.size > 0 && (
+        <BulkActionBar
+          selectedCount={selectedIds.size}
+          totalFiltered={totalFiltered}
+          allVisibleSelected={selectedIds.size === listings.length}
+          filterParams={filterParams}
+          selectedIds={[...selectedIds]}
+          onStaged={(batchId) => setBatchInUrl(batchId)}
+          onClearSelection={() => setSelectedIds(new Set())}
+        />
+      )}
+
+      <div className="overflow-x-auto border border-[var(--color-border)] rounded-xl">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
+            {bulkFlagEnabled && (
+              <th className="p-3 font-medium w-8">
+                <input
+                  type="checkbox"
+                  checked={listings.length > 0 && selectedIds.size === listings.length}
+                  onChange={toggleSelectAllVisible}
+                  aria-label="Seleccionar todos los visibles"
+                />
+              </th>
+            )}
             <th className="p-3 font-medium">Producto</th>
             <th className="p-3 font-medium">SKU</th>
             <th className="p-3 font-medium">Precio</th>
@@ -285,6 +347,16 @@ export default function CatalogTable({
             const nextStatus = status === 'pausado' ? 'active' : 'paused'
             return (
               <tr key={listing.id} className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-alt)] ${isPending ? 'opacity-60' : ''}`}>
+                {bulkFlagEnabled && (
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(listing.id)}
+                      onChange={() => toggleSelect(listing.id)}
+                      aria-label={`Seleccionar ${listing.title}`}
+                    />
+                  </td>
+                )}
                 <td className="p-3">
                   <Link href={`/sell/edit/${listing.id}`} className="flex items-center gap-3 no-underline text-[var(--color-foreground)]">
                     <div className="w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
@@ -381,6 +453,18 @@ export default function CatalogTable({
         />
       )}
       {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+      </div>
+
+      {activeBatchId && (
+        <BulkDiffPreview
+          batchId={activeBatchId}
+          onClose={() => setBatchInUrl(null)}
+          onApplied={() => {
+            setSelectedIds(new Set())
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

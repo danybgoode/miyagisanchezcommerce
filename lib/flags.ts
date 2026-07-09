@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -188,7 +188,15 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    (tracked-only inventory, coupled ML publish state, no price override).
  *    Flip ON only after Daniel's live money-path smoke (buy a sin-límite + a
  *    sobre-pedido product end-to-end) and an ML toggle round-trip on a real
- *    ML test listing both pass.
+ *    ML test listing both pass. *  - KILL-SWITCH, FAIL-CLOSED (`catalog.bulk_enabled`): default `false`
+ *    (catalog-management epic, Sprint 3). Mirrors the backend key of the same
+ *    name — hides the row-selection checkboxes/bulk action bar/diff preview
+ *    while OFF; real enforcement is on the BACKEND (`bulk-stage`/`bulk-apply`
+ *    423 while OFF). Follows `ml.sync_enabled`'s fail-CLOSED shape (not the
+ *    usual kill-switch default-`true`): a bulk action can mutate hundreds of
+ *    products in one call, so a flag-read outage must not silently expose the
+ *    UI for an unreviewed mass-mutation surface. Enabling is the deliberate
+ *    action, done only after Daniel's live smoke.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -213,6 +221,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'notifications.buyer_moneypath_enabled': true,
   'content.overrides_enabled': true,
   'catalog.inventory_channels_enabled': false,
+  'catalog.bulk_enabled': false,
 }
 
 const TABLE = 'platform_flags'
