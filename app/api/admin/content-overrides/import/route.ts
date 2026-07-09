@@ -29,6 +29,14 @@ export const dynamic = 'force-dynamic'
 const FORMATS = ['csv', 'xlsx', 'json'] as const
 type Format = (typeof FORMATS)[number]
 
+// Bounds the raw upload BEFORE any parsing (CSV/JSON.parse/XLSX.read) runs, so a
+// pathologically large paste/file can't burn CPU/memory before the row-count cap
+// (MAX_EXPORT_IMPORT_ROWS) ever gets a chance to reject it. Generous relative to
+// a real spreadsheet of copy strings (2000 rows of short text is a few hundred
+// KB even as XLSX base64) but bounded — this is a Clerk-admin-gated surface, not
+// public, so this is defense in depth rather than the primary guard.
+const MAX_CONTENT_CHARS = 10_000_000
+
 function isFormat(value: unknown): value is Format {
   return typeof value === 'string' && (FORMATS as readonly string[]).includes(value)
 }
@@ -45,6 +53,9 @@ export const POST = withAdmin(async (req: NextRequest) => {
   if (!isFormat(format)) return NextResponse.json({ error: 'format debe ser csv, xlsx o json.' }, { status: 400 })
   if (typeof content !== 'string' || content.length === 0) {
     return NextResponse.json({ error: 'Archivo vacío o inválido.' }, { status: 400 })
+  }
+  if (content.length > MAX_CONTENT_CHARS) {
+    return NextResponse.json({ error: 'El archivo es demasiado grande.' }, { status: 413 })
   }
 
   let imported: ImportedRow[]

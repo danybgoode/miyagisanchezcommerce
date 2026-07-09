@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type ImportDiffAction = 'added' | 'changed' | 'unchanged' | 'skippedUnknown'
 
@@ -73,6 +74,7 @@ function formatForFile(file: File): 'csv' | 'xlsx' | 'json' | null {
  * are shown but can't be selected — the dictionary defines the universe.
  */
 export default function ContenidoImportExportPanel() {
+  const router = useRouter()
   const [scopeNamespace, setScopeNamespace] = useState('')
   const [scopeSection, setScopeSection] = useState('')
   const [diff, setDiff] = useState<ImportDiffRow[] | null>(null)
@@ -149,6 +151,9 @@ export default function ContenidoImportExportPanel() {
       setApplyResult({ applied: data.applied ?? 0, rejected: data.rejected ?? [] })
       setDiff(null)
       setSelected(new Set())
+      // Re-fetch the server-rendered page data so the per-key editor below reflects
+      // this batch immediately, instead of showing pre-apply values until reload.
+      router.refresh()
     } catch {
       setError('Error de red al aplicar el import.')
     } finally {
@@ -237,7 +242,7 @@ export default function ContenidoImportExportPanel() {
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '6px 8px' }} />
                   <th style={{ padding: '6px 8px' }}>Clave</th>
-                  <th style={{ padding: '6px 8px' }}>Locale</th>
+                  <th style={{ padding: '6px 8px' }}>Idioma</th>
                   <th style={{ padding: '6px 8px' }}>Acción</th>
                   <th style={{ padding: '6px 8px' }}>Antes</th>
                   <th style={{ padding: '6px 8px' }}>Después</th>

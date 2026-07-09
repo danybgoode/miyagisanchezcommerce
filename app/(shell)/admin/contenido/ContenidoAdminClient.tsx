@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /** One overridable dictionary leaf, as rendered on the admin surface. */
 export type OverrideKeyView = {
@@ -76,6 +76,12 @@ export default function ContenidoAdminClient({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, Partial<Record<Locale, string>>>>({})
+
+  // Re-sync from fresh server props after a `router.refresh()` — e.g. the bulk
+  // import/export panel triggers one after applying a batch, so the per-key list
+  // below doesn't keep showing pre-apply values until a manual reload.
+  useEffect(() => setRows(keys), [keys])
+  useEffect(() => setOrphanRows(orphans), [orphans])
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
