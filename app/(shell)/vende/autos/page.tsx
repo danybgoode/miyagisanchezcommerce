@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import es from '@/locales/es.json'
-import { getDictionary } from '@/lib/dictionary'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { sellerPersonaCtaHref } from '@/lib/seller-acquisition'
 import { SellerAcquisitionPage } from '../_components/SellerAcquisitionSections'
 import { buildAutosPageConfig } from '../_components/page-config'
@@ -38,7 +38,7 @@ type AutosPageProps = {
 
 export default async function AutosSellerPage({ searchParams }: AutosPageProps) {
   const query = await searchParams
-  const ui = (await getDictionary('es')).sellerAcquisition
+  const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const config = buildAutosPageConfig(ui, query)
 
   const jsonLd = {
