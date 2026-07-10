@@ -13,10 +13,20 @@ import { test, expect } from '@playwright/test'
  *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test --project=staging ucp-cutover
  */
 
+const EXPECTED_STAGING_HOST = 'gcp.miyagisanchez.com'
+
+// Guard the guard: this file exists specifically to test the staging host, so a run accidentally
+// pointed at prod (or anywhere else) must fail loud, not silently "pass" by validating whatever
+// host it happened to be given (Codex cross-review finding, PR #203). Applies to every test in
+// this file via beforeEach, not just the base_url one — the MCP/CORS tests would otherwise pass
+// trivially against any host too.
+test.beforeEach(async ({ baseURL }) => {
+  test.skip(!baseURL, 'Run with PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com --project=staging (see header comment).')
+  expect(new URL(baseURL!).hostname, `expected PLAYWRIGHT_BASE_URL to be ${EXPECTED_STAGING_HOST}`).toBe(EXPECTED_STAGING_HOST)
+})
+
 test.describe('gcp.miyagisanchez.com — UCP manifest advertises the staging origin correctly', () => {
   test('base_url matches gcp.miyagisanchez.com, not a dark *.run.app URL', async ({ request, baseURL }) => {
-    test.skip(!baseURL, 'Run with PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com --project=staging (see header comment).')
-
     const res = await request.get('/api/ucp/manifest')
     expect(res.status()).toBe(200)
     const manifest = await res.json()
