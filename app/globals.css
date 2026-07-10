@@ -143,6 +143,11 @@
   --danger-soft:   var(--color-danger-soft);
   --info:          var(--color-info);
   --info-soft:     var(--color-info-soft);
+  --neutral:       var(--fg-muted);
+  --neutral-soft:  var(--bg-sunk);
+
+  /* StatusBadge/OrdersInbox tag+pill chips — was referenced but never defined. */
+  --color-subtle:  var(--bg-sunk);
 
   /* ─── Semantic integration aliases ─── */
   /* Exact legacy/provider values kept here so components can style by intent. */
@@ -687,6 +692,16 @@ html, body {
 }
 .btn-ghost:hover { background: var(--accent-soft); }
 
+/* Filled danger pill — confirmation surfaces only (R2). */
+.btn-danger {
+  background: var(--danger);
+  color: var(--fg-inverse);
+  border-radius: var(--r-pill);
+  padding: 10px 20px;
+  box-shadow: var(--shadow-1);
+}
+.btn-danger:hover { background: var(--danger-strong); box-shadow: var(--shadow-2); }
+
 .btn-agent {
   background: var(--agent-soft);
   color: var(--agent);
@@ -807,6 +822,9 @@ html, body {
 }
 .badge-verified { background: var(--accent); color: var(--fg-inverse); }
 .badge-soft     { background: var(--accent-soft); color: var(--accent-ink); }
+.badge-success  { background: var(--success-soft); color: var(--success); }
+.badge-info     { background: var(--info-soft); color: var(--info); }
+.badge-neutral  { background: var(--neutral-soft); color: var(--neutral); }
 .badge-promo    { background: var(--promo-soft); color: #8a4404; }
 .badge-energy   { background: var(--energy-soft); color: #781f1f; border: 1px solid var(--jamaica-100); }
 .badge-agent    { background: var(--agent-soft); color: var(--agent); }

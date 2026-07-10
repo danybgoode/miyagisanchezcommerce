@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/lib/manual-payment-state'
 import { mlOrderBadgeLabel } from '@/lib/ml-order-badge'
+import { orderStatusToToken } from '@/lib/status-badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,16 +55,16 @@ interface Shop {
 
 type FilterTab = 'pending' | 'shipped' | 'delivered' | 'all'
 
-const STATUS_META: Record<string, { label: string; badge: string; dot: string }> = {
-  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
-  paid:       { label: 'Nuevo',       badge: 'bg-green-100 text-green-700',   dot: 'bg-green-500' },
-  processing: { label: 'Procesando',  badge: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500' },
-  shipped:    { label: 'Enviado',      badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500' },
-  in_transit: { label: 'En camino',   badge: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
-  delivered:  { label: 'Entregado',   badge: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
-  completed:  { label: 'Completado',  badge: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-400' },
-  refunded:   { label: 'Reembolsado', badge: 'bg-red-100 text-red-600',      dot: 'bg-red-500' },
-  fulfilled:  { label: 'Entregado',   badge: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Pago pendiente',
+  paid: 'Nuevo',
+  processing: 'Procesando',
+  shipped: 'Enviado',
+  in_transit: 'En camino',
+  delivered: 'Entregado',
+  completed: 'Completado',
+  refunded: 'Reembolsado',
+  fulfilled: 'Entregado',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,13 +112,14 @@ function OrderCard({
   const listing  = getListing(order)
   const shipment = getShipment(order)
   const thumb    = listing?.images?.[0]?.url ?? null
-  const meta     = STATUS_META[order.status] ?? STATUS_META.paid
+  const statusLabel = STATUS_LABEL[order.status] ?? STATUS_LABEL.paid
+  const statusToken  = orderStatusToToken(order.status)
   const urgent   = needsAction(order)
   // Manual-payment lifecycle: an unconfirmed manual order is pending OR reported —
   // never "ready to ship". The badge/footer reflect whose move it is.
   const manualState = manualPaymentStateFromOrder(order)
   const isUnpaidManual = manualState === 'pending_payment' || manualState === 'buyer_reported_paid'
-  const badgeLabel = manualState === 'buyer_reported_paid' ? manualPaymentBadge(manualState) : meta.label
+  const badgeLabel = manualState === 'buyer_reported_paid' ? manualPaymentBadge(manualState) : statusLabel
   const mlBadge = mlOrderBadgeLabel(order)
 
   return (
@@ -155,14 +158,8 @@ function OrderCard({
               {listing?.title ?? '—'}
             </p>
             <span className="flex-shrink-0 flex items-center gap-1">
-              {mlBadge && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
-                  {mlBadge}
-                </span>
-              )}
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>
-                {badgeLabel}
-              </span>
+              {mlBadge && <StatusBadge token="promo">{mlBadge}</StatusBadge>}
+              <StatusBadge token={statusToken}>{badgeLabel}</StatusBadge>
             </span>
           </div>
 

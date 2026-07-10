@@ -20,6 +20,8 @@ import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
 import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-tags'
+import { orderStatusToToken } from '@/lib/status-badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,16 +110,16 @@ const ORDER_STEPS = [
   { key: 'delivered',  label: 'Entregado' },
 ]
 
-const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700' },
-  paid:       { label: 'Nuevo',      badge: 'bg-green-100 text-green-700' },
-  processing: { label: 'Procesando', badge: 'bg-blue-100 text-blue-700' },
-  shipped:    { label: 'Enviado',    badge: 'bg-indigo-100 text-indigo-700' },
-  in_transit: { label: 'En camino',  badge: 'bg-purple-100 text-purple-700' },
-  delivered:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
-  completed:  { label: 'Completado', badge: 'bg-gray-100 text-gray-500' },
-  refunded:   { label: 'Reembolso',  badge: 'bg-red-100 text-red-600' },
-  fulfilled:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Pago pendiente',
+  paid: 'Nuevo',
+  processing: 'Procesando',
+  shipped: 'Enviado',
+  in_transit: 'En camino',
+  delivered: 'Entregado',
+  completed: 'Completado',
+  refunded: 'Reembolso',
+  fulfilled: 'Entregado',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -721,7 +723,8 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     : order.marketplace_shops
 
   const thumb  = listing?.images?.[0]?.url ?? null
-  const meta   = STATUS_META[currentStatus] ?? STATUS_META.paid
+  const statusLabel = STATUS_LABEL[currentStatus] ?? STATUS_LABEL.paid
+  const statusToken  = orderStatusToToken(currentStatus)
   const mlBadge = mlOrderBadgeLabel(order)
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -953,14 +956,11 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold">Pedido</h1>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
+            <StatusBadge token={statusToken}>{statusLabel}</StatusBadge>
             {mlBadge && (
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800"
-                title="Venta importada de Mercado Libre"
-              >
+              <StatusBadge token="promo" title="Venta importada de Mercado Libre">
                 {mlBadge}
-              </span>
+              </StatusBadge>
             )}
             {orderMeta.channel === 'custom_domain' && (
               <span
