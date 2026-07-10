@@ -21,7 +21,7 @@
 
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
-import { Toast } from '../_components/Toast'
+import { Toast } from '@/components/feedback/Toast'
 import { SectionTitle } from '../_components/SectionTitle'
 import { ToggleSwitch } from '../_components/ToggleSwitch'
 import { CopyPromptButton } from '../_components/CopyPromptButton'

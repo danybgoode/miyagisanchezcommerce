@@ -8,6 +8,7 @@ import { manualPaymentStateFromOrder, manualPaymentBadge, whoActsNext } from '@/
 import { mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 import { orderStatusToToken } from '@/lib/status-badge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Banner } from '@/components/feedback/Banner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ export default function OrdersInbox({
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const [bulkMessage, setBulkMessage] = useState<{ text: string; variant: 'success' | 'warning' | 'danger' } | null>(null)
 
   // Compute counts per tab
   const needsActionOrders = initialOrders.filter(o => needsAction(o))
@@ -280,7 +281,7 @@ export default function OrdersInbox({
         error?: string
       }
       if (!res.ok) {
-        setBulkMessage(data.error ?? 'Error al actualizar pedidos.')
+        setBulkMessage({ text: data.error ?? 'Error al actualizar pedidos.', variant: 'danger' })
         return
       }
       const advancedCount = data.advanced?.length ?? 0
@@ -290,11 +291,11 @@ export default function OrdersInbox({
         const reasons = skipped.slice(0, 3).map(s => s.reason).join('; ')
         msg += ` ${skipped.length} sin cambios: ${reasons}${skipped.length > 3 ? '…' : ''}`
       }
-      setBulkMessage(msg)
+      setBulkMessage({ text: msg, variant: skipped.length ? 'warning' : 'success' })
       setSelected(new Set())
       router.refresh()
     } catch {
-      setBulkMessage('Sin conexión.')
+      setBulkMessage({ text: 'Sin conexión.', variant: 'danger' })
     } finally {
       setBulkBusy(false)
     }
@@ -411,9 +412,9 @@ export default function OrdersInbox({
       )}
 
       {bulkMessage && (
-        <div className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 mb-4">
-          {bulkMessage}
-        </div>
+        <Banner variant={bulkMessage.variant} className="mb-4 text-xs">
+          {bulkMessage.text}
+        </Banner>
       )}
 
       {/* Orders list */}

@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test, expect } from '@playwright/test'
 import { isSellerModePath } from '../lib/seller-mode'
 import {
@@ -6,6 +9,8 @@ import {
   SELLER_NAV_MOBILE_OVERFLOW,
   activeSellerNavHref,
 } from '../lib/seller-nav'
+
+const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
 /**
  * Seller-mode shell — pure logic (api gate, no browser). The root layout reads
@@ -130,5 +135,45 @@ test.describe('seller-mode · activeSellerNavHref', () => {
     expect(activeSellerNavHref('/account')).toBeNull()
     expect(activeSellerNavHref('/')).toBeNull()
     expect(activeSellerNavHref('')).toBeNull()
+  })
+})
+
+// ── R2 — one .btn-primary per view ──────────────────────────────────────────
+
+/**
+ * `/shop/manage` and `/shop/manage/orders` are Clerk-gated, so an anonymous
+ * `request` fixture hit just redirects to /sign-in — there's no rendered HTML
+ * to grep. Instead this statically scans the route's own source files for
+ * `btn-primary` occurrences, mirroring `lib/design-token-audit.ts`'s file-scan
+ * pattern. This is an APPROXIMATION: it counts JSX occurrences in source, not
+ * what actually renders for a given order/listing at runtime (conditional
+ * branches that never render simultaneously are still counted together).
+ */
+async function countBtnPrimary(relPaths: string[]): Promise<number> {
+  let total = 0
+  for (const relPath of relPaths) {
+    const content = await readFile(path.join(repoRoot, relPath), 'utf8')
+    total += (content.match(/\bbtn-primary\b/g) ?? []).length
+  }
+  return total
+}
+
+test.describe('seller-mode · R2 one .btn-primary per view (static source scan)', () => {
+  test('/shop/manage renders at most one .btn-primary', async () => {
+    const count = await countBtnPrimary([
+      'app/(shell)/shop/manage/page.tsx',
+      'app/(shell)/shop/manage/ManageDashboard.tsx',
+    ])
+    expect(count).toBeLessThanOrEqual(1)
+  })
+
+  test('/shop/manage/orders renders at most one .btn-primary', async () => {
+    const count = await countBtnPrimary([
+      'app/(shell)/shop/manage/orders/page.tsx',
+      'app/(shell)/shop/manage/orders/OrdersInbox.tsx',
+      'app/(shell)/shop/manage/orders/[id]/page.tsx',
+      'app/(shell)/shop/manage/orders/[id]/OrderDetail.tsx',
+    ])
+    expect(count).toBeLessThanOrEqual(1)
   })
 })

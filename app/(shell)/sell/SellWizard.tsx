@@ -6,6 +6,7 @@ import { ESTADOS, ESTADO_INEGI_BY_NAME } from '@/lib/mx-locations'
 import { AttrsSection, type Attrs } from './AttrsSection'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { slugify } from '@/lib/slug'
+import { Banner } from '@/components/feedback/Banner'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -676,13 +677,9 @@ function StepListing({
     <div className="space-y-6">
       {/* Global error banner */}
       {submitError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3 text-sm flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
-          <div>
-            <p className="font-medium">No se pudo publicar</p>
-            <p className="mt-0.5">{submitError}</p>
-          </div>
-        </div>
+        <Banner variant="danger" title="No se pudo publicar">
+          {submitError}
+        </Banner>
       )}
 
       {/* Photos */}

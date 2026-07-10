@@ -17,7 +17,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
-import { Toast } from '../_components/Toast'
+import { Toast } from '@/components/feedback/Toast'
 import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
 import SubdomainSection from './SubdomainSection'

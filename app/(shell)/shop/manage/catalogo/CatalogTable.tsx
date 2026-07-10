@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
+import { Toast, useToast } from '@/components/feedback/Toast'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
 
@@ -61,24 +62,6 @@ function stockLabel(listing: CatalogListing) {
   return reserved > 0
     ? `${listing.available_quantity ?? 0} disponibles (${reserved} reservados)`
     : `${listing.available_quantity ?? 0} disponibles`
-}
-
-interface ToastState { message: string; type: 'success' | 'error' }
-
-function Toast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-        toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-      }`}
-    >
-      <span>{toast.type === 'success' ? '✓' : '⚠'}</span>
-      <span>{toast.message}</span>
-      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100" aria-label="Cerrar">×</button>
-    </div>
-  )
 }
 
 function DeleteDialog({
@@ -137,7 +120,7 @@ export default function CatalogTable({
   const searchParams = useSearchParams()
   const [listings, setListings] = useState(initialListings)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
-  const [toast, setToast] = useState<ToastState | null>(null)
+  const { toast, showToast, dismissToast } = useToast()
   const [deleteTarget, setDeleteTarget] = useState<CatalogListing | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -165,11 +148,6 @@ export default function CatalogTable({
     )
   }
 
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }, [])
-
   const markPending = (id: string, on: boolean) =>
     setPendingIds((prev) => {
       const next = new Set(prev)
@@ -195,7 +173,11 @@ export default function CatalogTable({
         setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: prevStatus === 'pausado' ? 'paused' : 'active' } : l)))
         showToast(data.error ?? 'Error al cambiar el estado.', 'error')
       } else {
-        showToast(next === 'active' ? 'Anuncio activado.' : 'Anuncio pausado.', 'success')
+        showToast(
+          next === 'active' ? 'Anuncio activado.' : 'Anuncio pausado.',
+          'success',
+          { label: 'Deshacer', onClick: () => handleToggle(listing, next === 'active' ? 'paused' : 'active') },
+        )
       }
     } catch {
       setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: prevStatus === 'pausado' ? 'paused' : 'active' } : l)))
@@ -227,7 +209,11 @@ export default function CatalogTable({
         setListings((prev) => prev.map((l) => (l.id === id ? { ...l, miyagi_visible: prevVisible } : l)))
         showToast(data.error ?? 'Error al cambiar la visibilidad.', 'error')
       } else {
-        showToast(next ? 'Visible en el marketplace Miyagi.' : 'Oculto del marketplace Miyagi (sigue en tu tienda).', 'success')
+        showToast(
+          next ? 'Visible en el marketplace Miyagi.' : 'Oculto del marketplace Miyagi (sigue en tu tienda).',
+          'success',
+          { label: 'Deshacer', onClick: () => handleMiyagiToggle({ ...listing, miyagi_visible: next }) },
+        )
       }
     } catch {
       setListings((prev) => prev.map((l) => (l.id === id ? { ...l, miyagi_visible: prevVisible } : l)))
@@ -267,7 +253,14 @@ export default function CatalogTable({
         showToast('Elige una categoría de Mercado Libre para terminar de publicar…', 'success')
         router.push(`/sell/edit/${id}`)
       } else {
-        showToast(next ? 'Publicado en Mercado Libre.' : 'Desactivado en Mercado Libre.', 'success')
+        const undoChannels = next
+          ? [...(listing.channels ?? ['miyagi']), 'ml']
+          : (listing.channels ?? []).filter((c) => c !== 'ml')
+        showToast(
+          next ? 'Publicado en Mercado Libre.' : 'Desactivado en Mercado Libre.',
+          'success',
+          { label: 'Deshacer', onClick: () => handleMlToggle({ ...listing, channels: undoChannels }) },
+        )
       }
     } catch {
       setListings((prev) => prev.map((l) => (l.id === id ? { ...l, channels: rollbackChannels } : l)))
@@ -452,7 +445,7 @@ export default function CatalogTable({
           pending={pendingIds.has(deleteTarget.id)}
         />
       )}
-      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+      <Toast toast={toast} onDismiss={dismissToast} />
       </div>
 
       {activeBatchId && (

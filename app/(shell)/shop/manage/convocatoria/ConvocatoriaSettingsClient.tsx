@@ -10,7 +10,7 @@
 
 import { useState } from 'react'
 import { useSettingsSave } from '../settings/_components/useSettingsSave'
-import { Toast } from '../settings/_components/Toast'
+import { Toast } from '@/components/feedback/Toast'
 import { SectionTitle } from '../settings/_components/SectionTitle'
 import { SectionSaveBar } from '../settings/_components/SectionSaveBar'
 import { ToggleSwitch } from '../settings/_components/ToggleSwitch'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
@@ -8,6 +8,7 @@ import {
   formatOfferAmount, offerQuality, timeAgo, timeUntil,
   type Offer,
 } from '@/lib/offers'
+import { Toast, useToast } from '@/components/feedback/Toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,17 +33,6 @@ interface OfferInboxProps {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function Toast({ message, type }: { message: string; type: 'success' | 'error' }) {
-  return (
-    <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-      type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-    }`}>
-      <span>{type === 'success' ? '✓' : '⚠'}</span>
-      <span>{message}</span>
-    </div>
-  )
-}
 
 function QualityBadge({ offerCents, askingCents }: { offerCents: number; askingCents: number }) {
   const q = offerQuality(offerCents, askingCents)
@@ -328,15 +318,10 @@ function OfferCard({
 
 export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
   const [offers, setOffers] = useState<InboxOffer[]>(initialOffers)
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const { toast, showToast, dismissToast } = useToast()
   const [counterOffer, setCounterOffer] = useState<InboxOffer | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'pending' | 'all'>('pending')
-
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }, [])
 
   async function respond(offerId: string, action: 'accept' | 'decline') {
     setBusyId(offerId)
@@ -492,7 +477,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
         />
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} />}
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   )
 }

@@ -10,7 +10,7 @@
 
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
-import { Toast } from '../_components/Toast'
+import { Toast } from '@/components/feedback/Toast'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { detectSchedulingService } from '@/lib/shop-settings/helpers'
