@@ -150,8 +150,10 @@ function EntitlementControls({
   const [confirmingRevoke, setConfirmingRevoke] = useState(false)
   // The raw durable grant, resolved on open (null = none, undefined = not yet known).
   const [grant, setGrant] = useState<DomainGrant | null | undefined>(undefined)
-  // Which paid SKU's comp we're managing (S6: was custom-domain-only).
-  const [sku, setSku] = useState<'custom_domain' | 'subdomain' | 'ml_sync'>('custom_domain')
+  // Which paid SKU's comp we're managing (S6: was custom-domain-only; Sprint 2
+  // of shipping-provider-expansion adds 'envia' — a Medusa-seller-backed grant,
+  // not a Supabase one, but the same UI/API shape).
+  const [sku, setSku] = useState<'custom_domain' | 'subdomain' | 'ml_sync' | 'envia'>('custom_domain')
 
   // On open (and whenever the SKU changes), resolve the true reason for this one
   // shop + SKU (subscription incl.).
@@ -244,7 +246,7 @@ function EntitlementControls({
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={sku}
-            onChange={(e) => setSku(e.target.value as 'custom_domain' | 'subdomain' | 'ml_sync')}
+            onChange={(e) => setSku(e.target.value as 'custom_domain' | 'subdomain' | 'ml_sync' | 'envia')}
             disabled={busy}
             aria-label="SKU"
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs"
@@ -252,6 +254,7 @@ function EntitlementControls({
             <option value="custom_domain">Dominio propio</option>
             <option value="subdomain">Subdominio</option>
             <option value="ml_sync">Sincronización ML</option>
+            <option value="envia">Envía (comp-grant)</option>
           </select>
           <input
             type="text"
