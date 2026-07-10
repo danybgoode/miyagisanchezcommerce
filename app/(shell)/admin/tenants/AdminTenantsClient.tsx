@@ -254,7 +254,7 @@ function EntitlementControls({
             <option value="custom_domain">Dominio propio</option>
             <option value="subdomain">Subdominio</option>
             <option value="ml_sync">Sincronización ML</option>
-            <option value="envia">Envía (comp-grant)</option>
+            <option value="envia">Envía (cortesía)</option>
           </select>
           <input
             type="text"
