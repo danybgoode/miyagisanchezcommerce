@@ -13,13 +13,14 @@ import { test, expect } from '@playwright/test'
  * after the cutover.
  */
 
-// Matches the route's own proto derivation (app/api/ucp/manifest/route.ts: proto is 'http' only
-// when host.includes('localhost'), 'https' otherwise) — so this holds for a plain `http://` or
-// `https://` baseURL, including local dev (both sides derive proto from the same host string).
-// It would only diverge on an artificial `https://localhost` baseURL, which no config in this
-// repo ever sets.
+// Mirrors the route's own proto derivation verbatim (app/api/ucp/manifest/route.ts:
+// `host.includes('localhost') ? 'http' : 'https'`) rather than trusting baseURL's literal
+// protocol — a bare origin comparison would diverge from the route's real behavior on a host
+// like `127.0.0.1` under an `http://` baseURL (Codex cross-review finding, PR #203).
 function expectedOrigin(baseURL: string | undefined): string {
-  return new URL(baseURL ?? 'https://miyagisanchez.com').origin
+  const url = new URL(baseURL ?? 'https://miyagisanchez.com')
+  const proto = url.hostname.includes('localhost') ? 'http' : 'https'
+  return `${proto}://${url.host}`
 }
 
 test.describe('UCP manifest — advertises the canonical origin, not a dark *.run.app URL', () => {
