@@ -55,9 +55,16 @@ export async function applySuggestedPriceItem(
     }),
   })
 
-  const data = await res.json().catch(() => ({})) as { miyagi?: string; message?: string }
+  // A non-JSON response (e.g. a 502/504 gateway HTML page) must not collapse
+  // into the same generic message a real 4xx business error gets — keep the
+  // HTTP status visible so an infrastructure drop is distinguishable from an
+  // honest apply-price rejection in the audit trail (cross-agent review catch).
+  const data = await res.json().catch(() => null) as { miyagi?: string; message?: string } | null
+  if (!data) {
+    return { ok: false, error: `Error de conexión al aplicar el precio (HTTP ${res.status}).` }
+  }
   if (!res.ok || data.miyagi === 'failed') {
-    return { ok: false, error: data.message ?? 'Error al aplicar el precio sugerido.' }
+    return { ok: false, error: data.message ?? `Error al aplicar el precio sugerido (HTTP ${res.status}).` }
   }
   // miyagi:'ok' — the Miyagi write landed regardless of the ML leg's outcome
   // (ok/skipped/failed); the route's own price_apply audit event already

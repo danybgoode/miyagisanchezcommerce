@@ -215,7 +215,15 @@ export default function BulkActionBar({
         return
       }
 
-      const solved = await mapWithConcurrency(candidates, 5, async (candidate) => {
+      // Two-pass solve, mirroring PricingCard's own `startConfirm()` — the
+      // fee rate quoted at the CURRENT price can sit in a different ML fee
+      // bracket than the candidate price the first pass produces (a low-
+      // price fixed-fee threshold, say), so re-fetch the rate AT the
+      // candidate price and re-solve before staging (cross-agent review
+      // catch: staging the first-pass price unverified could silently miss
+      // the seller's target margin once ML actually charges the real
+      // candidate-price bracket's fee).
+      const firstPass = await mapWithConcurrency(candidates, 5, async (candidate) => {
         const info = listingInfoById.get(candidate.productId)
         const referencePriceCents = info?.priceCents ?? 0
         const fee = info?.mlLinked && referencePriceCents > 0
@@ -228,8 +236,28 @@ export default function BulkActionBar({
           feePct: fee.available ? (fee.feePct ?? 0) : 0,
           targetMarginPct: targetMarginPct / 100,
         })
-        return result.achievable ? { id: candidate.productId, price_cents: result.priceCents } : null
+        return result.achievable
+          ? { candidate, mlLinked: info?.mlLinked ?? false, priceCents: result.priceCents }
+          : null
       })
+
+      const solved = await mapWithConcurrency(
+        firstPass.filter((f): f is NonNullable<typeof f> => f !== null),
+        5,
+        async ({ candidate, mlLinked, priceCents }) => {
+          const freshFee = mlLinked
+            ? await fetchFeeEstimate(candidate.productId, priceCents)
+            : { available: false as const }
+          const result = solveForPrice({
+            cogsCents: candidate.costPerUnitCents,
+            shippingCents: 0,
+            fixedFeeCents: freshFee.available ? (freshFee.fixedFeeCents ?? 0) : 0,
+            feePct: freshFee.available ? (freshFee.feePct ?? 0) : 0,
+            targetMarginPct: targetMarginPct / 100,
+          })
+          return result.achievable ? { id: candidate.productId, price_cents: result.priceCents } : null
+        },
+      )
 
       const items = solved.filter((s): s is { id: string; price_cents: number } => s !== null)
       const unachievableCount = candidates.length - items.length
