@@ -23,6 +23,13 @@ const INFRA_SUBDOMAINS = new Set<string>([
   'www', 'api', 'app', 'admin', 'clerk', 'accounts', 'mail', 'email', 'smtp',
   'ftp', 'cdn', 'assets', 'static', 'img', 'images', 'media', 'staging', 'stage',
   'dev', 'test', 'preview', 'vercel', 'status', 'docs', 'blog', 'go',
+  // Cloudflare→ALB→Cloud Run staging hostname (09-platform-infra
+  // frontend-vercel-to-cloudrun, S2.2) — a platform-served proving host, not a
+  // tenant shop slug. Found live: shopSlugFromHost() runs BEFORE
+  // middleware.ts's isPlatformHost() check, so an unreserved single-label
+  // subdomain of the root is treated as a shop slug lookup regardless of
+  // isPlatformHost's own allowlist — this is the only place that actually gates it.
+  'gcp',
 ])
 
 /** True when this label is reserved (RESERVED_SLUGS ∪ INFRA) — not a shop. */

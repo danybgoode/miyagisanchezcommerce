@@ -21,10 +21,6 @@ const PLATFORM_HOSTS = [
   'www.miyagisanchez.com',
   'localhost',
   '127.0.0.1',
-  // Cloudflare→ALB→Cloud Run staging hostname (09-platform-infra
-  // frontend-vercel-to-cloudrun, S2.2) — same reasoning as .run.app below: a
-  // platform-served proving host, not a tenant custom domain.
-  'gcp.miyagisanchez.com',
 ]
 
 function isPlatformHost(hostname: string): boolean {
