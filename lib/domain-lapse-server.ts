@@ -6,26 +6,26 @@
  *   - the Stripe webhook (`customer.subscription.deleted`, recurring cadence), and
  *   - the one-time expiry sweep (epic 08 · promoter-program S2): a `one_time`
  *     grant lapses on READ (the gate closes with no auto-charge), but the physical
- *     Vercel/Supabase teardown has no webhook to fire it, so a periodic sweep
+ *     provider/Supabase teardown has no webhook to fire it, so a periodic sweep
  *     releases domains whose dated grant has expired.
  *
- * Best-effort by design — a Vercel hiccup must never throw out of a webhook
+ * Best-effort by design — a provider hiccup must never throw out of a webhook
  * (Stripe would retry the whole event) or abort the sweep mid-batch.
  *
- * server-only (Vercel API + Supabase + Telegram + `next/cache`).
+ * server-only (Cloudflare API + Supabase + Telegram + `next/cache`).
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
-import { removeDomainFromProject } from '@/lib/vercel-domains'
+import { removeDomainFromProject } from '@/lib/cloudflare-domains'
 import { SHOP_DOMAINS_TAG } from '@/lib/custom-domain'
 import { tg } from '@/lib/telegram'
 import { readDomainGrant, isOneTimeGrantLive } from '@/lib/domain-entitlement'
 import { revalidateTag } from 'next/cache'
 
 /**
- * Release the seller's custom domain from Vercel, null it in Supabase, and stamp
- * `metadata.custom_domain_lapsed` so Canal shows the "re-activate to restore your
- * domain" prompt. The free subdomain + slug are untouched (the shop stays
+ * Release the seller's custom domain from the provider, null it in Supabase, and
+ * stamp `metadata.custom_domain_lapsed` so Canal shows the "re-activate to restore
+ * your domain" prompt. The free subdomain + slug are untouched (the shop stays
  * reachable). `reason` only flavors the Telegram alert.
  */
 export async function releaseCustomDomainForShop(
@@ -51,7 +51,7 @@ export async function releaseCustomDomainForShop(
       try {
         await removeDomainFromProject(domain)
       } catch (err) {
-        console.error('[custom-domain lapse] Vercel removeDomain failed:', err)
+        console.error('[custom-domain lapse] removeDomainFromProject failed:', err)
       }
     }
 
