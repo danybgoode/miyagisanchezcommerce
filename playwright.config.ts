@@ -4,18 +4,28 @@ import { defineConfig, devices } from '@playwright/test'
  * Playwright harness — seeded by epic 07 (Agent Connection), extended with an
  * opt-in browser layer.
  *
- * TWO projects:
+ * THREE projects:
  *   • `api`     — the deterministic gate. API-level specs (`*.spec.ts`, excluding
- *                 `*.browser.spec.ts`) hit public endpoints via the `request`
- *                 fixture. No browser binaries → fast, cheap, runs in CI on every PR.
+ *                 `*.browser.spec.ts` and `*.staging.spec.ts`) hit public endpoints via
+ *                 the `request` fixture against `baseURL`. No browser binaries → fast,
+ *                 cheap, runs in CI on every PR.
  *   • `browser` — opt-in real-browser smoke (`*.browser.spec.ts`, Chromium). Asserts
  *                 *rendered* UI an API call can't see (a field renders before the CTA,
  *                 a counter ticks, a required-field nudge fires). NOT in the blocking
  *                 gate (binaries are heavy/slow); run on demand / nightly.
+ *   • `staging` — opt-in, targets a DIFFERENT host than `baseURL` on purpose (e.g. an
+ *                 infra-migration staging hostname like `gcp.miyagisanchez.com` — see
+ *                 09-platform-infra/frontend-vercel-to-cloudrun). Excluded from `api`
+ *                 for exactly that reason: included there, it would run against the PR's
+ *                 Vercel preview and fail on a host mismatch that isn't a real bug (this
+ *                 happened live — CI caught two specs that were named plain `*.spec.ts`
+ *                 and got swept into the gate). Run explicitly with
+ *                 `PLAYWRIGHT_BASE_URL=<target> npx playwright test --project=staging`.
  *
- *   npx playwright test                      # both projects (needs `playwright install`)
+ *   npx playwright test                      # api + browser (needs `playwright install`)
  *   npm run test:e2e                         # api only — the gate
  *   npm run test:e2e:browser                 # browser only (run `npx playwright install chromium` first)
+ *   PLAYWRIGHT_BASE_URL=<url> npx playwright test --project=staging   # staging only, explicit host
  *
  * Point at any environment with PLAYWRIGHT_BASE_URL; defaults to production.
  *
@@ -53,7 +63,7 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testIgnore: '**/*.browser.spec.ts',
+      testIgnore: ['**/*.browser.spec.ts', '**/*.staging.spec.ts'],
     },
     {
       name: 'browser',
@@ -66,6 +76,12 @@ export default defineConfig({
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
       },
+    },
+    {
+      // Plain request-fixture specs, same as `api`, but pointed at a deliberately
+      // different host — never picked up by `api` or run in CI (see header comment).
+      name: 'staging',
+      testMatch: '**/*.staging.spec.ts',
     },
   ],
 })

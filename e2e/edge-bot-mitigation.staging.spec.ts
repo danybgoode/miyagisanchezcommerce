@@ -4,10 +4,11 @@ import { test, expect } from '@playwright/test'
  * Cloudflare WAF/bot parity with the retired Vercel Bot Protection
  * (09-platform-infra frontend-vercel-to-cloudrun, Sprint 2, Story 2.3).
  *
- * NOT part of the CI gate — targets `gcp.miyagisanchez.com` specifically, same reasoning as
- * `origin-header-passthrough-api.spec.ts`. Run manually:
+ * NOT part of the CI gate — the `staging` Playwright project (see playwright.config.ts) excludes
+ * `*.staging.spec.ts` from `api` for exactly this reason: it targets `gcp.miyagisanchez.com`
+ * specifically, same reasoning as `origin-header-passthrough.staging.spec.ts`. Run manually:
  *
- *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test edge-bot-mitigation --project=api
+ *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test --project=staging edge-bot-mitigation
  *
  * Cloned from `not-found-shape.spec.ts`'s request-fixture pattern, but asserting the EDGE
  * mitigation (Cloudflare's own block page, confirmed live via its "Attention Required! |

@@ -4,10 +4,11 @@ import { test, expect } from '@playwright/test'
  * Header-passthrough proof for the Cloudflare→ALB→Cloud Run staging path
  * (09-platform-infra frontend-vercel-to-cloudrun, Sprint 2, Story 2.2).
  *
- * NOT part of the CI gate — it targets `gcp.miyagisanchez.com` specifically, a different
- * host than the Vercel preview CI runs against. Run manually against the staging hostname:
+ * NOT part of the CI gate — the `staging` Playwright project (see playwright.config.ts) excludes
+ * `*.staging.spec.ts` from `api` for exactly this reason: it targets `gcp.miyagisanchez.com`
+ * specifically, a different host than the Vercel preview CI runs against. Run manually:
  *
- *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test origin-header-passthrough
+ *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test --project=staging origin-header-passthrough
  *
  * `middleware.ts` classifies every request purely off the `Host` header (confirmed by reading the
  * source — neither middleware.ts nor lib/channel.ts consumes X-Forwarded-For/-Proto today), so the
