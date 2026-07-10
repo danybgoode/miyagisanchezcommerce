@@ -15,10 +15,12 @@ import { test, expect } from '@playwright/test'
 
 test.describe('gcp.miyagisanchez.com — UCP manifest advertises the staging origin correctly', () => {
   test('base_url matches gcp.miyagisanchez.com, not a dark *.run.app URL', async ({ request, baseURL }) => {
+    test.skip(!baseURL, 'Run with PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com --project=staging (see header comment).')
+
     const res = await request.get('/api/ucp/manifest')
     expect(res.status()).toBe(200)
     const manifest = await res.json()
-    expect(manifest.base_url).toBe(new URL(baseURL ?? '').origin)
+    expect(manifest.base_url).toBe(new URL(baseURL!).origin)
     expect(JSON.stringify(manifest)).not.toContain('run.app')
   })
 

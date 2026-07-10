@@ -27,6 +27,7 @@ test.describe('UCP manifest — advertises the canonical origin, not a dark *.ru
 
   test('no URL anywhere in the manifest points at a *.run.app host', async ({ request }) => {
     const res = await request.get('/api/ucp/manifest')
+    expect(res.status()).toBe(200)
     const text = await res.text()
     expect(text).not.toContain('run.app')
   })
@@ -70,7 +71,10 @@ test.describe('UCP MCP — JSON-RPC round-trip + agent CORS', () => {
     const res = await request.post('/api/ucp/mcp', {
       data: { jsonrpc: '2.0', id: 2, method: 'initialize' },
     })
+    expect(res.status()).toBe(200)
     const body = await res.json()
+    expect(body.jsonrpc).toBe('2.0')
+    expect(body.result.serverInfo).toBeTruthy()
     expect(JSON.stringify(body)).not.toContain('run.app')
   })
 
@@ -95,9 +99,16 @@ test.describe('UCP checkout-session — checkout_url origins (fixture-gated)', (
     })
     expect(res.ok()).toBeTruthy()
     const session = await res.json()
-    const checkoutUrls: string[] = (session.payment_options ?? [])
+    expect(Array.isArray(session.payment_options)).toBeTruthy()
+    expect(session.payment_options.length).toBeGreaterThan(0)
+
+    const checkoutUrls: string[] = session.payment_options
       .map((o: { checkout_url?: string }) => o.checkout_url)
       .filter((u: string | undefined): u is string => typeof u === 'string')
+    // At least one instant method (MP/Stripe) should be available on a normal fixture listing —
+    // if this ever comes back empty, the fixture listing has no instant payment method configured
+    // rather than the test silently having nothing to check.
+    expect(checkoutUrls.length).toBeGreaterThan(0)
 
     for (const url of checkoutUrls) {
       expect(new URL(url).origin).toBe(expectedOrigin(baseURL))
