@@ -14,6 +14,15 @@ export type Shop = {
   // Federated commerce — own channel
   custom_domain: string | null
   custom_domain_verified: boolean
+  /**
+   * Name is legacy (dates from the Vercel-only era) — semantics are now
+   * provider-neutral: "the domain provider (Vercel, then Cloudflare from
+   * Sprint 4 of frontend-vercel-to-cloudrun) confirmed the domain/hostname is
+   * registered." Kept as documented column-reuse rather than a rename/migration
+   * — the value was never Vercel-shaped, only the name is a naming legacy, and
+   * it has real blast radius (route.ts, domain-lapse-server.ts, seller
+   * settings UI, admin tenant directory).
+   */
   custom_domain_vercel_ok: boolean
 }
 
