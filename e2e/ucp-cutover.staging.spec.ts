@@ -7,8 +7,11 @@ import { test, expect } from '@playwright/test'
  * Same mechanism as ucp-cutover-api.spec.ts, run manually against the real edge path
  * (Cloudflare→ALB→Cloud Run) BEFORE the DNS cutover (Story 3.4), so any Host-header surprise
  * on the new infra is caught pre-flip rather than discovered live. NOT part of the CI gate —
- * the `staging` Playwright project (see playwright.config.ts) excludes `*.staging.spec.ts` from
- * `api` for exactly this reason (it targets a deliberately different host). Run manually:
+ * the `staging` Playwright project (see playwright.config.ts) is scoped via
+ * `testMatch: '**\/*.staging.spec.ts'`, so `--project=staging` alone already excludes
+ * `ucp-cutover-api.spec.ts` (confirmed live: `--project=staging ucp-cutover` runs exactly this
+ * file's 4 tests, not the sibling api spec's 9 — the project's testMatch does the filtering; the
+ * "ucp-cutover" argument is just a convenience substring on top of that). Run manually:
  *
  *   PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test --project=staging ucp-cutover
  */

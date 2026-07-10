@@ -13,6 +13,11 @@ import { test, expect } from '@playwright/test'
  * after the cutover.
  */
 
+// Matches the route's own proto derivation (app/api/ucp/manifest/route.ts: proto is 'http' only
+// when host.includes('localhost'), 'https' otherwise) — so this holds for a plain `http://` or
+// `https://` baseURL, including local dev (both sides derive proto from the same host string).
+// It would only diverge on an artificial `https://localhost` baseURL, which no config in this
+// repo ever sets.
 function expectedOrigin(baseURL: string | undefined): string {
   return new URL(baseURL ?? 'https://miyagisanchez.com').origin
 }
@@ -34,6 +39,7 @@ test.describe('UCP manifest — advertises the canonical origin, not a dark *.ru
 
   test('every endpoint URL shares the same origin as base_url', async ({ request }) => {
     const res = await request.get('/api/ucp/manifest')
+    expect(res.status()).toBe(200)
     const manifest = await res.json()
     const urls: string[] = Object.values(manifest.endpoints as Record<string, { url?: string }>)
       .map((e) => e.url)
