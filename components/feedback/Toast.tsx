@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Toast — seller-portal-rails-foundation S1 · Story 1.2 (R6 "after" + R7 undo).
@@ -45,6 +45,10 @@ export function useToast(durationMs = 4000) {
     [durationMs],
   )
 
+  // Clear the pending auto-dismiss timer if the host unmounts mid-toast —
+  // otherwise it fires setState on an unmounted component.
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
   return { toast, showToast, dismissToast }
 }
 
@@ -66,7 +70,10 @@ export function Toast({ toast, onDismiss }: { toast: ToastState | null; onDismis
       {toast.action && (
         <button
           type="button"
-          onClick={toast.action.onClick}
+          onClick={() => {
+            toast.action?.onClick()
+            onDismiss()
+          }}
           className="font-semibold underline underline-offset-2 opacity-90 hover:opacity-100"
         >
           {toast.action.label}

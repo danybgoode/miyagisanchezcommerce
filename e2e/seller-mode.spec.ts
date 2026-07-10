@@ -148,12 +148,20 @@ test.describe('seller-mode · activeSellerNavHref', () => {
  * pattern. This is an APPROXIMATION: it counts JSX occurrences in source, not
  * what actually renders for a given order/listing at runtime (conditional
  * branches that never render simultaneously are still counted together).
+ *
+ * Counts BOTH the raw `.btn-primary` class string AND `<Button variant="primary">`
+ * usage — once a route adopts the shared `<Button>` component (Sprint 2's
+ * adoption sweep), the literal string "btn-primary" moves into Button.tsx's
+ * own source and stops appearing in the route file at all, which would
+ * silently defeat a class-string-only scan (always counting 0).
  */
 async function countBtnPrimary(relPaths: string[]): Promise<number> {
   let total = 0
   for (const relPath of relPaths) {
     const content = await readFile(path.join(repoRoot, relPath), 'utf8')
-    total += (content.match(/\bbtn-primary\b/g) ?? []).length
+    const rawClass = (content.match(/\bbtn-primary\b/g) ?? []).length
+    const buttonComponent = (content.match(/<Button\b[^>]*\bvariant=["']primary["']/g) ?? []).length
+    total += rawClass + buttonComponent
   }
   return total
 }

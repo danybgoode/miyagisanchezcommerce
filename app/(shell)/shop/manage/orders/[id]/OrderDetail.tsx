@@ -119,7 +119,7 @@ const STATUS_LABEL: Record<string, string> = {
   in_transit: 'En camino',
   delivered: 'Entregado',
   completed: 'Completado',
-  refunded: 'Reembolso',
+  refunded: 'Reembolsado',
   fulfilled: 'Entregado',
 }
 
