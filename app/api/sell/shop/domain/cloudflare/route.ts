@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { dnsRecordFor } from '@/lib/domain-utils'
-import { getDomainConfig } from '@/lib/vercel-domains'
+import { getDomainConfig } from '@/lib/cloudflare-domains'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 
 const CF_API = 'https://api.cloudflare.com/client/v4'
@@ -114,21 +114,22 @@ export async function POST(req: NextRequest) {
   const zoneId = zone.id
 
   // ── Step 2: Decide the correct record ───────────────────────────────────
-  // An apex domain needs an A record (registrars/Cloudflare reject a CNAME at the
-  // root and flatten it to an IP that may not match Vercel's); a subdomain needs
-  // a CNAME. `dnsRecordFor` is the single source of that decision, shared with the
-  // UI so the seller sees the same record we write.
+  // Both apex and subdomain now recommend a CNAME to the fallback-origin
+  // hostname (Cloudflare for SaaS has no fixed apex A-record IP the way
+  // Vercel did — apex relies on the registrar's own CNAME-flattening/ALIAS
+  // support). `dnsRecordFor` is the single source of that decision, shared
+  // with the UI so the seller sees the same record we write.
   const record = dnsRecordFor(domain)
 
-  // Prefer Vercel's project-specific recommended value (the apex IP / per-project
-  // CNAME can differ from the generic defaults); fall back to the static target.
+  // Prefer the provider's live recommended value when reachable; fall back
+  // to the static target from domain-utils otherwise.
   let content = record.value
   try {
     const cfg = await getDomainConfig(domain)
     if (record.type === 'A' && cfg.recommendedIPv4[0]) content = cfg.recommendedIPv4[0]
     if (record.type === 'CNAME' && cfg.recommendedCNAME) content = cfg.recommendedCNAME
   } catch {
-    // Vercel config unreachable — keep the static fallback from domain-utils.
+    // Provider config unreachable — keep the static fallback from domain-utils.
   }
 
   // ── Step 3: Remove conflicting A *and* CNAME records on this name ─────────
@@ -149,14 +150,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Step 4: Create the record (A for apex, CNAME for subdomain) ──────────
+  // ── Step 4: Create the record (CNAME, apex or subdomain) ─────────────────
   // `name: domain` is the full FQDN; for an apex this is the zone root.
   const createRes = await cfPost(`/zones/${zoneId}/dns_records`, cf_token, {
     type: record.type,
     name: domain,
     content,
     ttl: 1,       // 1 = automatic TTL
-    proxied: false, // Must be DNS-only (not proxied) for Vercel SSL to work
+    proxied: false, // Must be DNS-only — Cloudflare for SaaS custom-hostname routing
+                    // works via normal DNS resolution + SNI matching at our edge; a
+                    // seller-side proxy would double-hop instead of resolving through.
   })
 
   const createData = await createRes.json() as {

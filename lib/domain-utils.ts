@@ -11,16 +11,22 @@
  * isn't mistaken for a subdomain.
  */
 
-// These are generic fallbacks. At runtime the domain route and the Cloudflare
-// automation prefer Vercel's *project-specific* recommended records from
-// `getDomainConfig()` (lib/vercel-domains.ts) — Vercel now issues per-project
-// CNAME targets and the apex IP can change, so the live value is authoritative
-// and these constants are only used when that API is unreachable.
+// Sprint 4 (frontend-vercel-to-cloudrun) provider swap: Vercel → Cloudflare for SaaS
+// custom hostnames. `cname.miyagisanchez.com` is the fallback-origin hostname
+// (infra/gcp/cloudflare-saas-fallback-provision.mjs) — a PROXIED record inside our
+// own zone that Cloudflare's edge routes tenant custom-hostname traffic through.
+//
+// Unlike Vercel, Cloudflare for SaaS does not publish a fixed customer-facing
+// anycast IP for apex (A-record) pointing — its documented guidance for apex
+// domains is CNAME flattening (ALIAS/ANAME) to the same fallback-origin target
+// most registrars support this today. So `dnsRecordFor` now recommends a CNAME
+// for BOTH apex and subdomain domains (only `isApex` still distinguishes them,
+// for UI copy — "your registrar needs to support a root CNAME/ALIAS"). This
+// retires the old A-record path entirely; there is no Cloudflare equivalent of
+// `APEX_A_RECORD` to fall back to.
 
-/** CNAME target a subdomain must point to (generic fallback). */
-export const CNAME_TARGET = 'cname.vercel-dns.com'
-/** A-record IP a true apex must point to — Vercel anycast (generic fallback). */
-export const APEX_A_RECORD = '76.76.21.21'
+/** CNAME target every domain (apex or subdomain) must point to. */
+export const CNAME_TARGET = 'cname.miyagisanchez.com'
 
 // Two-label public suffixes that must be treated as a single TLD.
 const MULTI_LABEL_SUFFIXES = [
@@ -47,10 +53,12 @@ export function isApexDomain(domain: string): boolean {
 }
 
 /**
- * The single DNS record a seller should add for their domain:
- *  - apex → an A record at `@` pointing to Vercel's anycast IP (works on every
- *    registrar, including those that reject a CNAME at the root);
- *  - subdomain → a CNAME on the sub-label pointing to `cname.vercel-dns.com`.
+ * The single DNS record a seller should add for their domain — a CNAME to
+ * `cname.miyagisanchez.com`, for apex AND subdomain domains alike:
+ *  - apex → CNAME at `@` (needs the registrar's CNAME-flattening/ALIAS/ANAME
+ *    support — most modern registrars have this; `isApex` tells the UI to
+ *    show that caveat);
+ *  - subdomain → a plain CNAME on the sub-label, universally supported.
  */
 export function dnsRecordFor(domain: string): {
   host: string
@@ -60,7 +68,7 @@ export function dnsRecordFor(domain: string): {
 } {
   const d = clean(domain)
   if (isApexDomain(d)) {
-    return { host: '@', type: 'A', value: APEX_A_RECORD, isApex: true }
+    return { host: '@', type: 'CNAME', value: CNAME_TARGET, isApex: true }
   }
   const apex = apexOf(d)
   const host = d.slice(0, Math.max(0, d.length - apex.length - 1)) // strip ".<apex>"

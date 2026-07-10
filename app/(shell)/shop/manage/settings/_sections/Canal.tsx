@@ -22,12 +22,15 @@ import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
 import SubdomainSection from './SubdomainSection'
 import DomainPaywallUpsell from './DomainPaywallUpsell'
-import { dnsRecordFor } from '@/lib/domain-utils'
+import { dnsRecordFor, CNAME_TARGET } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { coerceSupportSettings } from '@/lib/support-widget'
 import type { SettingsTree } from '@/lib/shop-settings/types'
 
-// ── Registrar DNS guides (verbatim from the monolith) ────────────────────────
+// ── Registrar DNS guides ──────────────────────────────────────────────────────
+// Interpolate CNAME_TARGET (not a hardcoded literal) so a future provider swap
+// only ever touches lib/domain-utils.ts — Sprint 4 (frontend-vercel-to-cloudrun)
+// found 5 hardcoded copies of the old `cname.vercel-dns.com` string here.
 const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string; steps: string[] }> = {
   cloudflare: {
     name: 'Cloudflare',
@@ -36,7 +39,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
     steps: [
       'Ve a dash.cloudflare.com → elige tu dominio',
       'En la barra lateral clic en "DNS" → "Agregar registro"',
-      'Tipo: CNAME · Nombre: @ · Contenido: cname.vercel-dns.com',
+      `Tipo: CNAME · Nombre: @ · Contenido: ${CNAME_TARGET}`,
       'Proxy (nube naranja): desactivar → DNS only · Guardar',
     ],
   },
@@ -47,7 +50,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
     steps: [
       'Ve a dcc.godaddy.com → Mis dominios → "Administrar DNS"',
       'Desplázate hasta "Registros CNAME" → clic en "Agregar"',
-      'Host: @ · Apunta a: cname.vercel-dns.com · TTL: 1 hora',
+      `Host: @ · Apunta a: ${CNAME_TARGET} · TTL: 1 hora`,
       'Clic en "Guardar"',
     ],
   },
@@ -58,7 +61,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
     steps: [
       'Ve a namecheap.com → Domain List → "Manage" junto a tu dominio',
       'Pestaña "Advanced DNS" → "Add New Record"',
-      'Tipo: CNAME Record · Host: @ · Value: cname.vercel-dns.com',
+      `Tipo: CNAME Record · Host: @ · Value: ${CNAME_TARGET}`,
       'TTL: Automático → "Save All Changes"',
     ],
   },
@@ -69,7 +72,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
     steps: [
       'Ve a domains.google.com → tu dominio → "DNS"',
       'En "Custom records" → "Manage custom records" → "Create new record"',
-      'Tipo: CNAME · Nombre: (vacío o @) · Datos: cname.vercel-dns.com',
+      `Tipo: CNAME · Nombre: (vacío o @) · Datos: ${CNAME_TARGET}`,
       'Clic en "Save"',
     ],
   },
@@ -80,7 +83,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
     steps: [
       'Ve a account.squarespace.com/domains → tu dominio → "DNS settings"',
       'Clic en "Add record" → Tipo: CNAME',
-      'Host: @ · Data: cname.vercel-dns.com',
+      `Host: @ · Data: ${CNAME_TARGET}`,
       'Clic en "Save"',
     ],
   },
@@ -350,7 +353,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
     if (!savedDomain) return 'none'
     if (domainError) return 'error'
     if (domainDnsOk) return domainSslReady ? 'active' : 'provisioning'
-    if (domainCnameCurrent && domainCnameCurrent !== 'cname.vercel-dns.com') return 'error'
+    if (domainCnameCurrent && domainCnameCurrent !== CNAME_TARGET) return 'error'
     if (domainLastChecked) return 'unverified'
     return 'pending_dns'
   })()
@@ -690,7 +693,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     <span className="text-orange-500 flex-shrink-0 mt-0.5">🟠</span>
                     <p className="text-xs text-orange-700">
                       Tu dominio está detrás del proxy de Cloudflare (la nube naranja). Desactívalo
-                      para que quede en <span className="font-medium">DNS only</span> (nube gris) — Vercel necesita
+                      para que quede en <span className="font-medium">DNS only</span> (nube gris) — necesitamos
                       ver tu dominio directamente para emitir el certificado SSL.
                     </p>
                   </div>
@@ -700,7 +703,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
                     <p className="text-xs text-red-700">
                       Tu {dnsRecord?.type ?? 'CNAME'} apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
-                      Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? 'cname.vercel-dns.com'}</span> para conectar tu tienda.
+                      Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? CNAME_TARGET}</span> para conectar tu tienda.
                     </p>
                   </div>
                 )}
@@ -720,7 +723,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     <span className="text-xs text-white/50 font-mono">Registro DNS — {dnsRecord?.type ?? 'CNAME'}</span>
                     <button
                       type="button"
-                      onClick={() => { navigator.clipboard.writeText(dnsRecord?.value ?? 'cname.vercel-dns.com'); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
+                      onClick={() => { navigator.clipboard.writeText(dnsRecord?.value ?? CNAME_TARGET); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
                       className={`text-xs px-2 py-0.5 rounded transition-all ${domainCopied ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
                     >
                       {domainCopied ? '✓ Copiado' : 'Copiar valor'}
@@ -729,14 +732,15 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   <div className="px-3 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
                     <div><div className="text-white/30 mb-1">TIPO</div><div className="text-amber-300">{dnsRecord?.type ?? 'CNAME'}</div></div>
                     <div><div className="text-white/30 mb-1">NOMBRE</div><div className="text-white break-all">{dnsRecord?.host ?? '@'}</div></div>
-                    <div><div className="text-white/30 mb-1">VALOR</div><div className="text-green-300 break-all">{dnsRecord?.value ?? 'cname.vercel-dns.com'}</div></div>
+                    <div><div className="text-white/30 mb-1">VALOR</div><div className="text-green-300 break-all">{dnsRecord?.value ?? CNAME_TARGET}</div></div>
                   </div>
                 </div>
 
                 {!domainDnsOk && dnsRecord?.isApex && (
                   <p className="text-xs text-[var(--color-muted)] -mt-2 mb-4">
-                    ¿Tu proveedor permite CNAME en la raíz (p. ej. Cloudflare)? También puedes usar
-                    <span className="font-mono"> CNAME · @ · cname.vercel-dns.com</span> en lugar del registro A.
+                    Este es un dominio raíz (sin "www"): tu proveedor de DNS necesita soportar un
+                    registro CNAME (o ALIAS/ANAME) en la raíz — la mayoría de los proveedores
+                    modernos lo permiten (Cloudflare, y muchos otros vía "flattening").
                   </p>
                 )}
 
@@ -901,7 +905,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                           {[
                             'Ve al panel de DNS de tu proveedor de dominio (GoDaddy, Namecheap, etc.)',
                             `Crea un nuevo registro tipo ${dnsRecord?.type ?? 'CNAME'}`,
-                            `Nombre / Host: ${dnsRecord?.host ?? '@'} · Valor / Apunta a: ${dnsRecord?.value ?? 'cname.vercel-dns.com'}`,
+                            `Nombre / Host: ${dnsRecord?.host ?? '@'} · Valor / Apunta a: ${dnsRecord?.value ?? CNAME_TARGET}`,
                             'Guarda los cambios — la propagación puede tomar hasta 48 horas',
                           ].map((step, i) => (
                             <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">

@@ -4,17 +4,18 @@ import {
   isApexDomain,
   apexOf,
   CNAME_TARGET,
-  APEX_A_RECORD,
 } from '../lib/domain-utils'
 
 /**
- * Custom-domain DNS record selection (hotfix · custom-domain DNS verification).
+ * Custom-domain DNS record selection.
  *
- * The live bug: the Cloudflare automation wrote a CNAME for *every* domain,
- * including apexes — which the verifier (and most registrars) reject. The single
- * source of that decision is `dnsRecordFor`: apex → A record, subdomain → CNAME.
- * These pure-logic guards lock that contract so the regression can't return.
- * No network; deterministic.
+ * Sprint 4 (frontend-vercel-to-cloudrun) provider swap update: Cloudflare for
+ * SaaS, unlike Vercel, does not publish a fixed customer-facing apex A-record
+ * IP — its documented guidance is CNAME flattening (ALIAS/ANAME) to the same
+ * fallback-origin target for apex domains too. `dnsRecordFor` now recommends
+ * a CNAME for both apex and subdomain; `isApex` still distinguishes them so
+ * the UI can show the "needs registrar ALIAS/ANAME support" caveat. These
+ * pure-logic guards lock that contract. No network; deterministic.
  */
 test.describe('domain-utils · apex detection', () => {
   test('apexOf handles single- and multi-label TLDs', () => {
@@ -34,21 +35,22 @@ test.describe('domain-utils · apex detection', () => {
 })
 
 test.describe('domain-utils · dnsRecordFor', () => {
-  test('apex domain → A record at @ pointing to Vercel anycast', () => {
+  test('apex domain → CNAME at @ pointing to the fallback origin (needs registrar ALIAS/ANAME support)', () => {
     const rec = dnsRecordFor('tienda.com')
-    expect(rec.type).toBe('A')
+    expect(rec.type).toBe('CNAME')
     expect(rec.host).toBe('@')
-    expect(rec.value).toBe(APEX_A_RECORD)
+    expect(rec.value).toBe(CNAME_TARGET)
     expect(rec.isApex).toBe(true)
   })
 
-  test('.com.mx apex → A record (not mistaken for a subdomain)', () => {
+  test('.com.mx apex → CNAME at @ (not mistaken for a subdomain)', () => {
     const rec = dnsRecordFor('tienda.com.mx')
-    expect(rec.type).toBe('A')
+    expect(rec.type).toBe('CNAME')
+    expect(rec.host).toBe('@')
     expect(rec.isApex).toBe(true)
   })
 
-  test('subdomain → CNAME on the sub-label pointing to Vercel', () => {
+  test('subdomain → CNAME on the sub-label pointing to the fallback origin', () => {
     const rec = dnsRecordFor('shop.tienda.com')
     expect(rec.type).toBe('CNAME')
     expect(rec.host).toBe('shop')
@@ -65,7 +67,7 @@ test.describe('domain-utils · dnsRecordFor', () => {
 
   test('protocol/path noise is stripped before deciding', () => {
     const rec = dnsRecordFor('https://Tienda.COM/algo')
-    expect(rec.type).toBe('A')
+    expect(rec.type).toBe('CNAME')
     expect(rec.isApex).toBe(true)
   })
 })

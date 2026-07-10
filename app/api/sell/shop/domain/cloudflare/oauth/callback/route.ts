@@ -15,10 +15,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/supabase'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
+import { CNAME_TARGET } from '@/lib/domain-utils'
 
 const CF_TOKEN_URL = 'https://dash.cloudflare.com/oauth2/token'
 const CF_API = 'https://api.cloudflare.com/client/v4'
-const CNAME_TARGET = 'cname.vercel-dns.com'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
