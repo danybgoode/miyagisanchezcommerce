@@ -133,7 +133,17 @@ export async function stageBulkAction(
         valid: item.valid,
         error_message: item.error,
         status: 'pending',
-        delta_cents: item.delta_cents ?? null,
+        // Only include the key when THIS action type actually set it
+        // (apply_suggested_price) — the other 7 types never populate
+        // delta_cents, so their insert payload stays byte-identical to
+        // before this column existed. This is deliberate: a Supabase INSERT
+        // referencing an unknown column errors regardless of the value, so
+        // if the delta_cents migration hasn't landed yet on a given
+        // environment, every OTHER bulk action (including the already-live
+        // catalog.bulk_enabled feature) must keep working unaffected by
+        // this column's rollout — deploy order between the frontend and the
+        // migration must not matter for them (cross-agent review catch).
+        ...(item.delta_cents !== undefined ? { delta_cents: item.delta_cents } : {}),
       })),
     )
     if (itemsError) return { ok: false, status: 500, error: 'Error al guardar los productos del lote.' }
@@ -460,7 +470,17 @@ export async function stageBulkActionAsAgent(
         valid: item.valid,
         error_message: item.error,
         status: 'pending',
-        delta_cents: item.delta_cents ?? null,
+        // Only include the key when THIS action type actually set it
+        // (apply_suggested_price) — the other 7 types never populate
+        // delta_cents, so their insert payload stays byte-identical to
+        // before this column existed. This is deliberate: a Supabase INSERT
+        // referencing an unknown column errors regardless of the value, so
+        // if the delta_cents migration hasn't landed yet on a given
+        // environment, every OTHER bulk action (including the already-live
+        // catalog.bulk_enabled feature) must keep working unaffected by
+        // this column's rollout — deploy order between the frontend and the
+        // migration must not matter for them (cross-agent review catch).
+        ...(item.delta_cents !== undefined ? { delta_cents: item.delta_cents } : {}),
       })),
     )
     if (itemsError) return { ok: false, status: 500, error: 'Error al guardar los productos del lote.' }
