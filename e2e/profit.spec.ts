@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   computeOrderMargins,
   computeSkuMargins,
+  computeSkuMarginsByChannel,
   formatCents,
   formatPct,
   type ProfitEvent,
@@ -113,6 +114,68 @@ test.describe('profit · computeSkuMargins (US-3)', () => {
       ev({ order_id: 'o3', order_line_id: null, event_type: 'revenue', amount_cents: 999999 }),
     ], [multi])
     expect(rows[rows.length - 1].product_id).toBe('unassigned')
+  })
+})
+
+test.describe('profit · computeSkuMarginsByChannel (catalog-management S4 · Story 4.1)', () => {
+  test('same formula as computeSkuMargins when a product sells on only one channel', () => {
+    const events = [
+      ev({ id: 'e1', event_type: 'revenue', amount_cents: 20000 }),
+      ev({ id: 'e2', event_type: 'cogs_snapshot', amount_cents: 9000 }),
+    ]
+    const blended = computeSkuMargins(events, orders)
+    const byChannel = computeSkuMarginsByChannel(events, orders)
+    const taza = byChannel.find((r) => r.product_id === 'p1')!
+    expect(taza.margin_cents).toBe(blended.find((r) => r.product_id === 'p1')!.margin_cents)
+    expect(taza.source).toBe('native')
+  })
+
+  test('a product sold on BOTH channels gets two separate rows, not one blended row', () => {
+    const bothChannels: ProfitOrderInfo[] = [
+      { id: 'o1', display_id: 101, created_at: '2026-07-06T12:00:00Z', currency_code: 'mxn', source: 'native',
+        items: [{ id: 'l1', product_id: 'p1', variant_id: 'v1', title: 'Taza', quantity: 2 }] },
+      { id: 'o2', display_id: 102, created_at: '2026-07-05T12:00:00Z', currency_code: 'mxn', source: 'mercadolibre',
+        items: [{ id: 'l2', product_id: 'p1', variant_id: 'v1', title: 'Taza', quantity: 1 }] },
+    ]
+    const events = [
+      ev({ id: 'e1', order_id: 'o1', order_line_id: 'l1', source: 'native', event_type: 'revenue', amount_cents: 20000 }),
+      ev({ id: 'e2', order_id: 'o1', order_line_id: 'l1', source: 'native', event_type: 'cogs_snapshot', amount_cents: 9000 }),
+      ev({ id: 'e3', order_id: 'o2', order_line_id: 'l2', source: 'mercadolibre', event_type: 'revenue', amount_cents: 15000 }),
+      ev({ id: 'e4', order_id: 'o2', order_line_id: 'l2', source: 'mercadolibre', event_type: 'ml_fee', amount_cents: 2000 }),
+    ]
+
+    const blended = computeSkuMargins(events, bothChannels)
+    expect(blended.filter((r) => r.product_id === 'p1')).toHaveLength(1) // today's behavior: blended
+
+    const byChannel = computeSkuMarginsByChannel(events, bothChannels)
+    const p1Rows = byChannel.filter((r) => r.product_id === 'p1')
+    expect(p1Rows).toHaveLength(2)
+    const native = p1Rows.find((r) => r.source === 'native')!
+    const ml = p1Rows.find((r) => r.source === 'mercadolibre')!
+    expect(native.revenue_cents).toBe(20000)
+    expect(native.cogs_cents).toBe(9000)
+    expect(native.margin_cents).toBe(20000 - 9000)
+    expect(ml.revenue_cents).toBe(15000)
+    expect(ml.fees_cents).toBe(2000)
+    expect(ml.margin_cents).toBe(15000 - 2000)
+    // Neither channel row invents the other channel's COGS/fee.
+    expect(ml.cogs_cents).toBe(0)
+    expect(native.fees_cents).toBe(0)
+  })
+
+  test('the unassigned bucket is never source-qualified', () => {
+    const multi: ProfitOrderInfo = {
+      id: 'o3', display_id: 103, created_at: null, currency_code: 'mxn', source: 'mercadolibre',
+      items: [
+        { id: 'a', product_id: 'pA', variant_id: null, title: 'A', quantity: 1 },
+        { id: 'b', product_id: 'pB', variant_id: null, title: 'B', quantity: 1 },
+      ],
+    }
+    const rows = computeSkuMarginsByChannel(
+      [ev({ order_id: 'o3', order_line_id: null, event_type: 'revenue', amount_cents: 999999 })],
+      [multi],
+    )
+    expect(rows.filter((r) => r.product_id === 'unassigned')).toHaveLength(1)
   })
 })
 
