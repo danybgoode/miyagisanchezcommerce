@@ -13,7 +13,7 @@ medusa-bonsai/
 └── apps/miyagisanchez/    ← Next.js 16 (UI layer + UCP/MCP endpoints + non-commerce APIs)
 ```
 
-**Workflow (gitflow)**: work on a **feature branch** (`feat/<epic-slug>`), commit per story, open a **PR** with `gh`, and **merge to `main`** when verified + approved. Merging to `main` is the deploy (frontend → Vercel prod; backend → Cloud Build us-east4 → Cloud Run). Each frontend branch/PR gets a **Vercel preview** to test before merge. Never commit feature work straight to `main`. Roll back a bad merge with `git revert` on `main`.
+**Workflow (gitflow)**: work on a **feature branch** (`feat/<epic-slug>`), commit per story, open a **PR** with `gh`, and **merge to `main`** when verified + approved. Merging to `main` is the deploy — **frontend → Cloud Build us-east4 → Cloud Run `miyagi-web`** behind Cloudflare (Vercel prod deploys disabled since `frontend-vercel-to-cloudrun` epic Sprint 4.5, 2026-07-10 — Vercel survives only as the per-PR preview + CI target); backend → Cloud Build us-east4 → Cloud Run `medusa-web`. Each frontend branch/PR still gets a **Vercel preview** to test before merge. Never commit feature work straight to `main`. Roll back a bad merge with `git revert` on `main`.
 
 ## Start here (orientation for any agent)
 
