@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { formatCents } from '@/lib/profit'
 
 interface BatchItem {
   id: string
@@ -11,6 +12,8 @@ interface BatchItem {
   valid: boolean
   error_message: string | null
   status: 'pending' | 'applying' | 'applied' | 'failed'
+  /** Only set for apply_suggested_price (S4 · 4.2) — feeds the totals line below. */
+  delta_cents?: number | null
 }
 
 interface Batch {
@@ -20,6 +23,9 @@ interface Batch {
   valid_count: number
   applied_count: number
   failed_count: number
+  /** The staged action's type — only its `type` is read here, to gate the
+   * suggested-price totals line without needing every field's shape. */
+  action?: { type: string }
 }
 
 function formatValue(v: Record<string, unknown>): string {
@@ -97,6 +103,14 @@ export default function BulkDiffPreview({
   const invalidCount = items.length - validCount
   const alreadyApplied = items.every((i) => i.status !== 'pending') && items.length > 0
 
+  // Confirm-dialog total (S4 · Story 4.2) — only meaningful for
+  // apply_suggested_price; every other action type's items carry
+  // delta_cents: undefined/null, so this sums to nothing for them.
+  const isSuggestedPriceBatch = batch?.action?.type === 'apply_suggested_price'
+  const totalDeltaCents = isSuggestedPriceBatch
+    ? items.filter((i) => i.valid).reduce((acc, i) => acc + (i.delta_cents ?? 0), 0)
+    : null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-full overflow-y-auto p-6">
@@ -110,10 +124,19 @@ export default function BulkDiffPreview({
 
         {!loading && batch && (
           <>
-            <p className="text-sm text-[var(--color-muted)] mb-4">
+            <p className={`text-sm text-[var(--color-muted)] ${isSuggestedPriceBatch ? 'mb-1' : 'mb-4'}`}>
               {validCount} válido{validCount === 1 ? '' : 's'}
               {invalidCount > 0 && <span className="text-red-600"> · {invalidCount} con error</span>}
             </p>
+
+            {isSuggestedPriceBatch && totalDeltaCents != null && (
+              <p className="text-sm mb-4">
+                Cambio total de precio:{' '}
+                <strong className={totalDeltaCents < 0 ? 'text-red-600' : 'text-green-700'}>
+                  {totalDeltaCents >= 0 ? '+' : ''}{formatCents(totalDeltaCents)}
+                </strong>
+              </p>
+            )}
 
             {result && (
               <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm">

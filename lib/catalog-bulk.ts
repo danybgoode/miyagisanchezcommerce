@@ -47,6 +47,12 @@ export type BulkActionPayload =
   | { type: 'collection_assign'; collection_ids: string[]; collection_labels: string[] }
   | { type: 'inventory_mode'; mode: 'tracked' | 'unlimited' | 'backorder'; dispatch_estimate?: string | null }
   | { type: 'delete' }
+  // catalog-management S4 · Story 4.2 — mirrors the backend's own
+  // BulkActionPayload addition. Each item's price is pre-computed by the
+  // CALLER (BulkActionBar, via lib/profit.ts's solveForPrice + a live ML
+  // fee-estimate fetch per selected product) — this type carries the
+  // already-solved prices, not a formula to re-derive server-side.
+  | { type: 'apply_suggested_price'; target_margin_pct: number; items: Array<{ id: string; price_cents: number }> }
 
 export interface BulkFilterParams {
   q?: string
@@ -65,6 +71,9 @@ export interface BulkDiffItem {
   patch: Record<string, unknown> | null
   valid: boolean
   error: string | null
+  /** Only set for apply_suggested_price (S4 · 4.2) — new minus old Miyagi
+   * price, for the confirm dialog's total. Undefined for every other type. */
+  delta_cents?: number | null
 }
 
 export type StageResult =
@@ -124,6 +133,7 @@ export async function stageBulkAction(
         valid: item.valid,
         error_message: item.error,
         status: 'pending',
+        delta_cents: item.delta_cents ?? null,
       })),
     )
     if (itemsError) return { ok: false, status: 500, error: 'Error al guardar los productos del lote.' }
@@ -154,6 +164,8 @@ export interface StoredBatchItem {
   valid: boolean
   error_message: string | null
   status: 'pending' | 'applying' | 'applied' | 'failed'
+  /** Only set for apply_suggested_price (S4 · 4.2) — see BulkDiffItem. */
+  delta_cents?: number | null
 }
 
 /** Read a batch back (survives refresh — the Shopify failure mode). Returns
@@ -276,6 +288,32 @@ export async function applyBulkBatch(
       if (result.ok) applied++
       else failed++
     }
+  } else if (batch.action.type === 'apply_suggested_price') {
+    // A 4th frontend-orchestrated branch (S4 · 4.2) — REQUIRED, not
+    // optional: a {variant_id, price_cents} patch would otherwise fall into
+    // the generic "everything else" bulk-apply call below and silently
+    // Miyagi-only-apply, never pushing to Mercado Libre (the backend's
+    // rejectOrchestrationOnlyPatch() also blocks this shape there as
+    // defense in depth, but the real fix is routing it here first).
+    const targetMarginPct = batch.action.target_margin_pct
+    const { applySuggestedPriceItem } = await import('@/lib/profit-bulk-apply')
+    for (const item of pending) {
+      const patch = item.patch as { variant_id?: string; price_cents?: number } | null
+      if (!patch?.variant_id || !Number.isInteger(patch.price_cents)) {
+        await recordItemResult(batchId, item, false, ctx.userId, actorType, actionType, 'Lote inválido — falta variant_id o price_cents.')
+        failed++
+        continue
+      }
+      const result = await applySuggestedPriceItem(
+        item.product_id,
+        { variant_id: patch.variant_id, price_cents: patch.price_cents as number },
+        targetMarginPct,
+        { clerkJwt: ctx.clerkJwt },
+      )
+      await recordItemResult(batchId, item, result.ok, ctx.userId, actorType, actionType, result.ok ? undefined : result.error)
+      if (result.ok) applied++
+      else failed++
+    }
   } else {
     const res = await medusaFetch('/store/sellers/me/products/bulk-apply', ctx.clerkJwt, {
       method: 'POST',
@@ -357,6 +395,14 @@ function isAgentUnsupportedAction(action: BulkActionPayload): string | null {
   if (action.type === 'publish_channel' && action.channel === 'ml') {
     return 'Publicar/ocultar en Mercado Libre en bloque aún no está disponible por el agente — usa la app web.'
   }
+  // catalog-management S4 · Story 4.2 — no agent tool can compute a suggested
+  // price (that math + the live ML fee-estimate lookup live in the web UI's
+  // BulkActionBar, calling lib/profit.ts's solveForPrice — an MCP call has
+  // no access to either). Deferred to a future sprint, not a scope cut of
+  // the web flow.
+  if (action.type === 'apply_suggested_price') {
+    return 'El precio sugerido en bloque aún no está disponible por el agente — usa la app web.'
+  }
   return null
 }
 
@@ -414,6 +460,7 @@ export async function stageBulkActionAsAgent(
         valid: item.valid,
         error_message: item.error,
         status: 'pending',
+        delta_cents: item.delta_cents ?? null,
       })),
     )
     if (itemsError) return { ok: false, status: 500, error: 'Error al guardar los productos del lote.' }

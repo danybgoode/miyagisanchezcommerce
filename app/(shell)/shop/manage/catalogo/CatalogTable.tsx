@@ -204,6 +204,18 @@ export default function CatalogTable({
     return [...withValue.map((v) => v.listing), ...withoutValue]
   }, [listings, marginSort, marginByProduct, profitFlagEnabled])
 
+  // Current Miyagi price + ML-link state per listing (S4 · Story 4.2) — feeds
+  // BulkActionBar's "apply precio sugerido" fee-estimate lookup, which needs
+  // the LIVE catalog price as its reference (not the ledger's realized
+  // historical average).
+  const listingInfoById = useMemo(() => {
+    const map = new Map<string, { priceCents: number | null; mlLinked: boolean }>()
+    for (const listing of listings) {
+      map.set(listing.id, { priceCents: listing.price_cents, mlLinked: (listing.channels ?? []).includes('ml') })
+    }
+    return map
+  }, [listings])
+
   const activeBatchId = searchParams.get('batch')
 
   function setBatchInUrl(batchId: string | null) {
@@ -373,6 +385,9 @@ export default function CatalogTable({
           selectedIds={[...selectedIds]}
           onStaged={(batchId) => setBatchInUrl(batchId)}
           onClearSelection={() => setSelectedIds(new Set())}
+          profitFlagEnabled={profitFlagEnabled}
+          marginRowsByChannel={marginRowsByChannel}
+          listingInfoById={listingInfoById}
         />
       )}
 

@@ -76,3 +76,33 @@ export function deriveProductMargin(productId: string, rowsByChannel: SkuMarginR
     ml: cellFor(productId, 'mercadolibre', rowsByChannel),
   }
 }
+
+/**
+ * A product eligible for the bulk "apply suggested price" action (S4 ·
+ * Story 4.2) — the Miyagi-channel single addressable variant + its realized
+ * per-unit COGS, ready to feed `solveForPrice()`. Mirrors PricingCard's own
+ * single-item precondition (a real variant_id, at least one sold unit, real
+ * revenue) — bulk apply can only ever be as capable as the one-at-a-time
+ * control it reuses the write path from.
+ */
+export interface SuggestedPriceCandidate {
+  productId: string
+  variantId: string
+  costPerUnitCents: number
+}
+
+/**
+ * Resolves the single Miyagi-channel margin row for a product, or null when
+ * ineligible: zero matching rows (never sold — "no_sales"), more than one
+ * matching row (a multi-variant product with sales on more than one
+ * variant — genuinely ambiguous which price to solve for, mirrors the
+ * backend's own multi-variant rejection in `computeBulkDiff`), a missing
+ * `variant_id`, no realized units/revenue, or a pending COGS piece.
+ */
+export function resolveSuggestedPriceCandidate(productId: string, marginRowsByChannel: SkuMarginRow[]): SuggestedPriceCandidate | null {
+  const matching = marginRowsByChannel.filter((r) => r.product_id === productId && r.source === 'native')
+  if (matching.length !== 1) return null
+  const row = matching[0]
+  if (!row.variant_id || row.units <= 0 || row.revenue_cents <= 0 || row.pending.includes('cogs')) return null
+  return { productId, variantId: row.variant_id, costPerUnitCents: Math.round(row.cogs_cents / row.units) }
+}

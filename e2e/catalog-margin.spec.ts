@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { deriveProductMargin } from '../lib/catalog-margin'
+import { deriveProductMargin, resolveSuggestedPriceCandidate } from '../lib/catalog-margin'
 import { MARGIN_KILLER_THRESHOLD_PCT, type SkuMarginRow } from '../lib/profit'
 
 /**
@@ -89,5 +89,44 @@ test.describe('catalog-margin · deriveProductMargin (Story 4.1)', () => {
     const rows = [row({ product_id: 'p2', source: 'native' })]
     const info = deriveProductMargin('p1', rows)
     expect(info.miyagi.state).toBe('no_sales')
+  })
+})
+
+test.describe('catalog-margin · resolveSuggestedPriceCandidate (Story 4.2)', () => {
+  test('a single, complete Miyagi-channel row resolves to a candidate', () => {
+    const rows = [row({ source: 'native', variant_id: 'v1', units: 10, revenue_cents: 100000, cogs_cents: 40000, pending: [] })]
+    const candidate = resolveSuggestedPriceCandidate('p1', rows)
+    expect(candidate).toEqual({ productId: 'p1', variantId: 'v1', costPerUnitCents: 4000 })
+  })
+
+  test('never sold (no matching row) ⇒ ineligible', () => {
+    expect(resolveSuggestedPriceCandidate('p1', [])).toBeNull()
+  })
+
+  test('multi-variant product with sales on more than one variant ⇒ ambiguous, ineligible', () => {
+    const rows = [
+      row({ source: 'native', variant_id: 'v1' }),
+      row({ source: 'native', variant_id: 'v2' }),
+    ]
+    expect(resolveSuggestedPriceCandidate('p1', rows)).toBeNull()
+  })
+
+  test('a ML-channel-only row is ignored — Miyagi price is what this action targets', () => {
+    const rows = [row({ source: 'mercadolibre', variant_id: 'v1' })]
+    expect(resolveSuggestedPriceCandidate('p1', rows)).toBeNull()
+  })
+
+  test('pending cogs ⇒ ineligible, never a guessed cost', () => {
+    const rows = [row({ source: 'native', variant_id: 'v1', pending: ['cogs'] })]
+    expect(resolveSuggestedPriceCandidate('p1', rows)).toBeNull()
+  })
+
+  test('zero units or zero revenue ⇒ ineligible (no reliable realized price)', () => {
+    expect(resolveSuggestedPriceCandidate('p1', [row({ source: 'native', variant_id: 'v1', units: 0 })])).toBeNull()
+    expect(resolveSuggestedPriceCandidate('p1', [row({ source: 'native', variant_id: 'v1', revenue_cents: 0 })])).toBeNull()
+  })
+
+  test('missing variant_id ⇒ ineligible (nothing addressable to price)', () => {
+    expect(resolveSuggestedPriceCandidate('p1', [row({ source: 'native', variant_id: null })])).toBeNull()
   })
 })

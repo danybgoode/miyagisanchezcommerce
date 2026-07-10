@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
 import { CATEGORIES } from '@/lib/types'
+import { resolveSuggestedPriceCandidate } from '@/lib/catalog-margin'
+import { solveForPrice, type SkuMarginRow } from '@/lib/profit'
 
 export type BulkActionType =
   | 'price_set' | 'price_pct' | 'pause_activate' | 'publish_channel'
   | 'category' | 'collection_assign' | 'inventory_mode' | 'delete'
+  | 'apply_suggested_price'
 
 interface BulkActionBarProps {
   selectedCount: number
@@ -16,6 +19,39 @@ interface BulkActionBarProps {
   selectedIds: string[]
   onStaged: (batchId: string) => void
   onClearSelection: () => void
+  /** ops.profit_enabled (catalog-management S4 · 4.2) — fail-safe OFF: the
+   * "Aplicar precio sugerido" action doesn't appear in the picker while OFF. */
+  profitFlagEnabled?: boolean
+  /** Per-channel ledger rows (already fetched server-side by the page) —
+   * feeds resolveSuggestedPriceCandidate(). */
+  marginRowsByChannel?: SkuMarginRow[]
+  /** Current Miyagi price + ML-link state per selected listing, keyed by
+   * product id — needed to fetch a live ML fee estimate at the RIGHT
+   * reference price before solving for a suggested price. */
+  listingInfoById?: Map<string, { priceCents: number | null; mlLinked: boolean }>
+}
+
+interface FeeEstimateResponse { available: boolean; feePct?: number; fixedFeeCents?: number }
+
+async function fetchFeeEstimate(productId: string, priceCents: number): Promise<FeeEstimateResponse> {
+  try {
+    const res = await fetch(`/api/sell/profit/fee-estimate?product_id=${encodeURIComponent(productId)}&price_cents=${priceCents}`)
+    if (!res.ok) return { available: false }
+    return (await res.json()) as FeeEstimateResponse
+  } catch {
+    return { available: false }
+  }
+}
+
+/** Small-batch concurrency for the per-product fee-estimate fetch loop — no
+ * new dependency, just chunks of N run with Promise.all. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = []
+  for (let i = 0; i < items.length; i += limit) {
+    const chunk = items.slice(i, i + limit)
+    results.push(...(await Promise.all(chunk.map(fn))))
+  }
+  return results
 }
 
 interface SellerCollection { id: string; handle: string; name: string }
@@ -42,6 +78,9 @@ export default function BulkActionBar({
   selectedIds,
   onStaged,
   onClearSelection,
+  profitFlagEnabled = false,
+  marginRowsByChannel = [],
+  listingInfoById = new Map(),
 }: BulkActionBarProps) {
   const [acrossFilter, setAcrossFilter] = useState(false)
   const [actionType, setActionType] = useState<BulkActionType>('price_pct')
@@ -55,6 +94,7 @@ export default function BulkActionBar({
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(new Set())
   const [inventoryMode, setInventoryMode] = useState<'tracked' | 'unlimited' | 'backorder'>('tracked')
   const [dispatchEstimate, setDispatchEstimate] = useState(DISPATCH_ESTIMATES[0].value)
+  const [targetMarginPct, setTargetMarginPct] = useState(25)
   const [staging, setStaging] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -116,6 +156,13 @@ export default function BulkActionBar({
         mode: inventoryMode,
         ...(inventoryMode === 'backorder' && { dispatch_estimate: dispatchEstimate }),
       }
+    } else if (actionType === 'apply_suggested_price') {
+      // Handled entirely in its own async path (below) — needs a per-item
+      // live fee-estimate fetch + solveForPrice, and can only ever target the
+      // manually-selected ids (never "seleccionar todos (N) que coinciden con
+      // el filtro" — that mode has no client-side price/margin data loaded
+      // for products outside this page).
+      return handleStageSuggestedPrice()
     } else {
       action = { type: 'delete' }
     }
@@ -144,12 +191,87 @@ export default function BulkActionBar({
     }
   }
 
+  /**
+   * Resolves a suggested price per selected product (COGS from the
+   * server-fetched ledger + a live ML fee-estimate fetch), then stages a
+   * batch carrying the already-solved prices — mirrors PricingCard's own
+   * single-item flow, just looped with small-batch concurrency.
+   */
+  async function handleStageSuggestedPrice() {
+    if (acrossFilter) {
+      setError('El precio sugerido en bloque solo aplica a la selección manual de esta página — no a "seleccionar todos que coinciden con el filtro".')
+      return
+    }
+
+    setStaging(true)
+    try {
+      const candidates = selectedIds
+        .map((id) => resolveSuggestedPriceCandidate(id, marginRowsByChannel))
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+      const ineligibleCount = selectedIds.length - candidates.length
+
+      if (candidates.length === 0) {
+        setError('Ninguno de los productos seleccionados tiene datos suficientes (ventas registradas + costo unitario) para sugerir un precio.')
+        return
+      }
+
+      const solved = await mapWithConcurrency(candidates, 5, async (candidate) => {
+        const info = listingInfoById.get(candidate.productId)
+        const referencePriceCents = info?.priceCents ?? 0
+        const fee = info?.mlLinked && referencePriceCents > 0
+          ? await fetchFeeEstimate(candidate.productId, referencePriceCents)
+          : { available: false as const }
+        const result = solveForPrice({
+          cogsCents: candidate.costPerUnitCents,
+          shippingCents: 0, // per-SKU suggestion excludes shipping (order-level cost), same as the dashboard
+          fixedFeeCents: fee.available ? (fee.fixedFeeCents ?? 0) : 0,
+          feePct: fee.available ? (fee.feePct ?? 0) : 0,
+          targetMarginPct: targetMarginPct / 100,
+        })
+        return result.achievable ? { id: candidate.productId, price_cents: result.priceCents } : null
+      })
+
+      const items = solved.filter((s): s is { id: string; price_cents: number } => s !== null)
+      const unachievableCount = candidates.length - items.length
+
+      if (items.length === 0) {
+        setError('No hay un precio posible con ese margen objetivo para los productos seleccionados. Baja el margen e intenta de nuevo.')
+        return
+      }
+
+      const res = await fetch('/api/sell/catalog/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: items.map((i) => i.id),
+          action: { type: 'apply_suggested_price', target_margin_pct: targetMarginPct / 100, items },
+        }),
+      })
+      const data = await res.json() as { batch_id?: string; error?: string }
+      if (!res.ok || !data.batch_id) {
+        setError(data.error ?? 'Error al preparar el lote.')
+        return
+      }
+      if (ineligibleCount > 0 || unachievableCount > 0) {
+        const notes: string[] = []
+        if (ineligibleCount > 0) notes.push(`${ineligibleCount} sin datos suficientes`)
+        if (unachievableCount > 0) notes.push(`${unachievableCount} sin precio posible con ese margen`)
+        setError(`Nota: ${notes.join(' · ')} — se omitieron de la vista previa.`)
+      }
+      onStaged(data.batch_id)
+    } catch {
+      setError('Sin conexión. Inténtalo de nuevo.')
+    } finally {
+      setStaging(false)
+    }
+  }
+
   return (
     <div className="sticky top-0 z-10 mb-3 rounded-xl border border-[var(--color-accent)] bg-[var(--color-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div className="text-sm">
           <strong>{effectiveCount}</strong> anuncio{effectiveCount === 1 ? '' : 's'} seleccionado{effectiveCount === 1 ? '' : 's'}
-          {allVisibleSelected && totalFiltered > selectedCount && !acrossFilter && (
+          {allVisibleSelected && totalFiltered > selectedCount && !acrossFilter && actionType !== 'apply_suggested_price' && (
             <>
               {' — '}
               <button type="button" onClick={() => setAcrossFilter(true)} className="text-[var(--color-accent)] hover:underline font-medium">
@@ -187,6 +309,9 @@ export default function BulkActionBar({
             <option value="collection_assign">Asignar colecciones</option>
             <option value="inventory_mode">Modo de inventario</option>
             <option value="delete">Eliminar</option>
+            {profitFlagEnabled && (
+              <option value="apply_suggested_price">Aplicar precio sugerido</option>
+            )}
           </select>
         </div>
 
@@ -321,6 +446,27 @@ export default function BulkActionBar({
           <p className="text-xs text-[var(--color-muted)] max-w-xs">
             Previsualiza antes de aplicar — esta acción no se puede deshacer.
           </p>
+        )}
+
+        {actionType === 'apply_suggested_price' && (
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">
+              Margen objetivo: <strong className="text-[var(--color-text)]">{targetMarginPct}%</strong>
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={90}
+              step={1}
+              value={targetMarginPct}
+              onChange={(e) => setTargetMarginPct(Number(e.target.value))}
+              className="w-40 accent-[var(--color-accent)]"
+            />
+            <p className="text-xs text-[var(--color-muted)] max-w-xs mt-1">
+              Solo aplica a productos con ventas registradas + costo unitario (sin datos suficientes
+              se omiten). Solo la selección manual de esta página — no "seleccionar todos".
+            </p>
+          </div>
         )}
 
         <button
