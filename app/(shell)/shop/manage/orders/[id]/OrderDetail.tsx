@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { carrierLabel, carrierTrackingUrl, CARRIER_LABELS } from '@/lib/envia'
@@ -20,6 +20,9 @@ import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
 import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-tags'
+import { orderStatusToToken } from '@/lib/status-badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Toast, useToast } from '@/components/feedback/Toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,16 +111,16 @@ const ORDER_STEPS = [
   { key: 'delivered',  label: 'Entregado' },
 ]
 
-const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700' },
-  paid:       { label: 'Nuevo',      badge: 'bg-green-100 text-green-700' },
-  processing: { label: 'Procesando', badge: 'bg-blue-100 text-blue-700' },
-  shipped:    { label: 'Enviado',    badge: 'bg-indigo-100 text-indigo-700' },
-  in_transit: { label: 'En camino',  badge: 'bg-purple-100 text-purple-700' },
-  delivered:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
-  completed:  { label: 'Completado', badge: 'bg-gray-100 text-gray-500' },
-  refunded:   { label: 'Reembolso',  badge: 'bg-red-100 text-red-600' },
-  fulfilled:  { label: 'Entregado',  badge: 'bg-green-100 text-green-700' },
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Pago pendiente',
+  paid: 'Nuevo',
+  processing: 'Procesando',
+  shipped: 'Enviado',
+  in_transit: 'En camino',
+  delivered: 'Entregado',
+  completed: 'Completado',
+  refunded: 'Reembolsado',
+  fulfilled: 'Entregado',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -191,20 +194,6 @@ function StatusStepper({ status }: { status: string }) {
           </div>
         )
       })}
-    </div>
-  )
-}
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-
-function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
-  return (
-    <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-      type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-    }`}>
-      <span>{type === 'success' ? '✓' : '⚠'}</span>
-      <span>{message}</span>
-      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100">×</button>
     </div>
   )
 }
@@ -575,7 +564,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const [currentShipment, setCurrentShipment] = useState<Shipment | null>(
     order.marketplace_shipments?.[0] ?? null,
   )
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const { toast, showToast, dismissToast } = useToast()
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [proofSent, setProofSent] = useState(!!order.proof_sent)
   const [proofImageUrl, setProofImageUrl] = useState(order.proof_image_url ?? null)
@@ -721,13 +710,9 @@ export default function OrderDetail({ order }: OrderDetailProps) {
     : order.marketplace_shops
 
   const thumb  = listing?.images?.[0]?.url ?? null
-  const meta   = STATUS_META[currentStatus] ?? STATUS_META.paid
+  const statusLabel = STATUS_LABEL[currentStatus] ?? STATUS_LABEL.paid
+  const statusToken  = orderStatusToToken(currentStatus)
   const mlBadge = mlOrderBadgeLabel(order)
-
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }, [])
 
   async function updateStatus(newStatus: string) {
     setUpdatingStatus(true)
@@ -953,14 +938,11 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl font-bold">Pedido</h1>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
+            <StatusBadge token={statusToken}>{statusLabel}</StatusBadge>
             {mlBadge && (
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800"
-                title="Venta importada de Mercado Libre"
-              >
+              <StatusBadge token="promo" title="Venta importada de Mercado Libre">
                 {mlBadge}
-              </span>
+              </StatusBadge>
             )}
             {orderMeta.channel === 'custom_domain' && (
               <span
@@ -1647,7 +1629,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </div>
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   )
 }

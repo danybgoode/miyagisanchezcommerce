@@ -23,7 +23,7 @@
 
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
-import { Toast } from '../_components/Toast'
+import { Toast } from '@/components/feedback/Toast'
 import { SectionTitle } from '../_components/SectionTitle'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { generateHex32 } from '@/lib/shop-settings/helpers'

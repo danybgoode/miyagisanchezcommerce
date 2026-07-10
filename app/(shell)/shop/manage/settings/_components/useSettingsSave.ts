@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import type { ToastState } from './Toast'
+import { useToast } from '@/components/feedback/Toast'
 
 interface SaveOptions {
   /** Called when the API returns a 422 naming a specific field. */
@@ -23,16 +23,10 @@ interface SaveOptions {
 
 export function useSettingsSave() {
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<ToastState | null>(null)
+  const { toast, showToast, dismissToast } = useToast()
   const [isDirty, setIsDirty] = useState(false)
 
   const markDirty = useCallback(() => setIsDirty(true), [])
-  const dismissToast = useCallback(() => setToast(null), [])
-
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }, [])
 
   /**
    * PATCH a partial shop payload. Returns true on success. `payload` is the
