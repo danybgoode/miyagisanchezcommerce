@@ -17,8 +17,8 @@ import {
   getDomainConfig,
   removeDomainFromProject,
   DomainConflictError,
-} from '@/lib/vercel-domains'
-import { CNAME_TARGET, APEX_A_RECORD, isApexDomain } from '@/lib/domain-utils'
+} from '@/lib/cloudflare-domains'
+import { CNAME_TARGET } from '@/lib/domain-utils'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import dns from 'dns/promises'
 
@@ -54,18 +54,44 @@ async function paywallBlock(metadata: unknown, sellerClerkId: string): Promise<N
 }
 
 /**
+ * Live DNS check: does `domain` actually resolve to our fallback-origin
+ * hostname right now? Apex domains rely on registrar-side CNAME-flattening,
+ * so they have no CNAME at the wire level — check A-record overlap with the
+ * fallback origin's current resolution instead. `cname_current` is passed in
+ * (already resolved by the caller for its own diagnostic use) so this never
+ * re-does that lookup.
+ */
+async function resolvesToFallbackOrigin(domain: string, cname_current: string | null): Promise<boolean> {
+  if (cname_current === CNAME_TARGET) return true
+  try {
+    const [domainIps, fallbackOriginIps] = await Promise.all([
+      dns.resolve4(domain),
+      dns.resolve4(CNAME_TARGET),
+    ])
+    return domainIps.some(ip => fallbackOriginIps.includes(ip))
+  } catch {
+    return false // no A record yet, or the fallback origin itself is unreachable
+  }
+}
+
+/**
  * Server-side "is this domain live?" check.
  *
- * Source of truth = Vercel's own config view (`misconfigured === false` means it
- * resolves to us AND a TLS cert can be issued). This is immune to per-project
- * CNAME targets, the apex anycast IP changing, and Cloudflare CNAME-flattening —
- * all of which a raw `dns.resolve*` check gets wrong. We keep a best-effort
- * `dns.resolveCname` only for the diagnostic `cname_current` the UI shows, and we
- * surface a `hint` so the seller knows exactly what to fix:
- *  - `proxied` — domain is behind a proxy (Cloudflare "orange cloud"); must be
- *    DNS-only for Vercel to issue the certificate.
- * If Vercel's config endpoint is unreachable we fall back to the legacy direct
- * DNS check so the status poll never hard-fails.
+ * Two conditions must BOTH hold for `dns_ok`:
+ *  1. Cloudflare's custom-hostname config (`misconfigured === false`) — proves
+ *     ownership is verified AND SSL is issued.
+ *  2. The domain's OWN live DNS actually resolves to our fallback origin.
+ * Condition 1 alone is not enough: Cloudflare for SaaS custom hostnames can
+ * reach `active` via TXT ownership validation BEFORE the seller's DNS ever
+ * points at us (Sprint 4 Story 4.3's whole pre-provisioning design relies on
+ * exactly this) — unlike Vercel's config endpoint, which only ever reported
+ * `misconfigured: false` once DNS genuinely pointed at Vercel. Conflating the
+ * two would tell a seller "live!" while their DNS still serves from
+ * elsewhere. We surface a `hint` so the seller knows exactly what to fix:
+ *  - `proxied` — domain is behind a proxy (Cloudflare "orange cloud" on the
+ *    SELLER's own zone); must be DNS-only for our provider to issue the cert.
+ * If Cloudflare's config endpoint is unreachable, condition 2 alone decides,
+ * so the status poll never hard-fails.
  */
 async function checkDns(
   domain: string,
@@ -75,27 +101,20 @@ async function checkDns(
     const records = await dns.resolveCname(domain)
     cname_current = records[0] ?? null
   } catch {
-    // No CNAME (apex A-record setups have none) or domain doesn't exist yet.
+    // No CNAME (a flattened apex has none at the wire level) or domain doesn't exist yet.
   }
+
+  const pointsAtUs = await resolvesToFallbackOrigin(domain, cname_current)
 
   try {
     const cfg = await getDomainConfig(domain)
-    if (!cfg.misconfigured) return { dns_ok: true, cname_current, hint: null }
+    if (!cfg.misconfigured && pointsAtUs) return { dns_ok: true, cname_current, hint: null }
     // Resolves to us but behind a proxy → cert can't be issued. Tell them why.
     if (cfg.configuredBy === 'http') return { dns_ok: false, cname_current, hint: 'proxied' }
     return { dns_ok: false, cname_current, hint: null }
   } catch {
-    // Vercel config unreachable — fall back to the legacy direct DNS lookup.
-    if (cname_current === CNAME_TARGET) return { dns_ok: true, cname_current, hint: null }
-    if (isApexDomain(domain)) {
-      try {
-        const a = await dns.resolve4(domain)
-        if (a.includes(APEX_A_RECORD)) return { dns_ok: true, cname_current, hint: null }
-      } catch {
-        // No A record yet.
-      }
-    }
-    return { dns_ok: false, cname_current, hint: null }
+    // Cloudflare config unreachable — the live DNS check alone decides.
+    return { dns_ok: pointsAtUs, cname_current, hint: null }
   }
 }
 
