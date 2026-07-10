@@ -21,6 +21,14 @@ const PLATFORM_HOSTS = [
   'www.miyagisanchez.com',
   'localhost',
   '127.0.0.1',
+  // Cloudflare→ALB→Cloud Run staging hostname (09-platform-infra
+  // frontend-vercel-to-cloudrun, S2.2). NOTE: this alone is not sufficient —
+  // 'gcp' must ALSO be in lib/subdomain.ts's INFRA_SUBDOMAINS, since
+  // shopSlugFromHost() runs BEFORE this check and would otherwise treat it as
+  // a shop-slug lookup first. Both gates are load-bearing (found live: with
+  // only one of the two, the request still 404s "Shop not found" — either as
+  // an unknown subdomain, or as an unknown custom domain).
+  'gcp.miyagisanchez.com',
 ]
 
 function isPlatformHost(hostname: string): boolean {

@@ -1,10 +1,11 @@
 # e2e — the Playwright harness
 
-Two layers, two purposes. Grow each by **one spec per new testable story**.
+Three layers, three purposes. Grow each by **one spec per new testable story**.
 
 ## `api` project — the deterministic gate (always-on)
-API-level specs (`*.spec.ts`) hit public endpoints via the `request` fixture. No browser binaries →
-fast and cheap. **Runs in CI on every PR** (`ci.yml`) and must be green before merge.
+API-level specs (`*.spec.ts`, excluding `*.browser.spec.ts` and `*.staging.spec.ts`) hit public
+endpoints via the `request` fixture, against `baseURL`. No browser binaries → fast and cheap.
+**Runs in CI on every PR** (`ci.yml`) and must be green before merge.
 
 ```bash
 npm run test:e2e                                  # the gate
@@ -21,6 +22,19 @@ heavy/slow); run on demand, and nightly via `.github/workflows/browser-smoke.yml
 ```bash
 npx playwright install chromium      # once
 npm run test:e2e:browser
+```
+
+## `staging` project — opt-in, deliberately different host (NOT the gate)
+`*.staging.spec.ts`. Same `request`-fixture shape as `api`, but the spec targets a host OTHER than
+`baseURL` on purpose — e.g. an infra-migration staging hostname
+(`09-platform-infra/frontend-vercel-to-cloudrun`'s `gcp.miyagisanchez.com`). Excluded from `api` for
+exactly that reason: included there, it runs against the PR's Vercel preview and fails on a host
+mismatch that isn't a real bug — this happened live (two specs shipped as plain `*.spec.ts`, got
+swept into the CI gate, failed against the wrong host). Always invoke with an explicit
+`PLAYWRIGHT_BASE_URL` pointed at the real target:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://gcp.miyagisanchez.com npx playwright test --project=staging
 ```
 
 ### Anonymous smokes (preview/prod) — `MS_TEST_PERSONALIZED_LISTING_ID`

@@ -29,7 +29,7 @@ test.describe('subdomain · shopSlugFromHost', () => {
   })
 
   test('reserved / infra labels never resolve to a shop', () => {
-    for (const label of ['admin', 'api', 'app', 'clerk', 'accounts', 'mail', 'cdn', 'shop', 's', 'mschz']) {
+    for (const label of ['admin', 'api', 'app', 'clerk', 'accounts', 'mail', 'cdn', 'shop', 's', 'mschz', 'gcp']) {
       expect(shopSlugFromHost(`${label}.miyagisanchez.com`)).toBeNull()
       expect(isReservedSubdomain(label)).toBe(true)
     }
