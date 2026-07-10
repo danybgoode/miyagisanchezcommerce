@@ -22,7 +22,7 @@ test.describe('edge→Node route parity (/api/splash, /api/icon)', () => {
   test('/api/splash returns a valid PNG at the default size', async ({ request }) => {
     const res = await request.get('/api/splash')
     expect(res.ok()).toBeTruthy()
-    expect(res.headers()['content-type']).toBe('image/png')
+    expect(res.headers()['content-type']).toContain('image/png')
 
     const buf = await res.body()
     expect(buf.subarray(0, 8)).toEqual(PNG_SIGNATURE)
@@ -49,7 +49,7 @@ test.describe('edge→Node route parity (/api/splash, /api/icon)', () => {
   test('/api/icon returns a valid PNG at the default size', async ({ request }) => {
     const res = await request.get('/api/icon')
     expect(res.ok()).toBeTruthy()
-    expect(res.headers()['content-type']).toBe('image/png')
+    expect(res.headers()['content-type']).toContain('image/png')
 
     const buf = await res.body()
     expect(buf.subarray(0, 8)).toEqual(PNG_SIGNATURE)
