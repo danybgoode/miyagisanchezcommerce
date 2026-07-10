@@ -27,6 +27,10 @@ function isPlatformHost(hostname: string): boolean {
   if (PLATFORM_HOSTS.some(h => hostname === h || hostname.startsWith(h + ':'))) return true
   // Vercel preview / branch URLs
   if (hostname.endsWith('.vercel.app')) return true
+  // Cloud Run's default dark URL (09-platform-infra frontend-vercel-to-cloudrun,
+  // S1.3/S1.4) — same reasoning as .vercel.app: a platform-served preview host,
+  // not a tenant custom domain, before Cloudflare fronts the real domain (S2+).
+  if (hostname.endsWith('.run.app')) return true
   return false
 }
 

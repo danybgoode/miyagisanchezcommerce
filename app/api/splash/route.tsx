@@ -1,8 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
 
-export const runtime = 'edge'
-
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const w = Math.min(Math.max(parseInt(searchParams.get('w') || '1170'), 320), 1300)

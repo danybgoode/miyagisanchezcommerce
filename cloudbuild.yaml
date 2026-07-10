@@ -1,0 +1,50 @@
+# CI/CD: build the Next.js frontend image and deploy to Cloud Run on every
+# push to main. Wired via a Cloud Build trigger on the miyagisanchezcommerce
+# repo (see infra/gcp/cicd-setup-frontend.sh). Build context is this repo
+# root (= apps/miyagisanchez). Cloned from apps/backend/cloudbuild.yaml's shape.
+#
+# The deploy step only swaps the image — env vars, secrets, SA and scaling
+# were set once by infra/gcp/deploy-frontend.sh and Cloud Run preserves them
+# across image-only deploys. Vercel prod deploy is untouched by this trigger —
+# both rails fire independently on the same push (S1.4 shadow soak).
+
+substitutions:
+  _REGION: us-east4
+  _AR_REPO: frontend
+  _SERVICE: miyagi-web
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:latest'
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA'
+      - -t
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:latest'
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend'
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA'
+      - '--region=${_REGION}'
+      - --quiet
