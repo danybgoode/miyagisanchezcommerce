@@ -8,11 +8,20 @@ import { CATALOG_STATUS_FILTERS } from '@/lib/catalog-status'
 import { isEnabled } from '@/lib/flags'
 import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
 import { buildCatalogQuery, buildCatalogPageUrl, CATALOG_PAGE_SIZE, type CatalogSearchParams } from '@/lib/catalog-query'
+import { computeSkuMarginsByChannel, type ProfitEvent, type ProfitOrderInfo, type SkuMarginRow } from '@/lib/profit'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import CatalogFilterBar from './CatalogFilterBar'
 import CatalogTable, { type CatalogListing } from './CatalogTable'
 
 export const metadata = { title: 'Catálogo — Mi tienda' }
+
+// Catalog-management S4 · Story 4.1 adds a flag-gated profit-ledger fetch
+// below (ops.profit_enabled) — force per-request rendering so the flag is
+// always evaluated at runtime, never baked into a build-time static render
+// (the profit dashboard page hit exactly this gap at its own launch flip,
+// LEARNINGS). Unlike that page, the flag here is additive (no notFound()) —
+// the catalog table must always render; only the margin column depends on it.
+export const dynamic = 'force-dynamic'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -98,6 +107,24 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   // no selection checkboxes/bulk bar render while OFF.
   const bulkFlagEnabled = await isEnabled('catalog.bulk_enabled')
 
+  // Margin columns (catalog-management epic, Sprint 4 · Story 4.1) —
+  // fail-safe OFF: no Margen column/sort toggle render while OFF. Additive
+  // fetch, never blocking the table itself if the ledger read fails.
+  const profitFlagEnabled = await isEnabled('ops.profit_enabled')
+  let marginRowsByChannel: SkuMarginRow[] = []
+  if (profitFlagEnabled) {
+    try {
+      const profitRes = await medusaFetch('/store/sellers/me/profit', clerkJwt)
+      if (profitRes.ok) {
+        const profitData = await profitRes.json() as { events?: ProfitEvent[]; orders?: ProfitOrderInfo[] }
+        marginRowsByChannel = computeSkuMarginsByChannel(profitData.events ?? [], profitData.orders ?? [])
+      }
+    } catch {
+      // Degrade silently — the margin column just shows "sin ventas" for
+      // everything rather than blocking the catalog table over a ledger hiccup.
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       <SellerBreadcrumb className="mb-1" />
@@ -148,6 +175,8 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             bulkFlagEnabled={bulkFlagEnabled}
             totalFiltered={total}
             filterParams={params}
+            profitFlagEnabled={profitFlagEnabled}
+            marginRowsByChannel={marginRowsByChannel}
           />
 
           {totalPages > 1 && (

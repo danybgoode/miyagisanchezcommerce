@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
+import { deriveProductMargin, type MarginCell } from '@/lib/catalog-margin'
+import { formatCents, formatPct, type SkuMarginRow } from '@/lib/profit'
 import { Toast, useToast } from '@/components/feedback/Toast'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
@@ -64,6 +66,28 @@ function stockLabel(listing: CatalogListing) {
     : `${listing.available_quantity ?? 0} disponibles`
 }
 
+// Margin column (catalog-management S4 · Story 4.1) — one honest cell per
+// channel, never a fake number. `formatCents`/`formatPct` are the SAME
+// formatters the profit dashboard uses (no forked display logic either).
+function MarginCellDisplay({ label, cell }: { label: string; cell: MarginCell }) {
+  if (cell.state === 'no_sales') {
+    return <span className="text-[10px] text-[var(--color-muted)]">{label}: sin ventas</span>
+  }
+  if (cell.state === 'no_cogs') {
+    return (
+      <span className="text-[10px] text-amber-700">
+        {label}: sin COGS ·{' '}
+        <Link href="/shop/manage/profit" className="underline">registrar costo</Link>
+      </span>
+    )
+  }
+  return (
+    <span className={`text-[10px] ${cell.isKiller ? 'text-red-600 font-semibold' : 'text-[var(--color-muted)]'}`}>
+      {label}: {formatCents(cell.marginCents ?? 0)} · {formatPct(cell.marginPct ?? null)}
+      {cell.isKiller && ' ⚠'}
+    </span>
+  )
+}
 function DeleteDialog({
   listing,
   onConfirm,
@@ -95,6 +119,8 @@ function DeleteDialog({
   )
 }
 
+type MarginSort = 'none' | 'asc' | 'desc'
+
 export default function CatalogTable({
   listings: initialListings,
   channelsFlagEnabled = false,
@@ -102,6 +128,8 @@ export default function CatalogTable({
   bulkFlagEnabled = false,
   totalFiltered = 0,
   filterParams = {},
+  profitFlagEnabled = false,
+  marginRowsByChannel = [],
 }: {
   listings: CatalogListing[]
   /** catalog.inventory_channels_enabled (catalog-management S2 · 2.2) — fail-safe OFF: no toggle UI renders while OFF. */
@@ -114,6 +142,10 @@ export default function CatalogTable({
   totalFiltered?: number
   /** The active table filter (q/status/category/channel/stock/sort) — passed through to a "select all across filter" bulk stage. */
   filterParams?: CatalogSearchParams
+  /** ops.profit_enabled (catalog-management S4 · Story 4.1) — fail-safe OFF: no Margen column/sort toggle render while OFF. */
+  profitFlagEnabled?: boolean
+  /** Per-channel ledger rows (lib/profit.ts's computeSkuMarginsByChannel), already fetched server-side. */
+  marginRowsByChannel?: SkuMarginRow[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -123,6 +155,48 @@ export default function CatalogTable({
   const { toast, showToast, dismissToast } = useToast()
   const [deleteTarget, setDeleteTarget] = useState<CatalogListing | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [marginSort, setMarginSort] = useState<MarginSort>('none')
+
+  // Margin cells, keyed by product id — derived once per render from the
+  // server-fetched ledger rows (lib/catalog-margin.ts, pure, no formula fork).
+  const marginByProduct = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof deriveProductMargin>>()
+    if (!profitFlagEnabled) return map
+    for (const listing of listings) {
+      map.set(listing.id, deriveProductMargin(listing.id, marginRowsByChannel))
+    }
+    return map
+  }, [profitFlagEnabled, listings, marginRowsByChannel])
+
+  // Client-only sort, THIS PAGE ONLY (24 rows) — margin is a bounded ledger
+  // aggregate, not a persisted/indexed product field, so this deliberately
+  // does not touch the URL-driven server sort (lib/catalog-query.ts). Rows
+  // with no computed Miyagi margin (no_sales/no_cogs) always sort last,
+  // regardless of direction — they can't be meaningfully ranked.
+  const displayedListings = useMemo(() => {
+    if (marginSort === 'none' || !profitFlagEnabled) return listings
+    const withValue: Array<{ listing: CatalogListing; value: number }> = []
+    const withoutValue: CatalogListing[] = []
+    for (const listing of listings) {
+      const cell = marginByProduct.get(listing.id)?.miyagi
+      if (cell?.state === 'computed' && cell.marginCents != null) withValue.push({ listing, value: cell.marginCents })
+      else withoutValue.push(listing)
+    }
+    withValue.sort((a, b) => (marginSort === 'asc' ? a.value - b.value : b.value - a.value))
+    return [...withValue.map((v) => v.listing), ...withoutValue]
+  }, [listings, marginSort, marginByProduct, profitFlagEnabled])
+
+  // Current Miyagi price + ML-link state per listing (S4 · Story 4.2) — feeds
+  // BulkActionBar's "apply precio sugerido" fee-estimate lookup, which needs
+  // the LIVE catalog price as its reference (not the ledger's realized
+  // historical average).
+  const listingInfoById = useMemo(() => {
+    const map = new Map<string, { priceCents: number | null; mlLinked: boolean }>()
+    for (const listing of listings) {
+      map.set(listing.id, { priceCents: listing.price_cents, mlLinked: (listing.channels ?? []).includes('ml') })
+    }
+    return map
+  }, [listings])
 
   const activeBatchId = searchParams.get('batch')
 
@@ -303,6 +377,9 @@ export default function CatalogTable({
           selectedIds={[...selectedIds]}
           onStaged={(batchId) => setBatchInUrl(batchId)}
           onClearSelection={() => setSelectedIds(new Set())}
+          profitFlagEnabled={profitFlagEnabled}
+          marginRowsByChannel={marginRowsByChannel}
+          listingInfoById={listingInfoById}
         />
       )}
 
@@ -325,12 +402,26 @@ export default function CatalogTable({
             <th className="p-3 font-medium">Precio</th>
             <th className="p-3 font-medium">Stock</th>
             <th className="p-3 font-medium">Canales</th>
+            {profitFlagEnabled && (
+              <th className="p-3 font-medium">
+                <button
+                  type="button"
+                  onClick={() => setMarginSort((prev) => (prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc'))}
+                  className="flex items-center gap-1 normal-case font-medium hover:underline"
+                  title="Ordena solo los anuncios de esta página — el margen no está indexado para ordenar en todo el catálogo"
+                >
+                  Margen (esta página)
+                  {marginSort === 'asc' && ' ↑'}
+                  {marginSort === 'desc' && ' ↓'}
+                </button>
+              </th>
+            )}
             <th className="p-3 font-medium">Estado</th>
             <th className="p-3 font-medium sr-only">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {listings.map((listing) => {
+          {displayedListings.map((listing) => {
             const status = deriveCatalogStatus(listing)
             const meta = STATUS_LABEL[status]
             const badges = deriveChannelBadges(listing)
@@ -338,6 +429,7 @@ export default function CatalogTable({
             const isPending = pendingIds.has(listing.id)
             const canToggle = status === 'activo' || status === 'agotado' || status === 'pausado'
             const nextStatus = status === 'pausado' ? 'active' : 'paused'
+            const margin = marginByProduct.get(listing.id)
             return (
               <tr key={listing.id} className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-alt)] ${isPending ? 'opacity-60' : ''}`}>
                 {bulkFlagEnabled && (
@@ -402,6 +494,16 @@ export default function CatalogTable({
                     )}
                   </div>
                 </td>
+                {profitFlagEnabled && (
+                  <td className="p-3">
+                    {margin && (
+                      <div className="flex flex-col gap-0.5">
+                        <MarginCellDisplay label="Miyagi" cell={margin.miyagi} />
+                        {badges.ml && <MarginCellDisplay label="ML" cell={margin.ml} />}
+                      </div>
+                    )}
+                  </td>
+                )}
                 <td className="p-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.color}`}>{meta.label}</span>
                 </td>
