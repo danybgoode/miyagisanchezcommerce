@@ -41,6 +41,15 @@ export interface EnviosInitial {
    * seller's own `envia_enabled` value. Cosmetic only; the backend is the real gate.
    */
   platform_envia_enabled: boolean
+  /**
+   * Shipping-provider-expansion · Sprint 2: this shop's own comp grant
+   * (`seller.metadata.envia_grant` on the Medusa seller), server-evaluated.
+   * When true, this shop rides live Envía even while the platform flag above
+   * is OFF for everyone else — shows a distinct "enabled by Miyagi" banner
+   * and un-supersedes the toggle below. Cosmetic only; the backend
+   * (`enviaKillGate`) is the real gate.
+   */
+  granted_envia_enabled: boolean
 }
 
 export default function Envios({ initial }: { initial: EnviosInitial }) {
@@ -475,7 +484,14 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
 
           {/* ── Envia.com checkout policy ──────────────────────────────── */}
           <div className="pt-4">
-            {!initial.platform_envia_enabled && (
+            {!initial.platform_envia_enabled && initial.granted_envia_enabled && (
+              <div className="mb-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 leading-relaxed">
+                <strong>Envía habilitado por Miyagi.</strong> Aunque el envío automático está en pausa
+                para el resto de la plataforma, tu tienda tiene una cortesía activa: el cálculo de
+                tarifas en vivo y la generación de etiquetas con Envia.com siguen funcionando normalmente.
+              </div>
+            )}
+            {!initial.platform_envia_enabled && !initial.granted_envia_enabled && (
               <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
                 <strong>Envío automático en pausa.</strong> Por ahora el cálculo de tarifas en vivo y la
                 generación de etiquetas con Envia.com están desactivados a nivel de plataforma, así que tu
@@ -487,7 +503,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
             <ToggleSwitch
               checked={enviaShippingEnabled}
               onChange={v => { setEnviaShippingEnabled(v); mark() }}
-              disabled={!originAddressReady || !initial.platform_envia_enabled}
+              disabled={!originAddressReady || !(initial.platform_envia_enabled || initial.granted_envia_enabled)}
               label="Envío a domicilio con tarifas en vivo"
               description="Muestra al comprador opciones reales de paquetería calculadas por Envia.com antes de pagar."
             />
