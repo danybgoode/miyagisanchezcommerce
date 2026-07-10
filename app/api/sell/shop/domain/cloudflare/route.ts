@@ -132,10 +132,11 @@ export async function POST(req: NextRequest) {
     // Provider config unreachable — keep the static fallback from domain-utils.
   }
 
-  // ── Step 3: Remove conflicting A *and* CNAME records on this name ─────────
-  // (A previous run may have written the wrong type — clear both so the create
-  // doesn't collide with a stale record.)
-  for (const t of ['A', 'CNAME'] as const) {
+  // ── Step 3: Remove conflicting A/AAAA/CNAME records on this name ──────────
+  // (A previous run may have written the wrong type, or the zone may carry a
+  // stale AAAA from before this domain was ever pointed at us — a CNAME can't
+  // coexist with ANY other record type at the same name, so clear all three.)
+  for (const t of ['A', 'AAAA', 'CNAME'] as const) {
     try {
       const listRes = await cfGet(
         `/zones/${zoneId}/dns_records?type=${t}&name=${encodeURIComponent(domain)}`,

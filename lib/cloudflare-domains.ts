@@ -103,7 +103,16 @@ export type CfCustomHostname = {
 
 async function cfApi(path: string, opts: RequestInit = {}): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
   const res = await fetch(`${CF_API}${path}`, { ...opts, headers: { ...headers(), ...(opts.headers as Record<string, string> | undefined) } })
-  const json = await res.json() as Record<string, unknown>
+  // Read as text first — a transient edge outage (502/504) returns an HTML page,
+  // not JSON, and parsing that directly throws a SyntaxError that masks the real
+  // HTTP status and bypasses the caller's conflict/error mapping entirely.
+  const body = await res.text()
+  let json: Record<string, unknown>
+  try {
+    json = JSON.parse(body) as Record<string, unknown>
+  } catch {
+    throw new Error(`Cloudflare ${path} → ${res.status} (non-JSON response): ${body.slice(0, 300)}`)
+  }
   return { ok: res.ok && json.success !== false, status: res.status, json }
 }
 
