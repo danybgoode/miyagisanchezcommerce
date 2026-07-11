@@ -6,10 +6,12 @@ import { isSellerModePath } from '../lib/seller-mode'
 import {
   SELLER_NAV,
   SELLER_NAV_MOBILE_PRIMARY,
-  SELLER_NAV_MOBILE_OVERFLOW,
+  SELLER_NAV_MOBILE_OVERFLOW_GROUPS,
   activeSellerNavHref,
   filterNavByEnabledFlags,
   filterEntriesByEnabledFlags,
+  hasRelayBadge,
+  type SellerNavEntry,
 } from '../lib/seller-nav'
 import type { FlagKey } from '../lib/flags'
 
@@ -96,16 +98,6 @@ test.describe('seller-mode · SELLER_NAV config', () => {
     expect(SELLER_NAV[3].entries.map(e => e.label)).toEqual(['Configuración'])
   })
 
-  test('mobile primary is Resumen · Pedidos · Ofertas · Anuncios; Más overflow is the rest', () => {
-    expect(SELLER_NAV_MOBILE_PRIMARY.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas', 'Anuncios'])
-    expect(SELLER_NAV_MOBILE_OVERFLOW.length).toBeGreaterThan(0)
-    expect(SELLER_NAV_MOBILE_OVERFLOW.map(e => e.label)).toEqual([
-      'Colecciones', 'Canales', 'Importar catálogo',
-      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
-      'Configuración',
-    ])
-  })
-
   test('every entry has a stable key and an Iconoir class', () => {
     const keys = SELLER_NAV.flatMap(g => g.entries.map(e => e.key))
     expect(new Set(keys).size).toBe(keys.length) // unique
@@ -149,9 +141,79 @@ test.describe('seller-mode · filterNavByEnabledFlags (R13 flag-safe nav parity)
     expect(filterNavByEnabledFlags(oneEntryGroup, new Set<FlagKey>())).toEqual([])
   })
 
-  test('filterEntriesByEnabledFlags applies the same gate to a flat entry list (the mobile overflow)', () => {
-    expect(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW, new Set<FlagKey>()).map(e => e.label)).not.toContain('Ganancias')
-    expect(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW, new Set<FlagKey>(['ops.profit_enabled'])).map(e => e.label)).toContain('Ganancias')
+  test('filterEntriesByEnabledFlags applies the same gate to a flat entry list (the mobile primary bar)', () => {
+    const gatedEntries = [{ key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins', flag: 'ops.profit_enabled' as FlagKey }, ...SELLER_NAV_MOBILE_PRIMARY]
+    expect(filterEntriesByEnabledFlags(gatedEntries, new Set<FlagKey>()).map(e => e.label)).not.toContain('Ganancias')
+    expect(filterEntriesByEnabledFlags(gatedEntries, new Set<FlagKey>(['ops.profit_enabled'])).map(e => e.label)).toContain('Ganancias')
+  })
+})
+
+// ── Story 5.2 — mobile bar redesign (F5) ────────────────────────────────────
+
+test.describe('seller-mode · mobile bar shape (Story 5.2)', () => {
+  test('primary bar is exactly 3 data-backed slots: Resumen, Pedidos, Anuncios', () => {
+    expect(SELLER_NAV_MOBILE_PRIMARY.map(e => e.key)).toEqual(['resumen', 'pedidos', 'anuncios'])
+  })
+
+  test('Anuncios carries the "Catálogo" mobile-only label override (rail keeps "Anuncios")', () => {
+    const anuncios = SELLER_NAV_MOBILE_PRIMARY.find(e => e.key === 'anuncios')
+    expect(anuncios?.label).toBe('Anuncios')
+    expect(anuncios?.mobileLabel).toBe('Catálogo')
+  })
+
+  test('"Más" sheet has exactly 4 groups: Operar, Catálogo, Crecer (grid), Configuración', () => {
+    expect(SELLER_NAV_MOBILE_OVERFLOW_GROUPS.map(g => ({ key: g.key, label: g.label, layout: g.layout ?? 'list' }))).toEqual([
+      { key: 'operar', label: 'Operar', layout: 'list' },
+      { key: 'catalogo', label: 'Catálogo', layout: 'list' },
+      { key: 'crecer', label: 'Crecer', layout: 'grid' },
+      { key: 'configuracion', label: 'Configuración', layout: 'list' },
+    ])
+  })
+
+  test('completeness guard: every SELLER_NAV entry not promoted to the primary bar appears in exactly one overflow group (nothing silently vanishes)', () => {
+    const primaryKeys = new Set(SELLER_NAV_MOBILE_PRIMARY.map(e => e.key))
+    const allKeys = SELLER_NAV.flatMap(g => g.entries.map(e => e.key))
+    const expectedOverflowKeys = allKeys.filter(k => !primaryKeys.has(k))
+
+    const overflowKeyCounts = new Map<string, number>()
+    for (const group of SELLER_NAV_MOBILE_OVERFLOW_GROUPS) {
+      for (const entry of group.entries) {
+        overflowKeyCounts.set(entry.key, (overflowKeyCounts.get(entry.key) ?? 0) + 1)
+      }
+    }
+
+    for (const key of expectedOverflowKeys) {
+      expect(overflowKeyCounts.get(key), `${key} should appear in exactly one overflow group`).toBe(1)
+    }
+    // And nothing extra: every overflow entry is one of the expected keys.
+    expect([...overflowKeyCounts.keys()].sort()).toEqual([...expectedOverflowKeys].sort())
+  })
+
+  test('flag OFF: Ganancias absent from the Crecer overflow group; flag ON: present', () => {
+    const off = filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, new Set<FlagKey>())
+    expect(off.find(g => g.key === 'crecer')?.entries.map(e => e.key)).not.toContain('ganancias')
+
+    const on = filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, new Set<FlagKey>(['ops.profit_enabled']))
+    expect(on.find(g => g.key === 'crecer')?.entries.map(e => e.key)).toContain('ganancias')
+  })
+})
+
+test.describe('seller-mode · hasRelayBadge (Story 5.2 — "Más" trigger relay dot)', () => {
+  const groups: { entries: SellerNavEntry[] }[] = [
+    { entries: [{ key: 'ofertas', label: 'Ofertas', href: '/shop/manage/offers', icon: 'iconoir-hand-cash' }] },
+  ]
+
+  test('true when an overflow entry has a nonzero badge', () => {
+    expect(hasRelayBadge(groups, { ofertas: 2 })).toBe(true)
+  })
+
+  test('false when no badges are set, or all are zero', () => {
+    expect(hasRelayBadge(groups, {})).toBe(false)
+    expect(hasRelayBadge(groups, { ofertas: 0 })).toBe(false)
+  })
+
+  test('false for a badge on an entry not in any overflow group (e.g. Pedidos, which lives in the primary bar)', () => {
+    expect(hasRelayBadge(groups, { pedidos: 5 })).toBe(false)
   })
 })
 
