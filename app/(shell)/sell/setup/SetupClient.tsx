@@ -489,7 +489,7 @@ function FirstRunApply() {
           </div>
           {errorRows.length > 0 && (
             <p className="text-xs text-[var(--color-muted)] mt-2 text-right">
-              El que falta por corregir se queda como borrador — lo arreglas cuando quieras.
+              Lo que falta por corregir no se crea todavía — corrígelo arriba o vuelve a intentarlo cuando quieras.
             </p>
           )}
         </div>
@@ -538,7 +538,7 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
     <div className="mt-2">
       <SuccessCard
         headline="Tu tienda está lista"
-        subcopy={`Creamos tu tienda con ${catalog.created} producto(s) publicado(s)${catalog.failed > 0 ? ` y ${catalog.failed} borrador(es)` : ''}. Diseño y envíos quedaron configurados.`}
+        subcopy={`Creamos tu tienda con ${catalog.created} producto${catalog.created === 1 ? '' : 's'} publicado${catalog.created === 1 ? '' : 's'}${catalog.failed > 0 ? ` · ${catalog.failed} no se pudo${catalog.failed === 1 ? '' : 'n'} crear (corrígelo abajo)` : ''}. Diseño y envíos quedaron configurados.`}
         counts={{ created: catalog.created, updated: catalog.updated, failed: catalog.failed, draft: 0 }}
         liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
         warningCallout={{

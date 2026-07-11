@@ -435,7 +435,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
               <div className="mt-4">
                 <SuccessCard
                   headline="Tu catálogo está listo"
-                  subcopy={`Creamos ${created} producto(s) nuevo(s)${updated > 0 ? ` y actualizamos ${updated}` : ''}${failed.length > 0 ? ` · ${failed.length} fallaron` : ''}.`}
+                  subcopy={`Creamos ${created} producto${created === 1 ? '' : 's'} nuevo${created === 1 ? '' : 's'}${updated > 0 ? ` y actualizamos ${updated}` : ''}${failed.length > 0 ? ` · ${failed.length} fallaron` : ''}.`}
                   counts={{ created, updated, failed: failed.length, draft: 0 }}
                   liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
                   liveLabel={shopSlug ? 'Ver mi tienda pública ↗' : 'Ver mis anuncios →'}
