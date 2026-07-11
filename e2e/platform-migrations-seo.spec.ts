@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { buildMigracionHubPageConfig } from '../app/(shell)/vende/_components/page-config'
 
 const BASE_URL = 'https://miyagisanchez.com'
 
@@ -77,6 +78,19 @@ test.describe('platform migrations · SEO and OpenGraph', () => {
     for (const platform of ['shopify', 'tiendanube', 'woocommerce', 'bigcartel']) {
       expect(html).toContain(`/vende/migracion/${platform}`)
     }
+  })
+
+  // Cross-agent review of this PR (Codex) flagged a real gap: routerCards' `slug` comes
+  // from admin-editable copy overrides (getOverriddenDictionary), not just the static
+  // JSON — an `as keyof typeof MIGRACION_PLATFORM_PATHS` cast on a bad/typo'd slug would
+  // have silently produced `href={undefined}`. Assert it degrades to the hub link instead.
+  test('a router card with an unrecognized slug degrades to the hub link, never href=undefined', () => {
+    const copy = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8')).sellerAcquisition
+    copy.migracion.routerCards = [...copy.migracion.routerCards, { slug: 'tiendanube-typo', eyebrow: '', title: '', body: '', icon: '' }]
+    const config = buildMigracionHubPageConfig(copy, {})
+    const badCard = config.personaRouter!.cards.find((c) => c.testId === 'migracion-router-tiendanube-typo')
+    expect(badCard).toBeTruthy()
+    expect(badCard!.href).toBe('/vende/migracion')
   })
 
   test('the Shopify page links into the real, already-shipped connector flow', async ({ request }) => {

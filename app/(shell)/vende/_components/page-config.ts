@@ -182,11 +182,17 @@ export function buildAutosPageConfig(
  * register as `SellerPersonaId`s. Hrefs are plain strings into the real, already-shipped
  * flows (the Shopify connector, the CSV/paste importer) rather than `sellerPersonaCtaHref`.
  */
-const MIGRACION_PLATFORM_PATHS: Record<'shopify' | 'tiendanube' | 'woocommerce' | 'bigcartel', string> = {
+type MigracionPlatformSlug = 'shopify' | 'tiendanube' | 'woocommerce' | 'bigcartel'
+
+const MIGRACION_PLATFORM_PATHS: Record<MigracionPlatformSlug, string> = {
   shopify: '/vende/migracion/shopify',
   tiendanube: '/vende/migracion/tiendanube',
   woocommerce: '/vende/migracion/woocommerce',
   bigcartel: '/vende/migracion/bigcartel',
+}
+
+function isMigracionPlatformSlug(slug: string): slug is MigracionPlatformSlug {
+  return Object.prototype.hasOwnProperty.call(MIGRACION_PLATFORM_PATHS, slug)
 }
 
 export function buildMigracionHubPageConfig(
@@ -224,7 +230,11 @@ export function buildMigracionHubPageConfig(
         title: card.title,
         body: card.body,
         icon: card.icon,
-        href: MIGRACION_PLATFORM_PATHS[card.slug as keyof typeof MIGRACION_PLATFORM_PATHS],
+        // `card.slug` ultimately comes from admin-editable copy overrides
+        // (getOverriddenDictionary), not just the static JSON — a bad/typo'd
+        // slug must degrade to the always-valid hub link, never a silent
+        // `href={undefined}` (caught in cross-review of this PR).
+        href: isMigracionPlatformSlug(card.slug) ? MIGRACION_PLATFORM_PATHS[card.slug] : '/vende/migracion',
         testId: `migracion-router-${card.slug}`,
       })),
     },
