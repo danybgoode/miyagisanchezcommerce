@@ -99,7 +99,7 @@ export default function FlagsAdminClient({ initialFlags }: { initialFlags: FlagV
       )}
 
       <p style={{ color: 'var(--fg-muted)', fontSize: 12, margin: '0 0 8px' }}>
-        {sorted.length} flags · orden alfabético · página {currentPage} de {totalPages}
+        {sorted.length} funciones · orden alfabético · página {currentPage} de {totalPages}
       </p>
 
       <div style={{ overflowX: 'auto' }}>
