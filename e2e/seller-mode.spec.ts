@@ -155,15 +155,43 @@ test.describe('seller-mode · activeSellerNavHref', () => {
  * own source and stops appearing in the route file at all, which would
  * silently defeat a class-string-only scan (always counting 0).
  */
+function countBtnPrimaryInSource(content: string): number {
+  const rawClass = (content.match(/\bbtn-primary\b/g) ?? []).length
+  const buttonComponent = (content.match(/<Button\b[^>]*\bvariant=["']primary["']/g) ?? []).length
+  return rawClass + buttonComponent
+}
+
 async function countBtnPrimary(relPaths: string[]): Promise<number> {
   let total = 0
   for (const relPath of relPaths) {
     const content = await readFile(path.join(repoRoot, relPath), 'utf8')
-    const rawClass = (content.match(/\bbtn-primary\b/g) ?? []).length
-    const buttonComponent = (content.match(/<Button\b[^>]*\bvariant=["']primary["']/g) ?? []).length
-    total += rawClass + buttonComponent
+    total += countBtnPrimaryInSource(content)
   }
   return total
+}
+
+/**
+ * Per-step/per-section scan for a file whose whole-file `.btn-primary` count is
+ * NOT ≤1 by design — e.g. a multi-step wizard where each step has its own primary
+ * CTA, but only one step ever renders at a time. Slices the source between each
+ * named top-level function's declaration and the next one (or EOF), so a real
+ * regression (two primary buttons within the SAME step/section) still fails,
+ * without the whole-file total falsely tripping the assertion.
+ */
+async function countBtnPrimaryPerFunction(relPath: string, functionNames: string[]): Promise<Record<string, number>> {
+  const content = await readFile(path.join(repoRoot, relPath), 'utf8')
+  const starts = functionNames
+    .map((name) => ({ name, index: content.indexOf(`function ${name}(`) }))
+    .filter((f) => f.index !== -1)
+    .sort((a, b) => a.index - b.index)
+
+  const counts: Record<string, number> = {}
+  for (let i = 0; i < starts.length; i++) {
+    const from = starts[i].index
+    const to = i + 1 < starts.length ? starts[i + 1].index : content.length
+    counts[starts[i].name] = countBtnPrimaryInSource(content.slice(from, to))
+  }
+  return counts
 }
 
 test.describe('seller-mode · R2 one .btn-primary per view (static source scan)', () => {
@@ -184,4 +212,32 @@ test.describe('seller-mode · R2 one .btn-primary per view (static source scan)'
     ])
     expect(count).toBeLessThanOrEqual(1)
   })
+
+  // seller-portal-rails-foundation S2 · Story 2.1 adoption sweep — newly-swept routes.
+  test('/shop/manage/offers renders at most one .btn-primary', async () => {
+    const count = await countBtnPrimary([
+      'app/(shell)/shop/manage/offers/page.tsx',
+      'app/(shell)/shop/manage/offers/OfferInbox.tsx',
+    ])
+    expect(count).toBeLessThanOrEqual(1)
+  })
+
+  // /sell (SellWizard) is a 3-step wizard — only one step ever renders at once, so
+  // the assertion is per-step, not whole-file (StepShop/StepListing each have their
+  // own "Continue"/"Publish" CTA; StepSuccess has its own primary CTA anchor).
+  test('/sell renders at most one primary CTA per wizard step', async () => {
+    const counts = await countBtnPrimaryPerFunction('app/(shell)/sell/SellWizard.tsx', [
+      'StepShop', 'StepListing', 'StepSuccess',
+    ])
+    expect(Object.keys(counts)).toEqual(['StepShop', 'StepListing', 'StepSuccess'])
+    for (const [step, count] of Object.entries(counts)) {
+      expect(count, `${step} primary CTA count`).toBeLessThanOrEqual(1)
+    }
+  })
+
+  // /sell/setup (SetupClient) is NOT covered by an equivalent per-section count:
+  // FirstRunApply alone has 2 mutually-exclusive conditional states (paste form vs
+  // staging preview) inside one function, so a function-boundary slice can't tell
+  // them apart without parsing the JSX conditionals themselves — not worth building
+  // for this static-scan APPROXIMATION (see the file-level docstring above).
 })

@@ -6,12 +6,21 @@ import {
   auditDocumentedContrastPairs,
   findArbitraryHexClassOffenders,
   findArbitraryHexClassOffendersInSourceFiles,
+  findBgWhiteOffenders,
+  findBgWhiteOffendersInSourceFiles,
+  findFeedbackImportOffenders,
+  findFeedbackImportOffendersInSourceFiles,
   findInvisibleAccentButtonOffenders,
   findInvisibleAccentButtonOffendersInSourceFiles,
+  findLiteralRadiusOffenders,
+  findLiteralRadiusOffendersInSourceFiles,
   findRawHexLiteralOffenders,
   findRawHexLiteralOffendersInSourceFiles,
+  findRawPaletteClassOffenders,
+  findRawPaletteClassOffendersInSourceFiles,
   formatContrastResult,
   formatOffense,
+  withinEnforcedSweep,
 } from '../lib/design-token-audit'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -101,5 +110,81 @@ test.describe('design-token foundation', () => {
 
     expect(findRawHexLiteralOffendersInSourceFiles(files).map(formatOffense)).toEqual([])
     expect(findArbitraryHexClassOffendersInSourceFiles(files).map(formatOffense)).toEqual([])
+  })
+
+  // ── seller-portal-rails-foundation S2 · Story 2.2 ──────────────────────────
+  // The adoption sweep's actual coverage — `enforcedSweptPaths` — must have zero
+  // raw-palette/bg-white/literal-radius violations. The rest of app/+lib/ is scanned
+  // too (for visibility as future sprints expand the sweep) but not yet gated: Story
+  // 2.1 swept a named subset of the seller portal, not the whole app, so gating the
+  // whole tree today would fail on ~50 untouched files this sprint never scoped.
+  test('the S2 adoption sweep has no raw palette classes in its enforced coverage', async () => {
+    const offenders = withinEnforcedSweep(await findRawPaletteClassOffenders(repoRoot))
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
+  test('the S2 adoption sweep has no bg-white in its enforced coverage', async () => {
+    const offenders = withinEnforcedSweep(await findBgWhiteOffenders(repoRoot))
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
+  test('the S2 adoption sweep has no literal border-radius classes in its enforced coverage', async () => {
+    const offenders = withinEnforcedSweep(await findLiteralRadiusOffenders(repoRoot))
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
+  test('no Toast/Banner import lives outside components/feedback/, anywhere in app/+lib/', async () => {
+    const offenders = await findFeedbackImportOffenders(repoRoot)
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
+  test('negative fixture: a new raw palette class goes red inside enforced coverage, stays advisory outside it', () => {
+    const files = [
+      { filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx', content: '<span className="bg-green-100 text-green-700">Activo</span>' },
+      { filePath: 'app/(shell)/shop/manage/analytics/AnalyticsClient.tsx', content: '<span className="bg-green-100 text-green-700">Activo</span>' },
+    ]
+    const offenders = findRawPaletteClassOffendersInSourceFiles(files)
+    expect(offenders.map(formatOffense)).toEqual([
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: bg-green-100 in <span className="bg-green-100 text-green-700">Activo</span>',
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: text-green-700 in <span className="bg-green-100 text-green-700">Activo</span>',
+      'app/(shell)/shop/manage/analytics/AnalyticsClient.tsx:1: bg-green-100 in <span className="bg-green-100 text-green-700">Activo</span>',
+      'app/(shell)/shop/manage/analytics/AnalyticsClient.tsx:1: text-green-700 in <span className="bg-green-100 text-green-700">Activo</span>',
+    ])
+    // Only the enforced file's offense is gating; the unswept sibling is advisory-only.
+    expect(withinEnforcedSweep(offenders).map(formatOffense)).toEqual([
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: bg-green-100 in <span className="bg-green-100 text-green-700">Activo</span>',
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: text-green-700 in <span className="bg-green-100 text-green-700">Activo</span>',
+    ])
+  })
+
+  test('negative fixture: bg-white goes red, bg-white/NN translucent overlays stay green', () => {
+    const offenders = findBgWhiteOffendersInSourceFiles([{
+      filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx',
+      content: '<div className="bg-white"><span className="bg-white/30">x</span></div>',
+    }])
+    expect(offenders.map(formatOffense)).toEqual([
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: bg-white in <div className="bg-white"><span className="bg-white/30">x</span></div>',
+    ])
+  })
+
+  test('negative fixture: literal radii go red, rounded-[var(--r-*)] tokens stay green', () => {
+    const offenders = findLiteralRadiusOffendersInSourceFiles([{
+      filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx',
+      content: '<div className="rounded"><span className="rounded-lg" /><i className="rounded-[var(--r-md)]" /></div>',
+    }])
+    expect(offenders.map(formatOffense)).toEqual([
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: rounded in <div className="rounded"><span className="rounded-lg" /><i className="rounded-[var(--r-md)]" /></div>',
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: rounded-lg in <div className="rounded"><span className="rounded-lg" /><i className="rounded-[var(--r-md)]" /></div>',
+    ])
+  })
+
+  test('negative fixture: a Toast import outside components/feedback/ goes red', () => {
+    const offenders = findFeedbackImportOffendersInSourceFiles([
+      { filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx', content: "import { Toast } from '@/components/feedback/Toast'" },
+      { filePath: 'app/(shell)/shop/manage/RogueToast.tsx', content: "import { Toast } from './LocalToast'" },
+    ])
+    expect(offenders.map(formatOffense)).toEqual([
+      "app/(shell)/shop/manage/RogueToast.tsx:1: import { Toast } from './LocalToast' in import { Toast } from './LocalToast'",
+    ])
   })
 })
