@@ -55,12 +55,16 @@ test.describe('computePromoterSkuEarnings', () => {
 })
 
 test.describe('buildPromoterEarningsTable', () => {
-  test('one row per PROMOTER_SKUS entry; print_ad is variablePrice (no fixed mxn)', () => {
+  test('one row per PROMOTER_SKUS entry; print_ad + migration are variablePrice (no fixed mxn)', () => {
     const table = buildPromoterEarningsTable(ZERO_RATES, NO_DISCOUNT)
-    expect(table).toHaveLength(4)
+    expect(table).toHaveLength(5)
     const printAd = table.find((r) => r.sku === 'print_ad')
     expect(printAd?.variablePrice).toBe(true)
     if (printAd?.variablePrice) expect(printAd.commissionPct).toBeNull()
+    // migration has no PROMOTER_SKU_BASE_PRICE_MXN entry — same "absent = variable"
+    // convention as print_ad (flat ≤150 or a per-merchant quote above it).
+    const migration = table.find((r) => r.sku === 'migration')
+    expect(migration?.variablePrice).toBe(true)
   })
 
   test('priced SKUs carry the single-source base prices', () => {

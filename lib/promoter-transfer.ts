@@ -15,15 +15,20 @@
  * CRUD lives in lib/promoter-transfers-server.ts; the metadata grant write lives
  * in lib/promoter-grant-server.ts.
  *
- * Scope: `custom_domain` | `subdomain` | `ml_sync` — the three SKUs already in the
+ * Scope: `custom_domain` | `subdomain` | `ml_sync` | `migration` — the SKUs in the
  * close-workspace picker (`CLOSE_SKUS`). `print_ad` has its own cash-report path
  * from Sprint 3 (`/api/promoter/close/print` + the existing `/admin/print` review)
  * and isn't in the close-workspace picker until Sprint 5 — out of scope here.
+ *
+ * `migration` (platform-migrations · Sprint 2) has no ongoing feature to entitle —
+ * it's a one-time consulting service the promoter already delivered by the time
+ * this closes. Its `migration_grant` write below is an inert paid/audit marker
+ * only; nothing reads it to gate a feature (unlike the other three SKUs' grants).
  */
 
 import { computeCommissionCents } from '@/lib/promoter-commission'
 
-export const TRANSFER_SKUS = ['custom_domain', 'subdomain', 'ml_sync'] as const
+export const TRANSFER_SKUS = ['custom_domain', 'subdomain', 'ml_sync', 'migration'] as const
 export type TransferSku = (typeof TRANSFER_SKUS)[number]
 
 /** Narrow an untrusted value to a known TransferSku. */
@@ -96,6 +101,7 @@ export const SKU_GRANT_KEYS: Record<TransferSku, string> = {
   custom_domain: 'custom_domain_grant',
   subdomain: 'subdomain_grant',
   ml_sync: 'ml_sync_grant',
+  migration: 'migration_grant',
 }
 
 /** es-MX display label per SKU — for transfer-approval/rejection email subjects. */
@@ -103,6 +109,7 @@ export const TRANSFER_SKU_LABEL: Record<TransferSku, string> = {
   custom_domain: 'Dominio propio',
   subdomain: 'Subdominio propio',
   ml_sync: 'Sincronización Mercado Libre',
+  migration: 'Migración de tienda',
 }
 
 // ── Transfer-details completeness (the "never a dead-end destination" guard) ──

@@ -87,7 +87,9 @@ export interface ParityReport {
   imageCount: number
   hasPolicies: boolean
   truncated: boolean
-  /** Feeds US-2.3 — should this migration route to Daniel instead of the flat-fee SKU? */
+  /** Feeds US-2.3 — should this migration route to Daniel instead of ANY price
+   *  (flat or quoted)? See the Sprint 2 note below — this is narrower than "over
+   *  the flat-fee cap" since Sprint 2 added a computable tier for that case. */
   veryCustom: boolean
   veryCustomReason: string | null
 }
@@ -95,14 +97,24 @@ export interface ParityReport {
 /** Sprint 2's flat-fee `migration` SKU covers up to this many listings (epic README). */
 export const VERY_CUSTOM_LISTING_THRESHOLD = 150
 
+/**
+ * Sprint 2 note (platform-migrations · US-2.2/US-2.3, 2026-07-11): at Sprint 1 ship
+ * time, `veryCustom` fired on EITHER a truncated pull OR merely exceeding the
+ * flat-fee cap (150 listings) — a reasonable placeholder before Sprint 2 defined
+ * what happens above that cap. Sprint 2 gave >150-but-complete a real, computable
+ * quoted-estimate tier ($999 + $3/listing + section adders — lib/migration-estimate.ts),
+ * so treating it as "very custom, no price, route to Daniel" would have blocked
+ * the exact case Sprint 2 exists to price. `veryCustom` now means "the platform
+ * cannot trust the numbers enough to price ANYTHING" — narrowed to a truncated
+ * pull only. This is a safe redefinition: the connector is still fully dark
+ * behind `migrations.connector_enabled` (never live), so no shipped behavior
+ * changes, only the not-yet-exercised meaning of the flag.
+ */
 export function buildParityReport(input: ParityReportInput): ParityReport {
-  const overThreshold = input.listingCount > VERY_CUSTOM_LISTING_THRESHOLD
-  const veryCustom = overThreshold || input.truncated
+  const veryCustom = input.truncated
   const veryCustomReason = input.truncated
     ? 'El catálogo es muy grande — solo se pudo traer una parte para este reporte.'
-    : overThreshold
-      ? `Esta tienda tiene más de ${VERY_CUSTOM_LISTING_THRESHOLD} productos, fuera del paquete de precio fijo.`
-      : null
+    : null
 
   return {
     sections: PARITY_SECTIONS,

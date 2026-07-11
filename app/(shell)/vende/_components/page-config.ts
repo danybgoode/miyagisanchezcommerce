@@ -200,6 +200,7 @@ export function buildPromoterPageConfig(
     print_ad: 0,
     subdomain: 0,
     ml_sync: 0,
+    migration: 0,
   }
   const skuPrices: PromoterSkuPrices = opts.skuPrices ?? {}
   const earningsTable = buildPromoterEarningsTable(commissionRates, promoterSettings, skuPrices)
