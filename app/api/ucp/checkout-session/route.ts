@@ -124,6 +124,16 @@ interface UcpCheckoutSession {
     required_complete: boolean
     missing_field_id: string | null
   }
+  // Arranged-only delivery epic, S2.1 — present ONLY when the listing is
+  // coordinated-delivery (arranged product, or service/rental — see
+  // isCoordinatedListing in the backend), so an agent knows to present
+  // "coordina la entrega" instead of implying shipping. Omitted entirely
+  // (not `false`) for ordinary shippable listings — keeps this additive and
+  // matches the boundary ucp-checkout-session-shipping-boundary.spec.ts pins.
+  delivery?: {
+    arranged: boolean
+    note: string
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -146,26 +156,40 @@ function listingLookupColumn(listingId: string) {
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
+interface BackendPaymentMethods {
+  methods: Set<PaymentMethodKey> | null
+  // Arranged-only delivery epic, S2.1 — mirrors checkout-options' own
+  // `only_coordinated` + the coord delivery method's note, so this route
+  // never needs its own copy of the coordination logic (checkout-options
+  // stays the single source of truth).
+  onlyCoordinated: boolean
+  coordNote: string | null
+}
+
 /**
  * Authoritative payment-method availability from Medusa's checkout-options —
  * the SAME source the web checkout uses, so agents and humans see identical
- * options. Returns a set of UCP method keys, or null if the backend is
- * unreachable (caller falls back to local computation).
+ * options. `methods` is null if the backend is unreachable (caller falls
+ * back to local computation); `onlyCoordinated`/`coordNote` default to
+ * false/null in that case (additive — never blocks the fallback path).
  */
 async function fetchBackendPaymentMethods(
   sellerRef: string,
   listingType: string,
   isDigital: boolean,
-): Promise<Set<PaymentMethodKey> | null> {
+  deliveryMode: 'carrier' | 'arranged',
+): Promise<BackendPaymentMethods> {
   try {
-    const qs = new URLSearchParams({ listing_type: listingType, is_digital: String(isDigital) })
+    const qs = new URLSearchParams({ listing_type: listingType, is_digital: String(isDigital), delivery_mode: deliveryMode })
     const res = await fetch(
       `${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerRef)}/checkout-options?${qs}`,
       { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
     )
-    if (!res.ok) return null
+    if (!res.ok) return { methods: null, onlyCoordinated: false, coordNote: null }
     const data = await res.json() as {
       payment_methods?: Array<{ id: string; kind?: string; sub_options?: Array<{ type: string }> }>
+      only_coordinated?: boolean
+      delivery_methods?: Array<{ id: string; note?: string }>
     }
     const set = new Set<PaymentMethodKey>()
     for (const m of data.payment_methods ?? []) {
@@ -179,9 +203,14 @@ async function fetchBackendPaymentMethods(
         }
       }
     }
-    return set
+    const coordMethod = (data.delivery_methods ?? []).find(d => d.id === 'coord')
+    return {
+      methods: set,
+      onlyCoordinated: data.only_coordinated === true,
+      coordNote: coordMethod?.note ?? null,
+    }
   } catch {
-    return null
+    return { methods: null, onlyCoordinated: false, coordNote: null }
   }
 }
 
@@ -344,10 +373,17 @@ export async function POST(req: NextRequest) {
   // Single source of truth shared with the web checkout. Falls back to the
   // local signals above when the backend is unreachable. The seller slug
   // resolves the Medusa seller; id is a fallback.
-  const beMethods = await fetchBackendPaymentMethods(
+  // Arranged-only delivery epic, S2.1 — thread the listing's own delivery_mode
+  // through so checkout-options can correctly gate instant methods for a
+  // flag-enabled `arranged` product (service/rental already gate unconditionally
+  // server-side, S2.2, independent of this param).
+  const deliveryMode: 'carrier' | 'arranged' =
+    (listing.metadata as Record<string, unknown> | undefined)?.delivery_mode === 'arranged' ? 'arranged' : 'carrier'
+  const { methods: beMethods, onlyCoordinated: coordinatedDelivery, coordNote } = await fetchBackendPaymentMethods(
     shop?.slug ?? shop?.id ?? '',
     listing.listing_type ?? 'product',
     isDigital,
+    deliveryMode,
   )
   const beHas = (k: PaymentMethodKey) => (beMethods ? beMethods.has(k) : null)
   // available = backend says so (when reachable) else local; price/claim always required.
@@ -567,6 +603,12 @@ export async function POST(req: NextRequest) {
       required_complete: customFields.length === 0 ? true : personalizationCheck.ok,
       missing_field_id: personalizationCheck.missingFieldId ?? null,
     },
+    ...(coordinatedDelivery ? {
+      delivery: {
+        arranged: true,
+        note: coordNote ?? 'Coordina la entrega directamente con el vendedor — no se ofrece envío.',
+      },
+    } : {}),
   }
 
   return NextResponse.json(session, { headers: CORS })
