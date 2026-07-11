@@ -20,6 +20,7 @@ import { Toast } from '@/components/feedback/Toast'
 import { SectionTitle } from '../_components/SectionTitle'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PRESETS } from '@/lib/shop-settings/helpers'
 import { THEME_PRESETS, DEFAULT_THEME_PRESET_KEY } from '@/lib/shop-settings/theme-presets'
 import { httpUrl } from '@/lib/settings-import'
@@ -174,7 +175,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Apariencia
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="apariencia" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="apariencia" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Apariencia</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-5">
           Personaliza el aspecto de tu tienda pública: banner, logo, color y redes sociales.
@@ -184,7 +185,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
         <div className="mb-5">
           <label className="block text-sm font-medium mb-2">Banner de tienda</label>
           <div
-            className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+            className="relative w-full h-28 rounded-[var(--r-md)] overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
             onClick={() => bannerInputRef.current?.click()}
             style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
           >
@@ -192,7 +193,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>
             ) : bannerUrl ? (
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded">Cambiar banner</span>
+                <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded-[var(--r-sm)]">Cambiar banner</span>
               </div>
             ) : (
               <div className="text-center">
@@ -203,7 +204,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             )}
           </div>
           {bannerUrl && (
-            <button type="button" onClick={() => { setBannerUrl(null); mark() }} className="text-xs text-red-600 hover:underline mt-1">
+            <button type="button" onClick={() => { setBannerUrl(null); mark() }} className="text-xs text-[var(--danger)] hover:underline mt-1">
               Eliminar banner
             </button>
           )}
@@ -216,7 +217,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <label className="block text-sm font-medium mb-2">Logo de tienda</label>
           <div className="flex items-center gap-4">
             <div
-              className="w-16 h-16 rounded-full overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors flex-shrink-0"
+              className="w-16 h-16 rounded-[var(--r-pill)] overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors flex-shrink-0"
               onClick={() => logoInputRef.current?.click()}
               style={logoUrl ? { backgroundImage: `url(${logoUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
             >
@@ -232,7 +233,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                 {logoUrl ? 'Cambiar logo' : 'Subir logo'}
               </button>
               {logoUrl && (
-                <button type="button" onClick={() => { setLogoUrl(null); mark() }} className="text-xs text-red-600 hover:underline mt-1 block">
+                <button type="button" onClick={() => { setLogoUrl(null); mark() }} className="text-xs text-[var(--danger)] hover:underline mt-1 block">
                   Eliminar logo
                 </button>
               )}
@@ -248,7 +249,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <div className="flex items-center justify-between mb-1">
             <label className="block text-sm font-medium">
               Slogan
-              <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+              <span className={`ml-2 text-xs font-normal ${tagline.length > 85 ? 'text-[var(--warning)]' : 'text-[var(--color-muted)]'}`}>
                 {tagline.length}/100
               </span>
             </label>
@@ -259,7 +260,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             onChange={e => { setTagline(e.target.value); mark() }}
             maxLength={100}
             placeholder="El mejor lugar para encontrar piezas de colección"
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
         </div>
 
@@ -271,14 +272,14 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               type="color"
               value={accentColor}
               onChange={e => { setAccentColor(e.target.value); mark() }}
-              className="w-10 h-10 rounded cursor-pointer border border-[var(--color-border)] p-0.5 bg-white"
+              className="w-10 h-10 rounded-[var(--r-sm)] cursor-pointer border border-[var(--color-border)] p-0.5 bg-[var(--bg-elevated)]"
             />
             <div>
               <div className="text-sm font-mono">{accentColor}</div>
               <div className="text-xs text-[var(--color-muted)]">Se aplica en tu tienda pública</div>
             </div>
             <div
-              className="ml-auto px-4 py-1.5 rounded text-white text-xs font-medium"
+              className="ml-auto px-4 py-1.5 rounded-[var(--r-sm)] text-white text-xs font-medium"
               style={{ backgroundColor: accentColor }}
             >
               Vista previa
@@ -303,7 +304,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                   value={net.value}
                   onChange={e => { net.set(e.target.value); mark() }}
                   placeholder={net.placeholder}
-                  className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
               </div>
             ))}
@@ -314,7 +315,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Anuncio — announcement bar (own-shop premium presentation, Sprint 1)
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="anuncio" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="anuncio" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Anuncio</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Una barra corta arriba de tu tienda, con un enlace opcional. Déjala vacía para no mostrar nada.
@@ -323,7 +324,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <div className="flex items-center justify-between mb-1">
             <label className="block text-sm font-medium">
               Texto
-              <span className={`ml-2 text-xs font-normal ${announcementText.length > 120 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+              <span className={`ml-2 text-xs font-normal ${announcementText.length > 120 ? 'text-[var(--warning)]' : 'text-[var(--color-muted)]'}`}>
                 {announcementText.length}/140
               </span>
             </label>
@@ -333,7 +334,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             onChange={e => { setAnnouncementText(e.target.value.slice(0, 140)); mark() }}
             maxLength={140}
             placeholder="Envío gratis desde $500 · Entrega urgente disponible"
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
         </div>
         <div>
@@ -342,7 +343,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
             value={announcementLink}
             onChange={e => { setAnnouncementLink(e.target.value); mark() }}
             placeholder="https://…"
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
           />
         </div>
       </section>
@@ -350,7 +351,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Destacados — hero/featured section (own-shop premium presentation, Sprint 1)
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="destacados" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="destacados" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Destacados</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Muestra tus mejores anuncios o una imagen promocional arriba de la cuadrícula de tu tienda.
@@ -359,14 +360,14 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <button
             type="button"
             onClick={() => { setHeroMode('listings'); mark() }}
-            className={`flex-1 text-sm font-medium py-2 rounded-lg border-2 ${heroMode === 'listings' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
+            className={`flex-1 text-sm font-medium py-2 rounded-[var(--r-md)] border-2 ${heroMode === 'listings' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
           >
             Anuncios fijados
           </button>
           <button
             type="button"
             onClick={() => { setHeroMode('promo'); mark() }}
-            className={`flex-1 text-sm font-medium py-2 rounded-lg border-2 ${heroMode === 'promo' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
+            className={`flex-1 text-sm font-medium py-2 rounded-[var(--r-md)] border-2 ${heroMode === 'promo' ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}
           >
             Imagen promocional
           </button>
@@ -384,7 +385,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                     key={l.id}
                     type="button"
                     onClick={() => togglePinnedListing(l.id)}
-                    className={`relative text-left rounded-lg overflow-hidden border-2 ${selected ? 'border-[var(--color-accent)]' : 'border-transparent'}`}
+                    className={`relative text-left rounded-[var(--r-md)] overflow-hidden border-2 ${selected ? 'border-[var(--color-accent)]' : 'border-transparent'}`}
                   >
                     {l.imageUrl ? (
                       <img src={l.imageUrl} alt={l.title} className="w-full h-16 object-cover" />
@@ -393,7 +394,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                     )}
                     <p className="text-[10px] px-1 py-0.5 line-clamp-1">{l.title}</p>
                     {selected && (
-                      <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center">✓</span>
+                      <span className="absolute top-1 right-1 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center">✓</span>
                     )}
                   </button>
                 )
@@ -403,7 +404,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
         ) : (
           <div className="space-y-3">
             <div
-              className="relative w-full h-28 rounded-lg overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+              className="relative w-full h-28 rounded-[var(--r-md)] overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface-alt)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
               onClick={() => heroPromoInputRef.current?.click()}
               style={httpUrl(heroPromoImage) ? { backgroundImage: `url(${httpUrl(heroPromoImage)})`, backgroundSize: 'cover', backgroundPosition: 'center', borderStyle: 'solid' } : {}}
             >
@@ -422,13 +423,13 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               value={heroPromoCtaText}
               onChange={e => { setHeroPromoCtaText(e.target.value); mark() }}
               placeholder="Texto del botón (ej. Ver colección)"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
             <input
               value={heroPromoCtaLink}
               onChange={e => { setHeroPromoCtaLink(e.target.value); mark() }}
               placeholder="Enlace del botón (https://…)"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
         )}
@@ -437,7 +438,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Tema — curated visual preset (own-shop premium presentation, Sprint 1)
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="tema" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="tema" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Tema</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Un preset de tipografía y tono de superficie sobre tu color de marca y banner (que no cambian).
@@ -449,7 +450,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               type="button"
               onClick={() => { setThemePreset(p.key); mark() }}
               title={p.description}
-              className={`text-left p-3 rounded-lg border-2 transition-all ${
+              className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-all ${
                 themePreset === p.key
                   ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
@@ -465,7 +466,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Tipo de tienda
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="tipo" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="tipo" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Tipo de tienda</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Pre-configura el comportamiento de checkout y envíos según lo que vendes. Puedes ajustar cada opción individualmente más adelante.
@@ -477,7 +478,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               type="button"
               onClick={() => applyPreset(p.key)}
               title={p.description}
-              className={`text-left p-3 rounded-lg border-2 transition-all ${
+              className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-all ${
                 preset === p.key
                   ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-gray-50'
@@ -498,19 +499,15 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
             <p className="text-xs text-[var(--color-muted)] mb-2 font-medium">Configuración aplicada:</p>
             <div className="flex flex-wrap gap-1.5">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                escrowMode === 'off' ? 'bg-gray-100 text-gray-600' :
-                escrowMode === 'optional' ? 'bg-amber-100 text-amber-700' :
-                'bg-green-100 text-green-700'
-              }`}>
+              <StatusBadge token={escrowMode === 'off' ? 'neutral' : escrowMode === 'optional' ? 'warning' : 'success'}>
                 Compra Protegida: {ESCROW_LABEL[escrowMode]}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${localPickup ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+              </StatusBadge>
+              <StatusBadge token={localPickup ? 'info' : 'neutral'}>
                 Entrega en mano: {localPickup ? 'Sí' : 'No'}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${showPhone ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+              </StatusBadge>
+              <StatusBadge token={showPhone ? 'info' : 'neutral'}>
                 Teléfono visible: {showPhone ? 'Sí' : 'No'}
-              </span>
+              </StatusBadge>
             </div>
           </div>
         )}

@@ -18,6 +18,8 @@
 import { useState } from 'react'
 import { SUBDOMAIN_PRICE_LABEL, SUBDOMAIN_PRICE_MONTHLY_LABEL } from '@/lib/subdomain-pricing'
 import type { SubdomainInterval } from '@/lib/subdomain-billing'
+import { Button } from '@/components/ui/Button'
+import { Banner } from '@/components/feedback/Banner'
 
 export default function SubdomainSection({
   subdomainUrl,
@@ -91,7 +93,7 @@ export default function SubdomainSection({
   // ── Not entitled → buy upsell ──────────────────────────────────────────────
   if (!entitled) {
     return (
-      <div className="mt-3 border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+      <div className="mt-3 border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-base">✦</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
@@ -106,13 +108,10 @@ export default function SubdomainSection({
           {' '}Tu <strong>URL gratis</strong> (<span className="font-mono">/s/</span>) sigue activa siempre.
         </p>
         {lapsed && (
-          <div className="mb-2.5 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
-            <p className="text-xs text-amber-700">
-              Tu suscripción al subdominio terminó y tu tienda volvió a tu URL gratis
-              (<span className="font-mono">/s/{shopSlug}</span>). Reactívala para volver a servir tu subdominio.
-            </p>
-          </div>
+          <Banner variant="warning" className="mb-2.5 text-xs">
+            Tu suscripción al subdominio terminó y tu tienda volvió a tu URL gratis
+            (<span className="font-mono">/s/{shopSlug}</span>). Reactívala para volver a servir tu subdominio.
+          </Banner>
         )}
         {hasMonthly && (
           <div className="flex gap-2 mb-2.5" role="radiogroup" aria-label="Frecuencia de pago">
@@ -126,7 +125,7 @@ export default function SubdomainSection({
                 role="radio"
                 aria-checked={buyInterval === iv}
                 onClick={() => { setBuyInterval(iv); if (subscribeError) setSubscribeError(null) }}
-                className={`flex-1 text-left rounded-lg border px-3 py-2 transition-colors ${buyInterval === iv ? 'border-[var(--color-accent)] bg-[var(--color-surface)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)]'}`}
+                className={`flex-1 text-left rounded-[var(--r-md)] border px-3 py-2 transition-colors ${buyInterval === iv ? 'border-[var(--color-accent)] bg-[var(--color-surface)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)]'}`}
               >
                 <span className="block text-xs font-semibold">{label}</span>
                 <span className="block text-[10px] text-[var(--color-muted)]">{hint}</span>
@@ -134,17 +133,18 @@ export default function SubdomainSection({
             ))}
           </div>
         )}
-        {subscribeError && <p className="text-xs text-red-600 mb-2">{subscribeError}</p>}
-        <button
+        {subscribeError && <p className="text-xs text-[var(--danger)] mb-2">{subscribeError}</p>}
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={activate}
           disabled={subscribing}
-          className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-60 transition-colors"
         >
           {subscribing
-            ? <><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
+            ? <><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
             : (lapsed ? 'Reactivar subdominio →' : 'Activar subdominio propio →')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -152,7 +152,7 @@ export default function SubdomainSection({
   // ── Active recurring subscription → cadence switch ─────────────────────────
   if (active) {
     return (
-      <div className="mt-3 border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+      <div className="mt-3 border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
         <p className="text-sm font-semibold mb-0.5">✓ Subdominio propio activo</p>
         <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-2.5">
           Tu tienda se sirve como sitio independiente en <span className="font-mono">{subdomainUrl}</span> (sin la barra de la plataforma).
@@ -164,21 +164,22 @@ export default function SubdomainSection({
               ['year', `Cambiar a anual (${SUBDOMAIN_PRICE_LABEL.es})`],
               ['month', `Cambiar a mensual (${SUBDOMAIN_PRICE_MONTHLY_LABEL.es})`],
             ] as const).map(([iv, label]) => (
-              <button
+              <Button
                 key={iv}
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => switchTo(iv)}
                 disabled={switching !== null}
-                className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] disabled:opacity-60 transition-colors"
               >
-                {switching === iv && <span className="inline-block w-3 h-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />}
+                {switching === iv && <span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />}
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
         )}
-        {switchNote && <p className="text-xs text-green-700">{switchNote}</p>}
-        {switchError && <p className="text-xs text-red-600">{switchError}</p>}
+        {switchNote && <p className="text-xs text-[var(--success)]">{switchNote}</p>}
+        {switchError && <p className="text-xs text-[var(--danger)]">{switchError}</p>}
       </div>
     )
   }

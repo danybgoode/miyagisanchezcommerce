@@ -42,7 +42,7 @@ export default function Notificaciones({ initial }: { initial: NotificationsSett
 
   return (
     <div>
-      <section id="notificaciones" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="notificaciones" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Notificaciones por correo</SectionTitle>
         <div className="divide-y divide-[var(--color-border)]">
           <ToggleSwitch

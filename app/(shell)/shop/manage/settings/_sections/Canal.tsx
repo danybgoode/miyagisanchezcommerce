@@ -18,6 +18,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
+import { SectionSaveBar } from '../_components/SectionSaveBar'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/Button'
 import EmbedSnippetSection from '../EmbedSnippetSection'
 import SupportWidgetSection from '../SupportWidgetSection'
 import SubdomainSection from './SubdomainSection'
@@ -407,7 +411,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Canal Propio — custom domain + free URL
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="canal" className="border border-[var(--color-border)] rounded-xl overflow-hidden mb-5">
+      <section id="canal" className="border border-[var(--color-border)] rounded-[var(--r-lg)] overflow-hidden mb-5">
 
         {/* ── Header ── */}
         <div className="px-5 pt-5 pb-4 border-b border-[var(--color-border)]">
@@ -416,21 +420,21 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
               Canal Propio
             </h2>
             {domainStatus === 'active' && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Dominio activo</span>
+              <StatusBadge token="success">🟢 Dominio activo</StatusBadge>
             )}
             {domainStatus === 'provisioning' && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">● Emitiendo SSL…</span>
+              <StatusBadge token="info">● Emitiendo SSL…</StatusBadge>
             )}
             {domainStatus === 'error' && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">● Revisa la configuración</span>
+              <StatusBadge token="danger">● Revisa la configuración</StatusBadge>
             )}
             {domainStatus === 'unverified' && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">● Aún no apunta a nosotros</span>
+              <StatusBadge token="warning">● Aún no apunta a nosotros</StatusBadge>
             )}
             {domainStatus === 'pending_dns' && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+              <StatusBadge token="warning">
                 {domainChecking ? '● Comprobando…' : '● Configurando DNS…'}
-              </span>
+              </StatusBadge>
             )}
           </div>
           <p className="text-xs text-[var(--color-muted)]">
@@ -442,54 +446,54 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
         <div className="px-5 py-5 space-y-6">
 
           {/* ══ Free shop URL (slug) ═══════════════════════════════════════════ */}
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] p-4">
+          <div className="rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--color-surface-alt)] p-4">
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3 className="text-sm font-medium">Tu URL gratis</h3>
-              <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">Incluida</span>
+              <StatusBadge token="success" className="uppercase tracking-wide">Incluida</StatusBadge>
             </div>
             {!slugEditing ? (
               <>
                 <div className="flex items-center gap-2 mt-2">
-                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-[var(--bg-elevated)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
                     {shopUrl}
                   </code>
                   <button
                     type="button"
                     onClick={copyShopUrl}
-                    className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${slugCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
+                    className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${slugCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
                     {slugCopied ? '✓ Copiado' : 'Copiar'}
                   </button>
                   <button
                     type="button"
                     onClick={startSlugEdit}
-                    className="text-xs px-3 py-2 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)] whitespace-nowrap"
+                    className="text-xs px-3 py-2 rounded-[var(--r-sm)] border border-[var(--color-border)] hover:bg-[var(--color-surface)] whitespace-nowrap"
                   >
                     Cambiar
                   </button>
                 </div>
                 {/* Subdomain alias */}
                 <div className="flex items-center gap-2 mt-2">
-                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-[var(--bg-elevated)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
                     {subdomainUrl}
                   </code>
                   <button
                     type="button"
                     onClick={copySubdomainUrl}
-                    className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${subCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
+                    className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${subCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
                     {subCopied ? '✓ Copiado' : 'Copiar'}
                   </button>
                 </div>
                 {/* Ultra-short branded link */}
                 <div className="flex items-center gap-2 mt-2">
-                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+                  <code className="flex-1 min-w-0 truncate text-sm font-mono bg-[var(--bg-elevated)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
                     {shortUrl}
                   </code>
                   <button
                     type="button"
                     onClick={copyShortUrl}
-                    className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
+                    className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${shortCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
                     {shortCopied ? '✓ Copiado' : 'Copiar'}
                   </button>
@@ -527,26 +531,28 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   label="Elige tu nueva URL"
                   autoFocus
                 />
-                {slugError && <p className="text-xs text-red-600">{slugError}</p>}
+                {slugError && <p className="text-xs text-[var(--danger)]">{slugError}</p>}
                 <p className="text-xs text-[var(--color-muted)]">
                   Tu URL anterior seguirá redirigiendo aquí por 90 días.
                 </p>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     onClick={handleSlugSave}
                     disabled={slugSaveBlocked}
-                    className="text-xs px-4 py-2 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {slugSaving ? 'Guardando…' : 'Guardar URL'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={cancelSlugEdit}
-                    className="text-xs px-4 py-2 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface)]"
                   >
                     Cancelar
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -567,7 +573,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
           <>
           {/* ══ STEP 1 — Enter domain ════════════════════════════════════════ */}
           <div className="flex gap-2 items-start">
-            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${savedDomain ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
+            <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${savedDomain ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
               {savedDomain ? '✓' : '1'}
             </div>
             <div className="flex-1 min-w-0">
@@ -576,13 +582,10 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
               </p>
 
               {!savedDomain && domainRemovedNote && (
-                <div className="mb-3 flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-                  <span className="text-green-600 flex-shrink-0">✓</span>
-                  <p className="text-xs text-green-700">
-                    Dominio <span className="font-mono">{domainRemovedNote}</span> eliminado. Tu tienda sigue
-                    activa en <span className="font-mono">miyagisanchez.com/s/{shopSlug}</span>.
-                  </p>
-                </div>
+                <Banner variant="success" className="mb-3">
+                  Dominio <span className="font-mono">{domainRemovedNote}</span> eliminado. Tu tienda sigue
+                  activa en <span className="font-mono">miyagisanchez.com/s/{shopSlug}</span>.
+                </Banner>
               )}
 
               {(!savedDomain || domainEditing) ? (
@@ -594,27 +597,29 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                       onChange={e => setDomainInput(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && !domainSaving && domainInput.trim() && handleDomainSave()}
                       placeholder="tutienda.mx"
-                      className="flex-1 min-w-0 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] font-mono"
+                      className="flex-1 min-w-0 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] font-mono"
                     />
                     <div className="flex gap-2">
                       {domainEditing && (
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
                           onClick={cancelDomainEdit}
                           disabled={domainSaving}
-                          className="flex-1 sm:flex-none border border-[var(--color-border)] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[var(--color-surface-alt)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                          className="flex-1 sm:flex-none whitespace-nowrap"
                         >
                           Cancelar
-                        </button>
+                        </Button>
                       )}
-                      <button
+                      <Button
                         type="button"
+                        variant="primary"
                         onClick={handleDomainSave}
                         disabled={domainSaving || !domainInput.trim()}
-                        className="flex-1 sm:flex-none bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                        className="flex-1 sm:flex-none whitespace-nowrap"
                       >
                         {domainSaving ? (domainEditing ? 'Reemplazando…' : 'Conectando…') : (domainEditing ? 'Reemplazar' : 'Conectar')}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   {domainEditing ? (
@@ -633,7 +638,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                 </>
               ) : (
                 <div>
-                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
+                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-[var(--r-md)] bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
                     <span className="font-mono text-sm font-medium truncate">{savedDomain}</span>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <button
@@ -648,7 +653,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                         type="button"
                         onClick={handleDomainRemove}
                         disabled={domainRemoving}
-                        className="text-xs text-[var(--color-muted)] hover:text-red-600 transition-colors disabled:opacity-50 underline"
+                        className="text-xs text-[var(--color-muted)] hover:text-[var(--danger)] transition-colors disabled:opacity-50 underline"
                       >
                         {domainRemoving ? 'Eliminando…' : 'Eliminar'}
                       </button>
@@ -667,14 +672,14 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   )}
                 </div>
               )}
-              {domainError && <p className="mt-2 text-xs text-red-600">⚠ {domainError}</p>}
+              {domainError && <p className="mt-2 text-xs text-[var(--danger)]">⚠ {domainError}</p>}
             </div>
           </div>
 
           {/* ══ STEP 2 — Configure DNS ═══════════════════════════════════════ */}
           {savedDomain && (
             <div className={`flex gap-2 items-start transition-opacity ${domainDnsOk ? 'opacity-50' : ''}`}>
-              <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border-2 border-[var(--color-accent)] text-[var(--color-accent)]'}`}>
+              <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border-2 border-[var(--color-accent)] text-[var(--color-accent)]'}`}>
                 {domainDnsOk ? '✓' : '2'}
               </div>
               <div className="flex-1 min-w-0">
@@ -689,42 +694,35 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                 </p>
 
                 {domainHint === 'proxied' && (
-                  <div className="mb-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
-                    <span className="text-orange-500 flex-shrink-0 mt-0.5">🟠</span>
-                    <p className="text-xs text-orange-700">
-                      Tu dominio está detrás del proxy de Cloudflare (la nube naranja). Desactívalo
-                      para que quede en <span className="font-medium">DNS only</span> (nube gris) — necesitamos
-                      ver tu dominio directamente para emitir el certificado SSL.
-                    </p>
-                  </div>
+                  <Banner variant="warning" className="mb-3">
+                    Tu dominio está detrás del proxy de Cloudflare (la nube naranja). Desactívalo
+                    para que quede en <span className="font-medium">DNS only</span> (nube gris) — necesitamos
+                    ver tu dominio directamente para emitir el certificado SSL.
+                  </Banner>
                 )}
                 {domainStatus === 'error' && domainCnameCurrent && (
-                  <div className="mb-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                    <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
-                    <p className="text-xs text-red-700">
-                      Tu {dnsRecord?.type ?? 'CNAME'} apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
-                      Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? CNAME_TARGET}</span> para conectar tu tienda.
-                    </p>
-                  </div>
+                  <Banner variant="danger" className="mb-3">
+                    Tu {dnsRecord?.type ?? 'CNAME'} apunta a <span className="font-mono break-all">{domainCnameCurrent}</span>.
+                    Cámbialo a <span className="font-mono break-all">{dnsRecord?.value ?? CNAME_TARGET}</span> para conectar tu tienda.
+                  </Banner>
                 )}
                 {domainStatus === 'unverified' && (
-                  <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-                    <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
-                    <p className="text-xs text-amber-700">
-                      Tu dominio aún no apunta a nosotros. Agrega el registro de abajo en tu proveedor de
-                      DNS; en cuanto propague, tu tienda se activa sola.
-                    </p>
-                  </div>
+                  <Banner variant="warning" className="mb-3">
+                    Tu dominio aún no apunta a nosotros. Agrega el registro de abajo en tu proveedor de
+                    DNS; en cuanto propague, tu tienda se activa sola.
+                  </Banner>
                 )}
 
-                {/* DNS record card — terminal style. */}
-                <div className="rounded-lg border border-[var(--border)] overflow-hidden bg-[var(--preview-ink)] mb-4">
+                {/* DNS record card — terminal style (dark preview theme; the amber/green/white
+                    text inside is a deliberate terminal color scheme, not a status indicator —
+                    same exemption as the code-preview block in Agentes.tsx). */}
+                <div className="rounded-[var(--r-md)] border border-[var(--border)] overflow-hidden bg-[var(--preview-ink)] mb-4">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
                     <span className="text-xs text-white/50 font-mono">Registro DNS — {dnsRecord?.type ?? 'CNAME'}</span>
                     <button
                       type="button"
                       onClick={() => { navigator.clipboard.writeText(dnsRecord?.value ?? CNAME_TARGET); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
-                      className={`text-xs px-2 py-0.5 rounded transition-all ${domainCopied ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
+                      className={`text-xs px-2 py-0.5 rounded-[var(--r-sm)] transition-all ${domainCopied ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
                     >
                       {domainCopied ? '✓ Copiado' : 'Copiar valor'}
                     </button>
@@ -749,7 +747,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   <div className="space-y-3 mb-3">
 
                     {/* Cloudflare auto-config */}
-                    <div className={`border rounded-lg overflow-hidden ${detectedRegistrar === 'cloudflare' ? 'border-orange-300 bg-orange-50/30' : 'border-[var(--color-border)]'}`}>
+                    <div className={`border rounded-[var(--r-md)] overflow-hidden ${detectedRegistrar === 'cloudflare' ? 'border-orange-300 bg-orange-50/30' : 'border-[var(--color-border)]'}`}>
                       <button
                         type="button"
                         onClick={() => setShowCfPanel(v => !v)}
@@ -785,7 +783,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                               href="https://dash.cloudflare.com/profile/api-tokens/create"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-[var(--provider-envia)] text-[var(--fg-inverse)] text-xs font-semibold px-3 py-2 rounded-lg hover:bg-[var(--provider-envia-hover)] transition-colors no-underline mb-3"
+                              className="inline-flex items-center gap-2 bg-[var(--provider-envia)] text-[var(--fg-inverse)] text-xs font-semibold px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--provider-envia-hover)] transition-colors no-underline mb-3"
                             >
                               <span>☁️</span> Abrir Cloudflare → Crear token
                             </a>
@@ -797,7 +795,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                                 <>Copia el token generado (solo se muestra una vez) y pégalo abajo</>,
                               ].map((step, i) => (
                                 <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
-                                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">{i + 1}</span>
+                                  <span className="flex-shrink-0 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--bg-elevated)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">{i + 1}</span>
                                   <span className="leading-relaxed">{step}</span>
                                 </li>
                               ))}
@@ -817,34 +815,29 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                                 onKeyDown={e => e.key === 'Enter' && cfTokenInput.trim() && !cfSaving && handleCfAutoConfig()}
                                 placeholder="Pega tu API Token aquí"
                                 autoComplete="off"
-                                className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                               />
-                              <button
+                              <Button
                                 type="button"
+                                variant="primary"
                                 onClick={handleCfAutoConfig}
                                 disabled={cfSaving || !cfTokenInput.trim()}
-                                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+                                className="whitespace-nowrap"
                               >
                                 {cfSaving
-                                  ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Configurando…</span>
+                                  ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Configurando…</span>
                                   : 'Configurar DNS'}
-                              </button>
+                              </Button>
                             </div>
                           </div>
 
                           {cfError && (
-                            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                              <span className="text-red-500 flex-shrink-0 mt-0.5">⚠</span>
-                              <p className="text-xs text-red-700">{cfError}</p>
-                            </div>
+                            <Banner variant="danger">{cfError}</Banner>
                           )}
                           {cfSuccess && (
-                            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-                              <span className="text-green-600 flex-shrink-0">✓</span>
-                              <p className="text-xs text-green-700">
-                                Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
-                              </p>
-                            </div>
+                            <Banner variant="success">
+                              Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
+                            </Banner>
                           )}
 
                           <p className="text-[10px] text-[var(--color-muted)]">
@@ -856,7 +849,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
 
                     {/* Per-registrar step-by-step (non-CF known registrars) */}
                     {detectedRegistrar && detectedRegistrar !== 'cloudflare' && detectedRegistrar !== 'unknown' && REGISTRAR_GUIDES[detectedRegistrar] && (
-                      <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                      <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
                         <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--color-surface-alt)] border-b border-[var(--color-border)]">
                           <span className="text-base">{REGISTRAR_GUIDES[detectedRegistrar].icon}</span>
                           <div>
@@ -871,7 +864,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                         <ol className="px-4 py-3 space-y-2">
                           {REGISTRAR_GUIDES[detectedRegistrar].steps.map((step, i) => (
                             <li key={i} className="flex gap-2.5 text-xs text-[var(--color-muted)]">
-                              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">
+                              <span className="flex-shrink-0 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">
                                 {i + 1}
                               </span>
                               <span className="leading-relaxed">{step}</span>
@@ -879,7 +872,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                           ))}
                         </ol>
                         {dnsRecord && !dnsRecord.isApex && (
-                          <p className="px-4 pb-2 text-[10px] text-amber-700">
+                          <p className="px-4 pb-2 text-[10px] text-[var(--warning)]">
                             ⚠ Como es un subdominio, usa Nombre/Host{' '}
                             <span className="font-mono">{dnsRecord.host}</span> (no <span className="font-mono">@</span>).
                           </p>
@@ -899,7 +892,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
 
                     {/* Generic instructions when registrar unknown or undetected */}
                     {(!detectedRegistrar || detectedRegistrar === 'unknown') && (
-                      <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+                      <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-3">
                         <p className="text-xs font-semibold mb-2">Instrucciones generales:</p>
                         <ol className="space-y-1.5">
                           {[
@@ -924,12 +917,12 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
                     {domainChecking ? (
                       <>
-                        <span className="inline-block w-3 h-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+                        <span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
                         <span>Comprobando propagación DNS…</span>
                       </>
                     ) : domainStatus === 'error' && domainCnameCurrent ? (
                       <>
-                        <span className="text-red-500">⚠</span>
+                        <span className="text-[var(--danger)]">⚠</span>
                         <span>
                           CNAME actual: <span className="font-mono break-all">{domainCnameCurrent}</span> — apunta a otro lugar
                         </span>
@@ -945,7 +938,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                       type="button"
                       onClick={handleDomainVerifyManual}
                       disabled={domainChecking}
-                      className="text-xs px-3 py-1.5 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+                      className="text-xs px-3 py-1.5 border border-[var(--color-border)] rounded-[var(--r-md)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0"
                     >
                       {domainChecking ? 'Comprobando…' : '↻ Comprobar ahora'}
                     </button>
@@ -963,7 +956,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
           {/* ══ STEP 3 — Live / dual channel display ═════════════════════════ */}
           {savedDomain && (
             <div className={`flex gap-2 items-start transition-all ${!domainDnsOk ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-              <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
+              <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
                 {domainDnsOk ? '✓' : '3'}
               </div>
               <div className="flex-1 min-w-0">
@@ -973,7 +966,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
 
                       {/* Canal propio */}
-                      <div className="border-2 border-[var(--color-accent)] rounded-xl p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,white)]">
+                      <div className="border-2 border-[var(--color-accent)] rounded-[var(--r-lg)] p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,white)]">
                         <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-sm">🌐</span>
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
@@ -995,7 +988,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                       </div>
 
                       {/* Canal marketplace */}
-                      <div className="border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
+                      <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
                         <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-sm">🏪</span>
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)]">
@@ -1020,7 +1013,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                         )}
                       </div>
                     </div>
-                    <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 leading-relaxed">
+                    <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 leading-relaxed">
                       💡 Los dos canales comparten el mismo inventario, checkout y panel de administración. Cada venta se etiqueta con su canal de origen para que puedas ver de dónde vienen tus clientes.
                     </p>
                   </>
@@ -1073,47 +1066,7 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
       ════════════════════════════════════════════════════════════════════ */}
       <EmbedSnippetSection slug={shopSlug} accent={accentColor} />
 
-      {/* ── Save button ───────────────────────────────────────────────────── */}
-      {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
-      <div className="flex items-center justify-end mb-24">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
-      </div>
-
-      {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
-      {isDirty && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
-              Tienes cambios sin guardar
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
-              >
-                Descartar
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SectionSaveBar saving={saving} isDirty={isDirty} onSave={handleSave} />
 
       {toast && <Toast toast={toast} onDismiss={dismissToast} />}
     </div>

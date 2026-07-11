@@ -16,6 +16,8 @@ import { useState } from 'react'
 import PromoterCodeField from './PromoterCodeField'
 import DomainCadenceField from './DomainCadenceField'
 import { CUSTOM_DOMAIN_PRICE_LABEL, CUSTOM_DOMAIN_PRICE_CENTS } from '@/lib/domain-pricing'
+import { Button } from '@/components/ui/Button'
+import { Banner } from '@/components/feedback/Banner'
 
 export default function DomainPaywallUpsell({
   domainLapsed,
@@ -59,7 +61,7 @@ export default function DomainPaywallUpsell({
   }
 
   return (
-    <div className="border border-[var(--color-border)] rounded-xl p-5 bg-[var(--color-surface-alt)]">
+    <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 bg-[var(--color-surface-alt)]">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">🌐</span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
@@ -73,13 +75,10 @@ export default function DomainPaywallUpsell({
         {' '}(arriba) siguen siendo gratis.
       </p>
       {domainLapsed && (
-        <div className="mb-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-          <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
-          <p className="text-xs text-amber-700">
-            Tu suscripción al dominio propio terminó y tu dominio se desconectó. Tu tienda sigue
-            activa en tu URL gratis y tu subdominio. Vuelve a activarla para reconectar tu dominio.
-          </p>
-        </div>
+        <Banner variant="warning" className="mb-3">
+          Tu suscripción al dominio propio terminó y tu dominio se desconectó. Tu tienda sigue
+          activa en tu URL gratis y tu subdominio. Vuelve a activarla para reconectar tu dominio.
+        </Banner>
       )}
       {/* Campaign coupon (epic: custom-domain-paywall, S3) — miyagisan comps year 1. */}
       <div className="mb-3">
@@ -92,7 +91,7 @@ export default function DomainPaywallUpsell({
           onChange={(e) => { setDomainCoupon(e.target.value); if (subscribeError) setSubscribeError(null) }}
           placeholder="Código de cupón (opcional)"
           autoCapitalize="characters"
-          className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+          className="w-full sm:w-64 text-xs px-3 py-2 rounded-[var(--r-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
         />
       </div>
       {/* Promoter Program (epic 08, Sprint 1) — code → discount PREVIEW, behind promoter.enabled.
@@ -114,17 +113,18 @@ export default function DomainPaywallUpsell({
           onInteract={() => { if (subscribeError) setSubscribeError(null) }}
         />
       )}
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="sm"
         onClick={handleActivateDomain}
         disabled={subscribing}
-        className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-[var(--color-accent-hover)] disabled:opacity-60 transition-colors"
       >
         {subscribing
-          ? <><span className="inline-block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
+          ? <><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
           : (domainLapsed ? 'Reactivar dominio propio →' : 'Activar dominio propio →')}
-      </button>
-      {subscribeError && <p className="mt-2 text-xs text-red-600">⚠ {subscribeError}</p>}
+      </Button>
+      {subscribeError && <p className="mt-2 text-xs text-[var(--danger)]">⚠ {subscribeError}</p>}
     </div>
   )
 }

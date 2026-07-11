@@ -11,6 +11,8 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
+import { Button } from '@/components/ui/Button'
 import { SectionTitle } from '../_components/SectionTitle'
 import type { ReturnsPolicySettings } from '@/lib/shop-settings/types'
 
@@ -39,7 +41,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
 
   return (
     <div>
-      <section id="politicas" className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
+      <section id="politicas" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-8">
         <SectionTitle>Política de devoluciones</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-5">
           Define claramente qué pasa cuando un comprador quiere devolver un artículo. Se mostrará en cada anuncio y durante el checkout.
@@ -63,17 +65,17 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
                 key={opt.key}
                 type="button"
                 onClick={() => { setReturnsWindow(opt.key); mark() }}
-                className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-colors ${
                   returnsWindow === opt.key
                     ? opt.key === 'none'
-                      ? 'border-amber-400 bg-amber-50'
+                      ? 'border-[var(--warning)] bg-[var(--warning-soft)]'
                       : 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                     : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
                 }`}
               >
                 <p className={`text-sm font-semibold ${
                   returnsWindow === opt.key
-                    ? opt.key === 'none' ? 'text-amber-700' : 'text-[var(--color-accent)]'
+                    ? opt.key === 'none' ? 'text-[var(--warning)]' : 'text-[var(--color-accent)]'
                     : ''
                 }`}>{opt.label}</p>
                 <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-snug">{opt.desc}</p>
@@ -81,9 +83,9 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
             ))}
           </div>
           {!returnsWindow && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+            <Banner variant="warning" className="text-xs mt-3">
               Sin configurar — los compradores no verán ninguna política en tus anuncios.
-            </p>
+            </Banner>
           )}
         </div>
 
@@ -102,7 +104,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
                     key={opt.key}
                     type="button"
                     onClick={() => { setReturnsConditions(opt.key); mark() }}
-                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                    className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-colors ${
                       returnsConditions === opt.key
                         ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                         : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
@@ -127,7 +129,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
                     key={opt.key}
                     type="button"
                     onClick={() => { setReturnsShippingBy(opt.key as 'buyer' | 'seller'); mark() }}
-                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                    className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-colors ${
                       returnsShippingBy === opt.key
                         ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                         : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
@@ -151,13 +153,13 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
             onChange={e => { if (e.target.value.length <= 200) { setReturnsNote(e.target.value); mark() } }}
             placeholder="Ej. Contáctame por WhatsApp para iniciar una devolución."
             rows={2}
-            className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-white"
+            className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-[var(--bg-elevated)]"
           />
           <p className="text-xs text-[var(--color-muted)] text-right mt-0.5">{returnsNote.length}/200</p>
         </div>
 
         {/* Policy preview */}
-        <div className="mt-4 p-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg">
+        <div className="mt-4 p-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)]">
           <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide mb-1">Vista previa en el anuncio</p>
           <p className="text-xs text-[var(--color-text)] leading-relaxed">
             {!returnsWindow
@@ -182,40 +184,26 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
       <div className="flex items-center justify-end mb-24">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-        >
+        <Button type="button" variant="primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        </Button>
       </div>
 
       {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[var(--bg-elevated)] border-t border-[var(--color-border)] shadow-lg">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-[var(--r-pill)] bg-[var(--warning)] flex-shrink-0" />
               Tienes cambios sin guardar
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
-              >
+              <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-              >
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? 'Guardando…' : 'Guardar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

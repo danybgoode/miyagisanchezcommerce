@@ -11,8 +11,11 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
+import { Button } from '@/components/ui/Button'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { detectSchedulingService } from '@/lib/shop-settings/helpers'
 
 type SchedulingLink = { label: string; url: string }
@@ -117,7 +120,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
 
   return (
     <div>
-      <section id="citas" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="citas" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xl">📅</span>
           <h2 className="font-semibold text-sm">Citas y Reservas</h2>
@@ -127,7 +130,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
         </p>
         <div className="flex flex-wrap gap-1.5 mb-5">
           {['Consultas', 'Pruebas de manejo', 'Visitas a propiedades', 'Sesiones de fotos', 'Encuentros con fans', 'Clases', 'Rentas por hora'].map(tag => (
-            <span key={tag} className="text-[11px] bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)] px-2 py-0.5 rounded-full">
+            <span key={tag} className="text-[11px] bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)] px-2 py-0.5 rounded-[var(--r-pill)]">
               {tag}
             </span>
           ))}
@@ -140,16 +143,16 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
               🔗 Mis enlaces de reservas
             </p>
             {schedulingLinks.length > 0 && (
-              <span className="text-xs text-green-700 font-medium bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+              <StatusBadge token="success">
                 {schedulingLinks.length} enlace{schedulingLinks.length > 1 ? 's' : ''} guardado{schedulingLinks.length > 1 ? 's' : ''}
-              </span>
+              </StatusBadge>
             )}
           </div>
 
           {schedulingLinks.length > 0 && (
             <div className="space-y-1.5 mb-3">
               {schedulingLinks.map((link, i) => (
-                <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2">
                   <span className="text-base">
                     {link.url.includes('cal.com') ? '📅' : link.url.includes('calendly.com') ? '📆' : '🔗'}
                   </span>
@@ -160,7 +163,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                   <button
                     type="button"
                     onClick={() => { setSchedulingLinks(prev => prev.filter((_, j) => j !== i)); mark() }}
-                    className="text-xs text-red-500 hover:text-red-700 flex-shrink-0 px-1"
+                    className="text-xs text-[var(--danger)] hover:text-[var(--danger)] flex-shrink-0 px-1"
                     aria-label="Eliminar enlace"
                   >
                     ×
@@ -176,7 +179,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
               value={newLinkUrl}
               onChange={e => setNewLinkUrl(e.target.value)}
               placeholder="https://cal.com/tu-usuario/consulta  ó  https://calendly.com/tu-usuario"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSchedulingLink() } }}
             />
             <div className="flex gap-2">
@@ -185,13 +188,13 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                 value={newLinkLabel}
                 onChange={e => setNewLinkLabel(e.target.value)}
                 placeholder="Etiqueta (opcional) — se detecta automáticamente"
-                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
               <button
                 type="button"
                 onClick={addSchedulingLink}
                 disabled={!newLinkUrl.trim()}
-                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
               >
                 + Agregar
               </button>
@@ -203,12 +206,12 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
           </p>
 
           {schedulingLinks.length === 0 && !calcomConnected && (
-            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+            <Banner variant="warning" className="mt-3 text-xs leading-relaxed">
               <strong>¿No tienes cuenta de agendamiento?</strong> Cal.com es gratuito, tarda 3 minutos y te da una página profesional.{' '}
-              <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-amber-900">
+              <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="underline">
                 Crear cuenta gratis ↗
               </a>
-            </div>
+            </Banner>
           )}
         </div>
 
@@ -241,11 +244,11 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
 
           {calcomConnected ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-[var(--success-soft)] border border-[var(--success)] rounded-[var(--r-md)]">
                 <span className="text-lg">✓</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-green-800">Conectado como @{calcomUsername}</p>
-                  <p className="text-xs text-green-600 mt-0.5 truncate">
+                  <p className="text-sm font-semibold text-[var(--success)]">Conectado como @{calcomUsername}</p>
+                  <p className="text-xs text-[var(--success)] mt-0.5 truncate">
                     Evento: {calcomEventTitle} ·{' '}
                     <a href={calcomBookingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
                       Ver página ↗
@@ -255,7 +258,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                 <button
                   type="button"
                   onClick={handleCalcomDisconnect}
-                  className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0"
+                  className="text-xs text-[var(--danger)] hover:text-[var(--danger)] border border-[var(--danger)] rounded-[var(--r-sm)] px-2.5 py-1 hover:bg-[var(--danger-soft)] transition-colors flex-shrink-0"
                 >
                   Desconectar
                 </button>
@@ -266,8 +269,8 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
               <p className="text-sm font-medium">Selecciona qué tipo de evento usar:</p>
               <div className="space-y-2">
                 {calcomEventTypes.map(et => (
-                  <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                    calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-green-50' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                  <label key={et.id} className={`flex items-center gap-3 p-3 border rounded-[var(--r-md)] cursor-pointer transition-colors ${
+                    calcomPickEventTypeId === et.id ? 'border-[var(--color-accent)] bg-[var(--accent-soft)]' : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
                   }`}>
                     <input
                       type="radio"
@@ -284,21 +287,23 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                 ))}
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => { setCalcomPickStep(false); setCalcomEventTypes([]) }}
-                  className="flex-1 border border-[var(--color-border)] rounded py-2 text-sm hover:bg-gray-50"
+                  className="flex-1"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="primary"
                   disabled={!calcomPickEventTypeId || calcomConnecting}
                   onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
-                  className="flex-1 bg-[var(--color-accent)] text-white rounded py-2 text-sm font-semibold disabled:opacity-50"
+                  className="flex-1"
                 >
                   {calcomConnecting ? 'Conectando…' : 'Usar este evento'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : showApiKeyForm ? (
@@ -321,19 +326,20 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                     value={calcomApiKey}
                     onChange={e => setCalcomApiKey(e.target.value)}
                     placeholder="cal_live_xxxxxxxxxxxxxxxxxxxx"
-                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="primary"
                     disabled={!calcomApiKey.trim() || calcomConnecting}
                     onClick={() => handleCalcomConnect()}
-                    className="bg-[var(--color-accent)] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors whitespace-nowrap"
+                    className="whitespace-nowrap"
                   >
                     {calcomConnecting ? 'Verificando…' : 'Conectar'}
-                  </button>
+                  </Button>
                 </div>
               </div>
-              <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-muted)] space-y-1">
+              <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-[var(--r-md)] p-3 text-xs text-[var(--color-muted)] space-y-1">
                 <p className="font-medium text-[var(--color-foreground)]">¿Cómo obtener tu API key?</p>
                 <ol className="list-decimal list-inside space-y-0.5 ml-1">
                   <li>Ve a <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline no-underline">cal.com/settings/developer/api-keys</a></li>
@@ -344,7 +350,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
             </div>
           ) : (
             schedulingLinks.length > 0 && (
-              <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+              <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2">
                 💡 <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
                 <button type="button" onClick={() => setShowApiKeyForm(true)} className="text-[var(--color-accent)] hover:underline">
                   Conectar →

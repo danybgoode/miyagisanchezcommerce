@@ -12,6 +12,7 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
 import { SectionTitle } from '../_components/SectionTitle'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import type { AboutSettings, FaqSettings } from '@/lib/shop-settings/types'
@@ -69,7 +70,7 @@ export default function Paginas({
 
   return (
     <div>
-      <section id="acerca" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="acerca" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Acerca de tu tienda</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-3">
           Cuenta tu historia — quién eres, qué vendes y por qué. Se muestra en tu página pública de Acerca.
@@ -79,30 +80,30 @@ export default function Paginas({
           onChange={(e) => { if (e.target.value.length <= ABOUT_MAX) { setAboutBody(e.target.value); mark() } }}
           placeholder="Ej. Somos una tienda familiar en Monterrey especializada en calcomanías y stickers desde 2019…"
           rows={5}
-          className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-white"
+          className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-[var(--bg-elevated)]"
         />
         <p className="text-xs text-[var(--color-muted)] text-right mt-0.5">{aboutBody.length}/{ABOUT_MAX}</p>
         {!aboutBody.trim() && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+          <Banner variant="warning" className="text-xs mt-2">
             Sin configurar — el enlace "Acerca" no aparecerá en tu tienda.
-          </p>
+          </Banner>
         )}
       </section>
 
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Preguntas frecuentes</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Responde las dudas que más te repiten los compradores. Se muestran en tu página pública de FAQ.
         </p>
 
         {faqItems.map((row, i) => (
-          <div key={i} className="border border-[var(--color-border)] rounded-lg p-3 mb-3">
+          <div key={i} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 mb-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-[var(--color-muted)]">Pregunta {i + 1}</p>
               <button
                 type="button"
                 onClick={() => removeFaqRow(i)}
-                className="text-xs text-red-600 hover:underline"
+                className="text-xs text-[var(--danger)] hover:underline"
               >
                 Eliminar
               </button>
@@ -112,22 +113,22 @@ export default function Paginas({
               value={row.question}
               onChange={(e) => { if (e.target.value.length <= FAQ_QUESTION_MAX) updateFaqRow(i, 'question', e.target.value) }}
               placeholder="¿Cuánto tarda el envío?"
-              className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-white"
+              className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-[var(--bg-elevated)]"
             />
             <textarea
               value={row.answer}
               onChange={(e) => { if (e.target.value.length <= FAQ_ANSWER_MAX) updateFaqRow(i, 'answer', e.target.value) }}
               placeholder="Entre 3 y 5 días hábiles dentro de la República."
               rows={2}
-              className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-white"
+              className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 bg-[var(--bg-elevated)]"
             />
           </div>
         ))}
 
         {faqItems.length === 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          <Banner variant="warning" className="text-xs mb-3">
             Sin preguntas todavía — el enlace "Preguntas frecuentes" no aparecerá en tu tienda.
-          </p>
+          </Banner>
         )}
 
         <button
@@ -141,7 +142,7 @@ export default function Paginas({
       </section>
 
       {/* Políticas — read-only preview, no second editor. */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5 bg-[var(--color-surface-alt)]">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5 bg-[var(--color-surface-alt)]">
         <SectionTitle>Políticas</SectionTitle>
         <p className="text-xs text-[var(--color-muted)]">
           Tu página pública de Políticas se muestra automáticamente desde tu{' '}
