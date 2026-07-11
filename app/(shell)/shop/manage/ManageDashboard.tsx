@@ -41,12 +41,14 @@ export default function ManageDashboard({
   pendingOffersCount = 0,
   pendingOrdersCount = 0,
   setupSteps,
+  guideDismissed = false,
 }: {
   shop: Shop
   initialListings: ManagedListing[]
   pendingOffersCount?: number
   pendingOrdersCount?: number
   setupSteps: SetupStep[]
+  guideDismissed?: boolean
 }) {
   const totalViews = initialListings.reduce((s, l) => s + (l.views ?? 0), 0)
   const activeCount = initialListings.filter((l) => l.status === 'active').length
@@ -107,8 +109,8 @@ export default function ManageDashboard({
         </div>
       </div>
 
-      {/* ── Setup guide (renders nothing once all 5 steps are done) ──────────── */}
-      <SetupGuideCard steps={setupSteps} />
+      {/* ── Setup guide (renders nothing once dismissed or all 5 steps done) ──── */}
+      <SetupGuideCard steps={setupSteps} initialDismissed={guideDismissed} shopSlug={shop.slug} />
 
       {/* ── Stats row ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 mb-8">

@@ -6,6 +6,7 @@ import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { orderedSections, MANUAL_KEYS } from '@/lib/shop-settings/taxonomy'
 import { isEnabled } from '@/lib/flags'
 import { computeShopCompletion, completedSectionKeys, type ShopRow } from '@/lib/setup-guide'
+import GuideRestoreToggle from './GuideRestoreToggle'
 
 export const metadata = { title: 'Configuración — Miyagi Sánchez' }
 
@@ -41,6 +42,7 @@ export default async function SettingsIndexPage() {
 
   const flags = computeShopCompletion(shop as unknown as ShopRow)
   const done = completedSectionKeys(flags)
+  const guideDismissed = !!(shop.metadata as { settings?: { guide?: { guide_dismissed?: boolean } } } | null)?.settings?.guide?.guide_dismissed
 
   // Mercado Libre connect is dark-shipped behind a flag (epic 03 · mercadolibre-sync).
   // The entry card appears only once `ml.connect_enabled` is flipped on.
@@ -64,6 +66,9 @@ export default async function SettingsIndexPage() {
           <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 4, width: `${(done.size / SECTIONS.filter(s => !('soon' in s && s.soon)).length) * 100}%`, transition: 'width 600ms' }} />
         </div>
       </div>
+
+      {/* Setup guide restore toggle (seller-portal-setup-guide epic, B.3) */}
+      <GuideRestoreToggle initialDismissed={guideDismissed} />
 
       {/* Import config CTA */}
       <Link href="/shop/manage/settings/import" className="no-underline">

@@ -145,15 +145,16 @@ export default async function ManagePage() {
       ])
     : [{ count: 0 }, { count: 0 }, { data: null }]
 
+  const guideSettings = (guideShop?.metadata as { settings?: { guide?: { guide_dismissed?: boolean; share_done?: boolean } } } | null)?.settings?.guide
   const setupSteps = guideShop
     ? getSetupSteps({
         shop: guideShop as ShopRow,
         productCount: listings.length,
-        // Persisted by B.3 (metadata.settings.guide.share_done) — absent today, so
-        // step 5 simply hasn't been reached yet on any shop.
-        shareDone: !!(guideShop.metadata as { settings?: { guide?: { share_done?: boolean } } } | null)?.settings?.guide?.share_done,
+        shareDone: !!guideSettings?.share_done,
       })
     : []
+  // Fail-safe: an absent/malformed flag reads as false — show the guide.
+  const guideDismissed = !!guideSettings?.guide_dismissed
 
   return (
     <ManageDashboard
@@ -167,6 +168,7 @@ export default async function ManagePage() {
       pendingOffersCount={pendingOffersCount ?? 0}
       pendingOrdersCount={pendingOrdersCount ?? 0}
       setupSteps={setupSteps}
+      guideDismissed={guideDismissed}
     />
   )
 }
