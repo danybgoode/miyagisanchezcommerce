@@ -98,7 +98,7 @@ export default function ManageDashboard({
             href="/shop/manage/import"
             className="btn btn-secondary"
           >
-            Importar
+            Importar catálogo
           </Link>
           <Link
             href="/sell"
