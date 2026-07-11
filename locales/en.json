@@ -28,6 +28,11 @@
         "body": "Copy the prompt and paste it into your AI so it evaluates the offer for you."
       },
       "heroTrustLine": "Check it yourself: copy the prompt and ask Claude, Gemini, or ChatGPT to evaluate miyagisanchez.com and tell you whether it fits.",
+      "migrationCallout": {
+        "title": "Coming from another platform?",
+        "body": "If you already have your catalog built on Shopify, Tiendanube, WooCommerce, or Big Cartel, bring it to Miyagi without re-typing it — a step-by-step guide per platform.",
+        "ctaLabel": "See how to migrate"
+      },
       "faqTitle": "Normal questions before selling",
       "faqs": [
         {
@@ -1112,6 +1117,11 @@
           "icon": "iconoir-shop",
           "title": "Mercado Libre sync",
           "body": "Import their Mercado Libre catalog into Miyagi Sánchez so they don't re-enter everything by hand. Speeds up the first-visit setup."
+        },
+        {
+          "icon": "iconoir-refresh",
+          "title": "Store migration",
+          "body": "Photograph their catalog (or bring their Shopify/Tiendanube/WooCommerce/Big Cartel export) and leave it set up the same day. Flat price up to a catalog size limit — bigger catalogs get a quote before you charge anything. The exact price is in your migration handbook."
         }
       ],
       "stepsTitle": "How to set up and hand off (in the shop)",
@@ -1180,7 +1190,8 @@
         { "title": "Own domain", "body": "\"Did you know your shop could live at yourname.mx instead of a long link? Looks more professional and people find you directly. It's $499 a year, one-time, and with my code I can activate it today.\"" },
         { "title": "Subdomain", "body": "\"Your shop can have its own address, yourname.miyagisanchez.com, without buying a domain. It's $199 a year, but with my code it's FREE the first year — I can activate it today.\"" },
         { "title": "Printed ad", "body": "\"We run in print and circulate in your area — people who don't even search online will find you there. Price depends on size, charged once, and with my code you get a price you can't get on your own.\"" },
-        { "title": "Mercado Libre sync", "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\"" }
+        { "title": "Mercado Libre sync", "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\"" },
+        { "title": "Store migration", "body": "\"Coming from Shopify, Tiendanube, WooCommerce, or Big Cartel? I'll get you set up today — I photograph your catalog or bring your export, and in one visit it's all on your own Miyagi shop. Flat price up to a catalog size limit; if yours is bigger, I'll give you a quote before charging anything.\"" }
       ],
       "paymentsTitle": "How payments work",
       "paymentsBody": "You pay for the domain, subdomain, or ad with your own card when you set up the shop. The merchant pays you back in cash (or however you agree). Your commission isn't charged separately: Miyagi Sánchez records it on your account and the team settles it with you afterward, by transfer or cash.",
@@ -1188,6 +1199,37 @@
       "closingTitle": "Ready to close",
       "closingBody": "Open your workspace, bind your code, and start setting up shops. Every closed sale is commission for you.",
       "closingCta": "Open my close workspace"
+    },
+    "promotorMigracion": {
+      "title": "Migration handbook",
+      "lead": "The step-by-step of an in-person migration, start to finish — what to photograph, what to ask, and when to charge flat price, a quote, or hand the case to Daniel.",
+      "photoTitle": "What to photograph",
+      "photo": [
+        { "title": "Their current catalog", "body": "Screenshots of their product list on their current platform (name, price, photo) — a backup in case anything doesn't import cleanly." },
+        { "title": "The total product count", "body": "How many products they have in total — decides whether the close is flat price or needs a quote (see below)." },
+        { "title": "Their logo and colors", "body": "If they have a defined brand (logo, colors on their current shop), photograph them to give their Miyagi shop the same look." },
+        { "title": "Shipping and returns policies", "body": "Photograph or copy the text wherever they have them written — it transcribes directly into their Miyagi shop." }
+      ],
+      "interviewTitle": "Interview questions",
+      "interview": [
+        { "title": "Which platform are you coming from?", "body": "Shopify uses the direct connector (just the domain); Tiendanube, WooCommerce, and Big Cartel export a file first." },
+        { "title": "How do you get paid today?", "body": "Card, transfer, cash — so you can activate the same payment methods on their new Miyagi shop from day one." },
+        { "title": "How do you ship?", "body": "To configure the same (or closest) shipping method on their new shop." },
+        { "title": "Is there anything very custom about your current shop?", "body": "Themes, sections, or pages beyond catalog, shipping, and basic policies — if there are, that's information for the parity report, not something you promise to replicate yourself." }
+      ],
+      "runTitle": "How to run the migration",
+      "run": [
+        { "title": "1 · Bring in the catalog", "body": "Shopify: use the connector with their domain (Workspace → Import catalog → Migrate from Shopify). Tiendanube/WooCommerce/Big Cartel: ask for their export (or help them generate it right there with the /vende/migracion guides) and upload it at Workspace → Import catalog." },
+        { "title": "2 · Review the parity report", "body": "If it's coming from Shopify, review the report of what maps and what doesn't before continuing — it decides whether the case is flat price, a quote, or \"very custom.\"" },
+        { "title": "3 · Decide the price (see below) and close", "body": "From /promotor/cerrar, choose \"Store migration\" and charge accordingly." },
+        { "title": "4 · Review and publish with the merchant", "body": "Go through the imported catalog together, fix anything that needs it, and publish in front of them — so they see their shop working." }
+      ],
+      "decisionTitle": "Flat price, quote, or Daniel — how to decide",
+      "decision": [
+        { "title": "Flat price", "body": "Catalog within the flat-price migration limit (check the exact number above, next to the price) and nothing out of the ordinary. Close directly from /promotor/cerrar with no quote ID." },
+        { "title": "Quote", "body": "Catalog bigger than the flat-price limit. From the parity report (only available for Shopify migrations for now), generate the quote, copy the ID for the merchant, and paste it into /promotor/cerrar when charging — the amount charged is always exactly the quote's, never a different number." },
+        { "title": "Hand the case to Daniel", "body": "If the report flags the shop as \"very custom\" (an incomplete pull or an out-of-the-ordinary catalog), no price is generated at all — neither flat nor quoted. Let the merchant know Daniel will contact them directly, and don't promise or charge any amount yourself." }
+      ]
     },
     "mundial": {
       "metadata": {

@@ -50,7 +50,12 @@
         "title": "Compruébalo tú mismo",
         "body": "Copia el prompt y pégalo en tu IA para que evalúe la oferta por ti."
       },
-      "heroTrustLine": "Compruébalo tú mismo: copia el prompt y pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene."
+      "heroTrustLine": "Compruébalo tú mismo: copia el prompt y pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene.",
+      "migrationCallout": {
+        "title": "¿Vienes de otra plataforma?",
+        "body": "Si ya tienes tu catálogo armado en Shopify, Tiendanube, WooCommerce o Big Cartel, tráelo a Miyagi Sánchez sin volver a capturarlo — guía paso a paso por plataforma.",
+        "ctaLabel": "Ver cómo migrar"
+      }
     },
     "aiChannel": {
       "eyebrow": "",
@@ -1116,6 +1121,11 @@
           "icon": "iconoir-shop",
           "title": "Conexión Mercado Libre",
           "body": "Importa su catálogo de Mercado Libre a Miyagi Sánchez para que no capture todo a mano — monta la tienda completa en la primera visita, no en varias."
+        },
+        {
+          "icon": "iconoir-refresh",
+          "title": "Migración de tienda",
+          "body": "Fotografías su catálogo (o traes su exportación de Shopify/Tiendanube/WooCommerce/Big Cartel) y lo dejas montado el mismo día. Precio fijo hasta cierto tamaño de catálogo — catálogos grandes reciben una cotización antes de cobrar cualquier cosa. El precio exacto está en tu manual de migración."
         }
       ],
       "stepsTitle": "Cómo montar y entregar (en la tienda)",
@@ -1211,6 +1221,10 @@
         {
           "title": "Conexión Mercado Libre",
           "body": "«Si ya vendes en Mercado Libre no tienes que capturar nada otra vez — conectamos tu catálogo y queda todo aquí también, el mismo día.»"
+        },
+        {
+          "title": "Migración de tienda",
+          "body": "«¿Vienes de Shopify, Tiendanube, WooCommerce o Big Cartel? Yo te lo dejo montado hoy mismo — fotografío tu catálogo o traigo tu exportación, y en una visita queda todo en tu propia tienda Miyagi Sánchez. Precio fijo hasta cierto tamaño; si tu catálogo es más grande, te doy una cotización antes de cobrarte cualquier cosa.»"
         }
       ],
       "paymentsTitle": "Cómo funcionan los pagos",
@@ -1219,6 +1233,82 @@
       "closingTitle": "Listo para cerrar",
       "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
       "closingCta": "Abrir mi panel para cerrar"
+    },
+    "promotorMigracion": {
+      "title": "Manual de migración",
+      "lead": "El paso a paso de una migración en persona, de principio a fin — qué fotografiar, qué preguntar, y cuándo cobrar precio fijo, cotización o pasar el caso a Daniel.",
+      "photoTitle": "Qué fotografiar",
+      "photo": [
+        {
+          "title": "Su catálogo actual",
+          "body": "Pantallazos de su lista de productos en la plataforma actual (nombre, precio, foto) — sirve como respaldo si algo no importa bien."
+        },
+        {
+          "title": "El total de productos",
+          "body": "Cuántos productos tiene en total — decide si el cierre es precio fijo o necesita cotización (ver abajo)."
+        },
+        {
+          "title": "Su logo y colores",
+          "body": "Si tiene marca definida (logo, colores de su tienda actual), fotografíalos para dejar su tienda Miyagi Sánchez con la misma cara."
+        },
+        {
+          "title": "Políticas de envío y devoluciones",
+          "body": "Fotografía o copia el texto donde las tenga escritas — se transcriben directo a su tienda Miyagi Sánchez."
+        }
+      ],
+      "interviewTitle": "Preguntas de la entrevista",
+      "interview": [
+        {
+          "title": "¿De qué plataforma vienes?",
+          "body": "Shopify usa el conector directo (solo el dominio); Tiendanube, WooCommerce y Big Cartel exportan un archivo primero."
+        },
+        {
+          "title": "¿Cómo cobras hoy?",
+          "body": "Tarjeta, transferencia, efectivo — para dejar los mismos métodos activados en su tienda Miyagi Sánchez desde el primer día."
+        },
+        {
+          "title": "¿Cómo envías?",
+          "body": "Para configurar el mismo método de envío (o el más parecido) en su tienda nueva."
+        },
+        {
+          "title": "¿Hay algo muy particular en tu tienda actual?",
+          "body": "Temas, secciones o páginas hechas a la medida que no sean catálogo, envío o políticas básicas — si las hay, es información para el reporte de correspondencia, no algo que prometas replicar tú mismo."
+        }
+      ],
+      "runTitle": "Cómo correr la migración",
+      "run": [
+        {
+          "title": "1 · Trae el catálogo",
+          "body": "Shopify: usa el conector con su dominio (Panel → Importar catálogo → Migrar desde Shopify). Tiendanube/WooCommerce/Big Cartel: pide su exportación (o ayúdalo a generarla ahí mismo con las guías de /vende/migracion) y súbela en Panel → Importar catálogo."
+        },
+        {
+          "title": "2 · Revisa el reporte de correspondencia",
+          "body": "Si viene de Shopify, revisa el reporte de qué corresponde y qué no antes de seguir — es lo que decide si el caso es precio fijo, cotización o \"muy personalizado\"."
+        },
+        {
+          "title": "3 · Decide el precio (ver abajo) y cierra",
+          "body": "Desde /promotor/cerrar, elige \"Migración de tienda\" y cobra según corresponda."
+        },
+        {
+          "title": "4 · Revisa y publica con el comerciante",
+          "body": "Repasa el catálogo importado junto a él, corrige lo que haga falta, y publica delante de él — así se va viendo su tienda funcionando."
+        }
+      ],
+      "decisionTitle": "Precio fijo, cotización o Daniel — cómo decidir",
+      "decision": [
+        {
+          "title": "Precio fijo",
+          "body": "Catálogo dentro del límite de la migración de precio fijo (revisa el número exacto arriba, junto al precio) y sin nada fuera de lo común. Cierra directo desde /promotor/cerrar sin ID de cotización."
+        },
+        {
+          "title": "Cotización",
+          "body": "Catálogo más grande que el límite de precio fijo. Desde el reporte de correspondencia (solo disponible para migraciones de Shopify por ahora), genera la cotización, cópiale el ID al comerciante y pégalo en /promotor/cerrar al cobrar — el monto cobrado siempre es exactamente el de la cotización, nunca un número distinto."
+        },
+        {
+          "title": "Pasa el caso a Daniel",
+          "body": "Si el reporte marca la tienda como \"muy personalizada\" (una importación incompleta o un catálogo fuera de lo normal), no se genera ningún precio — ni fijo ni cotización. Avísale al comerciante que Daniel lo va a contactar directamente y no prometas ni cobres ningún monto tú mismo."
+        }
+      ]
     },
     "mundial": {
       "metadata": {

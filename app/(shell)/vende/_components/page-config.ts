@@ -20,7 +20,7 @@ import {
 } from '@/lib/promoter-earnings'
 import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
-import type { SellerAcquisitionPageConfig } from './SellerAcquisitionSections'
+import type { SellerAcquisitionPageConfig, LandingCallout } from './SellerAcquisitionSections'
 
 type QueryParams = Record<string, string | string[] | undefined | null>
 type SellerAcquisitionCopy = Dictionary['sellerAcquisition']
@@ -111,6 +111,18 @@ export function buildCreatorPageConfig(
   }
 }
 
+// Platform-migrations epic (03) · Sprint 3 (US-3.2) — negocios/servicios are the personas
+// most likely to already run a shop elsewhere, so they get the compact migration nudge;
+// the other archetype pages (creadores, mundial, autos) leave it undefined.
+function migracionCallout(copy: SellerAcquisitionCopy, testId: string): LandingCallout {
+  const callout = copy.shared.migrationCallout
+  return {
+    title: callout.title,
+    body: callout.body,
+    cta: { label: callout.ctaLabel, href: '/vende/migracion', testId },
+  }
+}
+
 export function buildLocalBusinessPageConfig(
   copy: SellerAcquisitionCopy,
   query: QueryParams,
@@ -124,6 +136,7 @@ export function buildLocalBusinessPageConfig(
       label: page.secondaryCta,
       href: sellerPersonaRouterHref('vende', query),
     },
+    migrationCallout: migracionCallout(copy, 'negocios-migration-callout'),
   }
 }
 
@@ -136,6 +149,7 @@ export function buildServicesPageConfig(
   return {
     ...baseConfig(copy, page, 'servicios', query),
     pageId: 'servicios',
+    migrationCallout: migracionCallout(copy, 'servicios-migration-callout'),
     secondaryCta: {
       label: page.secondaryCta,
       href: sellerPersonaRouterHref('vende', query),
