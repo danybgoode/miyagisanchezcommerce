@@ -18,6 +18,7 @@ import {
   type PrintTier,
   type PrintAdSubmission,
 } from '@/lib/print'
+import { resolvePlatformSellerSlug } from '@/lib/platform-seller'
 
 export type { PrintTier } from '@/lib/print'
 
@@ -58,16 +59,22 @@ export async function getSellerByClerk(clerkJwt: string): Promise<SellerLite | n
   }
 }
 
-let _miyagiprintsSellerId: string | null = null
-/** The miyagiprints shop is the constant selling seller for every placement. Cached. */
-export async function getMiyagiprintsSellerId(): Promise<string | null> {
-  if (_miyagiprintsSellerId) return _miyagiprintsSellerId
+let _platformSellerId: string | null = null
+
+/** The platform-owned seller is the constant selling seller for every placement. Cached. */
+export async function getPlatformSellerId(): Promise<string | null> {
+  if (_platformSellerId) return _platformSellerId
+  const slug = resolvePlatformSellerSlug()
+  if (!slug) {
+    console.error('[print] PLATFORM_SELLER_SLUG not set — cannot resolve the platform seller')
+    return null
+  }
   try {
-    const res = await medusaFetch('/store/sellers/miyagiprints')
+    const res = await medusaFetch(`/store/sellers/${slug}`)
     if (!res.ok) return null
     const { seller } = await res.json()
-    _miyagiprintsSellerId = seller?.id ?? null
-    return _miyagiprintsSellerId
+    _platformSellerId = seller?.id ?? null
+    return _platformSellerId
   } catch {
     return null
   }

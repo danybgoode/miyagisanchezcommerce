@@ -16,7 +16,7 @@ import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import {
   getSellerByClerk,
-  getMiyagiprintsSellerId,
+  getPlatformSellerId,
   tierOccupancy,
   remainingForTier,
 } from '@/lib/print-server'
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Este tamaño se agotó.' }, { status: 422 })
   }
 
-  const miyagiprintsSellerId = await getMiyagiprintsSellerId()
+  const platformSellerId = await getPlatformSellerId()
   const user = await currentUser()
   const buyerEmail = user?.emailAddresses?.[0]?.emailAddress ?? submission.buyer_email ?? undefined
 
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     result = await startCheckout({
       productId: tier.medusa_product_id,
-      sellerId: miyagiprintsSellerId ?? undefined,
+      sellerId: platformSellerId ?? undefined,
       provider: body.provider,
       buyerEmail,
       buyerFirstName: user?.firstName ?? undefined,

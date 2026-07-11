@@ -2,12 +2,12 @@
  * GET /api/print/editions?status=open
  *
  * Lists print editions for the seller portal with live remaining capacity per tier,
- * plus the constant miyagiprints seller id (used by the ad builder's checkout).
+ * plus the platform-owned seller id (used by the ad builder's checkout).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
-import { getMiyagiprintsSellerId, tierOccupancy, toEditionPublic } from '@/lib/print-server'
+import { getPlatformSellerId, tierOccupancy, toEditionPublic } from '@/lib/print-server'
 import type { PrintEdition } from '@/lib/print'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     ),
   )
 
-  const miyagiprintsSellerId = await getMiyagiprintsSellerId()
+  const platformSellerId = await getPlatformSellerId()
 
-  return NextResponse.json({ editions, miyagiprints_seller_id: miyagiprintsSellerId })
+  return NextResponse.json({ editions, platform_seller_id: platformSellerId })
 }
