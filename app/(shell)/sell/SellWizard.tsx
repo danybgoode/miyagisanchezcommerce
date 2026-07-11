@@ -1462,8 +1462,10 @@ export default function SellWizard({
           quantity: listingType === 'product' ? Math.max(1, parseInt(quantity) || 1) : undefined,
           listing_type: listingType,
           // Arranged-only delivery (epic, S1.2) — backend forces 'arranged' for
-          // service/rental regardless of this value, so it's safe to always send.
-          delivery_mode: deliveryMode,
+          // service/rental regardless of this value. Defense-in-depth: only ever
+          // send 'arranged' when the flag is actually on, so a future code path
+          // that sets `deliveryMode` without checking the flag can't submit it.
+          delivery_mode: arrangedOnlyEnabled ? deliveryMode : 'carrier',
           category,
           state: listingState || undefined,
           estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : undefined,

@@ -292,6 +292,12 @@ export default function CheckoutExperience({
     coordinatedFallbackActive: coordinatedActive,
     selectedDeliveryId: selectedDelivery?.id,
   })
+  // The narrower "direct pick" half of isCoordCheckout, kept as its own named
+  // value (not a repeated string literal) so this file has exactly ONE place
+  // that defines what 'coord' means — used below where the effect must react
+  // ONLY to a direct pick, not the S3.2-fallback-active case (which already has
+  // its own steering in selectCoordinatedFallback).
+  const isDirectCoordPick = selectedDelivery?.id === 'coord'
 
   function selectCoordinatedFallback() {
     setCoordinatedFallback(true)
@@ -303,10 +309,10 @@ export default function CheckoutExperience({
   // primary delivery choice (not via the S3.2 fallback button, which already
   // does this in selectCoordinatedFallback above).
   useEffect(() => {
-    if (selectedDelivery?.id === 'coord' && selectedPayment?.kind !== 'manual' && manualPaymentId) {
+    if (isDirectCoordPick && selectedPayment?.kind !== 'manual' && manualPaymentId) {
       setSelectedPaymentId(manualPaymentId)
     }
-  }, [selectedDelivery?.id, selectedPayment?.kind, manualPaymentId])
+  }, [isDirectCoordPick, selectedPayment?.kind, manualPaymentId])
 
   const canPay = Boolean(
     selectedDelivery && selectedPayment && addressReady && pickupReady &&
