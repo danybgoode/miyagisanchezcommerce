@@ -20,9 +20,9 @@ export function CopyPromptButton({ prompt }: { prompt: string }) {
         setTimeout(() => setCopied(false), 3000)
       }}
       title="Copia este prompt y pégalo en Claude, ChatGPT o tu IA favorita para obtener una opinión independiente"
-      className={`inline-flex items-center gap-1.5 text-xs border rounded-full px-3 py-1 transition-colors whitespace-nowrap ${
+      className={`inline-flex items-center gap-1.5 text-xs border rounded-[var(--r-pill)] px-3 py-1 transition-colors whitespace-nowrap ${
         copied
-          ? 'border-green-300 text-green-700 bg-green-50'
+          ? 'border-[var(--success)] text-[var(--success)] bg-[var(--success-soft)]'
           : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
       }`}
     >

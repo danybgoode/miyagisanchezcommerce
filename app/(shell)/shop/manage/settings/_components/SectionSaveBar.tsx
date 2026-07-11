@@ -8,6 +8,8 @@
  * can't drift across the 7 sections.
  */
 
+import { Button } from '@/components/ui/Button'
+
 export function SectionSaveBar({
   saving,
   isDirty,
@@ -22,40 +24,26 @@ export function SectionSaveBar({
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* The top-of-page breadcrumb (<SellerBreadcrumb>) now owns the back affordance. */}
       <div className="flex items-center justify-end mb-24">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-        >
+        <Button type="button" variant="primary" onClick={onSave} disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        </Button>
       </div>
 
       {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[var(--bg-elevated)] border-t border-[var(--color-border)] shadow-lg">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-[var(--r-pill)] bg-[var(--warning)] flex-shrink-0" />
               Tienes cambios sin guardar
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
-              >
+              <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
-              </button>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={saving}
-                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-              >
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={onSave} disabled={saving}>
                 {saving ? 'Guardando…' : 'Guardar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
