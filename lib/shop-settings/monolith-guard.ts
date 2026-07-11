@@ -32,14 +32,23 @@ export type MonolithOffense = {
 export const SETTINGS_DIR = 'app/(shell)/shop/manage/settings'
 
 /**
- * Line cap for any single settings component. `_sections/Canal.tsx` (~1,074
- * lines, the previous largest) was split in catalog-management S6.2 —
- * federation moved to its own page (`app/(shell)/shop/manage/canal-propio/`,
- * OUTSIDE `SETTINGS_DIR` and thus out of this guard's scope by design) and the
- * support widget became `_sections/Apoyo.tsx` (~122 lines). The largest
- * remaining settings component is now `_sections/Envios.tsx` (~668 lines);
- * 900 clears it with headroom while still flagging any slide back toward a
- * monolith.
+ * The federation page split out of `settings/_sections/Canal.tsx` (catalog-
+ * management epic, Sprint 6 · Story 6.2) — outside `SETTINGS_DIR`, so it needs
+ * its own guarded root or a component here could silently re-grow into a
+ * mega-file unguarded (exactly what happened once already: the initial split
+ * left `CanalPropioClient.tsx` at 977 lines before a follow-up extraction
+ * brought it back under the cap — see `DnsSetupPanel.tsx`).
+ */
+export const CANAL_PROPIO_DIR = 'app/(shell)/shop/manage/canal-propio'
+
+/**
+ * Line cap for any single guarded component (both `SETTINGS_DIR` and
+ * `CANAL_PROPIO_DIR`, scanned together — see the spec). `_sections/Canal.tsx`
+ * (~1,074 lines, the previous largest) was split in catalog-management S6.2 —
+ * federation moved to `canal-propio/CanalPropioClient.tsx` and the support
+ * widget became `_sections/Apoyo.tsx` (~122 lines). The largest remaining
+ * component is now `Envios.tsx` (~668 lines); 900 clears it with headroom
+ * while still flagging any slide back toward a monolith.
  */
 export const MAX_SETTINGS_COMPONENT_LINES = 900
 

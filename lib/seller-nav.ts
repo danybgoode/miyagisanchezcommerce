@@ -123,7 +123,7 @@ export const SELLER_NAV_MOBILE_PRIMARY: SellerNavEntry[] = [
  */
 export const SELLER_NAV_MOBILE_OVERFLOW_GROUPS: SellerNavMobileOverflowGroup[] = [
   { key: 'operar', label: 'Operar', entries: [SELLER_NAV[0].entries[2]] }, // Ofertas
-  { key: 'catalogo', label: 'Catálogo', entries: SELLER_NAV[1].entries.slice(1) }, // Colecciones, Canales, Importar catálogo
+  { key: 'catalogo', label: 'Catálogo', entries: SELLER_NAV[1].entries.slice(1) }, // Colecciones, Canales, Mercado Libre, Importar catálogo
   { key: 'crecer', label: 'Crecer', entries: SELLER_NAV[2].entries, layout: 'grid' },
   { key: 'configuracion', label: 'Configuración', entries: SELLER_NAV[3].entries },
 ]

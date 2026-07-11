@@ -109,8 +109,8 @@ export async function startSubdomainCheckout(input: {
   }
 
   const origin = canonicalOrigin()
-  const successUrl = `${origin}/shop/manage/settings/canal?subdomain=activated`
-  const cancelUrl = `${origin}/shop/manage/settings/canal?subdomain=cancelled`
+  const successUrl = `${origin}/shop/manage/canal-propio?subdomain=activated`
+  const cancelUrl = `${origin}/shop/manage/canal-propio?subdomain=cancelled`
 
   // ── One-time cadence: pay a year up front, no recurring mandate ───────────
   if (cadence === 'one_time') {
