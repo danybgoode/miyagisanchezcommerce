@@ -89,9 +89,13 @@ test.describe('buildSkuPriceRow / buildSkuPriceTable', () => {
       { subdomain: 0 },
       settingsFixed(),
     )
-    expect(table.map((r) => r.sku)).toEqual(['custom_domain', 'print_ad', 'subdomain', 'ml_sync'])
+    expect(table.map((r) => r.sku)).toEqual(['custom_domain', 'print_ad', 'subdomain', 'ml_sync', 'migration'])
     expect(table.find((r) => r.sku === 'print_ad')?.variablePrice).toBe(true)
     expect(table.find((r) => r.sku === 'subdomain')?.isFree).toBe(true)
+    // migration has no `PROMOTER_SKU_BASE_PRICE_MXN` entry (variable — flat ≤150 or
+    // a per-merchant quote above it, see lib/migration-estimate.ts) — same "absent =
+    // variable" convention as print_ad, so it degrades to variablePrice here too.
+    expect(table.find((r) => r.sku === 'migration')?.variablePrice).toBe(true)
   })
 })
 

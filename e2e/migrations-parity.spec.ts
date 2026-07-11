@@ -36,15 +36,15 @@ test.describe('migration-parity · buildParityReport', () => {
     expect(report.sections).toBe(PARITY_SECTIONS) // same static reference, no per-call rebuild
   })
 
-  test('over the flat-fee SKU threshold → very custom, with a reason', () => {
+  test('over the flat-fee SKU threshold is NOT very-custom (Sprint 2: it is a computable quote instead — lib/migration-estimate.ts)', () => {
     const report = buildParityReport({
       listingCount: VERY_CUSTOM_LISTING_THRESHOLD + 1,
       imageCount: 900,
       hasPolicies: false,
       truncated: false,
     })
-    expect(report.veryCustom).toBe(true)
-    expect(report.veryCustomReason).toMatch(/150/)
+    expect(report.veryCustom).toBe(false)
+    expect(report.veryCustomReason).toBeNull()
   })
 
   test('exactly at the threshold is NOT over it (boundary)', () => {
