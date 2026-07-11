@@ -12,6 +12,7 @@ const mxn = (cents: number) =>
 const SKU_LABEL: Record<string, string> = {
   custom_domain: 'Dominio propio',
   print_ad: 'Anuncio impreso',
+  migration: 'Migración de tienda',
 }
 
 /**

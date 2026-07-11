@@ -55,6 +55,8 @@ interface CreatePayload {
       id: string; label: string; price_cents: number
       interval: 'month' | 'year'; features: string[]; is_highlighted: boolean
     }> | null
+    /** Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'. */
+    delivery_mode?: 'carrier' | 'arranged'
   }
 }
 
@@ -235,6 +237,10 @@ export async function POST(req: NextRequest) {
       currency: body.listing.currency ?? 'MXN',
       condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
       listing_type: body.listing.listing_type ?? 'physical',
+      // Arranged-only delivery (epic, S1.2) — a TOP-LEVEL field (not inside
+      // `metadata`) so it can't be shadowed by a stray metadata.delivery_mode;
+      // the backend forces 'arranged' for service/rental regardless of this value.
+      delivery_mode: body.listing.delivery_mode ?? 'carrier',
       category: body.listing.category,
       state: body.listing.state || null,
       municipio: body.listing.municipio || null,

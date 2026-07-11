@@ -149,6 +149,17 @@ export const tg = {
   promoterApplicationSubmitted(name: string, city: string | null, adminUrl: string) {
     return tgNotify(`📝 <b>Nueva solicitud de promotor</b>\n${esc(name)}${city ? ` · ${esc(city)}` : ''}\n${esc(adminUrl)}`)
   },
+
+  /** A migration's parity report is "very custom" (untrustworthy pull) — no price
+   *  was offered; route to Daniel with the report (epic 03 · platform-migrations
+   *  S2 · US-2.3). Links the report instead of attaching a file (this codebase
+   *  never attaches files to Telegram — see lib/promoter-close-notify.ts). */
+  migrationVeryCustom(shopId: string, listingCount: number, reportUrl: string) {
+    return tgNotify(
+      `🔍 <b>Migración "muy personalizada" — revisar a mano</b>\n` +
+      `Tienda: ${esc(shopId)}\nProductos detectados: ${esc(listingCount)}\n${esc(reportUrl)}`,
+    )
+  },
 }
 
 // ── HTML escape ────────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { getShopStripe } from '@/lib/stripe'
 import { isEnabled } from '@/lib/flags'
 import { closeMlProduct } from '@/lib/ml-publish-bridge'
 import { notifyWriterOnPublish } from '@/lib/launchpad'
+import { deriveCheckoutViability } from '@/lib/checkout-viability'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -72,7 +73,8 @@ async function checkCheckoutViability(listingId: string, clerkJwt: string): Prom
     const { listing } = await listingRes.json() as { listing: Record<string, unknown> }
     const { seller } = await sellerRes.json() as { seller: Record<string, unknown> }
 
-    const listingType = (listing?.metadata as Record<string, unknown> | null)?.listing_type as string ?? 'product'
+    const listingMeta = (listing?.metadata as Record<string, unknown> | null) ?? {}
+    const listingType = (listingMeta.listing_type as string) ?? 'product'
     if (listingType !== 'product') return null
 
     const shopMeta = (seller?.metadata ?? {}) as Record<string, unknown>
@@ -94,16 +96,22 @@ async function checkCheckoutViability(listingId: string, clerkJwt: string): Prom
     const hasSpei = bankTransfer.enabled !== false && normalizeClabe(bankTransfer.clabe).length === 18
     const dimo = (checkout.dimo ?? {}) as Record<string, unknown>
     const hasDimo = dimo.enabled === true && normalizeClabe(dimo.phone).length >= 10
-    const hasPayment = hasStripe || hasMp || hasSpei || hasDimo
+    // Cash (re-derives the same fields as the backend's sellerHasCash(), since
+    // this frontend module can't cross-import backend TS).
+    const cashPickup = (checkout.cash_pickup ?? {}) as Record<string, unknown>
+    const hasCash = hasLocalPickup && cashPickup.enabled !== false
 
-    if (hasDelivery && hasPayment) return null
-
-    const missing: string[] = []
-    if (!hasDelivery) missing.push('una forma de entrega (envío a domicilio o recolección en mano)')
-    if (!hasPayment) missing.push('un método de pago (MercadoPago, Stripe, SPEI o DiMo)')
-
-    return `Para activar este anuncio configura ${missing.join(' y ')}. ` +
-      'Ve a Mi tienda → Configuración → Pagos y Envíos.'
+    return deriveCheckoutViability({
+      listingType,
+      deliveryMode: listingMeta.delivery_mode as 'carrier' | 'arranged' | null | undefined,
+      hasLiveShipping,
+      hasLocalPickup,
+      hasStripe,
+      hasMp,
+      hasSpei,
+      hasDimo,
+      hasCash,
+    })
   } catch {
     return null // on unexpected error, allow publish (fail open)
   }

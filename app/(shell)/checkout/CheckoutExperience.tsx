@@ -7,7 +7,7 @@ import type { CartItem } from '@/app/components/CartContext'
 import type { CheckoutFulfillmentMethod, CheckoutProvider, ManualSubType, CheckoutShippingAddress, CheckoutShippingQuote } from '@/lib/cart'
 import { type PersonalizationPayload, type PersonalizationField, readStashedPersonalization } from '@/lib/personalization'
 import PersonalizationEcho from '@/app/components/PersonalizationEcho'
-import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '@/lib/checkout-fallback'
+import { shouldOfferCoordinatedFallback, pickManualPaymentId, isCoordDeliverySelected } from '@/lib/checkout-fallback'
 import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
@@ -91,6 +91,7 @@ export default function CheckoutExperience({
   quantity = 1,
   listingType = 'product',
   isDigital = false,
+  deliveryMode = 'carrier',
   originDomain,
   rental,
   onStarted,
@@ -109,6 +110,8 @@ export default function CheckoutExperience({
   quantity?: number
   listingType?: string
   isDigital?: boolean
+  /** Arranged-only delivery (epic, S1.3) — the backend ignores this off-flag. */
+  deliveryMode?: 'carrier' | 'arranged'
   originDomain?: string
   /** Rental: buyer's chosen date range. ONLY dates — never an amount. */
   rental?: { check_in: string; check_out: string }
@@ -131,7 +134,7 @@ export default function CheckoutExperience({
 
   useEffect(() => {
     let cancelled = false
-    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital) })
+    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital), deliveryMode })
     fetch(`/api/checkout/options?${qs}`)
       .then(r => r.json())
       .then((data: CheckoutOptions & { error?: string }) => {
@@ -143,7 +146,7 @@ export default function CheckoutExperience({
       })
       .catch(() => { if (!cancelled) setOptionsError('No se pudieron cargar las opciones de pago.') })
     return () => { cancelled = true }
-  }, [sellerId, listingType, isDigital])
+  }, [sellerId, listingType, isDigital, deliveryMode])
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
@@ -279,6 +282,22 @@ export default function CheckoutExperience({
   const manualPaymentId = pickManualPaymentId(paymentMethods)
   // Active only when the buyer picked the fallback AND quoting is still failing.
   const coordinatedActive = offerCoordinatedFallback && coordinatedFallback
+  // Arranged-only delivery (epic, S1.3) — the buyer reaches "coord" either via
+  // the S3.2 shipping-quote-failure fallback above, OR by picking the `coord`
+  // delivery method directly (only possible for an arranged listing, since
+  // that's the only case the backend ever pushes a `coord` entry). Both are
+  // the same money-path state (fulfillment_method:'coord', manual-only pay),
+  // so unify them once here rather than repeating the OR at each call site.
+  const isCoordCheckout = isCoordDeliverySelected({
+    coordinatedFallbackActive: coordinatedActive,
+    selectedDeliveryId: selectedDelivery?.id,
+  })
+  // The narrower "direct pick" half of isCoordCheckout, kept as its own named
+  // value (not a repeated string literal) so this file has exactly ONE place
+  // that defines what 'coord' means — used below where the effect must react
+  // ONLY to a direct pick, not the S3.2-fallback-active case (which already has
+  // its own steering in selectCoordinatedFallback).
+  const isDirectCoordPick = selectedDelivery?.id === 'coord'
 
   function selectCoordinatedFallback() {
     setCoordinatedFallback(true)
@@ -286,9 +305,18 @@ export default function CheckoutExperience({
     if (selectedPayment?.kind !== 'manual' && manualPaymentId) setSelectedPaymentId(manualPaymentId)
   }
 
+  // Auto-steer to manual payment when the buyer picks `coord` directly as a
+  // primary delivery choice (not via the S3.2 fallback button, which already
+  // does this in selectCoordinatedFallback above).
+  useEffect(() => {
+    if (isDirectCoordPick && selectedPayment?.kind !== 'manual' && manualPaymentId) {
+      setSelectedPaymentId(manualPaymentId)
+    }
+  }, [isDirectCoordPick, selectedPayment?.kind, manualPaymentId])
+
   const canPay = Boolean(
     selectedDelivery && selectedPayment && addressReady && pickupReady &&
-    (coordinatedActive
+    (isCoordCheckout
       ? selectedPayment.kind === 'manual'
       : (!needsShippingRate || selectedShippingRate)),
   )
@@ -643,11 +671,30 @@ export default function CheckoutExperience({
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
+            {/* Arranged-only delivery (epic, S1.3) — new copy, not a repurposing
+                of the empty-payment-methods branch above (that one stays reserved
+                for a seller with literally zero payment methods configured — a
+                correctly-configured arranged listing always has a manual method,
+                so paymentMethods.length is never 0 here). */}
+            {options.only_coordinated && (
+              <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginBottom: 2 }}>
+                🤝 Este vendedor coordina la entrega — el pago se acuerda directamente (SPEI / efectivo).
+              </p>
+            )}
             {paymentMethods.map(option => {
               const active = selectedPayment?.id === option.id
+              // A coord checkout (S1.3) requires manual payment — the backend
+              // 422s card + coord, so disable the online buttons here instead
+              // of letting a mistaken submit fail late.
+              const disabledForCoord = isCoordCheckout && option.kind !== 'manual'
               return (
                 <div key={option.id}>
-                  <button type="button" onClick={() => setSelectedPaymentId(option.id)} style={optionButtonStyle(active)}>
+                  <button
+                    type="button"
+                    onClick={() => !disabledForCoord && setSelectedPaymentId(option.id)}
+                    disabled={disabledForCoord}
+                    style={{ ...optionButtonStyle(active), ...(disabledForCoord ? { opacity: 0.45, cursor: 'not-allowed' } : {}) }}
+                  >
                     <span aria-hidden style={radioDot(active)} />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -814,11 +861,11 @@ export default function CheckoutExperience({
             offerAmountCents={offerAmountCents}
             couponCode={appliedCoupon?.code}
             couponDiscountCents={couponDiscountCents}
-            fulfillmentMethod={coordinatedActive ? 'coord' : (selectedDelivery?.id ?? 'none')}
+            fulfillmentMethod={isCoordCheckout ? 'coord' : (selectedDelivery?.id ?? 'none')}
             pickupSpotId={selectedPickupSpotId ?? undefined}
             pickupAppointment={isPickupDelivery && pickupDate && pickupWindow ? { date: pickupDate, window: pickupWindow } : undefined}
             shippingAddress={selectedDelivery?.requires_address ? address : undefined}
-            shippingQuote={coordinatedActive ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
+            shippingQuote={isCoordCheckout ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
             rental={rental}
             disabled={!canPay}

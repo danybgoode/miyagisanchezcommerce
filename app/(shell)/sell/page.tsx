@@ -111,6 +111,9 @@ export default async function SellPage() {
   // calls the same function, so this costs one Medusa round-trip per request,
   // not two.
   const existingShop = await getMySeller()
+  // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
+  // pre-launch; server-evaluated so the flag flip needs no client round-trip.
+  const arrangedOnlyEnabled = await isEnabled('shipping.arranged_only_enabled')
 
   // Onboarding three-doors first-run entry (Sprint 1 · Story 1.1). A fresh,
   // shop-less merchant who hasn't already started (no tenant_intake row) and
@@ -130,7 +133,7 @@ export default async function SellPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {!existingShop && <AgentSetupNudge />}
-      <SellWizard existingShop={existingShop} />
+      <SellWizard existingShop={existingShop} arrangedOnlyEnabled={arrangedOnlyEnabled} />
     </div>
   )
 }

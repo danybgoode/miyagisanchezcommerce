@@ -3,8 +3,10 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { getShopifyBatchParity } from '@/lib/shopify-import-bridge'
-import type { ParityVerdict } from '@/lib/migration-parity'
+import { notifyIfVeryCustom } from '@/lib/migration-estimate-store'
+import { VERY_CUSTOM_LISTING_THRESHOLD, type ParityVerdict } from '@/lib/migration-parity'
 import { SellerBreadcrumb } from '../../../../SellerBreadcrumb'
+import MigrationEstimateCard from './MigrationEstimateCard'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Reporte de paridad — Shopify' }
@@ -47,6 +49,15 @@ export default async function ShopifyParityPage({
   if (!result.ok) notFound()
   const { report } = result
 
+  // Story 2.3 — the notification must fire the moment the report itself is
+  // computed (this page load), not gated behind the estimate card below,
+  // which is deliberately hidden for a very-custom report (review catch —
+  // the card was the ONLY caller of the notify path, and it's hidden for
+  // exactly the case that path exists to notify on).
+  if (report.veryCustom) {
+    await notifyIfVeryCustom(batchId).catch((e) => console.error('[parity page] very-custom notify failed:', e))
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <div style={{ marginBottom: 20 }}>
@@ -72,8 +83,12 @@ export default async function ShopifyParityPage({
           }}
         >
           <strong>Esta tienda es "muy personalizada".</strong> {report.veryCustomReason}{' '}
-          Un consultor de Miyagi puede ayudarte con una cotización a la medida.
+          Un consultor de Miyagi te contactará directamente para revisar tu caso.
         </div>
+      )}
+
+      {!report.veryCustom && report.listingCount > VERY_CUSTOM_LISTING_THRESHOLD && (
+        <MigrationEstimateCard batchId={batchId} />
       )}
 
       <div

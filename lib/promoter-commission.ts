@@ -27,6 +27,7 @@ export const DEFAULT_COMMISSION_RATES: Record<PromoterSku, number> = {
   print_ad: 0,
   subdomain: 0,
   ml_sync: 0,
+  migration: 0,
 }
 
 /**

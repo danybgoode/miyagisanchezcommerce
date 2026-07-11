@@ -28,8 +28,8 @@ import {
  */
 
 test.describe('promoter-transfer · SKU + method narrowing', () => {
-  test('TRANSFER_SKUS is exactly the 3 close-workspace SKUs (print_ad excluded — Sprint 5 scope)', () => {
-    expect(TRANSFER_SKUS).toEqual(['custom_domain', 'subdomain', 'ml_sync'])
+  test('TRANSFER_SKUS is exactly the 4 close-workspace SKUs (print_ad excluded — Sprint 5 scope)', () => {
+    expect(TRANSFER_SKUS).toEqual(['custom_domain', 'subdomain', 'ml_sync', 'migration'])
   })
 
   test('isTransferSku narrows correctly', () => {
@@ -103,11 +103,12 @@ test.describe('promoter-transfer · remittance state machine (canTransitionTrans
 })
 
 test.describe('promoter-transfer · per-SKU activation mapping (SKU_GRANT_KEYS)', () => {
-  test('covers exactly the 3 in-scope SKUs, matching the existing entitlement-reader keys', () => {
+  test('covers exactly the 4 in-scope SKUs, matching the existing entitlement-reader keys', () => {
     expect(SKU_GRANT_KEYS).toEqual({
       custom_domain: 'custom_domain_grant',
       subdomain: 'subdomain_grant',
       ml_sync: 'ml_sync_grant',
+      migration: 'migration_grant',
     })
   })
 
@@ -115,7 +116,7 @@ test.describe('promoter-transfer · per-SKU activation mapping (SKU_GRANT_KEYS)'
     for (const sku of TRANSFER_SKUS) expect(typeof SKU_GRANT_KEYS[sku]).toBe('string')
   })
 
-  test('TRANSFER_SKU_LABEL covers exactly the 3 in-scope SKUs (es-MX)', () => {
+  test('TRANSFER_SKU_LABEL covers exactly the 4 in-scope SKUs (es-MX)', () => {
     for (const sku of TRANSFER_SKUS) expect(typeof TRANSFER_SKU_LABEL[sku]).toBe('string')
   })
 })
