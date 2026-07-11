@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { quoteCorreos, CORREOS_IMPRESOS_BANDS_2026, CORREOS_IMPRESOS_MAX_GRAMS } from '../lib/correos-tariff'
+import { quoteCorreos, quoteCorreosForPieces, CORREOS_IMPRESOS_BANDS_2026, CORREOS_IMPRESOS_MAX_GRAMS } from '../lib/correos-tariff'
 
 /**
  * Correos de México — Impresos en General tariff (frontend mirror). Spec-locked
@@ -61,5 +61,32 @@ test.describe('quoteCorreos · out-of-table weights return null, never an invent
   test('non-finite → null', () => {
     expect(quoteCorreos(NaN)).toBeNull()
     expect(quoteCorreos(Infinity)).toBeNull()
+  })
+})
+
+test.describe('quoteCorreosForPieces · multi-piece shipments sum PER-PIECE quotes, never one combined weight', () => {
+  test('sums each piece\'s own band price — two 1500 g pieces is NOT one 3000 g quote', () => {
+    expect(quoteCorreosForPieces([1500, 1500])).toEqual({ totalCents: 5000, maxGrams: 1500 })
+  })
+
+  test('a single-piece list matches quoteCorreos exactly', () => {
+    expect(quoteCorreosForPieces([500])).toEqual(quoteCorreos(500))
+  })
+
+  test('mixed light + heavy pieces sum correctly', () => {
+    expect(quoteCorreosForPieces([20, 2000])).toEqual({ totalCents: 3500, maxGrams: 2000 })
+  })
+
+  test('ANY single piece over the max fails the whole quote (never drops it silently)', () => {
+    expect(quoteCorreosForPieces([500, 2001])).toBeNull()
+  })
+
+  test('an empty piece list → null', () => {
+    expect(quoteCorreosForPieces([])).toBeNull()
+  })
+
+  test('a non-positive/non-finite piece anywhere in the list → null', () => {
+    expect(quoteCorreosForPieces([500, 0])).toBeNull()
+    expect(quoteCorreosForPieces([500, NaN])).toBeNull()
   })
 })
