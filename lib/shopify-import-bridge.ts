@@ -21,6 +21,7 @@ import { db } from './supabase'
 import { normalizeSupplyItem, refreshBatchCounts } from './supply'
 import { shopifyProductToIncomingSupplyItem } from './shopify-import'
 import { fetchAllShopifyProducts, fetchShopifyPolicies, type ShopifyUcpProduct } from './shopify-mcp-client'
+import { buildParityReport, type ParityReport } from './migration-parity'
 
 export type ShopifyShopPull = {
   products: ShopifyUcpProduct[]
@@ -115,4 +116,53 @@ export async function stageShopifyBatch(
 
   await refreshBatchCounts(batch.id)
   return { ok: true, batchId: batch.id, itemCount: rows.length, truncated: pull.truncated, hasPolicies: !!pull.policiesText }
+}
+
+export type GetShopifyBatchParityResult =
+  | { ok: true; report: ParityReport }
+  | { ok: false; error: string; status: number }
+
+/**
+ * Load a staged Shopify batch (ownership-scoped to `shop.slug`) and build its
+ * parity report (Story 1.2). Shared by the API route and the seller-portal
+ * page so the ownership check + report shape can't drift between the two.
+ */
+export async function getShopifyBatchParity(
+  shop: { slug: string },
+  batchId: string,
+): Promise<GetShopifyBatchParityResult> {
+  const { data: batch, error: batchErr } = await db
+    .from('supply_batches')
+    .select('id, source_platform, acquisition_settings')
+    .eq('id', batchId)
+    .maybeSingle()
+  if (batchErr || !batch) return { ok: false, status: 404, error: 'Lote no encontrado.' }
+
+  const settings = (batch.acquisition_settings as Record<string, unknown> | null) ?? {}
+  if (batch.source_platform !== 'shopify' || settings.connected_seller_slug !== shop.slug) {
+    return { ok: false, status: 403, error: 'No autorizado para este lote.' }
+  }
+
+  const { count: listingCount } = await db
+    .from('supply_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('batch_id', batchId)
+
+  const { data: items } = await db
+    .from('supply_items')
+    .select('images')
+    .eq('batch_id', batchId)
+  const imageCount = (items ?? []).reduce((sum, item) => {
+    const images = (item as { images?: unknown }).images
+    return sum + (Array.isArray(images) ? images.length : 0)
+  }, 0)
+
+  const report = buildParityReport({
+    listingCount: listingCount ?? 0,
+    imageCount,
+    hasPolicies: !!settings.policies_text,
+    truncated: !!settings.truncated,
+  })
+
+  return { ok: true, report }
 }
