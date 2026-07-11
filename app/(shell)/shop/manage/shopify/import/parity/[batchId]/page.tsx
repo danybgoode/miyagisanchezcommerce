@@ -51,9 +51,9 @@ export default async function ShopifyParityPage({
 
   // Story 2.3 — the notification must fire the moment the report itself is
   // computed (this page load), not gated behind the estimate card below,
-  // which is deliberately hidden for a very-custom report (review catch,
-  // PR #224 — the card was the ONLY caller of the notify path, and it's
-  // hidden for exactly the case that path exists to notify on).
+  // which is deliberately hidden for a very-custom report (review catch —
+  // the card was the ONLY caller of the notify path, and it's hidden for
+  // exactly the case that path exists to notify on).
   if (report.veryCustom) {
     await notifyIfVeryCustom(batchId).catch((e) => console.error('[parity page] very-custom notify failed:', e))
   }

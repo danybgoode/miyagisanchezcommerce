@@ -14,7 +14,7 @@ import {
  * always passed explicitly (not hardcoded inside the function) — the DB-facing
  * caller (lib/migration-estimate-store.ts) reads it from the SAME admin-set
  * price the flat ≤150 close path charges, so the two paths can never disagree
- * (review catch, PR #224: an earlier version hardcoded $999 independently).
+ * (a real cross-review catch: an earlier version hardcoded $999 independently).
  * The real persistence (marketplace_migration_estimates) and the close-from-
  * quote tamper case live in e2e/promoter-close-migration.spec.ts (route-gating
  * only; the real DB round-trip is owed to Daniel, per convention).
@@ -72,7 +72,7 @@ test.describe('migration-estimate · computeMigrationEstimate', () => {
     expect(computeMigrationEstimate(input)).toEqual(computeMigrationEstimate({ ...input }))
   })
 
-  test('the base is whatever is PASSED IN, never a hardcoded internal default — a different admin price changes the total exactly by the difference (review catch, PR #224)', () => {
+  test('the base is whatever is PASSED IN, never a hardcoded internal default — a different admin price changes the total exactly by the difference (a real cross-review catch)', () => {
     const atDefault = computeMigrationEstimate({ listingCount: 200, customSectionCount: 0, basePriceCents: MIGRATION_BASE_PRICE_CENTS })
     const atHigherPrice = computeMigrationEstimate({ listingCount: 200, customSectionCount: 0, basePriceCents: MIGRATION_BASE_PRICE_CENTS + 50_000 })
     expect(atHigherPrice.baseCents).toBe(MIGRATION_BASE_PRICE_CENTS + 50_000)

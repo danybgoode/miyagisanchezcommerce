@@ -110,8 +110,8 @@ export async function classifyMigrationPricing(
   }
 
   // The estimate's base MUST read the same admin-set price the flat ≤150 path
-  // charges (lib/migration-checkout.ts) — never a hardcoded duplicate (cross-
-  // review catch, PR #224). No price configured yet ⇒ refuse rather than quote
+  // charges (lib/migration-checkout.ts) — never a hardcoded duplicate (a real
+  // cross-review catch). No price configured yet ⇒ refuse rather than quote
   // against a number nobody actually set.
   const prices = await getPromoterSkuPrices()
   const basePriceMxn = prices.migration
@@ -159,7 +159,7 @@ export async function getMigrationEstimate(id: string): Promise<MigrationEstimat
  * Standalone very-custom check + notify, callable directly from the
  * seller-facing parity PAGE — not only from the estimate-generation route.
  *
- * Bug caught in review (PR #224): `classifyMigrationPricing`'s very-custom
+ * Bug caught in review: `classifyMigrationPricing`'s very-custom
  * branch was only ever reached via `POST /api/sell/shopify/import/parity/
  * estimate`, and that route is only ever called by `MigrationEstimateCard`
  * — which the parity page renders ONLY when `!report.veryCustom`. So for
@@ -217,7 +217,7 @@ async function notifyVeryCustomOnce(
   // ping in that narrow window, never a missed one, and the dedupe still holds for
   // the overwhelmingly common case (repeat page loads, not concurrent ones). A
   // prior version of this guard added a second `.eq(...)` filter attempting to
-  // express "only update if still null" — removed (cross-review catch, PR #224):
+  // express "only update if still null" — removed (a real cross-review catch):
   // Supabase/PostgREST can't express IS NULL via `.eq()` on a `->>` jsonb path, so
   // it silently matched nothing some of the time and was strictly worse than no
   // guard at all (a false "still not notified" read that then failed to persist).

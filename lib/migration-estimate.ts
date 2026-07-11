@@ -19,7 +19,7 @@
  *  price always comes from `marketplace_promoter_sku_prices` (admin-configured)
  *  at call time, passed in as `basePriceCents` — never hardcoded into a compute
  *  path, so the estimate's base line item can never drift from what the flat
- *  ≤150 close path actually charges (cross-review catch, PR #224: an earlier
+ *  ≤150 close path actually charges (a real cross-review catch: an earlier
  *  version hardcoded $999 here independently of the admin price). */
 export const MIGRATION_BASE_PRICE_CENTS = 99_900 // $999 MXN
 /** Above this many listings, the flat price no longer applies — use the estimate instead. */
