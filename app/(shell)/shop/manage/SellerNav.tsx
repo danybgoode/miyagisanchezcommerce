@@ -306,6 +306,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
               <Link
                 href={`/s/${shopSlug}`}
                 target="_blank"
+                rel="noopener noreferrer"
                 onClick={() => setMoreOpen(false)}
                 style={{
                   display: 'flex',

@@ -56,7 +56,7 @@ export default async function SellerManageLayout({ children }: { children: React
   // counts and the completion flags (same columns `settings/page.tsx` already
   // selects), so the badge/pill data never drifts from what those pages compute.
   const user = await currentUser()
-  const { data: shop } = user
+  const { data: shop, error: shopError } = user
     ? await db
         .from('marketplace_shops')
         .select('id, slug, name, description, metadata, mp_enabled, custom_domain, ucp_webhook_url')
@@ -64,17 +64,23 @@ export default async function SellerManageLayout({ children }: { children: React
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle()
-    : { data: null }
+    : { data: null, error: null }
+  // A failed read here degrades to the safe empty defaults below (never throws,
+  // this layout renders unconditionally) — but log it so a real outage is still
+  // visible (GCP Error Reporting auto-groups severity>=ERROR console output).
+  if (shopError) console.error('[SellerManageLayout] shop lookup failed:', shopError)
 
   let badges: Partial<Record<string, number>> = {}
   let configIncomplete = false
   const shopSlug = (shop?.slug as string | undefined) ?? null
 
   if (shop?.id) {
-    const [{ count: pendingOrdersCount }, { count: pendingOffersCount }] = await Promise.all([
+    const [{ count: pendingOrdersCount, error: ordersError }, { count: pendingOffersCount, error: offersError }] = await Promise.all([
       db.from('marketplace_orders').select('id', { count: 'exact', head: true }).eq('shop_id', shop.id).in('status', ['paid', 'processing']),
       db.from('marketplace_offers').select('id', { count: 'exact', head: true }).eq('shop_id', shop.id).eq('status', 'pending'),
     ])
+    if (ordersError) console.error('[SellerManageLayout] pending-orders count failed:', ordersError)
+    if (offersError) console.error('[SellerManageLayout] pending-offers count failed:', offersError)
     badges = { pedidos: pendingOrdersCount ?? 0, ofertas: pendingOffersCount ?? 0 }
 
     const completion = computeShopCompletion(shop as unknown as ShopRow)

@@ -41,7 +41,7 @@ export interface SellerNavGroup {
   entries: SellerNavEntry[]
 }
 
-/** A "Más" sheet section. `layout: 'grid'` renders as a 2-column icon grid (Crecer); default is a plain list. */
+/** A "Más" sheet section. `layout: 'grid'` renders as a 3-column icon grid (Crecer); default is a plain list. */
 export interface SellerNavMobileOverflowGroup {
   key: string
   label: string
