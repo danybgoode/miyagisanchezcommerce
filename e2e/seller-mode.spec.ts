@@ -36,6 +36,7 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage/analytics',
   '/shop/manage/profit',
   '/shop/manage/collections',
+  '/shop/manage/canal-propio',
   '/shop/manage/promotions',
   '/shop/manage/subscriptions',
   '/shop/manage/content',
@@ -130,7 +131,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
 
   test('labels match the sprint spec', () => {
     expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas'])
-    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual(['Anuncios', 'Colecciones', 'Canales', 'Importar catálogo'])
+    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual(['Anuncios', 'Colecciones', 'Canales', 'Mercado Libre', 'Importar catálogo'])
     expect(SELLER_NAV[2].entries.map(e => e.label)).toEqual([
       'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
     ])

@@ -4,11 +4,8 @@ import { db } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
 import { isValidSection, sectionTitle } from '@/lib/shop-settings/taxonomy'
-import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
-import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
-import { getSubdomainSubscription } from '@/lib/subdomain-subscription'
-import { isEnabled } from '@/lib/flags'
 import { hasEnviaGrant } from '@/lib/envia-grant'
+import { isEnabled } from '@/lib/flags'
 import { getShopListings } from '@/lib/listings'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
@@ -20,6 +17,10 @@ import type { Metadata } from 'next'
 // into its own chunk via next/dynamic (the 4,200-line monolith was deleted in
 // Sprint 4). `isValidSection()` gates the route to exactly these slugs, so the
 // switch in renderExtracted() is total — there is no fallback.
+//
+// `canal` is no longer a slug here (catalog-management S6.2 — federation moved
+// to /shop/manage/canal-propio, a redirect below covers the old URL); `apoyo`
+// (the support widget) is its replacement.
 const Devoluciones    = dynamic(() => import('../_sections/Devoluciones'))
 const Perfil          = dynamic(() => import('../_sections/Perfil'))
 const Diseno          = dynamic(() => import('../_sections/Diseno'))
@@ -30,7 +31,7 @@ const Citas           = dynamic(() => import('../_sections/Citas'))
 const Pedidos         = dynamic(() => import('../_sections/Pedidos'))
 const Notificaciones  = dynamic(() => import('../_sections/Notificaciones'))
 const Pagos           = dynamic(() => import('../_sections/Pagos'))
-const Canal           = dynamic(() => import('../_sections/Canal'))
+const Apoyo           = dynamic(() => import('../_sections/Apoyo'))
 const Agentes         = dynamic(() => import('../_sections/Agentes'))
 
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }): Promise<Metadata> {
@@ -47,6 +48,10 @@ export default async function SettingsSectionPage({
   searchParams: Promise<Record<string, string>>
 }) {
   const [{ section }, sp] = await Promise.all([params, searchParams])
+  // Federation (custom domain/subdomain/embed/agents) moved to its own page
+  // under Catálogo (catalog-management S6.2) — redirect the old URL rather
+  // than 404 a bookmarked/shared DNS-instructions link.
+  if (section === 'canal') redirect('/shop/manage/canal-propio')
   if (!isValidSection(section)) notFound()
 
   const stripeError = sp.stripe === 'error' ? (sp.reason ?? 'Error desconocido al conectar Stripe.') : null
@@ -66,26 +71,6 @@ export default async function SettingsSectionPage({
   // Narrowed alias — `shop` loses its non-null narrowing inside the nested
   // renderExtracted() closure, so capture it here where it's known non-null.
   const shopData = shop
-
-  // Custom-domain paywall: resolve entitlement only for the Canal section (the
-  // only section with the domain connect form). When not entitled (flag on, no
-  // grant/subscription), Canal renders the upsell instead of the connect form.
-  const domainEntitled = section === 'canal'
-    ? (await resolveDomainEntitlement(shop.metadata, { sellerClerkId: user.id })).entitled
-    : true
-
-  // Subdomain paywall (epic 07 · subdomain-pricing): resolve the seller's subdomain
-  // entitlement + subscription state for the Canal section so it can show the buy
-  // upsell (when not entitled) or the cadence-switch control (when on an active
-  // recurring subscription). One `getSubdomainSubscription` call feeds both the
-  // entitlement deriver (via `hasActiveSubscription`, so no double round-trip) and
-  // the UI's active/monthly flags.
-  const subdomainSub = section === 'canal'
-    ? await getSubdomainSubscription(user.id)
-    : null
-  const subdomainEntitled = section === 'canal'
-    ? (await resolveSubdomainEntitlement(shop.metadata, { hasActiveSubscription: subdomainSub?.active })).entitled
-    : true
 
   // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open).
   // Server-evaluated only for the Envíos section; when off, the section shows a
@@ -110,13 +95,6 @@ export default async function SettingsSectionPage({
   // itself at all. Cosmetic only; the backend (correosGate) is the real gate.
   const platformCorreosEnabled = section === 'envios'
     ? await isEnabled('shipping.correos_enabled')
-    : false
-
-  // Promoter Program (promoter.enabled, default OFF / fail-open). Resolved only for
-  // the Canal section, where the custom-domain SKU lives — when on, Canal shows the
-  // promoter-code field + discount preview before pay (Sprint 1; no charge wiring).
-  const promoterEnabled = section === 'canal'
-    ? await isEnabled('promoter.enabled')
     : false
 
   // Own-shop premium presentation (epic 07, Sprint 1) — the hero/featured
@@ -213,20 +191,10 @@ export default async function SettingsSectionPage({
             local_pickup: st.shipping?.local_pickup,
           }}
         />
-      case 'canal':
-        return <Canal initial={{
-          slug: (shopData as unknown as { slug: string }).slug,
-          custom_domain: (shopData as unknown as { custom_domain: string | null }).custom_domain ?? null,
-          custom_domain_verified: (shopData as unknown as { custom_domain_verified: boolean }).custom_domain_verified ?? false,
+      case 'apoyo':
+        return <Apoyo initial={{
           support: st.support ?? null,
           accent: st.theme?.accent_color ?? null,
-          domain_entitled: domainEntitled,
-          domain_lapsed: section === 'canal' && !!(meta?.custom_domain_lapsed),
-          promoter_enabled: promoterEnabled,
-          subdomain_entitled: subdomainEntitled,
-          subdomain_active: subdomainSub?.active ?? false,
-          subdomain_has_monthly: !!subdomainSub?.monthly_stripe_price_id,
-          subdomain_lapsed: section === 'canal' && !!(meta?.subdomain_lapsed),
         }} />
       case 'agentes':
         return <Agentes initial={{

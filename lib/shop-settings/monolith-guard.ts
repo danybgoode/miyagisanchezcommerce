@@ -32,11 +32,16 @@ export type MonolithOffense = {
 export const SETTINGS_DIR = 'app/(shell)/shop/manage/settings'
 
 /**
- * Line cap for any single settings component. The largest extracted section after
- * Sprint 4 is `_sections/Canal.tsx` (~1,063 lines); 1,200 clears it with headroom
- * while still flagging any slide back toward the ~4,000-line monolith.
+ * Line cap for any single settings component. `_sections/Canal.tsx` (~1,074
+ * lines, the previous largest) was split in catalog-management S6.2 —
+ * federation moved to its own page (`app/(shell)/shop/manage/canal-propio/`,
+ * OUTSIDE `SETTINGS_DIR` and thus out of this guard's scope by design) and the
+ * support widget became `_sections/Apoyo.tsx` (~122 lines). The largest
+ * remaining settings component is now `_sections/Envios.tsx` (~668 lines);
+ * 900 clears it with headroom while still flagging any slide back toward a
+ * monolith.
  */
-export const MAX_SETTINGS_COMPONENT_LINES = 1200
+export const MAX_SETTINGS_COMPONENT_LINES = 900
 
 /** Filenames that must never come back. Matched by basename. */
 export const BANNED_SETTINGS_BASENAMES = new Set(['ShopSettings.tsx'])
