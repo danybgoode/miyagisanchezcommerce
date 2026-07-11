@@ -8,7 +8,10 @@ import {
   SELLER_NAV_MOBILE_PRIMARY,
   SELLER_NAV_MOBILE_OVERFLOW,
   activeSellerNavHref,
+  filterNavByEnabledFlags,
+  filterEntriesByEnabledFlags,
 } from '../lib/seller-nav'
+import type { FlagKey } from '../lib/flags'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -111,6 +114,44 @@ test.describe('seller-mode · SELLER_NAV config', () => {
         expect(entry.icon.startsWith('iconoir-')).toBe(true)
       }
     }
+  })
+})
+
+// ── Story 5.1 — R13 flag-safe nav parity ────────────────────────────────────
+
+test.describe('seller-mode · filterNavByEnabledFlags (R13 flag-safe nav parity)', () => {
+  test('Ganancias carries the ops.profit_enabled gate', () => {
+    const ganancias = SELLER_NAV[2].entries.find(e => e.key === 'ganancias')
+    expect(ganancias?.flag).toBe('ops.profit_enabled')
+  })
+
+  test('flag OFF: Ganancias is absent from the rail; every other entry stays', () => {
+    const filtered = filterNavByEnabledFlags(SELLER_NAV, new Set<FlagKey>())
+    const allLabels = filtered.flatMap(g => g.entries.map(e => e.label))
+    expect(allLabels).not.toContain('Ganancias')
+    // Nothing else in Crecer was dropped — the group itself survives (6 of 7 left).
+    const crecer = filtered.find(g => g.key === 'crecer')
+    expect(crecer?.entries.map(e => e.label)).toEqual([
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas',
+    ])
+  })
+
+  test('flag ON: Ganancias is present in the rail, in its original position', () => {
+    const filtered = filterNavByEnabledFlags(SELLER_NAV, new Set<FlagKey>(['ops.profit_enabled']))
+    const crecer = filtered.find(g => g.key === 'crecer')
+    expect(crecer?.entries.map(e => e.label)).toEqual([
+      'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
+    ])
+  })
+
+  test('a group left with zero entries after filtering is dropped entirely (defensive)', () => {
+    const oneEntryGroup = [{ key: 'x', label: 'X', entries: [{ key: 'y', label: 'Y', href: '/shop/manage/y', icon: 'iconoir-y', flag: 'ops.profit_enabled' as FlagKey }] }]
+    expect(filterNavByEnabledFlags(oneEntryGroup, new Set<FlagKey>())).toEqual([])
+  })
+
+  test('filterEntriesByEnabledFlags applies the same gate to a flat entry list (the mobile overflow)', () => {
+    expect(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW, new Set<FlagKey>()).map(e => e.label)).not.toContain('Ganancias')
+    expect(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW, new Set<FlagKey>(['ops.profit_enabled'])).map(e => e.label)).toContain('Ganancias')
   })
 })
 

@@ -8,8 +8,11 @@ import {
   SELLER_NAV_MOBILE_PRIMARY,
   SELLER_NAV_MOBILE_OVERFLOW,
   activeSellerNavHref,
+  filterNavByEnabledFlags,
+  filterEntriesByEnabledFlags,
   type SellerNavEntry,
 } from '@/lib/seller-nav'
+import type { FlagKey } from '@/lib/flags'
 
 // ── Desktop left rail ─────────────────────────────────────────────────────────
 function RailItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) {
@@ -62,10 +65,12 @@ function BarItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) 
   )
 }
 
-export default function SellerNav() {
+export default function SellerNav({ enabledFlags = new Set() }: { enabledFlags?: ReadonlySet<FlagKey> }) {
   const pathname = usePathname() ?? ''
   const active = activeSellerNavHref(pathname)
   const [moreOpen, setMoreOpen] = useState(false)
+  const railGroups = filterNavByEnabledFlags(SELLER_NAV, enabledFlags)
+  const overflowEntries = filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW, enabledFlags)
 
   return (
     <>
@@ -83,7 +88,7 @@ export default function SellerNav() {
           alignSelf: 'flex-start',
         }}
       >
-        {SELLER_NAV.map(group => (
+        {railGroups.map(group => (
           <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span
               style={{
@@ -138,7 +143,7 @@ export default function SellerNav() {
               gap: 2,
             }}
           >
-            {SELLER_NAV_MOBILE_OVERFLOW.map(entry => (
+            {overflowEntries.map(entry => (
               <Link
                 key={entry.key}
                 href={entry.href}

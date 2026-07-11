@@ -3,6 +3,8 @@ import Link from 'next/link'
 import SellerNav from './SellerNav'
 import SellerAnnouncementStrip from './SellerAnnouncementStrip'
 import { getActiveAnnouncement } from '@/lib/announcements'
+import { isEnabled, type FlagKey } from '@/lib/flags'
+import { SELLER_NAV } from '@/lib/seller-nav'
 
 /**
  * Seller-mode shell for `/shop/manage/*`.
@@ -30,6 +32,17 @@ export default async function SellerManageLayout({ children }: { children: React
   if (whiteLabel) return <>{children}</>
 
   const announcement = await getActiveAnnouncement('seller')
+
+  // R13 flag-safe nav parity (catalog-management S5 · Story 5.1): resolve every
+  // distinct flag the nav config references via the SAME isEnabled() the gated
+  // pages use — never fork the read — so a flagged entry (e.g. Ganancias) only
+  // renders when its page would actually resolve. `headers()` above already
+  // opts this layout into dynamic rendering, so the flag read is never stale.
+  const navFlagKeys = Array.from(new Set(
+    SELLER_NAV.flatMap(group => group.entries.map(entry => entry.flag)).filter((f): f is FlagKey => !!f)
+  ))
+  const navFlagResults = await Promise.all(navFlagKeys.map(flag => isEnabled(flag)))
+  const enabledFlags = new Set<FlagKey>(navFlagKeys.filter((_, i) => navFlagResults[i]))
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -103,7 +116,7 @@ export default async function SellerManageLayout({ children }: { children: React
           paddingTop: 20,
         }}
       >
-        <SellerNav />
+        <SellerNav enabledFlags={enabledFlags} />
         <main
           style={{
             flex: 1,

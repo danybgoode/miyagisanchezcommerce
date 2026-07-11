@@ -12,7 +12,13 @@
  * table (Sprint 1 · Story 1.2) instead of the old `/shop/manage#anuncios` jump-link —
  * the dashboard keeps only a compact summary card. "Precios" is deliberately NOT added
  * yet — that page ships in a later catalog-management sprint; the nav never links a 404.
+ *
+ * `import type` only for `FlagKey` — erased at compile time, so this file stays
+ * next-free/pure even though `lib/flags.ts` itself is `server-only` (catalog-management
+ * epic, Sprint 5 · Story 5.1 — R13 flag-safe nav parity).
  */
+
+import type { FlagKey } from './flags'
 
 export interface SellerNavEntry {
   /** Stable id for keys/tests. */
@@ -23,6 +29,8 @@ export interface SellerNavEntry {
   href: string
   /** Iconoir class (icons are loaded globally in `app/layout.tsx`). */
   icon: string
+  /** When set, the entry only renders while this flag is ON (server-resolved via `isEnabled()`). */
+  flag?: FlagKey
 }
 
 export interface SellerNavGroup {
@@ -63,9 +71,11 @@ export const SELLER_NAV: SellerNavGroup[] = [
       { key: 'eventos', label: 'Eventos', href: '/shop/manage/eventos', icon: 'iconoir-calendar' },
       { key: 'sorteos', label: 'Sorteos', href: '/shop/manage/sweepstakes', icon: 'iconoir-gift' },
       { key: 'analitica', label: 'Analíticas', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
-      // Behind ops.profit_enabled: the page itself notFound()s while the flag
-      // is OFF (profit-analyzer S1 · US-3) — the nav entry is harmless dark.
-      { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins' },
+      // Gated on ops.profit_enabled: the page itself still notFound()s while the
+      // flag is OFF (profit-analyzer S1 · US-3), but the entry is now ALSO hidden
+      // nav-side (catalog-management S5 · Story 5.1 — R13) so a seller never taps
+      // into that 404 in the first place.
+      { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins', flag: 'ops.profit_enabled' },
     ],
   },
   {
@@ -92,6 +102,26 @@ export const SELLER_NAV_MOBILE_OVERFLOW: SellerNavEntry[] = [
   ...SELLER_NAV[2].entries,
   ...SELLER_NAV[3].entries,
 ]
+
+/**
+ * Drops any entry whose `flag` is set and not present in `enabledFlags`, and any
+ * group left with zero entries (defensive — doesn't happen with today's config,
+ * but keeps the function correct if a whole group is ever flag-gated later).
+ * Pure — the server resolves `enabledFlags` via `isEnabled()`, this just filters.
+ */
+export function filterNavByEnabledFlags(groups: SellerNavGroup[], enabledFlags: ReadonlySet<FlagKey>): SellerNavGroup[] {
+  return groups
+    .map(group => ({
+      ...group,
+      entries: group.entries.filter(entry => !entry.flag || enabledFlags.has(entry.flag)),
+    }))
+    .filter(group => group.entries.length > 0)
+}
+
+/** Same filter as {@link filterNavByEnabledFlags}, for a flat entry list (the mobile overflow). */
+export function filterEntriesByEnabledFlags(entries: SellerNavEntry[], enabledFlags: ReadonlySet<FlagKey>): SellerNavEntry[] {
+  return entries.filter(entry => !entry.flag || enabledFlags.has(entry.flag))
+}
 
 /** Pathname portion of an href (drops any `#hash`). */
 function hrefPath(href: string): string {
