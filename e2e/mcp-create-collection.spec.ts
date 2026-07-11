@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { validateCollectionName } from '../lib/collection-derive'
 
 /**
  * panfleto-premium-shop · Sprint 2 — `create_collection` MCP tool. Closes a
@@ -7,13 +8,44 @@ import { test, expect } from '@playwright/test'
  * `mcp-order-read.spec.ts`'s pattern for a new seller-scoped mutation tool: no
  * `ms_agent_…` test-token fixture exists yet for a full live round-trip (a
  * real seeded shop) — that's the same owed gap `agent-connector.spec.ts` and
- * `mcp-order-read.spec.ts` already note — so this guards the auth boundary,
- * the tool's own input validation, and manifest wiring; the "creates a real
- * Medusa category" behavior is covered on the backend by
- * `seller-collections.unit.spec.ts` (the shared `createSellerCollection`
- * logic the internal route calls) plus `mcp-tool-dispatch-parity.spec.ts`
- * (every declared tool has a dispatch case, incl. this one).
+ * `mcp-order-read.spec.ts` already note. Auth (no-token / garbage-token) is
+ * necessarily untestable past the auth boundary without a real token — the
+ * name-validation path never runs when `resolveAgentShop` rejects first, so
+ * that logic is tested directly, pure, via `validateCollectionName`
+ * (`lib/collection-derive.ts`), the exact function `handleCreateCollection`
+ * calls. The "creates a real Medusa category" behavior is covered on the
+ * backend by `seller-collections.unit.spec.ts` (the shared
+ * `createSellerCollection` logic the internal route calls) plus
+ * `mcp-tool-dispatch-parity.spec.ts` (every declared tool has a dispatch
+ * case, incl. this one).
  */
+
+test.describe('create_collection — name validation (pure)', () => {
+  test('rejects empty, whitespace-only, and non-string names', () => {
+    expect(validateCollectionName('').ok).toBe(false)
+    expect(validateCollectionName('   ').ok).toBe(false)
+    expect(validateCollectionName(undefined).ok).toBe(false)
+    expect(validateCollectionName(123).ok).toBe(false)
+  })
+
+  test('rejects a name under 2 characters', () => {
+    const r = validateCollectionName('a')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('al menos 2 caracteres')
+  })
+
+  test('rejects a name over 60 characters', () => {
+    const r = validateCollectionName('x'.repeat(61))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('demasiado largo')
+  })
+
+  test('accepts and trims a valid name', () => {
+    const r = validateCollectionName('  Historias  ')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.name).toBe('Historias')
+  })
+})
 
 test.describe('create_collection MCP tool', () => {
   test('tools/list advertises create_collection with a required name field', async ({ request }) => {

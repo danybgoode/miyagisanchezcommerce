@@ -61,7 +61,7 @@ import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
 import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock } from '@/lib/seller-products'
 import { getShopCollections } from '@/lib/listings'
-import { shortCollectionSlug } from '@/lib/collection-derive'
+import { shortCollectionSlug, validateCollectionName } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
@@ -1650,10 +1650,10 @@ async function handleCreateCollection(args: Record<string, unknown>, authHeader?
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
-  const name = typeof args.name === 'string' ? args.name.trim() : ''
-  if (!name) return { isError: true, content: [{ type: 'text', text: 'El nombre de la colección es requerido.' }] }
+  const validated = validateCollectionName(args.name)
+  if (!validated.ok) return { isError: true, content: [{ type: 'text', text: validated.error }] }
 
-  const result = await createSellerCollectionViaInternal(shop.slug, name)
+  const result = await createSellerCollectionViaInternal(shop.slug, validated.name)
   if (!result.ok || !result.collection) {
     return { isError: true, content: [{ type: 'text', text: `No se pudo crear la colección: ${result.error}` }] }
   }
@@ -1664,7 +1664,7 @@ async function handleCreateCollection(args: Record<string, unknown>, authHeader?
   const shaped = { name: result.collection.name, slug: shortCollectionSlug(result.collection.handle, shop.slug) }
   return {
     content: [
-      { type: 'text', text: `✅ Colección creada: «${shaped.name}» (slug: \`${shaped.slug}\`).\n\nUsa este nombre en update_listing's collection_names para asignarle anuncios.` },
+      { type: 'text', text: `✅ Colección creada: «${shaped.name}» (slug: \`${shaped.slug}\`).\n\nUsa este nombre en collection_names de update_listing para asignarle anuncios.` },
       { type: 'text', text: JSON.stringify({ collection: shaped }, null, 2) },
     ],
   }
