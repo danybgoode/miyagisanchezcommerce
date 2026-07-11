@@ -217,6 +217,27 @@ test.describe('seller-mode · hasRelayBadge (Story 5.2 — "Más" trigger relay 
   })
 })
 
+// ── Story 5.3 — one import door + mobile restore (F7, narrowed scope) ──────
+// Confirmed scope: only ManageDashboard.tsx's mobile-hidden "Importar" button is
+// fixed; the settings-page banner stays on its own distinct /shop/manage/settings/import
+// (store-configuration import — a different feature, not touched here).
+
+test.describe('seller-mode · Importar button mobile restore (Story 5.3, static source scan)', () => {
+  test('ManageDashboard.tsx: Importar is no longer mobile-hidden, and still routes to /shop/manage/import', async () => {
+    const content = await readFile(path.join(repoRoot, 'app/(shell)/shop/manage/ManageDashboard.tsx'), 'utf8')
+    const importarBlockMatch = content.match(/<Link\s+href="\/shop\/manage\/import"[\s\S]{0,120}?>/)
+    expect(importarBlockMatch, 'Importar <Link> block not found').not.toBeNull()
+    const block = importarBlockMatch![0]
+    expect(block).not.toMatch(/hidden\s+sm:inline-block/)
+    expect(block).toContain('href="/shop/manage/import"')
+  })
+
+  test('settings/page.tsx import banner is untouched — stays on its own distinct route', async () => {
+    const content = await readFile(path.join(repoRoot, 'app/(shell)/shop/manage/settings/page.tsx'), 'utf8')
+    expect(content).toContain('href="/shop/manage/settings/import"')
+  })
+})
+
 test.describe('seller-mode · activeSellerNavHref', () => {
   test('dashboard highlights Resumen', () => {
     expect(activeSellerNavHref('/shop/manage')).toBe('/shop/manage')
