@@ -1,7 +1,7 @@
 /**
  * Admin platform-coupon management (Clerk admin-gated via withAdmin). Proxies to
  * the backend /internal/platform-coupons route, which mints coupons owned by the
- * platform `miyagiprints` shop — redeemable on print-ad checkout.
+ * platform-owned seller — redeemable on print-ad checkout.
  *
  *   GET    /api/admin/coupons            — list platform coupons
  *   POST   /api/admin/coupons            — create one

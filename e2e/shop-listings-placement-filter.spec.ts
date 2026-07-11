@@ -4,7 +4,7 @@ import { isPrintPlacementListing } from '../lib/listing-query'
 /**
  * Custom print products · Sprint 1, Story 1.1 — shop-storefront placement filter.
  *
- * Print-ad placement products (miyagiprints tier products minted by the
+ * Print-ad placement products (platform-seller tier products minted by the
  * print-edition flow, `metadata.is_print_placement`) must never render as a
  * real, buyable listing on any shop-storefront surface (marketplace `/s/[slug]`,
  * subdomain, custom domain, embed, sitemap, PDP "more from this shop") — they're
@@ -35,5 +35,13 @@ test.describe('shop-listings-placement-filter · invariant', () => {
     expect(isPrintPlacementListing(null)).toBe(false)
     expect(isPrintPlacementListing(undefined)).toBe(false)
     expect(isPrintPlacementListing({})).toBe(false)
+  })
+
+  test('the guard is seller-identity-independent — panfleto-premium-shop S1', () => {
+    // Reassigning WHICH Medusa seller owns the placement product (Sprint 1's
+    // whole point) must not weaken this filter: it fires on the metadata flag
+    // alone, regardless of seller_id.
+    expect(isPrintPlacementListing({ is_print_placement: true, seller_id: 'sel_platform_owned' })).toBe(true)
+    expect(isPrintPlacementListing({ is_print_placement: true, seller_id: 'sel_some_other_merchant' })).toBe(true)
   })
 })

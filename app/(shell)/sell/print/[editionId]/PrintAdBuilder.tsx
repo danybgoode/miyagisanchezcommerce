@@ -35,8 +35,14 @@ function formatMXN(cents: number): string {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function PrintAdBuilder({
-  edition, prefill, listings, initialSubmissionId,
-}: { edition: BuilderEdition; prefill: SellerPrefill; listings: BuilderListing[]; initialSubmissionId?: string | null }) {
+  edition, prefill, listings, initialSubmissionId, platformSellerId,
+}: {
+  edition: BuilderEdition
+  prefill: SellerPrefill
+  listings: BuilderListing[]
+  initialSubmissionId?: string | null
+  platformSellerId: string | null
+}) {
   const availableTiers = edition.tiers.filter((t) => !t.sold_out)
 
   const [tierKey, setTierKey] = useState<string>(availableTiers[0]?.key ?? '')
@@ -183,10 +189,14 @@ export default function PrintAdBuilder({
   async function applyCoupon() {
     const code = couponInput.trim().toUpperCase()
     if (!code || !tier) return
+    if (!platformSellerId) {
+      setCouponError('No se pudo validar el cupón.')
+      return
+    }
     setCouponValidating(true)
     setCouponError(null)
     try {
-      const qs = new URLSearchParams({ sellerId: 'miyagiprints', code, itemsCents: String(tier.price_cents) })
+      const qs = new URLSearchParams({ sellerId: platformSellerId, code, itemsCents: String(tier.price_cents) })
       const res = await fetch(`/api/checkout/validate-coupon?${qs}`)
       const data = await res.json() as { valid?: boolean; code?: string; discount_cents?: number; message?: string }
       if (!res.ok || !data.valid) {

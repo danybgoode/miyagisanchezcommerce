@@ -17,7 +17,7 @@ import { db } from '@/lib/supabase'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { tg } from '@/lib/telegram'
-import { getMiyagiprintsSellerId, tierOccupancy, remainingForTier } from '@/lib/print-server'
+import { getPlatformSellerId, tierOccupancy, remainingForTier } from '@/lib/print-server'
 import { isEnabled } from '@/lib/flags'
 import { getPromoterByClerkId, getPromoterSettings, resolvePromoterDiscount } from '@/lib/promoter'
 import { ensurePromoterPlatformCouponCode } from '@/lib/promoter-coupon-server'
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
   const user = await currentUser().catch(() => null)
   const buyerEmail = user?.emailAddresses?.[0]?.emailAddress ?? undefined
   const clerkJwt = await getToken()
-  const miyagiprintsSellerId = await getMiyagiprintsSellerId()
+  const platformSellerId = await getPlatformSellerId()
   const isManual = body.provider === 'manual' || body.provider === 'spei' || body.provider === 'cash'
 
   // ── Drive the shared checkout flow ────────────────────────────────────────
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   try {
     result = await startCheckout({
       productId: tier.medusa_product_id,
-      sellerId: miyagiprintsSellerId ?? undefined,
+      sellerId: platformSellerId ?? undefined,
       provider: body.provider,
       buyerEmail,
       buyerFirstName: user?.firstName ?? undefined,
