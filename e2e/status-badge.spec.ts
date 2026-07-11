@@ -4,6 +4,7 @@ import {
   offerStatusToToken,
   offerQualityToToken,
   returnStatusToToken,
+  catalogStatusToToken,
 } from '../lib/status-badge'
 
 /**
@@ -11,6 +12,7 @@ import {
  * mapping (R1). No network; mirrors `ml-order-badge.spec.ts`'s pure-logic pattern.
  * Extended in S2 · Story 2.1 (adoption sweep) for the offer/quality/return
  * mappers the sweep added alongside — same file, same pure-logic pattern.
+ * Extended again in the S2.5 follow-up cleanup for `catalogStatusToToken`.
  */
 
 test.describe('status-badge · orderStatusToToken', () => {
@@ -73,5 +75,21 @@ test.describe('status-badge · returnStatusToToken', () => {
   test('unknown statuses read as neutral, never a raw color', () => {
     expect(returnStatusToToken('some_future_status')).toBe('neutral')
     expect(returnStatusToToken('')).toBe('neutral')
+  })
+})
+
+// The real vocabulary CatalogTable.tsx's `STATUS_LABEL` (via `deriveCatalogStatus`) resolves to.
+test.describe('status-badge · catalogStatusToToken', () => {
+  test('maps every known catalog listing status to a token', () => {
+    expect(catalogStatusToToken('activo')).toBe('success')
+    expect(catalogStatusToToken('pausado')).toBe('warning')
+    expect(catalogStatusToToken('borrador')).toBe('neutral')
+    expect(catalogStatusToToken('agotado')).toBe('danger')
+    expect(catalogStatusToToken('sobre_pedido')).toBe('info')
+  })
+
+  test('unknown statuses read as neutral, never a raw color', () => {
+    expect(catalogStatusToToken('some_future_status')).toBe('neutral')
+    expect(catalogStatusToToken('')).toBe('neutral')
   })
 })

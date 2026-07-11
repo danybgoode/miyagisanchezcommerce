@@ -65,3 +65,16 @@ const RETURN_STATUS_TOKEN: Record<string, StatusToken> = {
 export function returnStatusToToken(status: string): StatusToken {
   return RETURN_STATUS_TOKEN[status] ?? 'neutral'
 }
+
+const CATALOG_STATUS_TOKEN: Record<string, StatusToken> = {
+  activo: 'success',
+  pausado: 'warning',
+  borrador: 'neutral',
+  agotado: 'danger',
+  sobre_pedido: 'info',
+}
+
+/** Catalog listing status (`deriveCatalogStatus`) → one of the 5 semantic tokens. Unknown statuses read as neutral. */
+export function catalogStatusToToken(status: string): StatusToken {
+  return CATALOG_STATUS_TOKEN[status] ?? 'neutral'
+}
