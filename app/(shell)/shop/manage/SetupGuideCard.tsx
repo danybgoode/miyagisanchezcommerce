@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -35,10 +34,8 @@ export default function SetupGuideCard({
   initialDismissed: boolean
   shopSlug: string
 }) {
-  const router = useRouter()
   const { save } = useSettingsSave()
   const [dismissed, setDismissed] = useState(initialDismissed)
-  const [sharing, setSharing] = useState(false)
 
   const doneCount = steps.filter((step) => step.done).length
   const allDone = doneCount === steps.length
@@ -90,37 +87,6 @@ export default function SetupGuideCard({
     else pushAnalyticsEvent('guide_dismiss')
   }, [save])
 
-  const handleShare = useCallback(async () => {
-    setSharing(true)
-    pushAnalyticsEvent('first_share_tap', {}, { dedupeKey: `first_share_tap_${shopSlug}` })
-    try {
-      const url = typeof window !== 'undefined' ? `${window.location.origin}/s/${shopSlug}` : ''
-      if (!url) return
-
-      // Only a genuine share/copy marks the step done — canceling the native
-      // share sheet (AbortError) is not a completion.
-      let completed = false
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        try {
-          await navigator.share({ title: 'Mi tienda en Miyagi Sánchez', url })
-          completed = true
-        } catch (err) {
-          if ((err as Error)?.name !== 'AbortError') {
-            completed = await navigator.clipboard?.writeText(url).then(() => true).catch(() => false) ?? false
-          }
-        }
-      } else {
-        completed = await navigator.clipboard?.writeText(url).then(() => true).catch(() => false) ?? false
-      }
-
-      if (!completed) return
-      const ok = await save({ settings: { guide: { share_done: true } } })
-      if (ok) router.refresh()
-    } finally {
-      setSharing(false)
-    }
-  }, [save, shopSlug, router])
-
   if (dismissed || allDone) return null
 
   return (
@@ -159,15 +125,9 @@ export default function SetupGuideCard({
             {step.open && !step.done && (
               <div className="mt-2">
                 <p className="text-xs text-[var(--color-muted)] mb-2 leading-relaxed">{step.body}</p>
-                {step.id === 'comparte' ? (
-                  <Button type="button" variant="primary" size="sm" onClick={handleShare} disabled={sharing}>
-                    {sharing ? 'Compartiendo…' : step.ctaLabel}
-                  </Button>
-                ) : (
-                  <Link href={step.ctaHref} className="btn btn-primary btn-sm no-underline">
-                    {step.ctaLabel}
-                  </Link>
-                )}
+                <Link href={step.ctaHref} className="btn btn-primary btn-sm no-underline">
+                  {step.ctaLabel}
+                </Link>
               </div>
             )}
           </li>
