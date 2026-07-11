@@ -95,21 +95,27 @@ export default function SetupGuideCard({
     pushAnalyticsEvent('first_share_tap', {}, { dedupeKey: `first_share_tap_${shopSlug}` })
     try {
       const url = typeof window !== 'undefined' ? `${window.location.origin}/s/${shopSlug}` : ''
-      if (url) {
-        if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-          try {
-            await navigator.share({ title: 'Mi tienda en Miyagi Sánchez', url })
-          } catch (err) {
-            if ((err as Error)?.name !== 'AbortError') {
-              await navigator.clipboard?.writeText(url).catch(() => {})
-            }
+      if (!url) return
+
+      // Only a genuine share/copy marks the step done — canceling the native
+      // share sheet (AbortError) is not a completion.
+      let completed = false
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: 'Mi tienda en Miyagi Sánchez', url })
+          completed = true
+        } catch (err) {
+          if ((err as Error)?.name !== 'AbortError') {
+            completed = await navigator.clipboard?.writeText(url).then(() => true).catch(() => false) ?? false
           }
-        } else {
-          await navigator.clipboard?.writeText(url).catch(() => {})
         }
+      } else {
+        completed = await navigator.clipboard?.writeText(url).then(() => true).catch(() => false) ?? false
       }
-      await save({ settings: { guide: { share_done: true } } })
-      router.refresh()
+
+      if (!completed) return
+      const ok = await save({ settings: { guide: { share_done: true } } })
+      if (ok) router.refresh()
     } finally {
       setSharing(false)
     }
