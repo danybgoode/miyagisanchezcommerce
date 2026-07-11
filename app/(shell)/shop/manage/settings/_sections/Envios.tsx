@@ -620,11 +620,11 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
           {/* ── Correos de México (económico) ──────────────────────────── */}
           <div className="pt-4">
             {!initial.platform_correos_enabled && (
-              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+              <Banner variant="warning" className="mb-3">
                 <strong>Correos de México no está disponible todavía.</strong> Esta opción económica
                 está en preparación a nivel de plataforma. Tu configuración se conserva y se activará
                 en cuanto esté lista.
-              </div>
+              </Banner>
             )}
             <ToggleSwitch
               checked={correosEnabled}
@@ -638,15 +638,15 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                 {(() => {
                   const preview = quoteCorreos(packageWeightGrams)
                   return preview ? (
-                    <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 leading-relaxed">
+                    <Banner variant="success">
                       Con tu peso predeterminado ({packageWeightGrams} g), el comprador vería:{' '}
                       <strong>${(preview.totalCents / 100).toFixed(2)} MXN</strong>.
-                    </div>
+                    </Banner>
                   ) : (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+                    <Banner variant="warning">
                       Tu peso predeterminado ({packageWeightGrams} g) supera el máximo de Correos
                       Impresos (2000 g) — no se ofrecerá esta opción hasta que ajustes el peso.
-                    </div>
+                    </Banner>
                   )
                 })()}
                 <p className="text-xs text-[var(--color-muted)]">
