@@ -70,7 +70,7 @@ export async function getPlatformSellerId(): Promise<string | null> {
     return null
   }
   try {
-    const res = await medusaFetch(`/store/sellers/${slug}`)
+    const res = await medusaFetch(`/store/sellers/${encodeURIComponent(slug)}`)
     if (!res.ok) return null
     const { seller } = await res.json()
     _platformSellerId = seller?.id ?? null
