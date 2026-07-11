@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FlagPolarity } from '@/lib/flags-admin'
+import { sortFlagsByKey, paginate } from '@/lib/flags-admin-view'
+
+const PAGE_SIZE = 15
 
 /** One flag as rendered on the admin surface (page-merged: DB row ∪ known-flag default). */
 export type FlagView = {
@@ -26,6 +29,16 @@ export default function FlagsAdminClient({ initialFlags }: { initialFlags: FlagV
   const [flags, setFlags] = useState<FlagView[]>(initialFlags)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+
+  // Alphabetical by default — the list has grown past 25+ flags across many
+  // epics with no consistent order otherwise (insertion order = whenever each
+  // flag happened to be added).
+  const sorted = useMemo(() => sortFlagsByKey(flags), [flags])
+  const { pageItems, totalPages, page: currentPage } = useMemo(
+    () => paginate(sorted, page, PAGE_SIZE),
+    [sorted, page],
+  )
 
   async function toggle(flag: FlagView) {
     const next = !flag.enabled
@@ -85,6 +98,10 @@ export default function FlagsAdminClient({ initialFlags }: { initialFlags: FlagV
         <p style={{ color: 'var(--danger)', fontSize: 14, margin: '0 0 16px' }}>{error}</p>
       )}
 
+      <p style={{ color: 'var(--fg-muted)', fontSize: 12, margin: '0 0 8px' }}>
+        {sorted.length} funciones · orden alfabético · página {currentPage} de {totalPages}
+      </p>
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -97,7 +114,7 @@ export default function FlagsAdminClient({ initialFlags }: { initialFlags: FlagV
             </tr>
           </thead>
           <tbody>
-            {flags.map((f) => (
+            {pageItems.map((f) => (
               <tr key={f.key} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '8px 12px' }}>
                   <div style={{ fontFamily: 'var(--font-mono, monospace)' }}>{f.key}</div>
@@ -144,6 +161,36 @@ export default function FlagsAdminClient({ initialFlags }: { initialFlags: FlagV
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <button
+            onClick={() => setPage((p) => p - 1)}
+            disabled={currentPage <= 1}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 13,
+              fontWeight: 600, background: 'transparent', color: 'var(--fg)',
+              cursor: currentPage <= 1 ? 'default' : 'pointer', opacity: currentPage <= 1 ? 0.4 : 1,
+            }}
+          >
+            ← Anterior
+          </button>
+          <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={currentPage >= totalPages}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 13,
+              fontWeight: 600, background: 'transparent', color: 'var(--fg)',
+              cursor: currentPage >= totalPages ? 'default' : 'pointer', opacity: currentPage >= totalPages ? 0.4 : 1,
+            }}
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
     </div>
   )
 }
