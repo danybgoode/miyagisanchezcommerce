@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 26 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(26)
+  test('covers all 27 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(27)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -63,6 +63,9 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // S6) — kill-switch, fail-open ON (today's target behavior; OFF is the deliberate
     // instant rollback to buyer chrome).
     expect(FLAG_META['seller.shell_on_sell_enabled']).toEqual({ polarity: 'killswitch', default: true })
+    // Per-listing delivery_mode carrier|arranged (arranged-only-delivery epic S1) —
+    // enablement, fail-open OFF (every listing behaves as carrier until flipped).
+    expect(FLAG_META['shipping.arranged_only_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 

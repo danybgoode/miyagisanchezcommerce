@@ -2,6 +2,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import Link from 'next/link'
 import SellWizard from './SellWizard'
 import { getMySeller } from '@/lib/get-my-seller'
+import { isEnabled } from '@/lib/flags'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -107,11 +108,14 @@ export default async function SellPage() {
   // calls the same function, so this costs one Medusa round-trip per request,
   // not two.
   const existingShop = await getMySeller()
+  // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
+  // pre-launch; server-evaluated so the flag flip needs no client round-trip.
+  const arrangedOnlyEnabled = await isEnabled('shipping.arranged_only_enabled')
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {!existingShop && <AgentSetupNudge />}
-      <SellWizard existingShop={existingShop} />
+      <SellWizard existingShop={existingShop} arrangedOnlyEnabled={arrangedOnlyEnabled} />
     </div>
   )
 }

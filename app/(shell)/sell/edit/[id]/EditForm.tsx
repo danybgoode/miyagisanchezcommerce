@@ -43,6 +43,8 @@ interface EditableFields {
   state?: string
   municipio?: string
   estado_code?: string
+  /** Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'. */
+  delivery_mode?: 'carrier' | 'arranged' | null
 }
 
 export default function EditForm({
@@ -57,6 +59,7 @@ export default function EditForm({
   launchpadEnabled = false,
   initialExcerpt = '',
   inventoryChannelsEnabled = false,
+  arrangedOnlyEnabled = false,
 }: {
   id: string
   initial: EditableFields
@@ -97,6 +100,11 @@ export default function EditForm({
    * disponible" input renders (no mode a buy box won't honor).
    */
   inventoryChannelsEnabled?: boolean
+  /**
+   * shipping.arranged_only_enabled (arranged-only-delivery epic, Sprint 1 ·
+   * S1.2) — fail-safe OFF: while OFF, the "Entrega" toggle stays hidden.
+   */
+  arrangedOnlyEnabled?: boolean
 }) {
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
@@ -164,6 +172,10 @@ export default function EditForm({
   const isDigital = initial.listing_type === 'digital'
   const isProduct = initial.listing_type === 'product'
   const priceReadOnly = isSubscription
+
+  // Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'.
+  const initialDeliveryMode = initial.delivery_mode ?? 'carrier'
+  const [deliveryMode, setDeliveryMode] = useState<'carrier' | 'arranged'>(initialDeliveryMode)
 
   // Opciones (custom-print-products Story 2.4): a multi-variant listing has no
   // single flat price/stock — the backend 422s a bare `price_cents`/`quantity`
@@ -263,6 +275,12 @@ export default function EditForm({
       // AND changed; the route normalizes + clears on empty. Sending the raw
       // value keeps the client dumb (the server owns the trim/cap rules).
       if (launchpadEnabled && excerpt !== initialExcerpt) body.excerpt = excerpt
+      // Arranged-only delivery (epic, S1.2) — flag-gated at the toggle UI
+      // level, but dirty-check by value regardless (same discipline as
+      // inventory_mode above).
+      if (isProduct && arrangedOnlyEnabled && deliveryMode !== initialDeliveryMode) {
+        body.delivery_mode = deliveryMode
+      }
 
       const res = await fetch(`/api/sell/listing/${id}`, {
         method: 'PUT',
@@ -604,6 +622,40 @@ export default function EditForm({
                 El comprador verá &quot;Sobre pedido&quot; y este tiempo de envío estimado. Nunca se marca como agotado.
               </p>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Entrega (arranged-only delivery, epic S1.2) */}
+      {isProduct && arrangedOnlyEnabled && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+            Entrega
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { key: 'carrier' as const, label: '📦 Paquetería' },
+              { key: 'arranged' as const, label: '🤝 Acordada con el comprador' },
+            ]).map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setDeliveryMode(opt.key)}
+                className={`border rounded-[var(--r-md)] py-2.5 text-sm transition-all ${
+                  deliveryMode === opt.key
+                    ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] font-semibold'
+                    : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {deliveryMode === 'arranged' && (
+            <p className="text-xs text-[var(--color-muted)] mt-1.5">
+              🤝 El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
+              pago manual configurado para publicar.
+            </p>
           )}
         </div>
       )}

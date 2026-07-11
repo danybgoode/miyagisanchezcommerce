@@ -618,6 +618,8 @@ function StepListing({
   title, setTitle,
   category, setCategory,
   listingType, setListingType,
+  deliveryMode, setDeliveryMode,
+  arrangedOnlyEnabled,
   condition, setCondition,
   quantity, setQuantity,
   priceRaw, setPriceRaw,
@@ -641,6 +643,8 @@ function StepListing({
   title: string; setTitle: (v: string) => void
   category: string; setCategory: (v: string) => void
   listingType: ListingType; setListingType: (v: ListingType) => void
+  deliveryMode: 'carrier' | 'arranged'; setDeliveryMode: (v: 'carrier' | 'arranged') => void
+  arrangedOnlyEnabled: boolean
   condition: Condition; setCondition: (v: Condition) => void
   quantity: string; setQuantity: (v: string) => void
   priceRaw: string; setPriceRaw: (v: string) => void
@@ -776,6 +780,46 @@ function StepListing({
           </p>
         )}
       </div>
+
+      {/* Entrega (arranged-only delivery, epic S1.2) — 'servicio'/'renta' always
+          coordinate; only 'producto' gets an independent choice, and only once
+          the flag is on. */}
+      {(listingType === 'service' || listingType === 'rental') && (
+        <p className="text-xs text-[var(--color-muted)]">
+          🤝 Este tipo de anuncio siempre coordina la entrega directamente con el comprador.
+        </p>
+      )}
+      {arrangedOnlyEnabled && listingType === 'product' && (
+        <div>
+          <Label>Entrega</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { key: 'carrier' as const,  label: '📦 Paquetería',           hint: 'Envío a domicilio o recolección' },
+              { key: 'arranged' as const, label: '🤝 Acordada con el comprador', hint: 'Sin paquetería — coordinas fecha, lugar y pago' },
+            ]).map(t => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setDeliveryMode(t.key)}
+                title={t.hint}
+                className={`border rounded-[var(--r-md)] py-2.5 text-sm transition-all ${
+                  deliveryMode === t.key
+                    ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] font-semibold'
+                    : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {deliveryMode === 'arranged' && (
+            <p className="text-xs text-[var(--color-muted)] mt-1.5">
+              🤝 El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
+              pago manual configurado para publicar.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Multi-tier subscription builder */}
       {listingType === 'subscription' && (
@@ -1248,8 +1292,11 @@ function StepSuccess({
 
 export default function SellWizard({
   existingShop,
+  arrangedOnlyEnabled = false,
 }: {
   existingShop: ExistingShop | null
+  /** Arranged-only delivery (epic, S1.2) — gates the "Entrega" toggle's visibility. */
+  arrangedOnlyEnabled?: boolean
 }) {
   const hasShopStep = existingShop === null
   const initialStep = hasShopStep ? 1 : 2
@@ -1279,6 +1326,8 @@ export default function SellWizard({
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [listingType, setListingType] = useState<ListingType>('product')
+  // Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'.
+  const [deliveryMode, setDeliveryMode] = useState<'carrier' | 'arranged'>('carrier')
   const [condition, setCondition] = useState<Condition>('good')
   const [quantity, setQuantity] = useState('1')
   const [priceRaw, setPriceRaw] = useState('')
@@ -1412,6 +1461,9 @@ export default function SellWizard({
           condition: listingType === 'product' ? condition : undefined,
           quantity: listingType === 'product' ? Math.max(1, parseInt(quantity) || 1) : undefined,
           listing_type: listingType,
+          // Arranged-only delivery (epic, S1.2) — backend forces 'arranged' for
+          // service/rental regardless of this value, so it's safe to always send.
+          delivery_mode: deliveryMode,
           category,
           state: listingState || undefined,
           estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : undefined,
@@ -1525,6 +1577,8 @@ export default function SellWizard({
             title={title} setTitle={setTitle}
             category={category} setCategory={setCategory}
             listingType={listingType} setListingType={setListingType}
+            deliveryMode={deliveryMode} setDeliveryMode={setDeliveryMode}
+            arrangedOnlyEnabled={arrangedOnlyEnabled}
             condition={condition} setCondition={setCondition}
             quantity={quantity} setQuantity={setQuantity}
             priceRaw={priceRaw} setPriceRaw={setPriceRaw}
