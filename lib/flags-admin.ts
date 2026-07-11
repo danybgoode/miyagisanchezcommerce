@@ -57,6 +57,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // (a different provider, no funding gate, no comp-grant). Real enforcement
   // lives in the BACKEND (envia/rates + checkout-options routes).
   'shipping.correos_enabled': { polarity: 'enablement', default: false },
+  // Per-listing delivery_mode: 'carrier'|'arranged' (arranged-only-delivery epic
+  // S1). Enablement: default OFF ⇒ the seller "Entrega" toggle stays hidden and
+  // checkout-options ignores delivery_mode (every listing behaves as carrier).
+  // Real enforcement lives in the BACKEND (checkout-options + product-write routes).
+  'shipping.arranged_only_enabled': { polarity: 'enablement', default: false },
   'promoter.enabled': { polarity: 'enablement', default: false },
   'ml.connect_enabled': { polarity: 'enablement', default: false },
   'ml.import_enabled': { polarity: 'enablement', default: false },

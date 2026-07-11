@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -208,6 +208,15 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    Default OFF ⇒ the toggle stays disabled and the option never appears, so
  *    a flag outage can never surface an unreviewed rate. Enabling is the
  *    deliberate action.
+ *  - ENABLEMENT (`shipping.arranged_only_enabled`): default `false`
+ *    (arranged-only-delivery epic, Sprint 1). Mirrors the backend key of the
+ *    same name — real enforcement lives in the BACKEND (`checkout-options` +
+ *    the product-write routes); this FE key gates whether the seller-facing
+ *    "Entrega" toggle (carrier vs. arranged) appears at all in the listing
+ *    create/edit form. Default OFF ⇒ the toggle stays hidden and every
+ *    listing behaves as `carrier` (today), so a flag outage can never surface
+ *    an unreviewed arranged-only publish path. Enabling is the deliberate
+ *    action, done only after Daniel's live money-path smoke.
  *  - ENABLEMENT (`migrations.connector_enabled`): default `false` (epic
  *    platform-migrations, Sprint 1). Gates the Shopify-shop → staged
  *    supply-batch connector (the fetch/import seller routes + the
@@ -235,6 +244,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'events.quantity_enabled': false,
   'shipping.envia_enabled': false,
   'shipping.correos_enabled': false,
+  'shipping.arranged_only_enabled': false,
   'promoter.enabled': false,
   'ml.connect_enabled': false,
   'ml.import_enabled': false,
