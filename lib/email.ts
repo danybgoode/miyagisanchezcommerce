@@ -999,6 +999,14 @@ export async function sendBuyerReportedPaymentToSeller(ctx: {
 
 // ── Buyer: order shipped notification ─────────────────────────────────────────
 
+/**
+ * Correos de México Impresos (shipping-provider-expansion S3) ships through this
+ * same manual-carrier email — ordinary mail has NO tracking, so the generic
+ * "puedes rastrear tu envío" promise below is false for it. Keyed on the raw
+ * carrier id ('correos_mx', matching the checkout rate + the manual-ship form).
+ */
+const CORREOS_CARRIER_ID = 'correos_mx'
+
 export async function sendOrderShipped(ctx: {
   buyerEmail: string
   buyerName: string | null
@@ -1009,6 +1017,8 @@ export async function sendOrderShipped(ctx: {
   estimatedDelivery: string | null
   shopName: string
 }): Promise<void> {
+  const isCorreos = ctx.carrier === CORREOS_CARRIER_ID
+  const carrierDisplay = isCorreos ? 'Correos de México' : ctx.carrier
   const subject = `🚚 Tu pedido está en camino — ${ctx.listingTitle}`
   const greeting = ctx.buyerName ? `¡${ctx.buyerName}, tu pedido ya viene!` : '¡Tu pedido está en camino!'
   const deliveryStr = ctx.estimatedDelivery
@@ -1020,13 +1030,17 @@ export async function sendOrderShipped(ctx: {
     table([
       ['Producto', esc(ctx.listingTitle)],
       ['Vendedor', ctx.shopName],
-      ['Paquetería', ctx.carrier],
+      ['Paquetería', esc(carrierDisplay)],
       ...(ctx.trackingNumber ? [['Número de guía', `<span style="font-family:monospace">${esc(ctx.trackingNumber)}</span>`] as [string, string]] : []),
       ...(deliveryStr ? [['Entrega estimada', deliveryStr] as [string, string]] : []),
     ]),
-    p('Recibirás tu paquete pronto. Puedes rastrear el estado de tu envío en tu historial de compras.'),
+    isCorreos
+      ? p('Se envió por correo ordinario (Correos de México, categoría Impresos) — económico pero sin número de rastreo. Llega en 4 a 10 días hábiles.')
+      : p('Recibirás tu paquete pronto. Puedes rastrear el estado de tu envío en tu historial de compras.'),
     cta('Ver estado del pedido', ctx.orderUrl),
-    notice('Si no recibes tu paquete en la fecha estimada, contacta al vendedor desde tu historial de compras.'),
+    isCorreos
+      ? notice('Si no recibes tu paquete después de 10 días hábiles, contacta al vendedor desde tu historial de compras — este envío no tiene rastreo en línea.')
+      : notice('Si no recibes tu paquete en la fecha estimada, contacta al vendedor desde tu historial de compras.'),
   ].join('')
   await send(ctx.buyerEmail, subject, body)
 }

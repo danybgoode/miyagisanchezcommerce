@@ -493,6 +493,11 @@ export const CARRIER_LABELS: Record<string, string> = {
   redpack:       'Redpack',
   paquetexpress: 'Paquetexpress',
   manual:        'Envío propio',
+  // Correos de México Impresos (shipping-provider-expansion S3) — no
+  // carrierTrackingUrl entry below, deliberately: ordinary mail has no
+  // tracking, and carrierTrackingUrl() already returns null for any unknown
+  // carrier, so omitting it here is the honest default, not a gap.
+  correos_mx:    'Correos de México',
 }
 
 export function carrierLabel(carrier: string): string {

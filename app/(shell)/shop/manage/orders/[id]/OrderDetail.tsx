@@ -55,6 +55,8 @@ interface OrderDetailProps {
     currency: string
     shipping_method: string
     shipping_cost_cents: number
+    /** The carrier the buyer selected at checkout (e.g. 'correos_mx') — pre-fills the manual-ship form. */
+    checkout_shipping_carrier?: string | null
     shipping_address: Record<string, string> | null
     buyer_name: string | null
     buyer_email: string | null
@@ -204,11 +206,14 @@ function ShippingSection({
   orderId,
   shippingAddress,
   existingShipment,
+  checkoutShippingCarrier,
   onShipped,
 }: {
   orderId: string
   shippingAddress: Record<string, string> | null
   existingShipment: Shipment | null
+  /** The carrier the buyer picked at checkout (e.g. 'correos_mx') — pre-fills the manual form. */
+  checkoutShippingCarrier: string | null
   onShipped: (shipment: Partial<Shipment>) => void
 }) {
   const [mode, setMode] = useState<'choose' | 'envia' | 'manual'>('choose')
@@ -225,8 +230,9 @@ function ShippingSection({
   const [creatingLabel, setCreatingLabel] = useState(false)
   const [labelError, setLabelError]   = useState<string | null>(null)
 
-  // Manual state
-  const [manualCarrier, setManualCarrier] = useState('dhl')
+  // Manual state — pre-fills from the buyer's checkout selection (S3.4: a
+  // Correos Impresos order defaults straight to 'correos_mx', not 'dhl').
+  const [manualCarrier, setManualCarrier] = useState(checkoutShippingCarrier ?? 'dhl')
   const [manualTracking, setManualTracking] = useState('')
   const [manualCarrierLabel, setManualCarrierLabel] = useState('')
   const [sendingManual, setSendingManual] = useState(false)
@@ -514,6 +520,12 @@ function ShippingSection({
                 <input type="text" value={manualTracking} onChange={e => setManualTracking(e.target.value)}
                   placeholder="Ej: 123456789012"
                   className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                {manualCarrier === 'correos_mx' && (
+                  <p className="text-xs text-[var(--color-muted)] mt-1">
+                    El correo ordinario no tiene rastreo — déjalo vacío salvo que hayas usado correo
+                    registrado. El comprador recibirá el aviso sin promesa de guía.
+                  </p>
+                )}
               </div>
             </div>
             {manualError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {manualError}</p>}
@@ -1204,6 +1216,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             orderId={order.id}
             shippingAddress={order.shipping_address}
             existingShipment={currentShipment}
+            checkoutShippingCarrier={order.checkout_shipping_carrier ?? null}
             onShipped={handleShipped}
           />
         </div>
