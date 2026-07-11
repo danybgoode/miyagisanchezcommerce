@@ -20,7 +20,7 @@ import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { isMlOrder, mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
 import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-tags'
-import { orderStatusToToken } from '@/lib/status-badge'
+import { orderStatusToToken, returnStatusToToken } from '@/lib/status-badge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Toast, useToast } from '@/components/feedback/Toast'
 
@@ -165,7 +165,7 @@ function StatusStepper({ status }: { status: string }) {
         return (
           <div key={step.key} className="flex items-center flex-1">
             <div className="flex flex-col items-center flex-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+              <div className={`w-7 h-7 rounded-[var(--r-pill)] flex items-center justify-center text-xs font-bold transition-colors ${
                 done    ? 'bg-[var(--color-accent)] text-white' :
                 current ? 'bg-[var(--color-accent)] text-white ring-4 ring-[var(--color-accent)]/20' :
                           'bg-[var(--color-border)] text-[var(--color-muted)]'
@@ -321,10 +321,10 @@ function ShippingSection({
       : null
 
     return (
-      <section className="border border-[var(--color-border)] rounded-xl p-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5">
         <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Envío</h2>
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-lg">🚚</div>
+          <div className="w-10 h-10 rounded-[var(--r-pill)] bg-[var(--success-soft)] flex items-center justify-center flex-shrink-0 text-lg">🚚</div>
           <div className="flex-1">
             <p className="font-semibold text-sm">{carrierLabel(existingShipment.carrier)}</p>
             {existingShipment.tracking_number && (
@@ -338,13 +338,13 @@ function ShippingSection({
             <div className="flex gap-2 mt-2.5 flex-wrap">
               {existingShipment.label_url && (
                 <a href={existingShipment.label_url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white no-underline hover:bg-[var(--color-accent-hover)]">
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white no-underline hover:bg-[var(--color-accent-hover)]">
                   🖨 Imprimir guía
                 </a>
               )}
               {trackUrl && (
                 <a href={trackUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text)] no-underline hover:bg-[var(--color-surface-alt)]">
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] text-[var(--color-text)] no-underline hover:bg-[var(--color-surface-alt)]">
                   📍 Rastrear paquete
                 </a>
               )}
@@ -356,7 +356,7 @@ function ShippingSection({
   }
 
   return (
-    <section className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+    <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] overflow-hidden">
       <div className="px-5 pt-5 pb-3 border-b border-[var(--color-border)] bg-[var(--color-surface-alt)]">
         <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">Enviar pedido</h2>
         <p className="text-xs text-[var(--color-muted)] mt-1">
@@ -367,9 +367,9 @@ function ShippingSection({
       <div className="p-5">
         {/* Address missing warning */}
         {!hasAddress && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
-            <span className="text-amber-500 text-sm mt-0.5">⚠</span>
-            <p className="text-xs text-amber-800">
+          <div className="flex items-start gap-2 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2.5 mb-4">
+            <span className="text-[var(--warning)] text-sm mt-0.5">⚠</span>
+            <p className="text-xs text-[var(--warning)]">
               Este pedido no tiene dirección de envío registrada. Coordina la entrega directamente con el comprador.
             </p>
           </div>
@@ -381,7 +381,7 @@ function ShippingSection({
             <button
               type="button"
               onClick={() => setMode('envia')}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
+              className="flex flex-col items-center gap-2 p-4 rounded-[var(--r-lg)] border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
             >
               <span className="text-2xl">📦</span>
               <div>
@@ -392,7 +392,7 @@ function ShippingSection({
             <button
               type="button"
               onClick={() => setMode('manual')}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
+              className="flex flex-col items-center gap-2 p-4 rounded-[var(--r-lg)] border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
             >
               <span className="text-2xl">✏️</span>
               <div>
@@ -415,27 +415,27 @@ function ShippingSection({
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Peso (gramos)</label>
                 <input type="number" value={weightGrams} onChange={e => setWeightGrams(e.target.value)} min="1"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Largo (cm)</label>
                 <input type="number" value={lengthCm} onChange={e => setLengthCm(e.target.value)} min="1"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Ancho (cm)</label>
                 <input type="number" value={widthCm} onChange={e => setWidthCm(e.target.value)} min="1"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Alto (cm)</label>
                 <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} min="1"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
             </div>
-            {quoteError && <p className="text-red-600 text-xs mb-3">⚠ {quoteError}</p>}
+            {quoteError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {quoteError}</p>}
             <button type="button" onClick={getQuote} disabled={quotingRates}
-              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
               {quotingRates ? 'Cotizando…' : 'Ver tarifas disponibles →'}
             </button>
           </div>
@@ -455,7 +455,7 @@ function ShippingSection({
                   key={rate.rateId}
                   type="button"
                   onClick={() => setSelectedRate(rate)}
-                  className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${
+                  className={`w-full text-left flex items-center gap-3 p-3 rounded-[var(--r-lg)] border-2 transition-colors ${
                     selectedRate?.rateId === rate.rateId
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                       : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
@@ -473,9 +473,9 @@ function ShippingSection({
                 </button>
               ))}
             </div>
-            {labelError && <p className="text-red-600 text-xs mb-3">⚠ {labelError}</p>}
+            {labelError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {labelError}</p>}
             <button type="button" onClick={createLabel} disabled={!selectedRate || creatingLabel}
-              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
               {creatingLabel ? 'Generando guía…' : '📦 Generar guía y confirmar envío'}
             </button>
           </div>
@@ -492,7 +492,7 @@ function ShippingSection({
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Paquetería</label>
                 <select value={manualCarrier} onChange={e => setManualCarrier(e.target.value)}
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white">
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-[var(--bg-elevated)]">
                   {Object.entries(CARRIER_LABELS).filter(([k]) => k !== 'manual').map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
                   ))}
@@ -504,7 +504,7 @@ function ShippingSection({
                   <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Nombre de la paquetería</label>
                   <input type="text" value={manualCarrierLabel} onChange={e => setManualCarrierLabel(e.target.value)}
                     placeholder="Ej: Mensajero propio"
-                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
                 </div>
               )}
               <div>
@@ -513,12 +513,12 @@ function ShippingSection({
                 </label>
                 <input type="text" value={manualTracking} onChange={e => setManualTracking(e.target.value)}
                   placeholder="Ej: 123456789012"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
             </div>
-            {manualError && <p className="text-red-600 text-xs mb-3">⚠ {manualError}</p>}
+            {manualError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {manualError}</p>}
             <button type="button" onClick={sendManual} disabled={sendingManual}
-              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+              className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
               {sendingManual ? 'Guardando…' : '✓ Confirmar envío'}
             </button>
           </div>
@@ -538,12 +538,12 @@ const RETURN_REASON_LABELS: Record<string, string> = {
   other:            'Otro motivo',
 }
 
-const RETURN_STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending:        { label: 'Pendiente',         badge: 'bg-amber-100 text-amber-700' },
-  accepted:       { label: 'Aceptada',           badge: 'bg-green-100 text-green-700' },
-  partial_refund: { label: 'Reembolso parcial',  badge: 'bg-blue-100 text-blue-700' },
-  declined:       { label: 'Rechazada',          badge: 'bg-red-100 text-red-600' },
-  refunded:       { label: 'Reembolsado',        badge: 'bg-green-100 text-green-700' },
+const RETURN_STATUS_META: Record<string, { label: string }> = {
+  pending:        { label: 'Pendiente' },
+  accepted:       { label: 'Aceptada' },
+  partial_refund: { label: 'Reembolso parcial' },
+  declined:       { label: 'Rechazada' },
+  refunded:       { label: 'Reembolsado' },
 }
 
 export default function OrderDetail({ order }: OrderDetailProps) {
@@ -946,7 +946,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             )}
             {orderMeta.channel === 'custom_domain' && (
               <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                className="text-xs font-semibold px-2 py-0.5 rounded-[var(--r-pill)]"
                 style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
                 title="Venta originada en tu dominio propio"
               >
@@ -962,15 +962,15 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Status stepper */}
       {!['refunded', 'fulfilled'].includes(currentStatus) && (
-        <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
           <StatusStepper status={currentStatus} />
         </div>
       )}
 
       {/* Product + amount */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
+          <div className="w-16 h-16 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
             {thumb
               ? <img src={thumb} alt="" className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
@@ -1025,7 +1025,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             <div className="text-sm">
               {proofImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={proofImageUrl} alt="Prueba de impresión" className="w-full max-w-[200px] rounded-lg mb-2" />
+                <img src={proofImageUrl} alt="Prueba de impresión" className="w-full max-w-[200px] rounded-[var(--r-md)] mb-2" />
               )}
               <p className="text-[var(--color-muted)]">
                 {proofSize && <>Tamaño: {proofSize} · </>}
@@ -1049,7 +1049,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               )}
             </div>
           ) : (
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-medium cursor-pointer disabled:opacity-60">
+            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-medium cursor-pointer disabled:opacity-60">
               {sendingProof ? 'Enviando…' : 'Enviar prueba'}
               <input
                 type="file"
@@ -1066,14 +1066,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Boletos de entrada</h3>
             <div className="space-y-3">
               {(order.event_tickets ?? []).map((ticket, index) => (
-                <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
+                <div key={ticket.token} className="rounded-[var(--r-md)] border border-[var(--color-border)] p-3">
                   <div className="flex items-start gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
+                    <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-[var(--r-md)] border border-[var(--color-border)]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">Boleto {index + 1}</p>
                       <p className="text-xs text-[var(--color-muted)] mt-1">{ticket.state === 'redeemed' ? 'Presente' : 'Sin check-in'}</p>
-                      <code className="mt-2 block text-xs break-all bg-[var(--color-surface-alt)] rounded px-2 py-1">{ticket.token}</code>
+                      <code className="mt-2 block text-xs break-all bg-[var(--color-surface-alt)] rounded-[var(--r-xs)] px-2 py-1">{ticket.token}</code>
                     </div>
                   </div>
                 </div>
@@ -1084,7 +1084,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       </section>
 
       {/* Buyer info */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Comprador</h2>
         <div className="space-y-1.5 text-sm">
           <div className="flex items-center gap-2">
@@ -1101,21 +1101,21 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       </section>
 
       {/* Order tags (ml-orders-native S3 · US-7) */}
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Etiquetas</h2>
         <div className="flex flex-wrap gap-2 mb-3">
           {tags.length === 0 && <span className="text-xs text-[var(--color-muted)]">Sin etiquetas.</span>}
           {tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-subtle)] px-3 py-1 text-xs font-medium"
+              className="inline-flex items-center gap-1.5 rounded-[var(--r-pill)] bg-[var(--bg-sunk)] px-3 py-1 text-xs font-medium"
             >
               {tag}
               <button
                 type="button"
                 onClick={() => handleRemoveTag(tag)}
                 aria-label={`Quitar etiqueta ${tag}`}
-                className="text-[var(--color-muted)] hover:text-red-600"
+                className="text-[var(--color-muted)] hover:text-[var(--danger)]"
               >
                 ×
               </button>
@@ -1131,13 +1131,13 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             placeholder="Nueva etiqueta…"
             maxLength={30}
             disabled={tagBusy}
-            className="flex-1 text-sm border border-[var(--color-border)] rounded-lg px-3 py-1.5"
+            className="flex-1 text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5"
           />
           <button
             type="button"
             onClick={() => void handleAddTag()}
             disabled={tagBusy || !tagInput.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] disabled:opacity-50"
+            className="text-sm font-medium px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] disabled:opacity-50"
           >
             Agregar
           </button>
@@ -1146,7 +1146,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Mercado Libre detail (ml-orders-native S1 · US-3) */}
       {isMlOrder(order) && (
-        <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
           <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">
             Mercado Libre
           </h2>
@@ -1167,11 +1167,11 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* SPEI/cash: seller confirm payment received — precedes shipping (S2.1) */}
       {isSpeiOrder && !paymentReceived && (
-        <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
-          <p className="text-sm font-semibold text-amber-800 mb-1">
+        <div className="border border-[var(--warning)] bg-[var(--warning-soft)] rounded-[var(--r-lg)] p-4 mb-5">
+          <p className="text-sm font-semibold text-[var(--warning)] mb-1">
             {buyerReportedPaid ? 'El comprador avisó que ya pagó' : 'Pedido pendiente de pago'}
           </p>
-          <p className="text-xs text-amber-700 mb-3">
+          <p className="text-xs text-[var(--warning)] mb-3">
             {buyerReportedPaid
               ? 'El comprador reportó su pago directo. Verifica el depósito en tu cuenta bancaria y confírmalo.'
               : 'El comprador seleccionó SPEI/transferencia. Confirma cuando recibas el depósito en tu cuenta bancaria.'}
@@ -1180,17 +1180,17 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             type="button"
             onClick={handleConfirmPayment}
             disabled={confirmingPayment}
-            className="w-full bg-amber-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            className="w-full bg-[var(--warning)] text-[var(--fg-inverse)] py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-colors"
           >
             {confirmingPayment ? 'Confirmando…' : '✓ Confirmar pago recibido'}
           </button>
         </div>
       )}
       {isSpeiOrder && paymentReceived && (
-        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+        <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
             <span>✓</span>
-            <p className="text-sm font-semibold text-green-800">Pago por SPEI confirmado</p>
+            <p className="text-sm font-semibold text-[var(--success)]">Pago por SPEI confirmado</p>
           </div>
         </div>
       )}
@@ -1209,7 +1209,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         </div>
       )}
       {listing?.listing_type === 'product' && !paymentSettled && (
-        <div className="border border-[var(--color-border)] bg-[var(--color-surface-alt)] rounded-xl p-4 mb-5">
+        <div className="border border-[var(--color-border)] bg-[var(--color-surface-alt)] rounded-[var(--r-lg)] p-4 mb-5">
           <div className="flex items-center gap-2">
             <span>🔒</span>
             <p className="text-sm font-medium text-[var(--color-muted)]">{SHIP_BLOCKED_UI_NOTE}</p>
@@ -1219,29 +1219,29 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Escrow: seller can manually release funds */}
       {isEscrowOrder && !escrowCaptured && ['delivered', 'completed'].includes(currentStatus) && (
-        <div className="border border-purple-200 bg-purple-50/50 rounded-xl p-4 mb-5">
+        <div className="border border-[var(--info)] bg-[var(--info-soft)] rounded-[var(--r-lg)] p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
             <span>🔒</span>
-            <p className="text-sm font-semibold text-purple-800">Pago en custodia (escrow)</p>
+            <p className="text-sm font-semibold text-[var(--info)]">Pago en custodia (escrow)</p>
           </div>
-          <p className="text-xs text-purple-700 mb-3">
+          <p className="text-xs text-[var(--info)] mb-3">
             El pago está retenido hasta que el comprador confirme la recepción. Si el comprador no responde en 3 días después de la entrega, el pago se libera automáticamente.
           </p>
           <button
             type="button"
             onClick={handleReleaseEscrow}
             disabled={releasingEscrow}
-            className="w-full border border-purple-400 text-purple-700 py-2.5 rounded-lg text-sm font-semibold hover:bg-purple-100 disabled:opacity-50 transition-colors"
+            className="w-full border border-[var(--info)] text-[var(--info)] py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors"
           >
             {releasingEscrow ? 'Liberando…' : '🔓 Liberar pago manualmente'}
           </button>
         </div>
       )}
       {isEscrowOrder && escrowCaptured && (
-        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+        <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
             <span>✓</span>
-            <p className="text-sm font-semibold text-green-800">Pago de escrow liberado</p>
+            <p className="text-sm font-semibold text-[var(--success)]">Pago de escrow liberado</p>
           </div>
         </div>
       )}
@@ -1253,26 +1253,26 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         const paState = derivePickupAppointmentState(pickupAppt)
         const confirmed = paState === 'confirmada'
         return (
-          <div className={`border rounded-xl p-4 mb-5 ${confirmed ? 'border-green-200 bg-green-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
+          <div className={`border rounded-[var(--r-lg)] p-4 mb-5 ${confirmed ? 'border-[var(--success)] bg-[var(--success-soft)]' : 'border-[var(--warning)] bg-[var(--warning-soft)]'}`}>
             <div className="flex items-center justify-between mb-1">
-              <p className={`text-xs font-semibold uppercase tracking-wide ${confirmed ? 'text-green-700' : 'text-amber-700'}`}>📅 Cita de recolección</p>
-              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${confirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${confirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>📅 Cita de recolección</p>
+              <span className={`text-[11px] font-semibold rounded-[var(--r-pill)] px-2 py-0.5 ${confirmed ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--warning-soft)] text-[var(--warning)]'}`}>
                 {pickupAppointmentBadge(paState)}
               </span>
             </div>
-            <p className={`text-sm font-semibold ${confirmed ? 'text-green-900' : 'text-amber-900'}`}>{formatPickupAppointment(pickupAppt)}</p>
-            <p className={`text-xs mt-1 ${confirmed ? 'text-green-700' : 'text-amber-700'}`}>{whoActsNextPickup(pickupAppt, 'seller')}</p>
+            <p className={`text-sm font-semibold ${confirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>{formatPickupAppointment(pickupAppt)}</p>
+            <p className={`text-xs mt-1 ${confirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>{whoActsNextPickup(pickupAppt, 'seller')}</p>
             {!confirmed && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {canSellerConfirm(pickupAppt) && (
                   <button type="button" onClick={() => handlePickupAction('confirm')} disabled={pickupBusy}
-                    className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+                    className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
                     {pickupBusy ? 'Confirmando…' : '✓ Confirmar cita'}
                   </button>
                 )}
                 {canSellerReschedule(pickupAppt) && (
                   <button type="button" onClick={() => setReschedOpen(o => !o)} disabled={pickupBusy}
-                    className="text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                    className="text-sm font-semibold text-[var(--warning)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--warning-soft)] disabled:opacity-50 transition-colors">
                     Proponer otra hora
                   </button>
                 )}
@@ -1282,17 +1282,17 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               <div className="grid gap-2 mt-3">
                 <input type="date" value={reschedDate} min={new Date().toISOString().slice(0, 10)}
                   onChange={e => setReschedDate(e.target.value)}
-                  className="border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white" />
+                  className="border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--bg-elevated)]" />
                 <div className="grid gap-1">
                   {PICKUP_WINDOWS.map(w => (
                     <button key={w.key} type="button" onClick={() => setReschedWindow(w.key)}
-                      className={`text-left text-sm rounded-lg px-3 py-2 border ${reschedWindow === w.key ? 'border-amber-500 bg-amber-100 font-semibold' : 'border-amber-200 bg-white'}`}>
+                      className={`text-left text-sm rounded-[var(--r-md)] px-3 py-2 border ${reschedWindow === w.key ? 'border-[var(--warning)] bg-[var(--warning-soft)] font-semibold' : 'border-[var(--warning)] bg-[var(--bg-elevated)]'}`}>
                       {w.label}
                     </button>
                   ))}
                 </div>
                 <button type="button" onClick={() => handlePickupAction('reschedule')} disabled={pickupBusy || !reschedDate || !reschedWindow}
-                  className="text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                  className="text-sm font-semibold text-[var(--warning)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--warning-soft)] hover:bg-[var(--warning-soft)] disabled:opacity-50 transition-colors">
                   {pickupBusy ? 'Enviando…' : 'Enviar propuesta'}
                 </button>
               </div>
@@ -1302,20 +1302,20 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       })()}
 
       {isPickupOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
-        <div className="border border-amber-200 bg-amber-50/60 rounded-xl p-4 mb-5">
-          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">📍 Recolección en mano</p>
-          <p className="text-sm text-amber-800 mb-3">El comprador irá a recogerte el artículo{pickupAppt ? '' : '. Confírmale el horario y lugar por correo o mensaje'}. Coordina cualquier detalle por correo si hace falta.</p>
+        <div className="border border-[var(--warning)] bg-[var(--warning-soft)] rounded-[var(--r-lg)] p-4 mb-5">
+          <p className="text-xs font-semibold text-[var(--warning)] uppercase tracking-wide mb-1">📍 Recolección en mano</p>
+          <p className="text-sm text-[var(--warning)] mb-3">El comprador irá a recogerte el artículo{pickupAppt ? '' : '. Confírmale el horario y lugar por correo o mensaje'}. Coordina cualquier detalle por correo si hace falta.</p>
           {order.buyer_email && (
             <a
               href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, escríbeme para coordinar cuándo puedes venir a recoger tu pedido.`}
-              className="inline-flex text-sm font-semibold text-amber-800 border border-amber-300 rounded-lg px-4 py-2 hover:bg-amber-100 transition-colors mr-2"
+              className="inline-flex text-sm font-semibold text-[var(--warning)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--warning-soft)] transition-colors mr-2"
             >
               ✉ Escribir al comprador
             </a>
           )}
           {currentStatus !== 'delivered' && (
             <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
-              className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+              className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
               {updatingStatus ? 'Actualizando…' : '✓ Confirmar entrega en mano'}
             </button>
           )}
@@ -1329,7 +1329,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {order.rental_booking && (() => {
         const lines = formatRentalBookingLines(order.rental_booking, order.currency)
         return (
-          <div className="border border-[var(--border)] bg-[var(--bg-sunk)] rounded-xl p-4 mb-5">
+          <div className="border border-[var(--border)] bg-[var(--bg-sunk)] rounded-[var(--r-lg)] p-4 mb-5">
             <p className="text-xs font-semibold uppercase tracking-wide mb-1">📅 Reserva de renta</p>
             <p className="text-sm font-semibold">{lines.dates}</p>
             <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
@@ -1340,20 +1340,20 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       })()}
 
       {isCoordOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
-        <div className="border border-purple-200 bg-purple-50/60 rounded-xl p-4 mb-5">
-          <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1">🤝 Entrega acordada</p>
-          <p className="text-sm text-purple-800 mb-3">El comprador espera que te contactes para acordar cómo y cuándo recibe el artículo. Tienes 24 h para escribirle.</p>
+        <div className="border border-[var(--info)] bg-[var(--info-soft)] rounded-[var(--r-lg)] p-4 mb-5">
+          <p className="text-xs font-semibold text-[var(--info)] uppercase tracking-wide mb-1">🤝 Entrega acordada</p>
+          <p className="text-sm text-[var(--info)] mb-3">El comprador espera que te contactes para acordar cómo y cuándo recibe el artículo. Tienes 24 h para escribirle.</p>
           {order.buyer_email && (
             <a
               href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, compré tu artículo y quiero coordinarte la entrega.`}
-              className="inline-flex text-sm font-semibold text-purple-800 border border-purple-300 rounded-lg px-4 py-2 hover:bg-purple-100 transition-colors mr-2"
+              className="inline-flex text-sm font-semibold text-[var(--info)] border border-[var(--info)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--info-soft)] transition-colors mr-2"
             >
               ✉ Contactar al comprador
             </a>
           )}
           {['shipped', 'in_transit', 'processing'].includes(currentStatus) && (
             <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
-              className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+              className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
               {updatingStatus ? 'Actualizando…' : '✓ Confirmar entregado'}
             </button>
           )}
@@ -1362,22 +1362,22 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Quick status actions */}
       {currentStatus === 'paid' && (
-        <div className="border border-blue-200 bg-blue-50/50 rounded-xl p-4 mb-5">
-          <p className="text-sm font-medium text-blue-800 mb-3">
+        <div className="border border-[var(--info)] bg-[var(--info-soft)] rounded-[var(--r-lg)] p-4 mb-5">
+          <p className="text-sm font-medium text-[var(--info)] mb-3">
             {isPickupOrder ? '¿Ya tienes el artículo listo para entregar?' : isCoordOrder ? '¿Ya contactaste al comprador?' : '¿Ya preparaste el pedido?'}
           </p>
           <button type="button" onClick={() => updateStatus('processing')} disabled={updatingStatus}
-            className="text-sm font-semibold text-blue-700 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+            className="text-sm font-semibold text-[var(--info)] border border-[var(--info)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors">
             {updatingStatus ? 'Actualizando…' : '✓ Marcar como "En preparación"'}
           </button>
         </div>
       )}
 
       {['shipped', 'in_transit'].includes(currentStatus) && !isPickupOrder && !isCoordOrder && (
-        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 mb-5">
           <p className="text-sm font-medium mb-3">¿El comprador ya lo recibió?</p>
           <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
-            className="text-sm font-semibold text-green-700 border border-green-200 rounded-lg px-4 py-2 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+            className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
             {updatingStatus ? 'Actualizando…' : '✓ Marcar como entregado'}
           </button>
         </div>
@@ -1388,7 +1388,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         <button
           type="button"
           onClick={loadReturnRequest}
-          className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] border-dashed rounded-xl px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
+          className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] border-dashed rounded-[var(--r-lg)] px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
         >
           <span>↩</span>
           <span>Ver solicitudes de devolución</span>
@@ -1397,12 +1397,12 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* Return request panel */}
       {showReturnPanel && returnRequest && (
-        <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">Solicitud de devolución</h2>
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${RETURN_STATUS_META[returnRequest.status]?.badge ?? 'bg-gray-100 text-gray-600'}`}>
+            <StatusBadge token={returnStatusToToken(returnRequest.status)}>
               {RETURN_STATUS_META[returnRequest.status]?.label ?? returnRequest.status}
-            </span>
+            </StatusBadge>
           </div>
 
           <div className="space-y-1.5 text-sm mb-4">
@@ -1429,7 +1429,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   onChange={e => setReturnSellerNote(e.target.value)}
                   rows={2}
                   placeholder="Ej. Puedes enviar el artículo a la dirección que te indiqué por correo."
-                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                 />
               </div>
 
@@ -1443,7 +1443,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   value={partialRefundCents}
                   onChange={e => setPartialRefundCents(e.target.value)}
                   placeholder={`Máx. $${(order.amount_cents / 100).toFixed(0)}`}
-                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                 />
               </div>
 
@@ -1452,7 +1452,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   type="button"
                   onClick={() => handleReturnAction('accept')}
                   disabled={processingReturn}
-                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-green-400 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                  className="text-xs font-semibold py-2.5 rounded-[var(--r-md)] border-2 border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors"
                 >
                   ✓ Reembolso total
                 </button>
@@ -1460,7 +1460,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   type="button"
                   onClick={() => handleReturnAction('partial_refund')}
                   disabled={processingReturn || !partialRefundCents}
-                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                  className="text-xs font-semibold py-2.5 rounded-[var(--r-md)] border-2 border-[var(--info)] bg-[var(--info-soft)] text-[var(--info)] hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors"
                 >
                   ~ Parcial
                 </button>
@@ -1468,7 +1468,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   type="button"
                   onClick={() => handleReturnAction('decline')}
                   disabled={processingReturn}
-                  className="text-xs font-semibold py-2.5 rounded-lg border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                  className="text-xs font-semibold py-2.5 rounded-[var(--r-md)] border-2 border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50 transition-colors"
                 >
                   ✕ Rechazar
                 </button>
@@ -1503,14 +1503,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           reachable only via the manual rail backend-side, so the "Ya transferí" action
           always surfaces; show `confirmado` only on SPEI to avoid a redundant card box. */}
       {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
-        <div className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+        <div className={`border rounded-[var(--r-lg)] p-4 mb-5 ${refundState === 'confirmado' ? 'border-[var(--success)] bg-[var(--success-soft)]' : 'border-[var(--warning)] bg-[var(--warning-soft)]'}`}>
           <div className="flex items-center gap-2 mb-1">
             <span>{refundState === 'confirmado' ? '✓' : '🏦'}</span>
-            <p className={`text-sm font-semibold ${refundState === 'confirmado' ? 'text-green-800' : 'text-amber-800'}`}>
+            <p className={`text-sm font-semibold ${refundState === 'confirmado' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
               {refundBadge(refundState)}
             </p>
           </div>
-          <p className={`text-xs ${refundState === 'confirmado' ? 'text-green-700' : 'text-amber-700'}`}>
+          <p className={`text-xs ${refundState === 'confirmado' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
             {refundStateDetail(refundState)}
           </p>
           {canSellerMarkTransferred(refundState) && (
@@ -1518,29 +1518,29 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               type="button"
               onClick={handleMarkTransferred}
               disabled={markingTransfer}
-              className="mt-3 text-sm font-semibold py-2.5 px-4 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              className="mt-3 text-sm font-semibold py-2.5 px-4 rounded-[var(--r-md)] bg-[var(--warning)] text-[var(--fg-inverse)] hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {markingTransfer ? 'Marcando…' : '💸 Ya transferí'}
             </button>
           )}
           {refundState === 'transferencia_pendiente' && (
-            <p className="text-[11px] text-amber-700 mt-2">{whoActsNextRefund(refundState, 'seller')}</p>
+            <p className="text-[11px] text-[var(--warning)] mt-2">{whoActsNextRefund(refundState, 'seller')}</p>
           )}
         </div>
       )}
 
       {/* ── Seller-initiated refund — card/MP issued banner (instant) ─────────── */}
       {refundIssued && !isSpeiOrder && (
-        <div className="border border-green-200 bg-green-50/50 rounded-xl p-3 mb-5">
+        <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
             <span>✓</span>
-            <p className="text-sm font-semibold text-green-800">{refundIssuedBanner(false)}</p>
+            <p className="text-sm font-semibold text-[var(--success)]">{refundIssuedBanner(false)}</p>
           </div>
         </div>
       )}
 
       {canInitiateRefund && (
-        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 mb-5">
           {!showInitiateRefund ? (
             <>
               <p className="text-sm font-semibold mb-1">¿Necesitas reembolsar este pedido?</p>
@@ -1551,7 +1551,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               <button
                 type="button"
                 onClick={() => setShowInitiateRefund(true)}
-                className="text-sm font-semibold text-red-600 border border-red-200 rounded-lg px-4 py-2 bg-red-50 hover:bg-red-100 transition-colors"
+                className="text-sm font-semibold text-[var(--danger)] border border-[var(--danger)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] transition-colors"
               >
                 ↩ Iniciar reembolso
               </button>
@@ -1572,7 +1572,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   value={initiateAmount}
                   onChange={e => setInitiateAmount(e.target.value)}
                   placeholder={`Total: $${orderTotalPesos}`}
-                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                 />
               </div>
 
@@ -1583,7 +1583,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   onChange={e => setInitiateNote(e.target.value)}
                   rows={2}
                   placeholder="Ej. No pude conseguir el artículo, te reembolso el total. ¡Disculpa la molestia!"
-                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
                 />
               </div>
 
@@ -1592,7 +1592,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   type="button"
                   onClick={handleInitiateRefund}
                   disabled={initiatingRefund}
-                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-[var(--r-md)] bg-[var(--danger)] text-[var(--fg-inverse)] hover:opacity-90 disabled:opacity-50 transition-colors"
                 >
                   {initiatingRefund ? 'Emitiendo…' : initiateAmount.trim() ? 'Emitir reembolso parcial' : 'Emitir reembolso total'}
                 </button>
@@ -1600,7 +1600,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   type="button"
                   onClick={() => setShowInitiateRefund(false)}
                   disabled={initiatingRefund}
-                  className="px-4 py-2.5 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50 transition-colors"
+                  className="px-4 py-2.5 border border-[var(--color-border)] rounded-[var(--r-md)] text-sm text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1620,7 +1620,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {/* AI tip */}
       {canShip && (
-        <div className="flex items-start gap-2.5 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3">
+        <div className="flex items-start gap-2.5 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] px-4 py-3">
           <span className="text-base mt-0.5 flex-shrink-0">✦</span>
           <p className="text-xs text-[var(--color-muted)] leading-relaxed">
             <strong className="text-[var(--color-text)]">Tip:</strong> Incluye una nota de agradecimiento dentro del paquete.

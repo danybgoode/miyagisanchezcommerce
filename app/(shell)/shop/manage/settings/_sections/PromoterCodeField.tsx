@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 
 /**
  * Promoter Program (epic 08, Sprint 1) — a promoter-code field + discount PREVIEW
@@ -71,23 +72,24 @@ export default function PromoterCodeField({
           onChange={(e) => { setCode(e.target.value); setDiscountCents(null); setMsg(null); onCodeChange?.(e.target.value) }}
           placeholder="Código de promotor (PRM-…)"
           autoCapitalize="characters"
-          className="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+          className="w-full sm:w-64 text-xs px-3 py-2 rounded-[var(--r-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
         />
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={preview}
           disabled={checking || !code.trim()}
-          className="text-xs font-semibold px-3 py-2 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface)] disabled:opacity-50"
         >
           {checking ? 'Validando…' : 'Aplicar'}
-        </button>
+        </Button>
       </div>
       {discountCents !== null && (
         <p className="mt-1.5 text-xs text-[var(--color-accent)]" data-testid="promoter-discount-preview">
           Descuento de promotor: −{pesos(discountCents)} · Pagarías {pesos(Math.max(0, priceCents - discountCents))}
         </p>
       )}
-      {msg && <p className="mt-1.5 text-xs text-red-600">⚠ {msg}</p>}
+      {msg && <p className="mt-1.5 text-xs text-[var(--danger)]">⚠ {msg}</p>}
     </div>
   )
 }

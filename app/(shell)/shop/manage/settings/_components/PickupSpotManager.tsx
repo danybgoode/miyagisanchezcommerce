@@ -9,6 +9,7 @@
 
 import { useState } from 'react'
 import type { PickupSpot } from '@/lib/shop-settings/types'
+import { Button } from '@/components/ui/Button'
 
 export function PickupSpotManager({
   spots,
@@ -68,7 +69,7 @@ export function PickupSpotManager({
       {spots.length > 0 && (
         <div className="space-y-2 mb-3">
           {spots.map(spot => (
-            <div key={spot.id} className="flex items-start gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2.5">
+            <div key={spot.id} className="flex items-start gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2.5">
               <span className="text-base mt-0.5 flex-shrink-0">📍</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{spot.name}</p>
@@ -83,14 +84,14 @@ export function PickupSpotManager({
                 <button
                   type="button"
                   onClick={() => handleEdit(spot)}
-                  className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-2 py-1 border border-[var(--color-border)] rounded hover:bg-gray-50 transition-colors"
+                  className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-2 py-1 border border-[var(--color-border)] rounded-[var(--r-sm)] hover:bg-gray-50 transition-colors"
                 >
                   Editar
                 </button>
                 <button
                   type="button"
                   onClick={() => onUpdate(spots.filter(s => s.id !== spot.id))}
-                  className="text-xs text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition-colors"
+                  className="text-xs text-[var(--danger)] hover:text-[var(--danger)] px-2 py-1 border border-[var(--danger)] rounded-[var(--r-sm)] hover:bg-[var(--danger-soft)] transition-colors"
                 >
                   ×
                 </button>
@@ -101,30 +102,30 @@ export function PickupSpotManager({
       )}
 
       {showForm ? (
-        <div className="border border-[var(--color-accent)] rounded-lg p-3 space-y-2.5 bg-[var(--color-surface-alt)]">
+        <div className="border border-[var(--color-accent)] rounded-[var(--r-md)] p-3 space-y-2.5 bg-[var(--color-surface-alt)]">
           <p className="text-xs font-semibold text-[var(--color-foreground)]">
             {editId ? 'Editar punto' : 'Nuevo punto de entrega'}
           </p>
           <div>
             <label className="block text-xs font-medium mb-1">
-              Nombre del punto <span className="text-red-500">*</span>
+              Nombre del punto <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Casa matriz, Bodega norte, Local 12…"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1">
-              Dirección <span className="text-red-500">*</span>
+              Dirección <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               value={form.address}
               onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
               placeholder="Av. Insurgentes 1234, Col. Del Valle, CDMX"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -134,7 +135,7 @@ export function PickupSpotManager({
                 value={form.hours}
                 onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
                 placeholder="Lun-Vie 9am-6pm"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
             </div>
             <div>
@@ -143,7 +144,7 @@ export function PickupSpotManager({
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Tocar el timbre del 3er piso"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
             </div>
           </div>
@@ -155,12 +156,12 @@ export function PickupSpotManager({
                 value={form.scheduling_url}
                 onChange={e => setForm(f => ({ ...f, scheduling_url: e.target.value }))}
                 placeholder="https://cal.com/tu-usuario/recogida"
-                className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
               {schedulingLinks.length > 0 && (
                 <select
                   onChange={e => { if (e.target.value) setForm(f => ({ ...f, scheduling_url: e.target.value })) }}
-                  className="border border-[var(--color-border)] rounded px-2 py-1.5 text-xs bg-white focus:outline-none"
+                  className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-xs bg-[var(--bg-elevated)] focus:outline-none"
                   defaultValue=""
                 >
                   <option value="">Mis enlaces ▾</option>
@@ -172,31 +173,32 @@ export function PickupSpotManager({
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={resetForm}
-              className="flex-1 border border-[var(--color-border)] rounded py-1.5 text-sm hover:bg-gray-50 transition-colors">
+            <Button type="button" variant="secondary" size="sm" onClick={resetForm} className="flex-1">
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              size="sm"
               disabled={!form.name.trim() || !form.address.trim()}
               onClick={handleSubmit}
-              className="flex-1 bg-[var(--color-accent)] text-white rounded py-1.5 text-sm font-semibold disabled:opacity-40 hover:bg-[var(--color-accent-hover)] transition-colors"
+              className="flex-1"
             >
               {editId ? 'Guardar cambios' : 'Agregar punto'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setShowForm(true)}
-          className="w-full border-2 border-dashed border-[var(--color-border)] rounded-lg py-2.5 text-sm text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+          className="w-full border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-md)] py-2.5 text-sm text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
         >
           + Agregar punto de entrega
         </button>
       )}
 
-      <p className="text-xs text-[var(--color-muted)] mt-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 leading-relaxed">
+      <p className="text-xs text-[var(--color-muted)] mt-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 leading-relaxed">
         💡 Los compradores verán estos puntos al finalizar su compra. Próximamente podrán elegir el punto y agendar hora de recogida directamente desde el anuncio.
       </p>
     </div>

@@ -24,6 +24,8 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/Button'
 import { SectionTitle } from '../_components/SectionTitle'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { generateHex32 } from '@/lib/shop-settings/helpers'
@@ -77,7 +79,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
 
   return (
     <div>
-      <section id="webhook" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="webhook" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center justify-between mb-1">
           <SectionTitle>Conectar tu sistema</SectionTitle>
           <div className="-mt-3">
@@ -90,14 +92,14 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
 
         {/* Explainer cuando no hay URL */}
         {!webhookUrl && (
-          <div className="mb-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl p-4">
+          <div className="mb-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] p-4">
             <p className="text-xs font-semibold mb-2">¿Para qué sirve esto?</p>
             <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
               Cuando alguien compra en tu tienda, enviamos los datos del pedido (comprador, artículo, monto, dirección) a la URL que configures. Es como una llamada automática de &ldquo;llegó un pedido&rdquo; a tu sistema.
             </p>
             <div className="flex flex-wrap gap-2">
               {['Zapier', 'Make.com', 'n8n', 'CRM propio', 'ERP', 'Sistema de inventarios'].map(tool => (
-                <span key={tool} className="text-xs bg-white border border-[var(--color-border)] text-[var(--color-muted)] px-2.5 py-1 rounded-full">
+                <span key={tool} className="text-xs bg-[var(--bg-elevated)] border border-[var(--color-border)] text-[var(--color-muted)] px-2.5 py-1 rounded-[var(--r-pill)]">
                   {tool}
                 </span>
               ))}
@@ -126,12 +128,12 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
               }}
               type="url"
               placeholder="https://tu-sistema.com/pedidos"
-              className={`w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
-                webhookUrlError || webhookSaveError ? 'border-red-400' : 'border-[var(--color-border)]'
+              className={`w-full border rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
+                webhookUrlError || webhookSaveError ? 'border-[var(--danger)]' : 'border-[var(--color-border)]'
               }`}
             />
             {(webhookUrlError || webhookSaveError) && (
-              <p className="text-red-600 text-xs mt-1">⚠ {webhookUrlError || webhookSaveError}</p>
+              <p className="text-[var(--danger)] text-xs mt-1">⚠ {webhookUrlError || webhookSaveError}</p>
             )}
           </div>
 
@@ -141,14 +143,14 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium">Clave de seguridad</label>
                 {!webhookSecret && (
-                  <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                  <StatusBadge token="warning">
                     Se genera al guardar
-                  </span>
+                  </StatusBadge>
                 )}
               </div>
 
               {webhookSecret ? (
-                <div className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
                   <code className="flex-1 text-xs font-mono text-[var(--color-muted)] truncate">
                     {showWebhookSecret ? webhookSecret : '•'.repeat(Math.min(webhookSecret.length, 32))}
                   </code>
@@ -171,13 +173,13 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                   <button
                     type="button"
                     onClick={() => { setWebhookSecret(generateHex32()); mark() }}
-                    className="text-xs text-[var(--color-muted)] border border-[var(--color-border)] rounded px-2 py-0.5 hover:bg-gray-100 flex-shrink-0"
+                    className="text-xs text-[var(--color-muted)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-0.5 hover:bg-gray-100 flex-shrink-0"
                   >
                     Regenerar
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
                   🔐 Cuando guardes los cambios, se generará una clave secreta automáticamente. Úsala para verificar que las notificaciones vienen de Miyagi Sánchez.
                 </p>
               )}
@@ -199,7 +201,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
               {webhookAdvanced && (
                 <div className="mt-3 space-y-3 pl-3 border-l-2 border-[var(--color-border)]">
                   <p className="text-xs text-[var(--color-muted)]">
-                    Verifica la firma en el header <code className="font-mono bg-gray-100 px-1 rounded">X-UCP-Signature</code> usando HMAC-SHA256 con tu clave secreta y el cuerpo del request.
+                    Verifica la firma en el header <code className="font-mono bg-gray-100 px-1 rounded-[var(--r-xs)]">X-UCP-Signature</code> usando HMAC-SHA256 con tu clave secreta y el cuerpo del request.
                   </p>
                   <div>
                     <label className="block text-xs font-medium mb-1">Clave personalizada (opcional)</label>
@@ -209,10 +211,10 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                         onChange={e => { setWebhookSecret(e.target.value); mark() }}
                         type={showWebhookSecret ? 'text' : 'password'}
                         placeholder="Ingresa tu propia clave o usa la generada"
-                        className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                        className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                       />
                       <button type="button" onClick={() => setShowWebhookSecret(v => !v)}
-                        className="px-3 py-2 border border-[var(--color-border)] rounded text-xs hover:bg-gray-50">
+                        className="px-3 py-2 border border-[var(--color-border)] rounded-[var(--r-sm)] text-xs hover:bg-gray-50">
                         {showWebhookSecret ? 'Ocultar' : 'Ver'}
                       </button>
                     </div>
@@ -226,7 +228,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                   </button>
                   {showPayloadPreview && (
                     <div className="relative">
-                      <pre className="text-[10px] bg-gray-900 text-green-400 rounded-lg p-3 overflow-x-auto leading-relaxed">{`{
+                      <pre className="text-[10px] bg-gray-900 text-green-400 rounded-[var(--r-sm)] p-3 overflow-x-auto leading-relaxed">{`{
   "event": "order.completed",
   "order_id": "ord_abc123",
   "created_at": "2025-05-23T12:00:00Z",
@@ -248,7 +250,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText('{"event":"order.completed","order_id":"ord_abc123"}')}
-                        className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded"
+                        className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded-[var(--r-xs)]"
                       >
                         Copiar
                       </button>
@@ -273,40 +275,40 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
       <div className="flex items-center justify-end mb-24">
-        <button
+        <Button
           type="button"
+          variant="primary"
           onClick={handleSave}
           disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
         >
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        </Button>
       </div>
 
       {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[var(--bg-elevated)] border-t border-[var(--color-border)] shadow-lg">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-[var(--r-pill)] bg-[var(--warning)] flex-shrink-0" />
               Tienes cambios sin guardar
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => window.location.reload()}
-                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
               >
                 Descartar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Guardando…' : 'Guardar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

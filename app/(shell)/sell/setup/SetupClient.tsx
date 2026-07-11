@@ -20,13 +20,18 @@ import {
 } from '@/lib/setup-apply'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
 import { type BlockResult } from '@/lib/settings-import'
+import { Button } from '@/components/ui/Button'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Banner } from '@/components/feedback/Banner'
 
 // ── Copy-to-clipboard (mirrors the import clients) ────────────────────────────
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="sm"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text)
@@ -36,10 +41,9 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
           /* clipboard blocked — textarea is still selectable */
         }
       }}
-      className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
     >
       {copied ? '✓ Copiado' : `📋 ${label}`}
-    </button>
+    </Button>
   )
 }
 
@@ -47,21 +51,21 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 function BlockRow({ b }: { b: BlockResult }) {
   const ok = b.status === 'applied'
   return (
-    <div className={`rounded-lg border p-3 ${ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+    <Banner variant={ok ? 'success' : 'danger'}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold">{b.label}</span>
-        <span className={`text-xs font-semibold ${ok ? 'text-green-700' : 'text-red-700'}`}>
+        <span className="text-xs font-semibold">
           {ok ? `✓ ${b.appliedFields.length} campo(s)` : '✕ omitido'}
         </span>
       </div>
       {b.issues.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
           {b.issues.map((iss, i) => (
-            <li key={i} className="text-xs text-red-700">• {iss}</li>
+            <li key={i} className="text-xs">• {iss}</li>
           ))}
         </ul>
       )}
-    </div>
+    </Banner>
   )
 }
 
@@ -201,7 +205,7 @@ function FirstRunApply() {
 
       {/* ── Paste / upload the setup file ──────────────────────────────────── */}
       {!report && (
-        <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-4">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-4">
           <h2 className="font-semibold mb-1 flex items-center gap-2">
             <span className="text-xl">✨</span> Pega el archivo de tu agente
           </h2>
@@ -214,16 +218,16 @@ function FirstRunApply() {
             onChange={(e) => setPasteText(e.target.value)}
             rows={8}
             placeholder={'Pega aquí el objeto JSON completo: { "miyagi_setup_version": "1", "profile": {…}, "config": {…}, "catalog": [...] }'}
-            className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)] resize-y"
+            className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)] resize-y"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => inputRef.current?.click()}
-              className="border border-[var(--border)] text-[var(--fg)] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[var(--surface-muted)] transition-colors"
             >
               o sube un archivo (.json)
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => review(pasteText, 'paste')}
@@ -237,27 +241,25 @@ function FirstRunApply() {
         </section>
       )}
 
-      {error && (
-        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-      )}
+      {error && <Banner variant="danger" className="mt-2">{error}</Banner>}
 
       {/* ── Staging preview (before confirm) ───────────────────────────────── */}
       {validated && !report && (
         <div className="mt-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">
+              <StatusBadge token="success">
                 ✓ {validRows.length} {validRows.length === 1 ? 'producto listo' : 'productos listos'}
-              </span>
+              </StatusBadge>
               {configBlocks.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-sm font-semibold">
+                <StatusBadge token="info">
                   ⚙️ {configBlocks.length} bloque(s) de config
-                </span>
+                </StatusBadge>
               )}
               {errorRows.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
+                <StatusBadge token="danger">
                   ✕ {errorRows.length} con error
-                </span>
+                </StatusBadge>
               )}
             </div>
             <button
@@ -279,7 +281,7 @@ function FirstRunApply() {
 
           {/* Catalog staging grid (read-only — the agent emitted it) */}
           {catalogRows.length > 0 && (
-            <div className="rounded-2xl border border-[var(--border)] overflow-hidden">
+            <div className="rounded-[var(--r-lg)] border border-[var(--border)] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -295,15 +297,15 @@ function FirstRunApply() {
                     {catalogRows.map((s, i) => {
                       const cat = CATALOG_CATEGORY_KEYS.includes(s.row.category) ? s.row.category : (s.row.category || '—')
                       return (
-                        <tr key={i} className={`border-b border-[var(--color-border)] last:border-0 ${s.valid ? '' : 'bg-red-50/40'}`}>
+                        <tr key={i} className={`border-b border-[var(--color-border)] last:border-0 ${s.valid ? '' : 'bg-[var(--danger-soft)]'}`}>
                           <td className="py-2 px-3 min-w-[12rem]">{s.row.title || '(sin título)'}</td>
                           <td className="py-2 px-3">{cat}</td>
                           <td className="py-2 px-3 whitespace-nowrap">{s.row.price != null ? `$${s.row.price.toLocaleString('es-MX')}` : 'a convenir'}</td>
                           <td className="py-2 px-3 font-mono">{s.row.external_id || '—'}</td>
                           <td className="py-2 px-3 whitespace-nowrap">
                             {s.valid
-                              ? <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 font-semibold">Listo</span>
-                              : <span className="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-semibold" title={s.issues.find((iss) => iss.level === 'error')?.message}>Corregir</span>}
+                              ? <StatusBadge token="success">Listo</StatusBadge>
+                              : <StatusBadge token="danger" title={s.issues.find((iss) => iss.level === 'error')?.message}>Corregir</StatusBadge>}
                           </td>
                         </tr>
                       )
@@ -319,7 +321,7 @@ function FirstRunApply() {
               )}
               {applying && (
                 <div className="px-4 py-3 border-t border-[var(--color-border)]">
-                  <div className="h-2 rounded-full bg-[var(--color-border)] overflow-hidden">
+                  <div className="h-2 rounded-[var(--r-pill)] bg-[var(--color-border)] overflow-hidden">
                     <div
                       className="h-full bg-[var(--color-accent)] transition-all"
                       style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
@@ -365,13 +367,13 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
       {/* Result chips */}
       <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
         {catalog.created > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">✓ {catalog.created} creados</span>
+          <StatusBadge token="success">✓ {catalog.created} creados</StatusBadge>
         )}
         {catalog.updated > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-sm font-semibold">↻ {catalog.updated} actualizados</span>
+          <StatusBadge token="warning">↻ {catalog.updated} actualizados</StatusBadge>
         )}
         {catalog.failed > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">✕ {catalog.failed} fallaron</span>
+          <StatusBadge token="danger">✕ {catalog.failed} fallaron</StatusBadge>
         )}
       </div>
 
@@ -386,9 +388,9 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
       {failedRows.length > 0 && (
         <div className="space-y-2 mb-4">
           {failedRows.map((r, i) => (
-            <div key={i} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <Banner key={i} variant="danger">
               <strong>{r.title}</strong>: {r.reason}
-            </div>
+            </Banner>
           ))}
         </div>
       )}
@@ -430,10 +432,10 @@ function LoopClose({ shopSlug }: { shopSlug: string | null }) {
       </div>
 
       {/* 1 — the copyable shop-clerk operate-prompt */}
-      <section className="border border-[var(--color-border)] rounded-2xl p-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h4 className="font-semibold flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
             Tu agente como tu dependiente
           </h4>
           <CopyButton text={clerkPrompt} label="Copiar prompt del dependiente" />
@@ -447,21 +449,21 @@ function LoopClose({ shopSlug }: { shopSlug: string | null }) {
           value={clerkPrompt}
           onFocus={(e) => e.currentTarget.select()}
           rows={12}
-          className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
+          className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
         />
       </section>
 
       {/* 2 — the per-shop MCP token + config (reused ConnectAgentPanel) */}
-      <section className="border border-[var(--color-border)] rounded-2xl p-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5">
         <h4 className="font-semibold flex items-center gap-2 mb-3">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
           Conecta tu agente
         </h4>
         <ConnectAgentPanel />
       </section>
 
       {/* 3 — what's next */}
-      <section className="rounded-2xl bg-[var(--surface-muted)] p-5">
+      <section className="rounded-[var(--r-lg)] bg-[var(--surface-muted)] p-5">
         <h4 className="font-semibold mb-2">¿Qué sigue?</h4>
         <ul className="text-sm text-[var(--color-muted)] space-y-1.5">
           <li>
@@ -508,10 +510,10 @@ export default function SetupClient() {
 
       {/* How to produce the file — the S1 prompt + example, for sellers who don't have it yet */}
       <div className="mt-10 pt-6 border-t border-[var(--color-border)]">
-        <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-5">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
           <div className="flex items-start justify-between gap-3 mb-1">
             <h2 className="font-semibold flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
               Prompt para tu agente
             </h2>
             <CopyButton text={prompt} label="Copiar prompt" />
@@ -525,19 +527,19 @@ export default function SetupClient() {
             value={prompt}
             onFocus={(e) => e.currentTarget.select()}
             rows={12}
-            className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
+            className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
           />
         </section>
 
-        <section className="border border-[var(--color-border)] rounded-2xl p-5">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5">
           <div className="flex items-start justify-between gap-3 mb-1">
             <h2 className="font-semibold flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
               Ejemplo de archivo (versión {SETUP_SPEC_VERSION})
             </h2>
             <CopyButton text={exampleJson} label="Copiar ejemplo" />
           </div>
-          <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] overflow-x-auto max-h-80">
+          <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] overflow-x-auto max-h-80">
             {exampleJson}
           </pre>
         </section>

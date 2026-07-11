@@ -137,15 +137,15 @@ function OrderCard({
       />
       <Link
         href={`/shop/manage/orders/${order.id}`}
-        className={`no-underline block flex-1 min-w-0 rounded-xl border transition-all hover:shadow-sm ${
+        className={`no-underline block flex-1 min-w-0 rounded-[var(--r-lg)] border transition-all hover:shadow-sm ${
           urgent
-            ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
-            : 'border-[var(--color-border)] bg-white hover:border-[var(--color-accent)]'
+            ? 'border-[var(--warning)] bg-[var(--warning-soft)] hover:border-[var(--warning)]'
+            : 'border-[var(--color-border)] bg-[var(--bg-elevated)] hover:border-[var(--color-accent)]'
         }`}
       >
       <div className="flex items-start gap-3 p-4">
         {/* Thumbnail */}
-        <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
+        <div className="w-14 h-14 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
           {thumb
             ? <img src={thumb} alt="" className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
@@ -176,7 +176,7 @@ function OrderCard({
           {order.tags && order.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {order.tags.map(tag => (
-                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-subtle)] text-[var(--color-muted)]">
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-[var(--r-pill)] bg-[var(--bg-sunk)] text-[var(--color-muted)]">
                   {tag}
                 </span>
               ))}
@@ -199,14 +199,14 @@ function OrderCard({
 
       {/* Urgency footer */}
       {urgent && (
-        <div className="border-t border-amber-200 px-4 py-2 flex items-center gap-2">
-          <span className="text-amber-500 text-sm">⚡</span>
-          <p className="text-xs text-amber-700 font-medium">
+        <div className="border-t border-[var(--warning)] px-4 py-2 flex items-center gap-2">
+          <span className="text-[var(--warning)] text-sm">⚡</span>
+          <p className="text-xs text-[var(--warning)] font-medium">
             {isUnpaidManual
               ? whoActsNext(manualState!, 'seller')
               : order.status === 'paid' ? 'Confirma y prepara el envío' : 'Listo para enviar'}
           </p>
-          <span className="ml-auto text-xs text-amber-600 font-semibold">Ver →</span>
+          <span className="ml-auto text-xs text-[var(--warning)] font-semibold">Ver →</span>
         </div>
       )}
       </Link>
@@ -324,13 +324,13 @@ export default function OrdersInbox({
 
       {/* Urgency nudge */}
       {needsActionOrders.length > 0 && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+        <div className="flex items-start gap-3 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-lg)] px-4 py-3 mb-5">
           <span className="text-lg mt-0.5">⚡</span>
           <div>
-            <p className="text-sm font-semibold text-amber-800">
+            <p className="text-sm font-semibold text-[var(--warning)]">
               {needsActionOrders.length} pedido{needsActionOrders.length > 1 ? 's' : ''} esperando tu acción
             </p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-xs text-[var(--warning)] mt-0.5">
               Los compradores que no reciben actualizaciones en 24 h califican más bajo. Envía rápido.
             </p>
           </div>
@@ -339,13 +339,13 @@ export default function OrdersInbox({
 
       {/* Filter tabs */}
       {initialOrders.length > 0 && (
-        <div className="flex gap-1 mb-5 border border-[var(--color-border)] rounded-lg p-1 w-fit">
+        <div className="flex gap-1 mb-5 border border-[var(--color-border)] rounded-[var(--r-lg)] p-1 w-fit">
           {tabs.map(t => (
             <button
               key={t.key}
               type="button"
               onClick={() => setFilter(t.key)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-[var(--r-md)] text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 filter === t.key
                   ? 'bg-[var(--color-accent)] text-white'
                   : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
@@ -353,7 +353,7 @@ export default function OrdersInbox({
             >
               {t.label}
               {t.count > 0 && (
-                <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${
+                <span className={`text-[10px] rounded-[var(--r-pill)] px-1.5 py-0.5 font-bold ${
                   filter === t.key ? 'bg-white/25' : 'bg-[var(--color-border)] text-[var(--color-muted)]'
                 }`}>
                   {t.count}
@@ -372,10 +372,10 @@ export default function OrdersInbox({
               key={tag}
               type="button"
               onClick={() => setTagFilter(prev => (prev === tag ? null : tag))}
-              className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+              className={`text-xs px-2.5 py-1 rounded-[var(--r-pill)] font-medium transition-colors ${
                 tagFilter === tag
                   ? 'bg-[var(--color-accent)] text-white'
-                  : 'bg-[var(--color-subtle)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  : 'bg-[var(--bg-sunk)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
               {tag}
@@ -386,25 +386,25 @@ export default function OrdersInbox({
 
       {/* Bulk action bar (ml-orders-native S3 · US-8) */}
       {selected.size > 0 && (
-        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 bg-[var(--color-accent)] text-white rounded-xl px-4 py-2.5 mb-4">
+        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 bg-[var(--color-accent)] text-white rounded-[var(--r-lg)] px-4 py-2.5 mb-4">
           <span className="text-sm font-medium">
             {selected.size} seleccionado{selected.size !== 1 ? 's' : ''}
           </span>
           <div className="flex flex-wrap gap-1.5 ml-auto">
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('processing')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Procesando
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('shipped')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Enviado
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('delivered')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Entregado
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => setSelected(new Set())}
-              className="text-xs font-medium px-2 py-1 rounded-lg hover:bg-white/10">
+              className="text-xs font-medium px-2 py-1 rounded-[var(--r-md)] hover:bg-white/10">
               Cancelar
             </button>
           </div>
@@ -419,7 +419,7 @@ export default function OrdersInbox({
 
       {/* Orders list */}
       {displayedOrders.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-[var(--color-border)] rounded-xl">
+        <div className="text-center py-16 border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-lg)]">
           {filter === 'pending' && initialOrders.length > 0 ? (
             <>
               <div className="text-4xl mb-3">✓</div>
@@ -459,7 +459,7 @@ export default function OrdersInbox({
 
       {/* AI tip */}
       {initialOrders.length > 0 && (
-        <div className="mt-8 flex items-start gap-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3">
+        <div className="mt-8 flex items-start gap-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] px-4 py-3">
           <span className="text-base mt-0.5">✦</span>
           <p className="text-xs text-[var(--color-muted)] leading-relaxed">
             <strong className="text-[var(--color-text)]">Tip:</strong> Los vendedores que envían en menos de 24 h

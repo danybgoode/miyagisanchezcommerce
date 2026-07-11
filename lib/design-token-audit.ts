@@ -40,6 +40,17 @@ const sourceExtensions = new Set(['.css', '.js', '.jsx', '.ts', '.tsx'])
 const arbitraryHexClassPattern = /(?:bg|text|border|from|to|via|fill|stroke|ring|outline|decoration)-\[#[0-9a-fA-F]{3,8}\]/g
 const rawHexPattern = /#[0-9a-fA-F]{3,8}\b/g
 
+// ── seller-portal-rails-foundation S2 · Story 2.2 — adoption-sweep guards ──
+// Raw palette classes / bg-white / literal radii / toast-banner import location.
+// Same scan (app + lib), same exclusion lists, as the raw-color guards above.
+const rawPaletteClassPattern = /\b(?:bg|text|border)-(?:green|amber|red|blue|indigo|purple|yellow)-\d+\b/g
+const bgWhitePattern = /\bbg-white(?![\w/])/g
+// Bare `rounded` or a named Tailwind radius suffix, but NOT `rounded-[var(--r-*)]`
+// (the negative lookahead rejects a following `-` that isn't one of the named
+// suffixes, which is exactly what `rounded-[var(...)]` has).
+const literalRadiusPattern = /\brounded(-(?:none|xs|sm|md|lg|xl|2xl|3xl|full))?(?![-\w])/g
+const feedbackSymbolImportPattern = /import\s*(?:type\s*)?\{[^}]*\b(?:Toast|Banner)\b[^}]*\}\s*from\s*['"]([^'"]+)['"]/g
+
 export const guardExcludedPrefixes = [
   'app/(shell)/admin/',
   'app/api/',
@@ -142,6 +153,76 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'Storefront-as-Code example manifest needs a concrete persisted accent default',
   },
 ]
+
+// Two deliberately-styled dark "terminal" code/DNS-record previews (seller-portal-rails-
+// foundation S2 · Story 2.2) — a code-console color scheme, not a status-badge dialect.
+export const allowedRawPaletteRules: AllowedLiteralRule[] = [
+  {
+    path: 'app/(shell)/shop/manage/settings/_sections/Agentes.tsx',
+    literal: 'text-green-400',
+    contains: 'bg-gray-900 text-green-400',
+    reason: 'terminal-style JSON payload preview <pre> block, not a status indicator',
+  },
+  {
+    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    literal: 'bg-green-500',
+    contains: "bg-green-500/20 text-green-400",
+    reason: 'DNS record card "copied" glow state inside a dark terminal-style preview, not a status badge',
+  },
+  {
+    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    literal: 'text-green-400',
+    contains: "bg-green-500/20 text-green-400",
+    reason: 'DNS record card "copied" glow state inside a dark terminal-style preview, not a status badge',
+  },
+  {
+    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    literal: 'text-amber-300',
+    contains: 'text-white/30 mb-1',
+    reason: 'DNS record card terminal theme (TIPO field), not a status indicator',
+  },
+  {
+    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    literal: 'text-green-300',
+    contains: 'text-white/30 mb-1',
+    reason: 'DNS record card terminal theme (VALOR field), not a status indicator',
+  },
+]
+
+// The Story 2.1 adoption sweep's actual coverage (seller-portal-rails-foundation S2).
+// Story 2.2's hard gate enforces zero raw-palette/bg-white/literal-radius violations
+// only within this set — everything else in app/+lib/ is still scanned (for visibility)
+// but not yet required, matching Story 2.1's real scope rather than the whole app.
+// `CatalogTable.tsx` is deliberately NOT in this set: only its DeleteDialog/STATUS_LABEL
+// region was swept (the <td> render block + bulk-bar wiring are catalog-management PR
+// #209 territory) — add it here once that PR merges and the rest of the file is swept.
+export const enforcedSweptPaths = new Set<string>([
+  'app/(shell)/shop/manage/orders/OrdersInbox.tsx',
+  'app/(shell)/shop/manage/ManageDashboard.tsx',
+  'app/(shell)/shop/manage/PrintEditionCard.tsx',
+  'app/(shell)/sell/SellWizard.tsx',
+  'app/(shell)/sell/setup/SetupClient.tsx',
+  'app/(shell)/shop/manage/offers/OfferInbox.tsx',
+  'app/(shell)/shop/manage/orders/[id]/OrderDetail.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Notificaciones.tsx',
+  'app/(shell)/shop/manage/settings/_sections/PromoterCodeField.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Negociacion.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Pedidos.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Perfil.tsx',
+  'app/(shell)/shop/manage/settings/_sections/DomainPaywallUpsell.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Paginas.tsx',
+  'app/(shell)/shop/manage/settings/_sections/SubdomainSection.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Devoluciones.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Agentes.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Citas.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Diseno.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Pagos.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+  'app/(shell)/shop/manage/settings/_components/CopyPromptButton.tsx',
+  'app/(shell)/shop/manage/settings/_components/PickupSpotManager.tsx',
+  'app/(shell)/shop/manage/settings/_components/SectionSaveBar.tsx',
+  'app/(shell)/shop/manage/settings/_components/ToggleSwitch.tsx',
+])
 
 export const documentedContrastPairs: ContrastPair[] = [
   { name: 'Primary text on page canvas', foregroundToken: '--fg', backgroundToken: '--bg', minimumRatio: 4.5, textSize: 'body' },
@@ -263,6 +344,94 @@ export function findInvisibleAccentButtonOffendersInSourceFiles(files: SourceFil
   }
 
   return offenders
+}
+
+export async function findRawPaletteClassOffenders(repoRoot: string) {
+  return findRawPaletteClassOffendersInSourceFiles(await readSourceFiles(repoRoot))
+}
+
+export function findRawPaletteClassOffendersInSourceFiles(files: SourceFile[]) {
+  const offenders: RawColorOffense[] = []
+
+  for (const file of files) {
+    if (isGuardExcluded(file.filePath)) continue
+    for (const match of file.content.matchAll(rawPaletteClassPattern)) {
+      const offense = buildOffense(file, match)
+      if (!isAllowedRawPaletteLiteral(offense)) offenders.push(offense)
+    }
+  }
+
+  return offenders
+}
+
+export async function findBgWhiteOffenders(repoRoot: string) {
+  return findBgWhiteOffendersInSourceFiles(await readSourceFiles(repoRoot))
+}
+
+export function findBgWhiteOffendersInSourceFiles(files: SourceFile[]) {
+  const offenders: RawColorOffense[] = []
+
+  for (const file of files) {
+    if (isGuardExcluded(file.filePath)) continue
+    for (const match of file.content.matchAll(bgWhitePattern)) {
+      offenders.push(buildOffense(file, match))
+    }
+  }
+
+  return offenders
+}
+
+export async function findLiteralRadiusOffenders(repoRoot: string) {
+  return findLiteralRadiusOffendersInSourceFiles(await readSourceFiles(repoRoot))
+}
+
+export function findLiteralRadiusOffendersInSourceFiles(files: SourceFile[]) {
+  const offenders: RawColorOffense[] = []
+
+  for (const file of files) {
+    if (isGuardExcluded(file.filePath)) continue
+    for (const match of file.content.matchAll(literalRadiusPattern)) {
+      offenders.push(buildOffense(file, match))
+    }
+  }
+
+  return offenders
+}
+
+// Rail R6: only `components/feedback/` may render `<Toast>`/`<Banner>` — so importing
+// either symbol from anywhere else means a duplicate/bespoke implementation crept back in.
+export async function findFeedbackImportOffenders(repoRoot: string) {
+  return findFeedbackImportOffendersInSourceFiles(await readSourceFiles(repoRoot))
+}
+
+export function findFeedbackImportOffendersInSourceFiles(files: SourceFile[]) {
+  const offenders: RawColorOffense[] = []
+
+  for (const file of files) {
+    if (isGuardExcluded(file.filePath)) continue
+    if (file.filePath.startsWith('components/feedback/')) continue
+    for (const match of file.content.matchAll(feedbackSymbolImportPattern)) {
+      const modulePath = match[1]
+      if (!modulePath.includes('components/feedback/')) {
+        offenders.push(buildOffense(file, match))
+      }
+    }
+  }
+
+  return offenders
+}
+
+/** Only the violations inside Story 2.1's actual swept-file coverage (`enforcedSweptPaths`) — the hard gate. */
+export function withinEnforcedSweep(offenders: RawColorOffense[]) {
+  return offenders.filter((offense) => enforcedSweptPaths.has(offense.filePath))
+}
+
+function isAllowedRawPaletteLiteral(offense: RawColorOffense) {
+  return allowedRawPaletteRules.some((rule) =>
+    rule.path === offense.filePath &&
+    rule.literal.toLowerCase() === offense.literal.toLowerCase() &&
+    offense.line.includes(rule.contains)
+  )
 }
 
 export function formatOffense(offense: RawColorOffense) {

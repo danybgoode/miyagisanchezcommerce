@@ -27,3 +27,41 @@ const ORDER_STATUS_TOKEN: Record<string, StatusToken> = {
 export function orderStatusToToken(status: string): StatusToken {
   return ORDER_STATUS_TOKEN[status] ?? 'neutral'
 }
+
+const OFFER_STATUS_TOKEN: Record<string, StatusToken> = {
+  pending: 'warning',
+  countered: 'info',
+  accepted: 'success',
+  declined: 'neutral',
+  expired: 'neutral',
+  paid: 'success',
+}
+
+/** Offer lifecycle status (S2 rails sweep) → one of the 5 semantic tokens. Unknown statuses read as neutral. */
+export function offerStatusToToken(status: string): StatusToken {
+  return OFFER_STATUS_TOKEN[status] ?? 'neutral'
+}
+
+const OFFER_QUALITY_TOKEN: Record<'green' | 'amber' | 'red', StatusToken> = {
+  green: 'success',
+  amber: 'warning',
+  red: 'danger',
+}
+
+/** `offerQuality()`'s green/amber/red color (lib/offers.ts) → one of the 5 semantic tokens. */
+export function offerQualityToToken(color: 'green' | 'amber' | 'red'): StatusToken {
+  return OFFER_QUALITY_TOKEN[color]
+}
+
+const RETURN_STATUS_TOKEN: Record<string, StatusToken> = {
+  pending: 'warning',
+  accepted: 'success',
+  partial_refund: 'info',
+  declined: 'danger',
+  refunded: 'success',
+}
+
+/** Return-request status → one of the 5 semantic tokens. Unknown statuses read as neutral. */
+export function returnStatusToToken(status: string): StatusToken {
+  return RETURN_STATUS_TOKEN[status] ?? 'neutral'
+}

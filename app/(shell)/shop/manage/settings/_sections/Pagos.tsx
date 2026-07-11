@@ -22,6 +22,8 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
+import { Button } from '@/components/ui/Button'
 import { SectionTitle } from '../_components/SectionTitle'
 import { ToggleSwitch } from '../_components/ToggleSwitch'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
@@ -34,9 +36,9 @@ const MX_BANKS = [
 ]
 
 const ESCROW_OPTIONS: { key: 'off' | 'optional' | 'required'; label: string; desc: string; color: string }[] = [
-  { key: 'off',      label: 'Desactivado',  desc: 'Sin Compra Protegida. El comprador paga directo al vendedor.',    color: 'border-gray-300 bg-gray-50' },
-  { key: 'optional', label: 'Opcional',     desc: 'El comprador puede elegir activar la protección de pago.',        color: 'border-amber-300 bg-amber-50' },
-  { key: 'required', label: 'Obligatorio',  desc: 'Todos los pagos pasan por Compra Protegida sin excepción.',       color: 'border-green-400 bg-green-50' },
+  { key: 'off',      label: 'Desactivado',  desc: 'Sin Compra Protegida. El comprador paga directo al vendedor.',    color: 'border-[var(--neutral)] bg-[var(--neutral-soft)]' },
+  { key: 'optional', label: 'Opcional',     desc: 'El comprador puede elegir activar la protección de pago.',        color: 'border-[var(--warning)] bg-[var(--warning-soft)]' },
+  { key: 'required', label: 'Obligatorio',  desc: 'Todos los pagos pasan por Compra Protegida sin excepción.',       color: 'border-[var(--success)] bg-[var(--success-soft)]' },
 ]
 
 export interface PagosInitial {
@@ -120,7 +122,7 @@ export default function Pagos({
       {/* ════════════════════════════════════════════════════════════════════
           Compra Protegida (escrow)
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="proteccion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="proteccion" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center justify-between mb-3">
           <SectionTitle>Compra Protegida</SectionTitle>
           <div className="flex items-center gap-2 -mt-3">
@@ -136,8 +138,8 @@ export default function Pagos({
         </div>
 
         {showEscrowExplainer && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-blue-800 mb-3">¿Cómo funciona Compra Protegida?</p>
+          <div className="mb-4 bg-[var(--info-soft)] border border-[var(--info)] rounded-[var(--r-lg)] p-4">
+            <p className="text-xs font-semibold text-[var(--info)] mb-3">¿Cómo funciona Compra Protegida?</p>
             <div className="flex items-start gap-1 flex-wrap sm:flex-nowrap">
               {[
                 { icon: '💳', title: 'Comprador paga',    desc: 'El monto se cobra de forma segura' },
@@ -148,14 +150,14 @@ export default function Pagos({
                 <div key={step.title} className="flex items-center gap-1">
                   <div className="text-center min-w-[72px]">
                     <div className="text-xl mb-1">{step.icon}</div>
-                    <div className="text-[11px] font-semibold text-blue-800 leading-tight">{step.title}</div>
-                    <div className="text-[10px] text-blue-600 leading-tight mt-0.5">{step.desc}</div>
+                    <div className="text-[11px] font-semibold text-[var(--info)] leading-tight">{step.title}</div>
+                    <div className="text-[10px] text-[var(--info)] leading-tight mt-0.5">{step.desc}</div>
                   </div>
-                  {i < arr.length - 1 && <span className="text-blue-400 font-bold hidden sm:block mx-1">→</span>}
+                  {i < arr.length - 1 && <span className="text-[var(--info)] font-bold hidden sm:block mx-1">→</span>}
                 </div>
               ))}
             </div>
-            <p className="text-xs text-blue-700 mt-3 pt-2 border-t border-blue-200">
+            <p className="text-xs text-[var(--info)] mt-3 pt-2 border-t border-[var(--info)]">
               💡 Si el comprador no confirma la recepción en <strong>3 días hábiles</strong>, los fondos se liberan automáticamente. Powered by Stripe.
             </p>
           </div>
@@ -165,7 +167,7 @@ export default function Pagos({
           {ESCROW_OPTIONS.map(opt => (
             <label
               key={opt.key}
-              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+              className={`flex items-center gap-3 p-3 rounded-[var(--r-md)] border-2 cursor-pointer transition-all ${
                 escrowMode === opt.key
                   ? `border-[var(--color-accent)] ${opt.color}`
                   : 'border-[var(--color-border)] hover:border-gray-400'
@@ -188,21 +190,21 @@ export default function Pagos({
         </div>
 
         {escrowMode === 'required' && (
-          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+          <Banner variant="warning" className="mt-3 text-xs">
             <strong>Impacto para el comprador:</strong> El pago quedará retenido hasta que confirme haber recibido el producto. Algunos compradores pueden preferir tiendas sin esta restricción.
-          </div>
+          </Banner>
         )}
         {escrowMode === 'off' && (
-          <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800">
+          <Banner variant="success" className="mt-3 text-xs">
             <strong>Impacto para el comprador:</strong> El pago va directo al vendedor al momento de pagar. El proceso es más rápido para el comprador.
-          </div>
+          </Banner>
         )}
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════
           Pagos con tarjeta (Stripe)
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="stripe" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="stripe" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center justify-between mb-1">
           <SectionTitle>Pagos con tarjeta (Stripe)</SectionTitle>
           <div className="-mt-3">
@@ -214,28 +216,28 @@ export default function Pagos({
         </p>
 
         {stripeError && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+          <Banner variant="danger" className="mb-4 text-xs">
             <span className="font-semibold">Error al conectar Stripe:</span>{' '}{stripeError}
-          </div>
+          </Banner>
         )}
 
         {initial.stripe?.charges_enabled ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+            <div className="flex items-center gap-3 bg-[var(--success-soft)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-3">
+              <div className="w-8 h-8 rounded-[var(--r-pill)] bg-[var(--success-soft)] flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--success)]">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-green-800">Cuenta Stripe conectada</div>
-                <div className="text-xs text-green-700 mt-0.5">Tu cuenta está activa y lista para recibir pagos con tarjeta.</div>
+                <div className="text-sm font-semibold text-[var(--success)]">Cuenta Stripe conectada</div>
+                <div className="text-xs text-[var(--success)] mt-0.5">Tu cuenta está activa y lista para recibir pagos con tarjeta.</div>
               </div>
-              <a href="/api/stripe/connect/dashboard" className="text-xs text-green-700 underline hover:text-green-900 flex-shrink-0">
+              <a href="/api/stripe/connect/dashboard" className="text-xs text-[var(--success)] underline hover:opacity-80 flex-shrink-0">
                 Gestionar →
               </a>
             </div>
-            <div className="border border-[var(--color-border)] rounded-lg divide-y divide-[var(--color-border)]">
+            <div className="border border-[var(--color-border)] rounded-[var(--r-md)] divide-y divide-[var(--color-border)]">
               <ToggleSwitch
                 checked={stripeEnabled}
                 onChange={v => { setStripeEnabled(v); mark() }}
@@ -244,36 +246,36 @@ export default function Pagos({
               />
             </div>
             {stripeEnabled ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 space-y-0.5">
+              <Banner variant="success" className="text-xs">
                 <p className="font-semibold">Lo que verán los compradores:</p>
                 <p>✓ Botón &ldquo;Pagar con tarjeta&rdquo; visible en cada anuncio</p>
                 <p>✓ Checkout seguro de Stripe — Visa, Mastercard, AMEX</p>
                 <p>✓ El pago llega a tu cuenta Stripe directamente</p>
-              </div>
+              </Banner>
             ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+              <Banner variant="warning" className="text-xs">
                 El botón de pago con tarjeta estará <strong>oculto</strong> en tus anuncios mientras esté desactivado.
-              </div>
+              </Banner>
             )}
           </div>
         ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-4">
+          <div className="bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-3">
               <span className="text-xl">⚠️</span>
               <div>
-                <div className="text-sm font-semibold text-amber-800">Configuración pendiente</div>
-                <div className="text-xs text-amber-700 mt-0.5">
+                <div className="text-sm font-semibold text-[var(--warning)]">Configuración pendiente</div>
+                <div className="text-xs text-[var(--warning)] mt-0.5">
                   Completa la configuración de tu cuenta Stripe para empezar a cobrar.
                 </div>
               </div>
             </div>
             <a href="/api/stripe/connect/refresh"
-              className="flex items-center justify-center gap-2 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-amber-700 transition-colors">
+              className="flex items-center justify-center gap-2 w-full bg-[var(--warning)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm no-underline hover:opacity-90 transition-colors">
               Completar configuración →
             </a>
           </div>
         ) : (
-          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-4">
+          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-4">
               <span className="text-2xl">💳</span>
               <div>
@@ -287,7 +289,7 @@ export default function Pagos({
               </div>
             </div>
             <a href="/api/stripe/connect"
-              className="flex items-center justify-center gap-2 w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm no-underline hover:bg-[var(--color-accent-hover)] transition-colors">
+              className="btn btn-primary flex items-center justify-center gap-2 w-full">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
               </svg>
@@ -303,7 +305,7 @@ export default function Pagos({
       {/* ════════════════════════════════════════════════════════════════════
           MercadoPago
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="mercadopago" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="mercadopago" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center justify-between mb-1">
           <SectionTitle>Mercado Pago</SectionTitle>
           <div className="-mt-3">
@@ -315,46 +317,46 @@ export default function Pagos({
         </p>
 
         {mpError && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+          <Banner variant="danger" className="mb-4 text-xs">
             <span className="font-semibold">Error al conectar Mercado Pago:</span>{' '}{mpError}
-          </div>
+          </Banner>
         )}
 
         {initial.mercadopago?.connected ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+            <div className="flex items-center gap-3 bg-[var(--success-soft)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-3">
+              <div className="w-8 h-8 rounded-[var(--r-pill)] bg-[var(--success-soft)] flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--success)]">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-green-800">Mercado Pago conectado</div>
-                <div className="text-xs text-green-700 mt-0.5">Tu cuenta está lista. Los pagos llegan directo a tu cuenta de Mercado Pago.</div>
+                <div className="text-sm font-semibold text-[var(--success)]">Mercado Pago conectado</div>
+                <div className="text-xs text-[var(--success)] mt-0.5">Tu cuenta está lista. Los pagos llegan directo a tu cuenta de Mercado Pago.</div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <a href="https://www.mercadopago.com.mx/activities" target="_blank" rel="noreferrer" className="text-xs text-green-700 underline hover:text-green-900">
+                <a href="https://www.mercadopago.com.mx/activities" target="_blank" rel="noreferrer" className="text-xs text-[var(--success)] underline hover:opacity-80">
                   Ver mi cuenta →
                 </a>
-                <button type="button" onClick={handleMpDisconnect} className="text-xs text-red-700 underline hover:text-red-900">
+                <button type="button" onClick={handleMpDisconnect} className="text-xs text-[var(--danger)] underline hover:opacity-80">
                   Desconectar
                 </button>
               </div>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-0.5">
+            <Banner variant="info" className="text-xs">
               <p className="font-semibold">Lo que verán los compradores:</p>
               <p>✓ Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
               <p>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</p>
               <p>✓ El pago llega directo a tu cuenta de Mercado Pago</p>
-            </div>
+            </Banner>
             {initial.mercadopago?.live_mode === false && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <Banner variant="warning" className="text-xs">
                 Conectado en modo de prueba (sandbox).
-              </p>
+              </Banner>
             )}
           </div>
         ) : (
-          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-4 py-4">
+          <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-4">
               <span className="text-2xl">🔵</span>
               <div>
@@ -368,7 +370,7 @@ export default function Pagos({
               </div>
             </div>
             <a href="/api/mp/connect"
-              className="flex items-center justify-center gap-2 w-full bg-[var(--provider-mercadopago)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-lg text-sm no-underline hover:opacity-90 transition-opacity">
+              className="flex items-center justify-center gap-2 w-full bg-[var(--provider-mercadopago)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-[var(--r-md)] text-sm no-underline hover:opacity-90 transition-opacity">
               Conectar Mercado Pago
             </a>
             <p className="text-[10px] text-center text-[var(--color-muted)] mt-2">
@@ -381,7 +383,7 @@ export default function Pagos({
       {/* ════════════════════════════════════════════════════════════════════
           Transferencia bancaria (SPEI) — pago directo al vendedor
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="spei" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="spei" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center justify-between mb-1">
           <SectionTitle>Pago directo al vendedor</SectionTitle>
           <div className="-mt-3">
@@ -404,17 +406,17 @@ export default function Pagos({
           <div className="mt-4 space-y-3">
             <div>
               <label className="block text-sm font-medium mb-1">
-                CLABE interbancaria <span className="text-red-500">*</span>
+                CLABE interbancaria <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 value={clabe}
                 onChange={e => { setClabe(e.target.value.replace(/\D/g, '').slice(0, 18)); mark() }}
                 maxLength={18}
                 placeholder="18 dígitos"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
               {clabe && clabe.length !== 18 && (
-                <p className="text-amber-600 text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
+                <p className="text-[var(--warning)] text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -428,7 +430,7 @@ export default function Pagos({
                     else { setBankIsOther(false); setBankName(v) }
                     mark()
                   }}
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 >
                   <option value="">Selecciona tu banco…</option>
                   {MX_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
@@ -438,7 +440,7 @@ export default function Pagos({
                     value={bankName}
                     onChange={e => { setBankName(e.target.value); mark() }}
                     placeholder="Nombre del banco"
-                    className="w-full mt-2 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    className="w-full mt-2 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                   />
                 )}
               </div>
@@ -448,14 +450,14 @@ export default function Pagos({
                   value={accountHolder}
                   onChange={e => { setAccountHolder(e.target.value); mark() }}
                   placeholder="Nombre completo"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
               </div>
             </div>
             {clabe && clabe.length === 18 ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 text-xs text-blue-800 space-y-1">
+              <div className="bg-[var(--info-soft)] border border-[var(--info)] rounded-[var(--r-md)] px-3 py-2.5 text-xs text-[var(--info)] space-y-1">
                 <p className="font-semibold">Vista previa — lo que verá el comprador:</p>
-                <div className="bg-white border border-blue-100 rounded px-3 py-2 space-y-0.5 font-mono">
+                <div className="bg-[var(--bg-elevated)] border border-[var(--info)] rounded-[var(--r-sm)] px-3 py-2 space-y-0.5 font-mono">
                   <p>CLABE: <span className="font-semibold">{clabe}</span></p>
                   {bankName && <p>Banco: {bankName}</p>}
                   {accountHolder && <p>Titular: {accountHolder}</p>}
@@ -463,9 +465,9 @@ export default function Pagos({
                 <p className="font-normal">Confirma el pago en tu banco antes de entregar el producto.</p>
               </div>
             ) : (
-              <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+              <Banner variant="neutral" className="text-xs">
                 💡 El comprador verá la CLABE al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
-              </p>
+              </Banner>
             )}
           </div>
         )}
@@ -482,7 +484,7 @@ export default function Pagos({
         {dimoEnabled && (
           <div className="mt-3">
             <label className="block text-sm font-medium mb-1">
-              Teléfono DiMo <span className="text-red-500">*</span>
+              Teléfono DiMo <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               value={dimoPhone}
@@ -490,10 +492,10 @@ export default function Pagos({
               inputMode="tel"
               maxLength={10}
               placeholder="10 dígitos"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
             {dimoPhone && dimoPhone.length !== 10 && (
-              <p className="text-amber-600 text-xs mt-1">⚠ El teléfono debe tener 10 dígitos ({dimoPhone.length}/10)</p>
+              <p className="text-[var(--warning)] text-xs mt-1">⚠ El teléfono debe tener 10 dígitos ({dimoPhone.length}/10)</p>
             )}
           </div>
         )}
@@ -508,7 +510,7 @@ export default function Pagos({
           />
         </div>
         {cashPickupEnabled && !localPickup && (
-          <p className="text-amber-600 text-xs mt-2">
+          <p className="text-[var(--warning)] text-xs mt-2">
             ⚠ Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
           </p>
         )}
@@ -519,7 +521,7 @@ export default function Pagos({
               value={cashPickupNote}
               onChange={e => { setCashPickupNote(e.target.value); mark() }}
               placeholder="Ej. Trae el monto exacto"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
         )}
@@ -528,40 +530,26 @@ export default function Pagos({
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
       <div className="flex items-center justify-end mb-24">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-        >
+        <Button type="button" variant="primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        </Button>
       </div>
 
       {/* ── Sticky unsaved bar ────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-border)] shadow-lg">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[var(--bg-elevated)] border-t border-[var(--color-border)] shadow-lg">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-[var(--r-pill)] bg-[var(--warning)] flex-shrink-0" />
               Tienes cambios sin guardar
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)] px-3 py-1.5 border border-[var(--color-border)] rounded-lg transition-colors"
-              >
+              <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-[var(--color-accent)] text-white px-5 py-1.5 rounded-lg font-semibold text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
-              >
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? 'Guardando…' : 'Guardar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

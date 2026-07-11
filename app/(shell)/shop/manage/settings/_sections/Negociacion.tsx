@@ -9,12 +9,19 @@
 import { useState } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
 import { SectionTitle } from '../_components/SectionTitle'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { ToggleSwitch } from '../_components/ToggleSwitch'
 import type { OffersSettings } from '@/lib/shop-settings/types'
 
 type TrustLevel = 'unverified' | 'basic' | 'trusted' | 'verified' | 'elite'
+
+const QUALITY_TEXT_CLASS: Record<'green' | 'amber' | 'red', string> = {
+  green: 'text-[var(--success)]',
+  amber: 'text-[var(--warning)]',
+  red: 'text-[var(--danger)]',
+}
 
 export default function Negociacion({ initial }: { initial: OffersSettings | null }) {
   const { save, saving, toast, dismissToast, isDirty, markDirty } = useSettingsSave()
@@ -46,7 +53,7 @@ export default function Negociacion({ initial }: { initial: OffersSettings | nul
 
   return (
     <div>
-      <section id="ofertas" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="ofertas" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Ofertas y Negociación</SectionTitle>
 
         {/* Trust gate */}
@@ -67,7 +74,7 @@ export default function Negociacion({ initial }: { initial: OffersSettings | nul
             ] as const).map(opt => (
               <label
                 key={opt.value}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`flex items-center gap-3 p-3 rounded-[var(--r-md)] border-2 cursor-pointer transition-all ${
                   minBuyerTrust === opt.value
                     ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,white)]'
                     : 'border-[var(--color-border)] hover:border-gray-400'
@@ -113,9 +120,7 @@ export default function Negociacion({ initial }: { initial: OffersSettings | nul
                 <div key={row.label}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-medium">{row.label}</label>
-                    <span className={`text-sm font-bold tabular-nums ${
-                      row.color === 'green' ? 'text-green-700' : row.color === 'amber' ? 'text-amber-700' : 'text-red-700'
-                    }`}>{row.value}%</span>
+                    <span className={`text-sm font-bold tabular-nums ${QUALITY_TEXT_CLASS[row.color as 'green' | 'amber' | 'red']}`}>{row.value}%</span>
                   </div>
                   <input
                     type="range" min={0} max={100} step={5}
@@ -128,14 +133,14 @@ export default function Negociacion({ initial }: { initial: OffersSettings | nul
               ))}
 
               {declinePct >= acceptPct && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <Banner variant="danger" className="text-xs">
                   ⚠ El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
-                </p>
+                </Banner>
               )}
               {counterPct > acceptPct && (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <Banner variant="warning" className="text-xs">
                   ⚠ El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
-                </p>
+                </Banner>
               )}
             </div>
           )}

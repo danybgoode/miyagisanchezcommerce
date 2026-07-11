@@ -64,29 +64,29 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
 
   return (
     <div>
-      <section id="perfil" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="perfil" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Perfil de tienda</SectionTitle>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              Nombre de tienda <span className="text-red-500">*</span>
+              Nombre de tienda <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               value={name}
               onChange={e => { setName(e.target.value); mark(); setFieldErrors(p => ({ ...p, name: '' })) }}
               maxLength={80}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               placeholder="Mi tienda"
             />
-            {fieldErrors.name && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.name}</p>}
+            {fieldErrors.name && <p className="text-[var(--danger)] text-xs mt-1">⚠ {fieldErrors.name}</p>}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium">
                 Descripción
-                <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+                <span className={`ml-2 text-xs font-normal ${description.length > 450 ? 'text-[var(--warning)]' : 'text-[var(--color-muted)]'}`}>
                   {description.length}/500
                 </span>
               </label>
@@ -97,10 +97,10 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
               onChange={e => { setDescription(e.target.value); mark(); setFieldErrors(p => ({ ...p, description: '' })) }}
               maxLength={500}
               rows={3}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
               placeholder="Cuéntanos sobre tu tienda…"
             />
-            {fieldErrors.description && <p className="text-red-600 text-xs mt-1">⚠ {fieldErrors.description}</p>}
+            {fieldErrors.description && <p className="text-[var(--danger)] text-xs mt-1">⚠ {fieldErrors.description}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -115,7 +115,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
                   setIsCityOther(false)
                   mark()
                 }}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-[var(--bg-elevated)]"
               >
                 <option value="">Selecciona estado</option>
                 {ESTADOS.map(e => <option key={e.inegi_code} value={e.name}>{e.name}</option>)}
@@ -129,7 +129,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
                     value={city}
                     onChange={e => { setCity(e.target.value); mark() }}
                     placeholder="Escribe tu ciudad"
-                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     autoFocus
                   />
                   <button
@@ -153,7 +153,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
                     }
                     mark()
                   }}
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-[var(--bg-elevated)]"
                 >
                   <option value="">{state ? 'Selecciona ciudad' : 'Primero elige estado'}</option>
                   {(state ? CITIES_BY_STATE[state] ?? [] : MAJOR_MEXICAN_CITIES).map(c => (

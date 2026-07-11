@@ -39,7 +39,7 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
 
   return (
     <div>
-      <section id="pedidos" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="pedidos" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Gestión de pedidos</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-5">
           Estas preferencias se muestran a los compradores en el anuncio y al finalizar su compra.
@@ -60,7 +60,7 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
                 key={opt.key}
                 type="button"
                 onClick={() => { setProcessingTime(opt.key); mark() }}
-                className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                className={`text-left p-3 rounded-[var(--r-md)] border-2 transition-colors ${
                   processingTime === opt.key
                     ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                     : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/40'
@@ -94,13 +94,13 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
               <button
                 type="button"
                 onClick={() => { setDispatchWindowDays(Math.max(1, dispatchWindowDays - 1)); mark() }}
-                className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                className="w-7 h-7 rounded-[var(--r-pill)] border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
               >−</button>
               <span className="w-10 text-center text-sm font-semibold tabular-nums">{dispatchWindowDays}d</span>
               <button
                 type="button"
                 onClick={() => { setDispatchWindowDays(Math.min(14, dispatchWindowDays + 1)); mark() }}
-                className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                className="w-7 h-7 rounded-[var(--r-pill)] border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
               >+</button>
             </div>
           </div>
@@ -117,13 +117,13 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
               <button
                 type="button"
                 onClick={() => { setAutoConfirmDays(Math.max(3, autoConfirmDays - 1)); mark() }}
-                className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                className="w-7 h-7 rounded-[var(--r-pill)] border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
               >−</button>
               <span className="w-16 text-center text-sm font-semibold tabular-nums">{autoConfirmDays} días</span>
               <button
                 type="button"
                 onClick={() => { setAutoConfirmDays(Math.min(30, autoConfirmDays + 1)); mark() }}
-                className="w-7 h-7 rounded-full border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
+                className="w-7 h-7 rounded-[var(--r-pill)] border border-[var(--color-border)] flex items-center justify-center text-sm hover:bg-[var(--color-surface-alt)] transition-colors"
               >+</button>
             </div>
           </div>
