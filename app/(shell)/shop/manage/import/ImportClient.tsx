@@ -471,7 +471,7 @@ function Uploader() {
   )
 }
 
-export default function ImportClient() {
+export default function ImportClient({ shopifyMigrationEnabled = false }: { shopifyMigrationEnabled?: boolean }) {
   const prompt = buildCopilotPrompt()
   const exampleJson = JSON.stringify(EXAMPLE_CATALOG, null, 2)
 
@@ -486,6 +486,24 @@ export default function ImportClient() {
           generó tu propio asistente — sin formatos complicados ni mapeos manuales.
         </p>
       </div>
+
+      {/* ── Migrate from Shopify (epic 03 · platform-migrations S1) ─────────── */}
+      {shopifyMigrationEnabled && (
+        <Link
+          href="/shop/manage/shopify/import"
+          className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] p-5 hover:bg-[var(--surface-muted)] transition-colors"
+        >
+          <div>
+            <h2 className="font-semibold mb-1 flex items-center gap-2">
+              <span className="text-xl">🛍️</span> Migrar desde Shopify
+            </h2>
+            <p className="text-sm text-[var(--color-muted)]">
+              Trae tu catálogo directamente desde el dominio de tu tienda Shopify — sin archivos ni copiar y pegar.
+            </p>
+          </div>
+          <span className="text-[var(--color-accent)] font-semibold whitespace-nowrap">Empezar →</span>
+        </Link>
+      )}
 
       {/* ── Upload / paste + staging + import ───────────────────────────────── */}
       <Uploader />

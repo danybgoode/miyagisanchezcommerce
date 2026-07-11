@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'seller.shell_on_sell_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -208,6 +208,14 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    Default OFF ⇒ the toggle stays disabled and the option never appears, so
  *    a flag outage can never surface an unreviewed rate. Enabling is the
  *    deliberate action.
+ *  - ENABLEMENT (`migrations.connector_enabled`): default `false` (epic
+ *    platform-migrations, Sprint 1). Gates the Shopify-shop → staged
+ *    supply-batch connector (the fetch/import seller routes + the
+ *    `start_shopify_migration` MCP tool). Default OFF ⇒ the connector routes
+ *    4xx cleanly and the "Migrar desde Shopify" entry point stays hidden, so
+ *    a flag outage can never expose an unreviewed external-fetch surface.
+ *    Flip ON only after Daniel's live real-Shopify-domain pull + parity
+ *    report smoke passes (sprint-1.md).
  *  - KILL-SWITCH (`seller.shell_on_sell_enabled`): default `true`
  *    (catalog-management epic, Sprint 6 · Story 6.1). Gates the owner-aware
  *    branch that renders the seller shell (dark top bar + `SellerNav`) over
@@ -244,6 +252,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'content.overrides_enabled': true,
   'catalog.inventory_channels_enabled': false,
   'catalog.bulk_enabled': false,
+  'migrations.connector_enabled': false,
   'seller.shell_on_sell_enabled': true,
 }
 

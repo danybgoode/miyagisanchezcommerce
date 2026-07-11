@@ -43,6 +43,8 @@ import { listCampaignsForShop } from '@/lib/launchpad-campaigns'
 import { thresholdReached } from '@/lib/launchpad-campaign-types'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
+import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
+import { isPublicDomainShape } from '@/lib/ssrf-guard'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
 import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
@@ -495,6 +497,17 @@ const TOOLS = [
       required: ['batch_id'],
       properties: {
         batch_id: { type: 'string', description: 'batch_id returned by stage_bulk_action' },
+      },
+    },
+  },
+  {
+    name: 'start_shopify_migration',
+    description: "SELLER TOOL. Pull a Shopify shop's catalog (+ policies text, best-effort) into YOUR OWN shop's import staging, as a first step toward migrating off Shopify (epic 03 · platform-migrations). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. No Shopify account/credentials needed — just the shop's domain (e.g. \"mitienda.com\" or \"mitienda.myshopify.com\"); works on any public Shopify storefront. Nothing is imported yet: returns a batch_id + item count. The seller reviews the staged products in the web app (/shop/manage/shopify/import) and confirms which ones to import — this tool does not publish anything to Miyagi on its own.",
+    inputSchema: {
+      type: 'object',
+      required: ['shop_domain'],
+      properties: {
+        shop_domain: { type: 'string', description: 'The Shopify shop domain to pull from, e.g. "mitienda.com" or "mitienda.myshopify.com"' },
       },
     },
   },
@@ -1917,6 +1930,39 @@ async function handleApplyBulkAction(args: Record<string, unknown>, authHeader?:
   return { content: [{ type: 'text', text: parts.join(' · ') + '.' }] }
 }
 
+// ── Shopify migration connector (epic 03 · platform-migrations S1) ───────────
+// `isPublicDomainShape` is a friendly early-reject only — the real SSRF
+// boundary (DNS-resolve + private/reserved-range check) is enforced once,
+// centrally, inside lib/shopify-mcp-client.ts, shared with the HTTP route.
+
+async function handleStartShopifyMigration(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('migrations.connector_enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene slug configurado.' }] }
+
+  const domain = String(args.shop_domain ?? '').trim()
+  if (!domain || !isPublicDomainShape(domain)) {
+    return { isError: true, content: [{ type: 'text', text: 'shop_domain inválido. Usa un dominio como "mitienda.com" o "mitienda.myshopify.com".' }] }
+  }
+
+  // The SAME shared staging function the HTTP route uses — no duplicated logic.
+  const staged = await stageShopifyBatch({ id: shop.id, slug: shop.slug }, domain)
+  if (!staged.ok) return { isError: true, content: [{ type: 'text', text: staged.error }] }
+
+  return {
+    content: [{
+      type: 'text',
+      text: `Lote preparado (batch_id: ${staged.batchId}) — ${staged.itemCount} producto(s) de "${domain}" listos para revisar` +
+        (staged.hasPolicies ? ', incluyendo texto de políticas.' : '.') +
+        (staged.truncated ? ' (Catálogo muy grande: se trajo solo una parte.)' : '') +
+        ` Nada se ha importado todavía. Revisa y confirma en /shop/manage/shopify/import.`,
+    }],
+  }
+}
+
 // ── Custom-domain paywall (epic 07 · S3) — seller-agent domain SKU tools ──────
 
 async function handleGetDomainEntitlement(authHeader?: string | null) {
@@ -2163,6 +2209,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'apply_bulk_action':         { const r = await handleApplyBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'start_shopify_migration':   { const r = await handleStartShopifyMigration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

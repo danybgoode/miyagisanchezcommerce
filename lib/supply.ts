@@ -8,6 +8,7 @@ export const SUPPLY_SOURCE_OPTIONS = [
   'apify',
   'csv',
   'manual',
+  'shopify',
 ] as const
 
 export const SUPPLY_LISTING_TYPES = ['product', 'service', 'rental', 'digital'] as const

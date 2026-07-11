@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth, currentUser } from '@clerk/nextjs/server'
+import { isEnabled } from '@/lib/flags'
 import ImportClient from './ImportClient'
 
 export const metadata = {
@@ -28,5 +29,7 @@ export default async function ImportPage() {
   })
   if (sellerRes.status === 404) redirect('/sell')
 
-  return <ImportClient />
+  const shopifyMigrationEnabled = await isEnabled('migrations.connector_enabled')
+
+  return <ImportClient shopifyMigrationEnabled={shopifyMigrationEnabled} />
 }

@@ -119,6 +119,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // action can mutate hundreds of products in one call, so default OFF hides the
   // selection/bulk UI until Daniel's live smoke.
   'catalog.bulk_enabled': { polarity: 'killswitch', default: false },
+  // Shopify-shop → staged supply-batch connector (epic 03 · platform-migrations
+  // S1). Enablement: default OFF ⇒ the fetch/import seller routes 4xx and the
+  // "Migrar desde Shopify" entry point + MCP tool stay hidden. Flip ON only
+  // after Daniel's live real-Shopify-domain pull + parity report smoke passes.
+  'migrations.connector_enabled': { polarity: 'enablement', default: false },
   // Seller shell (dark top bar + SellerNav) over /sell + /sell/setup for a
   // signed-in shop owner, instead of buyer chrome (epic 03 · catalog-management
   // S6, Story 6.1). Kill-switch: default ON ⇒ OFF reverts those two routes to
