@@ -44,3 +44,18 @@ export function pickManualPaymentId<Id extends string>(
 ): Id | null {
   return methods.find(m => m.kind === 'manual')?.id ?? null
 }
+
+/**
+ * Arranged-only delivery (epic, Sprint 1 · S1.3) — is the buyer in a "coord"
+ * checkout state, reached either via the S3.2 shipping-quote-failure fallback
+ * above, OR by picking the `coord` delivery method directly (only possible
+ * for an arranged listing — that's the only case the backend ever pushes a
+ * `coord` entry into delivery_methods). Both mean the same money-path state
+ * (fulfillment_method:'coord', manual-only pay).
+ */
+export function isCoordDeliverySelected(o: {
+  coordinatedFallbackActive: boolean
+  selectedDeliveryId: string | null | undefined
+}): boolean {
+  return o.coordinatedFallbackActive || o.selectedDeliveryId === 'coord'
+}

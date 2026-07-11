@@ -19,12 +19,15 @@ export async function GET(req: NextRequest) {
   const sellerId = searchParams.get('sellerId')
   const listingType = searchParams.get('listingType') ?? 'product'
   const isDigital = searchParams.get('isDigital') ?? 'false'
+  // Arranged-only delivery (epic, S1.3) — additive passthrough; the backend
+  // ignores it entirely when shipping.arranged_only_enabled is off.
+  const deliveryMode = searchParams.get('deliveryMode') ?? 'carrier'
 
   if (!sellerId) {
     return NextResponse.json({ error: 'sellerId requerido.' }, { status: 400 })
   }
 
-  const qs = new URLSearchParams({ listing_type: listingType, is_digital: isDigital })
+  const qs = new URLSearchParams({ listing_type: listingType, is_digital: isDigital, delivery_mode: deliveryMode })
 
   try {
     const upstream = await fetch(
