@@ -191,7 +191,7 @@ export default function AdminCouponsClient({
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-1">Cupones de plataforma</h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
-        Códigos redimibles en la compra de anuncios impresos (tienda <strong>miyagiprints</strong>).
+        Códigos redimibles en la compra de anuncios impresos (vendedor de plataforma).
         Sirven para promociones de plataforma y como recompensa de referidos.
       </p>
 

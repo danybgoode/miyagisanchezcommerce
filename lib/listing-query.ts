@@ -60,7 +60,7 @@ export function resultCountLabel(count: number | null | undefined): string {
   return `Ver ${count} ${count === 1 ? 'resultado' : 'resultados'}`
 }
 
-// Print-ad placement products (miyagiprints tier products, `is_print_placement`
+// Print-ad placement products (platform-seller tier products, `is_print_placement`
 // metadata) are sold through the dedicated print-edition flow only — they must
 // never appear as a real, buyable listing on any shop-storefront surface.
 // Mirrors the equivalent check in apps/backend/src/api/store/listings/route.ts,

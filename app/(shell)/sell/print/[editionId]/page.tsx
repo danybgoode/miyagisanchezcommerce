@@ -56,6 +56,7 @@ export default async function PrintAdBuilderPage({ params, searchParams }: {
   const edition: BuilderEdition | undefined =
     (edData.editions ?? []).find((e: BuilderEdition) => e.id === editionId)
   if (!edition) redirect('/shop/manage')
+  const platformSellerId: string | null = edData.platform_seller_id ?? null
 
   // ── Seller's own listings (for the "feature a listing" picker) ────────────
   interface RawProduct { id: string; title: string; status?: string; images?: Array<{ url?: string }> }
@@ -70,5 +71,13 @@ export default async function PrintAdBuilderPage({ params, searchParams }: {
       url: `${SITE_URL}/l/${l.id}`,
     }))
 
-  return <PrintAdBuilder edition={edition} prefill={prefill} listings={listings} initialSubmissionId={initialSubmissionId ?? null} />
+  return (
+    <PrintAdBuilder
+      edition={edition}
+      prefill={prefill}
+      listings={listings}
+      initialSubmissionId={initialSubmissionId ?? null}
+      platformSellerId={platformSellerId}
+    />
+  )
 }

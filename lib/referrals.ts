@@ -1,8 +1,8 @@
 /**
  * Referral Program — shared server helpers (storefront/Supabase + Clerk side).
  *
- * Reward economics: a referral reward is a coupon scoped to the platform's own
- * `miyagiprints` shop (print-ad placements), minted via the backend
+ * Reward economics: a referral reward is a coupon scoped to the platform-owned
+ * seller (print-ad placements), minted via the backend
  * /internal/platform-coupons route. That's the only funding-safe surface in a
  * no-commission marketplace (see the referral-program epic).
  *
@@ -203,7 +203,7 @@ export async function updateReferralSettings(patch: Partial<ReferralSettings>): 
 
 // ── Reward issuance ───────────────────────────────────────────────────────────
 
-/** Mints a platform (miyagiprints) coupon via the backend. Returns true on success. */
+/** Mints a platform coupon via the backend. Returns true on success. */
 async function mintPlatformCoupon(code: string, amountCents: number, expiryDays: number): Promise<boolean> {
   try {
     const expiry = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString()
