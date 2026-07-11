@@ -27,6 +27,8 @@ import { Banner } from '@/components/feedback/Banner'
 import { consumeSetupFile } from '@/lib/onboarding-handoff'
 import { slugify } from '@/lib/slug'
 import { SuccessCard, SuccessCardProgress } from '@/components/SuccessCard'
+import { pushAnalyticsEvent } from '@/lib/analytics-events'
+import { getOnboardingElapsedMs } from '@/lib/onboarding-timing'
 
 // ── Copy-to-clipboard (mirrors the import clients) ────────────────────────────
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
@@ -91,10 +93,22 @@ function FirstRunApply() {
   const [editCatalogRows, setEditCatalogRows] = useState<CatalogImportRow[]>([])
   const [profileOverrides, setProfileOverrides] = useState<Partial<SetupProfile>>({})
   const [editingProfile, setEditingProfile] = useState(false)
+  // edits-per-approval (Sprint 3 · Story 3.3) — counts inline-fix ACTIONS (a
+  // field touched), not a value-diff against the original; good enough for
+  // "how much did the seller have to fix before approving."
+  const [editCount, setEditCount] = useState(0)
   // Apply state
   const [applying, setApplying] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [report, setReport] = useState<SetupApplyReport | null>(null)
+
+  // S4 approve rate (Story 3.3) — the "shown" half of the rate; fires once
+  // per staging preview that actually renders (pairs with
+  // `setup_staging_approved` in runApply()).
+  useEffect(() => {
+    if (validated && !report) pushAnalyticsEvent('setup_staging_shown')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!validated])
 
   function review(text: string, source: 'paste' | 'file', name?: string) {
     setError(null); setFile(null); setValidated(null); setReport(null)
@@ -142,6 +156,7 @@ function FirstRunApply() {
   // Re-validate the editable catalog rows live so an inline fix flips a row
   // to "Listo" — same shape as ImportClient.tsx's updateField.
   function updateField(i: number, field: keyof CatalogImportRow, raw: string) {
+    setEditCount((c) => c + 1)
     setEditCatalogRows((prev) => prev.map((row, idx) => {
       if (idx !== i) return row
       const next = { ...row }
@@ -156,6 +171,7 @@ function FirstRunApply() {
   }
 
   function updateProfileField(field: 'name' | 'city' | 'state', raw: string) {
+    setEditCount((c) => c + 1)
     setProfileOverrides((prev) => ({ ...prev, [field]: raw === '' ? undefined : raw }))
   }
 
@@ -163,6 +179,9 @@ function FirstRunApply() {
   // Each step degrades gracefully; the combined report shows exactly what applied.
   async function runApply() {
     if (!file) return
+    // S4 approve rate + edits-per-approval (Story 3.3) — fires on every
+    // approve tap, whether or not the seller edited anything first.
+    pushAnalyticsEvent('setup_staging_approved', { edits: editCount })
     setApplying(true); setError(null)
     // Merge the inline-fix overrides on top of the parsed file right before
     // building the plan — planSetupApply itself is unchanged.
@@ -508,6 +527,17 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
   const failedRows = catalog.rows.filter((r) => r.status === 'failed')
   const configIssueBlocks = config.filter((b) => b.issues.length > 0)
 
+  // time_to_first_product (Sprint 3 · Story 3.3) — fires once, only on a
+  // genuine first successful apply (dedupeKey), diffed against the
+  // Bienvenida-marked onboarding start (null for an existing seller who never
+  // went through Bienvenida — no event fires, nothing to divide by zero).
+  useEffect(() => {
+    if (!shopOk || catalog.created <= 0) return
+    const elapsedMs = getOnboardingElapsedMs()
+    if (elapsedMs == null) return
+    pushAnalyticsEvent('time_to_first_product', { elapsed_ms: elapsedMs }, { dedupeKey: 'time_to_first_product' })
+  }, [shopOk, catalog.created])
+
   if (!shopOk) {
     return (
       <div className="mt-2 text-center">
@@ -543,7 +573,7 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
         liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
         warningCallout={{
           text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
-          primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos' },
+          primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos/wizard' },
           ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
         }}
         nextActions={[{ label: 'Ir a mi tienda', href: '/shop/manage' }]}
