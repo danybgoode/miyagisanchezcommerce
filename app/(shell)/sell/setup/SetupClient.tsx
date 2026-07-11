@@ -403,7 +403,7 @@ function FirstRunApply() {
                     {catalogRows.map((s, i) => {
                       const row = editCatalogRows[i] ?? s.row
                       const cellErr = (field: string) => s.issues.some((iss) => iss.level === 'error' && iss.field === field)
-                      const inputBase = 'w-full bg-transparent rounded px-1.5 py-1 border'
+                      const inputBase = 'w-full bg-transparent rounded-[var(--r-sm)] px-1.5 py-1 border'
                       const reason = s.issues.find((iss) => iss.level === 'error')?.message
                       return (
                         <Fragment key={i}>
@@ -413,14 +413,14 @@ function FirstRunApply() {
                                 value={row.title ?? ''}
                                 onChange={(e) => updateField(i, 'title', e.target.value)}
                                 placeholder="Título del producto"
-                                className={`${inputBase} ${cellErr('title') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                                className={`${inputBase} ${cellErr('title') ? 'border-[var(--danger)]' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
                               />
                             </td>
                             <td className="py-1.5 px-2">
                               <select
                                 value={CATALOG_CATEGORY_KEYS.includes(row.category) ? row.category : ''}
                                 onChange={(e) => updateField(i, 'category', e.target.value)}
-                                className={`${inputBase} ${cellErr('category') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                                className={`${inputBase} ${cellErr('category') ? 'border-[var(--danger)]' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
                               >
                                 <option value="">—</option>
                                 {CATALOG_CATEGORY_KEYS.map((k) => (
@@ -434,7 +434,7 @@ function FirstRunApply() {
                                 onChange={(e) => updateField(i, 'price', e.target.value)}
                                 inputMode="decimal"
                                 placeholder="a convenir"
-                                className={`${inputBase} ${cellErr('price') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                                className={`${inputBase} ${cellErr('price') ? 'border-[var(--danger)]' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
                               />
                             </td>
                             <td className="py-1.5 px-2 font-mono w-28">
