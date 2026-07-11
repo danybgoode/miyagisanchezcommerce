@@ -11,6 +11,7 @@ import {
   type SellsWhereOption,
 } from '@/lib/onboarding-personalization'
 import { setOnboardingSkipSignal } from '@/lib/onboarding-skip'
+import { markOnboardingStart } from '@/lib/onboarding-timing'
 
 const SELLS_LABELS: Record<SellsOption, string> = {
   product: 'Producto físico',
@@ -56,6 +57,10 @@ export default function BienvenidaClient({ firstName }: { firstName: string | nu
   const [sells, setSells] = useState<SellsOption[]>([])
   const [sellsWhere, setSellsWhere] = useState<SellsWhereOption[]>([])
   const [saving, setSaving] = useState(false)
+
+  // time_to_first_product / time_to_payable (Sprint 3 · Story 3.3) — mark the
+  // earliest onboarding entry point once; a no-op on any later re-visit.
+  useEffect(() => { markOnboardingStart() }, [])
 
   // Reload persistence (Story 1.1 acceptance): load any previously saved
   // chip answers back into state on mount.

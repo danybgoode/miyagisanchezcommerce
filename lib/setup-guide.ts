@@ -68,6 +68,8 @@ export function computeShopCompletion(shop: ShopRow): ShopCompletionFlags {
   const negociacion_ok = !!(offersSettings && ((offersSettings.min_buyer_trust_level && offersSettings.min_buyer_trust_level !== 'unverified') || offersSettings.negotiation?.enabled))
   const notificaciones_ok = !!(notifSettings && (notifSettings.email_new_view || notifSettings.email_new_message))
   const stripe_ok = !!stripeSettings?.charges_enabled
+  const mpSettings = settings.mercadopago as { connected?: boolean } | undefined
+  const mp_ok = !!mpSettings?.connected
   const clabe_ok = !!checkoutSettings?.bank_transfer?.clabe
   const calcom_ok = !!calcomSettings?.connected
   const orders_ok = !!ordersSettings?.processing_time
@@ -79,7 +81,12 @@ export function computeShopCompletion(shop: ShopRow): ShopCompletionFlags {
 
   return {
     perfil: !!(shop.name && shop.description),
-    pagos: stripe_ok || !!shop.mp_enabled || clabe_ok,
+    // NOTE: `shop.mp_enabled` is an opt-OUT column (defaults `true` for every
+    // shop — "seller hasn't disabled MP checkout"), NOT a connected-state
+    // flag. Using it here made this step read as done for every fresh shop
+    // regardless of whether MercadoPago was ever actually connected. Read the
+    // real connected state instead (mirrors Pagos.tsx / [section]/page.tsx).
+    pagos: stripe_ok || mp_ok || clabe_ok,
     citas: calcom_ok,
     canal: !!shop.custom_domain,
     pedidos: orders_ok,
@@ -146,7 +153,7 @@ const STEP_META: StepMeta[] = [
     body: 'Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.',
     estimate: '~4 min',
     ctaLabel: 'Configurar cobros',
-    ctaHref: '/shop/manage/settings/pagos',
+    ctaHref: '/shop/manage/settings/pagos/wizard',
   },
   {
     id: 'envios',
@@ -160,7 +167,7 @@ const STEP_META: StepMeta[] = [
     label: 'Comparte tu tienda',
     body: 'Comparte el enlace de tu tienda con tus primeros compradores.',
     ctaLabel: 'Compartir tienda',
-    ctaHref: '/shop/manage',
+    ctaHref: '/shop/manage/comparte',
   },
 ]
 

@@ -46,6 +46,19 @@ export async function GET(req: NextRequest) {
       maxAge: 600,
       path: '/api/mp/connect',
     })
+    // Onboarding three-doors S7 — the ONLY change this story makes to the OAuth
+    // glue: remember where to send the seller back (the cobros wizard vs the
+    // classic settings page), via the same cookie pattern as the PKCE verifier.
+    // Absent, the round-trip is byte-identical to before this story.
+    if (req.nextUrl.searchParams.get('redirect_to') === 'wizard') {
+      res.cookies.set('mp_return_to', 'wizard', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 600,
+        path: '/api/mp/connect',
+      })
+    }
     return res
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

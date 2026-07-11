@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Banner } from '@/components/feedback/Banner'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { buildWhatsAppShareLink } from '@/lib/share-link'
 
 /**
  * SuccessCard — onboarding three-doors Sprint 2 · Story 2.2 (S5 + F12).
@@ -37,11 +38,6 @@ export interface SuccessCardProps {
   nextActions: SuccessCardNextAction[]
   shareUrl: string
   shareTitle?: string
-}
-
-function buildWhatsAppShareLink(shareTitle: string, shareUrl: string): string {
-  const message = `${shareTitle}: ${shareUrl}`
-  return `https://wa.me/?text=${encodeURIComponent(message)}`
 }
 
 export function SuccessCard({

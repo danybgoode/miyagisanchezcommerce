@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { setOnboardingSkipSignal } from '@/lib/onboarding-skip'
+import { pushAnalyticsEvent } from '@/lib/analytics-events'
 import type { DoorKey } from '@/lib/onboarding-personalization'
 
 interface DoorMeta {
@@ -47,6 +48,12 @@ export default function PuertasClient({ order, subtitle }: { order: DoorKey[]; s
   const router = useRouter()
 
   function openDoor(door: DoorKey) {
+    // door_share (Sprint 3 · Story 3.3) — the GTM-visible signal for the
+    // funnel's door distribution. The tenant_intake write below is a
+    // SEPARATE, Supabase-persisted record used for downstream personalization
+    // logic — this is additive, not a replacement.
+    pushAnalyticsEvent('door_share', { door })
+
     // Fire-and-forget metrics ping (D.9) — never blocks navigation; a failed
     // write just means this door choice isn't recorded, nothing else depends on it.
     fetch('/api/sell/tenant-intake', {
