@@ -134,6 +134,38 @@ export async function createSellerProductViaInternal(
   }
 }
 
+export interface SellerCollectionCreated {
+  id: string
+  handle: string
+  name: string
+  sort_order: number
+}
+
+/** Create a collection through the backend internal route (x-internal-secret).
+ *  Sibling of createSellerProductViaInternal — the agent token can't reach
+ *  Medusa directly, so this is the service-to-service door the
+ *  `create_collection` MCP tool calls. */
+export async function createSellerCollectionViaInternal(
+  sellerSlug: string,
+  name: string,
+): Promise<{ ok: boolean; status: number; collection?: SellerCollectionCreated; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/seller-collections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug, name }),
+    })
+    const d = (await res.json().catch(() => ({}))) as { collection?: SellerCollectionCreated; message?: string }
+    if (!res.ok || !d.collection) {
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: res.status, collection: d.collection }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
 function normalizeClabe(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\D/g, '') : ''
 }
