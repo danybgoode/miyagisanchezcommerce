@@ -4,7 +4,8 @@ import { db } from '@/lib/supabase'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { filterOutDeleted, DELETED_STATUS } from '@/lib/listing-lifecycle'
 import ManageDashboard from './ManageDashboard'
-import { getSetupSteps, type ShopRow } from '@/lib/setup-guide'
+import { getSetupSteps, personalizeSetupSteps, type ShopRow } from '@/lib/setup-guide'
+import { getTenantIntake } from '@/lib/tenant-intake'
 
 export const metadata = {
   title: 'Mi tienda — Miyagi Sánchez',
@@ -123,7 +124,7 @@ export default async function ManagePage() {
   // row in parallel. The guide row mirrors the exact columns settings/page.tsx
   // reads (`lib/setup-guide.ts`'s ShopRow) so completion state can never drift
   // between the settings index and this card.
-  const [{ count: pendingOffersCount }, { count: pendingOrdersCount }, { data: guideShop }] = shopMirror?.id
+  const [{ count: pendingOffersCount }, { count: pendingOrdersCount }, { data: guideShop }, intake] = shopMirror?.id
     ? await Promise.all([
         db
           .from('marketplace_offers')
@@ -142,16 +143,20 @@ export default async function ManagePage() {
           .order('created_at', { ascending: true })
           .limit(1)
           .maybeSingle(),
+        getTenantIntake(user.id),
       ])
-    : [{ count: 0 }, { count: 0 }, { data: null }]
+    : [{ count: 0 }, { count: 0 }, { data: null }, null]
 
   const guideSettings = (guideShop?.metadata as { settings?: { guide?: { guide_dismissed?: boolean; share_done?: boolean } } } | null)?.settings?.guide
   const setupSteps = guideShop
-    ? getSetupSteps({
-        shop: guideShop as ShopRow,
-        productCount: listings.length,
-        shareDone: !!guideSettings?.share_done,
-      })
+    ? personalizeSetupSteps(
+        getSetupSteps({
+          shop: guideShop as ShopRow,
+          productCount: listings.length,
+          shareDone: !!guideSettings?.share_done,
+        }),
+        intake,
+      )
     : []
   // Fail-safe: an absent/malformed flag reads as false — show the guide.
   const guideDismissed = !!guideSettings?.guide_dismissed

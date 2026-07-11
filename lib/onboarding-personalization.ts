@@ -39,8 +39,13 @@ const DEFAULT_SUBTITLE = 'Elige cómo armar tu tienda — puedes cambiar de cami
 const ML_SUBTITLE = 'Como ya vendes en Mercado Libre, podemos traer tu catálogo casi solo.'
 const EXISTING_CHANNEL_SUBTITLE = 'Ya vendes en otro lado — te ayudamos a traer lo que ya tienes.'
 
-/** "Where do you sell today" answers that mean a real existing channel (not "aún no vendo"). */
-const EXISTING_CHANNELS: readonly SellsWhereOption[] = ['mercado_libre', 'instagram_facebook', 'whatsapp', 'tienda_fisica']
+/**
+ * "Where do you sell today" answers that mean a real existing channel (not
+ * "aún no vendo"). Exported so `lib/setup-guide.ts`'s S6 step-personalization
+ * (Sprint 2) reuses the exact same "existing channel" signal as door-ranking
+ * above, rather than defining a second, driftable copy.
+ */
+export const EXISTING_CHANNELS: readonly SellsWhereOption[] = ['mercado_libre', 'instagram_facebook', 'whatsapp', 'tienda_fisica']
 
 /**
  * Door 1 (agent) is always first/recommended, unconditionally. Door 2
