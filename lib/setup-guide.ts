@@ -1,0 +1,160 @@
+/**
+ * lib/setup-guide.ts
+ *
+ * Pure completion logic for the seller settings index and the "Pon tu tienda en
+ * marcha" dashboard guide (seller-portal-setup-guide epic, B.1). Extracted
+ * verbatim from `settings/page.tsx`'s `completedSections()` + inline `_ok`
+ * derivations — the settings page repoints at `computeShopCompletion` /
+ * `completedSectionKeys` with an identical render; nothing in the 12-section
+ * logic changed, only its location.
+ *
+ * `getSetupSteps` is a second, narrower view over the same source of truth: it
+ * reuses 3 of the 12 flags (perfil, pagos, envios — the exact fields the epic's
+ * step map names) and adds two signals the settings page doesn't track
+ * (`productCount`, `shareDone`) to produce the 5-step guide the dashboard card
+ * renders.
+ */
+
+export interface ShopRow {
+  name: string
+  description: string | null
+  metadata: Record<string, unknown> | null
+  mp_enabled: boolean | null
+  custom_domain: string | null
+  ucp_webhook_url: string | null
+}
+
+export interface ShopCompletionFlags {
+  perfil: boolean
+  pagos: boolean
+  citas: boolean
+  canal: boolean
+  pedidos: boolean
+  politicas: boolean
+  envios: boolean
+  negociacion: boolean
+  notificaciones: boolean
+  diseno: boolean
+  agentes: boolean
+  paginas: boolean
+}
+
+/**
+ * The native settings editor persists the whole settings tree on every save,
+ * so an empty shell (e.g. default accent color, all-null origin address) is
+ * NOT "configured". Use value-based checks so a section lights up only when it
+ * holds real data — whether typed in by hand or applied by the importer.
+ */
+export function computeShopCompletion(shop: ShopRow): ShopCompletionFlags {
+  const settings = (shop.metadata?.settings ?? {}) as Record<string, unknown>
+  const stripeSettings = settings.stripe as { charges_enabled?: boolean } | undefined
+  const calcomSettings = settings.calcom as { connected?: boolean } | undefined
+  const checkoutSettings = settings.checkout as { bank_transfer?: { clabe?: string } } | undefined
+  const ordersSettings = settings.orders as { processing_time?: string } | undefined
+  const returnsPolicySettings = settings.returns_policy as { window?: string } | undefined
+  const themeSettings = settings.theme as { banner_url?: string | null; accent_color?: string | null; tagline?: string | null; social?: Record<string, string | null> } | undefined
+  const shippingSettings = settings.shipping as { local_pickup?: boolean; envia_enabled?: boolean; pickup_spots?: unknown[]; origin_address?: Record<string, string | null> } | undefined
+  const offersSettings = settings.offers as { min_buyer_trust_level?: string; negotiation?: { enabled?: boolean } } | undefined
+  const notifSettings = settings.notifications as { email_new_view?: boolean; email_new_message?: boolean } | undefined
+  const aboutSettings = settings.about as { body?: string } | null | undefined
+  const faqSettings = settings.faq as { items?: unknown[] } | null | undefined
+
+  const hasSocial = !!themeSettings?.social && Object.values(themeSettings.social).some(Boolean)
+  const diseno_ok = !!(themeSettings && (themeSettings.banner_url || themeSettings.tagline || hasSocial || (themeSettings.accent_color && themeSettings.accent_color !== '#1d6f42')))
+  const hasOrigin = !!shippingSettings?.origin_address && Object.values(shippingSettings.origin_address).some(Boolean)
+  const envios_ok = !!(shippingSettings && (shippingSettings.local_pickup || shippingSettings.envia_enabled || hasOrigin || (Array.isArray(shippingSettings.pickup_spots) && shippingSettings.pickup_spots.length > 0)))
+  const negociacion_ok = !!(offersSettings && ((offersSettings.min_buyer_trust_level && offersSettings.min_buyer_trust_level !== 'unverified') || offersSettings.negotiation?.enabled))
+  const notificaciones_ok = !!(notifSettings && (notifSettings.email_new_view || notifSettings.email_new_message))
+  const stripe_ok = !!stripeSettings?.charges_enabled
+  const clabe_ok = !!checkoutSettings?.bank_transfer?.clabe
+  const calcom_ok = !!calcomSettings?.connected
+  const orders_ok = !!ordersSettings?.processing_time
+  // 'none' = explicitly configured but not a positive trust signal → still mark done
+  // '' / undefined = not yet configured → not done
+  const returns_ok = !!(returnsPolicySettings?.window)
+  const agentes_ok = !!shop.ucp_webhook_url
+  const paginas_ok = !!(aboutSettings?.body || (faqSettings?.items?.length ?? 0) > 0)
+
+  return {
+    perfil: !!(shop.name && shop.description),
+    pagos: stripe_ok || !!shop.mp_enabled || clabe_ok,
+    citas: calcom_ok,
+    canal: !!shop.custom_domain,
+    pedidos: orders_ok,
+    politicas: returns_ok,
+    envios: envios_ok,
+    negociacion: negociacion_ok,
+    notificaciones: notificaciones_ok,
+    diseno: diseno_ok,
+    agentes: agentes_ok,
+    paginas: paginas_ok,
+  }
+}
+
+export function completedSectionKeys(flags: ShopCompletionFlags): Set<string> {
+  const done = new Set<string>()
+  for (const [key, ok] of Object.entries(flags)) {
+    if (ok) done.add(key)
+  }
+  return done
+}
+
+// ── Dashboard setup guide (5-step curated view) ────────────────────────────
+
+export type SetupStepId = 'perfil' | 'catalogo' | 'pagos' | 'envios' | 'comparte'
+
+export interface SetupStep {
+  id: SetupStepId
+  label: string
+  estimate?: string
+  ctaLabel: string
+  ctaHref: string
+  done: boolean
+  open: boolean
+}
+
+interface StepMeta {
+  id: SetupStepId
+  label: string
+  estimate?: string
+  ctaLabel: string
+  ctaHref: string
+}
+
+const STEP_META: StepMeta[] = [
+  { id: 'perfil', label: 'Completa el perfil de tu tienda', ctaLabel: 'Editar perfil', ctaHref: '/shop/manage/settings/perfil' },
+  { id: 'catalogo', label: 'Publica tu primer producto', ctaLabel: 'Agregar producto', ctaHref: '/shop/manage/catalogo' },
+  { id: 'pagos', label: 'Activa cómo cobrar', estimate: '~4 min', ctaLabel: 'Configurar cobros', ctaHref: '/shop/manage/settings/pagos' },
+  { id: 'envios', label: 'Configura tus envíos', ctaLabel: 'Configurar envíos', ctaHref: '/shop/manage/settings/envios' },
+  { id: 'comparte', label: 'Comparte tu tienda', ctaLabel: 'Compartir tienda', ctaHref: '/shop/manage' },
+]
+
+export interface GetSetupStepsInput {
+  shop: ShopRow
+  productCount: number
+  shareDone: boolean
+}
+
+/**
+ * Ordered 5-step guide. `open` is true only for the first `!done` step (one
+ * step open at a time); when every step is done, none is open — the card can
+ * use that to auto-collapse (B.3).
+ */
+export function getSetupSteps({ shop, productCount, shareDone }: GetSetupStepsInput): SetupStep[] {
+  const flags = computeShopCompletion(shop)
+  const doneById: Record<SetupStepId, boolean> = {
+    perfil: flags.perfil,
+    catalogo: productCount > 0,
+    pagos: flags.pagos,
+    envios: flags.envios,
+    comparte: shareDone,
+  }
+
+  const firstIncompleteIndex = STEP_META.findIndex((step) => !doneById[step.id])
+
+  return STEP_META.map((step, index) => ({
+    ...step,
+    done: doneById[step.id],
+    open: index === firstIncompleteIndex,
+  }))
+}
