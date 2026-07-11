@@ -106,6 +106,7 @@ export type SetupStepId = 'perfil' | 'catalogo' | 'pagos' | 'envios' | 'comparte
 export interface SetupStep {
   id: SetupStepId
   label: string
+  body: string
   estimate?: string
   ctaLabel: string
   ctaHref: string
@@ -116,17 +117,49 @@ export interface SetupStep {
 interface StepMeta {
   id: SetupStepId
   label: string
+  body: string
   estimate?: string
   ctaLabel: string
   ctaHref: string
 }
 
 const STEP_META: StepMeta[] = [
-  { id: 'perfil', label: 'Completa el perfil de tu tienda', ctaLabel: 'Editar perfil', ctaHref: '/shop/manage/settings/perfil' },
-  { id: 'catalogo', label: 'Publica tu primer producto', ctaLabel: 'Agregar producto', ctaHref: '/shop/manage/catalogo' },
-  { id: 'pagos', label: 'Activa cómo cobrar', estimate: '~4 min', ctaLabel: 'Configurar cobros', ctaHref: '/shop/manage/settings/pagos' },
-  { id: 'envios', label: 'Configura tus envíos', ctaLabel: 'Configurar envíos', ctaHref: '/shop/manage/settings/envios' },
-  { id: 'comparte', label: 'Comparte tu tienda', ctaLabel: 'Compartir tienda', ctaHref: '/shop/manage' },
+  {
+    id: 'perfil',
+    label: 'Completa el perfil de tu tienda',
+    body: 'Agrega un nombre y una descripción claros para que los compradores confíen en tu tienda.',
+    ctaLabel: 'Editar perfil',
+    ctaHref: '/shop/manage/settings/perfil',
+  },
+  {
+    id: 'catalogo',
+    label: 'Publica tu primer producto',
+    body: 'Publica al menos un producto, servicio o renta para empezar a vender.',
+    ctaLabel: 'Agregar producto',
+    ctaHref: '/shop/manage/catalogo',
+  },
+  {
+    id: 'pagos',
+    label: 'Activa cómo cobrar',
+    body: 'Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.',
+    estimate: '~4 min',
+    ctaLabel: 'Configurar cobros',
+    ctaHref: '/shop/manage/settings/pagos',
+  },
+  {
+    id: 'envios',
+    label: 'Configura tus envíos',
+    body: 'Define cómo entregas: paquetería, punto de encuentro o recolección.',
+    ctaLabel: 'Configurar envíos',
+    ctaHref: '/shop/manage/settings/envios',
+  },
+  {
+    id: 'comparte',
+    label: 'Comparte tu tienda',
+    body: 'Comparte el enlace de tu tienda con tus primeros compradores.',
+    ctaLabel: 'Compartir tienda',
+    ctaHref: '/shop/manage',
+  },
 ]
 
 export interface GetSetupStepsInput {

@@ -107,10 +107,12 @@ test.describe('setup-guide · getSetupSteps', () => {
     expect(steps.some((s) => s.open)).toBe(false)
   })
 
-  test('payments (step 3) carries the "~4 min" estimate and the pagos CTA', () => {
+  test('payments (step 3) carries the "~4 min" estimate, the exact sprint-1.md body copy, and the pagos CTA', () => {
     const steps = getSetupSteps({ shop: emptyShop, productCount: 0, shareDone: false })
     const pagos = steps.find((s) => s.id === 'pagos')
     expect(pagos?.estimate).toBe('~4 min')
+    expect(pagos?.body).toBe('Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.')
+    expect(pagos?.ctaLabel).toBe('Configurar cobros')
     expect(pagos?.ctaHref).toBe('/shop/manage/settings/pagos')
   })
 })

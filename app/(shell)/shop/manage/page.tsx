@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { filterOutDeleted, DELETED_STATUS } from '@/lib/listing-lifecycle'
 import ManageDashboard from './ManageDashboard'
+import { getSetupSteps, type ShopRow } from '@/lib/setup-guide'
 
 export const metadata = {
   title: 'Mi tienda — Miyagi Sánchez',
@@ -118,8 +119,11 @@ export default async function ManagePage() {
     )
   }
 
-  // ── Fetch listings + pending offers + pending orders in parallel ───────────
-  const [{ count: pendingOffersCount }, { count: pendingOrdersCount }] = shopMirror?.id
+  // ── Fetch listings + pending offers + pending orders + the setup-guide shop
+  // row in parallel. The guide row mirrors the exact columns settings/page.tsx
+  // reads (`lib/setup-guide.ts`'s ShopRow) so completion state can never drift
+  // between the settings index and this card.
+  const [{ count: pendingOffersCount }, { count: pendingOrdersCount }, { data: guideShop }] = shopMirror?.id
     ? await Promise.all([
         db
           .from('marketplace_offers')
@@ -131,8 +135,25 @@ export default async function ManagePage() {
           .select('id', { count: 'exact', head: true })
           .eq('shop_id', shopMirror.id)
           .in('status', ['paid', 'processing']),
+        db
+          .from('marketplace_shops')
+          .select('name, description, metadata, mp_enabled, custom_domain, ucp_webhook_url')
+          .eq('clerk_user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
       ])
-    : [{ count: 0 }, { count: 0 }]
+    : [{ count: 0 }, { count: 0 }, { data: null }]
+
+  const setupSteps = guideShop
+    ? getSetupSteps({
+        shop: guideShop as ShopRow,
+        productCount: listings.length,
+        // Persisted by B.3 (metadata.settings.guide.share_done) — absent today, so
+        // step 5 simply hasn't been reached yet on any shop.
+        shareDone: !!(guideShop.metadata as { settings?: { guide?: { share_done?: boolean } } } | null)?.settings?.guide?.share_done,
+      })
+    : []
 
   return (
     <ManageDashboard
@@ -145,6 +166,7 @@ export default async function ManagePage() {
       initialListings={listings}
       pendingOffersCount={pendingOffersCount ?? 0}
       pendingOrdersCount={pendingOrdersCount ?? 0}
+      setupSteps={setupSteps}
     />
   )
 }

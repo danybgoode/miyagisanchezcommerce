@@ -1,7 +1,9 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
+import SetupGuideCard from './SetupGuideCard'
 import { pendingSummary as buildPendingSummary } from '@/lib/seller-pending-summary'
+import type { SetupStep } from '@/lib/setup-guide'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,11 +40,13 @@ export default function ManageDashboard({
   initialListings,
   pendingOffersCount = 0,
   pendingOrdersCount = 0,
+  setupSteps,
 }: {
   shop: Shop
   initialListings: ManagedListing[]
   pendingOffersCount?: number
   pendingOrdersCount?: number
+  setupSteps: SetupStep[]
 }) {
   const totalViews = initialListings.reduce((s, l) => s + (l.views ?? 0), 0)
   const activeCount = initialListings.filter((l) => l.status === 'active').length
@@ -102,6 +106,9 @@ export default function ManageDashboard({
           </Link>
         </div>
       </div>
+
+      {/* ── Setup guide (renders nothing once all 5 steps are done) ──────────── */}
+      <SetupGuideCard steps={setupSteps} />
 
       {/* ── Stats row ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 mb-8">
