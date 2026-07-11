@@ -14,9 +14,11 @@
  *       Nothing permanent is left behind — for active-development "does this
  *       look right" checks.
  *   --spec <name>
- *       Runs an existing, COMMITTED e2e/*.browser.spec.ts by title/file match
- *       (playwright test -g <name>). Use this for a shipped story's permanent
- *       regression coverage (write the spec first, then run it this way).
+ *       Runs an existing, COMMITTED e2e/*.browser.spec.ts whose TEST TITLE
+ *       matches <name> (playwright test -g <name> — a substring/regex match
+ *       against the test's title, NOT its filename). Use this for a shipped
+ *       story's permanent regression coverage (write the spec first, then
+ *       run it this way).
  *
  * Environments (--env):
  *   local    http://localhost:3001 (assumes `npm run dev` or the standalone
@@ -42,7 +44,7 @@
  */
 import { parseArgs } from 'node:util'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -73,17 +75,38 @@ function parseCliArgs() {
   return values
 }
 
-/** Load .env.local key/values without printing them or mutating process.env globally. */
+/** Strip a matching pair of surrounding quotes (single or double), if present. */
+function unquote(value) {
+  if (value.length >= 2) {
+    const first = value[0]
+    const last = value[value.length - 1]
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return value.slice(1, -1)
+    }
+  }
+  return value
+}
+
+/**
+ * Load .env.local key/values without printing them or mutating process.env
+ * globally. Handles a leading `export ` prefix and quoted values (both
+ * common in a hand-edited .env.local) — a plain `KEY=value` parse would
+ * otherwise pass a literal `"sk_test_..."` (quotes included) into Clerk and
+ * fail auth with a confusing error, not the intended value.
+ */
 function loadDotEnvLocal() {
   const path = join(APP_ROOT, '.env.local')
   if (!existsSync(path)) return {}
   const out = {}
   for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const trimmed = line.trim()
+    let trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
+    if (trimmed.startsWith('export ')) trimmed = trimmed.slice('export '.length).trim()
     const eq = trimmed.indexOf('=')
     if (eq === -1) continue
-    out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    const key = trimmed.slice(0, eq).trim()
+    const value = unquote(trimmed.slice(eq + 1).trim())
+    out[key] = value
   }
   return out
 }
@@ -119,10 +142,34 @@ function main() {
   }
 
   if (flow !== 'unauthed') {
+    // Check the URL constraint FIRST — a clear, specific die() beats a
+    // generic "need Clerk keys" message when both are true at once (this
+    // repo's own default .env.local has no keys AND prod is unsupported).
+    if (baseURL === ENV_BASE_URLS.prod) {
+      die(
+        `--flow=${flow} against --env=prod is not supported — Clerk rejects testing tokens for ` +
+          'production secret keys by design. Use --env=local for authed flows, or fall back to ' +
+          'Claude-in-Chrome for a real prod-authed check.',
+      )
+    }
+
     const clerkPk = process.env.CLERK_PUBLISHABLE_KEY ?? dotenv.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
     const clerkSk = process.env.CLERK_SECRET_KEY ?? dotenv.CLERK_SECRET_KEY
     if (!clerkPk || !clerkSk) {
       die('an authed --flow needs CLERK_PUBLISHABLE_KEY/CLERK_SECRET_KEY (dev instance) resolvable from the shell or .env.local')
+    }
+    // Defense-in-depth beyond the URL check above: the SAME "Clerk rejects
+    // testing tokens for prod keys" failure can occur even at --env=local if
+    // .env.local happens to carry live (`_live_`) keys instead of dev
+    // (`_test_`) ones — a real risk flagged in review. Catch it here with a
+    // clear message rather than letting Clerk itself fail confusingly deep
+    // inside clerk.signIn().
+    if (clerkPk.includes('_live_') || clerkSk.includes('_live_')) {
+      die(
+        'the resolved Clerk keys look like PRODUCTION keys (contain "_live_") — authed live-smoke ' +
+          'flows only work with a DEV/TEST Clerk instance (pk_test_.../sk_test_...). Check ' +
+          'CLERK_PUBLISHABLE_KEY/CLERK_SECRET_KEY in the shell or .env.local.',
+      )
     }
     childEnv.MS_TEST_BROWSER_AUTH = '1'
     childEnv.CLERK_PUBLISHABLE_KEY = clerkPk
@@ -131,13 +178,6 @@ function main() {
       const value = process.env[key] ?? dotenv[key]
       if (value) childEnv[key] = value
     }
-    if (baseURL === ENV_BASE_URLS.prod) {
-      die(
-        `--flow=${flow} against --env=prod is not supported — Clerk rejects testing tokens for ` +
-          'production secret keys by design. Use --env=local for authed flows, or fall back to ' +
-          'Claude-in-Chrome for a real prod-authed check.',
-      )
-    }
   }
 
   let playwrightArgs
@@ -145,6 +185,12 @@ function main() {
     childEnv.LIVE_SMOKE_PATH = args.path
     childEnv.LIVE_SMOKE_FLOW = flow
     childEnv.LIVE_SMOKE_OUT = OUT_DIR
+    // Clear any report/screenshot from a PREVIOUS run before spawning — a
+    // skipped or crashed-before-navigating run leaves no fresh report, and
+    // without this the readback below would silently pick up stale evidence
+    // from an unrelated earlier smoke and report it as if it were current.
+    rmSync(join(APP_ROOT, OUT_DIR, 'report.json'), { force: true })
+    rmSync(join(APP_ROOT, OUT_DIR, 'screenshot.png'), { force: true })
     playwrightArgs = ['playwright', 'test', '--project=browser', 'e2e/_live/ad-hoc.browser.spec.ts']
   } else {
     playwrightArgs = ['playwright', 'test', '--project=browser', '-g', args.spec]
