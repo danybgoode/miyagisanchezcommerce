@@ -59,9 +59,9 @@ import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
-import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock } from '@/lib/seller-products'
 import { getShopCollections } from '@/lib/listings'
-import { shortCollectionSlug } from '@/lib/collection-derive'
+import { shortCollectionSlug, validateCollectionName } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
@@ -390,6 +390,17 @@ const TOOLS = [
     name: 'list_my_collections',
     description: "SELLER TOOL. List YOUR OWN shop's collections (Die-cut, Zines…) so you can assign listings to them. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each collection's name and short slug — pass the name(s) to update_listing's collection_names to assign a listing.",
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_collection',
+    description: "SELLER TOOL. Create a new collection for YOUR OWN shop (e.g. \"Zines\", \"Stickers\"). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns the created collection's name and short slug — pass it to list_my_collections or update_listing's collection_names to assign listings to it.",
+    inputSchema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string', description: 'Collection name, 2–60 characters (e.g. "Historias").' },
+      },
+    },
   },
   {
     name: 'list_orders',
@@ -1622,7 +1633,7 @@ async function handleListMyCollections(authHeader?: string | null) {
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const collections = await getShopCollections(shop.slug)
-  if (collections.length === 0) return { content: [{ type: 'text', text: 'Aún no tienes colecciones. Créalas en el portal de tu tienda (Colecciones).' }] }
+  if (collections.length === 0) return { content: [{ type: 'text', text: 'Aún no tienes colecciones. Usa create_collection para crear una.' }] }
 
   const shaped = collections.map((c) => ({ name: c.name, slug: shortCollectionSlug(c.handle, shop.slug!) }))
   const lines = shaped.map((c) => `• **${c.name}** (slug: \`${c.slug}\`)`)
@@ -1630,6 +1641,31 @@ async function handleListMyCollections(authHeader?: string | null) {
     content: [
       { type: 'text', text: [`## Tus colecciones (${shaped.length})`, ...lines].join('\n') },
       { type: 'text', text: JSON.stringify({ collections: shaped }, null, 2) },
+    ],
+  }
+}
+
+async function handleCreateCollection(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const validated = validateCollectionName(args.name)
+  if (!validated.ok) return { isError: true, content: [{ type: 'text', text: validated.error }] }
+
+  const result = await createSellerCollectionViaInternal(shop.slug, validated.name)
+  if (!result.ok || !result.collection) {
+    return { isError: true, content: [{ type: 'text', text: `No se pudo crear la colección: ${result.error}` }] }
+  }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const shaped = { name: result.collection.name, slug: shortCollectionSlug(result.collection.handle, shop.slug) }
+  return {
+    content: [
+      { type: 'text', text: `✅ Colección creada: «${shaped.name}» (slug: \`${shaped.slug}\`).\n\nUsa este nombre en collection_names de update_listing para asignarle anuncios.` },
+      { type: 'text', text: JSON.stringify({ collection: shaped }, null, 2) },
     ],
   }
 }
@@ -2202,6 +2238,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'create_listing':            { const r = await handleCreateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_collection':         { const r = await handleCreateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_launchpad_campaigns': { const r = await handleListLaunchpadCampaigns(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
