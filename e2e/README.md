@@ -24,6 +24,23 @@ npx playwright install chromium      # once
 npm run test:e2e:browser
 ```
 
+### `scripts/live-smoke.mjs` — the default interactive entry point (any agent)
+Wraps this project for on-demand verification during a build session (as opposed to the permanent
+regression suite above). **The default tool for "does this actually render correctly" — for any
+coding agent, not just Claude Code; no Claude-in-Chrome access needed.** Two modes: `--path` for an
+ad-hoc check against one URL (nothing permanent left behind — for active-development "does this
+look right" moments), `--spec` to run an existing committed `*.browser.spec.ts` by name. Emits a
+JSON report + a screenshot to `test-results/live-smoke/` that the calling agent reads back, rather
+than just an exit code.
+
+```bash
+node scripts/live-smoke.mjs --env=prod  --flow=unauthed --path=/vende/migracion
+node scripts/live-smoke.mjs --env=local --flow=admin    --path=/admin/promoter
+```
+
+Full usage, the honest environment × auth matrix, and the Claude-in-Chrome fallback boundary:
+`skills/live-smoke/SKILL.md` (root repo).
+
 ## `staging` project — opt-in, deliberately different host (NOT the gate)
 `*.staging.spec.ts`. Same `request`-fixture shape as `api`, but the spec targets a host OTHER than
 `baseURL` on purpose — e.g. an infra-migration staging hostname
