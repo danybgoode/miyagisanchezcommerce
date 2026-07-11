@@ -119,6 +119,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // action can mutate hundreds of products in one call, so default OFF hides the
   // selection/bulk UI until Daniel's live smoke.
   'catalog.bulk_enabled': { polarity: 'killswitch', default: false },
+  // Seller shell (dark top bar + SellerNav) over /sell + /sell/setup for a
+  // signed-in shop owner, instead of buyer chrome (epic 03 · catalog-management
+  // S6, Story 6.1). Kill-switch: default ON ⇒ OFF reverts those two routes to
+  // buyer chrome instantly, no redeploy.
+  'seller.shell_on_sell_enabled': { polarity: 'killswitch', default: true },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
