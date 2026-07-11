@@ -10,16 +10,19 @@ import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import { isSellerModePath } from '@/lib/seller-mode'
 import { sellShellEligible } from '@/lib/seller-shell-gate'
+import { isOnboardingPath } from '@/lib/onboarding-path'
 
 /**
  * Dynamic `(shell)` shell — holds the per-request chrome decision that used to live in
  * the root layout (which is now static so the `(site)` homepage can go static). Reading
  * `headers()` here opts THIS subtree into dynamic rendering without tainting `(site)`.
  *
- * Three modes, byte-identical to the old root layout:
+ * Chrome modes:
  *   • white-label (embed iframe OR live custom-domain / subdomain) → `ChannelLayout`
  *   • buyer chrome (everything else on the platform) → `PlatformShell`
- *   • seller-mode (`/shop/manage/*`) → bare `<main>` (the nested manage layout fills it)
+ *   • seller-mode (`/shop/manage/*`), owner-eligible `/sell`+`/sell/setup`, or the
+ *     onboarding three-doors first-run (`/sell/bienvenida`, `/sell/puertas`,
+ *     `/sell/agente`) → bare `<main>` (the matching nested layout fills it)
  */
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
   // The embeddable full-shop iframe (/embed/*) is white-label — middleware tags it so we
@@ -62,7 +65,17 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   // round-trip on a channel host.
   const ownerSellShellEligible = !whiteLabel && (await sellShellEligible(platformPath))
 
-  const showBuyerChrome = !whiteLabel && !sellerMode && !ownerSellShellEligible
+  // Onboarding three-doors first-run (seller-portal-onboarding-three-doors
+  // Sprint 1): the S1/S2/S3 screens are PRE-shop (a merchant with no seller
+  // yet), so neither sellerMode nor ownerSellShellEligible above ever covers
+  // them — this is a third, separate, additive OR-term (same "root
+  // suppresses, nested layout fills" composition, not a re-extension of
+  // either existing gate). `isOnboardingPath` is a pure path match, no
+  // auth/flag check here — the nested `app/(shell)/sell/(onboarding)/`
+  // layout and each page own that.
+  const onboardingMode = !whiteLabel && isOnboardingPath(platformPath)
+
+  const showBuyerChrome = !whiteLabel && !sellerMode && !ownerSellShellEligible && !onboardingMode
 
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
 
