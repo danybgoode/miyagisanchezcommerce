@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   validateSetup,
@@ -18,12 +18,15 @@ import {
   type SetupApplyReport,
   type RowResult,
 } from '@/lib/setup-apply'
-import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
+import { CATALOG_CATEGORY_KEYS, validateRows, type CatalogImportRow } from '@/lib/catalog-import'
 import { type BlockResult } from '@/lib/settings-import'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Card } from '@/components/ui/Card'
 import { Banner } from '@/components/feedback/Banner'
 import { consumeSetupFile } from '@/lib/onboarding-handoff'
+import { slugify } from '@/lib/slug'
+import { SuccessCard, SuccessCardProgress } from '@/components/SuccessCard'
 
 // ── Copy-to-clipboard (mirrors the import clients) ────────────────────────────
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
@@ -71,6 +74,7 @@ function BlockRow({ b }: { b: BlockResult }) {
 }
 
 type ValidatedSetup = ReturnType<typeof validateSetup>
+type SetupProfile = NonNullable<MiyagiSetupFile['profile']>
 
 function FirstRunApply() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -80,6 +84,13 @@ function FirstRunApply() {
   const [file, setFile] = useState<MiyagiSetupFile | null>(null)
   const [validated, setValidated] = useState<ValidatedSetup | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Inline-fix working copies (S4) — edits patch these, never `file` itself;
+  // `planSetupApply` is called unchanged, merged with these overrides right
+  // before the call (same principle ImportClient.tsx already uses for its
+  // own edit-then-submit flow — see updateField below).
+  const [editCatalogRows, setEditCatalogRows] = useState<CatalogImportRow[]>([])
+  const [profileOverrides, setProfileOverrides] = useState<Partial<SetupProfile>>({})
+  const [editingProfile, setEditingProfile] = useState(false)
   // Apply state
   const [applying, setApplying] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
@@ -87,6 +98,7 @@ function FirstRunApply() {
 
   function review(text: string, source: 'paste' | 'file', name?: string) {
     setError(null); setFile(null); setValidated(null); setReport(null)
+    setEditCatalogRows([]); setProfileOverrides({}); setEditingProfile(false)
     let parsed: unknown
     try {
       parsed = JSON.parse(text)
@@ -101,8 +113,10 @@ function FirstRunApply() {
       return
     }
     if (source === 'file' && name) setFileName(name)
-    setFile(parsed as MiyagiSetupFile)
+    const parsedFile = parsed as MiyagiSetupFile
+    setFile(parsedFile)
     setValidated(v)
+    setEditCatalogRows((parsedFile.catalog ?? []).map((row) => ({ ...row })))
   }
 
   // Onboarding three-doors handoff (Sprint 1 · Story 1.3): a CSV/JSON dropped
@@ -125,12 +139,39 @@ function FirstRunApply() {
     }
   }
 
+  // Re-validate the editable catalog rows live so an inline fix flips a row
+  // to "Listo" — same shape as ImportClient.tsx's updateField.
+  function updateField(i: number, field: keyof CatalogImportRow, raw: string) {
+    setEditCatalogRows((prev) => prev.map((row, idx) => {
+      if (idx !== i) return row
+      const next = { ...row }
+      if (field === 'price' || field === 'quantity') {
+        const n = raw.trim() === '' ? undefined : Number(raw.replace(/[^\d.]/g, ''))
+        next[field] = (n === undefined || Number.isNaN(n) ? undefined : n) as never
+      } else {
+        next[field] = (raw === '' ? undefined : raw) as never
+      }
+      return next
+    }))
+  }
+
+  function updateProfileField(field: 'name' | 'city' | 'state', raw: string) {
+    setProfileOverrides((prev) => ({ ...prev, [field]: raw === '' ? undefined : raw }))
+  }
+
   // Walk the plan over the EXISTING apply routes in order: shop → config → catalog.
   // Each step degrades gracefully; the combined report shows exactly what applied.
   async function runApply() {
     if (!file) return
     setApplying(true); setError(null)
-    const plan = planSetupApply(file)
+    // Merge the inline-fix overrides on top of the parsed file right before
+    // building the plan — planSetupApply itself is unchanged.
+    const effectiveFile: MiyagiSetupFile = {
+      ...file,
+      profile: { ...file.profile, ...profileOverrides },
+      catalog: editCatalogRows.length ? editCatalogRows : file.catalog,
+    }
+    const plan = planSetupApply(effectiveFile)
     const totalRows = plan.catalogChunks.reduce((s, c) => s + c.length, 0)
     setProgress({ done: 0, total: totalRows })
 
@@ -199,10 +240,16 @@ function FirstRunApply() {
     }
   }
 
-  const catalogRows = validated?.catalog ?? []
+  const catalogRows = editCatalogRows.length ? validateRows(editCatalogRows) : (validated?.catalog ?? [])
   const validRows = catalogRows.filter((s) => s.valid)
   const errorRows = catalogRows.filter((s) => !s.valid)
   const configBlocks = (validated?.config?.blocks ?? []).filter((b) => b.status === 'applied')
+  const profileBlock = configBlocks.find((b) => b.key === 'profile')
+  const shippingBlock = configBlocks.find((b) => b.key === 'shipping')
+  const configIssueBlocks = (validated?.config?.blocks ?? []).filter((b) => b.issues.length > 0)
+  const displayProfile: Partial<SetupProfile> = { ...file?.profile, ...profileOverrides }
+  const shopNamePreview = displayProfile.name?.trim() || ''
+  const slugPreview = shopNamePreview ? slugify(shopNamePreview) : null
 
   return (
     <div>
@@ -254,45 +301,93 @@ function FirstRunApply() {
 
       {error && <Banner variant="danger" className="mt-2">{error}</Banner>}
 
-      {/* ── Staging preview (before confirm) ───────────────────────────────── */}
+      {/* ── Staging preview: Revisa y aprueba (S4) ─────────────────────────── */}
       {validated && !report && (
         <div className="mt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge token="success">
-                ✓ {validRows.length} {validRows.length === 1 ? 'producto listo' : 'productos listos'}
-              </StatusBadge>
-              {configBlocks.length > 0 && (
-                <StatusBadge token="info">
-                  ⚙️ {configBlocks.length} bloque(s) de config
-                </StatusBadge>
-              )}
-              {errorRows.length > 0 && (
-                <StatusBadge token="danger">
-                  ✕ {errorRows.length} con error
-                </StatusBadge>
-              )}
+          <h2 className="text-lg font-bold mb-1">Revisa tu tienda antes de crearla</h2>
+          <p className="text-sm text-[var(--color-muted)] mb-4">Toca cualquier cosa para editarla.</p>
+
+          {/* Tu tienda */}
+          <Card variant="panel" className="p-4 mb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {displayProfile.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={displayProfile.logo_url} alt="" className="w-12 h-12 rounded-[var(--r-pill)] object-cover shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-[var(--r-pill)] bg-[var(--surface-muted)] flex items-center justify-center text-sm font-bold shrink-0">
+                    {(shopNamePreview || 'MS').slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{shopNamePreview || '(se generará automáticamente)'}</p>
+                  <p className="text-xs text-[var(--color-muted)] truncate">
+                    {slugPreview ? `/s/${slugPreview}` : 'tu enlace se genera al crear la tienda'}
+                  </p>
+                  {(displayProfile.city || displayProfile.state) && (
+                    <p className="text-xs text-[var(--color-muted)]">
+                      {[displayProfile.city, displayProfile.state].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditingProfile((v) => !v)}>
+                {editingProfile ? 'Listo' : 'Editar'}
+              </Button>
             </div>
-            <button
-              type="button"
-              onClick={runApply}
-              disabled={applying || (validRows.length === 0 && configBlocks.length === 0)}
-              className="btn btn-primary"
-            >
-              {applying ? `Creando ${progress.done}/${progress.total}…` : 'Crear mi tienda y catálogo'}
-            </button>
+            {editingProfile && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  value={displayProfile.name ?? ''}
+                  onChange={(e) => updateProfileField('name', e.target.value)}
+                  placeholder="Nombre de tu tienda"
+                  className="text-sm p-2 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)]"
+                />
+                <input
+                  value={displayProfile.city ?? ''}
+                  onChange={(e) => updateProfileField('city', e.target.value)}
+                  placeholder="Ciudad"
+                  className="text-sm p-2 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)]"
+                />
+                <input
+                  value={displayProfile.state ?? ''}
+                  onChange={(e) => updateProfileField('state', e.target.value)}
+                  placeholder="Estado"
+                  className="text-sm p-2 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)] sm:col-span-2"
+                />
+              </div>
+            )}
+          </Card>
+
+          {/* Config chips */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <StatusBadge token={profileBlock ? 'success' : 'neutral'}>
+              {profileBlock ? '✓ Diseño y colores' : 'Diseño y colores'}
+            </StatusBadge>
+            <StatusBadge token={shippingBlock ? 'success' : 'neutral'}>
+              {shippingBlock ? '✓ Políticas de envío' : 'Políticas de envío'}
+            </StatusBadge>
+            <StatusBadge token="neutral">Cobros — después, ~4 min</StatusBadge>
           </div>
 
-          {/* Config blocks preview */}
-          {configBlocks.length > 0 && (
+          {/* Config blocks that need attention (kept visible even though the
+              chips above summarize the happy path — a block with issues still
+              needs to surface its detail before the seller approves). */}
+          {configIssueBlocks.length > 0 && (
             <div className="space-y-2 mb-3">
-              {(validated.config?.blocks ?? []).map((b) => <BlockRow key={b.key} b={b} />)}
+              {configIssueBlocks.map((b) => <BlockRow key={b.key} b={b} />)}
             </div>
           )}
 
-          {/* Catalog staging grid (read-only — the agent emitted it) */}
+          {/* Catálogo */}
           {catalogRows.length > 0 && (
-            <div className="rounded-[var(--r-lg)] border border-[var(--border)] overflow-hidden">
+            <div className="rounded-[var(--r-lg)] border border-[var(--border)] overflow-hidden mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-[var(--surface-muted)] border-b border-[var(--border)]">
+                <p className="text-sm font-medium">
+                  {validRows.length} {validRows.length === 1 ? 'listo' : 'listos'}
+                  {errorRows.length > 0 && <span className="text-[var(--color-muted)] font-normal"> · {errorRows.length} por corregir</span>}
+                </p>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -306,41 +401,96 @@ function FirstRunApply() {
                   </thead>
                   <tbody>
                     {catalogRows.map((s, i) => {
-                      const cat = CATALOG_CATEGORY_KEYS.includes(s.row.category) ? s.row.category : (s.row.category || '—')
+                      const row = editCatalogRows[i] ?? s.row
+                      const cellErr = (field: string) => s.issues.some((iss) => iss.level === 'error' && iss.field === field)
+                      const inputBase = 'w-full bg-transparent rounded px-1.5 py-1 border'
+                      const reason = s.issues.find((iss) => iss.level === 'error')?.message
                       return (
-                        <tr key={i} className={`border-b border-[var(--color-border)] last:border-0 ${s.valid ? '' : 'bg-[var(--danger-soft)]'}`}>
-                          <td className="py-2 px-3 min-w-[12rem]">{s.row.title || '(sin título)'}</td>
-                          <td className="py-2 px-3">{cat}</td>
-                          <td className="py-2 px-3 whitespace-nowrap">{s.row.price != null ? `$${s.row.price.toLocaleString('es-MX')}` : 'a convenir'}</td>
-                          <td className="py-2 px-3 font-mono">{s.row.external_id || '—'}</td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            {s.valid
-                              ? <StatusBadge token="success">Listo</StatusBadge>
-                              : <StatusBadge token="danger" title={s.issues.find((iss) => iss.level === 'error')?.message}>Corregir</StatusBadge>}
-                          </td>
-                        </tr>
+                        <Fragment key={i}>
+                          <tr className={`border-b border-[var(--color-border)] last:border-0 ${s.valid ? '' : 'bg-[var(--danger-soft)]'}`}>
+                            <td className="py-1.5 px-2 min-w-[12rem]">
+                              <input
+                                value={row.title ?? ''}
+                                onChange={(e) => updateField(i, 'title', e.target.value)}
+                                placeholder="Título del producto"
+                                className={`${inputBase} ${cellErr('title') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                              />
+                            </td>
+                            <td className="py-1.5 px-2">
+                              <select
+                                value={CATALOG_CATEGORY_KEYS.includes(row.category) ? row.category : ''}
+                                onChange={(e) => updateField(i, 'category', e.target.value)}
+                                className={`${inputBase} ${cellErr('category') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                              >
+                                <option value="">—</option>
+                                {CATALOG_CATEGORY_KEYS.map((k) => (
+                                  <option key={k} value={k}>{k}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-1.5 px-2 w-24">
+                              <input
+                                value={row.price ?? ''}
+                                onChange={(e) => updateField(i, 'price', e.target.value)}
+                                inputMode="decimal"
+                                placeholder="a convenir"
+                                className={`${inputBase} ${cellErr('price') ? 'border-red-300' : 'border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]'}`}
+                              />
+                            </td>
+                            <td className="py-1.5 px-2 font-mono w-28">
+                              <input
+                                value={row.external_id ?? ''}
+                                onChange={(e) => updateField(i, 'external_id', e.target.value)}
+                                placeholder="—"
+                                className={`${inputBase} font-mono border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-accent)]`}
+                              />
+                            </td>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              {s.valid
+                                ? <StatusBadge token="success">Listo</StatusBadge>
+                                : <StatusBadge token="danger">Corregir</StatusBadge>}
+                            </td>
+                          </tr>
+                          {!s.valid && reason && (
+                            <tr className="border-b border-[var(--color-border)] last:border-0">
+                              <td colSpan={5} className="px-3 pb-2 -mt-1">
+                                <p className="text-xs" style={{ color: 'var(--warning)' }}>⚠️ {reason} — tócalo arriba para corregirlo.</p>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       )
                     })}
                   </tbody>
                 </table>
               </div>
-              {errorRows.length > 0 && (
-                <p className="px-4 py-2 text-xs text-[var(--color-muted)] border-t border-[var(--color-border)]">
-                  💡 Las filas con error se omiten; las válidas se crean igual. Puedes corregirlas luego en{' '}
-                  <Link href="/shop/manage/import" className="text-[var(--color-accent)] hover:underline">Importar catálogo</Link>.
-                </p>
-              )}
-              {applying && (
-                <div className="px-4 py-3 border-t border-[var(--color-border)]">
-                  <div className="h-2 rounded-[var(--r-pill)] bg-[var(--color-border)] overflow-hidden">
-                    <div
-                      className="h-full bg-[var(--color-accent)] transition-all"
-                      style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
+          )}
+
+          {applying && (
+            <div className="mb-3">
+              <SuccessCardProgress done={progress.done} total={progress.total} />
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={runApply}
+              disabled={applying || (validRows.length === 0 && configBlocks.length === 0)}
+              className="btn btn-primary"
+            >
+              {applying
+                ? `Creando ${progress.done}/${progress.total}…`
+                : validRows.length > 0
+                  ? `Crear mi tienda con ${validRows.length} producto${validRows.length === 1 ? '' : 's'}`
+                  : 'Crear mi tienda'}
+            </button>
+          </div>
+          {errorRows.length > 0 && (
+            <p className="text-xs text-[var(--color-muted)] mt-2 text-right">
+              El que falta por corregir se queda como borrador — lo arreglas cuando quieras.
+            </p>
           )}
         </div>
       )}
@@ -351,53 +501,66 @@ function FirstRunApply() {
   )
 }
 
-// ── The post-apply summary (Story 2.2 land-in-shop) ───────────────────────────
+// ── The post-apply summary — shared <SuccessCard> (F12 convergence, Story 2.2) ──
 function SetupReport({ report }: { report: SetupApplyReport }) {
   const { shop, shopSlug, config, catalog } = report
   const shopOk = shop !== 'failed'
-  const appliedBlocks = config.filter((b) => b.status === 'applied').length
   const failedRows = catalog.rows.filter((r) => r.status === 'failed')
+  const configIssueBlocks = config.filter((b) => b.issues.length > 0)
+
+  if (!shopOk) {
+    return (
+      <div className="mt-2 text-center">
+        <div className="text-4xl mb-2">⚠️</div>
+        <h2 className="text-xl font-bold">No pudimos crear tu tienda</h2>
+        {configIssueBlocks.length > 0 && (
+          <div className="space-y-2 mt-4 text-left">
+            {configIssueBlocks.map((b) => <BlockRow key={b.key} b={b} />)}
+          </div>
+        )}
+        {failedRows.length > 0 && (
+          <div className="space-y-2 mt-4 text-left">
+            {failedRows.map((r, i) => (
+              <Banner key={i} variant="danger">
+                <strong>{r.title}</strong>: {r.reason}
+              </Banner>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-center mt-6">
+          <Link href="/sell/setup" className="btn btn-secondary no-underline">Intentar de nuevo</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mt-2">
-      <div className="text-center mb-5">
-        <div className="text-4xl mb-2">{shopOk ? '🎉' : '⚠️'}</div>
-        <h2 className="text-xl font-bold">
-          {shop === 'created' ? '¡Tu tienda está lista!' : shop === 'existed' ? 'Tu tienda se actualizó' : 'No pudimos crear tu tienda'}
-        </h2>
-        {shopOk && (
-          <p className="text-sm text-[var(--color-muted)] mt-1">
-            {shop === 'created' ? 'Creamos tu tienda' : 'Usamos tu tienda existente'}
-            {catalog.created > 0 && ` · ${catalog.created} producto(s) nuevo(s)`}
-            {catalog.updated > 0 && ` · ${catalog.updated} actualizado(s)`}
-            {appliedBlocks > 0 && ` · ${appliedBlocks} bloque(s) de configuración`}.
-          </p>
-        )}
-      </div>
+      <SuccessCard
+        headline="Tu tienda está lista"
+        subcopy={`Creamos tu tienda con ${catalog.created} producto(s) publicado(s)${catalog.failed > 0 ? ` y ${catalog.failed} borrador(es)` : ''}. Diseño y envíos quedaron configurados.`}
+        counts={{ created: catalog.created, updated: catalog.updated, failed: catalog.failed, draft: 0 }}
+        liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+        warningCallout={{
+          text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
+          primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos' },
+          ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
+        }}
+        nextActions={[{ label: 'Ir a mi tienda', href: '/shop/manage' }]}
+        shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+      />
 
-      {/* Result chips */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
-        {catalog.created > 0 && (
-          <StatusBadge token="success">✓ {catalog.created} creados</StatusBadge>
-        )}
-        {catalog.updated > 0 && (
-          <StatusBadge token="warning">↻ {catalog.updated} actualizados</StatusBadge>
-        )}
-        {catalog.failed > 0 && (
-          <StatusBadge token="danger">✕ {catalog.failed} fallaron</StatusBadge>
-        )}
-      </div>
-
-      {/* Config block deltas */}
-      {config.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {config.map((b) => <BlockRow key={b.key} b={b} />)}
+      {/* Config blocks that need attention (kept below the card — the same
+          "surface issues, don't bury them" treatment S4's staging chips use). */}
+      {configIssueBlocks.length > 0 && (
+        <div className="space-y-2 mt-4">
+          {configIssueBlocks.map((b) => <BlockRow key={b.key} b={b} />)}
         </div>
       )}
 
       {/* Failed rows detail */}
       {failedRows.length > 0 && (
-        <div className="space-y-2 mb-4">
+        <div className="space-y-2 mt-4">
           {failedRows.map((r, i) => (
             <Banner key={i} variant="danger">
               <strong>{r.title}</strong>: {r.reason}
@@ -406,26 +569,8 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
         </div>
       )}
 
-      {/* Land-in-shop CTAs */}
-      {shopOk ? (
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mt-6">
-          <Link href="/shop/manage" className="btn btn-primary btn-lg no-underline w-full sm:w-auto text-center">
-            Ir a mi tienda →
-          </Link>
-          {shopSlug && (
-            <Link href={`/s/${shopSlug}`} className="btn btn-secondary btn-lg no-underline w-full sm:w-auto text-center">
-              Ver mi tienda pública
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="flex justify-center mt-6">
-          <Link href="/sell/setup" className="btn btn-secondary no-underline">Intentar de nuevo</Link>
-        </div>
-      )}
-
       {/* ── Close the loop: your agent as your shop clerk + what's next (Story 3) ── */}
-      {shopOk && <LoopClose shopSlug={shopSlug} />}
+      <LoopClose shopSlug={shopSlug} />
     </div>
   )
 }
