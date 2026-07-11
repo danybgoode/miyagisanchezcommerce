@@ -77,4 +77,19 @@ test.describe('admin tenant entitlement API · anonymous is rejected', () => {
     })
     expect(res.status()).toBe(401)
   })
+
+  // Sprint 2 (shipping-provider-expansion) adds sku=envia, a Medusa-seller-backed
+  // grant — auth must gate it identically to the Supabase-mirror SKUs above,
+  // proving the new sku value can't accidentally skip withAdmin.
+  test('GET /api/admin/tenants/:id?sku=envia → 401 (no Clerk session)', async ({ request }) => {
+    const res = await request.get(`/api/admin/tenants/${ID}?sku=envia`)
+    expect(res.status()).toBe(401)
+  })
+
+  test('POST /api/admin/tenants/:id grant sku=envia → 401 (no Clerk session)', async ({ request }) => {
+    const res = await request.post(`/api/admin/tenants/${ID}`, {
+      data: { action: 'grant', sku: 'envia' },
+    })
+    expect(res.status()).toBe(401)
+  })
 })

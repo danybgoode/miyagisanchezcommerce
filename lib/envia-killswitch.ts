@@ -10,6 +10,10 @@
  * the legacy in-app order routes that still call lib/envia.ts directly
  * (app/api/orders/[id]/ship) so they can't bypass the kill, and gives the seller-
  * settings banner one source of truth.
+ *
+ * Shipping-provider-expansion · Sprint 2: a granted tenant (`seller.metadata.envia_grant`,
+ * comp-grant precedent) rides Envía even while the platform flag stays OFF —
+ * `sellerGranted` is a second, independent passthrough alongside `enviaEnabled`.
  */
 
 /** Quote-side graceful fallback copy (`{ rates: [], message }`) → arranged delivery. */
@@ -23,15 +27,17 @@ export const ENVIA_LABEL_DISABLED_MESSAGE =
 export type EnviaKillSwitch = {
   /** `shipping.envia_enabled` — when false, all Envía carrier calls are blocked. */
   enviaEnabled: boolean
+  /** `seller.metadata.envia_grant` present — a per-tenant comp override, independent of the platform flag. */
+  sellerGranted: boolean
 }
 
 export type EnviaGateDecision =
   | { blocked: false }
   | { blocked: true; reason: 'platform_envia_disabled' }
 
-/** ON → passthrough, OFF → blocked. Pure; never throws. */
-export function enviaKillGate({ enviaEnabled }: EnviaKillSwitch): EnviaGateDecision {
-  return enviaEnabled
+/** Platform ON, or a granted seller, → passthrough; neither → blocked. Pure; never throws. */
+export function enviaKillGate({ enviaEnabled, sellerGranted }: EnviaKillSwitch): EnviaGateDecision {
+  return enviaEnabled || sellerGranted
     ? { blocked: false }
     : { blocked: true, reason: 'platform_envia_disabled' }
 }
