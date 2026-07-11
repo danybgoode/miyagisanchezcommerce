@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# miyagisanchezcommerce
 
-## Getting Started
+The Next.js 16 frontend for [Miyagi Sánchez](https://miyagisanchez.com) — a multi-seller
+marketplace where anyone in Mexico can open a shop and sell with no commission, across the
+marketplace, their own domain, an embeddable widget, or to AI shopping agents. This repo is the
+**UI layer + UCP/MCP agent-commerce endpoints + non-commerce APIs**; all commerce data (products,
+orders, payments, fulfillment) lives in the Medusa backend and is read through the Medusa Store
+API — see [`AGENTS.md`](AGENTS.md) for the five rules that govern where things go in this repo.
 
-First, run the development server:
+This repo is part of a four-repo platform; the product roadmap and cross-repo practice live in the
+root docs repo, [`miyagi-product-management`](https://github.com/danybgoode/miyagi-product-management).
+
+## What this repo owns
+
+- Every buyer- and seller-facing page (`app/`) — discovery, checkout hand-off, seller portal
+  (`/shop/manage`), the agentic/UCP-MCP surface (`/api/ucp/*`).
+- Non-commerce data: buyer–seller conversations, offers, favorites, supply-import staging — all in
+  Supabase, never Medusa (see `AGENTS.md` rule #2).
+- Clerk-backed auth, R2 file storage, Telegram admin notifications, Upstash rate limiting.
+
+## Practice
+
+Follows the same gitflow, risk-tiered PR review, and deterministic-gate discipline as the rest of
+the platform — see [`Roadmap/WAYS-OF-WORKING.md`](https://github.com/danybgoode/miyagi-product-management/blob/main/Roadmap/WAYS-OF-WORKING.md)
+in the root repo. This repo's own deterministic gate is `tsc` + `next build` + the Playwright
+suite (`npm run test:e2e`) — see [`e2e/README.md`](e2e/README.md) for the harness.
+
+## Deploy
+
+Merging to `main` deploys: Cloud Build (us-east4) → Cloud Run `miyagi-web`, behind Cloudflare.
+Every PR still gets a Vercel preview for review before merge — Vercel no longer serves production.
+
+## Quickstart
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev   # next dev --turbopack, :3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+You'll need a `.env.local` with `MEDUSA_STORE_URL`, `MEDUSA_PUBLISHABLE_KEY`, Clerk, Supabase, and
+R2 keys — see the full list in `AGENTS.md`'s Quick-reference section.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The Medusa backend (`apps/backend` in the sibling repo) needs to be running on `:9000` for most
+pages to show real data.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Other scripts: `npm run build` (production build), `npm run lint` (ESLint), `npm run test:e2e`
+(Playwright, API-level, no browser), `npm run test:e2e:browser` (opt-in real-browser smoke).
 
-## Learn More
+## Where things live
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`AGENTS.md`](AGENTS.md) — the five rules (Medusa owns commerce, Supabase is non-commerce only,
+  UCP/MCP-first, Clerk-only auth, es-MX-by-default) plus the doc-routing table into `.claude/context/`.
+- [`e2e/README.md`](e2e/README.md) — the Playwright harness (deterministic `api` gate + opt-in
+  `browser` smoke).
