@@ -60,6 +60,22 @@ export function shortCollectionSlug(handle: string, sellerSlug: string): string 
   return handle.startsWith(prefix) ? handle.slice(prefix.length) : handle
 }
 
+export type CollectionNameValidation = { ok: true; name: string } | { ok: false; error: string }
+
+/**
+ * Validates + trims a proposed collection name — the same 2–60 char bounds
+ * `createSellerCollection` (backend `store/_utils/seller-collections.ts`)
+ * enforces, checked here first so the `create_collection` MCP tool returns a
+ * clear, tool-specific error instead of a generic backend failure surfacing
+ * later. Kept next-free so it's directly unit-testable.
+ */
+export function validateCollectionName(raw: unknown): CollectionNameValidation {
+  const name = typeof raw === 'string' ? raw.trim() : ''
+  if (!name || name.length < 2) return { ok: false, error: 'El nombre de la colección debe tener al menos 2 caracteres.' }
+  if (name.length > 60) return { ok: false, error: 'El nombre de la colección es demasiado largo (máx. 60 caracteres).' }
+  return { ok: true, name }
+}
+
 export interface ShopCollectionNavEntry {
   href: string
   label: string

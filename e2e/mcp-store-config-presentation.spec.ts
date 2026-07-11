@@ -46,6 +46,41 @@ test.describe('own-shop premium presentation — MCP store-config round-trip (Sp
     expect(snapshot.configuration.profile?.theme_preset).toBeUndefined()
   })
 
+  test('patch_store_configuration -> get_store_configuration round-trips content.about/content.faq (panfleto-premium-shop S2)', () => {
+    const manifest = {
+      content: {
+        about: { body: 'panfleto es una editorial que publica relatos de terror.' },
+        faq: { items: [{ question: '¿Qué publica panfleto?', answer: 'Relatos de terror de autores mexicanos y latinoamericanos.' }] },
+      },
+    }
+
+    const { patch } = validateConfig(manifest)
+    expect(patch.settings).toBeDefined()
+
+    const shop = { name: 'panfleto', metadata: { settings: patch.settings } }
+    const snapshot = buildStoreConfigSnapshot(shop)
+
+    expect(snapshot.configuration.content?.about).toEqual({ body: 'panfleto es una editorial que publica relatos de terror.' })
+    expect(snapshot.configuration.content?.faq?.items).toEqual([
+      { question: '¿Qué publica panfleto?', answer: 'Relatos de terror de autores mexicanos y latinoamericanos.' },
+    ])
+    expect(snapshot.configured_blocks).toContain('content')
+  })
+
+  test('content.about.body over 600 chars is rejected before it ever reaches the stored shop', () => {
+    const { patch, blocks } = validateConfig({ content: { about: { body: 'x'.repeat(601) } } })
+    expect(patch.settings?.about).toBeUndefined()
+    expect(blocks[0].issues).toEqual(expect.arrayContaining([expect.stringContaining('content.about')]))
+  })
+
+  test('a FAQ item exceeding the question/answer length cap is dropped, not truncated silently', () => {
+    const { patch, blocks } = validateConfig({
+      content: { faq: { items: [{ question: 'x'.repeat(141), answer: 'ok' }] } },
+    })
+    expect(patch.settings?.faq).toBeUndefined()
+    expect(blocks[0].issues).toEqual(expect.arrayContaining([expect.stringContaining('content.faq')]))
+  })
+
   test('an agent CAN clear a previously-set announcement/hero/theme_preset via patch_store_configuration', () => {
     // First set all three...
     const set = validateConfig({
