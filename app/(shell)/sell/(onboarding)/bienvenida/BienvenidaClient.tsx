@@ -86,9 +86,12 @@ export default function BienvenidaClient({ firstName }: { firstName: string | nu
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sells, sellsWhere }),
+      }).then((res) => {
+        if (!res.ok) console.error('[bienvenida] tenant-intake save failed:', res.status)
       })
-    } catch {
+    } catch (e) {
       // Non-blocking — S2 degrades to the unpersonalized default if the save failed.
+      console.error('[bienvenida] tenant-intake save threw:', e)
     } finally {
       router.push('/sell/puertas')
     }

@@ -1,7 +1,7 @@
 /**
  * Onboarding three-doors — pure intake→personalization mapping (Sprint 1,
  * Story 1.1/1.2). No React/DOM, no `next/*` — so the api spec
- * (`e2e/onboarding-personalization.spec.ts`) can load it directly, same
+ * (`e2e/onboarding-three-doors.spec.ts`) can load it directly, same
  * discipline as `lib/seller-mode.ts`/`lib/sell-shell-path.ts`.
  *
  * `TenantIntake` is the shared intake shape; `lib/tenant-intake.ts` (the

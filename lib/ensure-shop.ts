@@ -48,7 +48,12 @@ export async function ensureShop(userId: string, clerkJwt: string, body: ShopCre
   // Idempotent: if a Medusa seller already exists, return it unchanged.
   const existingRes = await medusaFetch('/store/sellers/me', clerkJwt)
   if (existingRes.ok) {
-    const { seller } = await existingRes.json() as { seller: MedusaSellerForMirror }
+    const existingData = await existingRes.json().catch(() => null) as { seller?: MedusaSellerForMirror } | null
+    if (!existingData?.seller) {
+      console.error('[ensure-shop] sellers/me returned ok but an unparseable/missing seller body')
+      return { ok: false, status: 500, error: 'Error al verificar tu tienda.' }
+    }
+    const seller = existingData.seller
     await ensureSupabaseShopMirror(seller, userId).catch(() => {})
     return { ok: true, status: 200, shopSlug: seller.slug }
   }
@@ -84,13 +89,13 @@ export async function ensureShop(userId: string, clerkJwt: string, body: ShopCre
       location,
     }),
   })
-  const createData = await createRes.json()
-  if (!createRes.ok || !createData.seller) {
+  const createData = await createRes.json().catch(() => null) as { seller?: MedusaSellerForMirror } | null
+  if (!createRes.ok || !createData?.seller) {
     console.error('[ensure-shop] seller creation failed:', createRes.status, createData)
     return { ok: false, status: 500, error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }
   }
 
-  const seller = createData.seller as MedusaSellerForMirror
+  const seller = createData.seller
   await ensureSupabaseShopMirror(seller, userId).catch((e) => {
     console.error('[ensure-shop] Supabase mirror sync failed (non-fatal):', e)
   })

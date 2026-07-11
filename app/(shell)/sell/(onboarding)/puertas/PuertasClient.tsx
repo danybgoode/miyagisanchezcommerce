@@ -47,11 +47,15 @@ export default function PuertasClient({ order, subtitle }: { order: DoorKey[]; s
   const router = useRouter()
 
   function openDoor(door: DoorKey) {
+    // Fire-and-forget metrics ping (D.9) — never blocks navigation; a failed
+    // write just means this door choice isn't recorded, nothing else depends on it.
     fetch('/api/sell/tenant-intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chosenDoor: door }),
-    }).catch(() => {})
+    })
+      .then((res) => { if (!res.ok) console.error('[puertas] chosen-door save failed:', res.status) })
+      .catch((e) => console.error('[puertas] chosen-door save threw:', e))
 
     const meta = DOOR_META[door]
     if (meta.isSkipTarget) setOnboardingSkipSignal()

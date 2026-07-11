@@ -156,6 +156,9 @@ export default function AgenteIntakeClient({ mlConnected }: { mlConnected: boole
           if (f) handleFile(f)
         }}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() }
+        }}
         role="button"
         tabIndex={0}
         className="mt-5 rounded-[var(--r-lg)] border-2 border-dashed p-10 text-center cursor-pointer transition-colors"
