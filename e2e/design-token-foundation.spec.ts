@@ -178,6 +178,21 @@ test.describe('design-token foundation', () => {
     ])
   })
 
+  // seller-portal-rails-foundation S2.5 cleanup — the original pattern above only
+  // matched bare `rounded` or `rounded-<size>`, silently missing Tailwind's
+  // directional/corner classes (`rounded-l`, `rounded-tl`, …) entirely. `Envios.tsx`
+  // used `rounded-l`/`rounded-r` on grouped input+suffix controls with zero coverage.
+  test('negative fixture: directional/corner radii go red, their rounded-*-[var(--r-*)] fixed form stays green', () => {
+    const offenders = findLiteralRadiusOffendersInSourceFiles([{
+      filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx',
+      content: '<input className="rounded-l" /><span className="rounded-r-lg" /><i className="rounded-l-[var(--r-sm)]" />',
+    }])
+    expect(offenders.map(formatOffense)).toEqual([
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: rounded-l in <input className="rounded-l" /><span className="rounded-r-lg" /><i className="rounded-l-[var(--r-sm)]" />',
+      'app/(shell)/shop/manage/ManageDashboard.tsx:1: rounded-r-lg in <input className="rounded-l" /><span className="rounded-r-lg" /><i className="rounded-l-[var(--r-sm)]" />',
+    ])
+  })
+
   test('negative fixture: a Toast import outside components/feedback/ goes red', () => {
     const offenders = findFeedbackImportOffendersInSourceFiles([
       { filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx', content: "import { Toast } from '@/components/feedback/Toast'" },

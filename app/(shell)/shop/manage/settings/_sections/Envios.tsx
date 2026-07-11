@@ -19,6 +19,7 @@
 import { useState, useRef } from 'react'
 import { useSettingsSave } from '../_components/useSettingsSave'
 import { Toast } from '@/components/feedback/Toast'
+import { Banner } from '@/components/feedback/Banner'
 import { SectionTitle } from '../_components/SectionTitle'
 import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { ToggleSwitch } from '../_components/ToggleSwitch'
@@ -222,7 +223,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Comunicación
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="comunicacion" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="comunicacion" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Comunicación</SectionTitle>
         <p className="text-xs text-[var(--color-muted)] mb-4">
           Agrega tu número o correo y activa qué canales quieres mostrar en tus anuncios.
@@ -230,26 +231,15 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
 
         <div className="space-y-4">
           {/* Phone */}
-          <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Teléfono</p>
-                <p className="text-xs text-[var(--color-muted)]">Los compradores pueden llamarte o enviarte SMS.</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showPhone}
-                disabled={!phoneNumber.trim()}
-                onClick={() => { if (phoneNumber.trim()) { setShowPhone(v => !v); mark() } }}
-                title={!phoneNumber.trim() ? 'Ingresa tu número primero' : undefined}
-                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-                  showPhone ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
-                } ${!phoneNumber.trim() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${showPhone ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 space-y-2">
+            <ToggleSwitch
+              checked={showPhone}
+              onChange={v => { setShowPhone(v); mark() }}
+              disabled={!phoneNumber.trim()}
+              title={!phoneNumber.trim() ? 'Ingresa tu número primero' : undefined}
+              label="Teléfono"
+              description="Los compradores pueden llamarte o enviarte SMS."
+            />
             <input
               type="tel"
               value={phoneNumber}
@@ -260,35 +250,24 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                 mark()
               }}
               placeholder="55 1234 5678"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
             <p className="text-xs text-[var(--color-muted)]">Incluye LADA · p. ej. 55 1234 5678 (CDMX) ó 33 1234 5678 (GDL)</p>
             {!phoneNumber.trim() && (
-              <p className="text-xs text-amber-600">Ingresa tu número para poder activar esta opción.</p>
+              <p className="text-xs text-[var(--warning)]">Ingresa tu número para poder activar esta opción.</p>
             )}
           </div>
 
           {/* WhatsApp */}
-          <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">WhatsApp</p>
-                <p className="text-xs text-[var(--color-muted)]">Añade un botón &ldquo;Escribir por WhatsApp&rdquo; en cada anuncio.</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={whatsappCta}
-                disabled={!whatsappHandle.trim()}
-                onClick={() => { if (whatsappHandle.trim()) { setWhatsappCta(v => !v); mark() } }}
-                title={!whatsappHandle.trim() ? 'Ingresa tu número de WhatsApp primero' : undefined}
-                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-                  whatsappCta ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
-                } ${!whatsappHandle.trim() ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${whatsappCta ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 space-y-2">
+            <ToggleSwitch
+              checked={whatsappCta}
+              onChange={v => { setWhatsappCta(v); mark() }}
+              disabled={!whatsappHandle.trim()}
+              title={!whatsappHandle.trim() ? 'Ingresa tu número de WhatsApp primero' : undefined}
+              label="WhatsApp"
+              description="Añade un botón “Escribir por WhatsApp” en cada anuncio."
+            />
             <div className="flex items-center gap-2">
               <span className="text-sm text-[var(--color-muted)] flex-shrink-0">+52</span>
               <input
@@ -301,17 +280,17 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   mark()
                 }}
                 placeholder="55 1234 5678"
-                className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
             </div>
             <p className="text-xs text-[var(--color-muted)]">Solo dígitos, sin espacios ni guiones</p>
             {!whatsappHandle.trim() && (
-              <p className="text-xs text-amber-600">Ingresa tu número para poder activar esta opción.</p>
+              <p className="text-xs text-[var(--warning)]">Ingresa tu número para poder activar esta opción.</p>
             )}
           </div>
 
           {/* Email */}
-          <div className="border border-[var(--color-border)] rounded-lg p-3">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3">
             <ToggleSwitch
               checked={showEmail}
               onChange={v => { setShowEmail(v); mark() }}
@@ -319,7 +298,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
               description="Los compradores pueden escribirte directamente al correo de tu cuenta."
             />
             {showEmail && (
-              <p className="text-xs text-[var(--color-muted)] mt-1 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded px-3 py-2">
+              <p className="text-xs text-[var(--color-muted)] mt-1 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2">
                 Se usará el correo asociado a tu cuenta de Miyagi Sánchez.
               </p>
             )}
@@ -330,7 +309,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
       {/* ════════════════════════════════════════════════════════════════════
           Envíos y Entregas
       ════════════════════════════════════════════════════════════════════ */}
-      <section id="envios" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="envios" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <SectionTitle>Envíos y Entregas</SectionTitle>
         <div className="divide-y divide-[var(--color-border)]">
           <div>
@@ -354,7 +333,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
                 📦 Dirección de origen
               </p>
-              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">
+              <span className="text-[10px] bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)] rounded-[var(--r-pill)] px-2 py-0.5 font-medium">
                 Envia.com
               </span>
             </div>
@@ -370,7 +349,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   value={originName}
                   onChange={e => { setOriginName(e.target.value); mark() }}
                   placeholder="Tu nombre o razón social"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
               </div>
 
@@ -387,22 +366,22 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                     placeholder="06600"
                     maxLength={5}
                     inputMode="numeric"
-                    className={`w-full border rounded px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
-                      originCpLookupError ? 'border-red-400' : originCpResolved ? 'border-green-400' : 'border-[var(--color-border)]'
+                    className={`w-full border rounded-[var(--r-sm)] px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${
+                      originCpLookupError ? 'border-[var(--danger)]' : originCpResolved ? 'border-[var(--success)]' : 'border-[var(--color-border)]'
                     }`}
                   />
                   {originCpLookupLoading && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)] animate-pulse">·</span>
                   )}
                   {originCpResolved && !originCpLookupLoading && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 text-sm">✓</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--success)] text-sm">✓</span>
                   )}
                 </div>
                 {originCpLookupError && (
-                  <p className="text-red-600 text-xs mt-1">{originCpLookupError}</p>
+                  <p className="text-[var(--danger)] text-xs mt-1">{originCpLookupError}</p>
                 )}
                 {originCpResolved && (
-                  <p className="text-green-700 text-xs mt-1">{originCity} · {originState}</p>
+                  <p className="text-[var(--success)] text-xs mt-1">{originCity} · {originState}</p>
                 )}
               </div>
 
@@ -415,7 +394,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   readOnly={originCpResolved}
                   onChange={e => { if (!originCpResolved) { setOriginState(e.target.value); mark() } }}
                   placeholder="Ciudad de México"
-                  className={`w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
+                  className={`w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
                 />
               </div>
 
@@ -428,7 +407,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   readOnly={originCpResolved}
                   onChange={e => { if (!originCpResolved) { setOriginCity(e.target.value); mark() } }}
                   placeholder="Ciudad de México"
-                  className={`w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
+                  className={`w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] ${originCpResolved ? 'bg-gray-50 text-[var(--color-muted)] cursor-default' : ''}`}
                 />
               </div>
 
@@ -439,7 +418,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   <select
                     value={originColonia}
                     onChange={e => { setOriginColonia(e.target.value); mark() }}
-                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-white"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] bg-[var(--bg-elevated)]"
                   >
                     <option value="">Selecciona colonia</option>
                     {originColonias.map(c => (
@@ -452,7 +431,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                     value={originColonia}
                     onChange={e => { setOriginColonia(e.target.value); mark() }}
                     placeholder="Roma Norte"
-                    className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                   />
                 )}
               </div>
@@ -465,7 +444,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   value={originStreet}
                   onChange={e => { setOriginStreet(e.target.value); mark() }}
                   placeholder="Av. Insurgentes"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
               </div>
 
@@ -477,39 +456,39 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                   value={originNumber}
                   onChange={e => { setOriginNumber(e.target.value); mark() }}
                   placeholder="123"
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
               </div>
             </div>
             {!originAddressReady && (
-              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700 leading-relaxed">
+              <Banner variant="warning" className="mt-3">
                 <strong>Completa tu dirección de origen</strong> para poder generar etiquetas y cotizar envíos con Envia.com cuando recibas un pedido.
-              </div>
+              </Banner>
             )}
             {originAddressReady && (
-              <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 leading-relaxed">
+              <Banner variant="success" className="mt-3">
                 <strong>Origen listo.</strong> El checkout puede cotizar envíos reales desde este punto cuando el comprador escriba su dirección.
-              </div>
+              </Banner>
             )}
           </div>
 
           {/* ── Envia.com checkout policy ──────────────────────────────── */}
           <div className="pt-4">
             {!initial.platform_envia_enabled && initial.granted_envia_enabled && (
-              <div className="mb-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800 leading-relaxed">
+              <Banner variant="success" className="mb-3">
                 <strong>Envía habilitado por Miyagi.</strong> Aunque el envío automático está en pausa
                 para el resto de la plataforma, tu tienda tiene una cortesía activa: el cálculo de
                 tarifas en vivo y la generación de etiquetas con Envia.com siguen funcionando normalmente.
-              </div>
+              </Banner>
             )}
             {!initial.platform_envia_enabled && !initial.granted_envia_enabled && (
-              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+              <Banner variant="warning" className="mb-3">
                 <strong>Envío automático en pausa.</strong> Por ahora el cálculo de tarifas en vivo y la
                 generación de etiquetas con Envia.com están desactivados a nivel de plataforma, así que tu
                 opción de &ldquo;tarifas en vivo&rdquo; no surte efecto. Mientras tanto, coordina la entrega
                 con paquetería manual o entrega acordada. Tu configuración se conserva y se reactivará en
                 cuanto el envío automático vuelva a estar disponible.
-              </div>
+              </Banner>
             )}
             <ToggleSwitch
               checked={enviaShippingEnabled}
@@ -533,10 +512,10 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                           key={carrier.id}
                           type="button"
                           onClick={() => toggleCarrier(carrier.id)}
-                          className={`text-left border rounded-lg px-3 py-2 transition-colors ${
+                          className={`text-left border rounded-[var(--r-md)] px-3 py-2 transition-colors ${
                             active
-                              ? 'border-[var(--color-accent)] bg-green-50 text-green-800'
-                              : 'border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-accent)]'
+                              ? 'border-[var(--color-accent)] bg-[var(--success-soft)] text-[var(--success)]'
+                              : 'border-[var(--color-border)] bg-[var(--bg-elevated)] text-[var(--color-muted)] hover:border-[var(--color-accent)]'
                           }`}
                         >
                           <span className="block text-sm font-semibold">{carrier.label}</span>
@@ -561,10 +540,10 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                         key={option.id}
                         type="button"
                         onClick={() => { setShippingRateDisplay(option.id as 'recommended' | 'cheapest' | 'all'); mark() }}
-                        className={`text-left border rounded-lg px-3 py-2 transition-colors ${
+                        className={`text-left border rounded-[var(--r-md)] px-3 py-2 transition-colors ${
                           shippingRateDisplay === option.id
-                            ? 'border-[var(--color-accent)] bg-green-50 text-green-800'
-                            : 'border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-accent)]'
+                            ? 'border-[var(--color-accent)] bg-[var(--success-soft)] text-[var(--success)]'
+                            : 'border-[var(--color-border)] bg-[var(--bg-elevated)] text-[var(--color-muted)] hover:border-[var(--color-accent)]'
                         }`}
                       >
                         <span className="block text-sm font-semibold">{option.label}</span>
@@ -588,9 +567,9 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                           step={50}
                           value={packageWeightGrams}
                           onChange={e => { setPackageWeightGrams(Number(e.target.value) || 100); mark() }}
-                          className="w-full border border-[var(--color-border)] rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                          className="w-full border border-[var(--color-border)] rounded-l-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                         />
-                        <span className="border border-l-0 border-[var(--color-border)] rounded-r px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">g</span>
+                        <span className="border border-l-0 border-[var(--color-border)] rounded-r-[var(--r-sm)] px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">g</span>
                       </div>
                     </div>
                     {[
@@ -606,9 +585,9 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                             min={1}
                             value={field.value}
                             onChange={e => { field.setter(Number(e.target.value) || 1); mark() }}
-                            className="w-full border border-[var(--color-border)] rounded-l px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                            className="w-full border border-[var(--color-border)] rounded-l-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                           />
-                          <span className="border border-l-0 border-[var(--color-border)] rounded-r px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">cm</span>
+                          <span className="border border-l-0 border-[var(--color-border)] rounded-r-[var(--r-sm)] px-2 py-2 text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)]">cm</span>
                         </div>
                       </div>
                     ))}
@@ -620,14 +599,14 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                     Manejo y empaque
                   </label>
                   <div className="flex max-w-[220px]">
-                    <span className="border border-r-0 border-[var(--color-border)] rounded-l px-3 py-2 text-sm text-[var(--color-muted)] bg-[var(--color-surface-alt)]">$</span>
+                    <span className="border border-r-0 border-[var(--color-border)] rounded-l-[var(--r-sm)] px-3 py-2 text-sm text-[var(--color-muted)] bg-[var(--color-surface-alt)]">$</span>
                     <input
                       type="number"
                       min={0}
                       step={1}
                       value={handlingFeePesos}
                       onChange={e => { setHandlingFeePesos(Number(e.target.value) || 0); mark() }}
-                      className="w-full border border-[var(--color-border)] rounded-r px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                      className="w-full border border-[var(--color-border)] rounded-r-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                     />
                   </div>
                   <p className="text-xs text-[var(--color-muted)] mt-1">

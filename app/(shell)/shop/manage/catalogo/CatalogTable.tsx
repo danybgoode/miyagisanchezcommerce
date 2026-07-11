@@ -12,6 +12,8 @@ import { formatCents, formatPct, type SkuMarginRow } from '@/lib/profit'
 import { Toast, useToast } from '@/components/feedback/Toast'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { catalogStatusToToken } from '@/lib/status-badge'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
 
@@ -41,12 +43,12 @@ export interface CatalogListing {
   created_at: string
 }
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  activo: { label: 'Activo', color: 'bg-green-100 text-green-700' },
-  pausado: { label: 'Pausado', color: 'bg-amber-100 text-amber-700' },
-  borrador: { label: 'Borrador', color: 'bg-gray-100 text-gray-600' },
-  agotado: { label: 'Agotado', color: 'bg-red-100 text-red-600' },
-  sobre_pedido: { label: 'Sobre pedido', color: 'bg-blue-100 text-blue-700' },
+const STATUS_LABEL: Record<string, { label: string }> = {
+  activo: { label: 'Activo' },
+  pausado: { label: 'Pausado' },
+  borrador: { label: 'Borrador' },
+  agotado: { label: 'Agotado' },
+  sobre_pedido: { label: 'Sobre pedido' },
 }
 
 function formatPrice(cents: number | null, currency: string) {
@@ -77,14 +79,14 @@ function MarginCellDisplay({ label, cell }: { label: string; cell: MarginCell })
   }
   if (cell.state === 'no_cogs') {
     return (
-      <span className="text-[10px] text-amber-700">
+      <span className="text-[10px] text-[var(--warning)]">
         {label}: sin COGS ·{' '}
         <Link href="/shop/manage/profit" className="underline">registrar costo</Link>
       </span>
     )
   }
   return (
-    <span className={`text-[10px] ${cell.isKiller ? 'text-red-600 font-semibold' : 'text-[var(--color-muted)]'}`}>
+    <span className={`text-[10px] ${cell.isKiller ? 'text-[var(--danger)] font-semibold' : 'text-[var(--color-muted)]'}`}>
       {label}: {formatCents(cell.marginCents ?? 0)} · {formatPct(cell.marginPct ?? null)}
       {cell.isKiller && ' ⚠'}
     </span>
@@ -385,7 +387,7 @@ export default function CatalogTable({
         />
       )}
 
-      <div className="overflow-x-auto border border-[var(--color-border)] rounded-xl">
+      <div className="overflow-x-auto border border-[var(--color-border)] rounded-[var(--r-lg)]">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
@@ -446,7 +448,7 @@ export default function CatalogTable({
                 )}
                 <td className="p-3">
                   <Link href={`/sell/edit/${listing.id}`} className="flex items-center gap-3 no-underline text-[var(--color-foreground)]">
-                    <div className="w-10 h-10 flex-shrink-0 rounded overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
+                    <div className="w-10 h-10 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
                       {thumb ? (
                         <img src={thumb} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -478,7 +480,7 @@ export default function CatalogTable({
                         title={listing.miyagi_visible !== false
                           ? 'Ocultar del marketplace Miyagi (sigue en tu tienda)'
                           : 'Mostrar en el marketplace Miyagi'}
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
+                        className="text-[10px] px-1.5 py-0.5 rounded-[var(--r-md)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
                       >
                         {listing.miyagi_visible !== false ? 'Ocultar Miyagi' : 'Mostrar Miyagi'}
                       </button>
@@ -489,7 +491,7 @@ export default function CatalogTable({
                         onClick={() => handleMlToggle(listing)}
                         disabled={isPending || !mlEntitled}
                         title={!mlEntitled ? 'Requiere la integración de Mercado Libre' : undefined}
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
+                        className="text-[10px] px-1.5 py-0.5 rounded-[var(--r-md)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
                       >
                         {badges.ml ? 'Quitar de ML' : 'Publicar en ML'}
                       </button>
@@ -507,7 +509,7 @@ export default function CatalogTable({
                   </td>
                 )}
                 <td className="p-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.color}`}>{meta.label}</span>
+                  <StatusBadge token={catalogStatusToToken(status)}>{meta.label}</StatusBadge>
                 </td>
                 <td className="p-3">
                   <div className="flex items-center gap-1 justify-end">
@@ -517,7 +519,7 @@ export default function CatalogTable({
                         onClick={() => handleToggle(listing, nextStatus)}
                         disabled={isPending}
                         title={status === 'pausado' ? 'Activar anuncio' : 'Pausar anuncio'}
-                        className="p-1.5 rounded hover:bg-[var(--color-border)] text-[var(--color-muted)] disabled:opacity-50"
+                        className="p-1.5 rounded-[var(--r-md)] hover:bg-[var(--color-border)] text-[var(--color-muted)] disabled:opacity-50"
                         aria-label={status === 'pausado' ? 'Activar' : 'Pausar'}
                       >
                         <i className={status === 'pausado' ? 'iconoir-play' : 'iconoir-pause'} />
@@ -528,7 +530,7 @@ export default function CatalogTable({
                       onClick={() => setDeleteTarget(listing)}
                       disabled={isPending}
                       title="Eliminar anuncio"
-                      className="p-1.5 rounded hover:bg-red-50 hover:text-red-600 text-[var(--color-muted)] disabled:opacity-50"
+                      className="p-1.5 rounded-[var(--r-md)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] text-[var(--color-muted)] disabled:opacity-50"
                       aria-label="Eliminar"
                     >
                       <i className="iconoir-trash" />
