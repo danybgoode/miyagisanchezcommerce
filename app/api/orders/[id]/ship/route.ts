@@ -20,6 +20,7 @@ import { db } from '@/lib/supabase'
 import { createShipment, quoteShipments, type EnviaAddress } from '@/lib/envia'
 import { isEnabled } from '@/lib/flags'
 import { enviaKillGate, ENVIA_LABEL_DISABLED_MESSAGE, ENVIA_ARRANGED_DELIVERY_MESSAGE } from '@/lib/envia-killswitch'
+import { hasEnviaGrant } from '@/lib/envia-grant'
 import { toEnviaStateCode } from '@/lib/mx-locations'
 import { sendOrderShipped } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
@@ -41,14 +42,6 @@ export async function POST(
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open).
-  // The Medusa-order branch proxies to the backend ship route (already gated), but
-  // the legacy Supabase path calls lib/envia.ts createShipment directly — so gate
-  // here too: when off, no Envía label is generated; the seller uses manual carrier.
-  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled') }).blocked) {
-    return NextResponse.json({ error: ENVIA_LABEL_DISABLED_MESSAGE }, { status: 422 })
-  }
-
   let body: {
     rateId?: string              // legacy only — Medusa orders use order metadata
     weightGrams?: number
@@ -61,6 +54,12 @@ export async function POST(
   if (!body.weightGrams) return NextResponse.json({ error: 'weightGrams requerido.' }, { status: 400 })
 
   // ── Medusa order path (Phase B) ───────────────────────────────────────────
+  // No FE-level Envía gate here — the backend ship route independently
+  // enforces the platform kill-switch + comp-grant (Sprint 2:
+  // seller.metadata.envia_grant) and returns a 422 with
+  // ENVIA_LABEL_DISABLED_MESSAGE when blocked, which this proxy relays as-is
+  // below. Gating here too would need a second, redundant grant lookup and
+  // risks a stale FE-side decision diverging from the backend's real one.
   if (id.startsWith('order_')) {
     const { getToken } = await auth()
     const clerkJwt = await getToken()
@@ -177,13 +176,24 @@ export async function POST(
     return NextResponse.json({ error: `No se puede enviar un pedido en estado "${order.status}".` }, { status: 422 })
   }
 
+  const shopMeta = (shop.metadata ?? {}) as Record<string, unknown>
+
+  // Platform Envía kill-switch (shipping.envia_enabled, default OFF / fail-open),
+  // widened by a per-seller comp grant (Sprint 2: seller.metadata.envia_grant —
+  // resolved via shop.metadata.medusa_seller_id, an internal read since the
+  // grant is not mirrored into Supabase). This legacy path calls
+  // lib/envia.ts createShipment directly — this IS the real enforcement here.
+  const sellerGranted = await hasEnviaGrant(shopMeta.medusa_seller_id as string | undefined)
+  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled'), sellerGranted }).blocked) {
+    return NextResponse.json({ error: ENVIA_LABEL_DISABLED_MESSAGE }, { status: 422 })
+  }
+
   const shippingAddress = (order.shipping_address ?? {}) as Record<string, string>
   const buyerName       = order.buyer_name ?? null
   const buyerEmail      = order.buyer_email ?? null
   const listingTitle    = listing.title
   const shopName        = shop.name
 
-  const shopMeta      = (shop.metadata ?? {}) as Record<string, unknown>
   const shopSettings  = (shopMeta.settings ?? {}) as Record<string, unknown>
   const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
   const originRaw     = shippingSettings.origin_address as Record<string, string> | undefined
@@ -300,13 +310,6 @@ export async function GET(
   const user = await currentUser()
   if (!user) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  // Platform Envía kill-switch — re-quoting an existing order's rates calls
-  // lib/envia.ts quoteShipments directly, so short-circuit to the graceful empty
-  // result (mirrors the checkout rates fallback) when off.
-  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled') }).blocked) {
-    return NextResponse.json({ rates: [], message: ENVIA_ARRANGED_DELIVERY_MESSAGE })
-  }
-
   const sp = new URL(req.url).searchParams
   const weightGrams = Number(sp.get('weightGrams') ?? '500')
   const lengthCm    = Number(sp.get('lengthCm') ?? '20')
@@ -318,6 +321,11 @@ export async function GET(
   let listingTitle: string
   let originRaw: Record<string, string> | undefined
   let shopName: string
+  // Both branches below feed into the SAME quoteShipments() call further down
+  // (this route calls lib/envia.ts directly, unlike the POST proxy) — so both
+  // must resolve the comp grant (Sprint 2: seller.metadata.envia_grant) before
+  // the single combined gate check that follows the if/else.
+  let sellerGranted = false
 
   if (id.startsWith('order_')) {
     const { getToken } = await auth()
@@ -347,6 +355,10 @@ export async function GET(
     const sellerSettings = (sellerMeta.settings ?? {}) as Record<string, unknown>
     const shippingSettings = (sellerSettings.shipping ?? {}) as Record<string, unknown>
     originRaw = shippingSettings.origin_address as Record<string, string> | undefined
+    // /store/sellers/me already returns the full seller record — its metadata
+    // carries envia_grant directly, no extra call needed (unlike the legacy
+    // branch below, which only has the Supabase shop mirror on hand).
+    sellerGranted = Boolean(sellerMeta.envia_grant)
   } else {
     const { data: order } = await db
       .from('marketplace_orders')
@@ -370,6 +382,15 @@ export async function GET(
     const shopSettings  = (shopMeta.settings ?? {}) as Record<string, unknown>
     const shippingSettings = (shopSettings.shipping ?? {}) as Record<string, unknown>
     originRaw = shippingSettings.origin_address as Record<string, string> | undefined
+    sellerGranted = await hasEnviaGrant(shopMeta.medusa_seller_id as string | undefined)
+  }
+
+  // Platform Envía kill-switch — re-quoting an existing order's rates calls
+  // lib/envia.ts quoteShipments directly, so short-circuit to the graceful
+  // empty result (mirrors the checkout rates fallback) when neither the
+  // platform flag nor a per-seller comp grant (Sprint 2) applies.
+  if (enviaKillGate({ enviaEnabled: await isEnabled('shipping.envia_enabled'), sellerGranted }).blocked) {
+    return NextResponse.json({ rates: [], message: ENVIA_ARRANGED_DELIVERY_MESSAGE })
   }
 
   if (!originRaw?.postal_code) {

@@ -4,37 +4,50 @@
  * `withAdmin`; the POST is audited for free (an `admin_audit_log` row on every
  * successful mutation).
  *
- *   GET  /api/admin/tenants/:id?sku=custom_domain|subdomain|ml_sync
+ *   GET  /api/admin/tenants/:id?sku=custom_domain|subdomain|ml_sync|envia
  *        — resolve the ONE shop's true entitlement for the chosen SKU (incl. the
  *          per-seller subscription lookup).
  *   POST /api/admin/tenants/:id  { action:'grant'|'revoke', note?, sku? }
- *        — write/clear the comp grant for the chosen SKU on the shop's metadata.
+ *        — write/clear the comp grant for the chosen SKU.
  *
- * `sku` defaults to `custom_domain` (back-compat with the S4 UI). Each SKU stores
- * its comp on a DISTINCT metadata key (`custom_domain_grant` / `subdomain_grant` /
- * `ml_sync_grant`), so granting one never leaks entitlement to another. The grant
- * shape is composed by `buildCompGrant` (byte-identical to what each `readGrant`
- * parses), and entitlement is re-resolved by the SKU's own server composer.
+ * `sku` defaults to `custom_domain` (back-compat with the S4 UI). Each Supabase-
+ * mirror SKU stores its comp on a DISTINCT metadata key (`custom_domain_grant` /
+ * `subdomain_grant` / `ml_sync_grant`), so granting one never leaks entitlement
+ * to another. The grant shape is composed by `buildCompGrant` (byte-identical to
+ * what each `readGrant` parses), and entitlement is re-resolved by the SKU's own
+ * server composer.
+ *
+ * `envia` is the ONE exception to the Supabase-mirror storage above
+ * (shipping-provider-expansion · Sprint 2): its grant lives on the MEDUSA
+ * seller's own metadata, not `marketplace_shops`, because the money-path
+ * routes that enforce it (quote + label seams) only ever resolve the Medusa
+ * seller directly, with no Supabase access. Read/write for that one sku goes
+ * through `lib/envia-grant.ts` → the backend's internal grant route, keyed
+ * off `shop.metadata.medusa_seller_id` (the existing mirror→Medusa join key)
+ * instead of a `marketplace_shops.metadata` column.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/admin/guard'
 import { db } from '@/lib/supabase'
-import { buildCompGrant, readGrant, type DomainEntitlement } from '@/lib/domain-entitlement'
+import { buildCompGrant, readGrant, type DomainEntitlement, type DomainGrant } from '@/lib/domain-entitlement'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { SUBDOMAIN_GRANT_KEY } from '@/lib/subdomain-entitlement'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { ML_SYNC_GRANT_KEY } from '@/lib/ml-sync-entitlement'
 import { resolveMlSyncEntitlement } from '@/lib/ml-sync-entitlement-server'
+import { getEnviaGrant, setEnviaGrant } from '@/lib/envia-grant'
 
 export const dynamic = 'force-dynamic'
 
 type ShopRow = { metadata: Record<string, unknown> | null; clerk_user_id: string | null }
 
-const GRANT_SKUS = ['custom_domain', 'subdomain', 'ml_sync'] as const
+const GRANT_SKUS = ['custom_domain', 'subdomain', 'ml_sync', 'envia'] as const
 type GrantSku = (typeof GRANT_SKUS)[number]
+/** The Supabase-mirror SKUs — `envia` is handled separately (see file header). */
+type SupabaseGrantSku = Exclude<GrantSku, 'envia'>
 
-/** The metadata key each SKU stores its durable grant on. */
-const GRANT_KEY: Record<GrantSku, string> = {
+/** The metadata key each Supabase-mirror SKU stores its durable grant on. */
+const GRANT_KEY: Record<SupabaseGrantSku, string> = {
   custom_domain: 'custom_domain_grant',
   subdomain: SUBDOMAIN_GRANT_KEY,
   ml_sync: ML_SYNC_GRANT_KEY,
@@ -44,13 +57,17 @@ function isGrantSku(raw: unknown): raw is GrantSku {
   return (GRANT_SKUS as readonly string[]).includes(raw as string)
 }
 
+function isSupabaseGrantSku(sku: GrantSku): sku is SupabaseGrantSku {
+  return sku !== 'envia'
+}
+
 /** GET (a read) may default a missing/unknown sku to custom_domain (back-compat). */
 function asSku(raw: unknown): GrantSku {
   return isGrantSku(raw) ? raw : 'custom_domain'
 }
 
 /** Resolve the SKU's true entitlement (incl. the per-seller subscription). */
-async function resolveForSku(sku: GrantSku, metadata: unknown, sellerClerkId?: string): Promise<DomainEntitlement> {
+async function resolveForSku(sku: SupabaseGrantSku, metadata: unknown, sellerClerkId?: string): Promise<DomainEntitlement> {
   const opts = { sellerClerkId: sellerClerkId ?? undefined }
   if (sku === 'subdomain') return resolveSubdomainEntitlement(metadata, opts)
   if (sku === 'ml_sync') return resolveMlSyncEntitlement(metadata, opts)
@@ -71,7 +88,20 @@ async function loadShop(id: string): Promise<ShopRow | null> {
   return (data as ShopRow | null) ?? null
 }
 
+function resolvedEnviaEntitlement(grant: DomainGrant | null) {
+  return {
+    sku: 'envia' as const,
+    entitlementReason: grant ? ('comp' as const) : ('none' as const),
+    entitled: Boolean(grant),
+    grant,
+  }
+}
+
 async function resolvedEntitlement(sku: GrantSku, shop: ShopRow) {
+  if (!isSupabaseGrantSku(sku)) {
+    const medusaSellerId = (shop.metadata as Record<string, unknown> | null)?.medusa_seller_id as string | undefined
+    return resolvedEnviaEntitlement(await getEnviaGrant(medusaSellerId))
+  }
   const ent = await resolveForSku(sku, shop.metadata, shop.clerk_user_id ?? undefined)
   return {
     sku,
@@ -112,10 +142,29 @@ export const POST = withAdmin<NextRequest, RouteCtx>(async (req, { params }) => 
     return NextResponse.json({ error: 'SKU inválido.' }, { status: 400 })
   }
   const sku = asSku(body.sku)
-  const grantKey = GRANT_KEY[sku]
 
   const shop = await loadShop(id)
   if (!shop) return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
+
+  if (!isSupabaseGrantSku(sku)) {
+    const medusaSellerId = (shop.metadata as Record<string, unknown> | null)?.medusa_seller_id as string | undefined
+    if (!medusaSellerId) {
+      return NextResponse.json(
+        { error: 'Esta tienda no tiene un vendedor de Medusa vinculado.' },
+        { status: 409 },
+      )
+    }
+    let grant: DomainGrant | null
+    try {
+      grant = await setEnviaGrant(medusaSellerId, action, note)
+    } catch (err) {
+      console.error('[admin/tenants/:id] envía grant write error:', err)
+      return NextResponse.json({ error: 'No se pudo guardar la cortesía.' }, { status: 502 })
+    }
+    return NextResponse.json(resolvedEnviaEntitlement(grant))
+  }
+
+  const grantKey = GRANT_KEY[sku]
 
   // This action only manages the **comp**: revoking a `grandfather` grant (stamped at
   // cutover) would silently strip a different, permanent entitlement, so refuse it.

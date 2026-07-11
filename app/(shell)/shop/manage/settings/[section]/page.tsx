@@ -8,6 +8,7 @@ import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { getSubdomainSubscription } from '@/lib/subdomain-subscription'
 import { isEnabled } from '@/lib/flags'
+import { hasEnviaGrant } from '@/lib/envia-grant'
 import { getShopListings } from '@/lib/listings'
 import type { PagosInitial } from '../_sections/Pagos'
 import type {
@@ -94,6 +95,15 @@ export default async function SettingsSectionPage({
     ? await isEnabled('shipping.envia_enabled')
     : true
 
+  // Envía comp-grant (shipping-provider-expansion · Sprint 2:
+  // seller.metadata.envia_grant on the Medusa seller). Resolved only for the
+  // Envíos section — lets a granted shop's banner + toggle stay live even
+  // while the platform flag above is OFF for everyone else. Cosmetic only;
+  // the backend (enviaKillGate) is the real gate.
+  const grantedEnviaEnabled = section === 'envios'
+    ? await hasEnviaGrant((shop.metadata as Record<string, unknown> | null)?.medusa_seller_id as string | undefined)
+    : false
+
   // Promoter Program (promoter.enabled, default OFF / fail-open). Resolved only for
   // the Canal section, where the custom-domain SKU lives — when on, Canal shows the
   // promoter-code field + discount preview before pay (Sprint 1; no charge wiring).
@@ -169,6 +179,7 @@ export default async function SettingsSectionPage({
           shipping: st.shipping ?? null,
           scheduling_links: st.scheduling?.links ?? [],
           platform_envia_enabled: platformEnviaEnabled,
+          granted_envia_enabled: grantedEnviaEnabled,
         }} />
       case 'citas':
         return <Citas initial={{

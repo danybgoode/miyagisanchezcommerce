@@ -14,11 +14,11 @@ import {
 
 test.describe('envía kill-switch · shipping.envia_enabled', () => {
   test('flag ON → passthrough (Envía calls allowed)', () => {
-    expect(enviaKillGate({ enviaEnabled: true })).toEqual({ blocked: false })
+    expect(enviaKillGate({ enviaEnabled: true, sellerGranted: false })).toEqual({ blocked: false })
   })
 
-  test('flag OFF → blocked (the fail-open default)', () => {
-    expect(enviaKillGate({ enviaEnabled: false })).toEqual({
+  test('flag OFF, ungranted → blocked (the fail-open default)', () => {
+    expect(enviaKillGate({ enviaEnabled: false, sellerGranted: false })).toEqual({
       blocked: true,
       reason: 'platform_envia_disabled',
     })
@@ -31,5 +31,15 @@ test.describe('envía kill-switch · shipping.envia_enabled', () => {
     for (const msg of [ENVIA_ARRANGED_DELIVERY_MESSAGE, ENVIA_LABEL_DISABLED_MESSAGE]) {
       expect(msg).not.toMatch(/\b(shipping|carrier|disabled|available|please)\b/i)
     }
+  })
+})
+
+test.describe('envía kill-switch · seller.metadata.envia_grant (comp-grant override)', () => {
+  test('granted seller → passthrough even when the platform flag is OFF', () => {
+    expect(enviaKillGate({ enviaEnabled: false, sellerGranted: true })).toEqual({ blocked: false })
+  })
+
+  test('flag ON and granted → still passthrough', () => {
+    expect(enviaKillGate({ enviaEnabled: true, sellerGranted: true })).toEqual({ blocked: false })
   })
 })

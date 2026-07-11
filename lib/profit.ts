@@ -77,6 +77,10 @@ export interface SkuMarginRow {
   margin_pct: number | null
   /** Honest missing pieces for THIS row (never 'shipping' — excluded by design here). */
   pending: PendingPiece[]
+  /** Only set by `computeSkuMarginsByChannel` (catalog-management S4) — the
+   * channel this row's revenue/fees belong to. `computeSkuMargins` blends
+   * both channels into one row and leaves this undefined (ambiguous). */
+  source?: ProfitSource
 }
 
 const sum = (events: ProfitEvent[], type: ProfitEventType) =>
@@ -208,6 +212,85 @@ export function computeSkuMargins(events: ProfitEvent[], orders: ProfitOrderInfo
     return row
   })
   // Highest revenue first; the unassigned bucket always last.
+  return rows.sort((a, b) =>
+    (a.product_id === 'unassigned' ? 1 : 0) - (b.product_id === 'unassigned' ? 1 : 0)
+    || b.revenue_cents - a.revenue_cents)
+}
+
+/**
+ * Per-channel variant of `computeSkuMargins` (catalog-management S4 · Story
+ * 4.1) — the catalog table wants Miyagi-vs-ML margin split per product,
+ * which the dashboard's blended-by-variant bucketing doesn't give. SAME math
+ * as `computeSkuMargins` (identical `sum()`-shaped accumulation, identical
+ * pending-piece rules) — the only difference is the bucket key carries the
+ * event's `source` too, so a product sold on both channels gets two rows
+ * instead of one blended row. `computeSkuMargins` itself is untouched (the
+ * profit dashboard keeps its existing blended behavior, zero regression
+ * risk) — this is an additive sibling, not a fork of the formula.
+ */
+export function computeSkuMarginsByChannel(events: ProfitEvent[], orders: ProfitOrderInfo[]): SkuMarginRow[] {
+  const orderById = new Map(orders.map((o) => [o.id, o]))
+  const buckets = new Map<string, SkuMarginRow>()
+
+  const bucketFor = (bucketKey: string, productId: string, variantId: string | null, title: string, source: ProfitSource): SkuMarginRow => {
+    const existing = buckets.get(bucketKey)
+    if (existing) return existing
+    const fresh: SkuMarginRow = {
+      product_id: productId, variant_id: variantId, title, units: 0,
+      revenue_cents: 0, fees_cents: 0, cogs_cents: 0, margin_cents: 0, margin_pct: null, pending: [], source,
+    }
+    buckets.set(bucketKey, fresh)
+    return fresh
+  }
+
+  const seenCogs = new Set<string>()
+  const seenMlFee = new Set<string>()
+  const seenMercadolibre = new Set<string>()
+
+  for (const e of events) {
+    if (e.event_type === 'shipping_cost') continue
+    const info = orderById.get(e.order_id)
+    const items = info?.items ?? []
+
+    let item: ProfitOrderItem | undefined
+    if (e.order_line_id) {
+      item = items.find((i) => i.id === e.order_line_id)
+    } else {
+      const distinctProducts = new Set(items.map((i) => i.product_id).filter(Boolean))
+      if (distinctProducts.size === 1) item = items[0]
+    }
+    const productId = item?.product_id ?? 'unassigned'
+    const variantId = item?.variant_id ?? null
+    const title = item?.title ?? 'Sin asignar'
+    const baseBucketKey = productId === 'unassigned' ? 'unassigned' : (variantId ?? productId)
+    // The per-channel dimension: the event's own source, not the order's —
+    // matches computeOrderMargins' own `source` field, so a product with
+    // events from both channels never collapses into one row.
+    const bucketKey = baseBucketKey === 'unassigned' ? 'unassigned' : `${baseBucketKey}::${e.source}`
+    const bucket = bucketFor(bucketKey, productId, variantId, title, e.source)
+
+    if (e.event_type === 'revenue') bucket.revenue_cents += e.amount_cents
+    else if (e.event_type === 'ml_fee') bucket.fees_cents += e.amount_cents
+    else if (e.event_type === 'cogs_snapshot') bucket.cogs_cents += e.amount_cents
+
+    if (e.event_type === 'revenue') {
+      const qty = item?.quantity
+      bucket.units += typeof qty === 'number' && Number.isFinite(qty) ? qty : 0
+      if (e.source === 'mercadolibre') seenMercadolibre.add(bucketKey)
+    }
+    if (e.event_type === 'cogs_snapshot') seenCogs.add(bucketKey)
+    if (e.event_type === 'ml_fee') seenMlFee.add(bucketKey)
+  }
+
+  const rows = [...buckets.entries()].map(([bucketKey, row]) => {
+    row.margin_cents = row.revenue_cents - row.fees_cents - row.cogs_cents
+    row.margin_pct = row.revenue_cents > 0 ? row.margin_cents / row.revenue_cents : null
+    const pending: PendingPiece[] = []
+    if (!seenCogs.has(bucketKey)) pending.push('cogs')
+    if (seenMercadolibre.has(bucketKey) && !seenMlFee.has(bucketKey)) pending.push('ml_fee')
+    row.pending = pending
+    return row
+  })
   return rows.sort((a, b) =>
     (a.product_id === 'unassigned' ? 1 : 0) - (b.product_id === 'unassigned' ? 1 : 0)
     || b.revenue_cents - a.revenue_cents)
