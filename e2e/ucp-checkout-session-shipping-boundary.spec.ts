@@ -17,6 +17,12 @@ import { test, expect } from '@playwright/test'
  * without the deliberate design pass a real UCP shipping surface deserves,
  * this catches it.
  *
+ * Update (arranged-only-delivery epic, S2.1): a COORDINATED listing (arranged
+ * product, or service/rental) now DOES carry a `delivery: { arranged, note }`
+ * hint — see `ucp-checkout-session-arranged-delivery.spec.ts`. This spec's
+ * boundary narrows to: an ordinary SHIPPABLE listing still carries none of
+ * these fields; `delivery` is additive/conditional, never a blanket leak.
+ *
  * Fixture-gated: set MS_TEST_SHIPPABLE_LISTING_ID to a public, priced,
  * physical (shippable) listing.
  */
