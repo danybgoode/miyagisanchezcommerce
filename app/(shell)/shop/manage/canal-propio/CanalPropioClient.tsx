@@ -1,35 +1,31 @@
 'use client'
 
 /**
- * Canal propio (slug `canal`) — extracted out of the ShopSettings monolith.
- * Bundles the three internal sections the `canal` route revealed:
- *   canal  (custom domain + free URL/slug editor) · apoyo (support widget) ·
- *   widget (embeddable snippet generator).
+ * Canal propio — custom domain + free URL/slug editor + embed snippet.
+ * Extracted out of the settings `Canal.tsx` mega-section (catalog-management
+ * epic, Sprint 6 · Story 6.2) — federation-only; the support widget moved to
+ * its own settings card (`settings/_sections/Apoyo.tsx`).
  *
- * Behavior-preserving: every external request fires identically — the custom-domain
- * flow hits `/api/sell/shop/domain` (GET/POST/DELETE), `/domain/detect`,
- * `/domain/cloudflare`; the slug editor hits `/api/sell/shop/slug`. The domain and
- * slug each persist through their OWN endpoints; the "Guardar cambios" footer
- * persists only the support (apoyo) slice through useSettingsSave() → PATCH
- * /api/sell/shop (deep-merged, siblings untouched). The embed snippet section is
- * display-only. No secret reaches the client here.
+ * Behavior-preserving: every external request fires identically — the
+ * custom-domain flow hits `/api/sell/shop/domain` (GET/POST/DELETE),
+ * `/domain/detect`, `/domain/cloudflare`; the slug editor hits
+ * `/api/sell/shop/slug`. Both persist through their OWN endpoints, never
+ * through `useSettingsSave()` — so unlike the old Canal.tsx, this component
+ * has no page-level save bar/toast at all: nothing here ever fed one (that
+ * machinery only ever gated the support-slice save, which moved to Apoyo.tsx).
+ * Each domain/slug action already renders its own inline pending/error state.
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { useSettingsSave } from '../_components/useSettingsSave'
-import { Toast } from '@/components/feedback/Toast'
 import { Banner } from '@/components/feedback/Banner'
-import { SectionSaveBar } from '../_components/SectionSaveBar'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
-import EmbedSnippetSection from '../EmbedSnippetSection'
-import SupportWidgetSection from '../SupportWidgetSection'
+import EmbedSnippetSection from './EmbedSnippetSection'
 import SubdomainSection from './SubdomainSection'
 import DomainPaywallUpsell from './DomainPaywallUpsell'
+import DnsSetupPanel from './DnsSetupPanel'
 import { dnsRecordFor, CNAME_TARGET } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
-import { coerceSupportSettings } from '@/lib/support-widget'
-import type { SettingsTree } from '@/lib/shop-settings/types'
 
 // ── Registrar DNS guides ──────────────────────────────────────────────────────
 // Interpolate CNAME_TARGET (not a hardcoded literal) so a future provider swap
@@ -93,13 +89,11 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
 }
 
-export interface CanalInitial {
+export interface CanalPropioInitial {
   slug?: string
   custom_domain?: string | null
   custom_domain_verified?: boolean
-  /** Raw support slice — coerced to defaults below, exactly as the monolith did. */
-  support?: SettingsTree['support'] | null
-  /** Brand accent — feeds the support widget + embed preview. */
+  /** Brand accent — feeds the embed preview. */
   accent?: string | null
   /**
    * Custom-domain paywall (epic: custom-domain-paywall, S1). False ⇒ render the
@@ -129,9 +123,7 @@ export interface CanalInitial {
   subdomain_lapsed?: boolean
 }
 
-export default function Canal({ initial }: { initial: CanalInitial }) {
-  const { save, saving, toast, dismissToast, isDirty, markDirty } = useSettingsSave()
-  const mark = markDirty
+export default function CanalPropioClient({ initial }: { initial: CanalPropioInitial }) {
   const accentColor = initial.accent ?? '#1d6f42'
 
   // ── Own channel — custom domain ────────────────────────────────────────────
@@ -166,27 +158,6 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
   const [showCfPanel, setShowCfPanel]               = useState(false)
   const domainPollRef                               = useRef<ReturnType<typeof setInterval> | null>(null)
   // Custom-domain paywall buy upsell — state + POST moved to <DomainPaywallUpsell>.
-
-  // ── Own channel — support widget ───────────────────────────────────────────
-  const supportSettings = coerceSupportSettings(initial.support)
-  const [supportEnabled, setSupportEnabled] = useState(supportSettings.enabled)
-  const [supportPresetPesos, setSupportPresetPesos] = useState<number[]>(
-    supportSettings.preset_amount_cents.map(amount => amount / 100)
-  )
-  const [supportCustomMinPesos, setSupportCustomMinPesos] = useState(supportSettings.custom_min_cents / 100)
-  const [supportCustomMaxPesos, setSupportCustomMaxPesos] = useState(supportSettings.custom_max_cents / 100)
-  const [supportDefaultVisibility, setSupportDefaultVisibility] = useState<'public' | 'private'>(supportSettings.default_visibility)
-  const [supportProductId, setSupportProductId] = useState<string | null>(supportSettings.support_product_id ?? null)
-  const [supportError, setSupportError] = useState('')
-
-  function setSupportPreset(index: number, value: number) {
-    setSupportPresetPesos((current) => current.map((amount, i) => i === index ? value : amount))
-    mark()
-  }
-  function clearSupportError() { setSupportError('') }
-  function scrollToApoyo() {
-    document.getElementById('apoyo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
 
   // Auto-poll DNS every 8s after domain is saved, until live or 5 min elapsed
   function startDomainPolling() {
@@ -361,50 +332,6 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
     if (domainLastChecked) return 'unverified'
     return 'pending_dns'
   })()
-
-  async function handleSave() {
-    const supportPresetCents = supportPresetPesos.map(amount => Math.round(Number(amount) * 100))
-    const supportMinCents = Math.round(Number(supportCustomMinPesos) * 100)
-    const supportMaxCents = Math.round(Number(supportCustomMaxPesos) * 100)
-    if (supportEnabled) {
-      let err = ''
-      if (supportPresetCents.length !== 3 || supportPresetCents.some(amount => !Number.isFinite(amount) || amount <= 0)) {
-        err = 'Configura exactamente tres montos de apoyo válidos.'
-      } else if (!Number.isFinite(supportMinCents) || !Number.isFinite(supportMaxCents) || supportMinCents < 100 || supportMinCents > supportMaxCents) {
-        err = 'Revisa el mínimo y máximo de apoyo.'
-      } else if (supportMaxCents > 500000) {
-        err = 'El máximo de apoyo no puede superar $5,000 MXN.'
-      } else if (supportPresetCents.some(amount => amount < supportMinCents || amount > supportMaxCents)) {
-        err = 'Los montos sugeridos deben estar dentro del rango personalizado.'
-      }
-      if (err) { setSupportError(err); scrollToApoyo(); return }
-    }
-    setSupportError('')
-    const safeSupportPresetCents = supportPresetCents.every(amount => Number.isFinite(amount) && amount > 0)
-      ? supportPresetCents
-      : [5000, 10000, 20000]
-    const safeSupportMinCents = Number.isFinite(supportMinCents) ? Math.max(100, supportMinCents) : 2000
-    const safeSupportMaxCents = Number.isFinite(supportMaxCents)
-      ? Math.max(safeSupportMinCents, supportMaxCents)
-      : 500000
-
-    await save({
-      settings: {
-        support: {
-          enabled: supportEnabled,
-          preset_amount_cents: safeSupportPresetCents,
-          custom_min_cents: safeSupportMinCents,
-          custom_max_cents: safeSupportMaxCents,
-          currency: 'MXN',
-          default_visibility: supportDefaultVisibility,
-          support_product_id: supportProductId,
-        },
-      },
-    }, {
-      onFieldError: (field, message) => { if (field === 'support') { setSupportError(message); scrollToApoyo() } },
-      onSuccess: (data) => { if (data.support_product_id) setSupportProductId(data.support_product_id as string) },
-    })
-  }
 
   return (
     <div>
@@ -742,175 +669,23 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
                   </p>
                 )}
 
-                {/* ── Context-aware DNS setup panels ────────────────────────── */}
-                {!domainDnsOk && (
-                  <div className="space-y-3 mb-3">
-
-                    {/* Cloudflare auto-config */}
-                    <div className={`border rounded-[var(--r-md)] overflow-hidden ${detectedRegistrar === 'cloudflare' ? 'border-orange-300 bg-orange-50/30' : 'border-[var(--color-border)]'}`}>
-                      <button
-                        type="button"
-                        onClick={() => setShowCfPanel(v => !v)}
-                        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-lg">☁️</span>
-                          <div>
-                            <p className="text-xs font-semibold">
-                              {detectedRegistrar === 'cloudflare'
-                                ? '¡Tu dominio está en Cloudflare! Configura en segundos'
-                                : 'Configurar automáticamente con Cloudflare'}
-                            </p>
-                            <p className="text-xs text-[var(--color-muted)]">
-                              {detectedRegistrar === 'cloudflare'
-                                ? 'Crea un token de API y nosotros hacemos el resto'
-                                : 'Si tu dominio usa Cloudflare, lo configuramos por ti'}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-xs text-[var(--color-muted)] flex-shrink-0 ml-3">{showCfPanel ? '▲' : '▼'}</span>
-                      </button>
-
-                      {showCfPanel && (
-                        <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border)] space-y-4 bg-[var(--color-surface-alt)]">
-
-                          {/* Step 1 — Get the token */}
-                          <div>
-                            <p className="text-xs font-semibold text-[var(--color-foreground)] mb-2">
-                              Paso 1 — Crea el token en Cloudflare
-                            </p>
-                            <a
-                              href="https://dash.cloudflare.com/profile/api-tokens/create"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-[var(--provider-envia)] text-[var(--fg-inverse)] text-xs font-semibold px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--provider-envia-hover)] transition-colors no-underline mb-3"
-                            >
-                              <span>☁️</span> Abrir Cloudflare → Crear token
-                            </a>
-                            <ol className="space-y-1.5">
-                              {[
-                                <>En la página de Cloudflare, clic en <strong>&ldquo;Use template&rdquo;</strong> junto a <strong>&ldquo;Edit zone DNS&rdquo;</strong></>,
-                                <>En &ldquo;Zone Resources&rdquo; → selecciona <strong>Specific zone</strong> → elige <strong>{savedDomain || 'tu dominio'}</strong></>,
-                                <>Clic en <strong>&ldquo;Continue to summary&rdquo;</strong> → <strong>&ldquo;Create Token&rdquo;</strong></>,
-                                <>Copia el token generado (solo se muestra una vez) y pégalo abajo</>,
-                              ].map((step, i) => (
-                                <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
-                                  <span className="flex-shrink-0 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--bg-elevated)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">{i + 1}</span>
-                                  <span className="leading-relaxed">{step}</span>
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-
-                          {/* Step 2 — Paste and apply */}
-                          <div>
-                            <p className="text-xs font-semibold text-[var(--color-foreground)] mb-2">
-                              Paso 2 — Pega el token y aplica
-                            </p>
-                            <div className="flex gap-2">
-                              <input
-                                type="password"
-                                value={cfTokenInput}
-                                onChange={e => setCfTokenInput(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && cfTokenInput.trim() && !cfSaving && handleCfAutoConfig()}
-                                placeholder="Pega tu API Token aquí"
-                                autoComplete="off"
-                                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                              />
-                              <Button
-                                type="button"
-                                variant="primary"
-                                onClick={handleCfAutoConfig}
-                                disabled={cfSaving || !cfTokenInput.trim()}
-                                className="whitespace-nowrap"
-                              >
-                                {cfSaving
-                                  ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Configurando…</span>
-                                  : 'Configurar DNS'}
-                              </Button>
-                            </div>
-                          </div>
-
-                          {cfError && (
-                            <Banner variant="danger">{cfError}</Banner>
-                          )}
-                          {cfSuccess && (
-                            <Banner variant="success">
-                              Registro CNAME creado en Cloudflare. Verificando propagación automáticamente…
-                            </Banner>
-                          )}
-
-                          <p className="text-[10px] text-[var(--color-muted)]">
-                            🔒 El token se usa una sola vez para crear el registro y no se almacena en nuestros servidores.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Per-registrar step-by-step (non-CF known registrars) */}
-                    {detectedRegistrar && detectedRegistrar !== 'cloudflare' && detectedRegistrar !== 'unknown' && REGISTRAR_GUIDES[detectedRegistrar] && (
-                      <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
-                        <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--color-surface-alt)] border-b border-[var(--color-border)]">
-                          <span className="text-base">{REGISTRAR_GUIDES[detectedRegistrar].icon}</span>
-                          <div>
-                            <p className="text-xs font-semibold">
-                              Instrucciones para {REGISTRAR_GUIDES[detectedRegistrar].name}
-                            </p>
-                            <p className="text-xs text-[var(--color-muted)]">
-                              Detectamos que tu dominio está en {REGISTRAR_GUIDES[detectedRegistrar].name}
-                            </p>
-                          </div>
-                        </div>
-                        <ol className="px-4 py-3 space-y-2">
-                          {REGISTRAR_GUIDES[detectedRegistrar].steps.map((step, i) => (
-                            <li key={i} className="flex gap-2.5 text-xs text-[var(--color-muted)]">
-                              <span className="flex-shrink-0 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center text-[10px] font-bold mt-0.5">
-                                {i + 1}
-                              </span>
-                              <span className="leading-relaxed">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                        {dnsRecord && !dnsRecord.isApex && (
-                          <p className="px-4 pb-2 text-[10px] text-[var(--warning)]">
-                            ⚠ Como es un subdominio, usa Nombre/Host{' '}
-                            <span className="font-mono">{dnsRecord.host}</span> (no <span className="font-mono">@</span>).
-                          </p>
-                        )}
-                        <div className="px-4 pb-3">
-                          <a
-                            href={REGISTRAR_GUIDES[detectedRegistrar].url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:underline no-underline"
-                          >
-                            Abrir panel de {REGISTRAR_GUIDES[detectedRegistrar].name} →
-                          </a>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Generic instructions when registrar unknown or undetected */}
-                    {(!detectedRegistrar || detectedRegistrar === 'unknown') && (
-                      <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-3">
-                        <p className="text-xs font-semibold mb-2">Instrucciones generales:</p>
-                        <ol className="space-y-1.5">
-                          {[
-                            'Ve al panel de DNS de tu proveedor de dominio (GoDaddy, Namecheap, etc.)',
-                            `Crea un nuevo registro tipo ${dnsRecord?.type ?? 'CNAME'}`,
-                            `Nombre / Host: ${dnsRecord?.host ?? '@'} · Valor / Apunta a: ${dnsRecord?.value ?? CNAME_TARGET}`,
-                            'Guarda los cambios — la propagación puede tomar hasta 48 horas',
-                          ].map((step, i) => (
-                            <li key={i} className="flex gap-2 text-xs text-[var(--color-muted)]">
-                              <span className="flex-shrink-0 font-bold text-[var(--color-accent)]">{i + 1}.</span>
-                              <span>{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* ── Context-aware DNS setup panels ── extracted to DnsSetupPanel.tsx
+                    (kept the settings/canal-propio split under the anti-monolith cap) ── */}
+                <DnsSetupPanel
+                  domainDnsOk={domainDnsOk}
+                  detectedRegistrar={detectedRegistrar}
+                  registrarGuides={REGISTRAR_GUIDES}
+                  savedDomain={savedDomain}
+                  dnsRecord={dnsRecord}
+                  showCfPanel={showCfPanel}
+                  onToggleCfPanel={() => setShowCfPanel(v => !v)}
+                  cfTokenInput={cfTokenInput}
+                  onCfTokenInputChange={setCfTokenInput}
+                  cfSaving={cfSaving}
+                  cfError={cfError}
+                  cfSuccess={cfSuccess}
+                  onCfAutoConfig={handleCfAutoConfig}
+                />
 
                 {/* Live status row */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1043,32 +818,9 @@ export default function Canal({ initial }: { initial: CanalInitial }) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════
-          Support widget (apoyo)
-      ════════════════════════════════════════════════════════════════════ */}
-      <SupportWidgetSection
-        enabled={supportEnabled}
-        presetPesos={supportPresetPesos}
-        customMinPesos={supportCustomMinPesos}
-        customMaxPesos={supportCustomMaxPesos}
-        defaultVisibility={supportDefaultVisibility}
-        accent={accentColor}
-        error={supportError}
-        supportProductId={supportProductId}
-        onEnabledChange={(value) => { setSupportEnabled(value); mark(); clearSupportError() }}
-        onPresetPesosChange={(index, value) => { setSupportPreset(index, value); clearSupportError() }}
-        onCustomMinPesosChange={(value) => { setSupportCustomMinPesos(value); mark(); clearSupportError() }}
-        onCustomMaxPesosChange={(value) => { setSupportCustomMaxPesos(value); mark(); clearSupportError() }}
-        onDefaultVisibilityChange={(value) => { setSupportDefaultVisibility(value); mark() }}
-      />
-
-      {/* ════════════════════════════════════════════════════════════════════
           Embeddable widget — snippet generator (display-only)
       ════════════════════════════════════════════════════════════════════ */}
       <EmbedSnippetSection slug={shopSlug} accent={accentColor} />
-
-      <SectionSaveBar saving={saving} isDirty={isDirty} onSave={handleSave} />
-
-      {toast && <Toast toast={toast} onDismiss={dismissToast} />}
     </div>
   )
 }

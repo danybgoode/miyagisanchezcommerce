@@ -86,7 +86,8 @@ export const guardExcludedFiles = new Set([
 
 export const allowedLiteralRules: AllowedLiteralRule[] = [
   {
-    path: 'app/(shell)/shop/manage/settings/EmbedSnippetSection.tsx',
+    // Moved to canal-propio/ (catalog-management S6.2 — federation split out of settings).
+    path: 'app/(shell)/shop/manage/canal-propio/EmbedSnippetSection.tsx',
     literal: '#111',
     contains: "accent && accent !== '#111'",
     reason: 'embed snippet data-accent default is serialized for third-party hosts',
@@ -140,10 +141,20 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'native color input state needs a concrete hex value (extracted from ShopSettings monolith)',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    // Split from Canal.tsx (catalog-management S6.2) — federation half, now
+    // canal-propio/CanalPropioClient.tsx; feeds the embed iframe preview.
+    path: 'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
     literal: '#1d6f42',
     contains: "initial.accent ?? '#1d6f42'",
-    reason: 'accent fallback serialized into the support-widget/embed iframe markup (extracted from ShopSettings monolith)',
+    reason: 'accent fallback serialized into the embed iframe markup (extracted from ShopSettings monolith)',
+  },
+  {
+    // Split from Canal.tsx (catalog-management S6.2) — support-widget half, now
+    // settings/_sections/Apoyo.tsx; feeds the support-widget iframe preview.
+    path: 'app/(shell)/shop/manage/settings/_sections/Apoyo.tsx',
+    literal: '#1d6f42',
+    contains: "initial.accent ?? '#1d6f42'",
+    reason: 'accent fallback serialized into the support-widget iframe markup (extracted from ShopSettings monolith)',
   },
   {
     // Moved from settings/page.tsx to lib/setup-guide.ts (seller-portal-setup-guide
@@ -171,25 +182,25 @@ export const allowedRawPaletteRules: AllowedLiteralRule[] = [
     reason: 'terminal-style JSON payload preview <pre> block, not a status indicator',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    path: 'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
     literal: 'bg-green-500',
     contains: "bg-green-500/20 text-green-400",
     reason: 'DNS record card "copied" glow state inside a dark terminal-style preview, not a status badge',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    path: 'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
     literal: 'text-green-400',
     contains: "bg-green-500/20 text-green-400",
     reason: 'DNS record card "copied" glow state inside a dark terminal-style preview, not a status badge',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    path: 'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
     literal: 'text-amber-300',
     contains: 'text-white/30 mb-1',
     reason: 'DNS record card terminal theme (TIPO field), not a status indicator',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+    path: 'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
     literal: 'text-green-300',
     contains: 'text-white/30 mb-1',
     reason: 'DNS record card terminal theme (VALOR field), not a status indicator',
@@ -214,19 +225,19 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/shop/manage/orders/[id]/OrderDetail.tsx',
   'app/(shell)/shop/manage/catalogo/CatalogTable.tsx',
   'app/(shell)/shop/manage/settings/_sections/Notificaciones.tsx',
-  'app/(shell)/shop/manage/settings/_sections/PromoterCodeField.tsx',
+  'app/(shell)/shop/manage/canal-propio/PromoterCodeField.tsx',
   'app/(shell)/shop/manage/settings/_sections/Negociacion.tsx',
   'app/(shell)/shop/manage/settings/_sections/Pedidos.tsx',
   'app/(shell)/shop/manage/settings/_sections/Perfil.tsx',
-  'app/(shell)/shop/manage/settings/_sections/DomainPaywallUpsell.tsx',
+  'app/(shell)/shop/manage/canal-propio/DomainPaywallUpsell.tsx',
   'app/(shell)/shop/manage/settings/_sections/Paginas.tsx',
-  'app/(shell)/shop/manage/settings/_sections/SubdomainSection.tsx',
+  'app/(shell)/shop/manage/canal-propio/SubdomainSection.tsx',
   'app/(shell)/shop/manage/settings/_sections/Devoluciones.tsx',
   'app/(shell)/shop/manage/settings/_sections/Agentes.tsx',
   'app/(shell)/shop/manage/settings/_sections/Citas.tsx',
   'app/(shell)/shop/manage/settings/_sections/Diseno.tsx',
   'app/(shell)/shop/manage/settings/_sections/Pagos.tsx',
-  'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+  'app/(shell)/shop/manage/canal-propio/CanalPropioClient.tsx',
   'app/(shell)/shop/manage/settings/_sections/Envios.tsx',
   'app/(shell)/shop/manage/settings/_components/CopyPromptButton.tsx',
   'app/(shell)/shop/manage/settings/_components/PickupSpotManager.tsx',

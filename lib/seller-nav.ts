@@ -65,9 +65,13 @@ export const SELLER_NAV: SellerNavGroup[] = [
     entries: [
       { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-pricetags', mobileLabel: 'Catálogo' },
       { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
-      // Renamed from "Mercado Libre" — same page, now framed as the channels hub
-      // (catalog-management epic: "ML becomes 'Canales'").
-      { key: 'canales', label: 'Canales', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
+      // Repointed to the new federation page — dominio propio / subdominio / URL
+      // gratis / embed (catalog-management S6.2). Previously this "Canales" label
+      // pointed at the Mercado Libre status page (S1's "ML becomes 'Canales'"
+      // rename); that page now has its own distinct entry below instead of
+      // sharing this label.
+      { key: 'canales', label: 'Canales', href: '/shop/manage/canal-propio', icon: 'iconoir-internet' },
+      { key: 'mercadolibre', label: 'Mercado Libre', href: '/shop/manage/mercadolibre', icon: 'iconoir-shop' },
       { key: 'importar', label: 'Importar catálogo', href: '/shop/manage/import', icon: 'iconoir-cloud-upload' },
     ],
   },
@@ -119,7 +123,7 @@ export const SELLER_NAV_MOBILE_PRIMARY: SellerNavEntry[] = [
  */
 export const SELLER_NAV_MOBILE_OVERFLOW_GROUPS: SellerNavMobileOverflowGroup[] = [
   { key: 'operar', label: 'Operar', entries: [SELLER_NAV[0].entries[2]] }, // Ofertas
-  { key: 'catalogo', label: 'Catálogo', entries: SELLER_NAV[1].entries.slice(1) }, // Colecciones, Canales, Importar catálogo
+  { key: 'catalogo', label: 'Catálogo', entries: SELLER_NAV[1].entries.slice(1) }, // Colecciones, Canales, Mercado Libre, Importar catálogo
   { key: 'crecer', label: 'Crecer', entries: SELLER_NAV[2].entries, layout: 'grid' },
   { key: 'configuracion', label: 'Configuración', entries: SELLER_NAV[3].entries },
 ]

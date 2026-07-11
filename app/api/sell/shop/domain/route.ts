@@ -48,7 +48,7 @@ async function paywallBlock(metadata: unknown, sellerClerkId: string): Promise<N
   const ent = await resolveDomainEntitlement(metadata, { sellerClerkId })
   if (ent.entitled) return null
   return NextResponse.json(
-    { error: 'El dominio propio es una función premium. Conéctalo desde Ajustes → Canal.', paywall: true },
+    { error: 'El dominio propio es una función premium. Conéctalo desde Catálogo → Canales.', paywall: true },
     { status: 402 },
   )
 }

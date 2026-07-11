@@ -104,8 +104,8 @@ export async function startCustomDomainCheckout(input: {
   }
 
   const origin = canonicalOrigin()
-  const successUrl = `${origin}/shop/manage/settings/canal?domain=activated`
-  const cancelUrl = `${origin}/shop/manage/settings/canal?domain=cancelled`
+  const successUrl = `${origin}/shop/manage/canal-propio?domain=activated`
+  const cancelUrl = `${origin}/shop/manage/canal-propio?domain=cancelled`
 
   // ── One-time cadence: pay a year up front, no recurring mandate ───────────
   if (cadence === 'one_time') {

@@ -25,9 +25,12 @@ import {
 
 // The 12 slugs the settings index links to and the [section] route accepts.
 // `paginas` (own-shop premium presentation, Sprint 3) added after `diseno`.
+// `canal` -> `apoyo` (catalog-management S6.2): federation moved to its own
+// Catálogo-group page (/shop/manage/canal-propio, outside this taxonomy
+// entirely); the support widget kept the same array slot under its new slug.
 const SLUGS = [
   'perfil', 'pagos', 'envios', 'negociacion', 'citas', 'notificaciones',
-  'diseno', 'paginas', 'agentes', 'canal', 'pedidos', 'politicas',
+  'diseno', 'paginas', 'agentes', 'apoyo', 'pedidos', 'politicas',
 ]
 
 test.describe('shop-settings-taxonomy · canonical map', () => {
@@ -50,8 +53,12 @@ test.describe('shop-settings-taxonomy · canonical map', () => {
     expect(sectionTitle('does-not-exist')).toBeUndefined()
   })
 
-  test('manual flags match the four OAuth/money/domain sections', () => {
-    expect([...MANUAL_KEYS].sort()).toEqual(['agentes', 'canal', 'citas', 'pagos'])
+  test('manual flags match the three OAuth/money/domain sections', () => {
+    // `canal` dropped off this list in catalog-management S6.2 -- federation
+    // (the one actually-manual concern `canal` covered) moved off this
+    // taxonomy entirely; `apoyo` (its replacement slot) is a plain
+    // Supabase-PATCH settings slice like every other non-manual section.
+    expect([...MANUAL_KEYS].sort()).toEqual(['agentes', 'citas', 'pagos'])
     expect(isManual('pagos')).toBe(true)
     expect(isManual('perfil')).toBe(false)
   })

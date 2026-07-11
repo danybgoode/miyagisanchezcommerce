@@ -124,6 +124,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // "Migrar desde Shopify" entry point + MCP tool stay hidden. Flip ON only
   // after Daniel's live real-Shopify-domain pull + parity report smoke passes.
   'migrations.connector_enabled': { polarity: 'enablement', default: false },
+  // Seller shell (dark top bar + SellerNav) over /sell + /sell/setup for a
+  // signed-in shop owner, instead of buyer chrome (epic 03 · catalog-management
+  // S6, Story 6.1). Kill-switch: default ON ⇒ OFF reverts those two routes to
+  // buyer chrome instantly, no redeploy.
+  'seller.shell_on_sell_enabled': { polarity: 'killswitch', default: true },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

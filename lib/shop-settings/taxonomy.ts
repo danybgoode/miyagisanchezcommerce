@@ -12,6 +12,10 @@
  * Next-free + pure, so a Playwright `api` spec can assert completeness for free.
  */
 
+// 'canal' has no member section as of catalog-management S6.2 (federation moved
+// to its own Catálogo-group page, /shop/manage/canal-propio) — kept in the union
+// rather than removed for a purely cosmetic diff; nothing switches exhaustively
+// on SectionGroup, so an unused value here is harmless.
 export type SectionGroup = 'tienda' | 'pagos' | 'ventas' | 'canal' | 'integraciones'
 
 export interface SectionDef {
@@ -140,15 +144,19 @@ export const SECTIONS: SectionDef[] = [
     manual: true,
   },
   {
-    slug: 'canal',
-    title: 'Canal propio',
-    cardTitle: 'Canal propio',
-    desc: 'Dominio personalizado y configuración de tienda federada.',
-    icon: 'iconoir-internet',
+    // Federation (custom domain/subdomain/embed/agents) moved to its own page
+    // under Catálogo, /shop/manage/canal-propio (catalog-management S6.2) — the
+    // 'canal' slug used to bundle that WITH the support widget below; this entry
+    // now covers only the widget, retitled + re-grouped accordingly.
+    slug: 'apoyo',
+    title: 'Apoyos y propinas',
+    cardTitle: 'Apoyos y propinas',
+    desc: 'Widget de apoyo económico para tu tienda — montos, visibilidad y vista previa.',
+    icon: 'iconoir-heart',
     color: 'var(--accent)',
     bg: 'var(--accent-soft)',
-    group: 'canal',
-    manual: true,
+    group: 'integraciones',
+    manual: false,
   },
   {
     slug: 'pedidos',
