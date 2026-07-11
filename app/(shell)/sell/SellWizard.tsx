@@ -7,6 +7,7 @@ import { AttrsSection, type Attrs } from './AttrsSection'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { slugify } from '@/lib/slug'
 import { Banner } from '@/components/feedback/Banner'
+import { SuccessCard } from '@/components/SuccessCard'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,12 +89,6 @@ const CONDITIONS: { key: Condition; label: string; hint: string }[] = [
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatPriceDisplay(raw: string): string {
-  const num = parseFloat(raw.replace(/,/g, ''))
-  if (isNaN(num) || num === 0) return ''
-  return new Intl.NumberFormat('es-MX').format(num)
-}
 
 function parsePriceCents(raw: string): number | null {
   const num = parseFloat(raw.replace(/,/g, '').replace(/\s/g, ''))
@@ -1197,94 +1192,31 @@ function StepListing({
   )
 }
 
-// ── Step 3: Success ───────────────────────────────────────────────────────────
+// ── Step 3: Success (F12 convergence — shared <SuccessCard>, Sprint 2 · Story 2.2) ──
+// The per-listing photo/price preview this step rendered before is dropped in
+// favor of the identical SuccessCard layout every setup path now ends on —
+// intentional per F12 (same layout beats a richer one-off preview here).
 
 function StepSuccess({
   result,
-  title,
-  photos,
-  priceRaw,
-  priceOnRequest,
   onPublishAnother,
 }: {
   result: { shopSlug: string; listingId: string }
-  title: string
-  photos: UploadedPhoto[]
-  priceRaw: string
-  priceOnRequest: boolean
   onPublishAnother: () => void
 }) {
-  const coverPhoto = photos.find(p => p.status === 'done')
-
   return (
-    <div className="text-center">
-      {/* Success icon */}
-      <div className="inline-flex items-center justify-center w-16 h-16 bg-[var(--success-soft)] rounded-[var(--r-pill)] mb-5">
-        <span className="text-3xl">✅</span>
-      </div>
-
-      <h2 className="text-2xl font-bold text-[var(--color-text)] mb-1">¡Tu anuncio está publicado!</h2>
-      <p className="text-[var(--color-muted)] text-sm mb-6">
-        Ya está visible para compradores en todo México.
-      </p>
-
-      {/* Listing preview card */}
-      <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden mx-auto max-w-xs mb-6 text-left">
-        {coverPhoto ? (
-          <img src={coverPhoto.localUrl} alt={title} className="w-full h-40 object-cover" />
-        ) : (
-          <div className="w-full h-40 bg-[var(--color-background)] flex items-center justify-center text-4xl">📦</div>
-        )}
-        <div className="p-3">
-          <p className="font-semibold text-sm text-[var(--color-text)] line-clamp-2">{title}</p>
-          <p className="text-[var(--color-accent)] font-bold mt-0.5">
-            {priceOnRequest ? 'Precio a consultar' : priceRaw ? `$${formatPriceDisplay(priceRaw)} MXN` : 'Precio a consultar'}
-          </p>
-        </div>
-      </div>
-
-      {/* CTA buttons */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <a
-          href={`/l/${result.listingId}`}
-          className="btn btn-primary flex-1 text-center !text-white"
-        >
-          Ver mi anuncio →
-        </a>
-        <a
-          href={`/s/${result.shopSlug}`}
-          className="btn btn-secondary flex-1 text-center"
-        >
-          Ver mi tienda
-        </a>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-[var(--color-border)] pt-5 mb-5">
-        <p className="text-sm font-semibold text-[var(--color-text)] mb-3">¿Tienes más cosas para vender?</p>
-        <button
-          type="button"
-          onClick={onPublishAnother}
-          className="btn btn-secondary w-full"
-        >
-          + Publicar otro anuncio
-        </button>
-      </div>
-
-      {/* Tip */}
-      <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-left">
-        <p className="text-xs font-semibold text-[var(--color-text)] mb-1">💡 Siguiente paso</p>
-        <p className="text-xs text-[var(--color-muted)] mb-2">
-          Personaliza tu tienda con tu logo, colores y redes sociales para generar más confianza en los compradores.
-        </p>
-        <a
-          href={`/shop/manage`}
-          className="text-xs text-[var(--color-accent)] font-medium no-underline hover:underline"
-        >
-          Ir a gestionar mi tienda →
-        </a>
-      </div>
-    </div>
+    <SuccessCard
+      headline="¡Tu anuncio está publicado!"
+      subcopy="Ya está visible para compradores en todo México."
+      counts={{ created: 1, updated: 0, failed: 0, draft: 0 }}
+      liveUrl={`/s/${result.shopSlug}`}
+      liveLabel="Ver mi tienda pública ↗"
+      nextActions={[
+        { label: 'Ver mi anuncio', href: `/l/${result.listingId}` },
+        { label: '+ Publicar otro anuncio', onClick: onPublishAnother },
+      ]}
+      shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/s/${result.shopSlug}`}
+    />
   )
 }
 
@@ -1604,10 +1536,6 @@ export default function SellWizard({
         {step === 3 && result && (
           <StepSuccess
             result={result}
-            title={title}
-            photos={photos}
-            priceRaw={priceRaw}
-            priceOnRequest={priceOnRequest}
             onPublishAnother={handlePublishAnother}
           />
         )}

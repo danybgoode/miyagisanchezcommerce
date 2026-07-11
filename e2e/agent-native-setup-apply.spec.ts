@@ -6,7 +6,7 @@ import {
   IMPORT_CHUNK_SIZE,
   type RowResult,
 } from '../lib/setup-apply'
-import { MAX_IMPORT_ROWS, type CatalogImportRow } from '../lib/catalog-import'
+import { MAX_IMPORT_ROWS, validateRows, type CatalogImportRow } from '../lib/catalog-import'
 import { EXAMPLE_SETUP } from '../lib/setup-spec'
 
 /**
@@ -127,5 +127,30 @@ test.describe('setup-apply · aggregateSetupReport (2.1)', () => {
     })
     expect(report.catalog.failed).toBe(3)
     expect(report.catalog.rows.every((r) => r.status === 'failed')).toBe(true)
+  })
+})
+
+// ── S4 inline-fix re-validation (Sprint 2 · Story 2.1) ─────────────────────
+// SetupClient.tsx's staging preview patches a local row array and calls
+// validateRows() again on every edit (same pure function ImportClient.tsx
+// already uses) — this is the exact contract that flips a row's badge from
+// "Corregir" to "Listo" without ever touching planSetupApply/the apply engine.
+test.describe('setup-apply · S4 inline-fix re-validation (2.1)', () => {
+  test('a row missing price/category starts invalid, then flips valid once patched', () => {
+    const rows: CatalogImportRow[] = [{ title: 'Maceta de barro', category: '' as CatalogImportRow['category'] }]
+    const before = validateRows(rows)
+    expect(before[0].valid).toBe(false)
+    expect(before[0].issues.some((i) => i.field === 'category')).toBe(true)
+
+    const patched = [{ ...rows[0], category: 'hogar' as CatalogImportRow['category'] }]
+    const after = validateRows(patched)
+    expect(after[0].valid).toBe(true)
+  })
+
+  test('an edited row still flows into planSetupApply unchanged (the apply engine itself never sees the edit logic)', () => {
+    const original = makeRows(1)
+    const patched = [{ ...original[0], title: 'Título corregido' }]
+    const plan = planSetupApply({ miyagi_setup_version: '1', catalog: patched })
+    expect(plan.catalogChunks[0][0].title).toBe('Título corregido')
   })
 })

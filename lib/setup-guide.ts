@@ -15,6 +15,8 @@
  * renders.
  */
 
+import { EXISTING_CHANNELS, type TenantIntake } from './onboarding-personalization'
+
 export interface ShopRow {
   name: string
   description: string | null
@@ -200,4 +202,26 @@ export function getSetupSteps({ shop, productCount, shareDone }: GetSetupStepsIn
     done: doneById[step.id],
     open: step.id === openId,
   }))
+}
+
+// ── S6 personalization (onboarding three-doors, Sprint 2 · Story 2.3) ──────
+
+/**
+ * Additive, fail-safe wrapper over `getSetupSteps`' output: with no intake
+ * (or an intake with no existing-channel answer — the ghost path most
+ * existing sellers are on, since `tenant_intake` only starts filling from
+ * Sprint 1's three-doors flow onward), returns `steps` unchanged — same
+ * order, same `done`/`open` flags. With an existing-channel intake, reorders
+ * the step ARRAY only (never re-derives `done`/`open`, which stay
+ * `getSetupSteps`' fixed pagos-escalation logic) — promotes `catalogo` to
+ * the front, reusing the exact "existing channel" signal `personalizeDoors`
+ * (Sprint 1) already uses, for one consistent heuristic across the epic.
+ */
+export function personalizeSetupSteps(steps: SetupStep[], intake: TenantIntake | null): SetupStep[] {
+  if (!intake) return steps
+  const hasExistingChannel = intake.sellsWhere.some((w) => EXISTING_CHANNELS.includes(w))
+  if (!hasExistingChannel) return steps
+  const catalogo = steps.find((s) => s.id === 'catalogo')
+  if (!catalogo) return steps
+  return [catalogo, ...steps.filter((s) => s.id !== 'catalogo')]
 }

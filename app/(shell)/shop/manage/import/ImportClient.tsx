@@ -15,6 +15,7 @@ import {
   type CatalogParseResult,
   type CatalogImportRow,
 } from '@/lib/catalog-import'
+import { SuccessCard } from '@/components/SuccessCard'
 
 /** Must match CHUNK_MAX in app/api/sell/import/route.ts. */
 const IMPORT_CHUNK = 25
@@ -53,7 +54,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 
 // ── Uploader: paste/file → validate → editable staging → import ──────────────
 
-function Uploader() {
+function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pagosConfigured: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [result, setResult] = useState<CatalogParseResult | null>(null)
@@ -424,43 +425,41 @@ function Uploader() {
             </div>
           )}
 
-          {/* Import report (US-4) */}
+          {/* Import report — shared <SuccessCard> (F12 convergence, Sprint 2 · Story 2.2) */}
           {report && (() => {
             const created = report.filter((r) => r.status === 'created').length
             const updated = report.filter((r) => r.status === 'updated').length
             const failed = report.filter((r) => r.status === 'failed')
             const imagesFailed = report.reduce((sum, r) => sum + (r.images_failed ?? 0), 0)
             return (
-              <div className="mt-4 rounded-2xl border border-[var(--color-border)] p-4">
-                <div className="flex flex-wrap items-center gap-3 mb-3">
-                  {created > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">✓ {created} creados</span>
-                  )}
-                  {updated > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-sm font-semibold">↻ {updated} actualizados</span>
-                  )}
-                  {failed.length > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">✕ {failed.length} fallaron</span>
-                  )}
-                </div>
-                {failed.length > 0 ? (
-                  <div className="space-y-2">
+              <div className="mt-4">
+                <SuccessCard
+                  headline="Tu catálogo está listo"
+                  subcopy={`Creamos ${created} producto${created === 1 ? '' : 's'} nuevo${created === 1 ? '' : 's'}${updated > 0 ? ` y actualizamos ${updated}` : ''}${failed.length > 0 ? ` · ${failed.length} fallaron` : ''}.`}
+                  counts={{ created, updated, failed: failed.length, draft: 0 }}
+                  liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+                  liveLabel={shopSlug ? 'Ver mi tienda pública ↗' : 'Ver mis anuncios →'}
+                  warningCallout={!pagosConfigured ? {
+                    text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
+                    primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos' },
+                    ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
+                  } : undefined}
+                  nextActions={[{ label: 'Ver mis anuncios', href: '/shop/manage' }]}
+                  shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+                />
+                {imagesFailed > 0 && (
+                  <p className="text-xs text-amber-700 mt-3 text-center">
+                    ⚠️ {imagesFailed} imagen(es) no se pudieron traer y se dejaron con su enlace original.
+                  </p>
+                )}
+                {failed.length > 0 && (
+                  <div className="space-y-2 mt-3">
                     {failed.map((r) => (
                       <div key={r.line} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                         <strong>{r.title}</strong>: {r.reason}
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-[var(--color-muted)]">
-                    ¡Listo! Tu catálogo ya está publicado.{' '}
-                    <Link href="/shop/manage" className="text-[var(--color-accent)] hover:underline">Ver mis anuncios →</Link>
-                  </p>
-                )}
-                {imagesFailed > 0 && (
-                  <p className="text-xs text-amber-700 mt-2">
-                    ⚠️ {imagesFailed} imagen(es) no se pudieron traer y se dejaron con su enlace original.
-                  </p>
                 )}
               </div>
             )
@@ -471,7 +470,15 @@ function Uploader() {
   )
 }
 
-export default function ImportClient({ shopifyMigrationEnabled = false }: { shopifyMigrationEnabled?: boolean }) {
+export default function ImportClient({
+  shopifyMigrationEnabled = false,
+  shopSlug = null,
+  pagosConfigured = false,
+}: {
+  shopifyMigrationEnabled?: boolean
+  shopSlug?: string | null
+  pagosConfigured?: boolean
+}) {
   const prompt = buildCopilotPrompt()
   const exampleJson = JSON.stringify(EXAMPLE_CATALOG, null, 2)
 
@@ -506,7 +513,7 @@ export default function ImportClient({ shopifyMigrationEnabled = false }: { shop
       )}
 
       {/* ── Upload / paste + staging + import ───────────────────────────────── */}
-      <Uploader />
+      <Uploader shopSlug={shopSlug} pagosConfigured={pagosConfigured} />
 
       {/* ── Advanced path: use your own AI for big catalogs ─────────────────── */}
       <div className="mt-10 mb-4 pt-6 border-t border-[var(--color-border)]">
