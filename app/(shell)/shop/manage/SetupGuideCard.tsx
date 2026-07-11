@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useSettingsSave } from './settings/_components/useSettingsSave'
+import { pushAnalyticsEvent } from '@/lib/analytics-events'
 import type { SetupStep } from '@/lib/setup-guide'
 
 /**
@@ -41,15 +42,48 @@ export default function SetupGuideCard({
 
   const doneCount = steps.filter((step) => step.done).length
   const allDone = doneCount === steps.length
+  const visible = !dismissed && !allDone
+  const openStep = steps.find((step) => step.open)
+
+  // guide_view — once per mount while the card is actually on screen.
+  useEffect(() => {
+    if (visible) pushAnalyticsEvent('guide_view')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // guide_step_open — once per distinct step becoming the open one (not on
+  // every re-render of the same open step).
+  const lastOpenId = useRef<string | null>(null)
+  useEffect(() => {
+    if (!visible || !openStep || openStep.id === lastOpenId.current) return
+    lastOpenId.current = openStep.id
+    pushAnalyticsEvent('guide_step_open', { step_id: openStep.id })
+  }, [visible, openStep])
+
+  // guide_step_complete — fires once per step, per browser, the first time it
+  // renders done (router.refresh() after a mutation re-triggers this render).
+  useEffect(() => {
+    for (const step of steps) {
+      if (!step.done) continue
+      pushAnalyticsEvent(
+        'guide_step_complete',
+        { step_id: step.id },
+        { dedupeKey: `guide_step_complete_${shopSlug}_${step.id}` },
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steps])
 
   const handleDismiss = useCallback(async () => {
     setDismissed(true) // optimistic — the card should disappear immediately
     const ok = await save({ settings: { guide: { guide_dismissed: true } } })
     if (!ok) setDismissed(false)
+    else pushAnalyticsEvent('guide_dismiss')
   }, [save])
 
   const handleShare = useCallback(async () => {
     setSharing(true)
+    pushAnalyticsEvent('first_share_tap', {}, { dedupeKey: `first_share_tap_${shopSlug}` })
     try {
       const url = typeof window !== 'undefined' ? `${window.location.origin}/s/${shopSlug}` : ''
       if (url) {

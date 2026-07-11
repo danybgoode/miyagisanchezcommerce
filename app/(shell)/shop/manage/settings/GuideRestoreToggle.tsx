@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ToggleSwitch } from './_components/ToggleSwitch'
 import { useSettingsSave } from './_components/useSettingsSave'
+import { pushAnalyticsEvent } from '@/lib/analytics-events'
 
 /**
  * Restore toggle for the dashboard "Pon tu tienda en marcha" guide
@@ -21,8 +22,12 @@ export default function GuideRestoreToggle({ initialDismissed }: { initialDismis
     async (shown: boolean) => {
       setDismissed(!shown)
       const ok = await save({ settings: { guide: { guide_dismissed: !shown } } })
-      if (!ok) setDismissed((prev) => !prev)
-      else router.refresh()
+      if (!ok) {
+        setDismissed((prev) => !prev)
+      } else {
+        if (shown) pushAnalyticsEvent('guide_restore')
+        router.refresh()
+      }
     },
     [save, router],
   )
