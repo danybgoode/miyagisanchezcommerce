@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import {
   MAX_SETTINGS_COMPONENT_LINES,
   SETTINGS_DIR,
+  CANAL_PROPIO_DIR,
   findOversizedSettingsFiles,
   findBannedSettingsFiles,
   formatMonolithOffense,
@@ -17,13 +18,27 @@ import {
  * back: no settings component may exceed the line cap, and `ShopSettings.tsx` may
  * never reappear. Same shape as the raw-color guard — pure offender-finders run
  * against the real tree plus in-memory negative fixtures. No network/auth.
+ *
+ * Also scans `CANAL_PROPIO_DIR` (catalog-management S6.2) — the federation page
+ * split out of the old `canal` settings section lives OUTSIDE `SETTINGS_DIR`, and
+ * an independent review caught it crept to 977 lines right after the split before
+ * a follow-up extraction fixed it. Without this second root the guard would have
+ * silently stopped covering that surface the moment it moved out of Settings.
  */
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
+async function scanGuardedTree() {
+  const [settingsFiles, canalPropioFiles] = await Promise.all([
+    scanSettingsTree(repoRoot, SETTINGS_DIR),
+    scanSettingsTree(repoRoot, CANAL_PROPIO_DIR),
+  ])
+  return [...settingsFiles, ...canalPropioFiles]
+}
+
 test.describe('shop-settings-no-monolith · guard', () => {
   test(`no settings component exceeds ${MAX_SETTINGS_COMPONENT_LINES} lines`, async () => {
-    const files = await scanSettingsTree(repoRoot)
+    const files = await scanGuardedTree()
     // sanity: the scan actually found the refactored tree
     expect(files.length).toBeGreaterThan(5)
     const offenders = findOversizedSettingsFiles(files)
@@ -31,7 +46,7 @@ test.describe('shop-settings-no-monolith · guard', () => {
   })
 
   test('the ShopSettings.tsx monolith stays deleted', async () => {
-    const files = await scanSettingsTree(repoRoot)
+    const files = await scanGuardedTree()
     const offenders = findBannedSettingsFiles(files)
     expect(offenders.map(formatMonolithOffense)).toEqual([])
   })

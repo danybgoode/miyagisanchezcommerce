@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect } from '@playwright/test'
 import { isSellerModePath } from '../lib/seller-mode'
+import { isSellShellCandidatePath } from '../lib/sell-shell-path'
 import {
   SELLER_NAV,
   SELLER_NAV_MOBILE_PRIMARY,
@@ -35,6 +36,7 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage/analytics',
   '/shop/manage/profit',
   '/shop/manage/collections',
+  '/shop/manage/canal-propio',
   '/shop/manage/promotions',
   '/shop/manage/subscriptions',
   '/shop/manage/content',
@@ -76,6 +78,44 @@ test.describe('seller-mode · isSellerModePath', () => {
   })
 })
 
+/**
+ * seller-shell-gate (catalog-management epic, Sprint 6 · Story 6.1) — the
+ * owner-aware seller shell over /sell + /sell/setup for a signed-in shop
+ * owner. Deliberately a SEPARATE predicate from `isSellerModePath` above (that
+ * one stays pure/path-only and is unchanged by this story — see the block
+ * above still asserting `isSellerModePath('/sell') === false`).
+ *
+ * `isSellShellCandidatePath` is the pure fast-path `sellShellEligible` gates
+ * on before touching Clerk/Medusa/the flag store — the only part directly
+ * testable without a live server. The full `sellShellEligible` (auth + flag +
+ * Medusa ownership) needs a live Clerk session and a real/mocked Medusa
+ * response, so it's NOT covered here:
+ *   - the authed owner-shell on /sell + /sell/setup, and the
+ *     `seller.shell_on_sell_enabled` flag-OFF instant revert, are the
+ *     sprint's stated "owed to Daniel" browser smokes (sprint-6.md);
+ *   - the signed-out /sell buyer-chrome case is coverable anonymously by the
+ *     browser project (no Clerk session needed) but is out of scope for this
+ *     `api` spec.
+ */
+test.describe('seller-mode · isSellShellCandidatePath', () => {
+  test('matches exactly /sell and /sell/setup', () => {
+    expect(isSellShellCandidatePath('/sell')).toBe(true)
+    expect(isSellShellCandidatePath('/sell/setup')).toBe(true)
+  })
+
+  test('does not match sibling /sell/* routes (not a prefix match)', () => {
+    expect(isSellShellCandidatePath('/sell/edit/abc123')).toBe(false)
+    expect(isSellShellCandidatePath('/sell/print/ed_1')).toBe(false)
+    expect(isSellShellCandidatePath('/sell/')).toBe(false)
+  })
+
+  test('does not match unrelated routes, including /shop/manage', () => {
+    expect(isSellShellCandidatePath('/shop/manage')).toBe(false)
+    expect(isSellShellCandidatePath('/')).toBe(false)
+    expect(isSellShellCandidatePath('')).toBe(false)
+  })
+})
+
 test.describe('seller-mode · SELLER_NAV config', () => {
   test('has the four expected groups in order', () => {
     expect(SELLER_NAV.map(g => g.label)).toEqual(['Operar', 'Catálogo', 'Crecer', 'Configuración'])
@@ -91,7 +131,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
 
   test('labels match the sprint spec', () => {
     expect(SELLER_NAV[0].entries.map(e => e.label)).toEqual(['Resumen', 'Pedidos', 'Ofertas'])
-    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual(['Anuncios', 'Colecciones', 'Canales', 'Importar catálogo'])
+    expect(SELLER_NAV[1].entries.map(e => e.label)).toEqual(['Anuncios', 'Colecciones', 'Canales', 'Mercado Libre', 'Importar catálogo'])
     expect(SELLER_NAV[2].entries.map(e => e.label)).toEqual([
       'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
     ])

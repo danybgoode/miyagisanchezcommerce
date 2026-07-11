@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 24 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(24)
+  test('covers all 25 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(25)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -59,6 +59,10 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Staged bulk actions (catalog-management S3) — kill-switch, fail-CLOSED like
     // ml.sync_enabled: a bulk action can mutate hundreds of products in one call.
     expect(FLAG_META['catalog.bulk_enabled']).toEqual({ polarity: 'killswitch', default: false })
+    // Seller shell over /sell + /sell/setup for a signed-in owner (catalog-management
+    // S6) — kill-switch, fail-open ON (today's target behavior; OFF is the deliberate
+    // instant rollback to buyer chrome).
+    expect(FLAG_META['seller.shell_on_sell_enabled']).toEqual({ polarity: 'killswitch', default: true })
   })
 })
 

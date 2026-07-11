@@ -91,7 +91,10 @@ export const CONFIG_BLOCKS: Array<{ key: keyof StoreConfigManifest; label: strin
 /** Sections that need a manual step (OAuth / money / domain) and can't be set by file. */
 export const MANUAL_SECTIONS: Array<{ key: string; label: string; why: string }> = [
   { key: 'pagos', label: 'Métodos de pago', why: 'Stripe/Mercado Pago requieren conectar tu cuenta (OAuth); la CLABE se captura a mano por seguridad.' },
-  { key: 'canal', label: 'Canal propio', why: 'El dominio personalizado necesita verificación DNS.' },
+  // Moved out of Settings to its own Catálogo page, /shop/manage/canal-propio
+  // (catalog-management S6.2) — still surfaced here since domain/subdomain
+  // setup remains a manual step no config file can grant.
+  { key: 'canal-propio', label: 'Canales', why: 'El dominio personalizado necesita verificación DNS.' },
   { key: 'citas', label: 'Citas (Cal.com)', why: 'La conexión a Cal.com requiere autorización; aquí solo puedes poner enlaces de agenda.' },
   { key: 'agentes', label: 'Webhook de agentes', why: 'El secreto del webhook se configura a mano por seguridad.' },
 ]

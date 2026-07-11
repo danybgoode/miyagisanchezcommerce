@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   )
   if (!ent.entitled) {
     return NextResponse.json(
-      { error: 'El dominio propio es una función premium. Conéctalo desde Ajustes → Canal.', paywall: true },
+      { error: 'El dominio propio es una función premium. Conéctalo desde Catálogo → Canales.', paywall: true },
       { status: 402 },
     )
   }

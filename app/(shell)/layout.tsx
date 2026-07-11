@@ -9,6 +9,7 @@ import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import { isSellerModePath } from '@/lib/seller-mode'
+import { sellShellEligible } from '@/lib/seller-shell-gate'
 
 /**
  * Dynamic `(shell)` shell — holds the per-request chrome decision that used to live in
@@ -48,7 +49,20 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   // page on a custom domain/subdomain is already whiteLabel, so the nested layout defers
   // to ChannelLayout and never double-suppresses or stacks two shells.
   const sellerMode = isSellerModePath(platformPath)
-  const showBuyerChrome = !whiteLabel && !sellerMode
+
+  // Owner-aware seller shell on /sell + /sell/setup (catalog-management epic,
+  // Sprint 6 · Story 6.1): a signed-in shop owner gets the seller shell there
+  // too, same "root suppresses buyer chrome, nested layout fills the gap"
+  // composition as sellerMode above — the new app/(shell)/sell/layout.tsx fills
+  // the bare <main> branch below with SellerShellChrome. isSellerModePath itself
+  // is UNCHANGED (still false for /sell) — this is a separate, additional
+  // OR-term, never folded into sellerMode or the pure predicate. Short-circuits
+  // on whiteLabel first so a white-label /sell never trips this (consistent
+  // with the double-suppression guarantee) and never spends the Clerk/Medusa
+  // round-trip on a channel host.
+  const ownerSellShellEligible = !whiteLabel && (await sellShellEligible(platformPath))
+
+  const showBuyerChrome = !whiteLabel && !sellerMode && !ownerSellShellEligible
 
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
 
