@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -197,6 +197,17 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    products in one call, so a flag-read outage must not silently expose the
  *    UI for an unreviewed mass-mutation surface. Enabling is the deliberate
  *    action, done only after Daniel's live smoke.
+ *  - ENABLEMENT (`shipping.correos_enabled`): default `false` (epic
+ *    shipping-provider-expansion, Sprint 3). Mirrors the backend key of the
+ *    same name — gates the Correos de México Impresos manual-economy rate at
+ *    checkout, independent of `shipping.envia_enabled`/the Envía comp-grant
+ *    (a different provider, no funding gate, no grant). Real enforcement lives
+ *    in the BACKEND (`envia/rates` + `checkout-options` routes); this FE key
+ *    is read only to decide whether the seller-settings opt-in toggle is
+ *    offered at all (`platform_correos_enabled` passed into `Envios.tsx`).
+ *    Default OFF ⇒ the toggle stays disabled and the option never appears, so
+ *    a flag outage can never surface an unreviewed rate. Enabling is the
+ *    deliberate action.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -205,6 +216,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'pdp_redesign': true,
   'events.quantity_enabled': false,
   'shipping.envia_enabled': false,
+  'shipping.correos_enabled': false,
   'promoter.enabled': false,
   'ml.connect_enabled': false,
   'ml.import_enabled': false,

@@ -51,6 +51,12 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   'domain.paywall_enabled': { polarity: 'enablement', default: false },
   'events.quantity_enabled': { polarity: 'enablement', default: false },
   'shipping.envia_enabled': { polarity: 'enablement', default: false },
+  // Correos de México Impresos manual-economy rate at checkout (epic
+  // shipping-provider-expansion S3). Enablement: default OFF ⇒ the option
+  // never appears (web or agents) — independent of shipping.envia_enabled
+  // (a different provider, no funding gate, no comp-grant). Real enforcement
+  // lives in the BACKEND (envia/rates + checkout-options routes).
+  'shipping.correos_enabled': { polarity: 'enablement', default: false },
   'promoter.enabled': { polarity: 'enablement', default: false },
   'ml.connect_enabled': { polarity: 'enablement', default: false },
   'ml.import_enabled': { polarity: 'enablement', default: false },

@@ -104,6 +104,14 @@ export default async function SettingsSectionPage({
     ? await hasEnviaGrant((shop.metadata as Record<string, unknown> | null)?.medusa_seller_id as string | undefined)
     : false
 
+  // Correos de México (shipping-provider-expansion · Sprint 3: shipping.correos_enabled,
+  // default OFF / fail-open). No comp-grant for this provider — just the platform flag,
+  // resolved only for the Envíos section so the opt-in toggle knows whether to offer
+  // itself at all. Cosmetic only; the backend (correosGate) is the real gate.
+  const platformCorreosEnabled = section === 'envios'
+    ? await isEnabled('shipping.correos_enabled')
+    : false
+
   // Promoter Program (promoter.enabled, default OFF / fail-open). Resolved only for
   // the Canal section, where the custom-domain SKU lives — when on, Canal shows the
   // promoter-code field + discount preview before pay (Sprint 1; no charge wiring).
@@ -180,6 +188,7 @@ export default async function SettingsSectionPage({
           scheduling_links: st.scheduling?.links ?? [],
           platform_envia_enabled: platformEnviaEnabled,
           granted_envia_enabled: grantedEnviaEnabled,
+          platform_correos_enabled: platformCorreosEnabled,
         }} />
       case 'citas':
         return <Citas initial={{
