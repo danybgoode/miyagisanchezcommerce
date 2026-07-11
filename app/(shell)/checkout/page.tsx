@@ -139,6 +139,9 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
   const image = listing.images?.[0]?.url ?? null
   const isDigital = listing.listing_type === 'digital'
+  // Arranged-only delivery (epic, S1.3) — the backend ignores this entirely
+  // while shipping.arranged_only_enabled is off (byte-identical to today).
+  const deliveryMode = ((listing.metadata as Record<string, unknown> | undefined)?.delivery_mode as 'carrier' | 'arranged' | undefined) ?? 'carrier'
 
   // Event admissions: buy N in one checkout (kill-switch + aforo clamped). Scoped
   // to EVENT listings only — buy-N is an admissions feature, so a crafted ?qty=N
@@ -267,6 +270,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           quantity={quantity}
           listingType={listing.listing_type}
           isDigital={isDigital}
+          deliveryMode={deliveryMode}
           offerId={offerId}
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}

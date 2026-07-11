@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { shouldOfferCoordinatedFallback, pickManualPaymentId } from '../lib/checkout-fallback'
+import { shouldOfferCoordinatedFallback, pickManualPaymentId, isCoordDeliverySelected } from '../lib/checkout-fallback'
 
 test.describe('checkout-fallback · shouldOfferCoordinatedFallback (S3.2)', () => {
   test('never while a quote is loading', () => {
@@ -42,5 +42,21 @@ test.describe('checkout-fallback · pickManualPaymentId (S3.2)', () => {
 
   test('returns null for an empty list', () => {
     expect(pickManualPaymentId([])).toBeNull()
+  })
+})
+
+test.describe('checkout-fallback · isCoordDeliverySelected (arranged-only-delivery S1.3)', () => {
+  test('true when the S3.2 fallback is active, regardless of the selected delivery id', () => {
+    expect(isCoordDeliverySelected({ coordinatedFallbackActive: true, selectedDeliveryId: 'shipping' })).toBe(true)
+  })
+
+  test('true when `coord` is picked directly as the primary delivery method (arranged listing)', () => {
+    expect(isCoordDeliverySelected({ coordinatedFallbackActive: false, selectedDeliveryId: 'coord' })).toBe(true)
+  })
+
+  test('false for a normal delivery selection with no fallback active', () => {
+    expect(isCoordDeliverySelected({ coordinatedFallbackActive: false, selectedDeliveryId: 'shipping' })).toBe(false)
+    expect(isCoordDeliverySelected({ coordinatedFallbackActive: false, selectedDeliveryId: 'local_pickup' })).toBe(false)
+    expect(isCoordDeliverySelected({ coordinatedFallbackActive: false, selectedDeliveryId: undefined })).toBe(false)
   })
 })
