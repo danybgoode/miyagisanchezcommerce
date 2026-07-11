@@ -66,14 +66,29 @@ test.describe('setup-guide · computeShopCompletion', () => {
 })
 
 test.describe('setup-guide · getSetupSteps', () => {
-  test('all incomplete: step 1 (perfil) is open, nothing else', () => {
+  test('all incomplete: step 3 (pagos) is open, not step 1 — payments is escalated ahead of order', () => {
     const steps = getSetupSteps({ shop: emptyShop, productCount: 0, shareDone: false })
     expect(steps.map((s) => s.id)).toEqual(['perfil', 'catalogo', 'pagos', 'envios', 'comparte'])
     expect(steps.every((s) => !s.done)).toBe(true)
-    expect(steps.filter((s) => s.open).map((s) => s.id)).toEqual(['perfil'])
+    expect(steps.filter((s) => s.open).map((s) => s.id)).toEqual(['pagos'])
   })
 
-  test('profile + payments only: steps 1 & 3 done, step 2 (catálogo) is the open one', () => {
+  test('profile done but payments incomplete: pagos is still open, not catálogo — payments beats fixed order', () => {
+    // The real-world case this guards: /sell only requires a shop NAME, not a
+    // description, so perfil can be incomplete while catálogo (a listing was
+    // created in the same wizard) is done. Payments must still surface, not
+    // hide behind whichever step comes first numerically.
+    const shop = shopWith({ name: 'Mi Tienda', description: 'Vendo artesanías' })
+    const steps = getSetupSteps({ shop, productCount: 1, shareDone: false })
+    const byId = Object.fromEntries(steps.map((s) => [s.id, s]))
+
+    expect(byId.perfil.done).toBe(true)
+    expect(byId.catalogo.done).toBe(true)
+    expect(byId.pagos.done).toBe(false)
+    expect(steps.filter((s) => s.open).map((s) => s.id)).toEqual(['pagos'])
+  })
+
+  test('profile + payments only: steps 1 & 3 done, step 2 (catálogo) is the open one (payments falls through once done)', () => {
     const shop = shopWith({
       name: 'Mi Tienda',
       description: 'Vendo artesanías',
@@ -107,9 +122,10 @@ test.describe('setup-guide · getSetupSteps', () => {
     expect(steps.some((s) => s.open)).toBe(false)
   })
 
-  test('payments (step 3) carries the "~4 min" estimate, the exact sprint-1.md body copy, and the pagos CTA', () => {
+  test('payments (step 3) is open on a fresh shop and carries the "~4 min" estimate, the exact sprint-1.md body copy, and the pagos CTA', () => {
     const steps = getSetupSteps({ shop: emptyShop, productCount: 0, shareDone: false })
     const pagos = steps.find((s) => s.id === 'pagos')
+    expect(pagos?.open).toBe(true)
     expect(pagos?.estimate).toBe('~4 min')
     expect(pagos?.body).toBe('Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.')
     expect(pagos?.ctaLabel).toBe('Configurar cobros')

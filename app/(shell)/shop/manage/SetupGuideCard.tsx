@@ -62,6 +62,15 @@ export default function SetupGuideCard({
 
   // guide_step_complete — fires once per step, per browser, the first time it
   // renders done (router.refresh() after a mutation re-triggers this render).
+  // Known trade-off: a seller who configured payments/profile BEFORE this
+  // feature shipped will fire a one-time "complete" event on their first
+  // post-deploy dashboard load — indistinguishable from a guide-driven
+  // completion. A per-mount baseline would filter that out, but payments
+  // completes via an external OAuth redirect (a full page load, not a
+  // same-mount router.refresh()), so a baseline would just as often swallow
+  // the real signal the epic cares about most. Left as a bounded, one-time
+  // data-quality footnote rather than trading a bigger problem for a smaller
+  // one — noted in sprint-1.md.
   useEffect(() => {
     for (const step of steps) {
       if (!step.done) continue

@@ -169,9 +169,17 @@ export interface GetSetupStepsInput {
 }
 
 /**
- * Ordered 5-step guide. `open` is true only for the first `!done` step (one
- * step open at a time); when every step is done, none is open — the card can
- * use that to auto-collapse (B.3).
+ * Ordered 5-step guide. `open` marks the one step the card expands.
+ *
+ * Payments (step 3) is escalated ahead of the normal step order: it's `open`
+ * whenever it's incomplete, regardless of what's ahead of it — per the
+ * epic's own requirement, "payments named up front (step 3), not sprung
+ * after the fact." Without this, a shop created via /sell with an empty
+ * (optional) description would leave perfil incomplete and open, silently
+ * burying payments behind it, exactly what this guide exists to prevent.
+ * Once payments is done, resolution falls back to the first incomplete step
+ * in fixed order for the rest. When every step is done, none is open — the
+ * card can use that to auto-collapse (B.3).
  */
 export function getSetupSteps({ shop, productCount, shareDone }: GetSetupStepsInput): SetupStep[] {
   const flags = computeShopCompletion(shop)
@@ -183,11 +191,13 @@ export function getSetupSteps({ shop, productCount, shareDone }: GetSetupStepsIn
     comparte: shareDone,
   }
 
-  const firstIncompleteIndex = STEP_META.findIndex((step) => !doneById[step.id])
+  const openId: SetupStepId | null = !doneById.pagos
+    ? 'pagos'
+    : (STEP_META.find((step) => !doneById[step.id])?.id ?? null)
 
-  return STEP_META.map((step, index) => ({
+  return STEP_META.map((step) => ({
     ...step,
     done: doneById[step.id],
-    open: index === firstIncompleteIndex,
+    open: step.id === openId,
   }))
 }
