@@ -50,6 +50,11 @@ import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
 import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
+import { MIGRATION_CHECKOUT_KIND } from '@/lib/migration-checkout'
+
+/** Metadata key for the `migration` SKU's inert paid/audit marker (no ongoing
+ *  feature to entitle — see lib/promoter-transfer.ts). */
+const MIGRATION_GRANT_KEY = 'migration_grant'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const MEDUSA_PUB_KEY = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -172,6 +177,10 @@ export async function POST(req: NextRequest) {
         // One-time ML-sync cadence (epic 03 · mercadolibre-sync S6): pay a year up
         // front, writing the dated ml_sync_grant.
         await handleMlSyncOneTimeComplete(session)
+      } else if (session.metadata?.kind === MIGRATION_CHECKOUT_KIND) {
+        // migration SKU (epic 03 · platform-migrations S2): a one-time consulting
+        // service, no subscription — writes an inert migration_grant marker.
+        await handleMigrationOneTimeComplete(session)
       } else {
         await handleCheckoutComplete(session)
       }
@@ -1176,6 +1185,69 @@ async function handleMlSyncOneTimeComplete(session: Stripe.Checkout.Session) {
   }
 
   tg.alert(`✅ Sincronización Mercado Libre activada (pago único, 12 meses)\nShop: ${shopId}\nSeller: ${sellerClerkId}`)
+}
+
+/**
+ * migration SKU (epic 03 · platform-migrations, Sprint 2 · US-2.1/US-2.2) — a
+ * one-time consulting service the promoter already delivered by the time this
+ * fires. No ongoing feature to entitle (unlike ml-sync/domain/subdomain), so
+ * `migration_grant` is an inert paid/audit marker only. The charge amount was
+ * already resolved server-side at checkout creation
+ * (lib/migration-checkout.ts#resolveMigrationCharge) — this handler never
+ * re-derives or second-guesses it, only records what Stripe actually collected.
+ */
+async function handleMigrationOneTimeComplete(session: Stripe.Checkout.Session) {
+  const shopId = session.metadata?.shop_id
+  const sellerClerkId = session.metadata?.seller_clerk_id ?? ''
+  const paidByPromoter = session.metadata?.paid_by_promoter === '1'
+  if (!shopId) {
+    console.error('[migration one-time] missing shop_id:', session.id)
+    return
+  }
+
+  try {
+    const { data: shop } = await db
+      .from('marketplace_shops')
+      .select('metadata')
+      .eq('id', shopId)
+      .maybeSingle()
+    if (!shop) throw new Error(`no shop row for id ${shopId}`)
+    const meta = (shop.metadata ?? {}) as Record<string, unknown>
+    meta[MIGRATION_GRANT_KEY] = buildOneTimeGrant({ note: oneTimeGrantNote(paidByPromoter) })
+    const { data: updated, error } = await db
+      .from('marketplace_shops')
+      .update({ metadata: meta })
+      .eq('id', shopId)
+      .select('id')
+    if (error) throw new Error(error.message)
+    if (!updated || updated.length === 0) throw new Error(`grant update matched 0 rows for id ${shopId}`)
+  } catch (e) {
+    console.error('[migration one-time] grant write failed:', e)
+    tg.alert(
+      `🚨 Migración de tienda PAGADA pero NO registrada — reparar a mano.\n` +
+      `Shop: ${shopId}\nSeller: ${sellerClerkId}\nSession: ${session.id}\nError: ${e instanceof Error ? e.message : String(e)}`,
+    )
+    return
+  }
+
+  const promoterId = session.metadata?.promoter_id
+  const promoterSku = session.metadata?.promoter_sku
+  if (promoterId && isPromoterSku(promoterSku)) {
+    await markAttributionPaid({
+      promoterId,
+      sellerId: shopId,
+      sku: promoterSku,
+      grossAmountCents: session.amount_total ?? 0,
+      cadence: 'one_time',
+    })
+    notifyMerchantCloseReceipt({
+      shopId,
+      promoterId,
+      items: [{ label: 'Migración de tienda', amountMxn: formatMxnCents(session.amount_total ?? 0) }],
+    }).catch((e) => console.error('[migration one-time] receipt failed:', e))
+  }
+
+  tg.alert(`✅ Migración de tienda pagada\nShop: ${shopId}\nSeller: ${sellerClerkId}\nMonto: ${formatMxnCents(session.amount_total ?? 0)}`)
 }
 
 // ── Subscription: checkout.session.completed (mode=subscription) ──────────────

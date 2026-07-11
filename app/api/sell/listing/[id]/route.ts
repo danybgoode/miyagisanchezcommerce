@@ -67,6 +67,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // `catalog.inventory_channels_enabled` on the backend.
     miyagi_visible?: boolean
     ml_enabled?: boolean
+    // Arranged-only delivery (epic, S1.2) — validated + service/rental-forced
+    // on the backend (seller-product-update.ts).
+    delivery_mode?: 'carrier' | 'arranged' | null
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -164,6 +167,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || body.ml_price_cents !== undefined
     || body.inventory_mode !== undefined || body.dispatch_estimate !== undefined
     || body.miyagi_visible !== undefined || body.ml_enabled !== undefined
+    || body.delivery_mode !== undefined
   // Compose ONE metadata object so custom_fields + excerpt never collide as two
   // `metadata` keys in the literal. The backend shallow-merges body.metadata into
   // the product's existing metadata (seller-product-update.ts), so sending only
@@ -192,6 +196,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.dispatch_estimate !== undefined && { dispatch_estimate: body.dispatch_estimate }),
         ...(body.miyagi_visible !== undefined && { miyagi_visible: body.miyagi_visible }),
         ...(body.ml_enabled !== undefined && { ml_enabled: body.ml_enabled }),
+        ...(body.delivery_mode !== undefined && { delivery_mode: body.delivery_mode }),
       }),
     })
 

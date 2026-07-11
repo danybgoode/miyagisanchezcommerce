@@ -253,6 +253,7 @@ const CLOSE_SKUS = [
   { id: 'domain', label: 'Dominio propio', payLabel: 'Pagar dominio propio (1 año)' },
   { id: 'subdomain', label: 'Subdominio propio', payLabel: 'Activar subdominio (1 año)' },
   { id: 'ml-sync', label: 'Sincronización Mercado Libre', payLabel: 'Pagar sincronización ML (1 año)' },
+  { id: 'migration', label: 'Migración de tienda', payLabel: 'Cobrar migración' },
 ] as const
 type CloseSkuId = (typeof CLOSE_SKUS)[number]['id']
 
@@ -274,6 +275,10 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
   const [transferMethod, setTransferMethod] = useState<Transfer['method']>('spei')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
   const [reporting, setReporting] = useState(false)
+  // migration only — a catalog over the flat 150-listing cap must reference the
+  // merchant's stored quote (shown on their parity/estimate page); the server is
+  // the real guard (it 403s a >150 close with no quote), this is just the input.
+  const [quoteId, setQuoteId] = useState('')
 
   const selected = CLOSE_SKUS.find((s) => s.id === sku) ?? CLOSE_SKUS[0]
 
@@ -298,6 +303,7 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
         body: JSON.stringify({
           shopId: shop.shopId,
           ...(payMethod === 'transfer' ? { paymentMethod: 'transfer', transferMethod } : {}),
+          ...(sku === 'migration' && quoteId.trim() ? { quoteId: quoteId.trim() } : {}),
         }),
       })
       const data = await res.json()
@@ -381,6 +387,21 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
           {CLOSE_SKUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
       </label>
+      {sku === 'migration' && (
+        <label className="block text-sm">
+          <span className="text-[var(--color-muted)]">
+            ID de cotización (solo catálogos de más de 150 productos)
+          </span>
+          <input
+            type="text"
+            value={quoteId}
+            onChange={(e) => setQuoteId(e.target.value)}
+            disabled={busy}
+            placeholder="Pégalo desde el reporte de paridad del comerciante"
+            className="mt-1 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 font-mono text-sm"
+          />
+        </label>
+      )}
       {transferEnabled && (
         <div className="space-y-2">
           <div className="flex gap-2" role="radiogroup" aria-label="Forma de pago">

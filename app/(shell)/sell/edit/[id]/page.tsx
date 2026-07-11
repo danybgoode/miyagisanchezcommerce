@@ -73,6 +73,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   let initialManageInventory = true
   let initialAllowBackorder = false
   let initialDispatchEstimate: string | null = null
+  // Arranged-only delivery (epic, S1.2) — lives on the live Medusa product
+  // metadata (same bag as custom_fields/dispatch_estimate), not the Supabase
+  // mirror's stale `metadata` column used for state/municipio below.
+  let initialDeliveryMode: 'carrier' | 'arranged' | null = null
   try {
     const base = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
     const pub = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -94,6 +98,8 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         initialManageInventory = ml.manage_inventory !== false
         initialAllowBackorder = ml.allow_backorder === true
         initialDispatchEstimate = (ml.dispatch_estimate as string | undefined) ?? null
+        const rawDeliveryMode = (ml.metadata as Record<string, unknown> | undefined)?.delivery_mode
+        initialDeliveryMode = rawDeliveryMode === 'arranged' ? 'arranged' : rawDeliveryMode === 'carrier' ? 'carrier' : null
       }
     }
   } catch { /* non-fatal */ }
@@ -180,6 +186,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   // mode a buy box won't honor.
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
 
+  // Entrega toggle (arranged-only-delivery epic, Sprint 1 · S1.2) — fail-safe
+  // OFF: while OFF the toggle stays hidden and every listing behaves as carrier.
+  const arrangedOnlyEnabled = await isEnabled('shipping.arranged_only_enabled')
+
   return (
     <div className="max-w-xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
@@ -224,6 +234,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         launchpadEnabled={launchpadEnabled}
         initialExcerpt={initialExcerpt}
         inventoryChannelsEnabled={inventoryChannelsEnabled}
+        arrangedOnlyEnabled={arrangedOnlyEnabled}
         shortlink={{
           shopSlug: shopData?.slug ?? '',
           code: (listing.metadata?.short_code as string | undefined) ?? '',
@@ -246,6 +257,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           state: (listing.metadata?.state as string | undefined) ?? '',
           municipio: (listing.metadata?.municipio as string | undefined) ?? '',
           estado_code: (listing.metadata?.estado_code as string | undefined) ?? '',
+          delivery_mode: initialDeliveryMode,
         }}
       />
 
