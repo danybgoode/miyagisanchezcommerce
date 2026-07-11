@@ -13,11 +13,19 @@ export function ToggleSwitch({
   label: string
   description?: string
   disabled?: boolean
-  /** Tooltip on the switch itself — e.g. explaining WHY it's disabled. */
+  /**
+   * Tooltip explaining WHY it's disabled — set on the wrapping `<label>`, not
+   * the `<button>` itself: browsers widely suppress hover/title on natively
+   * disabled form elements, so a `title` on a `disabled` button silently never
+   * shows.
+   */
   title?: string
 }) {
   return (
-    <label className={`flex items-center justify-between gap-4 py-3 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+    <label
+      title={title}
+      className={`flex items-center justify-between gap-4 py-3 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
       <div>
         <div className="text-sm font-medium">{label}</div>
         {description && <div className="text-xs text-[var(--color-muted)]">{description}</div>}
@@ -27,7 +35,6 @@ export function ToggleSwitch({
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        title={title}
         onClick={() => !disabled && onChange(!checked)}
         className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-[var(--r-pill)] border-2 border-transparent transition-colors focus:outline-none ${
           checked ? 'bg-[var(--color-accent)]' : 'bg-gray-300'
