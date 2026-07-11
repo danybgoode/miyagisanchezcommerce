@@ -32,7 +32,7 @@ export default function PrintEditionCard() {
   if (!editions || editions.length === 0) return null
 
   return (
-    <div className="mb-8 rounded-2xl border border-[var(--color-border)] overflow-hidden">
+    <div className="mb-8 rounded-[var(--r-lg)] border border-[var(--color-border)] overflow-hidden">
       <div className="bg-gradient-to-r from-[var(--print-accent)] to-[var(--print-accent-bright)] px-5 py-4 text-[var(--fg-inverse)]">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-90">
           <span>🗞️</span> Edición impresa · México 86
@@ -76,7 +76,7 @@ export default function PrintEditionCard() {
                 {ed.tiers.map((t) => (
                   <span
                     key={t.key}
-                    className={`text-xs px-2.5 py-1 rounded-full border ${
+                    className={`text-xs px-2.5 py-1 rounded-[var(--r-pill)] border ${
                       t.sold_out
                         ? 'border-[var(--color-border)] text-[var(--color-muted)] line-through'
                         : 'border-[var(--color-border)] text-[var(--color-foreground)]'
@@ -93,7 +93,7 @@ export default function PrintEditionCard() {
               ) : (
                 <Link
                   href={`/sell/print/${ed.id}`}
-                  className="mt-4 inline-block bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+                  className="mt-4 inline-block bg-[var(--color-accent)] text-white px-5 py-2 rounded-[var(--r-md)] text-sm font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
                 >
                   Diseñar mi anuncio →
                 </Link>

@@ -8,6 +8,8 @@ import { deriveChannelBadges } from '@/lib/catalog-channels'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
 
@@ -77,20 +79,20 @@ function DeleteDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+      <Card variant="panel" className="shadow-xl w-full max-w-sm p-6">
         <h2 className="font-bold text-base mb-2">¿Eliminar anuncio?</h2>
         <p className="text-sm text-[var(--color-muted)] mb-4">
           Se eliminará <strong className="text-[var(--color-foreground)]">{listing.title}</strong>. Esta acción no se puede deshacer.
         </p>
         <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} disabled={pending} className="px-4 py-2 rounded border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50">
+          <Button variant="secondary" onClick={onCancel} disabled={pending}>
             Cancelar
-          </button>
-          <button onClick={onConfirm} disabled={pending} className="px-4 py-2 rounded bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+          </Button>
+          <Button variant="danger" onClick={onConfirm} disabled={pending}>
             {pending ? 'Eliminando…' : 'Sí, eliminar'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

@@ -73,7 +73,7 @@ export default function ManageDashboard({
             </Link>
             {pendingSummary && (
               <span className="text-xs text-[var(--color-muted)] inline-flex items-center gap-1.5 w-fit">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
+                <span className="inline-block w-1.5 h-1.5 rounded-[var(--r-pill)] bg-[var(--warning)]" aria-hidden />
                 {pendingSummary.segments.map((seg, i) => (
                   <Fragment key={seg.href}>
                     {i > 0 && <span className="text-[var(--color-border)]">·</span>}
@@ -90,7 +90,7 @@ export default function ManageDashboard({
         <div className="flex-shrink-0 flex items-center gap-2">
           <Link
             href="/shop/manage/import"
-            className="hidden sm:inline-block border border-[var(--border)] text-[var(--fg)] px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-[var(--surface-muted)] transition-colors"
+            className="btn btn-secondary hidden sm:inline-block"
           >
             Importar
           </Link>
@@ -106,11 +106,11 @@ export default function ManageDashboard({
       {/* ── Stats row ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 mb-8">
         {[
-          { label: 'Activos', value: activeCount, color: 'text-green-600' },
-          { label: 'Pausados', value: pausedCount, color: 'text-amber-600' },
+          { label: 'Activos', value: activeCount, color: 'text-[var(--success)]' },
+          { label: 'Pausados', value: pausedCount, color: 'text-[var(--warning)]' },
           { label: 'Vistas totales', value: totalViews, color: 'text-[var(--color-foreground)]' },
         ].map(stat => (
-          <div key={stat.label} className="border border-[var(--color-border)] rounded-xl p-4 text-center">
+          <div key={stat.label} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-center">
             <div className={`text-2xl font-bold ${stat.color}`}>{stat.value.toLocaleString('es-MX')}</div>
             <div className="text-xs text-[var(--color-muted)] mt-0.5">{stat.label}</div>
           </div>
@@ -123,7 +123,7 @@ export default function ManageDashboard({
       {/* ── Mis anuncios — compact summary card ──────────────────────────────── */}
       <Link
         href="/shop/manage/catalogo"
-        className="block border border-[var(--color-border)] rounded-xl p-4 no-underline text-[var(--color-foreground)] hover:bg-[var(--color-surface-alt)] transition-colors"
+        className="card-tile p-4"
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide">
@@ -144,7 +144,7 @@ export default function ManageDashboard({
         ) : (
           <div className="flex gap-2">
             {previewThumbs.map((listing) => (
-              <div key={listing.id} className="w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
+              <div key={listing.id} className="w-14 h-14 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
                 {listing.images?.[0]?.url ? (
                   <img src={listing.images[0].url} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -153,7 +153,7 @@ export default function ManageDashboard({
               </div>
             ))}
             {initialListings.length > previewThumbs.length && (
-              <div className="w-14 h-14 flex-shrink-0 rounded flex items-center justify-center bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-muted)]">
+              <div className="w-14 h-14 flex-shrink-0 rounded-[var(--r-md)] flex items-center justify-center bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-muted)]">
                 +{initialListings.length - previewThumbs.length}
               </div>
             )}

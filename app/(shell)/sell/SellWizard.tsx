@@ -131,7 +131,7 @@ function ProgressSteps({
             )}
             <div className="flex items-center gap-1.5">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                className={`w-6 h-6 rounded-[var(--r-pill)] flex items-center justify-center text-xs font-bold transition-colors ${
                   done
                     ? 'bg-[var(--color-accent)] text-white'
                     : active
@@ -242,7 +242,7 @@ function PhotoUploader({
     <div>
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2">
         {photos.map((photo, index) => (
-          <div key={photo.localId} className="relative aspect-square rounded overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)]">
+          <div key={photo.localId} className="relative aspect-square rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)]">
             <img
               src={photo.localUrl}
               alt=""
@@ -259,7 +259,7 @@ function PhotoUploader({
                 type="button"
                 onClick={() => retryUpload(photo, index)}
                 title={photo.errorMsg}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-red-600/80 text-white text-xs p-1 text-center cursor-pointer"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--danger)]/80 text-white text-xs p-1 text-center cursor-pointer"
               >
                 <span className="text-lg mb-0.5">⚠</span>
                 <span>Reintentar</span>
@@ -276,7 +276,7 @@ function PhotoUploader({
               <button
                 type="button"
                 onClick={() => removePhoto(index)}
-                className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-xs leading-none transition-colors"
+                className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-black/80 text-white rounded-[var(--r-pill)] flex items-center justify-center text-xs leading-none transition-colors"
                 aria-label="Eliminar foto"
               >
                 ×
@@ -297,9 +297,9 @@ function PhotoUploader({
               setDragging(false)
               addFiles(e.dataTransfer.files)
             }}
-            className={`aspect-square rounded border-2 border-dashed flex flex-col items-center justify-center text-[var(--color-muted)] transition-colors cursor-pointer ${
+            className={`aspect-square rounded-[var(--r-md)] border-2 border-dashed flex flex-col items-center justify-center text-[var(--color-muted)] transition-colors cursor-pointer ${
               dragging
-                ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)]'
+                ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)]'
                 : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
             } ${photos.length === 0 ? 'col-span-3 sm:col-span-4 aspect-auto min-h-[120px]' : ''}`}
           >
@@ -338,14 +338,14 @@ function PhotoUploader({
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null
-  return <p className="text-red-600 text-xs mt-1 flex items-center gap-1"><span>⚠</span>{msg}</p>
+  return <p className="text-[var(--danger)] text-xs mt-1 flex items-center gap-1"><span>⚠</span>{msg}</p>
 }
 
 function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
       {children}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
+      {required && <span className="text-[var(--danger)] ml-0.5">*</span>}
     </label>
   )
 }
@@ -354,7 +354,7 @@ function CharCount({ current, max }: { current: number; max: number }) {
   const near = current > max * 0.85
   const over = current > max
   return (
-    <span className={`text-xs ${over ? 'text-red-600 font-medium' : near ? 'text-amber-600' : 'text-[var(--color-muted)]'}`}>
+    <span className={`text-xs ${over ? 'text-[var(--danger)] font-medium' : near ? 'text-[var(--warning)]' : 'text-[var(--color-muted)]'}`}>
       {current}/{max}
     </span>
   )
@@ -394,8 +394,8 @@ function StepShop({
           onChange={e => setShopName(e.target.value)}
           maxLength={80}
           placeholder="Ej: Automotriz García, Moda Oaxaca, Gadgets MX..."
-          className={`w-full border rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
-            errors.shopName ? 'border-red-400' : 'border-[var(--color-border)]'
+          className={`w-full border rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+            errors.shopName ? 'border-[var(--danger)]' : 'border-[var(--color-border)]'
           }`}
           autoFocus
         />
@@ -428,8 +428,8 @@ function StepShop({
           <select
             value={shopState}
             onChange={e => { setShopState(e.target.value); setShopCity('') }}
-            className={`w-full border rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
-              errors.shopState ? 'border-red-400' : 'border-[var(--color-border)]'
+            className={`w-full border rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+              errors.shopState ? 'border-[var(--danger)]' : 'border-[var(--color-border)]'
             }`}
           >
             <option value="">Selecciona un estado</option>
@@ -445,7 +445,7 @@ function StepShop({
             value={shopCity}
             onChange={e => setShopCity(e.target.value)}
             disabled={!shopState}
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">{shopState ? 'Municipio (opcional)' : 'Primero elige estado'}</option>
             {(CITIES_BY_STATE[shopState] ?? []).map(c => (
@@ -464,7 +464,7 @@ function StepShop({
           maxLength={200}
           rows={3}
           placeholder="Cuéntale a tus compradores qué ofreces, tu especialidad, años de experiencia..."
-          className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
+          className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
         />
         <div className="flex justify-end mt-0.5">
           <CharCount current={shopDescription.length} max={200} />
@@ -475,7 +475,7 @@ function StepShop({
         type="button"
         onClick={onNext}
         disabled={submitting || slugBlocked}
-        className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        className="btn btn-primary w-full"
       >
         {submitting ? 'Creando tu tienda…' : 'Continuar — Tu anuncio →'}
       </button>
@@ -515,13 +515,13 @@ function RepuveSection({
   }
 
   return (
-    <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-4">
+    <div className="border border-[var(--warning)] bg-[var(--warning-soft)] rounded-[var(--r-lg)] p-4 space-y-4">
       {/* Header */}
       <div className="flex items-start gap-3">
         <span className="text-2xl mt-0.5">🚗</span>
         <div>
-          <h3 className="font-semibold text-sm text-amber-900">Verificación REPUVE</h3>
-          <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+          <h3 className="font-semibold text-sm text-[var(--warning)]">Verificación REPUVE</h3>
+          <p className="text-xs text-[var(--warning)] mt-0.5 leading-relaxed">
             El REPUVE es el Registro Público Vehicular del gobierno mexicano. Los compradores
             confían más en vehículos con reporte limpio.{' '}
             <span className="font-medium">Aumenta hasta 3× las probabilidades de vender.</span>
@@ -534,20 +534,20 @@ function RepuveSection({
         href="https://www.repuve.gob.mx/"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 text-xs font-semibold text-amber-800 hover:text-amber-900 no-underline bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg px-3 py-2 transition-colors w-full"
+        className="flex items-center gap-2 text-xs font-semibold text-[var(--warning)] no-underline bg-[var(--warning-soft)] hover:bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 transition-colors w-full"
       >
         <span>📋</span>
         <span>Paso 1 — Consultar gratis en repuve.gob.mx →</span>
-        <span className="ml-auto text-amber-600 text-[10px] uppercase tracking-wide">Abre en nueva pestaña</span>
+        <span className="ml-auto text-[var(--warning)] text-[10px] uppercase tracking-wide">Abre en nueva pestaña</span>
       </a>
 
-      <p className="text-xs text-amber-700">
+      <p className="text-xs text-[var(--warning)]">
         <strong>Paso 2</strong> — Descarga el PDF del resultado. El folio aparece en la parte superior del documento.
       </p>
 
       {/* Status radio */}
       <div>
-        <p className="text-xs font-medium text-amber-900 mb-2">Paso 3 — ¿Qué dice el reporte?</p>
+        <p className="text-xs font-medium text-[var(--warning)] mb-2">Paso 3 — ¿Qué dice el reporte?</p>
         <div className="grid grid-cols-2 gap-2">
           {([
             { key: 'sin_reporte', label: '✓ Sin reporte', hint: 'Vehículo limpio' },
@@ -557,20 +557,20 @@ function RepuveSection({
               key={opt.key}
               type="button"
               onClick={() => setStatus(opt.key)}
-              className={`border rounded-lg py-2.5 px-3 text-left transition-all ${
+              className={`border rounded-[var(--r-md)] py-2.5 px-3 text-left transition-all ${
                 status === opt.key
                   ? opt.key === 'sin_reporte'
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-red-400 bg-red-50'
-                  : 'border-amber-300 bg-white hover:border-amber-500'
+                    ? 'border-[var(--success)] bg-[var(--success-soft)]'
+                    : 'border-[var(--danger)] bg-[var(--danger-soft)]'
+                  : 'border-[var(--warning)] bg-[var(--bg-elevated)] hover:border-[var(--warning)]'
               }`}
             >
               <p className={`text-sm font-semibold ${
                 status === opt.key
-                  ? opt.key === 'sin_reporte' ? 'text-green-700' : 'text-red-600'
-                  : 'text-amber-800'
+                  ? opt.key === 'sin_reporte' ? 'text-[var(--success)]' : 'text-[var(--danger)]'
+                  : 'text-[var(--warning)]'
               }`}>{opt.label}</p>
-              <p className="text-xs text-amber-600 mt-0.5">{opt.hint}</p>
+              <p className="text-xs text-[var(--warning)] mt-0.5">{opt.hint}</p>
             </button>
           ))}
         </div>
@@ -579,8 +579,8 @@ function RepuveSection({
       {/* Folio input — only when status selected */}
       {status && (
         <div>
-          <p className="text-xs font-medium text-amber-900 mb-1.5">
-            Paso 4 — Folio del reporte <span className="font-normal text-amber-700">(aparece en el PDF)</span>
+          <p className="text-xs font-medium text-[var(--warning)] mb-1.5">
+            Paso 4 — Folio del reporte <span className="font-normal text-[var(--warning)]">(aparece en el PDF)</span>
           </p>
           <div className="flex gap-2">
             <input
@@ -588,24 +588,24 @@ function RepuveSection({
               value={folio}
               onChange={e => setFolio(e.target.value.toUpperCase().replace(/\s+/g, '').slice(0, 40))}
               placeholder="Ej: MX202600001234"
-              className="flex-1 border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono uppercase"
+              className="flex-1 border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--warning)] focus:border-transparent font-mono uppercase"
             />
             <button
               type="button"
               onClick={pasteFromClipboard}
-              className="flex items-center gap-1.5 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800 bg-white hover:bg-amber-100 hover:border-amber-400 transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 text-xs text-[var(--warning)] bg-[var(--bg-elevated)] hover:bg-[var(--warning-soft)] transition-colors whitespace-nowrap"
               title="Pegar desde portapapeles"
             >
               📋 Pegar
             </button>
           </div>
-          {pasteError && <p className="text-red-500 text-xs mt-1">{pasteError}</p>}
+          {pasteError && <p className="text-[var(--danger)] text-xs mt-1">{pasteError}</p>}
         </div>
       )}
 
       {/* Skip option */}
       {!status && (
-        <p className="text-xs text-amber-600 text-center">
+        <p className="text-xs text-[var(--warning)] text-center">
           Puedes agregar la verificación después desde tu panel de gestión.
         </p>
       )}
@@ -690,7 +690,7 @@ function StepListing({
           onChange={useCallback((fn) => setPhotos(typeof fn === 'function' ? fn : () => fn), [setPhotos])}
         />
         {failedUploads > 0 && (
-          <p className="text-red-600 text-xs mt-1.5 flex items-center gap-1">
+          <p className="text-[var(--danger)] text-xs mt-1.5 flex items-center gap-1">
             <span>⚠</span> {failedUploads} foto{failedUploads > 1 ? 's' : ''} no se pudo subir — toca la foto roja para eliminarla y agrega una nueva.
           </p>
         )}
@@ -705,8 +705,8 @@ function StepListing({
           onChange={e => setTitle(e.target.value)}
           maxLength={100}
           placeholder="Ej: iPhone 14 Pro 256 GB negro espacial, Toyota Corolla 2021, Clases de guitarra..."
-          className={`w-full border rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
-            errors.title ? 'border-red-400' : 'border-[var(--color-border)]'
+          className={`w-full border rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+            errors.title ? 'border-[var(--danger)]' : 'border-[var(--color-border)]'
           }`}
         />
         <div className="flex justify-between mt-1">
@@ -725,9 +725,9 @@ function StepListing({
               key={cat.key}
               type="button"
               onClick={() => setCategory(cat.key)}
-              className={`border rounded py-2 px-1 text-xs text-center flex flex-col items-center gap-1 transition-all ${
+              className={`border rounded-[var(--r-md)] py-2 px-1 text-xs text-center flex flex-col items-center gap-1 transition-all ${
                 category === cat.key
-                  ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
+                  ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] font-semibold'
                   : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
               }`}
             >
@@ -755,9 +755,9 @@ function StepListing({
               type="button"
               onClick={() => setListingType(t.key)}
               title={t.hint}
-              className={`border rounded py-2.5 text-sm transition-all ${
+              className={`border rounded-[var(--r-md)] py-2.5 text-sm transition-all ${
                 listingType === t.key
-                  ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
+                  ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] font-semibold'
                   : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
               }`}
             >
@@ -786,7 +786,7 @@ function StepListing({
               <button
                 type="button"
                 onClick={() => setSubTiers(prev => [...prev, { id: Math.random().toString(36).slice(2), label: '', price_raw: '', interval: 'month', features_raw: '', is_highlighted: false }])}
-                className="text-xs text-[var(--color-accent)] border border-[var(--color-accent)] px-2.5 py-1 rounded hover:bg-green-50 transition-colors"
+                className="text-xs text-[var(--color-accent)] border border-[var(--color-accent)] px-2.5 py-1 rounded-[var(--r-md)] hover:bg-[var(--accent-soft)] transition-colors"
               >
                 + Agregar plan
               </button>
@@ -795,7 +795,7 @@ function StepListing({
           <FieldError msg={errors.subscription_tiers} />
 
           {subTiers.map((tier, idx) => (
-            <div key={tier.id} className={`border rounded-xl p-4 space-y-3 ${tier.is_highlighted ? 'border-[var(--color-accent)] bg-green-50/30' : 'border-[var(--color-border)] bg-[var(--color-background)]'}`}>
+            <div key={tier.id} className={`border rounded-[var(--r-lg)] p-4 space-y-3 ${tier.is_highlighted ? 'border-[var(--color-accent)] bg-[var(--accent-soft)]' : 'border-[var(--color-border)] bg-[var(--color-background)]'}`}>
               {/* Header */}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Plan {idx + 1}</span>
@@ -813,7 +813,7 @@ function StepListing({
                     <button
                       type="button"
                       onClick={() => setSubTiers(prev => prev.filter(t => t.id !== tier.id))}
-                      className="text-xs text-red-500 hover:text-red-700"
+                      className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                     >
                       ✕ Quitar
                     </button>
@@ -824,25 +824,25 @@ function StepListing({
               {/* Label + price row */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Nombre del plan <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Nombre del plan <span className="text-[var(--danger)]">*</span></label>
                   <input
                     type="text"
                     value={tier.label}
                     onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, label: e.target.value } : t))}
                     placeholder="Ej: Básico, Pro, Premium"
                     maxLength={40}
-                    className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-2.5 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Precio <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-medium text-[var(--color-text)] mb-1">Precio <span className="text-[var(--danger)]">*</span></label>
                   <input
                     type="text"
                     inputMode="decimal"
                     value={tier.price_raw}
                     onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, price_raw: e.target.value } : t))}
                     placeholder="199"
-                    className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-2.5 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                   />
                 </div>
               </div>
@@ -857,9 +857,9 @@ function StepListing({
                     key={opt.key}
                     type="button"
                     onClick={() => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, interval: opt.key } : t))}
-                    className={`border rounded py-2 text-xs transition-all ${
+                    className={`border rounded-[var(--r-md)] py-2 text-xs transition-all ${
                       tier.interval === opt.key
-                        ? 'border-[var(--color-accent)] bg-green-50 text-[var(--color-accent)] font-semibold'
+                        ? 'border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] font-semibold'
                         : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-accent)]'
                     }`}
                   >
@@ -876,7 +876,7 @@ function StepListing({
                   onChange={e => setSubTiers(prev => prev.map(t => t.id === tier.id ? { ...t, features_raw: e.target.value } : t))}
                   rows={3}
                   placeholder={'Recetas semanales exclusivas\nClases en vivo mensuales\nDescuentos de miembro'}
-                  className="w-full border border-[var(--color-border)] rounded px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-none"
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-2.5 py-2 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-none"
                 />
               </div>
             </div>
@@ -889,7 +889,7 @@ function StepListing({
         <div>
           <Label required>Archivo digital</Label>
           {digitalFile ? (
-            <div className="flex items-center gap-3 p-3 border border-green-300 bg-green-50 rounded-lg">
+            <div className="flex items-center gap-3 p-3 border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-md)]">
               <span className="text-2xl">📄</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{digitalFile.name}</div>
@@ -898,7 +898,7 @@ function StepListing({
                 </div>
               </div>
               <button type="button" onClick={() => setDigitalFile(null)}
-                className="text-xs text-red-600 hover:underline flex-shrink-0">
+                className="text-xs text-[var(--danger)] hover:underline flex-shrink-0">
                 Cambiar
               </button>
             </div>
@@ -907,7 +907,7 @@ function StepListing({
               type="button"
               onClick={() => digitalInputRef.current?.click()}
               disabled={digitalUploading}
-              className={`w-full border-2 border-dashed border-[var(--color-border)] rounded-lg py-8 flex flex-col items-center gap-2 transition-colors ${
+              className={`w-full border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-md)] py-8 flex flex-col items-center gap-2 transition-colors ${
                 digitalUploading ? 'opacity-60 cursor-not-allowed' : 'hover:border-[var(--color-accent)] cursor-pointer'
               }`}
             >
@@ -972,9 +972,9 @@ function StepListing({
                 type="button"
                 onClick={() => setCondition(c.key)}
                 title={c.hint}
-                className={`border rounded py-2 px-3 text-left transition-all ${
+                className={`border rounded-[var(--r-md)] py-2 px-3 text-left transition-all ${
                   condition === c.key
-                    ? 'border-[var(--color-accent)] bg-green-50'
+                    ? 'border-[var(--color-accent)] bg-[var(--accent-soft)]'
                     : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
                 }`}
               >
@@ -1000,7 +1000,7 @@ function StepListing({
             value={quantity}
             onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
             onBlur={() => setQuantity(String(Math.max(1, parseInt(quantity) || 1)))}
-            className="w-32 border rounded px-3 py-2.5 focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
+            className="w-32 border rounded-[var(--r-sm)] px-3 py-2.5 focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
           />
           <p className="text-xs text-[var(--color-muted)] mt-1">
             Para artículos únicos deja 1. Al venderse, el anuncio se marca como agotado automáticamente.
@@ -1013,7 +1013,7 @@ function StepListing({
         <Label required={!priceOnRequest}>Precio</Label>
         <div className="flex gap-2 items-start">
           <div className="flex-1">
-            <div className="flex items-center border rounded overflow-hidden focus-within:ring-2 focus-within:ring-[var(--color-accent)] focus-within:border-transparent transition">
+            <div className="flex items-center border rounded-[var(--r-sm)] overflow-hidden focus-within:ring-2 focus-within:ring-[var(--color-accent)] focus-within:border-transparent transition">
               <span className="px-3 text-[var(--color-muted)] text-sm border-r border-[var(--color-border)] py-2.5 bg-[var(--color-background)] shrink-0">
                 MXN $
               </span>
@@ -1028,8 +1028,8 @@ function StepListing({
                   setPriceRaw(v)
                 }}
                 placeholder={priceOnRequest ? 'Precio a consultar' : '0.00'}
-                className={`flex-1 px-3 py-2.5 text-sm bg-white focus:outline-none disabled:bg-[var(--color-background)] disabled:text-[var(--color-muted)] ${
-                  errors.price ? 'border-red-400' : ''
+                className={`flex-1 px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none disabled:bg-[var(--color-background)] disabled:text-[var(--color-muted)] ${
+                  errors.price ? 'border-[var(--danger)]' : ''
                 }`}
               />
             </div>
@@ -1066,7 +1066,7 @@ function StepListing({
               ? 'Describe tu experiencia, metodología, qué incluye el servicio, horarios...'
               : 'Describe el inmueble/artículo, condiciones de renta, qué incluye...'
           }
-          className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
+          className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
         />
         <div className="flex justify-between mt-0.5">
           <p className="text-xs text-[var(--color-muted)]">Los anuncios con descripción reciben un 70% más de contactos.</p>
@@ -1082,7 +1082,7 @@ function StepListing({
             <select
               value={listingState}
               onChange={e => { setListingState(e.target.value); setListingCity('') }}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
             >
               <option value="">Estado / State (opcional)</option>
               {ESTADOS.map(e => (
@@ -1095,7 +1095,7 @@ function StepListing({
               value={listingCity}
               onChange={e => setListingCity(e.target.value)}
               disabled={!listingState}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">{listingState ? 'Municipio / Municipality (opcional)' : 'Primero elige estado'}</option>
               {(CITIES_BY_STATE[listingState] ?? []).map(c => (
@@ -1124,7 +1124,7 @@ function StepListing({
             type="button"
             onClick={onBack}
             disabled={submitting}
-            className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-3 rounded text-sm font-medium hover:bg-[var(--color-background)] transition-colors disabled:opacity-50"
+            className="btn btn-secondary flex-1"
           >
             ← Atrás
           </button>
@@ -1133,11 +1133,7 @@ function StepListing({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit}
-          className={`flex-1 py-3 rounded text-sm font-semibold transition-all ${
-            canSubmit
-              ? 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white'
-              : 'bg-[var(--color-border)] text-[var(--color-muted)] cursor-not-allowed'
-          }`}
+          className="btn btn-primary flex-1"
         >
           {btnLabel}
         </button>
@@ -1179,7 +1175,7 @@ function StepSuccess({
   return (
     <div className="text-center">
       {/* Success icon */}
-      <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-5">
+      <div className="inline-flex items-center justify-center w-16 h-16 bg-[var(--success-soft)] rounded-[var(--r-pill)] mb-5">
         <span className="text-3xl">✅</span>
       </div>
 
@@ -1189,7 +1185,7 @@ function StepSuccess({
       </p>
 
       {/* Listing preview card */}
-      <div className="border border-[var(--color-border)] rounded-lg overflow-hidden mx-auto max-w-xs mb-6 text-left">
+      <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden mx-auto max-w-xs mb-6 text-left">
         {coverPhoto ? (
           <img src={coverPhoto.localUrl} alt={title} className="w-full h-40 object-cover" />
         ) : (
@@ -1207,13 +1203,13 @@ function StepSuccess({
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <a
           href={`/l/${result.listingId}`}
-          className="flex-1 bg-[var(--color-accent)] !text-white text-center font-semibold py-3 rounded no-underline hover:bg-[var(--color-accent-hover)] transition-colors text-sm"
+          className="btn btn-primary flex-1 text-center !text-white"
         >
           Ver mi anuncio →
         </a>
         <a
           href={`/s/${result.shopSlug}`}
-          className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] text-center font-medium py-3 rounded no-underline hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors text-sm"
+          className="btn btn-secondary flex-1 text-center"
         >
           Ver mi tienda
         </a>
@@ -1225,14 +1221,14 @@ function StepSuccess({
         <button
           type="button"
           onClick={onPublishAnother}
-          className="w-full border border-[var(--color-accent)] text-[var(--color-accent)] py-2.5 rounded text-sm font-medium hover:bg-green-50 transition-colors"
+          className="btn btn-secondary w-full"
         >
           + Publicar otro anuncio
         </button>
       </div>
 
       {/* Tip */}
-      <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-4 text-left">
+      <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-left">
         <p className="text-xs font-semibold text-[var(--color-text)] mb-1">💡 Siguiente paso</p>
         <p className="text-xs text-[var(--color-muted)] mb-2">
           Personaliza tu tienda con tu logo, colores y redes sociales para generar más confianza en los compradores.
@@ -1509,7 +1505,7 @@ export default function SellWizard({
       <ProgressSteps step={step} hasShopStep={hasShopStep} />
 
       {/* Card */}
-      <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 sm:p-7">
+      <div className="bg-[var(--bg-elevated)] border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 sm:p-7">
         {step === 1 && (
           <StepShop
             shopName={shopName} setShopName={setShopName}

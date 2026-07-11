@@ -9,6 +9,10 @@ import {
   type Offer,
 } from '@/lib/offers'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { offerQualityToToken, offerStatusToToken } from '@/lib/status-badge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,15 +40,10 @@ interface OfferInboxProps {
 
 function QualityBadge({ offerCents, askingCents }: { offerCents: number; askingCents: number }) {
   const q = offerQuality(offerCents, askingCents)
-  const styles = {
-    green: 'bg-green-100 text-green-700',
-    amber: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
-  }
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${styles[q.color]}`}>
+    <StatusBadge token={offerQualityToToken(q.color)}>
       {q.pct}% · {q.label}
-    </span>
+    </StatusBadge>
   )
 }
 
@@ -91,22 +90,22 @@ function CounterModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
          onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+      <Card variant="panel" className="shadow-2xl w-full max-w-sm">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h3 className="font-bold text-base">Contraoferta</h3>
           <button type="button" onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 text-lg">×</button>
+            className="w-8 h-8 rounded-[var(--r-pill)] hover:bg-gray-100 flex items-center justify-center text-gray-500 text-lg">×</button>
         </div>
 
         <div className="px-5 pb-5">
           {/* Context */}
           <div className="grid grid-cols-3 gap-2 mb-4 text-center text-xs">
-            <div className="bg-[var(--color-surface-alt)] rounded-lg p-2.5">
+            <div className="bg-[var(--color-surface-alt)] rounded-[var(--r-md)] p-2.5">
               <div className="font-semibold text-[var(--color-text)]">{formatOfferAmount(offer.offer_amount_cents, offer.marketplace_listings.currency)}</div>
               <div className="text-[var(--color-muted)] mt-0.5">Oferta</div>
             </div>
             <div className="flex items-center justify-center text-[var(--color-muted)]">→</div>
-            <div className="bg-[var(--color-surface-alt)] rounded-lg p-2.5">
+            <div className="bg-[var(--color-surface-alt)] rounded-[var(--r-md)] p-2.5">
               <div className="font-semibold text-[var(--color-text)]">{formatOfferAmount(asking, offer.marketplace_listings.currency)}</div>
               <div className="text-[var(--color-muted)] mt-0.5">Lista</div>
             </div>
@@ -119,7 +118,7 @@ function CounterModal({
               type="number"
               value={counterAmount}
               onChange={e => { setCounterAmount(e.target.value); setError('') }}
-              className="w-full border border-[var(--color-border)] rounded-lg pl-7 pr-14 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] pl-7 pr-14 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">
               {offer.marketplace_listings.currency}
@@ -131,7 +130,7 @@ function CounterModal({
               {formatOfferAmount(suggested, offer.marketplace_listings.currency)} (punto medio)
             </button>
           </p>
-          {error && <p className="text-red-600 text-xs mb-3">⚠ {error}</p>}
+          {error && <p className="text-[var(--danger)] text-xs mb-3">⚠ {error}</p>}
 
           <label className="block text-sm font-medium mb-1.5">
             Mensaje <span className="text-xs font-normal text-[var(--color-muted)]">Opcional</span>
@@ -142,20 +141,19 @@ function CounterModal({
             maxLength={500}
             rows={2}
             placeholder="Ej: &quot;Es mi mejor precio, incluye envío.&quot;"
-            className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none mb-4"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none mb-4"
           />
 
-          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
+          <div className="flex items-center gap-2 bg-[var(--info-soft)] border border-[var(--info)] rounded-[var(--r-lg)] px-3 py-2 mb-4">
             <span className="text-sm">⏰</span>
-            <p className="text-xs text-blue-700">El comprador tiene <strong>24 horas</strong> para responder.</p>
+            <p className="text-xs text-[var(--info)]">El comprador tiene <strong>24 horas</strong> para responder.</p>
           </div>
 
-          <button type="button" onClick={submit} disabled={busy}
-            className="w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
+          <Button type="button" variant="primary" onClick={submit} disabled={busy} className="w-full">
             {busy ? 'Enviando…' : 'Enviar contraoferta'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
@@ -177,14 +175,6 @@ function OfferCard({
   const isPending = offer.status === 'pending' && !expired
   const isCountered = offer.status === 'countered'
 
-  const statusStyle: Record<string, string> = {
-    pending:  'bg-amber-100 text-amber-700',
-    countered:'bg-blue-100 text-blue-700',
-    accepted: 'bg-green-100 text-green-700',
-    declined: 'bg-gray-100 text-gray-500',
-    expired:  'bg-gray-100 text-gray-400',
-    paid:     'bg-green-100 text-green-700',
-  }
   const statusLabel: Record<string, string> = {
     pending:   expired ? 'Expirada' : 'Pendiente',
     countered: 'Contraoferta enviada',
@@ -195,22 +185,23 @@ function OfferCard({
   }
 
   const effectiveStatus = expired ? 'expired' : offer.status
+  const emphasisClass = isPending
+    ? 'border-[var(--warning)] bg-[var(--warning-soft)]'
+    : isCountered
+      ? 'border-[var(--info)] bg-[var(--info-soft)]'
+      : 'border-[var(--color-border)] bg-[var(--bg-elevated)] opacity-75'
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-all ${
-      isPending ? 'border-amber-200 bg-amber-50/30' :
-      isCountered ? 'border-blue-200 bg-blue-50/20' :
-      'border-[var(--color-border)] bg-white opacity-75'
-    }`}>
+    <div className={`border rounded-[var(--r-md)] overflow-hidden transition-all ${emphasisClass}`}>
       <div className="p-4">
         {/* Header row */}
         <div className="flex items-start gap-3">
           {/* Thumbnail */}
           {thumb ? (
             <img src={thumb} alt={listing.title}
-              className="w-12 h-12 object-cover rounded-lg flex-shrink-0 border border-[var(--color-border)]" />
+              className="w-12 h-12 object-cover rounded-[var(--r-md)] flex-shrink-0 border border-[var(--color-border)]" />
           ) : (
-            <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center text-xl">📦</div>
+            <div className="w-12 h-12 bg-gray-100 rounded-[var(--r-md)] flex-shrink-0 flex items-center justify-center text-xl">📦</div>
           )}
 
           {/* Info */}
@@ -225,9 +216,9 @@ function OfferCard({
           </div>
 
           {/* Status badge */}
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${statusStyle[effectiveStatus] ?? statusStyle.expired}`}>
+          <StatusBadge token={offerStatusToToken(effectiveStatus)} className="flex-shrink-0">
             {statusLabel[effectiveStatus] ?? effectiveStatus}
-          </span>
+          </StatusBadge>
         </div>
 
         {/* Offer amount + buyer */}
@@ -246,7 +237,7 @@ function OfferCard({
           {isPending && offer.expires_at && (
             <div className="text-right">
               <div className="text-xs text-[var(--color-muted)]">Expira en</div>
-              <div className="text-xs font-semibold text-amber-600">{timeUntil(offer.expires_at)}</div>
+              <div className="text-xs font-semibold text-[var(--warning)]">{timeUntil(offer.expires_at)}</div>
             </div>
           )}
         </div>
@@ -260,16 +251,16 @@ function OfferCard({
 
         {/* Counter info (already sent) */}
         {isCountered && offer.counter_amount_cents && (
-          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
-            <div className="text-xs text-blue-600 mb-0.5">Tu contraoferta</div>
-            <div className="text-base font-bold text-blue-800">
+          <div className="mt-3 bg-[var(--info-soft)] border border-[var(--info)] rounded-[var(--r-lg)] px-3 py-2.5">
+            <div className="text-xs text-[var(--info)] mb-0.5">Tu contraoferta</div>
+            <div className="text-base font-bold text-[var(--info)]">
               {formatOfferAmount(offer.counter_amount_cents, listing.currency)}
             </div>
             {offer.counter_message && (
-              <p className="text-xs text-blue-700 mt-1 italic">&ldquo;{offer.counter_message}&rdquo;</p>
+              <p className="text-xs text-[var(--info)] mt-1 italic">&ldquo;{offer.counter_message}&rdquo;</p>
             )}
             {offer.counter_expires_at && (
-              <p className="text-xs text-blue-500 mt-1">Comprador responde antes: {timeUntil(offer.counter_expires_at)}</p>
+              <p className="text-xs text-[var(--info)] mt-1">Comprador responde antes: {timeUntil(offer.counter_expires_at)}</p>
             )}
           </div>
         )}
@@ -291,21 +282,21 @@ function OfferCard({
 
       {/* Action row — only for actionable offers */}
       {isPending && (
-        <div className="border-t border-amber-200 grid grid-cols-3 divide-x divide-amber-200">
+        <div className="border-t border-t-[var(--warning)] grid grid-cols-3 divide-x divide-[var(--warning)]">
           <button type="button"
             onClick={() => onRespond(offer.id, 'accept')}
-            className="py-3 text-sm font-semibold text-green-700 hover:bg-green-50 transition-colors flex items-center justify-center gap-1.5">
+            className="py-3 text-sm font-semibold text-[var(--success)] hover:bg-[var(--success-soft)] transition-colors flex items-center justify-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             Aceptar
           </button>
           <button type="button"
             onClick={() => onRespond(offer.id, 'counter-open')}
-            className="py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5">
+            className="py-3 text-sm font-semibold text-[var(--info)] hover:bg-[var(--info-soft)] transition-colors flex items-center justify-center gap-1.5">
             ↩ Contraoferta
           </button>
           <button type="button"
             onClick={() => onRespond(offer.id, 'decline')}
-            className="py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">
+            className="py-3 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors flex items-center justify-center gap-1.5">
             ✕ Rechazar
           </button>
         </div>
@@ -397,9 +388,9 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
 
       {/* Response time nudge */}
       {pendingOffers.length > 0 && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+        <div className="flex items-center gap-2 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-lg)] px-4 py-3 mb-5">
           <span className="text-lg">⚡</span>
-          <p className="text-sm text-amber-800">
+          <p className="text-sm text-[var(--warning)]">
             Los compradores que esperan más de 2 horas compran en otro lugar.
             <strong className="ml-1">Responde rápido para cerrar el trato.</strong>
           </p>
@@ -408,17 +399,17 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
 
       {/* Filter tabs */}
       {offers.length > 0 && (
-        <div className="flex gap-1 mb-5 border border-[var(--color-border)] rounded-lg p-1 w-fit">
+        <div className="flex gap-1 mb-5 border border-[var(--color-border)] rounded-[var(--r-lg)] p-1 w-fit">
           {(['pending', 'all'] as const).map(f => (
             <button key={f} type="button"
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-1.5 rounded-[var(--r-md)] text-sm font-medium transition-colors ${
                 filter === f
                   ? 'bg-[var(--color-accent)] text-white'
                   : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}>
               {f === 'pending' ? (
-                <>Pendientes {pendingOffers.length > 0 && <span className="ml-1 bg-white/30 rounded-full px-1.5 text-xs">{pendingOffers.length}</span>}</>
+                <>Pendientes {pendingOffers.length > 0 && <span className="ml-1 bg-white/30 rounded-[var(--r-pill)] px-1.5 text-xs">{pendingOffers.length}</span>}</>
               ) : 'Todas'}
             </button>
           ))}
