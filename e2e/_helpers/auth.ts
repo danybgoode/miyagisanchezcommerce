@@ -16,6 +16,12 @@ import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright'
  *
  * Provision (done): dev-instance users `MS_TEST_BUYER_EMAIL` / `MS_TEST_SELLER_EMAIL`.
  * Master switch: `MS_TEST_BROWSER_AUTH=1` (+ `CLERK_PUBLISHABLE_KEY`/`CLERK_SECRET_KEY`).
+ *
+ * `MS_TEST_ADMIN_EMAIL` is a distinct, optional fixture (live-smoke tooling) — falls
+ * back to `MS_TEST_SELLER_EMAIL` if unset, since the simplest way to get an admin test
+ * user is often to grant the existing seller fixture `publicMetadata.role: 'admin'`
+ * (or add its email to `MIYAGI_ADMIN_EMAILS`) rather than provision a whole new Clerk
+ * user (`lib/admin/identity.ts` is the SSOT for what actually makes someone an admin).
  */
 
 export function buyerEmail(): string | null {
@@ -24,6 +30,10 @@ export function buyerEmail(): string | null {
 
 export function sellerEmail(): string | null {
   return process.env.MS_TEST_SELLER_EMAIL || null
+}
+
+export function adminEmail(): string | null {
+  return process.env.MS_TEST_ADMIN_EMAIL || process.env.MS_TEST_SELLER_EMAIL || null
 }
 
 /** Authed smokes are off unless explicitly enabled (and only against a dev/preview). */
