@@ -146,7 +146,9 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'accent fallback serialized into the support-widget/embed iframe markup (extracted from ShopSettings monolith)',
   },
   {
-    path: 'app/(shell)/shop/manage/settings/page.tsx',
+    // Moved from settings/page.tsx to lib/setup-guide.ts (seller-portal-setup-guide
+    // epic, B.1 extraction) — same comparison, new location.
+    path: 'lib/setup-guide.ts',
     literal: '#1d6f42',
     contains: "themeSettings.accent_color !== '#1d6f42'",
     reason: 'setup-completion check compares saved data against the core accent default',

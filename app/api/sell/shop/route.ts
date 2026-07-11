@@ -219,6 +219,12 @@ interface ShopUpdatePayload {
       accepts_manuscripts?: boolean
       guidelines?: string | null
     }
+    // Dashboard setup guide (seller-portal-setup-guide epic, B.3) — dismiss/restore
+    // + first-share tracking. Absent = show the guide (fail-safe default).
+    guide?: {
+      guide_dismissed?: boolean
+      share_done?: boolean
+    }
   }
 }
 

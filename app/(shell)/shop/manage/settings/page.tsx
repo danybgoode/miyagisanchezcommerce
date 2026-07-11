@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { orderedSections, MANUAL_KEYS } from '@/lib/shop-settings/taxonomy'
 import { isEnabled } from '@/lib/flags'
+import { computeShopCompletion, completedSectionKeys, type ShopRow } from '@/lib/setup-guide'
+import GuideRestoreToggle from './GuideRestoreToggle'
 
 export const metadata = { title: 'Configuración — Miyagi Sánchez' }
 
@@ -24,32 +26,6 @@ const SECTIONS = orderedSections().map((s) => ({
   bg: s.bg,
 }))
 
-// ── Completion helpers (rough check per section) ──────────────────────────────
-
-function completedSections(shop: {
-  name: string; description: string | null
-  mp_enabled: boolean | null; stripe_ok: boolean; clabe_ok: boolean
-  calcom_ok: boolean; custom_domain: string | null
-  orders_ok: boolean; returns_ok: boolean
-  envios_ok: boolean; negociacion_ok: boolean; notificaciones_ok: boolean
-  diseno_ok: boolean; agentes_ok: boolean; paginas_ok: boolean
-}): Set<string> {
-  const done = new Set<string>()
-  if (shop.name && shop.description) done.add('perfil')
-  if (shop.stripe_ok || shop.mp_enabled || shop.clabe_ok) done.add('pagos')
-  if (shop.calcom_ok) done.add('citas')
-  if (shop.custom_domain) done.add('canal')
-  if (shop.orders_ok) done.add('pedidos')
-  if (shop.returns_ok) done.add('politicas')
-  if (shop.envios_ok) done.add('envios')
-  if (shop.negociacion_ok) done.add('negociacion')
-  if (shop.notificaciones_ok) done.add('notificaciones')
-  if (shop.diseno_ok) done.add('diseno')
-  if (shop.agentes_ok) done.add('agentes')
-  if (shop.paginas_ok) done.add('paginas')
-  return done
-}
-
 export default async function SettingsIndexPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')
@@ -64,52 +40,9 @@ export default async function SettingsIndexPage() {
 
   if (!shop) redirect('/sell')
 
-  const meta = shop.metadata as Record<string, unknown> | null
-  const settings = (meta?.settings ?? {}) as Record<string, unknown>
-  const stripeSettings = settings.stripe as { charges_enabled?: boolean } | undefined
-  const calcomSettings = settings.calcom as { connected?: boolean } | undefined
-  const checkoutSettings = settings.checkout as { bank_transfer?: { clabe?: string } } | undefined
-  const ordersSettings = settings.orders as { processing_time?: string } | undefined
-  const returnsPolicySettings = settings.returns_policy as { window?: string } | undefined
-  const themeSettings = settings.theme as { banner_url?: string | null; accent_color?: string | null; tagline?: string | null; social?: Record<string, string | null> } | undefined
-  const shippingSettings = settings.shipping as { local_pickup?: boolean; envia_enabled?: boolean; pickup_spots?: unknown[]; origin_address?: Record<string, string | null> } | undefined
-  const offersSettings = settings.offers as { min_buyer_trust_level?: string; negotiation?: { enabled?: boolean } } | undefined
-  const notifSettings = settings.notifications as { email_new_view?: boolean; email_new_message?: boolean } | undefined
-  const aboutSettings = settings.about as { body?: string } | null | undefined
-  const faqSettings = settings.faq as { items?: unknown[] } | null | undefined
-
-  // The native settings editor persists the whole settings tree on every save,
-  // so an empty shell (e.g. default accent color, all-null origin address) is
-  // NOT "configured". Use value-based checks so a section lights up only when it
-  // holds real data — whether typed in by hand or applied by the importer.
-  const hasSocial = !!themeSettings?.social && Object.values(themeSettings.social).some(Boolean)
-  const diseno_ok = !!(themeSettings && (themeSettings.banner_url || themeSettings.tagline || hasSocial || (themeSettings.accent_color && themeSettings.accent_color !== '#1d6f42')))
-  const hasOrigin = !!shippingSettings?.origin_address && Object.values(shippingSettings.origin_address).some(Boolean)
-  const envios_ok = !!(shippingSettings && (shippingSettings.local_pickup || shippingSettings.envia_enabled || hasOrigin || (Array.isArray(shippingSettings.pickup_spots) && shippingSettings.pickup_spots.length > 0)))
-  const negociacion_ok = !!(offersSettings && ((offersSettings.min_buyer_trust_level && offersSettings.min_buyer_trust_level !== 'unverified') || offersSettings.negotiation?.enabled))
-  const notificaciones_ok = !!(notifSettings && (notifSettings.email_new_view || notifSettings.email_new_message))
-
-  const shopComputed = {
-    name: shop.name,
-    description: (shop as unknown as { description: string | null }).description,
-    mp_enabled: (shop as unknown as { mp_enabled: boolean | null }).mp_enabled,
-    stripe_ok: !!stripeSettings?.charges_enabled,
-    clabe_ok: !!checkoutSettings?.bank_transfer?.clabe,
-    calcom_ok: !!calcomSettings?.connected,
-    custom_domain: (shop as unknown as { custom_domain: string | null }).custom_domain,
-    orders_ok:  !!ordersSettings?.processing_time,
-    // 'none' = explicitly configured but not a positive trust signal → still mark done
-    // '' / undefined = not yet configured → not done
-    returns_ok: !!(returnsPolicySettings?.window),
-    envios_ok,
-    negociacion_ok,
-    notificaciones_ok,
-    diseno_ok,
-    agentes_ok: !!(shop as unknown as { ucp_webhook_url: string | null }).ucp_webhook_url,
-    paginas_ok: !!(aboutSettings?.body || (faqSettings?.items?.length ?? 0) > 0),
-  }
-
-  const done = completedSections(shopComputed)
+  const flags = computeShopCompletion(shop as unknown as ShopRow)
+  const done = completedSectionKeys(flags)
+  const guideDismissed = !!(shop.metadata as { settings?: { guide?: { guide_dismissed?: boolean } } } | null)?.settings?.guide?.guide_dismissed
 
   // Mercado Libre connect is dark-shipped behind a flag (epic 03 · mercadolibre-sync).
   // The entry card appears only once `ml.connect_enabled` is flipped on.
@@ -133,6 +66,9 @@ export default async function SettingsIndexPage() {
           <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 4, width: `${(done.size / SECTIONS.filter(s => !('soon' in s && s.soon)).length) * 100}%`, transition: 'width 600ms' }} />
         </div>
       </div>
+
+      {/* Setup guide restore toggle (seller-portal-setup-guide epic, B.3) */}
+      <GuideRestoreToggle initialDismissed={guideDismissed} />
 
       {/* Import config CTA */}
       <Link href="/shop/manage/settings/import" className="no-underline">
