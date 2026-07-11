@@ -3,6 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { getShopifyBatchParity } from '@/lib/shopify-import-bridge'
+import { notifyIfVeryCustom } from '@/lib/migration-estimate-store'
 import { VERY_CUSTOM_LISTING_THRESHOLD, type ParityVerdict } from '@/lib/migration-parity'
 import { SellerBreadcrumb } from '../../../../SellerBreadcrumb'
 import MigrationEstimateCard from './MigrationEstimateCard'
@@ -47,6 +48,15 @@ export default async function ShopifyParityPage({
   const result = await getShopifyBatchParity({ slug: shop.slug }, batchId)
   if (!result.ok) notFound()
   const { report } = result
+
+  // Story 2.3 — the notification must fire the moment the report itself is
+  // computed (this page load), not gated behind the estimate card below,
+  // which is deliberately hidden for a very-custom report (review catch,
+  // PR #224 — the card was the ONLY caller of the notify path, and it's
+  // hidden for exactly the case that path exists to notify on).
+  if (report.veryCustom) {
+    await notifyIfVeryCustom(batchId).catch((e) => console.error('[parity page] very-custom notify failed:', e))
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">

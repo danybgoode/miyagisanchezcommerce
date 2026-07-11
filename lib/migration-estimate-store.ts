@@ -18,6 +18,7 @@ import 'server-only'
 import { db } from './supabase'
 import { computeMigrationEstimate } from './migration-estimate'
 import { buildParityReport, VERY_CUSTOM_LISTING_THRESHOLD, type ParitySectionKey } from './migration-parity'
+import { getPromoterSkuPrices } from './promoter'
 import { tg } from './telegram'
 
 export interface MigrationEstimateRow {
@@ -108,8 +109,22 @@ export async function classifyMigrationPricing(
     return { ok: true, tier: 'estimate', estimate: existing as MigrationEstimateRow }
   }
 
+  // The estimate's base MUST read the same admin-set price the flat ≤150 path
+  // charges (lib/migration-checkout.ts) — never a hardcoded duplicate (cross-
+  // review catch, PR #224). No price configured yet ⇒ refuse rather than quote
+  // against a number nobody actually set.
+  const prices = await getPromoterSkuPrices()
+  const basePriceMxn = prices.migration
+  if (basePriceMxn == null) {
+    return { ok: false, status: 422, error: 'El precio de migración aún no está configurado.' }
+  }
+
   const customSections = report.sections.filter((s) => s.verdict !== 'mapped').map((s) => s.key)
-  const breakdown = computeMigrationEstimate({ listingCount: report.listingCount, customSectionCount: customSections.length })
+  const breakdown = computeMigrationEstimate({
+    listingCount: report.listingCount,
+    customSectionCount: customSections.length,
+    basePriceCents: Math.round(basePriceMxn * 100),
+  })
 
   const { data: inserted, error } = await db
     .from('marketplace_migration_estimates')
@@ -141,6 +156,47 @@ export async function getMigrationEstimate(id: string): Promise<MigrationEstimat
 }
 
 /**
+ * Standalone very-custom check + notify, callable directly from the
+ * seller-facing parity PAGE — not only from the estimate-generation route.
+ *
+ * Bug caught in review (PR #224): `classifyMigrationPricing`'s very-custom
+ * branch was only ever reached via `POST /api/sell/shopify/import/parity/
+ * estimate`, and that route is only ever called by `MigrationEstimateCard`
+ * — which the parity page renders ONLY when `!report.veryCustom`. So for
+ * the exact batches this story exists to notify on, the notify path was
+ * unreachable in the shipped UI: the seller never clicks a button that
+ * would trigger it. Story 2.3's acceptance ("when the report trips very
+ * custom, Daniel is notified") must fire the moment the report itself is
+ * computed — which is page load, not an optional follow-up click. The
+ * parity page now calls this directly after rendering the very-custom
+ * banner; a truncated pull needs nothing beyond `acquisition_settings`, so
+ * this doesn't need the full listing/image-count reads `classifyMigrationPricing`
+ * does for the non-very-custom tiers.
+ */
+export async function notifyIfVeryCustom(batchId: string): Promise<{ veryCustom: boolean }> {
+  const { data: batch } = await db
+    .from('supply_batches')
+    .select('id, acquisition_settings')
+    .eq('id', batchId)
+    .maybeSingle()
+  if (!batch) return { veryCustom: false }
+
+  const settings = (batch.acquisition_settings as Record<string, unknown> | null) ?? {}
+  const truncated = !!settings.truncated // the sole veryCustom trigger post-redefinition (lib/migration-parity.ts)
+  if (!truncated) return { veryCustom: false }
+
+  const shopId = typeof settings.connected_shop_id === 'string' ? settings.connected_shop_id : null
+  if (shopId) {
+    const { count: listingCount } = await db
+      .from('supply_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch_id', batchId)
+    await notifyVeryCustomOnce(batchId, batch, shopId, listingCount ?? 0)
+  }
+  return { veryCustom: true }
+}
+
+/**
  * Story 2.3 — notify Daniel once per batch when the report is untrustworthy
  * (truncated pull). Dedupes via a flag on the batch's own
  * `acquisition_settings` (no separate table needed) so re-loading the parity/
@@ -155,15 +211,20 @@ async function notifyVeryCustomOnce(
   const settings = (batch.acquisition_settings as Record<string, unknown> | null) ?? {}
   if (settings.very_custom_notified_at) return // already notified for this batch
 
+  // Best-effort, not atomic: this read-then-write has a race window between two
+  // concurrent calls for the same batch (both could read "not yet notified" before
+  // either writes). Accepted deliberately — Daniel gets at most one extra Telegram
+  // ping in that narrow window, never a missed one, and the dedupe still holds for
+  // the overwhelmingly common case (repeat page loads, not concurrent ones). A
+  // prior version of this guard added a second `.eq(...)` filter attempting to
+  // express "only update if still null" — removed (cross-review catch, PR #224):
+  // Supabase/PostgREST can't express IS NULL via `.eq()` on a `->>` jsonb path, so
+  // it silently matched nothing some of the time and was strictly worse than no
+  // guard at all (a false "still not notified" read that then failed to persist).
   const { error } = await db
     .from('supply_batches')
     .update({ acquisition_settings: { ...settings, very_custom_notified_at: new Date().toISOString() } })
     .eq('id', batchId)
-    .eq('acquisition_settings->>very_custom_notified_at', null as unknown as string) // best-effort guard; see note below
-  // Supabase/PostgREST can't express "IS NULL" via .eq on a ->> path portably across
-  // versions, so the write above may occasionally lose a race and double-notify —
-  // acceptable (Daniel gets an extra Telegram ping, not a missed one; never a false
-  // silence). The dedupe still holds for the common case (repeat page loads).
   if (error) {
     console.error('[migration-estimate] very-custom dedupe write failed:', error.message)
   }

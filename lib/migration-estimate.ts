@@ -15,7 +15,12 @@
  * lib/promoter-commission.ts#computeCommissionCents.
  */
 
-/** Sprint 2's flat `migration` SKU price (admin-configured via marketplace_promoter_sku_prices, ≤150 listings). */
+/** Fallback only — used by tests and as a documentation default. The REAL base
+ *  price always comes from `marketplace_promoter_sku_prices` (admin-configured)
+ *  at call time, passed in as `basePriceCents` — never hardcoded into a compute
+ *  path, so the estimate's base line item can never drift from what the flat
+ *  ≤150 close path actually charges (cross-review catch, PR #224: an earlier
+ *  version hardcoded $999 here independently of the admin price). */
 export const MIGRATION_BASE_PRICE_CENTS = 99_900 // $999 MXN
 /** Above this many listings, the flat price no longer applies — use the estimate instead. */
 export const MIGRATION_FLAT_LISTING_CAP = 150
@@ -28,6 +33,10 @@ export interface MigrationEstimateInput {
   listingCount: number
   /** Count of parity sections rated 'partial' or 'none' — the sections needing bespoke build. */
   customSectionCount: number
+  /** The admin-configured flat SKU price, in cents — the SAME source the flat
+   *  ≤150 close path reads (`getPromoterSkuPrices().migration`). Passed in
+   *  rather than hardcoded so both paths can never disagree. */
+  basePriceCents: number
 }
 
 export interface MigrationEstimateBreakdown {
@@ -39,21 +48,22 @@ export interface MigrationEstimateBreakdown {
 }
 
 /**
- * Deterministic tiered price: $999 base + $3/listing beyond 150 + $199 per
- * non-mapped parity section. Meaningful only ABOVE the flat cap — a caller at
- * or below 150 listings should charge the flat admin SKU price instead (this
- * function doesn't know about that business rule; it just computes a sane,
- * non-negative, non-throwing answer for any input). Negative/fractional
- * inputs are clamped, never thrown.
+ * Deterministic tiered price: the admin-configured base + $3/listing beyond
+ * 150 + $199 per non-mapped parity section. Meaningful only ABOVE the flat
+ * cap — a caller at or below 150 listings should charge the flat admin SKU
+ * price directly instead (this function doesn't know about that business
+ * rule; it just computes a sane, non-negative, non-throwing answer for any
+ * input). Negative/fractional inputs are clamped, never thrown.
  */
 export function computeMigrationEstimate(input: MigrationEstimateInput): MigrationEstimateBreakdown {
   const listingCount = Math.max(0, Math.trunc(input.listingCount || 0))
   const customSectionCount = Math.max(0, Math.trunc(input.customSectionCount || 0))
+  const basePriceCents = Math.max(0, Math.trunc(input.basePriceCents || 0))
 
   const overageListings = Math.max(0, listingCount - MIGRATION_FLAT_LISTING_CAP)
   const overageCents = overageListings * MIGRATION_OVERAGE_CENTS_PER_LISTING
   const sectionAdderCents = customSectionCount * MIGRATION_SECTION_ADDER_CENTS
-  const totalCents = MIGRATION_BASE_PRICE_CENTS + overageCents + sectionAdderCents
+  const totalCents = basePriceCents + overageCents + sectionAdderCents
 
-  return { baseCents: MIGRATION_BASE_PRICE_CENTS, overageListings, overageCents, sectionAdderCents, totalCents }
+  return { baseCents: basePriceCents, overageListings, overageCents, sectionAdderCents, totalCents }
 }
