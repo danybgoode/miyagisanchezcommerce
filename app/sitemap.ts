@@ -82,6 +82,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/vende/negocios`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/vende/servicios`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/vende/autos`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/vende/migracion`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/vende/migracion/shopify`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${base}/vende/migracion/tiendanube`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${base}/vende/migracion/woocommerce`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${base}/vende/migracion/bigcartel`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${base}/sell`, changeFrequency: 'monthly', priority: 0.5 },
   ]
 }

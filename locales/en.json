@@ -711,6 +711,369 @@
         }
       }
     },
+    "migracion": {
+      "metadata": {
+        "title": "Switch to Miyagi from Shopify, Tiendanube, WooCommerce, or Big Cartel",
+        "description": "Bring your catalog to Miyagi Sánchez in minutes: a direct connector for Shopify, guided export for Tiendanube, WooCommerce, and Big Cartel. Free to start on your own, or with a consultant if you'd rather someone else did it.",
+        "ogAlt": "Switch to Miyagi Sánchez from your current platform."
+      },
+      "eyebrow": "Migration",
+      "heroTitle": "Switch to Miyagi in minutes, not weeks.",
+      "heroLead": "You already have your catalog built on another platform — don't re-type it by hand. Pick where you're coming from and follow the exact steps to bring it to Miyagi Sánchez.",
+      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/vende/migracion and tell you if your catalog can be brought over without re-typing it.",
+      "primaryCta": "Upload my catalog",
+      "secondaryCta": "I'd rather someone else did it",
+      "heroStats": [
+        { "value": "Free", "label": "up to 500 products, to start on your own" },
+        { "value": "4", "label": "platforms with a step-by-step guide" },
+        { "value": "0", "label": "products you re-type by hand" }
+      ],
+      "proofTitle": "Three ways to bring your catalog",
+      "proofLead": "Pick whichever fits best — all three end up in the same place: your catalog, reviewed by you and published on Miyagi.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-refresh",
+          "title": "Shopify: direct connector",
+          "body": "Type in your Shopify domain and Miyagi brings your catalog (titles, variants, prices, photos) on its own — no exporting by hand."
+        },
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Tiendanube, WooCommerce, Big Cartel: export and upload",
+          "body": "Export your catalog from your current platform (CSV or JSON, depending which one you use) and upload it to Miyagi's importer — we review it before publishing anything."
+        },
+        {
+          "icon": "iconoir-tools",
+          "title": "Don't want to do it yourself? A consultant does it for you",
+          "body": "A Miyagi consultant comes to your business, photographs your catalog, and leaves it set up the same day. Flat price up to a certain catalog size; bigger catalogs get a quote before anything is charged."
+        }
+      ],
+      "routerTitle": "Which platform are you coming from?",
+      "routerLead": "Each one has its own guide with the exact export steps.",
+      "routerCards": [
+        {
+          "slug": "shopify",
+          "eyebrow": "Direct connector",
+          "title": "Shopify",
+          "body": "Just your domain — Miyagi brings your catalog automatically.",
+          "icon": "iconoir-refresh"
+        },
+        {
+          "slug": "tiendanube",
+          "eyebrow": "Export and upload",
+          "title": "Tiendanube",
+          "body": "Download your product list as a CSV from your dashboard.",
+          "icon": "iconoir-cloud-upload"
+        },
+        {
+          "slug": "woocommerce",
+          "eyebrow": "Export and upload",
+          "title": "WooCommerce",
+          "body": "Use the product exporter WordPress already has.",
+          "icon": "iconoir-cloud-upload"
+        },
+        {
+          "slug": "bigcartel",
+          "eyebrow": "Copy and paste",
+          "title": "Big Cartel",
+          "body": "Download your public catalog and paste it — your AI organizes it.",
+          "icon": "iconoir-cloud-upload"
+        }
+      ],
+      "stepsTitle": "How it works, no matter where you're coming from",
+      "steps": [
+        {
+          "title": "1 · Bring in your catalog",
+          "body": "With the connector (Shopify) or by uploading your exported file (Tiendanube, WooCommerce, Big Cartel)."
+        },
+        {
+          "title": "2 · Review before publishing",
+          "body": "Nothing goes live on its own — you review each product (title, price, photos) and confirm."
+        },
+        {
+          "title": "3 · Publish on Miyagi",
+          "body": "Your catalog lands on your own shop, searchable and with no platform commission."
+        }
+      ],
+      "socialTitle": "For any catalog, big or small",
+      "socialBody": "Nothing publishes on its own: you (or your consultant) review every product before it goes on sale.",
+      "socialStats": [
+        { "value": "0%", "label": "platform commission" },
+        { "value": "Review", "label": "nothing publishes without your confirmation" },
+        { "value": "AI", "label": "you can also paste your catalog and let AI organize it" }
+      ],
+      "closingTitle": "Your catalog already exists — you just need to bring it over.",
+      "closingBody": "Pick your current platform above and follow the guide. If you'd rather someone else did it, ask for a Miyagi consultant.",
+      "closingCta": "Upload my catalog"
+    },
+    "migracionShopify": {
+      "metadata": {
+        "title": "Migrate your Shopify catalog to Miyagi Sánchez",
+        "description": "Bring your Shopify catalog to Miyagi Sánchez with the direct connector: type in your domain and your products, variants, prices, and photos arrive on their own, ready to review.",
+        "ogAlt": "Migrate your Shopify catalog to Miyagi Sánchez with the direct connector."
+      },
+      "eyebrow": "Coming from Shopify",
+      "heroTitle": "Your Shopify catalog, without re-typing it.",
+      "heroLead": "Type in your Shopify shop's domain and Miyagi brings your products — titles, variants, prices, stock, and photos — straight into a review before publishing anything.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/shopify and tell you if your Shopify shop can be brought over this way.",
+      "primaryCta": "Bring my Shopify catalog",
+      "secondaryCta": "See the full migration guide",
+      "heroStats": [
+        { "value": "1", "label": "thing you need: your Shopify domain" },
+        { "value": "~1 min", "label": "to bring your whole catalog" },
+        { "value": "0", "label": "installs or access you have to grant" }
+      ],
+      "proofTitle": "What the connector brings — and what it doesn't",
+      "proofLead": "It's honest about its limits: it brings your catalog and your policies as text; your shop's design you build yourself with Miyagi's templates.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Your full catalog",
+          "body": "Titles, variants, options, prices, stock, and photos for every product — without re-typing them."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Policies and FAQs",
+          "body": "The text of your shipping policies, returns, and FAQs comes over too, so you can review and adapt it."
+        },
+        {
+          "icon": "iconoir-search",
+          "title": "A report of what maps and what doesn't",
+          "body": "Before importing anything, you see a clear report: which sections of your shop have an equivalent on Miyagi and which don't."
+        },
+        {
+          "icon": "iconoir-shield-check",
+          "title": "Nothing publishes without your confirmation",
+          "body": "Your catalog arrives as a draft. You decide what to publish and when — nothing goes on sale on its own."
+        }
+      ],
+      "stepsTitle": "The 4 steps, from your domain to your published catalog",
+      "steps": [
+        {
+          "title": "1 · Type in your domain",
+          "body": "Go to your Miyagi dashboard → Import catalog → Migrate from Shopify, and type in your domain (e.g. yourshop.com or yourshop.myshopify.com)."
+        },
+        {
+          "title": "2 · Wait about a minute",
+          "body": "Miyagi brings your whole catalog automatically — you don't need to export or upload any file."
+        },
+        {
+          "title": "3 · Review the parity report",
+          "body": "See which parts of your shop (banners, theme, collections, pages) have an equivalent on Miyagi before deciding."
+        },
+        {
+          "title": "4 · Choose what to import and publish",
+          "body": "Select the products you want to bring over. They land as drafts in your catalog — you review and publish them."
+        }
+      ],
+      "socialTitle": "For Shopify shops of any size",
+      "socialBody": "Large catalogs can be brought over too — if yours is very custom, a Miyagi consultant will contact you directly before charging anything.",
+      "socialStats": [
+        { "value": "Automatic", "label": "no exporting files by hand" },
+        { "value": "Draft", "label": "you review before publishing" },
+        { "value": "Consultant", "label": "available if you'd rather someone else did it" }
+      ],
+      "closingTitle": "Your Shopify catalog could be on Miyagi today.",
+      "closingBody": "You just need your domain. The rest — variants, prices, photos — arrives on its own, ready for you to review.",
+      "closingCta": "Bring my Shopify catalog"
+    },
+    "migracionTiendanube": {
+      "metadata": {
+        "title": "Migrate your Tiendanube catalog to Miyagi Sánchez",
+        "description": "Export your product list from your Tiendanube dashboard and upload it to Miyagi Sánchez's importer — exact steps, without re-typing your catalog by hand.",
+        "ogAlt": "Migrate your Tiendanube catalog to Miyagi Sánchez."
+      },
+      "eyebrow": "Coming from Tiendanube",
+      "heroTitle": "Your Tiendanube catalog, in a file and ready to upload.",
+      "heroLead": "Tiendanube already has a built-in product exporter. Download your list as a CSV and upload it straight into Miyagi's importer — without re-typing a single product.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/tiendanube and tell you if your Tiendanube export fits Miyagi's importer.",
+      "primaryCta": "Go to Miyagi's importer",
+      "secondaryCta": "See other platforms",
+      "heroStats": [
+        { "value": "CSV", "label": "the same file Tiendanube already exports" },
+        { "value": "3", "label": "clicks inside your Tiendanube dashboard" },
+        { "value": "0", "label": "products you re-type" }
+      ],
+      "proofTitle": "From your Tiendanube dashboard to Miyagi's catalog",
+      "proofLead": "Tiendanube exports a CSV compatible with Excel and Google Sheets — Miyagi's importer recognizes its columns (name, price, category, stock) automatically.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Built-in exporter, no extra apps",
+          "body": "You don't need to install anything — Tiendanube already has a button to export your product list right inside your dashboard."
+        },
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Columns recognized automatically",
+          "body": "Name, price, category, stock, and description slot in on their own in Miyagi's format — you don't have to rename columns."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Review before publishing",
+          "body": "Every imported product lands as a draft in your catalog — you confirm before it's visible to the public."
+        }
+      ],
+      "stepsTitle": "The exact steps in your Tiendanube dashboard",
+      "steps": [
+        {
+          "title": "1 · Go to Products → Product list",
+          "body": "From your Tiendanube control panel, go to the products section."
+        },
+        {
+          "title": "2 · Click \"Import and export\" → Export",
+          "body": "Above your product list. Check \"Include descriptions\" if you want to keep them."
+        },
+        {
+          "title": "3 · Download the CSV file",
+          "body": "Tiendanube hands it to you ready to go, compatible with Excel and Google Sheets."
+        },
+        {
+          "title": "4 · Upload it to Miyagi",
+          "body": "In your Miyagi dashboard → Import catalog, drag in the same CSV file. Review the preview and confirm."
+        }
+      ],
+      "socialTitle": "Works the same regardless of your Tiendanube plan",
+      "socialBody": "Product export isn't available on Tiendanube's free Inicial plan — if that's you, you can copy and paste your catalog straight into Miyagi's importer and let the AI organize it.",
+      "socialStats": [
+        { "value": "CSV", "label": "or copy-paste if your plan can't export" },
+        { "value": "Review", "label": "nothing publishes without your confirmation" },
+        { "value": "0%", "label": "platform commission on Miyagi" }
+      ],
+      "closingTitle": "Your Tiendanube catalog is already ready to export.",
+      "closingBody": "Download your CSV from your dashboard and upload it to Miyagi's importer — most columns recognize themselves.",
+      "closingCta": "Go to Miyagi's importer"
+    },
+    "migracionWoocommerce": {
+      "metadata": {
+        "title": "Migrate your WooCommerce catalog to Miyagi Sánchez",
+        "description": "Export your products from WooCommerce (Products → All Products → Export) and upload them to Miyagi Sánchez's importer — exact steps, without re-typing your catalog.",
+        "ogAlt": "Migrate your WooCommerce catalog to Miyagi Sánchez."
+      },
+      "eyebrow": "Coming from WooCommerce",
+      "heroTitle": "Your WooCommerce catalog, exported in one click.",
+      "heroLead": "WordPress has had a built-in product exporter in WooCommerce for years. Download your CSV and upload it to Miyagi's importer — no plugins, no extra steps.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/woocommerce and tell you if your WooCommerce export fits Miyagi's importer.",
+      "primaryCta": "Go to Miyagi's importer",
+      "secondaryCta": "See other platforms",
+      "heroStats": [
+        { "value": "CSV", "label": "with the exporter WooCommerce already has" },
+        { "value": "0", "label": "plugins to install" },
+        { "value": "0", "label": "products you re-type" }
+      ],
+      "proofTitle": "From your WordPress to Miyagi's catalog",
+      "proofLead": "WooCommerce's exporter has been built-in since version 3.1 — you don't need any extra plugin to get your catalog out.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Exporter built into WooCommerce",
+          "body": "It's under Products → All Products → Export, with nothing else to install."
+        },
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Variations included",
+          "body": "WooCommerce's exporter includes product variations (size, color, etc.) — Miyagi's importer receives them too."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Review before publishing",
+          "body": "Every imported product lands as a draft in your catalog — you confirm before it's visible to the public."
+        }
+      ],
+      "stepsTitle": "The exact steps in your WordPress",
+      "steps": [
+        {
+          "title": "1 · Go to Products → All Products",
+          "body": "From your WordPress admin dashboard."
+        },
+        {
+          "title": "2 · Click \"Export\"",
+          "body": "Above your product list. Leave \"Export all columns\" checked so no data gets left out."
+        },
+        {
+          "title": "3 · Download the CSV file",
+          "body": "WooCommerce generates it instantly."
+        },
+        {
+          "title": "4 · Upload it to Miyagi",
+          "body": "In your Miyagi dashboard → Import catalog, drag in the file. Miyagi recognizes WooCommerce's name, price, category, and image columns automatically; review the preview and confirm."
+        }
+      ],
+      "socialTitle": "Works with any WooCommerce shop",
+      "socialBody": "If your catalog is too large for one file, split it into parts — Miyagi's importer accepts several uploads in a row without duplicating products.",
+      "socialStats": [
+        { "value": "Variations", "label": "included in the same export" },
+        { "value": "Review", "label": "nothing publishes without your confirmation" },
+        { "value": "0%", "label": "platform commission on Miyagi" }
+      ],
+      "closingTitle": "Your WooCommerce catalog is already ready to export.",
+      "closingBody": "Use the exporter WordPress already has and upload it to Miyagi — no plugins, no extra steps.",
+      "closingCta": "Go to Miyagi's importer"
+    },
+    "migracionBigcartel": {
+      "metadata": {
+        "title": "Migrate your Big Cartel catalog to Miyagi Sánchez",
+        "description": "Big Cartel has no export button in its dashboard — here's exactly how to pull your catalog and bring it to Miyagi Sánchez with the help of AI.",
+        "ogAlt": "Migrate your Big Cartel catalog to Miyagi Sánchez."
+      },
+      "eyebrow": "Coming from Big Cartel",
+      "heroTitle": "Your Big Cartel catalog, with no export button — but it can be done.",
+      "heroLead": "Big Cartel doesn't have an \"export\" option in its dashboard. Here's the honest path: your public catalog CAN be downloaded, and your AI can organize it for you in Miyagi's importer.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/bigcartel and tell you if your public Big Cartel catalog can be brought over this way.",
+      "primaryCta": "Go to Miyagi's importer",
+      "secondaryCta": "See other platforms",
+      "heroStats": [
+        { "value": "0", "label": "export button in Big Cartel's dashboard" },
+        { "value": "1", "label": "public page you CAN download" },
+        { "value": "AI", "label": "organizes your catalog for you, no column mapping" }
+      ],
+      "proofTitle": "The honest path for Big Cartel",
+      "proofLead": "Unlike Tiendanube or WooCommerce, Big Cartel doesn't offer a ready-to-import CSV — so the path here is different, and we tell you plainly.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-info-circle",
+          "title": "No official CSV",
+          "body": "Big Cartel doesn't have an \"export products\" button like Tiendanube or WooCommerce — its catalog downloads from a public page instead."
+        },
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Your public catalog, in a file",
+          "body": "Your own shop's yourdomain.com/products.json address hands over your full catalog (titles, variants, prices, photos) — no password needed."
+        },
+        {
+          "icon": "iconoir-brain",
+          "title": "Paste it and let AI organize it",
+          "body": "Instead of uploading that file as a CSV (its columns don't match a normal CSV's), paste it into the \"Paste catalog\" option in Miyagi's importer — the AI arranges it for you."
+        }
+      ],
+      "stepsTitle": "The exact steps for Big Cartel",
+      "steps": [
+        {
+          "title": "1 · Open your public catalog in JSON",
+          "body": "In your browser, go to yourdomain.com/products.json (use your actual Big Cartel shop domain)."
+        },
+        {
+          "title": "2 · Copy all the content",
+          "body": "Select all the text on that page (Ctrl/Cmd+A, Ctrl/Cmd+C) or save it as a text file."
+        },
+        {
+          "title": "3 · Paste it into Miyagi's importer",
+          "body": "In your Miyagi dashboard → Import catalog, use the paste-text option (not the CSV upload) and paste the content."
+        },
+        {
+          "title": "4 · Review what the AI organized",
+          "body": "The AI splits out each product with its title, price, and photos. Review, fix anything that needs it, and confirm before publishing."
+        }
+      ],
+      "socialTitle": "For Big Cartel shops of any size",
+      "socialBody": "If your catalog is large or has many variants, a Miyagi consultant can run this process for you — ask for one from the migration guide.",
+      "socialStats": [
+        { "value": "JSON", "label": "your public catalog, no password" },
+        { "value": "AI", "label": "organizes the file for you" },
+        { "value": "Review", "label": "nothing publishes without your confirmation" }
+      ],
+      "closingTitle": "No export button, but your catalog can still be brought over.",
+      "closingBody": "Copy your public catalog as JSON and paste it into Miyagi's importer — the AI does the work of organizing it.",
+      "closingCta": "Go to Miyagi's importer"
+    },
     "promotor": {
       "metadata": {
         "title": "Promoter Program — Miyagi Sánchez",
