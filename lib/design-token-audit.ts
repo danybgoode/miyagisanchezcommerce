@@ -45,10 +45,15 @@ const rawHexPattern = /#[0-9a-fA-F]{3,8}\b/g
 // Same scan (app + lib), same exclusion lists, as the raw-color guards above.
 const rawPaletteClassPattern = /\b(?:bg|text|border)-(?:green|amber|red|blue|indigo|purple|yellow)-\d+\b/g
 const bgWhitePattern = /\bbg-white(?![\w/])/g
-// Bare `rounded` or a named Tailwind radius suffix, but NOT `rounded-[var(--r-*)]`
-// (the negative lookahead rejects a following `-` that isn't one of the named
-// suffixes, which is exactly what `rounded-[var(...)]` has).
-const literalRadiusPattern = /\brounded(-(?:none|xs|sm|md|lg|xl|2xl|3xl|full))?(?![-\w])/g
+// Bare `rounded`, a named Tailwind radius suffix, a directional/corner variant
+// (`rounded-l`, `rounded-tl`, …), or a corner+size combo (`rounded-l-lg`) — but
+// NOT `rounded-[var(--r-*)]` or `rounded-l-[var(--r-*)]` (the negative lookahead
+// rejects a following `-` that isn't one of the named suffixes, which is exactly
+// what the `-[var(...)]` arbitrary-value form has). Found missing the directional
+// variants entirely in the seller-portal-rails-foundation S2.5 cleanup — `Envios.tsx`
+// used `rounded-l`/`rounded-r` on grouped input+suffix controls and the original
+// pattern couldn't see them at all.
+const literalRadiusPattern = /\brounded(-(?:t|r|b|l|tl|tr|br|bl)(-(?:none|xs|sm|md|lg|xl|2xl|3xl|full))?|-(?:none|xs|sm|md|lg|xl|2xl|3xl|full))?(?![-\w])/g
 const feedbackSymbolImportPattern = /import\s*(?:type\s*)?\{[^}]*\b(?:Toast|Banner)\b[^}]*\}\s*from\s*['"]([^'"]+)['"]/g
 
 export const guardExcludedPrefixes = [
@@ -189,13 +194,14 @@ export const allowedRawPaletteRules: AllowedLiteralRule[] = [
   },
 ]
 
-// The Story 2.1 adoption sweep's actual coverage (seller-portal-rails-foundation S2).
-// Story 2.2's hard gate enforces zero raw-palette/bg-white/literal-radius violations
-// only within this set — everything else in app/+lib/ is still scanned (for visibility)
-// but not yet required, matching Story 2.1's real scope rather than the whole app.
-// `CatalogTable.tsx` is deliberately NOT in this set: only its DeleteDialog/STATUS_LABEL
-// region was swept (the <td> render block + bulk-bar wiring are catalog-management PR
-// #209 territory) — add it here once that PR merges and the rest of the file is swept.
+// The adoption sweep's actual coverage (seller-portal-rails-foundation S2 + the S2.5
+// follow-up cleanup). Story 2.2's hard gate enforces zero raw-palette/bg-white/
+// literal-radius violations only within this set — everything else in app/+lib/ is
+// still scanned (for visibility) but not yet required, matching the sweep's real scope
+// rather than the whole app. `CatalogTable.tsx` is enforced only for its swept region
+// (DeleteDialog + STATUS_LABEL/MarginCellDisplay/status pill/delete-hover, all fixed in
+// S2.5) — its `<td>` render block's OTHER cells + bulk-bar wiring were never touched by
+// either sweep and may still carry debt outside what these checks look for.
 export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/shop/manage/orders/OrdersInbox.tsx',
   'app/(shell)/shop/manage/ManageDashboard.tsx',
@@ -204,6 +210,7 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/sell/setup/SetupClient.tsx',
   'app/(shell)/shop/manage/offers/OfferInbox.tsx',
   'app/(shell)/shop/manage/orders/[id]/OrderDetail.tsx',
+  'app/(shell)/shop/manage/catalogo/CatalogTable.tsx',
   'app/(shell)/shop/manage/settings/_sections/Notificaciones.tsx',
   'app/(shell)/shop/manage/settings/_sections/PromoterCodeField.tsx',
   'app/(shell)/shop/manage/settings/_sections/Negociacion.tsx',
@@ -218,6 +225,7 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/shop/manage/settings/_sections/Diseno.tsx',
   'app/(shell)/shop/manage/settings/_sections/Pagos.tsx',
   'app/(shell)/shop/manage/settings/_sections/Canal.tsx',
+  'app/(shell)/shop/manage/settings/_sections/Envios.tsx',
   'app/(shell)/shop/manage/settings/_components/CopyPromptButton.tsx',
   'app/(shell)/shop/manage/settings/_components/PickupSpotManager.tsx',
   'app/(shell)/shop/manage/settings/_components/SectionSaveBar.tsx',
