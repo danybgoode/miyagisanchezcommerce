@@ -22,10 +22,15 @@ import { test, expect } from '@playwright/test'
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://miyagisanchez.com'
 const isProd = new URL(baseURL).host === 'miyagisanchez.com'
 
-test.describe('panfleto rename — 301 alias', () => {
-  test('/s/miyagiprints 301s to /s/panfleto once renamed', async ({ request }) => {
+test.describe('panfleto rename — alias redirect', () => {
+  test('/s/miyagiprints redirects to /s/panfleto once renamed', async ({ request }) => {
     const res = await request.get('/s/miyagiprints', { maxRedirects: 0 })
-    test.skip(res.status() !== 301, 'miyagiprints not renamed to panfleto in this environment yet')
+    // The page-level redirect is Next.js's permanentRedirect() -> 308, NOT a
+    // literal 301 (301 is what middleware's own NextResponse.redirect(url,301)
+    // issues for the mschz.org/subdomain host paths — a DIFFERENT code path for
+    // the same alias logic). Caught live: this test skipped forever against a
+    // real renamed shop before the fix, asserting the wrong status code.
+    test.skip(res.status() !== 308, 'miyagiprints not renamed to panfleto in this environment yet')
     const location = res.headers()['location'] ?? ''
     expect(location).toContain('/s/panfleto')
   })
