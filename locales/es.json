@@ -50,7 +50,12 @@
         "title": "Compruébalo tú mismo",
         "body": "Copia el prompt y pégalo en tu IA para que evalúe la oferta por ti."
       },
-      "heroTrustLine": "Compruébalo tú mismo: copia el prompt y pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene."
+      "heroTrustLine": "Compruébalo tú mismo: copia el prompt y pídele a Claude, Gemini o ChatGPT que evalúe miyagisanchez.com y te diga si te conviene.",
+      "migrationCallout": {
+        "title": "¿Vienes de otra plataforma?",
+        "body": "Si ya tienes tu catálogo armado en Shopify, Tiendanube, WooCommerce o Big Cartel, tráelo a Miyagi Sánchez sin volver a capturarlo — guía paso a paso por plataforma.",
+        "ctaLabel": "Ver cómo migrar"
+      }
     },
     "aiChannel": {
       "eyebrow": "",
@@ -715,6 +720,369 @@
         }
       }
     },
+    "migracion": {
+      "metadata": {
+        "title": "Cámbiate a Miyagi Sánchez desde Shopify, Tiendanube, WooCommerce o Big Cartel",
+        "description": "Trae tu catálogo a Miyagi Sánchez en minutos: conector directo para Shopify, exportación guiada para Tiendanube, WooCommerce y Big Cartel. Gratis para empezar tú mismo, o con un consultor si prefieres que alguien lo haga por ti.",
+        "ogAlt": "Cámbiate a Miyagi Sánchez desde tu plataforma actual."
+      },
+      "eyebrow": "Migración",
+      "heroTitle": "Cámbiate a Miyagi Sánchez en minutos, no en semanas.",
+      "heroLead": "Ya tienes tu catálogo armado en otra plataforma — no lo vuelvas a capturar a mano. Elige de dónde vienes y sigue los pasos exactos para traerlo a Miyagi Sánchez.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/migracion y te diga si tu catálogo se puede traer sin volver a capturarlo.",
+      "primaryCta": "Subir mi catálogo",
+      "secondaryCta": "Prefiero que alguien lo haga por mí",
+      "heroStats": [
+        { "value": "Gratis", "label": "hasta 500 productos, para empezar tú mismo" },
+        { "value": "4", "label": "plataformas con guía paso a paso" },
+        { "value": "0", "label": "productos que vuelves a capturar a mano" }
+      ],
+      "proofTitle": "Tres formas de traer tu catálogo",
+      "proofLead": "Elige la que te quede mejor — las tres terminan en el mismo lugar: tu catálogo, revisado por ti y publicado en Miyagi Sánchez.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-refresh",
+          "title": "Shopify: conector directo",
+          "body": "Escribe tu dominio de Shopify y Miyagi Sánchez trae tu catálogo (títulos, variantes, precios, fotos) solo — sin exportar nada a mano."
+        },
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Tiendanube, WooCommerce, Big Cartel: exporta y sube",
+          "body": "Exporta tu catálogo desde tu plataforma actual (CSV o JSON, según cuál uses) y súbelo en el importador de Miyagi Sánchez — nosotros lo revisamos antes de publicar nada."
+        },
+        {
+          "icon": "iconoir-tools",
+          "title": "¿No quieres hacerlo tú? Un consultor lo hace por ti",
+          "body": "Un consultor Miyagi Sánchez va a tu negocio, fotografía tu catálogo y lo deja montado el mismo día. Precio fijo hasta cierto tamaño de catálogo; catálogos más grandes reciben una cotización antes de cobrar cualquier cosa."
+        }
+      ],
+      "routerTitle": "¿De cuál plataforma vienes?",
+      "routerLead": "Cada una tiene su propia guía con los pasos exactos de exportación.",
+      "routerCards": [
+        {
+          "slug": "shopify",
+          "eyebrow": "Conector directo",
+          "title": "Shopify",
+          "body": "Solo necesitas tu dominio — Miyagi Sánchez trae tu catálogo automáticamente.",
+          "icon": "iconoir-refresh"
+        },
+        {
+          "slug": "tiendanube",
+          "eyebrow": "Exporta y sube",
+          "title": "Tiendanube",
+          "body": "Descarga tu lista de productos en CSV desde tu panel.",
+          "icon": "iconoir-cloud-upload"
+        },
+        {
+          "slug": "woocommerce",
+          "eyebrow": "Exporta y sube",
+          "title": "WooCommerce",
+          "body": "Usa el exportador de productos que ya trae WordPress.",
+          "icon": "iconoir-cloud-upload"
+        },
+        {
+          "slug": "bigcartel",
+          "eyebrow": "Copia y pega",
+          "title": "Big Cartel",
+          "body": "Descarga tu catálogo público y pégalo — tu IA lo organiza.",
+          "icon": "iconoir-cloud-upload"
+        }
+      ],
+      "stepsTitle": "Cómo funciona, sin importar de dónde vengas",
+      "steps": [
+        {
+          "title": "1 · Trae tu catálogo",
+          "body": "Con el conector (Shopify) o subiendo tu archivo exportado (Tiendanube, WooCommerce, Big Cartel)."
+        },
+        {
+          "title": "2 · Revisa antes de publicar",
+          "body": "Nada sale a la venta solo — revisas cada producto (título, precio, fotos) y confirmas."
+        },
+        {
+          "title": "3 · Publica en Miyagi Sánchez",
+          "body": "Tu catálogo queda en tu propia tienda, buscable y sin comisión de plataforma."
+        }
+      ],
+      "socialTitle": "Para cualquier catálogo, grande o chico",
+      "socialBody": "Nada se publica solo: tú (o tu consultor) revisas cada producto antes de que salga a la venta.",
+      "socialStats": [
+        { "value": "0%", "label": "comisión de plataforma" },
+        { "value": "Revisión", "label": "nada se publica sin que lo confirmes" },
+        { "value": "IA", "label": "también puedes pegar tu catálogo y dejar que la IA lo organice" }
+      ],
+      "closingTitle": "Tu catálogo ya existe — solo falta traerlo.",
+      "closingBody": "Elige tu plataforma actual arriba y sigue la guía. Si prefieres que alguien más lo haga, pide un consultor Miyagi Sánchez.",
+      "closingCta": "Subir mi catálogo"
+    },
+    "migracionShopify": {
+      "metadata": {
+        "title": "Migra tu catálogo de Shopify a Miyagi Sánchez",
+        "description": "Trae tu catálogo de Shopify a Miyagi Sánchez con el conector directo: escribe tu dominio y tus productos, variantes, precios y fotos llegan solos, listos para revisar.",
+        "ogAlt": "Migra tu catálogo de Shopify a Miyagi Sánchez con el conector directo."
+      },
+      "eyebrow": "Vienes de Shopify",
+      "heroTitle": "Tu catálogo de Shopify, sin volver a capturarlo.",
+      "heroLead": "Escribe el dominio de tu tienda Shopify y Miyagi Sánchez trae tus productos — títulos, variantes, precios, existencias y fotos — directo a una revisión antes de publicar nada.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que revise miyagisanchez.com/vende/migracion/shopify y te diga si tu tienda Shopify se puede traer así.",
+      "primaryCta": "Traer mi catálogo de Shopify",
+      "secondaryCta": "Ver la guía completa de migración",
+      "heroStats": [
+        { "value": "1", "label": "dato que necesitas: tu dominio de Shopify" },
+        { "value": "~1 min", "label": "para traer tu catálogo completo" },
+        { "value": "0", "label": "instalaciones o accesos que dar" }
+      ],
+      "proofTitle": "Qué trae el conector — y qué no",
+      "proofLead": "Es honesto sobre sus límites: trae tu catálogo y tus políticas en texto; el diseño de tu tienda lo montas tú con las plantillas de Miyagi Sánchez.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Catálogo completo",
+          "body": "Títulos, variantes, opciones, precios, existencias y fotos de cada producto — sin volver a escribirlos."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Políticas y preguntas frecuentes",
+          "body": "El texto de tus políticas de envío, devoluciones y preguntas frecuentes llega también, para que lo revises y adaptes."
+        },
+        {
+          "icon": "iconoir-search",
+          "title": "Reporte de qué corresponde y qué no",
+          "body": "Antes de importar nada, ves un reporte claro: qué secciones de tu tienda tienen equivalente en Miyagi Sánchez y cuáles no."
+        },
+        {
+          "icon": "iconoir-shield-check",
+          "title": "No se publica nada sin tu confirmación",
+          "body": "Tu catálogo llega como borrador. Tú decides qué publicar y cuándo — nada sale a la venta solo."
+        }
+      ],
+      "stepsTitle": "Los 4 pasos, de tu dominio a tu catálogo publicado",
+      "steps": [
+        {
+          "title": "1 · Escribe tu dominio",
+          "body": "Entra a tu panel de Miyagi Sánchez → Importar catálogo → Migrar desde Shopify, y escribe tu dominio (ej. tutienda.com o tutienda.myshopify.com)."
+        },
+        {
+          "title": "2 · Espera ~1 minuto",
+          "body": "Miyagi Sánchez trae tu catálogo completo automáticamente — no necesitas exportar ni subir ningún archivo."
+        },
+        {
+          "title": "3 · Revisa el reporte de correspondencia",
+          "body": "Ve qué partes de tu tienda (anuncios, tema, colecciones, páginas) tienen equivalente en Miyagi Sánchez antes de decidir."
+        },
+        {
+          "title": "4 · Elige qué importar y publica",
+          "body": "Selecciona los productos que quieres traer. Quedan como borrador en tu catálogo — tú los revisas y publicas."
+        }
+      ],
+      "socialTitle": "Para tiendas Shopify de cualquier tamaño",
+      "socialBody": "Catálogos grandes también se pueden traer — si el tuyo es muy particular, un consultor Miyagi Sánchez te contacta directamente antes de cobrar nada.",
+      "socialStats": [
+        { "value": "Automático", "label": "sin exportar archivos a mano" },
+        { "value": "Borrador", "label": "revisas antes de publicar" },
+        { "value": "Consultor", "label": "disponible si prefieres que lo haga alguien más" }
+      ],
+      "closingTitle": "Tu catálogo de Shopify puede estar en Miyagi Sánchez hoy.",
+      "closingBody": "Solo necesitas tu dominio. El resto — variantes, precios, fotos — llega solo, listo para que lo revises.",
+      "closingCta": "Traer mi catálogo de Shopify"
+    },
+    "migracionTiendanube": {
+      "metadata": {
+        "title": "Migra tu catálogo de Tiendanube a Miyagi Sánchez",
+        "description": "Exporta tu lista de productos desde tu panel de Tiendanube y súbela al importador de Miyagi Sánchez — pasos exactos, sin volver a capturar tu catálogo a mano.",
+        "ogAlt": "Migra tu catálogo de Tiendanube a Miyagi Sánchez."
+      },
+      "eyebrow": "Vienes de Tiendanube",
+      "heroTitle": "Tu catálogo de Tiendanube, en un archivo y listo para subir.",
+      "heroLead": "Tiendanube ya tiene un exportador de productos integrado. Descarga tu lista en CSV y súbela directo al importador de Miyagi Sánchez — sin volver a escribir un solo producto.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que revise miyagisanchez.com/vende/migracion/tiendanube y te diga si tu exportación de Tiendanube encaja con el importador de Miyagi Sánchez.",
+      "primaryCta": "Ir al importador de Miyagi Sánchez",
+      "secondaryCta": "Ver otras plataformas",
+      "heroStats": [
+        { "value": "CSV", "label": "el mismo archivo que ya exporta Tiendanube" },
+        { "value": "3", "label": "clics dentro de tu panel de Tiendanube" },
+        { "value": "0", "label": "productos que vuelves a escribir" }
+      ],
+      "proofTitle": "De tu panel de Tiendanube al catálogo de Miyagi Sánchez",
+      "proofLead": "Tiendanube exporta un CSV compatible con Excel y Google Sheets — el importador de Miyagi Sánchez reconoce sus columnas (nombre, precio, categoría, stock) automáticamente.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Exportador integrado, sin apps extra",
+          "body": "No necesitas instalar nada — Tiendanube ya tiene un botón de exportar tu lista de productos dentro de tu panel."
+        },
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Columnas reconocidas automáticamente",
+          "body": "Nombre, precio, categoría, stock y descripción se acomodan solos en el formato de Miyagi Sánchez — no tienes que renombrar columnas."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Revisión antes de publicar",
+          "body": "Cada producto importado queda como borrador en tu catálogo — tú confirmas antes de que se vea al público."
+        }
+      ],
+      "stepsTitle": "Los pasos exactos en tu panel de Tiendanube",
+      "steps": [
+        {
+          "title": "1 · Entra a Productos → Lista de productos",
+          "body": "Desde tu panel de control de Tiendanube, ve a la sección de productos."
+        },
+        {
+          "title": "2 · Haz clic en \"Importar y exportar\" → Exportar",
+          "body": "Arriba de tu lista de productos. Marca \"Incluir descripciones\" si quieres conservarlas."
+        },
+        {
+          "title": "3 · Descarga el archivo CSV",
+          "body": "Tiendanube te lo entrega listo, compatible con Excel y Google Sheets."
+        },
+        {
+          "title": "4 · Súbelo en Miyagi Sánchez",
+          "body": "En tu panel de Miyagi Sánchez → Importar catálogo, arrastra el mismo archivo CSV. Revisa la vista previa y confirma."
+        }
+      ],
+      "socialTitle": "Funciona igual sin importar tu plan de Tiendanube",
+      "socialBody": "La exportación de productos no está disponible en el plan Inicial (gratuito) de Tiendanube — si es tu caso, puedes copiar y pegar tu catálogo directo en el importador de Miyagi Sánchez y dejar que la IA lo organice.",
+      "socialStats": [
+        { "value": "CSV", "label": "o copiar y pegar si tu plan no exporta" },
+        { "value": "Revisión", "label": "nada se publica sin que lo confirmes" },
+        { "value": "0%", "label": "comisión de plataforma en Miyagi Sánchez" }
+      ],
+      "closingTitle": "Tu catálogo de Tiendanube ya está listo para exportar.",
+      "closingBody": "Descarga tu CSV desde tu panel y súbelo en el importador de Miyagi Sánchez — la mayoría de las columnas se reconocen solas.",
+      "closingCta": "Ir al importador de Miyagi Sánchez"
+    },
+    "migracionWoocommerce": {
+      "metadata": {
+        "title": "Migra tu catálogo de WooCommerce a Miyagi Sánchez",
+        "description": "Exporta tus productos desde WooCommerce (Productos → Todos los productos → Exportar) y súbelos al importador de Miyagi Sánchez — pasos exactos, sin capturar tu catálogo de nuevo.",
+        "ogAlt": "Migra tu catálogo de WooCommerce a Miyagi Sánchez."
+      },
+      "eyebrow": "Vienes de WooCommerce",
+      "heroTitle": "Tu catálogo de WooCommerce, exportado en un clic.",
+      "heroLead": "WordPress ya trae un exportador de productos integrado en WooCommerce desde hace años. Descarga tu CSV y súbelo al importador de Miyagi Sánchez — sin plugins ni pasos extra.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que revise miyagisanchez.com/vende/migracion/woocommerce y te diga si tu exportación de WooCommerce encaja con el importador de Miyagi Sánchez.",
+      "primaryCta": "Ir al importador de Miyagi Sánchez",
+      "secondaryCta": "Ver otras plataformas",
+      "heroStats": [
+        { "value": "CSV", "label": "con el exportador que ya trae WooCommerce" },
+        { "value": "0", "label": "plugins que instalar" },
+        { "value": "0", "label": "productos que vuelves a escribir" }
+      ],
+      "proofTitle": "De tu WordPress al catálogo de Miyagi Sánchez",
+      "proofLead": "El exportador de WooCommerce viene incluido desde la versión 3.1 — no necesitas ningún plugin adicional para sacar tu catálogo.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Exportador integrado en WooCommerce",
+          "body": "Está en Productos → Todos los productos → Exportar, sin instalar nada más."
+        },
+        {
+          "icon": "iconoir-check-circle",
+          "title": "Variantes incluidas",
+          "body": "El exportador de WooCommerce incluye variaciones de producto (talla, color, etc.) — el importador de Miyagi Sánchez las recibe también."
+        },
+        {
+          "icon": "iconoir-page-search",
+          "title": "Revisión antes de publicar",
+          "body": "Cada producto importado queda como borrador en tu catálogo — tú confirmas antes de que se vea al público."
+        }
+      ],
+      "stepsTitle": "Los pasos exactos en tu WordPress",
+      "steps": [
+        {
+          "title": "1 · Entra a Productos → Todos los productos",
+          "body": "Desde el panel de administración de tu WordPress."
+        },
+        {
+          "title": "2 · Haz clic en \"Exportar\"",
+          "body": "Arriba de tu lista de productos. Deja marcada la opción \"Exportar todas las columnas\" (así no se te queda ningún dato fuera)."
+        },
+        {
+          "title": "3 · Descarga el archivo CSV",
+          "body": "WooCommerce lo genera al instante."
+        },
+        {
+          "title": "4 · Súbelo en Miyagi Sánchez",
+          "body": "En tu panel de Miyagi Sánchez → Importar catálogo, arrastra el archivo. Miyagi Sánchez reconoce las columnas de nombre, precio, categoría e imágenes de WooCommerce automáticamente; revisa la vista previa y confirma."
+        }
+      ],
+      "socialTitle": "Funciona con cualquier tienda WooCommerce",
+      "socialBody": "Si tu catálogo es muy grande para un solo archivo, divídelo en partes — el importador de Miyagi Sánchez acepta varias subidas seguidas sin duplicar productos.",
+      "socialStats": [
+        { "value": "Variantes", "label": "incluidas en la misma exportación" },
+        { "value": "Revisión", "label": "nada se publica sin que lo confirmes" },
+        { "value": "0%", "label": "comisión de plataforma en Miyagi Sánchez" }
+      ],
+      "closingTitle": "Tu catálogo de WooCommerce ya está listo para exportar.",
+      "closingBody": "Usa el exportador que ya trae WordPress y súbelo en Miyagi Sánchez — sin plugins ni pasos extra.",
+      "closingCta": "Ir al importador de Miyagi Sánchez"
+    },
+    "migracionBigcartel": {
+      "metadata": {
+        "title": "Migra tu catálogo de Big Cartel a Miyagi Sánchez",
+        "description": "Big Cartel no tiene un botón de exportar en el panel — te decimos exactamente cómo sacar tu catálogo público y traerlo a Miyagi Sánchez con ayuda de IA.",
+        "ogAlt": "Migra tu catálogo de Big Cartel a Miyagi Sánchez."
+      },
+      "eyebrow": "Vienes de Big Cartel",
+      "heroTitle": "Tu catálogo de Big Cartel, sin botón de exportar — pero sí se puede.",
+      "heroLead": "Big Cartel no tiene una opción de \"exportar\" en su panel. Aquí está el paso honesto: tu catálogo público sí se puede descargar, y tu IA lo puede organizar por ti en el importador de Miyagi Sánchez.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que revise miyagisanchez.com/vende/migracion/bigcartel y te diga si tu catálogo público de Big Cartel se puede traer así.",
+      "primaryCta": "Ir al importador de Miyagi Sánchez",
+      "secondaryCta": "Ver otras plataformas",
+      "heroStats": [
+        { "value": "0", "label": "botón de exportar en el panel de Big Cartel" },
+        { "value": "1", "label": "página pública que sí puedes descargar" },
+        { "value": "IA", "label": "organiza tu catálogo por ti, sin mapear columnas" }
+      ],
+      "proofTitle": "El camino honesto para Big Cartel",
+      "proofLead": "A diferencia de Tiendanube o WooCommerce, Big Cartel no ofrece un CSV listo para importar en otro lado — por eso el camino aquí es distinto, y te lo decimos claro.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-info-circle",
+          "title": "No hay CSV oficial",
+          "body": "Big Cartel no tiene un botón de \"exportar productos\" como Tiendanube o WooCommerce — su catálogo se descarga desde una página pública."
+        },
+        {
+          "icon": "iconoir-cloud-upload",
+          "title": "Tu catálogo público, en un archivo",
+          "body": "La dirección tudominio.com/products.json de tu propia tienda entrega tu catálogo completo (títulos, variantes, precios, fotos) — sin necesitar tu contraseña."
+        },
+        {
+          "icon": "iconoir-brain",
+          "title": "Pégalo y deja que la IA lo organice",
+          "body": "En vez de subir ese archivo como CSV (sus columnas no coinciden con las de un CSV normal), pégalo en la opción \"Pegar catálogo\" del importador de Miyagi Sánchez — la IA lo acomoda por ti."
+        }
+      ],
+      "stepsTitle": "Los pasos exactos para Big Cartel",
+      "steps": [
+        {
+          "title": "1 · Abre tu catálogo público en JSON",
+          "body": "En tu navegador, entra a tudominio.com/products.json (usa el dominio real de tu tienda Big Cartel)."
+        },
+        {
+          "title": "2 · Copia todo el contenido",
+          "body": "Selecciona todo el texto de esa página (Ctrl/Cmd+A, Ctrl/Cmd+C) o guárdala como archivo de texto."
+        },
+        {
+          "title": "3 · Pégalo en el importador de Miyagi Sánchez",
+          "body": "En tu panel de Miyagi Sánchez → Importar catálogo, usa la opción de pegar texto (no la de subir CSV) y pega el contenido."
+        },
+        {
+          "title": "4 · Revisa lo que la IA organizó",
+          "body": "La IA separa cada producto con su título, precio y fotos. Revisa, corrige lo que haga falta y confirma antes de publicar."
+        }
+      ],
+      "socialTitle": "Para tiendas Big Cartel de cualquier tamaño",
+      "socialBody": "Si tu catálogo es grande o tiene muchas variantes, un consultor Miyagi Sánchez puede hacer este proceso por ti — pídelo desde la guía de migración.",
+      "socialStats": [
+        { "value": "JSON", "label": "tu catálogo público, sin contraseña" },
+        { "value": "IA", "label": "organiza el archivo por ti" },
+        { "value": "Revisión", "label": "nada se publica sin que lo confirmes" }
+      ],
+      "closingTitle": "Sin botón de exportar, pero tu catálogo sí se puede traer.",
+      "closingBody": "Copia tu catálogo público en JSON y pégalo en el importador de Miyagi Sánchez — la IA hace el trabajo de organizarlo.",
+      "closingCta": "Ir al importador de Miyagi Sánchez"
+    },
     "promotor": {
       "metadata": {
         "title": "Programa de Promotores — Miyagi Sánchez",
@@ -753,6 +1121,11 @@
           "icon": "iconoir-shop",
           "title": "Conexión Mercado Libre",
           "body": "Importa su catálogo de Mercado Libre a Miyagi Sánchez para que no capture todo a mano — monta la tienda completa en la primera visita, no en varias."
+        },
+        {
+          "icon": "iconoir-refresh",
+          "title": "Migración de tienda",
+          "body": "Fotografías su catálogo (o traes su exportación de Shopify/Tiendanube/WooCommerce/Big Cartel) y lo dejas montado el mismo día. Precio fijo hasta cierto tamaño de catálogo — catálogos grandes reciben una cotización antes de cobrar cualquier cosa. El precio exacto está en tu manual de migración."
         }
       ],
       "stepsTitle": "Cómo montar y entregar (en la tienda)",
@@ -848,6 +1221,10 @@
         {
           "title": "Conexión Mercado Libre",
           "body": "«Si ya vendes en Mercado Libre no tienes que capturar nada otra vez — conectamos tu catálogo y queda todo aquí también, el mismo día.»"
+        },
+        {
+          "title": "Migración de tienda",
+          "body": "«¿Vienes de Shopify, Tiendanube, WooCommerce o Big Cartel? Yo te lo dejo montado hoy mismo — fotografío tu catálogo o traigo tu exportación, y en una visita queda todo en tu propia tienda Miyagi Sánchez. Precio fijo hasta cierto tamaño; si tu catálogo es más grande, te doy una cotización antes de cobrarte cualquier cosa.»"
         }
       ],
       "paymentsTitle": "Cómo funcionan los pagos",
@@ -856,6 +1233,82 @@
       "closingTitle": "Listo para cerrar",
       "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
       "closingCta": "Abrir mi panel para cerrar"
+    },
+    "promotorMigracion": {
+      "title": "Manual de migración",
+      "lead": "El paso a paso de una migración en persona, de principio a fin — qué fotografiar, qué preguntar, y cuándo cobrar precio fijo, cotización o pasar el caso a Daniel.",
+      "photoTitle": "Qué fotografiar",
+      "photo": [
+        {
+          "title": "Su catálogo actual",
+          "body": "Pantallazos de su lista de productos en la plataforma actual (nombre, precio, foto) — sirve como respaldo si algo no importa bien."
+        },
+        {
+          "title": "El total de productos",
+          "body": "Cuántos productos tiene en total — decide si el cierre es precio fijo o necesita cotización (ver abajo)."
+        },
+        {
+          "title": "Su logo y colores",
+          "body": "Si tiene marca definida (logo, colores de su tienda actual), fotografíalos para dejar su tienda Miyagi Sánchez con la misma cara."
+        },
+        {
+          "title": "Políticas de envío y devoluciones",
+          "body": "Fotografía o copia el texto donde las tenga escritas — se transcriben directo a su tienda Miyagi Sánchez."
+        }
+      ],
+      "interviewTitle": "Preguntas de la entrevista",
+      "interview": [
+        {
+          "title": "¿De qué plataforma vienes?",
+          "body": "Shopify usa el conector directo (solo el dominio); Tiendanube, WooCommerce y Big Cartel exportan un archivo primero."
+        },
+        {
+          "title": "¿Cómo cobras hoy?",
+          "body": "Tarjeta, transferencia, efectivo — para dejar los mismos métodos activados en su tienda Miyagi Sánchez desde el primer día."
+        },
+        {
+          "title": "¿Cómo envías?",
+          "body": "Para configurar el mismo método de envío (o el más parecido) en su tienda nueva."
+        },
+        {
+          "title": "¿Hay algo muy particular en tu tienda actual?",
+          "body": "Temas, secciones o páginas hechas a la medida que no sean catálogo, envío o políticas básicas — si las hay, es información para el reporte de correspondencia, no algo que prometas replicar tú mismo."
+        }
+      ],
+      "runTitle": "Cómo correr la migración",
+      "run": [
+        {
+          "title": "1 · Trae el catálogo",
+          "body": "Shopify: usa el conector con su dominio (Panel → Importar catálogo → Migrar desde Shopify). Tiendanube/WooCommerce/Big Cartel: pide su exportación (o ayúdalo a generarla ahí mismo con las guías de /vende/migracion) y súbela en Panel → Importar catálogo."
+        },
+        {
+          "title": "2 · Revisa el reporte de correspondencia",
+          "body": "Si viene de Shopify, revisa el reporte de qué corresponde y qué no antes de seguir — es lo que decide si el caso es precio fijo, cotización o \"muy personalizado\"."
+        },
+        {
+          "title": "3 · Decide el precio (ver abajo) y cierra",
+          "body": "Desde /promotor/cerrar, elige \"Migración de tienda\" y cobra según corresponda."
+        },
+        {
+          "title": "4 · Revisa y publica con el comerciante",
+          "body": "Repasa el catálogo importado junto a él, corrige lo que haga falta, y publica delante de él — así se va viendo su tienda funcionando."
+        }
+      ],
+      "decisionTitle": "Precio fijo, cotización o Daniel — cómo decidir",
+      "decision": [
+        {
+          "title": "Precio fijo",
+          "body": "Catálogo dentro del límite de la migración de precio fijo (revisa el número exacto arriba, junto al precio) y sin nada fuera de lo común. Cierra directo desde /promotor/cerrar sin ID de cotización."
+        },
+        {
+          "title": "Cotización",
+          "body": "Catálogo más grande que el límite de precio fijo. Desde el reporte de correspondencia (solo disponible para migraciones de Shopify por ahora), genera la cotización, cópiale el ID al comerciante y pégalo en /promotor/cerrar al cobrar — el monto cobrado siempre es exactamente el de la cotización, nunca un número distinto."
+        },
+        {
+          "title": "Pasa el caso a Daniel",
+          "body": "Si el reporte marca la tienda como \"muy personalizada\" (una importación incompleta o un catálogo fuera de lo normal), no se genera ningún precio — ni fijo ni cotización. Avísale al comerciante que Daniel lo va a contactar directamente y no prometas ni cobres ningún monto tú mismo."
+        }
+      ]
     },
     "mundial": {
       "metadata": {

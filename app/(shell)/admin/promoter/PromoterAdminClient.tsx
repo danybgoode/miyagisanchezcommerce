@@ -34,6 +34,17 @@ const SKU_LABEL: Record<PromoterSku, string> = {
   migration: 'Migración de tienda',
 }
 
+/**
+ * SKUs with no `PROMOTER_SKU_BASE_PRICE_MXN` entry that are STILL directly priced at
+ * checkout from `skuPrices[sku]` (unlike `print_ad`, whose real price is per-tier —
+ * see `lib/print-server.ts` — and never reads this table at all). The price input
+ * below must stay settable for these even though there's no "regular" price to show
+ * a discount against — platform-migrations S3, fixing a real gap: the input was
+ * unconditionally disabled whenever `base == null`, which made `migration`'s $999
+ * flat price impossible to set through this screen (see `lib/migration-checkout.ts`).
+ */
+const DIRECT_PRICE_SKUS: PromoterSku[] = ['migration']
+
 const mxn = (cents: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
 
@@ -540,6 +551,13 @@ export default function PromoterAdminClient({
         <ul className="space-y-2">
           {PROMOTER_SKUS.map((sku) => {
             const base = PROMOTER_SKU_BASE_PRICE_MXN[sku]
+            const directPriced = DIRECT_PRICE_SKUS.includes(sku)
+            const priceDisabled = base == null && !directPriced
+            const placeholder = base != null
+              ? 'usar descuento general'
+              : directPriced
+                ? 'sin descuento general — precio directo'
+                : 'variable (anuncio impreso)'
             return (
               <li key={sku} className="flex items-end gap-3">
                 <label className="block text-sm flex-1">
@@ -548,10 +566,10 @@ export default function PromoterAdminClient({
                     <input
                       type="number"
                       min={0}
-                      placeholder={base == null ? 'variable (anuncio impreso)' : 'usar descuento general'}
+                      placeholder={placeholder}
                       value={priceInputs[sku] ?? ''}
                       onChange={(e) => setPriceInputs((p) => ({ ...p, [sku]: e.target.value }))}
-                      disabled={base == null}
+                      disabled={priceDisabled}
                       className="w-48 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent disabled:opacity-40"
                     />
                     <span className="text-sm text-[var(--color-muted)]">MXN</span>
@@ -559,7 +577,7 @@ export default function PromoterAdminClient({
                 </label>
                 <button
                   onClick={() => savePrice(sku)}
-                  disabled={savingPrice === sku || base == null}
+                  disabled={savingPrice === sku || priceDisabled}
                   className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
                 >
                   {savingPrice === sku ? 'Guardando…' : 'Guardar'}

@@ -93,6 +93,16 @@ type ApplyTeaser = {
   form?: React.ReactNode
 }
 
+// Platform-migrations epic (03) · Sprint 3 (US-3.2) — a compact "coming from another
+// platform?" nudge on the personas most likely to already run a shop elsewhere
+// (negocios/servicios), pointing at the /vende/migracion hub. Optional and additive —
+// most persona pages leave it undefined.
+export type LandingCallout = {
+  title: string
+  body: string
+  cta: LandingCta
+}
+
 type LandingAiChannel = {
   eyebrow: string
   title: string
@@ -143,6 +153,7 @@ export type SellerAcquisitionPageConfig = {
   benchmark?: LandingBenchmark
   aiChannel?: LandingAiChannel
   applyTeaser?: ApplyTeaser
+  migrationCallout?: LandingCallout
 }
 
 export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPageConfig }) {
@@ -170,8 +181,33 @@ export function SellerAcquisitionPage({ config }: { config: SellerAcquisitionPag
       )}
       <FaqSection config={config} />
       {config.applyTeaser ? <ApplyTeaserSection teaser={config.applyTeaser} /> : null}
+      {config.migrationCallout ? (
+        <MigrationCalloutSection callout={config.migrationCallout} pageId={config.pageId} />
+      ) : null}
       <ClosingCta config={config} />
     </main>
+  )
+}
+
+function MigrationCalloutSection({ callout, pageId }: { callout: LandingCallout; pageId: string }) {
+  return (
+    <section aria-labelledby={`${pageId}-migration-callout-title`} style={{ marginBottom: 'var(--s-10)' }}>
+      <article
+        className="card-panel"
+        style={{ padding: 'var(--s-6)', display: 'flex', flexWrap: 'wrap', gap: 'var(--s-5)', alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <div style={{ maxWidth: 560 }}>
+          <h2 id={`${pageId}-migration-callout-title`} className="t-h3" style={{ letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
+            {callout.title}
+          </h2>
+          <p className="t-lead" style={{ color: 'var(--fg-muted)' }}>{callout.body}</p>
+        </div>
+        <Link href={callout.cta.href} className="btn btn-secondary" data-testid={callout.cta.testId} prefetch={false}>
+          {callout.cta.label}
+          <i className="iconoir-arrow-right" aria-hidden="true" />
+        </Link>
+      </article>
+    </section>
   )
 }
 

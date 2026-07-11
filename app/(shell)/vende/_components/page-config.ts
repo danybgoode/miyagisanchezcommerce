@@ -20,7 +20,7 @@ import {
 } from '@/lib/promoter-earnings'
 import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
-import type { SellerAcquisitionPageConfig } from './SellerAcquisitionSections'
+import type { SellerAcquisitionPageConfig, LandingCallout } from './SellerAcquisitionSections'
 
 type QueryParams = Record<string, string | string[] | undefined | null>
 type SellerAcquisitionCopy = Dictionary['sellerAcquisition']
@@ -29,6 +29,16 @@ type CreatorCopy = SellerAcquisitionCopy['creadores']
 type LocalBusinessCopy = SellerAcquisitionCopy['negocios']
 type ServicesCopy = SellerAcquisitionCopy['servicios']
 type AutosCopy = SellerAcquisitionCopy['autos']
+type MigracionHubCopy = SellerAcquisitionCopy['migracion']
+type MigracionShopifyCopy = SellerAcquisitionCopy['migracionShopify']
+type MigracionTiendanubeCopy = SellerAcquisitionCopy['migracionTiendanube']
+type MigracionWoocommerceCopy = SellerAcquisitionCopy['migracionWoocommerce']
+type MigracionBigcartelCopy = SellerAcquisitionCopy['migracionBigcartel']
+type MigracionPlatformCopy =
+  | MigracionShopifyCopy
+  | MigracionTiendanubeCopy
+  | MigracionWoocommerceCopy
+  | MigracionBigcartelCopy
 type VariantCapablePage = {
   heroTitle: string
   primaryCta: string
@@ -101,6 +111,18 @@ export function buildCreatorPageConfig(
   }
 }
 
+// Platform-migrations epic (03) · Sprint 3 (US-3.2) — negocios/servicios are the personas
+// most likely to already run a shop elsewhere, so they get the compact migration nudge;
+// the other archetype pages (creadores, mundial, autos) leave it undefined.
+function migracionCallout(copy: SellerAcquisitionCopy, testId: string): LandingCallout {
+  const callout = copy.shared.migrationCallout
+  return {
+    title: callout.title,
+    body: callout.body,
+    cta: { label: callout.ctaLabel, href: '/vende/migracion', testId },
+  }
+}
+
 export function buildLocalBusinessPageConfig(
   copy: SellerAcquisitionCopy,
   query: QueryParams,
@@ -114,6 +136,7 @@ export function buildLocalBusinessPageConfig(
       label: page.secondaryCta,
       href: sellerPersonaRouterHref('vende', query),
     },
+    migrationCallout: migracionCallout(copy, 'negocios-migration-callout'),
   }
 }
 
@@ -126,6 +149,7 @@ export function buildServicesPageConfig(
   return {
     ...baseConfig(copy, page, 'servicios', query),
     pageId: 'servicios',
+    migrationCallout: migracionCallout(copy, 'servicios-migration-callout'),
     secondaryCta: {
       label: page.secondaryCta,
       href: sellerPersonaRouterHref('vende', query),
@@ -150,6 +174,137 @@ export function buildAutosPageConfig(
       href: '/l?category=autos',
     },
   }
+}
+
+/**
+ * Platform-migrations epic (03) · Sprint 3 (US-3.1). Standalone content pages — like
+ * `/vende/promotor`, they don't sell a seller "archetype" so they deliberately do NOT
+ * register as `SellerPersonaId`s. Hrefs are plain strings into the real, already-shipped
+ * flows (the Shopify connector, the CSV/paste importer) rather than `sellerPersonaCtaHref`.
+ */
+type MigracionPlatformSlug = 'shopify' | 'tiendanube' | 'woocommerce' | 'bigcartel'
+
+const MIGRACION_PLATFORM_PATHS: Record<MigracionPlatformSlug, string> = {
+  shopify: '/vende/migracion/shopify',
+  tiendanube: '/vende/migracion/tiendanube',
+  woocommerce: '/vende/migracion/woocommerce',
+  bigcartel: '/vende/migracion/bigcartel',
+}
+
+function isMigracionPlatformSlug(slug: string): slug is MigracionPlatformSlug {
+  return Object.prototype.hasOwnProperty.call(MIGRACION_PLATFORM_PATHS, slug)
+}
+
+export function buildMigracionHubPageConfig(
+  copy: SellerAcquisitionCopy,
+  opts: { migrationPriceMxn?: number | null } = {},
+): SellerAcquisitionPageConfig {
+  const page = copy.migracion
+  const migrationPriceMxn = opts.migrationPriceMxn ?? null
+
+  return {
+    pageId: 'migracion',
+    variant: 'a',
+    eyebrow: page.eyebrow,
+    title: page.heroTitle,
+    lead: page.heroLead,
+    trustLine: page.trustLine,
+    trustPrompt: copy.shared.trustPrompt.replaceAll('{url}', 'https://miyagisanchez.com/vende/migracion'),
+    copyLabel: copy.shared.copyPrompt,
+    copiedLabel: copy.shared.copiedPrompt,
+    primaryCta: { label: page.primaryCta, href: '/shop/manage/import', testId: 'migracion-primary-cta' },
+    secondaryCta: { label: page.secondaryCta, href: '/vende/promotor' },
+    // Degrades to the plain hero stats until an admin has configured the migration SKU
+    // price (Story 2.1) — never a fabricated/hardcoded number.
+    heroStats: migrationPriceMxn != null
+      ? [...page.heroStats, { value: `$${migrationPriceMxn}`, label: 'consultor si prefieres que alguien lo haga' }]
+      : page.heroStats,
+    proofTitle: page.proofTitle,
+    proofLead: page.proofLead,
+    proofPoints: page.proofPoints,
+    personaRouter: {
+      title: page.routerTitle,
+      lead: page.routerLead,
+      cards: page.routerCards.map((card) => ({
+        eyebrow: card.eyebrow,
+        title: card.title,
+        body: card.body,
+        icon: card.icon,
+        // `card.slug` ultimately comes from admin-editable copy overrides
+        // (getOverriddenDictionary), not just the static JSON — a bad/typo'd
+        // slug must degrade to the always-valid hub link, never a silent
+        // `href={undefined}` (caught in cross-review of this PR).
+        href: isMigracionPlatformSlug(card.slug) ? MIGRACION_PLATFORM_PATHS[card.slug] : '/vende/migracion',
+        testId: `migracion-router-${card.slug}`,
+      })),
+    },
+    stepsTitle: page.stepsTitle,
+    steps: page.steps,
+    agentTitle: copy.shared.selfCheck.title,
+    agentBody: copy.shared.selfCheck.body,
+    socialTitle: page.socialTitle,
+    socialBody: page.socialBody,
+    socialStats: page.socialStats,
+    faqTitle: copy.shared.faqTitle,
+    faqs: copy.shared.faqs,
+    closingTitle: page.closingTitle,
+    closingBody: page.closingBody,
+    closingCta: { label: page.closingCta, href: '/shop/manage/import', testId: 'migracion-closing-cta' },
+  }
+}
+
+function buildMigracionPlatformPageConfig(
+  copy: SellerAcquisitionCopy,
+  page: MigracionPlatformCopy,
+  pageId: 'migracion-shopify' | 'migracion-tiendanube' | 'migracion-woocommerce' | 'migracion-bigcartel',
+  pagePath: string,
+  primaryHref: string,
+): SellerAcquisitionPageConfig {
+  return {
+    pageId,
+    variant: 'a',
+    eyebrow: page.eyebrow,
+    title: page.heroTitle,
+    lead: page.heroLead,
+    trustLine: page.trustLine,
+    trustPrompt: copy.shared.trustPrompt.replaceAll('{url}', `https://miyagisanchez.com${pagePath}`),
+    copyLabel: copy.shared.copyPrompt,
+    copiedLabel: copy.shared.copiedPrompt,
+    primaryCta: { label: page.primaryCta, href: primaryHref, testId: `${pageId}-primary-cta` },
+    secondaryCta: { label: page.secondaryCta, href: '/vende/migracion' },
+    heroStats: page.heroStats,
+    proofTitle: page.proofTitle,
+    proofLead: page.proofLead,
+    proofPoints: page.proofPoints,
+    stepsTitle: page.stepsTitle,
+    steps: page.steps,
+    agentTitle: copy.shared.selfCheck.title,
+    agentBody: copy.shared.selfCheck.body,
+    socialTitle: page.socialTitle,
+    socialBody: page.socialBody,
+    socialStats: page.socialStats,
+    faqTitle: copy.shared.faqTitle,
+    faqs: copy.shared.faqs,
+    closingTitle: page.closingTitle,
+    closingBody: page.closingBody,
+    closingCta: { label: page.closingCta, href: primaryHref, testId: `${pageId}-closing-cta` },
+  }
+}
+
+export function buildMigracionShopifyPageConfig(copy: SellerAcquisitionCopy): SellerAcquisitionPageConfig {
+  return buildMigracionPlatformPageConfig(copy, copy.migracionShopify, 'migracion-shopify', '/vende/migracion/shopify', '/shop/manage/shopify/import')
+}
+
+export function buildMigracionTiendanubePageConfig(copy: SellerAcquisitionCopy): SellerAcquisitionPageConfig {
+  return buildMigracionPlatformPageConfig(copy, copy.migracionTiendanube, 'migracion-tiendanube', '/vende/migracion/tiendanube', '/shop/manage/import')
+}
+
+export function buildMigracionWoocommercePageConfig(copy: SellerAcquisitionCopy): SellerAcquisitionPageConfig {
+  return buildMigracionPlatformPageConfig(copy, copy.migracionWoocommerce, 'migracion-woocommerce', '/vende/migracion/woocommerce', '/shop/manage/import')
+}
+
+export function buildMigracionBigcartelPageConfig(copy: SellerAcquisitionCopy): SellerAcquisitionPageConfig {
+  return buildMigracionPlatformPageConfig(copy, copy.migracionBigcartel, 'migracion-bigcartel', '/vende/migracion/bigcartel', '/shop/manage/import')
 }
 
 /**

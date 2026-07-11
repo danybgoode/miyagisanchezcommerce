@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { CUSTOM_DOMAIN_PRICE_MXN } from '@/lib/domain-pricing'
 import { SUBDOMAIN_PRICE_YEARLY_MXN } from '@/lib/subdomain-pricing'
+import { getPromoterSkuPrices } from '@/lib/promoter'
 
 export const metadata: Metadata = {
   title: 'Manual del promotor',
@@ -45,6 +46,10 @@ const css = `
 export default async function PromoterSellSheetPage() {
   const ui = (await getOverriddenDictionary('es')).sellerAcquisition
   const p = ui.promotor
+  // Migración de tienda has no compile-time price constant (unlike custom_domain/
+  // subdomain above) — it's admin-set (platform-migrations S2), so it's read live
+  // rather than hardcoded, and the line is omitted entirely until an admin sets one.
+  const migrationPriceMxn = (await getPromoterSkuPrices()).migration ?? null
 
   return (
     <main className="ss-root">
@@ -96,6 +101,12 @@ export default async function PromoterSellSheetPage() {
       <p style={{ fontSize: 14 }}>{p.pitchBody}</p>
       <p className="ss-price">
         {p.priceDomainLabel}: ${CUSTOM_DOMAIN_PRICE_MXN} MXN · {p.priceSubdomainLabel}: ${SUBDOMAIN_PRICE_YEARLY_MXN} MXN/año
+        {migrationPriceMxn != null ? ` · Migración de tienda: $${migrationPriceMxn} MXN` : ''}
+      </p>
+      <p className="no-print" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 24 }}>
+        <a href="/vende/promotor/migracion" style={{ textDecoration: 'underline', fontSize: 14, fontWeight: 600 }}>
+          → Manual de migración (fotografiar, entrevistar, cerrar)
+        </a>
       </p>
     </main>
   )
