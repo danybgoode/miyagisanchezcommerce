@@ -44,6 +44,7 @@ import { thresholdReached } from '@/lib/launchpad-campaign-types'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
+import { isPublicDomainShape } from '@/lib/ssrf-guard'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
 import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
@@ -1930,15 +1931,9 @@ async function handleApplyBulkAction(args: Record<string, unknown>, authHeader?:
 }
 
 // ── Shopify migration connector (epic 03 · platform-migrations S1) ───────────
-
-function looksLikePublicShopifyDomain(input: string): boolean {
-  const host = input.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase()
-  if (!host || host.length > 253) return false
-  if (host === 'localhost' || host.endsWith('.local')) return false
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) return false
-  if (host.includes(':')) return false
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)
-}
+// `isPublicDomainShape` is a friendly early-reject only — the real SSRF
+// boundary (DNS-resolve + private/reserved-range check) is enforced once,
+// centrally, inside lib/shopify-mcp-client.ts, shared with the HTTP route.
 
 async function handleStartShopifyMigration(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
@@ -1949,7 +1944,7 @@ async function handleStartShopifyMigration(args: Record<string, unknown>, authHe
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene slug configurado.' }] }
 
   const domain = String(args.shop_domain ?? '').trim()
-  if (!domain || !looksLikePublicShopifyDomain(domain)) {
+  if (!domain || !isPublicDomainShape(domain)) {
     return { isError: true, content: [{ type: 'text', text: 'shop_domain inválido. Usa un dominio como "mitienda.com" o "mitienda.myshopify.com".' }] }
   }
 

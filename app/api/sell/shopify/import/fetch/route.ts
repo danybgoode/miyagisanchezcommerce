@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
+import { isPublicDomainShape } from '@/lib/ssrf-guard'
 
 /**
  * POST /api/sell/shopify/import/fetch — pull a Shopify shop domain's catalog +
@@ -13,23 +14,13 @@ import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
  * Unlike ML's connected-seller import, there's no OAuth/token relationship —
  * any public Shopify shop domain can be entered (the merchant migrating, or a
  * consultant on their behalf), so `shop_domain` is untrusted input our server
- * fetches: basic shape validation guards against obviously-wrong values (a
- * private/loopback host), the real fetch itself times out and fails closed
- * (lib/shopify-mcp-client.ts).
+ * fetches. `isPublicDomainShape` here is just a friendly early-reject (bad
+ * shape, bare IP, localhost) for a nicer 422 message — the REAL SSRF boundary
+ * (DNS-resolve + private/reserved-range reject, closing the DNS-rebinding gap
+ * a shape check alone leaves open) is enforced once, centrally, inside
+ * `lib/shopify-mcp-client.ts`'s network layer, shared by every caller
+ * (this route + the `start_shopify_migration` MCP tool).
  */
-
-// A conservative "looks like a public domain" check — not exhaustive SSRF
-// hardening (the fetch layer already times out + fails closed), just a guard
-// against obviously wrong input (empty, a bare IP, localhost).
-function looksLikePublicDomain(input: string): boolean {
-  const host = input.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase()
-  if (!host || host.length > 253) return false
-  if (host === 'localhost' || host.endsWith('.local')) return false
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) return false // bare IPv4
-  if (host.includes(':')) return false // no IPv6 literals / ports
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)
-}
-
 export async function POST(req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
@@ -40,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as { shop_domain?: string } | null
   const shopDomain = body?.shop_domain?.trim()
-  if (!shopDomain || !looksLikePublicDomain(shopDomain)) {
+  if (!shopDomain || !isPublicDomainShape(shopDomain)) {
     return NextResponse.json({ error: 'Ingresa un dominio de tienda Shopify válido (ej. mitienda.com o mitienda.myshopify.com).' }, { status: 422 })
   }
 

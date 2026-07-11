@@ -37,8 +37,20 @@
  * server-only. No auth needed to REACH a shop's endpoint (any public Shopify
  * storefront can be queried); the agent-profile URL is not a credential, just
  * a discovery document. Reads fail closed (empty/null) — never throws.
+ *
+ * SSRF hardening: `shop_domain` is untrusted, server-fetched input. A hostname-
+ * shape check alone (`isPublicDomainShape`) doesn't stop a domain that RESOLVES
+ * to a private/internal address (DNS rebinding) — so every call resolves DNS
+ * first (`assertPublicHost`) and rejects if any resolved address is
+ * loopback/private/link-local/reserved, before the real request goes out.
+ * The classifiers themselves live in `lib/ssrf-guard.ts` (server-only-free,
+ * so the Playwright `api` runner can unit-test them directly — importing
+ * `server-only` outside Next's build throws immediately, same trap
+ * `next/cache` has per LEARNINGS).
  */
 import 'server-only'
+import { lookup as dnsLookup } from 'node:dns/promises'
+import { isPublicDomainShape, isPrivateIpv4, isPrivateIpv6 } from './ssrf-guard'
 
 const AGENT_PROFILE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '') +
@@ -46,6 +58,22 @@ const AGENT_PROFILE_URL =
 
 const FETCH_TIMEOUT_MS = 10_000
 const MAX_PAGES = 20 // hard cap — a runaway paginator can't hang a fetch/import request
+
+/**
+ * The real SSRF boundary. Resolves the hostname and rejects if ANY resolved
+ * address is loopback/private/link-local/reserved — closes the gap a plain
+ * string check leaves open (a public-looking hostname that resolves, or
+ * rebinds, to an internal address). Fails closed on any DNS error.
+ */
+async function assertPublicHost(host: string): Promise<boolean> {
+  try {
+    const results = await dnsLookup(host, { all: true, verbatim: true })
+    if (results.length === 0) return false
+    return results.every((r) => (r.family === 6 ? !isPrivateIpv6(r.address) : !isPrivateIpv4(r.address)))
+  } catch {
+    return false
+  }
+}
 
 export type ShopifyUcpMoney = { amount: number | string; currency?: string | null }
 
@@ -87,7 +115,8 @@ async function callTool(
   args: Record<string, unknown>,
 ): Promise<unknown | null> {
   const host = normalizeDomain(domain)
-  if (!host) return null
+  if (!host || !isPublicDomainShape(host)) return null
+  if (!(await assertPublicHost(host))) return null
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
