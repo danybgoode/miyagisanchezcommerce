@@ -6,10 +6,26 @@ import { useState } from 'react'
 import {
   SELLER_NAV,
   SELLER_NAV_MOBILE_PRIMARY,
-  SELLER_NAV_MOBILE_OVERFLOW,
+  SELLER_NAV_MOBILE_OVERFLOW_GROUPS,
   activeSellerNavHref,
+  filterNavByEnabledFlags,
+  filterEntriesByEnabledFlags,
+  hasRelayBadge,
   type SellerNavEntry,
 } from '@/lib/seller-nav'
+import type { FlagKey } from '@/lib/flags'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+
+interface SellerNavProps {
+  /** Server-resolved via `isEnabled()` in `layout.tsx` — never forked here. */
+  enabledFlags?: ReadonlySet<FlagKey>
+  /** Pending-count badges keyed by `SellerNavEntry.key` (today: `pedidos`, `ofertas`). */
+  badges?: Readonly<Partial<Record<string, number>>>
+  /** Shows a warning pill on the Configuración entry in the "Más" sheet when true. */
+  configIncomplete?: boolean
+  /** Backs the "Ver tienda pública" link in the "Más" sheet; omitted when no shop/user. */
+  shopSlug?: string | null
+}
 
 // ── Desktop left rail ─────────────────────────────────────────────────────────
 function RailItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) {
@@ -37,8 +53,8 @@ function RailItem({ entry, active }: { entry: SellerNavEntry; active: boolean })
   )
 }
 
-// ── Mobile bottom-bar item ────────────────────────────────────────────────────
-function BarItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) {
+// ── Mobile bottom-bar item (Resumen · Pedidos · Catálogo) ────────────────────
+function BarItem({ entry, active, badgeCount }: { entry: SellerNavEntry; active: boolean; badgeCount?: number }) {
   return (
     <Link
       href={entry.href}
@@ -46,6 +62,7 @@ function BarItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) 
       aria-current={active ? 'page' : undefined}
       style={{
         flex: 1,
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -56,16 +73,126 @@ function BarItem({ entry, active }: { entry: SellerNavEntry; active: boolean }) 
         minWidth: 0,
       }}
     >
-      <i className={entry.icon} style={{ fontSize: 20, lineHeight: 1 }} />
-      <span style={{ fontSize: 10, fontFamily: 'var(--font-sans)' }}>{entry.label}</span>
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <i className={entry.icon} style={{ fontSize: 20, lineHeight: 1 }} />
+        {!!badgeCount && (
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -6,
+              width: 7,
+              height: 7,
+              borderRadius: 'var(--r-pill)',
+              background: 'var(--warning)',
+              border: '1.5px solid var(--bg)',
+            }}
+          />
+        )}
+      </span>
+      <span style={{ fontSize: 10, fontFamily: 'var(--font-sans)' }}>{entry.mobileLabel ?? entry.label}</span>
     </Link>
   )
 }
 
-export default function SellerNav() {
+// ── Center FAB — "Publicar" → /sell (F5, visual precedent: buyer MobileTabBar's /sell FAB) ──
+function PublicarFab() {
+  return (
+    <Link
+      href="/sell"
+      aria-label="Publicar"
+      style={{
+        flexShrink: 0,
+        width: 46,
+        height: 46,
+        marginTop: -20,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--accent)',
+        color: 'var(--fg-inverse)',
+        boxShadow: '0 4px 12px -2px rgba(29,111,66,0.50), inset 0 1px 0 rgba(255,255,255,0.2)',
+        textDecoration: 'none',
+      }}
+    >
+      <i className="iconoir-plus" style={{ fontSize: 24, lineHeight: 1 }} />
+    </Link>
+  )
+}
+
+// ── "Más" sheet — one leaf entry (list or grid cell) ─────────────────────────
+function OverflowEntry({
+  entry,
+  active,
+  onSelect,
+  badgeCount,
+  showConfigPill,
+  layout,
+}: {
+  entry: SellerNavEntry
+  active: boolean
+  onSelect: () => void
+  badgeCount?: number
+  showConfigPill?: boolean
+  layout: 'list' | 'grid'
+}) {
+  return (
+    <Link
+      href={entry.href}
+      role="menuitem"
+      onClick={onSelect}
+      aria-current={active ? 'page' : undefined}
+      style={
+        layout === 'grid'
+          ? {
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              padding: '12px 8px',
+              borderRadius: 'var(--r-lg)',
+              textDecoration: 'none',
+              fontSize: 12,
+              textAlign: 'center',
+              fontFamily: 'var(--font-sans)',
+              color: active ? 'var(--accent-ink)' : 'var(--fg)',
+              background: active ? 'var(--accent-soft)' : 'transparent',
+            }
+          : {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              padding: '10px 12px',
+              borderRadius: 'var(--r-lg)',
+              textDecoration: 'none',
+              fontSize: 14,
+              fontFamily: 'var(--font-sans)',
+              color: active ? 'var(--accent-ink)' : 'var(--fg)',
+              background: active ? 'var(--accent-soft)' : 'transparent',
+            }
+      }
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <i className={entry.icon} style={{ fontSize: layout === 'grid' ? 22 : 18, lineHeight: 1 }} />
+        {entry.label}
+      </span>
+      {!!badgeCount && <StatusBadge token="warning">{badgeCount}</StatusBadge>}
+      {showConfigPill && <StatusBadge token="warning">Pendiente</StatusBadge>}
+    </Link>
+  )
+}
+
+export default function SellerNav({ enabledFlags = new Set(), badges = {}, configIncomplete = false, shopSlug = null }: SellerNavProps) {
   const pathname = usePathname() ?? ''
   const active = activeSellerNavHref(pathname)
   const [moreOpen, setMoreOpen] = useState(false)
+  const railGroups = filterNavByEnabledFlags(SELLER_NAV, enabledFlags)
+  const primaryEntries = filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_PRIMARY, enabledFlags)
+  const overflowGroups = filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, enabledFlags)
+  const relayActive = hasRelayBadge(overflowGroups, badges)
 
   return (
     <>
@@ -83,7 +210,7 @@ export default function SellerNav() {
           alignSelf: 'flex-start',
         }}
       >
-        {SELLER_NAV.map(group => (
+        {railGroups.map(group => (
           <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span
               style={{
@@ -105,7 +232,7 @@ export default function SellerNav() {
       </nav>
 
       {/* ── Mobile bottom bar ── */}
-      {/* "Más" overflow sheet — anchored above the bar. */}
+      {/* "Más" overflow sheet — anchored above the bar, grouped with headers. */}
       {moreOpen && (
         <>
           <button
@@ -131,37 +258,72 @@ export default function SellerNav() {
               transform: 'translateX(-50%)',
               width: 'calc(100% - 24px)',
               maxWidth: 480,
+              maxHeight: 'calc(100vh - 160px)',
+              overflowY: 'auto',
               zIndex: 100,
               flexDirection: 'column',
               padding: 8,
               borderRadius: 'var(--r-lg)',
-              gap: 2,
+              gap: 10,
             }}
           >
-            {SELLER_NAV_MOBILE_OVERFLOW.map(entry => (
+            {overflowGroups.map(group => (
+              <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: 'var(--fg-subtle)',
+                    padding: '4px 12px 2px',
+                  }}
+                >
+                  {group.label}
+                </span>
+                <div
+                  style={
+                    group.layout === 'grid'
+                      ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }
+                      : { display: 'flex', flexDirection: 'column', gap: 2 }
+                  }
+                >
+                  {group.entries.map(entry => (
+                    <OverflowEntry
+                      key={entry.key}
+                      entry={entry}
+                      active={entry.href === active}
+                      onSelect={() => setMoreOpen(false)}
+                      badgeCount={badges[entry.key]}
+                      showConfigPill={entry.key === 'ajustes' && configIncomplete}
+                      layout={group.layout ?? 'list'}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+            {shopSlug && (
               <Link
-                key={entry.key}
-                href={entry.href}
-                role="menuitem"
+                href={`/s/${shopSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={() => setMoreOpen(false)}
-                aria-current={entry.href === active ? 'page' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
+                  gap: 8,
                   padding: '10px 12px',
                   borderRadius: 'var(--r-lg)',
                   textDecoration: 'none',
-                  fontSize: 14,
+                  fontSize: 13,
                   fontFamily: 'var(--font-sans)',
-                  color: entry.href === active ? 'var(--accent-ink)' : 'var(--fg)',
-                  background: entry.href === active ? 'var(--accent-soft)' : 'transparent',
+                  color: 'var(--accent)',
                 }}
               >
-                <i className={entry.icon} style={{ fontSize: 18, lineHeight: 1 }} />
-                {entry.label}
+                <i className="iconoir-open-new-window" style={{ fontSize: 16, lineHeight: 1 }} />
+                Ver tienda pública
               </Link>
-            ))}
+            )}
           </div>
         </>
       )}
@@ -184,9 +346,10 @@ export default function SellerNav() {
           borderRadius: 28,
         }}
       >
-        {SELLER_NAV_MOBILE_PRIMARY.map(entry => (
-          <BarItem key={entry.key} entry={entry} active={entry.href === active} />
-        ))}
+        {primaryEntries[0] && <BarItem entry={primaryEntries[0]} active={primaryEntries[0].href === active} />}
+        {primaryEntries[1] && <BarItem entry={primaryEntries[1]} active={primaryEntries[1].href === active} badgeCount={badges[primaryEntries[1].key]} />}
+        <PublicarFab />
+        {primaryEntries[2] && <BarItem entry={primaryEntries[2]} active={primaryEntries[2].href === active} />}
         <button
           type="button"
           aria-label="Más"
@@ -194,6 +357,7 @@ export default function SellerNav() {
           onClick={() => setMoreOpen(o => !o)}
           style={{
             flex: 1,
+            position: 'relative',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -206,7 +370,24 @@ export default function SellerNav() {
             minWidth: 0,
           }}
         >
-          <i className="iconoir-menu" style={{ fontSize: 20, lineHeight: 1 }} />
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <i className="iconoir-menu" style={{ fontSize: 20, lineHeight: 1 }} />
+            {relayActive && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -6,
+                  width: 7,
+                  height: 7,
+                  borderRadius: 'var(--r-pill)',
+                  background: 'var(--info)',
+                  border: '1.5px solid var(--bg)',
+                }}
+              />
+            )}
+          </span>
           <span style={{ fontSize: 10, fontFamily: 'var(--font-sans)' }}>Más</span>
         </button>
       </nav>

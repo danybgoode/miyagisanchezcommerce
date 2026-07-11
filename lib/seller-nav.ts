@@ -12,23 +12,41 @@
  * table (Sprint 1 · Story 1.2) instead of the old `/shop/manage#anuncios` jump-link —
  * the dashboard keeps only a compact summary card. "Precios" is deliberately NOT added
  * yet — that page ships in a later catalog-management sprint; the nav never links a 404.
+ *
+ * `import type` only for `FlagKey` — erased at compile time, so this file stays
+ * next-free/pure even though `lib/flags.ts` itself is `server-only` (catalog-management
+ * epic, Sprint 5 · Story 5.1 — R13 flag-safe nav parity).
  */
+
+import type { FlagKey } from './flags'
 
 export interface SellerNavEntry {
   /** Stable id for keys/tests. */
   key: string
-  /** es-MX label. */
+  /** es-MX label (rail + "Más" sheet). */
   label: string
   /** Destination — an existing `/shop/manage*` route, optionally with a `#hash`. */
   href: string
   /** Iconoir class (icons are loaded globally in `app/layout.tsx`). */
   icon: string
+  /** When set, the entry only renders while this flag is ON (server-resolved via `isEnabled()`). */
+  flag?: FlagKey
+  /** Overrides `label` in the mobile primary bar only (rail + "Más" keep `label`). */
+  mobileLabel?: string
 }
 
 export interface SellerNavGroup {
   key: string
   label: string
   entries: SellerNavEntry[]
+}
+
+/** A "Más" sheet section. `layout: 'grid'` renders as a 3-column icon grid (Crecer); default is a plain list. */
+export interface SellerNavMobileOverflowGroup {
+  key: string
+  label: string
+  entries: SellerNavEntry[]
+  layout?: 'list' | 'grid'
 }
 
 export const SELLER_NAV: SellerNavGroup[] = [
@@ -45,7 +63,7 @@ export const SELLER_NAV: SellerNavGroup[] = [
     key: 'catalogo',
     label: 'Catálogo',
     entries: [
-      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-pricetags' },
+      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-pricetags', mobileLabel: 'Catálogo' },
       { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
       // Renamed from "Mercado Libre" — same page, now framed as the channels hub
       // (catalog-management epic: "ML becomes 'Canales'").
@@ -63,9 +81,11 @@ export const SELLER_NAV: SellerNavGroup[] = [
       { key: 'eventos', label: 'Eventos', href: '/shop/manage/eventos', icon: 'iconoir-calendar' },
       { key: 'sorteos', label: 'Sorteos', href: '/shop/manage/sweepstakes', icon: 'iconoir-gift' },
       { key: 'analitica', label: 'Analíticas', href: '/shop/manage/analytics', icon: 'iconoir-graph-up' },
-      // Behind ops.profit_enabled: the page itself notFound()s while the flag
-      // is OFF (profit-analyzer S1 · US-3) — the nav entry is harmless dark.
-      { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins' },
+      // Gated on ops.profit_enabled: the page itself still notFound()s while the
+      // flag is OFF (profit-analyzer S1 · US-3), but the entry is now ALSO hidden
+      // nav-side (catalog-management S5 · Story 5.1 — R13) so a seller never taps
+      // into that 404 in the first place.
+      { key: 'ganancias', label: 'Ganancias', href: '/shop/manage/profit', icon: 'iconoir-coins', flag: 'ops.profit_enabled' },
     ],
   },
   {
@@ -78,20 +98,67 @@ export const SELLER_NAV: SellerNavGroup[] = [
 ]
 
 /**
- * Mobile bottom bar = Resumen · Pedidos · Ofertas · Anuncios (unchanged from
- * before the Catálogo split — Anuncios stays one tap away even though it now
- * lives in the Catálogo group object) plus a "Más" disclosure. The overflow
- * behind "Más" is the rest of Catálogo, then Crecer, then Configuración.
+ * Mobile bottom bar (catalog-management S5 · Story 5.2 — F5) = 3 data-backed slots
+ * — Resumen · Pedidos · Anuncios (rendered as "Catálogo" via `mobileLabel`) — plus
+ * two FIXED, non-data UI slots the renderer places around them: a center "Publicar"
+ * FAB (→ `/sell`) and a trailing "Más" trigger. 5 visual slots total; Ofertas moved
+ * into the "Más" sheet's Operar group below (still ≤2 taps away).
  */
 export const SELLER_NAV_MOBILE_PRIMARY: SellerNavEntry[] = [
-  ...SELLER_NAV[0].entries,
-  SELLER_NAV[1].entries[0],
+  SELLER_NAV[0].entries[0], // Resumen
+  SELLER_NAV[0].entries[1], // Pedidos
+  SELLER_NAV[1].entries[0], // Anuncios ("Catálogo" on mobile)
 ]
-export const SELLER_NAV_MOBILE_OVERFLOW: SellerNavEntry[] = [
-  ...SELLER_NAV[1].entries.slice(1),
-  ...SELLER_NAV[2].entries,
-  ...SELLER_NAV[3].entries,
+
+/**
+ * The "Más" sheet, grouped with headers (no ungrouped junk drawer). Four groups —
+ * Operar remainder, Catálogo remainder, Crecer (rendered as a grid), Configuración
+ * — cover every `SELLER_NAV` entry not promoted into the primary bar, so nothing
+ * silently loses mobile reachability (see `seller-mode.spec.ts`'s completeness
+ * guard, which asserts this against `SELLER_NAV` itself).
+ */
+export const SELLER_NAV_MOBILE_OVERFLOW_GROUPS: SellerNavMobileOverflowGroup[] = [
+  { key: 'operar', label: 'Operar', entries: [SELLER_NAV[0].entries[2]] }, // Ofertas
+  { key: 'catalogo', label: 'Catálogo', entries: SELLER_NAV[1].entries.slice(1) }, // Colecciones, Canales, Importar catálogo
+  { key: 'crecer', label: 'Crecer', entries: SELLER_NAV[2].entries, layout: 'grid' },
+  { key: 'configuracion', label: 'Configuración', entries: SELLER_NAV[3].entries },
 ]
+
+/**
+ * Drops any entry whose `flag` is set and not present in `enabledFlags`, and any
+ * group left with zero entries (defensive — doesn't happen with today's config,
+ * but keeps the function correct if a whole group is ever flag-gated later).
+ * Pure — the server resolves `enabledFlags` via `isEnabled()`, this just filters.
+ * Generic over both the rail's `SellerNavGroup` and the "Más" sheet's
+ * `SellerNavMobileOverflowGroup` (spreading `...group` preserves the latter's
+ * extra `layout` field untouched).
+ */
+export function filterNavByEnabledFlags<G extends { entries: SellerNavEntry[] }>(groups: G[], enabledFlags: ReadonlySet<FlagKey>): G[] {
+  return groups
+    .map(group => ({
+      ...group,
+      entries: group.entries.filter(entry => !entry.flag || enabledFlags.has(entry.flag)),
+    }))
+    .filter(group => group.entries.length > 0)
+}
+
+/** Same filter as {@link filterNavByEnabledFlags}, for a flat entry list (e.g. the mobile primary bar). */
+export function filterEntriesByEnabledFlags(entries: SellerNavEntry[], enabledFlags: ReadonlySet<FlagKey>): SellerNavEntry[] {
+  return entries.filter(entry => !entry.flag || enabledFlags.has(entry.flag))
+}
+
+/**
+ * True when any entry across the (already flag-filtered) "Más" overflow groups
+ * carries a nonzero badge count — the signal that lights up the info-colored
+ * relay dot on the "Más" trigger itself, fed by the same `badges` map keyed on
+ * `SellerNavEntry.key` that the sheet uses to render each entry's own badge.
+ */
+export function hasRelayBadge(
+  overflowGroups: { entries: SellerNavEntry[] }[],
+  badges: Readonly<Partial<Record<string, number>>>,
+): boolean {
+  return overflowGroups.some(group => group.entries.some(entry => (badges[entry.key] ?? 0) > 0))
+}
 
 /** Pathname portion of an href (drops any `#hash`). */
 function hrefPath(href: string): string {

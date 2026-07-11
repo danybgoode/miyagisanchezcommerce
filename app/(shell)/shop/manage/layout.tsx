@@ -1,8 +1,14 @@
 import { headers } from 'next/headers'
 import Link from 'next/link'
+import { currentUser } from '@clerk/nextjs/server'
 import SellerNav from './SellerNav'
 import SellerAnnouncementStrip from './SellerAnnouncementStrip'
 import { getActiveAnnouncement } from '@/lib/announcements'
+import { isEnabled, type FlagKey } from '@/lib/flags'
+import { SELLER_NAV } from '@/lib/seller-nav'
+import { db } from '@/lib/supabase'
+import { computeShopCompletion, completedSectionKeys, type ShopRow } from '@/lib/setup-guide'
+import { orderedSections } from '@/lib/shop-settings/taxonomy'
 
 /**
  * Seller-mode shell for `/shop/manage/*`.
@@ -30,6 +36,56 @@ export default async function SellerManageLayout({ children }: { children: React
   if (whiteLabel) return <>{children}</>
 
   const announcement = await getActiveAnnouncement('seller')
+
+  // R13 flag-safe nav parity (catalog-management S5 · Story 5.1): resolve every
+  // distinct flag the nav config references via the SAME isEnabled() the gated
+  // pages use — never fork the read — so a flagged entry (e.g. Ganancias) only
+  // renders when its page would actually resolve. `headers()` above already
+  // opts this layout into dynamic rendering, so the flag read is never stale.
+  const navFlagKeys = Array.from(new Set(
+    SELLER_NAV.flatMap(group => group.entries.map(entry => entry.flag)).filter((f): f is FlagKey => !!f)
+  ))
+  const navFlagResults = await Promise.all(navFlagKeys.map(flag => isEnabled(flag)))
+  const enabledFlags = new Set<FlagKey>(navFlagKeys.filter((_, i) => navFlagResults[i]))
+
+  // Mobile bar badges + Configuración pill + "Ver tienda pública" link (catalog-
+  // management S5 · Story 5.2). This layout renders unconditionally — including
+  // for a signed-out visitor transiently hitting a `/shop/manage/*` URL before
+  // the child page's own redirect fires — so every read here degrades to a safe
+  // empty default rather than throwing. One shop-row fetch feeds both the pending
+  // counts and the completion flags (same columns `settings/page.tsx` already
+  // selects), so the badge/pill data never drifts from what those pages compute.
+  const user = await currentUser()
+  const { data: shop, error: shopError } = user
+    ? await db
+        .from('marketplace_shops')
+        .select('id, slug, name, description, metadata, mp_enabled, custom_domain, ucp_webhook_url')
+        .eq('clerk_user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    : { data: null, error: null }
+  // A failed read here degrades to the safe empty defaults below (never throws,
+  // this layout renders unconditionally) — but log it so a real outage is still
+  // visible (GCP Error Reporting auto-groups severity>=ERROR console output).
+  if (shopError) console.error('[SellerManageLayout] shop lookup failed:', shopError)
+
+  let badges: Partial<Record<string, number>> = {}
+  let configIncomplete = false
+  const shopSlug = (shop?.slug as string | undefined) ?? null
+
+  if (shop?.id) {
+    const [{ count: pendingOrdersCount, error: ordersError }, { count: pendingOffersCount, error: offersError }] = await Promise.all([
+      db.from('marketplace_orders').select('id', { count: 'exact', head: true }).eq('shop_id', shop.id).in('status', ['paid', 'processing']),
+      db.from('marketplace_offers').select('id', { count: 'exact', head: true }).eq('shop_id', shop.id).eq('status', 'pending'),
+    ])
+    if (ordersError) console.error('[SellerManageLayout] pending-orders count failed:', ordersError)
+    if (offersError) console.error('[SellerManageLayout] pending-offers count failed:', offersError)
+    badges = { pedidos: pendingOrdersCount ?? 0, ofertas: pendingOffersCount ?? 0 }
+
+    const completion = computeShopCompletion(shop as unknown as ShopRow)
+    configIncomplete = completedSectionKeys(completion).size < orderedSections().length
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -103,7 +159,7 @@ export default async function SellerManageLayout({ children }: { children: React
           paddingTop: 20,
         }}
       >
-        <SellerNav />
+        <SellerNav enabledFlags={enabledFlags} badges={badges} configIncomplete={configIncomplete} shopSlug={shopSlug} />
         <main
           style={{
             flex: 1,

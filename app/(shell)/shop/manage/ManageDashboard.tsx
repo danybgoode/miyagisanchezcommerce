@@ -96,7 +96,7 @@ export default function ManageDashboard({
         <div className="flex-shrink-0 flex items-center gap-2">
           <Link
             href="/shop/manage/import"
-            className="btn btn-secondary hidden sm:inline-block"
+            className="btn btn-secondary"
           >
             Importar
           </Link>
