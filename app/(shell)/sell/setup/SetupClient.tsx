@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   validateSetup,
@@ -23,6 +23,7 @@ import { type BlockResult } from '@/lib/settings-import'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Banner } from '@/components/feedback/Banner'
+import { consumeSetupFile } from '@/lib/onboarding-handoff'
 
 // ── Copy-to-clipboard (mirrors the import clients) ────────────────────────────
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
@@ -103,6 +104,16 @@ function FirstRunApply() {
     setFile(parsed as MiyagiSetupFile)
     setValidated(v)
   }
+
+  // Onboarding three-doors handoff (Sprint 1 · Story 1.3): a CSV/JSON dropped
+  // on /sell/agente stashes its parsed MiyagiSetupFile text before routing
+  // here. Consumed at most once (sessionStorage is cleared on read) — a
+  // no-op for every other entry into this page (paste/upload unaffected).
+  useEffect(() => {
+    const stashed = consumeSetupFile()
+    if (stashed) review(stashed, 'file', 'desde-tres-puertas.json')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleFile(f: File) {
     setFileName(null)

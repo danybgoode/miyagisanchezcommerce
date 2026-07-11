@@ -134,6 +134,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // S6, Story 6.1). Kill-switch: default ON ⇒ OFF reverts those two routes to
   // buyer chrome instantly, no redeploy.
   'seller.shell_on_sell_enabled': { polarity: 'killswitch', default: true },
+  // Redirect a fresh, shop-less merchant from /sell into the S1 Bienvenida →
+  // S2 Tres puertas first-run (epic 03 · seller-portal-onboarding-three-doors
+  // S1). Enablement: default OFF ⇒ /sell keeps today's SellWizard entry
+  // unchanged. Flip ON after the Sprint 1 smoke walkthrough passes.
+  'onboarding.three_doors_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

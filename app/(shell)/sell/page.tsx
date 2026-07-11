@@ -1,8 +1,11 @@
 import { currentUser } from '@clerk/nextjs/server'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SellWizard from './SellWizard'
 import { getMySeller } from '@/lib/get-my-seller'
 import { isEnabled } from '@/lib/flags'
+import { getTenantIntake } from '@/lib/tenant-intake'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -111,6 +114,21 @@ export default async function SellPage() {
   // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
   // pre-launch; server-evaluated so the flag flip needs no client round-trip.
   const arrangedOnlyEnabled = await isEnabled('shipping.arranged_only_enabled')
+
+  // Onboarding three-doors first-run entry (Sprint 1 · Story 1.1). A fresh,
+  // shop-less merchant who hasn't already started (no tenant_intake row) and
+  // hasn't deliberately opted out this session (the ghost CTA's skip
+  // signal) gets redirected into S1 Bienvenida instead of today's
+  // SellWizard entry. Flag OFF (the default) or any shop/intake/skip signal
+  // present ⇒ this is a no-op, unchanged behavior.
+  if (!existingShop) {
+    const cookieStore = await cookies()
+    const skipped = cookieStore.get('onboarding_skip')?.value === '1'
+    if (!skipped && (await isEnabled('onboarding.three_doors_enabled'))) {
+      const intake = await getTenantIntake(user.id)
+      if (!intake) redirect('/sell/bienvenida')
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

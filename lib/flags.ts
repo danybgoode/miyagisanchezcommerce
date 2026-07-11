@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -235,6 +235,13 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    other kill-switch's fail-open posture). Does not affect `isSellerModePath`
  *    or `/shop/manage/*`, and a signed-out visitor never even reaches this
  *    read (the eligibility check fails on `currentUser()` first).
+ *  - ENABLEMENT (`onboarding.three_doors_enabled`): default `false` (epic
+ *    seller-portal-onboarding-three-doors, Sprint 1). Gates the redirect
+ *    from `/sell`'s signed-in branch into the new S1 Bienvenida → S2 Tres
+ *    puertas first-run for a merchant with no shop yet and no `tenant_intake`
+ *    row. Default OFF ⇒ `/sell` keeps today's `SellWizard` entry unchanged —
+ *    a flag-read outage can never strand a merchant on an unfinished flow.
+ *    Flip ON only after the Sprint 1 smoke walkthrough passes.
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -264,6 +271,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'catalog.bulk_enabled': false,
   'migrations.connector_enabled': false,
   'seller.shell_on_sell_enabled': true,
+  'onboarding.three_doors_enabled': false,
 }
 
 const TABLE = 'platform_flags'
