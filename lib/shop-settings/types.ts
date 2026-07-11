@@ -67,6 +67,8 @@ export interface ShopSettingsData {
         local_pickup?: boolean
         custom_rates?: boolean
         envia_enabled?: boolean
+        /** Correos de México Impresos opt-in (shipping-provider-expansion S3.2) — sibling of envia_enabled. */
+        correos_enabled?: boolean
         allowed_carriers?: string[]
         rate_display?: 'recommended' | 'cheapest' | 'all'
         handling_fee_cents?: number

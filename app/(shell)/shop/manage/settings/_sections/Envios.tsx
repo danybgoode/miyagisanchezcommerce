@@ -27,6 +27,7 @@ import { PickupSpotManager } from '../_components/PickupSpotManager'
 import { ENVIA_CARRIERS } from '@/lib/shop-settings/helpers'
 import { toEnviaStateCode } from '@/lib/mx-locations'
 import type { PickupSpot, ShippingSettings } from '@/lib/shop-settings/types'
+import { quoteCorreos } from '@/lib/correos-tariff'
 
 export interface EnviosInitial {
   checkout: { show_phone?: boolean; phone?: string | null; whatsapp_cta?: boolean; show_email?: boolean } | null
@@ -51,6 +52,14 @@ export interface EnviosInitial {
    * (`enviaKillGate`) is the real gate.
    */
   granted_envia_enabled: boolean
+  /**
+   * Shipping-provider-expansion · Sprint 3: `shipping.correos_enabled`
+   * (platform flag), server-evaluated. Correos has no comp-grant — just this
+   * one flag — so unlike Envía's pair above, only a platform toggle exists.
+   * When false, the "Ofrecer Correos de México" toggle below stays disabled.
+   * Cosmetic only; the backend (correosGate) is the real gate.
+   */
+  platform_correos_enabled: boolean
 }
 
 export default function Envios({ initial }: { initial: EnviosInitial }) {
@@ -100,6 +109,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
   const [packageWidthCm, setPackageWidthCm] = useState(pkgDefaults.width_cm ?? 15)
   const [packageHeightCm, setPackageHeightCm] = useState(pkgDefaults.height_cm ?? 10)
   const [handlingFeePesos, setHandlingFeePesos] = useState((sh.handling_fee_cents ?? 0) / 100)
+  const [correosEnabled, setCorreosEnabled] = useState(sh.correos_enabled ?? false)
 
   const originAddressReady = Boolean(
     originStreet.trim() &&
@@ -183,6 +193,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
           local_pickup:   localPickup,
           pickup_spots:   pickupSpots,
           envia_enabled:  enviaShippingEnabled,
+          correos_enabled: correosEnabled,
           allowed_carriers: allowedCarriers,
           rate_display: shippingRateDisplay,
           handling_fee_cents: Math.max(0, Math.round(handlingFeePesos * 100)),
@@ -602,6 +613,47 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                     Se suma a cada tarifa en checkout para cubrir empaque o traslado al punto de paquetería.
                   </p>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Correos de México (económico) ──────────────────────────── */}
+          <div className="pt-4">
+            {!initial.platform_correos_enabled && (
+              <Banner variant="warning" className="mb-3">
+                <strong>Correos de México no está disponible todavía.</strong> Esta opción económica
+                está en preparación a nivel de plataforma. Tu configuración se conserva y se activará
+                en cuanto esté lista.
+              </Banner>
+            )}
+            <ToggleSwitch
+              checked={correosEnabled}
+              onChange={v => { setCorreosEnabled(v); mark() }}
+              disabled={!initial.platform_correos_enabled}
+              label="Ofrecer Correos de México (económico)"
+              description="Una opción barata y lenta (4–10 días, sin rastreo) para piezas ligeras — impresos como hojas o stickers. Tú llevas el paquete a la oficina de correos y cubres el franqueo; Miyagi no genera la guía."
+            />
+            {correosEnabled && (
+              <div className="mt-3 space-y-2">
+                {(() => {
+                  const preview = quoteCorreos(packageWeightGrams)
+                  return preview ? (
+                    <Banner variant="success">
+                      Con tu peso predeterminado ({packageWeightGrams} g), el comprador vería:{' '}
+                      <strong>${(preview.totalCents / 100).toFixed(2)} MXN</strong>.
+                    </Banner>
+                  ) : (
+                    <Banner variant="warning">
+                      Tu peso predeterminado ({packageWeightGrams} g) supera el máximo de Correos
+                      Impresos (2000 g) — no se ofrecerá esta opción hasta que ajustes el peso.
+                    </Banner>
+                  )
+                })()}
+                <p className="text-xs text-[var(--color-muted)]">
+                  Categoría Impresos en General — pensada para material impreso (hojas, stickers,
+                  catálogos). No es para paquetería general; para eso usa envío a domicilio o entrega
+                  acordada.
+                </p>
               </div>
             )}
           </div>
