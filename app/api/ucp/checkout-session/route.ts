@@ -132,7 +132,7 @@ interface UcpCheckoutSession {
   // matches the boundary ucp-checkout-session-shipping-boundary.spec.ts pins.
   delivery?: {
     arranged: boolean
-    note:     string
+    note: string
   }
 }
 
