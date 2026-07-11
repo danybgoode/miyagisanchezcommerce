@@ -17,8 +17,22 @@ export async function GET(req: NextRequest) {
   const { userId, getToken } = await auth()
   if (!userId) return NextResponse.redirect(new URL('/sign-in', req.url))
 
+  // Onboarding three-doors S7 — the ONLY change to this callback: read where the
+  // GET handler stashed the return destination, so the wizard's out-and-back
+  // lands the seller back on its own resume-banner step instead of the classic
+  // settings page. Token exchange/storage below is completely unchanged.
+  const returnToWizard = req.cookies.get('mp_return_to')?.value === 'wizard'
+  const clearReturnCookie = (res: NextResponse) => {
+    res.cookies.set('mp_return_to', '', { maxAge: 0, path: '/api/mp/connect' })
+    return res
+  }
+
   const errorRedirect = (reason: string) =>
-    NextResponse.redirect(new URL(`/shop/manage/settings/pagos?mp=error&reason=${encodeURIComponent(reason)}#mercadopago`, req.url))
+    clearReturnCookie(NextResponse.redirect(
+      returnToWizard
+        ? new URL(`/shop/manage/settings/pagos/wizard?mp=error&reason=${encodeURIComponent(reason)}`, req.url)
+        : new URL(`/shop/manage/settings/pagos?mp=error&reason=${encodeURIComponent(reason)}#mercadopago`, req.url),
+    ))
 
   const code = req.nextUrl.searchParams.get('code')
   const oauthError = req.nextUrl.searchParams.get('error')
@@ -61,8 +75,13 @@ export async function GET(req: NextRequest) {
       console.error('[mp/connect/callback] Medusa seller sync failed (non-fatal):', e)
     }
 
-    const res = NextResponse.redirect(new URL('/shop/manage/settings/pagos?mp=connected#mercadopago', req.url))
+    const res = NextResponse.redirect(
+      returnToWizard
+        ? new URL('/shop/manage/settings/pagos/wizard?mp=connected', req.url)
+        : new URL('/shop/manage/settings/pagos?mp=connected#mercadopago', req.url),
+    )
     res.cookies.set('mp_pkce_verifier', '', { maxAge: 0, path: '/api/mp/connect' })
+    res.cookies.set('mp_return_to', '', { maxAge: 0, path: '/api/mp/connect' })
     return res
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

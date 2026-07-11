@@ -35,10 +35,18 @@ test.describe('setup-guide · computeShopCompletion', () => {
   })
 
   test('pagos is done via stripe, mercado pago, OR clabe (any one)', () => {
-    expect(computeShopCompletion(shopWith({ mp_enabled: true })).pagos).toBe(true)
+    expect(computeShopCompletion(shopWith({ metadata: { settings: { mercadopago: { connected: true } } } })).pagos).toBe(true)
     expect(computeShopCompletion(shopWith({ metadata: { settings: { stripe: { charges_enabled: true } } } })).pagos).toBe(true)
     expect(computeShopCompletion(shopWith({ metadata: { settings: { checkout: { bank_transfer: { clabe: '012180001234567895' } } } } })).pagos).toBe(true)
     expect(computeShopCompletion(emptyShop).pagos).toBe(false)
+  })
+
+  test('pagos is NOT done from mp_enabled alone (Sprint 3 bug fix) — it is an opt-out column, not a connected-state flag', () => {
+    // Regression guard for the onboarding-three-doors Sprint 3 fix: mp_enabled
+    // defaults `true` for every shop (supabase/20260521_shops_mp_settings.sql),
+    // so using it as the "pagos done" signal made this step read as complete
+    // for every fresh shop that never connected anything.
+    expect(computeShopCompletion(shopWith({ mp_enabled: true })).pagos).toBe(false)
   })
 
   test('envios is done via local pickup, envia, an origin address field, or a pickup spot', () => {
@@ -92,7 +100,7 @@ test.describe('setup-guide · getSetupSteps', () => {
     const shop = shopWith({
       name: 'Mi Tienda',
       description: 'Vendo artesanías',
-      mp_enabled: true,
+      metadata: { settings: { mercadopago: { connected: true } } },
     })
     const steps = getSetupSteps({ shop, productCount: 0, shareDone: false })
     const byId = Object.fromEntries(steps.map((s) => [s.id, s]))
@@ -114,8 +122,7 @@ test.describe('setup-guide · getSetupSteps', () => {
     const shop = shopWith({
       name: 'Mi Tienda',
       description: 'Vendo artesanías',
-      mp_enabled: true,
-      metadata: { settings: { shipping: { local_pickup: true } } },
+      metadata: { settings: { mercadopago: { connected: true }, shipping: { local_pickup: true } } },
     })
     const steps = getSetupSteps({ shop, productCount: 1, shareDone: true })
     expect(steps.every((s) => s.done)).toBe(true)
@@ -129,6 +136,6 @@ test.describe('setup-guide · getSetupSteps', () => {
     expect(pagos?.estimate).toBe('~4 min')
     expect(pagos?.body).toBe('Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.')
     expect(pagos?.ctaLabel).toBe('Configurar cobros')
-    expect(pagos?.ctaHref).toBe('/shop/manage/settings/pagos')
+    expect(pagos?.ctaHref).toBe('/shop/manage/settings/pagos/wizard')
   })
 })
