@@ -19,6 +19,10 @@
  *       against the test's title, NOT its filename). Use this for a shipped
  *       story's permanent regression coverage (write the spec first, then
  *       run it this way).
+ *   --file <path>
+ *       Runs every test in a COMMITTED e2e/*.browser.spec.ts by FILE path
+ *       (playwright test <path>) — for a manifest-driven sweep that wants
+ *       "run this whole file" rather than one named test.
  *
  * Environments (--env):
  *   local    http://localhost:3001 (assumes `npm run dev` or the standalone
@@ -69,6 +73,7 @@ function parseCliArgs() {
       flow: { type: 'string', default: 'unauthed' },
       path: { type: 'string' },
       spec: { type: 'string' },
+      file: { type: 'string' },
       'preview-url': { type: 'string' },
     },
   })
@@ -127,8 +132,9 @@ function main() {
   if (!['unauthed', 'buyer', 'seller', 'admin'].includes(flow)) {
     die(`--flow must be one of unauthed|buyer|seller|admin (got "${flow}")`)
   }
-  if (!args.path && !args.spec) die('pass --path=<url-path> (ad-hoc) or --spec=<name> (a committed spec)')
-  if (args.path && args.spec) die('pass --path OR --spec, not both')
+  const modes = [args.path, args.spec, args.file].filter(Boolean)
+  if (modes.length === 0) die('pass --path=<url-path> (ad-hoc), --spec=<name>, or --file=<path> (a committed spec)')
+  if (modes.length > 1) die('pass exactly one of --path, --spec, --file')
 
   const baseURL = resolveBaseURL(args.env, args['preview-url'])
   const dotenv = loadDotEnvLocal()
@@ -192,11 +198,14 @@ function main() {
     rmSync(join(APP_ROOT, OUT_DIR, 'report.json'), { force: true })
     rmSync(join(APP_ROOT, OUT_DIR, 'screenshot.png'), { force: true })
     playwrightArgs = ['playwright', 'test', '--project=browser', 'e2e/_live/ad-hoc.browser.spec.ts']
-  } else {
+  } else if (args.spec) {
     playwrightArgs = ['playwright', 'test', '--project=browser', '-g', args.spec]
+  } else {
+    playwrightArgs = ['playwright', 'test', '--project=browser', args.file]
   }
 
-  console.log(`live-smoke: env=${args.env} baseURL=${baseURL} flow=${flow} ${args.path ? `path=${args.path}` : `spec="${args.spec}"`}`)
+  const target = args.path ? `path=${args.path}` : args.spec ? `spec="${args.spec}"` : `file=${args.file}`
+  console.log(`live-smoke: env=${args.env} baseURL=${baseURL} flow=${flow} ${target}`)
 
   const result = spawnSync('npx', playwrightArgs, {
     cwd: APP_ROOT,
