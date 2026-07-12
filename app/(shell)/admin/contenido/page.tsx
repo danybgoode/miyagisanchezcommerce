@@ -3,12 +3,29 @@ import { db } from '@/lib/supabase'
 import { getDictionary } from '@/lib/dictionary'
 import { flattenDictionary } from '@/lib/copy-tree'
 import { isBilingualNamespace } from '@/lib/bilingual-namespaces'
+import {
+  buildContenidoPageUrl,
+  filterKeysByNamespace,
+  filterKeysByQuery,
+  filterKeysByStatus,
+  paginate,
+  sortKeys,
+  type ContenidoSearchParams,
+  type ContenidoSort,
+  type ContenidoStatusFilter,
+} from '@/lib/copy-overrides-admin-view'
 import ContenidoAdminClient, { type OverrideKeyView, type OrphanOverrideView } from './ContenidoAdminClient'
-import ContenidoImportExportPanel from './ContenidoImportExportPanel'
+import ContenidoImportExportPanel, { type KeyIndexEntry } from './ContenidoImportExportPanel'
+import ContenidoFilterBar from './ContenidoFilterBar'
+import ContenidoPagination from './ContenidoPagination'
 import AnunciosAdminClient, { type AnnouncementView } from './AnunciosAdminClient'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Contenido — Admin' }
+
+const PAGE_SIZE = 20
+const SORTS: readonly ContenidoSort[] = ['namespace_asc', 'recent']
+const STATUSES: readonly ContenidoStatusFilter[] = ['all', 'overridden', 'default']
 
 type OverrideRow = {
   namespace: string
@@ -42,8 +59,13 @@ type AnnouncementDbRow = {
  * `db` read, bypassing `lib/copy-overrides.ts`'s `unstable_cache`) so a save is
  * never shown stale to the person who just made it.
  */
-export default async function AdminContenidoPage() {
+export default async function AdminContenidoPage({
+  searchParams,
+}: {
+  searchParams: Promise<ContenidoSearchParams>
+}) {
   await requireAdmin()
+  const params = await searchParams
 
   const esDict = await getDictionary('es')
   const enDict = await getDictionary('en')
@@ -120,11 +142,62 @@ export default async function AdminContenidoPage() {
     updatedAt: r.updated_at,
   }))
 
+  const namespaces = [...new Set(keys.map((k) => k.namespace))].sort()
+  const keyIndex: KeyIndexEntry[] = keys.map((k) => ({ namespace: k.namespace, key: k.key }))
+
+  const q = params.q ?? ''
+  const namespace = namespaces.includes(params.namespace ?? '') ? (params.namespace as string) : 'all'
+  const status: ContenidoStatusFilter = STATUSES.includes(params.status as ContenidoStatusFilter)
+    ? (params.status as ContenidoStatusFilter)
+    : 'all'
+  const sort: ContenidoSort = SORTS.includes(params.sort as ContenidoSort) ? (params.sort as ContenidoSort) : 'namespace_asc'
+
+  // Search + namespace narrow the set the status chips count against, so a
+  // chip's count answers "how many would show if I also picked this" — the
+  // status filter itself is applied AFTER (mirrors /admin/flags).
+  const searched = filterKeysByNamespace(filterKeysByQuery(keys, q), namespace)
+  const statusCounts = {
+    all: searched.length,
+    overridden: searched.filter((k) => k.overrideEs !== null || k.overrideEn !== null).length,
+    default: searched.filter((k) => k.overrideEs === null && k.overrideEn === null).length,
+  }
+
+  const filtered = filterKeysByStatus(searched, status)
+  const sorted = sortKeys(filtered, sort)
+  const parsedPage = parseInt(params.page ?? '1', 10)
+  const { pageItems, totalPages, page } = paginate(
+    sorted,
+    Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    PAGE_SIZE,
+  )
+
   return (
-    <>
-      <ContenidoImportExportPanel />
-      <ContenidoAdminClient keys={keys} orphans={orphans} />
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--fg)' }}>Contenido</h1>
+      <p style={{ color: 'var(--fg-muted)', fontSize: 14, margin: '0 0 8px' }}>
+        Edita el copy de marketing ya publicado, sin deploy. Se ve en vivo en ≤1 min (o al instante, tras guardar).
+      </p>
+      <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 16px' }}>
+        Solo se pueden editar claves que ya existen en el diccionario — «Original» siempre muestra el
+        valor de fábrica. «Restaurar» borra el override y vuelve al valor de fábrica. Mientras escribes,
+        verás «Antes» y «Después (borrador)» — la vista previa de cómo quedará antes de guardar.
+      </p>
+
+      <ContenidoImportExportPanel keyIndex={keyIndex} />
+
+      <ContenidoFilterBar params={params} namespaces={namespaces} statusCounts={statusCounts} />
+
+      <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
+        {filtered.length} de {keys.length} claves · página {page} de {totalPages}
+      </p>
+
+      <ContenidoPagination params={params} page={page} totalPages={totalPages} />
+
+      <ContenidoAdminClient keys={pageItems} orphans={orphans} />
+
+      <ContenidoPagination params={params} page={page} totalPages={totalPages} className="mt-4" />
+
       <AnunciosAdminClient announcements={announcements} />
-    </>
+    </div>
   )
 }
