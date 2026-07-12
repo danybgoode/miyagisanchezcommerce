@@ -169,7 +169,7 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
     <Card n={1} title="Montar la tienda">
       {shop ? (
         <p className="text-sm">
-          ✅ <strong>{shop.name}</strong> · <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>
+          <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>
         </p>
       ) : (
         <div className="space-y-3">
@@ -194,7 +194,7 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
               {cpError && <p className="text-sm text-[color:var(--danger)]">{cpError}</p>}
               {estado && (
                 <p className="text-sm text-[var(--color-muted)]">
-                  📍 {municipio}, {estado}
+                  <i className="iconoir-map-pin" aria-hidden /> {municipio}, {estado}
                   {colonias.length > 0 && (
                     <select value={colonia} onChange={(e) => setColonia(e.target.value)}
                       aria-label="Colonia"
@@ -358,7 +358,7 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
           </p>
         )}
         {transfer.status === 'approved' && (
-          <p className="text-sm text-[color:var(--success)]">✅ Transferencia aprobada — el beneficio ya está activo.</p>
+          <p className="text-sm text-[color:var(--success)]"><i className="iconoir-check-circle" aria-hidden /> Transferencia aprobada — el beneficio ya está activo.</p>
         )}
         {transfer.status === 'rejected' && (
           <p className="text-sm text-[color:var(--danger)]">

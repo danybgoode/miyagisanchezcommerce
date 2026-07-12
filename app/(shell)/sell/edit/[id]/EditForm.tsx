@@ -307,13 +307,13 @@ export default function EditForm({
     <div className="space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3 text-sm flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
+          <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded px-4 py-3 text-sm flex items-center gap-2">
-          <span>✓</span>
+          <i className="iconoir-check" aria-hidden />
           <p>Cambios guardados correctamente.</p>
         </div>
       )}
@@ -429,7 +429,7 @@ export default function EditForm({
               onClick={() => { navigator.clipboard.writeText(`https://${shortUrl}`); setShortCopied(true); setTimeout(() => setShortCopied(false), 2000) }}
               className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-white'}`}
             >
-              {shortCopied ? '✓ Copiado' : 'Copiar'}
+              {shortCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
             </button>
           </div>
           <p className="text-xs text-[var(--color-muted)] mt-2">
@@ -477,7 +477,7 @@ export default function EditForm({
       )}
       {isSubscription && (
         <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-muted)]">
-          💡 Los precios de suscripción se gestionan en los planes del anuncio.
+          <i className="iconoir-light-bulb" aria-hidden /> Los precios de suscripción se gestionan en los planes del anuncio.
         </div>
       )}
 
@@ -653,7 +653,7 @@ export default function EditForm({
           </div>
           {deliveryMode === 'arranged' && (
             <p className="text-xs text-[var(--color-muted)] mt-1.5">
-              🤝 El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
+              <i className="iconoir-community" aria-hidden /> El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
               pago manual configurado para publicar.
             </p>
           )}
@@ -667,7 +667,7 @@ export default function EditForm({
         </label>
         {hasLegacyLocation && !listingState && (
           <div className="mb-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-xs">
-            ⚠ Actualizar ubicación / Update location — tu anuncio tiene una ubicación guardada como texto libre (&quot;{initial.state}&quot;). Selecciona el estado correcto para que aparezca en los filtros de búsqueda.
+            <i className="iconoir-warning-triangle" aria-hidden /> Actualizar ubicación / Update location — tu anuncio tiene una ubicación guardada como texto libre (&quot;{initial.state}&quot;). Selecciona el estado correcto para que aparezca en los filtros de búsqueda.
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -701,7 +701,7 @@ export default function EditForm({
         disabled={saving}
         className="w-full bg-[var(--color-accent)] text-white font-semibold py-3 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {saving ? 'Guardando…' : '✓ Guardar cambios'}
+        {saving ? 'Guardando…' : <><i className="iconoir-check" aria-hidden /> Guardar cambios</>}
       </button>
     </div>
   )

@@ -116,7 +116,7 @@ export default function SetupGuideCard({
                 {step.label}
               </span>
               {step.done ? (
-                <StatusBadge token="success" className="flex-shrink-0">✓</StatusBadge>
+                <StatusBadge token="success" className="flex-shrink-0"><i className="iconoir-check" aria-hidden /></StatusBadge>
               ) : step.open && step.estimate ? (
                 <StatusBadge token="neutral" className="flex-shrink-0">{step.estimate}</StatusBadge>
               ) : null}

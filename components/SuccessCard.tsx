@@ -77,17 +77,17 @@ export function SuccessCard({
   return (
     <Card variant="panel" data-testid="success-card" className="p-5 text-center">
       <div className="inline-flex items-center justify-center w-16 h-16 bg-[var(--success-soft)] rounded-[var(--r-pill)] mb-4">
-        <span className="text-3xl">✅</span>
+        <i className="iconoir-check-circle text-3xl" aria-hidden />
       </div>
       <h2 className="text-xl font-bold">{headline}</h2>
       <p className="text-sm text-[var(--color-muted)] mt-1">{subcopy}</p>
 
       {counts && (
         <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-          {counts.created > 0 && <StatusBadge token="success">✓ {counts.created} creados</StatusBadge>}
-          {counts.updated > 0 && <StatusBadge token="warning">↻ {counts.updated} actualizados</StatusBadge>}
-          {counts.draft > 0 && <StatusBadge token="neutral">📝 {counts.draft} borrador(es)</StatusBadge>}
-          {counts.failed > 0 && <StatusBadge token="danger">✕ {counts.failed} fallaron</StatusBadge>}
+          {counts.created > 0 && <StatusBadge token="success"><i className="iconoir-check" aria-hidden /> {counts.created} creados</StatusBadge>}
+          {counts.updated > 0 && <StatusBadge token="warning"><i className="iconoir-refresh" aria-hidden /> {counts.updated} actualizados</StatusBadge>}
+          {counts.draft > 0 && <StatusBadge token="neutral"><i className="iconoir-notes" aria-hidden /> {counts.draft} borrador(es)</StatusBadge>}
+          {counts.failed > 0 && <StatusBadge token="danger"><i className="iconoir-xmark" aria-hidden /> {counts.failed} fallaron</StatusBadge>}
         </div>
       )}
 

@@ -330,7 +330,7 @@ function ShippingSection({
       <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5">
         <h2 className="font-semibold text-sm text-[var(--color-muted)] uppercase tracking-wide mb-3">Envío</h2>
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-[var(--r-pill)] bg-[var(--success-soft)] flex items-center justify-center flex-shrink-0 text-lg">🚚</div>
+          <div className="w-10 h-10 rounded-[var(--r-pill)] bg-[var(--success-soft)] flex items-center justify-center flex-shrink-0 text-lg"><i className="iconoir-delivery-truck" aria-hidden /></div>
           <div className="flex-1">
             <p className="font-semibold text-sm">{carrierLabel(existingShipment.carrier)}</p>
             {existingShipment.tracking_number && (
@@ -345,13 +345,13 @@ function ShippingSection({
               {existingShipment.label_url && (
                 <a href={existingShipment.label_url} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white no-underline hover:bg-[var(--color-accent-hover)]">
-                  🖨 Imprimir guía
+                  <i className="iconoir-printer" aria-hidden /> Imprimir guía
                 </a>
               )}
               {trackUrl && (
                 <a href={trackUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] text-[var(--color-text)] no-underline hover:bg-[var(--color-surface-alt)]">
-                  📍 Rastrear paquete
+                  <i className="iconoir-map-pin" aria-hidden /> Rastrear paquete
                 </a>
               )}
             </div>
@@ -374,7 +374,7 @@ function ShippingSection({
         {/* Address missing warning */}
         {!hasAddress && (
           <div className="flex items-start gap-2 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2.5 mb-4">
-            <span className="text-[var(--warning)] text-sm mt-0.5">⚠</span>
+            <i className="iconoir-warning-triangle text-[var(--warning)] text-sm mt-0.5" aria-hidden />
             <p className="text-xs text-[var(--warning)]">
               Este pedido no tiene dirección de envío registrada. Coordina la entrega directamente con el comprador.
             </p>
@@ -389,7 +389,7 @@ function ShippingSection({
               onClick={() => setMode('envia')}
               className="flex flex-col items-center gap-2 p-4 rounded-[var(--r-lg)] border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
             >
-              <span className="text-2xl">📦</span>
+              <i className="iconoir-package text-2xl" aria-hidden />
               <div>
                 <p className="font-semibold text-sm">Envia.com</p>
                 <p className="text-xs text-[var(--color-muted)] mt-0.5">Cotiza y genera guía con DHL, FedEx, Estafeta…</p>
@@ -400,7 +400,7 @@ function ShippingSection({
               onClick={() => setMode('manual')}
               className="flex flex-col items-center gap-2 p-4 rounded-[var(--r-lg)] border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all text-center"
             >
-              <span className="text-2xl">✏️</span>
+              <i className="iconoir-edit-pencil text-2xl" aria-hidden />
               <div>
                 <p className="font-semibold text-sm">Envío manual</p>
                 <p className="text-xs text-[var(--color-muted)] mt-0.5">Ingresa tu guía propia o de mensajería local</p>
@@ -439,7 +439,7 @@ function ShippingSection({
                   className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </div>
             </div>
-            {quoteError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {quoteError}</p>}
+            {quoteError && <p className="text-[var(--danger)] text-xs mb-3"><i className="iconoir-warning-triangle" aria-hidden /> {quoteError}</p>}
             <button type="button" onClick={getQuote} disabled={quotingRates}
               className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
               {quotingRates ? 'Cotizando…' : 'Ver tarifas disponibles →'}
@@ -479,10 +479,10 @@ function ShippingSection({
                 </button>
               ))}
             </div>
-            {labelError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {labelError}</p>}
+            {labelError && <p className="text-[var(--danger)] text-xs mb-3"><i className="iconoir-warning-triangle" aria-hidden /> {labelError}</p>}
             <button type="button" onClick={createLabel} disabled={!selectedRate || creatingLabel}
               className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
-              {creatingLabel ? 'Generando guía…' : '📦 Generar guía y confirmar envío'}
+              {creatingLabel ? 'Generando guía…' : <><i className="iconoir-package" aria-hidden /> Generar guía y confirmar envío</>}
             </button>
           </div>
         )}
@@ -528,10 +528,10 @@ function ShippingSection({
                 )}
               </div>
             </div>
-            {manualError && <p className="text-[var(--danger)] text-xs mb-3">⚠ {manualError}</p>}
+            {manualError && <p className="text-[var(--danger)] text-xs mb-3"><i className="iconoir-warning-triangle" aria-hidden /> {manualError}</p>}
             <button type="button" onClick={sendManual} disabled={sendingManual}
               className="w-full bg-[var(--color-accent)] text-white py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
-              {sendingManual ? 'Guardando…' : '✓ Confirmar envío'}
+              {sendingManual ? 'Guardando…' : <><i className="iconoir-check" aria-hidden /> Confirmar envío</>}
             </button>
           </div>
         )}
@@ -985,7 +985,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <div className="w-16 h-16 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
             {thumb
               ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+              : <div className="w-full h-full flex items-center justify-center text-2xl"><i className="iconoir-package" aria-hidden /></div>
             }
           </div>
           <div className="flex-1">
@@ -1002,7 +1002,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         {(order.personalization ?? []).length > 0 && (
           <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
             <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <span>✦</span> Personalización
+              <i className="iconoir-sparks" aria-hidden /> Personalización
             </h3>
             <div className="space-y-3">
               {(order.personalization ?? []).map((block, bi) => (
@@ -1031,7 +1031,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             price always comes from the order itself, never typed here. */}
         <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
           <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <span>🖨️</span> Prueba de impresión
+            <i className="iconoir-printer" aria-hidden /> Prueba de impresión
           </h3>
           {proofSent ? (
             <div className="text-sm">
@@ -1045,7 +1045,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                 {proofPriceCents != null && <>Precio: {formatPrice(proofPriceCents, order.currency)}</>}
               </p>
               <p className="mt-1 font-medium">
-                {proofApproved ? '✓ El comprador aprobó la prueba.' : 'Esperando aprobación del comprador.'}
+                {proofApproved ? <><i className="iconoir-check" aria-hidden /> El comprador aprobó la prueba.</> : 'Esperando aprobación del comprador.'}
               </p>
               {!proofApproved && (
                 <label className="inline-block mt-2 text-xs font-medium text-[var(--color-accent)] cursor-pointer">
@@ -1194,14 +1194,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             disabled={confirmingPayment}
             className="w-full bg-[var(--warning)] text-[var(--fg-inverse)] py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-colors"
           >
-            {confirmingPayment ? 'Confirmando…' : '✓ Confirmar pago recibido'}
+            {confirmingPayment ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar pago recibido</>}
           </button>
         </div>
       )}
       {isSpeiOrder && paymentReceived && (
         <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
-            <span>✓</span>
+            <i className="iconoir-check" aria-hidden />
             <p className="text-sm font-semibold text-[var(--success)]">Pago por SPEI confirmado</p>
           </div>
         </div>
@@ -1224,7 +1224,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {listing?.listing_type === 'product' && !paymentSettled && (
         <div className="border border-[var(--color-border)] bg-[var(--color-surface-alt)] rounded-[var(--r-lg)] p-4 mb-5">
           <div className="flex items-center gap-2">
-            <span>🔒</span>
+            <i className="iconoir-lock" aria-hidden />
             <p className="text-sm font-medium text-[var(--color-muted)]">{SHIP_BLOCKED_UI_NOTE}</p>
           </div>
         </div>
@@ -1234,7 +1234,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {isEscrowOrder && !escrowCaptured && ['delivered', 'completed'].includes(currentStatus) && (
         <div className="border border-[var(--info)] bg-[var(--info-soft)] rounded-[var(--r-lg)] p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
-            <span>🔒</span>
+            <i className="iconoir-lock" aria-hidden />
             <p className="text-sm font-semibold text-[var(--info)]">Pago en custodia (escrow)</p>
           </div>
           <p className="text-xs text-[var(--info)] mb-3">
@@ -1246,14 +1246,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             disabled={releasingEscrow}
             className="w-full border border-[var(--info)] text-[var(--info)] py-2.5 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors"
           >
-            {releasingEscrow ? 'Liberando…' : '🔓 Liberar pago manualmente'}
+            {releasingEscrow ? 'Liberando…' : <><i className="iconoir-lock-slash" aria-hidden /> Liberar pago manualmente</>}
           </button>
         </div>
       )}
       {isEscrowOrder && escrowCaptured && (
         <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
-            <span>✓</span>
+            <i className="iconoir-check" aria-hidden />
             <p className="text-sm font-semibold text-[var(--success)]">Pago de escrow liberado</p>
           </div>
         </div>
@@ -1268,7 +1268,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         return (
           <div className={`border rounded-[var(--r-lg)] p-4 mb-5 ${confirmed ? 'border-[var(--success)] bg-[var(--success-soft)]' : 'border-[var(--warning)] bg-[var(--warning-soft)]'}`}>
             <div className="flex items-center justify-between mb-1">
-              <p className={`text-xs font-semibold uppercase tracking-wide ${confirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>📅 Cita de recolección</p>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${confirmed ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}><i className="iconoir-calendar" aria-hidden /> Cita de recolección</p>
               <span className={`text-[11px] font-semibold rounded-[var(--r-pill)] px-2 py-0.5 ${confirmed ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--warning-soft)] text-[var(--warning)]'}`}>
                 {pickupAppointmentBadge(paState)}
               </span>
@@ -1280,7 +1280,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                 {canSellerConfirm(pickupAppt) && (
                   <button type="button" onClick={() => handlePickupAction('confirm')} disabled={pickupBusy}
                     className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
-                    {pickupBusy ? 'Confirmando…' : '✓ Confirmar cita'}
+                    {pickupBusy ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar cita</>}
                   </button>
                 )}
                 {canSellerReschedule(pickupAppt) && (
@@ -1316,20 +1316,20 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {isPickupOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
         <div className="border border-[var(--warning)] bg-[var(--warning-soft)] rounded-[var(--r-lg)] p-4 mb-5">
-          <p className="text-xs font-semibold text-[var(--warning)] uppercase tracking-wide mb-1">📍 Recolección en mano</p>
+          <p className="text-xs font-semibold text-[var(--warning)] uppercase tracking-wide mb-1"><i className="iconoir-map-pin" aria-hidden /> Recolección en mano</p>
           <p className="text-sm text-[var(--warning)] mb-3">El comprador irá a recogerte el artículo{pickupAppt ? '' : '. Confírmale el horario y lugar por correo o mensaje'}. Coordina cualquier detalle por correo si hace falta.</p>
           {order.buyer_email && (
             <a
               href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, escríbeme para coordinar cuándo puedes venir a recoger tu pedido.`}
               className="inline-flex text-sm font-semibold text-[var(--warning)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--warning-soft)] transition-colors mr-2"
             >
-              ✉ Escribir al comprador
+              <i className="iconoir-mail" aria-hidden /> Escribir al comprador
             </a>
           )}
           {currentStatus !== 'delivered' && (
             <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
               className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
-              {updatingStatus ? 'Actualizando…' : '✓ Confirmar entrega en mano'}
+              {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Confirmar entrega en mano</>}
             </button>
           )}
         </div>
@@ -1343,7 +1343,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
         const lines = formatRentalBookingLines(order.rental_booking, order.currency)
         return (
           <div className="border border-[var(--border)] bg-[var(--bg-sunk)] rounded-[var(--r-lg)] p-4 mb-5">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1">📅 Reserva de renta</p>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1"><i className="iconoir-calendar" aria-hidden /> Reserva de renta</p>
             <p className="text-sm font-semibold">{lines.dates}</p>
             <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
             {lines.deposit && <p className="text-xs text-[var(--fg-muted)]">{lines.deposit}</p>}
@@ -1354,20 +1354,20 @@ export default function OrderDetail({ order }: OrderDetailProps) {
 
       {isCoordOrder && !['delivered','completed','refunded'].includes(currentStatus) && (
         <div className="border border-[var(--info)] bg-[var(--info-soft)] rounded-[var(--r-lg)] p-4 mb-5">
-          <p className="text-xs font-semibold text-[var(--info)] uppercase tracking-wide mb-1">🤝 Entrega acordada</p>
+          <p className="text-xs font-semibold text-[var(--info)] uppercase tracking-wide mb-1"><i className="iconoir-community" aria-hidden /> Entrega acordada</p>
           <p className="text-sm text-[var(--info)] mb-3">El comprador espera que te contactes para acordar cómo y cuándo recibe el artículo. Tienes 24 h para escribirle.</p>
           {order.buyer_email && (
             <a
               href={`mailto:${order.buyer_email}?subject=Tu pedido en Miyagi Sánchez — ${listing?.title ?? 'tu artículo'}&body=Hola ${order.buyer_name ?? ''}, compré tu artículo y quiero coordinarte la entrega.`}
               className="inline-flex text-sm font-semibold text-[var(--info)] border border-[var(--info)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--info-soft)] transition-colors mr-2"
             >
-              ✉ Contactar al comprador
+              <i className="iconoir-mail" aria-hidden /> Contactar al comprador
             </a>
           )}
           {['shipped', 'in_transit', 'processing'].includes(currentStatus) && (
             <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
               className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
-              {updatingStatus ? 'Actualizando…' : '✓ Confirmar entregado'}
+              {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Confirmar entregado</>}
             </button>
           )}
         </div>
@@ -1381,7 +1381,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           </p>
           <button type="button" onClick={() => updateStatus('processing')} disabled={updatingStatus}
             className="text-sm font-semibold text-[var(--info)] border border-[var(--info)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors">
-            {updatingStatus ? 'Actualizando…' : '✓ Marcar como "En preparación"'}
+            {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Marcar como "En preparación"</>}
           </button>
         </div>
       )}
@@ -1391,7 +1391,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           <p className="text-sm font-medium mb-3">¿El comprador ya lo recibió?</p>
           <button type="button" onClick={() => updateStatus('delivered')} disabled={updatingStatus}
             className="text-sm font-semibold text-[var(--success)] border border-[var(--success)] rounded-[var(--r-md)] px-4 py-2 bg-[var(--success-soft)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors">
-            {updatingStatus ? 'Actualizando…' : '✓ Marcar como entregado'}
+            {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Marcar como entregado</>}
           </button>
         </div>
       )}
@@ -1467,7 +1467,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   disabled={processingReturn}
                   className="text-xs font-semibold py-2.5 rounded-[var(--r-md)] border-2 border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)] hover:bg-[var(--success-soft)] disabled:opacity-50 transition-colors"
                 >
-                  ✓ Reembolso total
+                  <i className="iconoir-check" aria-hidden /> Reembolso total
                 </button>
                 <button
                   type="button"
@@ -1483,7 +1483,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
                   disabled={processingReturn}
                   className="text-xs font-semibold py-2.5 rounded-[var(--r-md)] border-2 border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50 transition-colors"
                 >
-                  ✕ Rechazar
+                  <i className="iconoir-xmark" aria-hidden /> Rechazar
                 </button>
               </div>
 
@@ -1518,7 +1518,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
         <div className={`border rounded-[var(--r-lg)] p-4 mb-5 ${refundState === 'confirmado' ? 'border-[var(--success)] bg-[var(--success-soft)]' : 'border-[var(--warning)] bg-[var(--warning-soft)]'}`}>
           <div className="flex items-center gap-2 mb-1">
-            <span>{refundState === 'confirmado' ? '✓' : '🏦'}</span>
+            <span>{refundState === 'confirmado' ? <i className="iconoir-check" aria-hidden /> : <i className="iconoir-bank" aria-hidden />}</span>
             <p className={`text-sm font-semibold ${refundState === 'confirmado' ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
               {refundBadge(refundState)}
             </p>
@@ -1533,7 +1533,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               disabled={markingTransfer}
               className="mt-3 text-sm font-semibold py-2.5 px-4 rounded-[var(--r-md)] bg-[var(--warning)] text-[var(--fg-inverse)] hover:opacity-90 disabled:opacity-50 transition-colors"
             >
-              {markingTransfer ? 'Marcando…' : '💸 Ya transferí'}
+              {markingTransfer ? 'Marcando…' : <><i className="iconoir-cash" aria-hidden /> Ya transferí</>}
             </button>
           )}
           {refundState === 'transferencia_pendiente' && (
@@ -1546,7 +1546,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {refundIssued && !isSpeiOrder && (
         <div className="border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-lg)] p-3 mb-5">
           <div className="flex items-center gap-2">
-            <span>✓</span>
+            <i className="iconoir-check" aria-hidden />
             <p className="text-sm font-semibold text-[var(--success)]">{refundIssuedBanner(false)}</p>
           </div>
         </div>
@@ -1634,7 +1634,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
       {/* AI tip */}
       {canShip && (
         <div className="flex items-start gap-2.5 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] px-4 py-3">
-          <span className="text-base mt-0.5 flex-shrink-0">✦</span>
+          <i className="iconoir-sparks text-base mt-0.5 flex-shrink-0" aria-hidden />
           <p className="text-xs text-[var(--color-muted)] leading-relaxed">
             <strong className="text-[var(--color-text)]">Tip:</strong> Incluye una nota de agradecimiento dentro del paquete.
             Los compradores que reciben una nota califican con 5 estrellas un 40% más seguido.

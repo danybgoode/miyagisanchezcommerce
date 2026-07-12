@@ -134,7 +134,7 @@ function ProgressSteps({
                     : 'bg-[var(--color-border)] text-[var(--color-muted)]'
                 }`}
               >
-                {done ? '✓' : i + 1}
+                {done ? <i className="iconoir-check" aria-hidden /> : i + 1}
               </div>
               <span
                 className={`text-sm font-medium ${
@@ -256,7 +256,7 @@ function PhotoUploader({
                 title={photo.errorMsg}
                 className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--danger)]/80 text-white text-xs p-1 text-center cursor-pointer"
               >
-                <span className="text-lg mb-0.5">⚠</span>
+                <i className="iconoir-warning-triangle text-lg mb-0.5" aria-hidden />
                 <span>Reintentar</span>
               </button>
             )}
@@ -298,7 +298,7 @@ function PhotoUploader({
                 : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
             } ${photos.length === 0 ? 'col-span-3 sm:col-span-4 aspect-auto min-h-[120px]' : ''}`}
           >
-            <span className="text-2xl mb-1">{photos.length === 0 ? '📷' : '+'}</span>
+            <span className="text-2xl mb-1">{photos.length === 0 ? <i className="iconoir-camera" aria-hidden /> : '+'}</span>
             {photos.length === 0 ? (
               <>
                 <span className="text-sm font-medium text-center px-4">Arrastra tus fotos aquí</span>
@@ -333,7 +333,7 @@ function PhotoUploader({
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null
-  return <p className="text-[var(--danger)] text-xs mt-1 flex items-center gap-1"><span>⚠</span>{msg}</p>
+  return <p className="text-[var(--danger)] text-xs mt-1 flex items-center gap-1"><i className="iconoir-warning-triangle" aria-hidden />{msg}</p>
 }
 
 function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
@@ -513,7 +513,7 @@ function RepuveSection({
     <div className="border border-[var(--warning)] bg-[var(--warning-soft)] rounded-[var(--r-lg)] p-4 space-y-4">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <span className="text-2xl mt-0.5">🚗</span>
+        <i className="iconoir-car text-2xl mt-0.5" aria-hidden />
         <div>
           <h3 className="font-semibold text-sm text-[var(--warning)]">Verificación REPUVE</h3>
           <p className="text-xs text-[var(--warning)] mt-0.5 leading-relaxed">
@@ -531,7 +531,7 @@ function RepuveSection({
         rel="noopener noreferrer"
         className="flex items-center gap-2 text-xs font-semibold text-[var(--warning)] no-underline bg-[var(--warning-soft)] hover:bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 transition-colors w-full"
       >
-        <span>📋</span>
+        <i className="iconoir-notes" aria-hidden />
         <span>Paso 1 — Consultar gratis en repuve.gob.mx →</span>
         <span className="ml-auto text-[var(--warning)] text-[10px] uppercase tracking-wide">Abre en nueva pestaña</span>
       </a>
@@ -591,7 +591,7 @@ function RepuveSection({
               className="flex items-center gap-1.5 border border-[var(--warning)] rounded-[var(--r-md)] px-3 py-2 text-xs text-[var(--warning)] bg-[var(--bg-elevated)] hover:bg-[var(--warning-soft)] transition-colors whitespace-nowrap"
               title="Pegar desde portapapeles"
             >
-              📋 Pegar
+              <i className="iconoir-paste-clipboard" aria-hidden /> Pegar
             </button>
           </div>
           {pasteError && <p className="text-[var(--danger)] text-xs mt-1">{pasteError}</p>}
@@ -690,7 +690,7 @@ function StepListing({
         />
         {failedUploads > 0 && (
           <p className="text-[var(--danger)] text-xs mt-1.5 flex items-center gap-1">
-            <span>⚠</span> {failedUploads} foto{failedUploads > 1 ? 's' : ''} no se pudo subir — toca la foto roja para eliminarla y agrega una nueva.
+            <i className="iconoir-warning-triangle" aria-hidden /> {failedUploads} foto{failedUploads > 1 ? 's' : ''} no se pudo subir — toca la foto roja para eliminarla y agrega una nueva.
           </p>
         )}
       </div>
@@ -766,12 +766,12 @@ function StepListing({
         </div>
         {listingType === 'digital' && (
           <p className="text-xs text-[var(--color-muted)] mt-1.5">
-            💡 Entrega automática al comprar — el comprador recibe su archivo al instante.
+            <i className="iconoir-light-bulb" aria-hidden /> Entrega automática al comprar — el comprador recibe su archivo al instante.
           </p>
         )}
         {listingType === 'subscription' && (
           <p className="text-xs text-[var(--color-muted)] mt-1.5">
-            🔔 Los suscriptores pagan mensual o anualmente y acceden a tu biblioteca de contenido exclusivo.
+            <i className="iconoir-bell" aria-hidden /> Los suscriptores pagan mensual o anualmente y acceden a tu biblioteca de contenido exclusivo.
           </p>
         )}
       </div>
@@ -781,7 +781,7 @@ function StepListing({
           the flag is on. */}
       {(listingType === 'service' || listingType === 'rental') && (
         <p className="text-xs text-[var(--color-muted)]">
-          🤝 Este tipo de anuncio siempre coordina la entrega directamente con el comprador.
+          <i className="iconoir-community" aria-hidden /> Este tipo de anuncio siempre coordina la entrega directamente con el comprador.
         </p>
       )}
       {arrangedOnlyEnabled && listingType === 'product' && (
@@ -809,7 +809,7 @@ function StepListing({
           </div>
           {deliveryMode === 'arranged' && (
             <p className="text-xs text-[var(--color-muted)] mt-1.5">
-              🤝 El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
+              <i className="iconoir-community" aria-hidden /> El comprador verá solo pago directo (SPEI / efectivo) — necesitas un método de
               pago manual configurado para publicar.
             </p>
           )}
@@ -820,7 +820,7 @@ function StepListing({
       {listingType === 'subscription' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-[var(--color-text)]">⚙️ Planes de suscripción</p>
+            <p className="text-sm font-semibold text-[var(--color-text)]"><i className="iconoir-settings" aria-hidden /> Planes de suscripción</p>
             {subTiers.length < 3 && (
               <button
                 type="button"
@@ -854,7 +854,7 @@ function StepListing({
                       onClick={() => setSubTiers(prev => prev.filter(t => t.id !== tier.id))}
                       className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                     >
-                      ✕ Quitar
+                      <i className="iconoir-xmark" aria-hidden /> Quitar
                     </button>
                   )}
                 </div>
@@ -929,7 +929,7 @@ function StepListing({
           <Label required>Archivo digital</Label>
           {digitalFile ? (
             <div className="flex items-center gap-3 p-3 border border-[var(--success)] bg-[var(--success-soft)] rounded-[var(--r-md)]">
-              <span className="text-2xl">📄</span>
+              <i className="iconoir-page text-2xl" aria-hidden />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{digitalFile.name}</div>
                 <div className="text-xs text-[var(--color-muted)]">
@@ -950,7 +950,7 @@ function StepListing({
                 digitalUploading ? 'opacity-60 cursor-not-allowed' : 'hover:border-[var(--color-accent)] cursor-pointer'
               }`}
             >
-              <span className="text-3xl">{digitalUploading ? '⏳' : '📁'}</span>
+              <i className={`text-3xl ${digitalUploading ? 'iconoir-hourglass' : 'iconoir-folder'}`} aria-hidden />
               <span className="text-sm font-medium">
                 {digitalUploading ? 'Subiendo archivo…' : 'Haz clic para seleccionar el archivo'}
               </span>
@@ -1544,9 +1544,9 @@ export default function SellWizard({
       {/* Trust signals */}
       {step !== 3 && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-          <span>✓ Sin comisiones</span>
-          <span>✓ Publicación instantánea</span>
-          <span>✓ 100% gratis</span>
+          <span><i className="iconoir-check" aria-hidden /> Sin comisiones</span>
+          <span><i className="iconoir-check" aria-hidden /> Publicación instantánea</span>
+          <span><i className="iconoir-check" aria-hidden /> 100% gratis</span>
         </div>
       )}
     </div>

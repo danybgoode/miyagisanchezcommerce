@@ -35,7 +35,7 @@ export default function PrintEditionCard() {
     <div className="mb-8 rounded-[var(--r-lg)] border border-[var(--color-border)] overflow-hidden">
       <div className="bg-gradient-to-r from-[var(--print-accent)] to-[var(--print-accent-bright)] px-5 py-4 text-[var(--fg-inverse)]">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-90">
-          <span>🗞️</span> Edición impresa · México 86
+          <i className="iconoir-journal" aria-hidden /> Edición impresa · México 86
         </div>
         <h2 className="mt-1 text-lg font-bold">Sal en la revista impresa de tu ciudad</h2>
         <p className="text-sm text-white/85">
@@ -60,8 +60,8 @@ export default function PrintEditionCard() {
                     {ed.coverage_zones.length > 0 && <> · {ed.coverage_zones.join(', ')}</>}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-muted)]">
-                    {deadline && <span>📅 Cierra: <strong className="text-[var(--color-foreground)]">{deadline}</strong></span>}
-                    {distrib && <span>📍 Distribución: <strong className="text-[var(--color-foreground)]">{distrib}</strong></span>}
+                    {deadline && <span><i className="iconoir-calendar" aria-hidden /> Cierra: <strong className="text-[var(--color-foreground)]">{deadline}</strong></span>}
+                    {distrib && <span><i className="iconoir-map-pin" aria-hidden /> Distribución: <strong className="text-[var(--color-foreground)]">{distrib}</strong></span>}
                   </div>
                 </div>
                 {fromPrice !== null && (

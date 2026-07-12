@@ -45,7 +45,7 @@ export function InspectionReportField({ value, onChange }: {
 
       {value ? (
         <div className="flex items-center gap-3 p-3 border border-green-300 bg-green-50 rounded-lg">
-          <span className="text-2xl">📄</span>
+          <i className="iconoir-page text-2xl" aria-hidden />
           <div className="flex-1 min-w-0">
             <a href={value} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline truncate block">
               Ver reporte
@@ -64,7 +64,7 @@ export function InspectionReportField({ value, onChange }: {
             uploading ? 'opacity-60 cursor-not-allowed' : 'hover:border-[var(--color-accent)] cursor-pointer'
           }`}
         >
-          <span className="text-2xl">{uploading ? '⏳' : '📁'}</span>
+          <i className={`text-2xl ${uploading ? 'iconoir-hourglass' : 'iconoir-folder'}`} aria-hidden />
           <span className="text-sm font-medium">{uploading ? 'Subiendo…' : 'Subir PDF de inspección'}</span>
           <span className="text-xs text-[var(--color-muted)]">PDF · máx. 15 MB</span>
         </button>

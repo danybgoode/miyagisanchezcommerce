@@ -412,7 +412,7 @@ export default function CheckoutExperience({
   if (optionsError) {
     return (
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <p style={{ fontSize: 13, color: 'var(--danger)' }}>⚠ {optionsError}</p>
+        <p style={{ fontSize: 13, color: 'var(--danger)' }}><i className="iconoir-warning-triangle" aria-hidden /> {optionsError}</p>
       </section>
     )
   }
@@ -430,7 +430,7 @@ export default function CheckoutExperience({
       {deliveryMethods.length === 0 && (
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>📦</span>
+            <i className="iconoir-package" aria-hidden style={{ fontSize: 20, flexShrink: 0 }} />
             <div>
               <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Este vendedor aún no configura la entrega</p>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
@@ -469,7 +469,7 @@ export default function CheckoutExperience({
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{spot.name ?? 'Punto de entrega'}</span>
                       {spot.address && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{spot.address}</span>}
-                      {spot.hours && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>🕐 {spot.hours}</span>}
+                      {spot.hours && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}><i className="iconoir-clock" aria-hidden /> {spot.hours}</span>}
                       {spot.notes && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>{spot.notes}</span>}
                       {spot.scheduling_url && active && (
                         <a href={spot.scheduling_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>
@@ -528,7 +528,7 @@ export default function CheckoutExperience({
                     style={{ ...inputStyle, paddingRight: 34, border: `1px solid ${cpLookupError ? 'var(--danger)' : cpResolved ? 'var(--success)' : 'var(--border)'}` }}
                   />
                   {cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-subtle)' }}>·</span>}
-                  {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success)' }}>✓</span>}
+                  {cpResolved && !cpLookupLoading && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--success)' }}><i className="iconoir-check" aria-hidden /></span>}
                 </div>
                 {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{cpLookupError}</p>}
                 {!cpResolved && !cpLookupError && (
@@ -549,14 +549,14 @@ export default function CheckoutExperience({
                         <div>
                           <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
                           <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}><i className="iconoir-check" aria-hidden /></span>
                             <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
                           </div>
                         </div>
                         <div>
                           <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
                           <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 12, color: 'var(--success)' }}>✓</span>
+                            <span style={{ fontSize: 12, color: 'var(--success)' }}><i className="iconoir-check" aria-hidden /></span>
                             <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
                           </div>
                         </div>
@@ -648,7 +648,7 @@ export default function CheckoutExperience({
           )}
 
           {options.preparation && (
-            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 10 }}>📦 Tiempo de preparación: {options.preparation}</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 10 }}><i className="iconoir-package" aria-hidden /> Tiempo de preparación: {options.preparation}</p>
           )}
         </section>
       )}
@@ -659,7 +659,7 @@ export default function CheckoutExperience({
 
         {paymentMethods.length === 0 ? (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>🤝</span>
+            <i className="iconoir-community" aria-hidden style={{ fontSize: 20, flexShrink: 0 }} />
             <div>
               <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>
                 {options.only_coordinated ? 'Este vendedor coordina pago y entrega juntos' : 'Pagos en línea no disponibles'}
@@ -678,7 +678,7 @@ export default function CheckoutExperience({
                 so paymentMethods.length is never 0 here). */}
             {options.only_coordinated && (
               <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginBottom: 2 }}>
-                🤝 Este vendedor coordina la entrega — el pago se acuerda directamente (SPEI / efectivo).
+                <i className="iconoir-community" aria-hidden /> Este vendedor coordina la entrega — el pago se acuerda directamente (SPEI / efectivo).
               </p>
             )}
             {paymentMethods.map(option => {
@@ -719,9 +719,11 @@ export default function CheckoutExperience({
                     <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 12, borderLeft: '2px solid var(--border)', display: 'grid', gap: 8 }}>
                       {manualMethods.map(m => (
                         <div key={m.type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                          <span aria-hidden style={{ fontSize: 14, lineHeight: 1.4 }}>
-                            {m.type === 'clabe' ? '🏦' : m.type === 'dimo' ? '📱' : '💵'}
-                          </span>
+                          <i
+                            aria-hidden
+                            className={m.type === 'clabe' ? 'iconoir-bank' : m.type === 'dimo' ? 'iconoir-smartphone-device' : 'iconoir-cash'}
+                            style={{ fontSize: 14, lineHeight: 1.4 }}
+                          />
                           <span style={{ display: 'block' }}>
                             <strong style={{ fontSize: 12.5, color: 'var(--fg)' }}>{m.label}</strong>
                             {m.note && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5, marginTop: 1 }}>{m.note}</span>}

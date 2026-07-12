@@ -47,7 +47,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
       }}
       className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
     >
-      {copied ? '✓ Copiado' : `📋 ${label}`}
+      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : <><i className="iconoir-copy" aria-hidden /> {label}</>}
     </button>
   )
 }
@@ -208,7 +208,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
       {/* Paste & publish (Sprint 2) — the easy, native path */}
       <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-4">
         <h2 className="font-semibold mb-1 flex items-center gap-2">
-          <span className="text-xl">✨</span> Pega y publica
+          <i className="iconoir-sparks text-xl" aria-hidden /> Pega y publica
         </h2>
         <p className="text-sm text-[var(--color-muted)] mb-3">
           Pega lo que sea —listas, descripciones, mensajes de proveedor o notas— y nuestra IA arma tu
@@ -256,7 +256,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
           Elegir archivo
         </button>
         {fileName && (
-          <p className="text-xs text-[var(--color-muted)] mt-3">📄 {fileName}</p>
+          <p className="text-xs text-[var(--color-muted)] mt-3"><i className="iconoir-page" aria-hidden /> {fileName}</p>
         )}
       </div>
 
@@ -282,11 +282,11 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
           {/* Summary */}
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-3 py-1 text-sm font-semibold">
-              ✓ {validCount} {validCount === 1 ? 'producto listo' : 'productos listos'}
+              <i className="iconoir-check" aria-hidden /> {validCount} {validCount === 1 ? 'producto listo' : 'productos listos'}
             </span>
             {errorRowCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
-                ✕ {errorRowCount} por corregir
+                <i className="iconoir-xmark" aria-hidden /> {errorRowCount} por corregir
               </span>
             )}
           </div>
@@ -398,7 +398,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
               </div>
               {errorRowCount > 0 && (
                 <p className="px-4 py-2 text-xs text-[var(--color-muted)] border-t border-[var(--color-border)]">
-                  💡 Corrige los campos marcados en rojo aquí mismo, o vuelve a generar el texto con tu IA.
+                  <i className="iconoir-light-bulb" aria-hidden /> Corrige los campos marcados en rojo aquí mismo, o vuelve a generar el texto con tu IA.
                 </p>
               )}
               {importing && (
@@ -449,7 +449,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
                 />
                 {imagesFailed > 0 && (
                   <p className="text-xs text-amber-700 mt-3 text-center">
-                    ⚠️ {imagesFailed} imagen(es) no se pudieron traer y se dejaron con su enlace original.
+                    <i className="iconoir-warning-triangle" aria-hidden /> {imagesFailed} imagen(es) no se pudieron traer y se dejaron con su enlace original.
                   </p>
                 )}
                 {failed.length > 0 && (
@@ -502,7 +502,7 @@ export default function ImportClient({
         >
           <div>
             <h2 className="font-semibold mb-1 flex items-center gap-2">
-              <span className="text-xl">🛍️</span> Migrar desde Shopify
+              <i className="iconoir-shopping-bag text-xl" aria-hidden /> Migrar desde Shopify
             </h2>
             <p className="text-sm text-[var(--color-muted)]">
               Trae tu catálogo directamente desde el dominio de tu tienda Shopify — sin archivos ni copiar y pegar.
@@ -546,7 +546,7 @@ export default function ImportClient({
           className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
         />
         <p className="text-xs text-[var(--color-muted)] mt-2">
-          💡 ¿Catálogo enorme? Si tus datos superan el límite de tu IA, súbelos primero a{' '}
+          <i className="iconoir-light-bulb" aria-hidden /> ¿Catálogo enorme? Si tus datos superan el límite de tu IA, súbelos primero a{' '}
           <a href="https://notebooklm.google.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">NotebookLM</a>{' '}
           para condensarlos, y procésalos por partes. Máximo {MAX_IMPORT_ROWS} productos por archivo.
         </p>

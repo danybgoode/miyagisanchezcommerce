@@ -122,7 +122,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
     <div>
       <section id="citas" className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">📅</span>
+          <i className="iconoir-calendar text-xl" aria-hidden />
           <h2 className="font-semibold text-sm">Citas y Reservas</h2>
         </div>
         <p className="text-xs text-[var(--color-muted)] mb-2">
@@ -140,7 +140,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-              🔗 Mis enlaces de reservas
+              <i className="iconoir-link" aria-hidden /> Mis enlaces de reservas
             </p>
             {schedulingLinks.length > 0 && (
               <StatusBadge token="success">
@@ -153,9 +153,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
             <div className="space-y-1.5 mb-3">
               {schedulingLinks.map((link, i) => (
                 <div key={i} className="flex items-center gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2">
-                  <span className="text-base">
-                    {link.url.includes('cal.com') ? '📅' : link.url.includes('calendly.com') ? '📆' : '🔗'}
-                  </span>
+                  <i className={`text-base ${link.url.includes('cal.com') || link.url.includes('calendly.com') ? 'iconoir-calendar' : 'iconoir-link'}`} aria-hidden />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate">{link.label}</p>
                     <p className="text-xs text-[var(--color-muted)] truncate">{link.url}</p>
@@ -221,7 +219,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                  ✨ Cal.com — Agentes de IA
+                  <i className="iconoir-sparks" aria-hidden /> Cal.com — Agentes de IA
                 </p>
                 <CopyPromptButton prompt="¿Es seguro compartir mi API key de Cal.com con una plataforma de terceros? Verifica con la documentación oficial de Cal.com: https://cal.com/docs/enterprise-features/api/api-keys — ¿Qué acceso otorga una API key? ¿Puede la plataforma modificar mi calendario o crear citas sin mi permiso? ¿Cómo puedo revocar el acceso si es necesario?" />
               </div>
@@ -245,7 +243,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
           {calcomConnected ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 bg-[var(--success-soft)] border border-[var(--success)] rounded-[var(--r-md)]">
-                <span className="text-lg">✓</span>
+                <i className="iconoir-check text-lg" aria-hidden />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-[var(--success)]">Conectado como @{calcomUsername}</p>
                   <p className="text-xs text-[var(--success)] mt-0.5 truncate">
@@ -351,7 +349,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
           ) : (
             schedulingLinks.length > 0 && (
               <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2">
-                💡 <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
+                <i className="iconoir-light-bulb" aria-hidden /> <strong>¿Quieres más poder?</strong> Conecta tu API key de Cal.com para que los agentes de IA verifiquen disponibilidad y agenden citas automáticamente.{' '}
                 <button type="button" onClick={() => setShowApiKeyForm(true)} className="text-[var(--color-accent)] hover:underline">
                   Conectar →
                 </button>

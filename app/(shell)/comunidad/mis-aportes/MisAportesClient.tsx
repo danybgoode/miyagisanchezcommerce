@@ -36,7 +36,7 @@ export default function MisAportesClient() {
 
       {rows.length === 0 ? (
         <div className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-10 text-center">
-          <div className="text-4xl mb-3">📣</div>
+          <div className="text-4xl mb-3"><i className="iconoir-megaphone" aria-hidden /></div>
           <p className="text-sm text-[var(--color-muted)] mb-4">Aún no has compartido nada con tu colonia.</p>
           <Link href="/comunidad/nuevo" className="inline-block bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold no-underline">
             Compartir algo

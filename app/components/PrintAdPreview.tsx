@@ -41,8 +41,8 @@ export default function PrintAdPreview({ content, tierLabel }: { content: PrintA
 
         <div className="flex items-end justify-between mt-4 pt-3 border-t-2 border-dashed border-[#0a4d2e]/40">
           <div className="text-xs leading-relaxed">
-            {wa && <div>📱 WhatsApp: <strong>{wa}</strong></div>}
-            {content.contact?.phone && <div>☎ {content.contact.phone}</div>}
+            {wa && <div><i className="iconoir-smartphone-device" aria-hidden /> WhatsApp: <strong>{wa}</strong></div>}
+            {content.contact?.phone && <div><i className="iconoir-phone" aria-hidden /> {content.contact.phone}</div>}
             {content.cta_target?.url && (
               <div className="text-[#0a4d2e] break-all mt-1">{content.cta_target.url.replace(/^https?:\/\//, '')}</div>
             )}

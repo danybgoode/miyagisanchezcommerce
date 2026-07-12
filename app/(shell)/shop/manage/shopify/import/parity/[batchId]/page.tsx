@@ -12,9 +12,9 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Reporte de paridad — Shopify' }
 
 const VERDICT_BADGE: Record<ParityVerdict, { icon: string; bg: string; fg: string; label: string }> = {
-  mapped: { icon: '✓', bg: 'var(--success-soft)', fg: 'var(--success)', label: 'Igual' },
-  partial: { icon: '⚠', bg: 'var(--warning-soft)', fg: 'var(--warning)', label: 'Parcial' },
-  none: { icon: '✗', bg: 'var(--danger-soft)', fg: 'var(--danger)', label: 'Sin equivalente' },
+  mapped: { icon: 'iconoir-check', bg: 'var(--success-soft)', fg: 'var(--success)', label: 'Igual' },
+  partial: { icon: 'iconoir-warning-triangle', bg: 'var(--warning-soft)', fg: 'var(--warning)', label: 'Parcial' },
+  none: { icon: 'iconoir-xmark', bg: 'var(--danger-soft)', fg: 'var(--danger)', label: 'Sin equivalente' },
 }
 
 /**
@@ -131,7 +131,7 @@ export default async function ShopifyParityPage({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {badge.icon} {badge.label}
+                  <i className={badge.icon} aria-hidden /> {badge.label}
                 </span>
               </div>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>{section.note}</p>

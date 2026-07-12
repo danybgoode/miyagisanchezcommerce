@@ -464,7 +464,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
-          🗞️ Diseña tu anuncio impreso
+          <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
         </Link>
       )}
       {/* Single "Comprar ahora" → unified checkout, where the buyer picks the
@@ -670,7 +670,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
             style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
           >
-            🗞️ Diseña tu anuncio impreso
+            <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
           </Link>
           {redesignAskLink}
         </>

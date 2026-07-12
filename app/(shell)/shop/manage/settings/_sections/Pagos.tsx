@@ -142,14 +142,14 @@ export default function Pagos({
             <p className="text-xs font-semibold text-[var(--info)] mb-3">¿Cómo funciona Compra Protegida?</p>
             <div className="flex items-start gap-1 flex-wrap sm:flex-nowrap">
               {[
-                { icon: '💳', title: 'Comprador paga',    desc: 'El monto se cobra de forma segura' },
-                { icon: '🔒', title: 'Fondos retenidos',  desc: 'El dinero queda en custodia temporal' },
-                { icon: '📦', title: 'Recibes el pago',   desc: 'Entrega el producto al comprador' },
-                { icon: '✅', title: 'Confirma recepción', desc: 'Los fondos se liberan al vendedor' },
+                { icon: 'iconoir-credit-card', title: 'Comprador paga',    desc: 'El monto se cobra de forma segura' },
+                { icon: 'iconoir-lock', title: 'Fondos retenidos',  desc: 'El dinero queda en custodia temporal' },
+                { icon: 'iconoir-package', title: 'Recibes el pago',   desc: 'Entrega el producto al comprador' },
+                { icon: 'iconoir-check-circle', title: 'Confirma recepción', desc: 'Los fondos se liberan al vendedor' },
               ].map((step, i, arr) => (
                 <div key={step.title} className="flex items-center gap-1">
                   <div className="text-center min-w-[72px]">
-                    <div className="text-xl mb-1">{step.icon}</div>
+                    <div className="text-xl mb-1"><i className={step.icon} aria-hidden /></div>
                     <div className="text-[11px] font-semibold text-[var(--info)] leading-tight">{step.title}</div>
                     <div className="text-[10px] text-[var(--info)] leading-tight mt-0.5">{step.desc}</div>
                   </div>
@@ -158,7 +158,7 @@ export default function Pagos({
               ))}
             </div>
             <p className="text-xs text-[var(--info)] mt-3 pt-2 border-t border-[var(--info)]">
-              💡 Si el comprador no confirma la recepción en <strong>3 días hábiles</strong>, los fondos se liberan automáticamente. Powered by Stripe.
+              <i className="iconoir-light-bulb" aria-hidden /> Si el comprador no confirma la recepción en <strong>3 días hábiles</strong>, los fondos se liberan automáticamente. Powered by Stripe.
             </p>
           </div>
         )}
@@ -248,9 +248,9 @@ export default function Pagos({
             {stripeEnabled ? (
               <Banner variant="success" className="text-xs">
                 <p className="font-semibold">Lo que verán los compradores:</p>
-                <p>✓ Botón &ldquo;Pagar con tarjeta&rdquo; visible en cada anuncio</p>
-                <p>✓ Checkout seguro de Stripe — Visa, Mastercard, AMEX</p>
-                <p>✓ El pago llega a tu cuenta Stripe directamente</p>
+                <p><i className="iconoir-check" aria-hidden /> Botón &ldquo;Pagar con tarjeta&rdquo; visible en cada anuncio</p>
+                <p><i className="iconoir-check" aria-hidden /> Checkout seguro de Stripe — Visa, Mastercard, AMEX</p>
+                <p><i className="iconoir-check" aria-hidden /> El pago llega a tu cuenta Stripe directamente</p>
               </Banner>
             ) : (
               <Banner variant="warning" className="text-xs">
@@ -261,7 +261,7 @@ export default function Pagos({
         ) : initial.stripe?.account_id && !initial.stripe.onboarding_complete ? (
           <div className="bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-3">
-              <span className="text-xl">⚠️</span>
+              <i className="iconoir-warning-triangle text-xl" aria-hidden />
               <div>
                 <div className="text-sm font-semibold text-[var(--warning)]">Configuración pendiente</div>
                 <div className="text-xs text-[var(--warning)] mt-0.5">
@@ -277,14 +277,14 @@ export default function Pagos({
         ) : (
           <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-4">
-              <span className="text-2xl">💳</span>
+              <i className="iconoir-credit-card text-2xl" aria-hidden />
               <div>
                 <div className="text-sm font-semibold">Acepta tarjetas en tu tienda</div>
                 <ul className="text-xs text-[var(--color-muted)] mt-1.5 space-y-0.5">
-                  <li>✓ Visa, Mastercard, AMEX</li>
-                  <li>✓ 0% comisión de plataforma</li>
-                  <li>✓ Pagos directos a tu cuenta bancaria</li>
-                  <li>✓ Configuración en 2 minutos</li>
+                  <li><i className="iconoir-check" aria-hidden /> Visa, Mastercard, AMEX</li>
+                  <li><i className="iconoir-check" aria-hidden /> 0% comisión de plataforma</li>
+                  <li><i className="iconoir-check" aria-hidden /> Pagos directos a tu cuenta bancaria</li>
+                  <li><i className="iconoir-check" aria-hidden /> Configuración en 2 minutos</li>
                 </ul>
               </div>
             </div>
@@ -345,9 +345,9 @@ export default function Pagos({
             </div>
             <Banner variant="info" className="text-xs">
               <p className="font-semibold">Lo que verán los compradores:</p>
-              <p>✓ Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
-              <p>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</p>
-              <p>✓ El pago llega directo a tu cuenta de Mercado Pago</p>
+              <p><i className="iconoir-check" aria-hidden /> Botón &ldquo;Pagar con Mercado Pago&rdquo; en tus anuncios</p>
+              <p><i className="iconoir-check" aria-hidden /> Tarjeta, OXXO, saldo MP, meses sin intereses</p>
+              <p><i className="iconoir-check" aria-hidden /> El pago llega directo a tu cuenta de Mercado Pago</p>
             </Banner>
             {initial.mercadopago?.live_mode === false && (
               <Banner variant="warning" className="text-xs">
@@ -358,14 +358,14 @@ export default function Pagos({
         ) : (
           <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-4">
             <div className="flex items-start gap-3 mb-4">
-              <span className="text-2xl">🔵</span>
+              <i className="iconoir-circle text-2xl" aria-hidden />
               <div>
                 <div className="text-sm font-semibold">Conecta tu cuenta de Mercado Pago</div>
                 <ul className="text-xs text-[var(--color-muted)] mt-1.5 space-y-0.5">
-                  <li>✓ Tarjeta, OXXO, saldo MP, meses sin intereses</li>
-                  <li>✓ 0% comisión de plataforma</li>
-                  <li>✓ El dinero llega directo a tu cuenta</li>
-                  <li>✓ Checkout familiar para compradores mexicanos</li>
+                  <li><i className="iconoir-check" aria-hidden /> Tarjeta, OXXO, saldo MP, meses sin intereses</li>
+                  <li><i className="iconoir-check" aria-hidden /> 0% comisión de plataforma</li>
+                  <li><i className="iconoir-check" aria-hidden /> El dinero llega directo a tu cuenta</li>
+                  <li><i className="iconoir-check" aria-hidden /> Checkout familiar para compradores mexicanos</li>
                 </ul>
               </div>
             </div>
@@ -416,7 +416,7 @@ export default function Pagos({
                 className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
               {clabe && clabe.length !== 18 && (
-                <p className="text-[var(--warning)] text-xs mt-1">⚠ La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
+                <p className="text-[var(--warning)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> La CLABE debe tener exactamente 18 dígitos ({clabe.length}/18)</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -466,7 +466,7 @@ export default function Pagos({
               </div>
             ) : (
               <Banner variant="neutral" className="text-xs">
-                💡 El comprador verá la CLABE al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
+                <i className="iconoir-light-bulb" aria-hidden /> El comprador verá la CLABE al momento de pagar. Confirma el pago en tu cuenta antes de enviar o entregar.
               </Banner>
             )}
           </div>
@@ -495,7 +495,7 @@ export default function Pagos({
               className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
             {dimoPhone && dimoPhone.length !== 10 && (
-              <p className="text-[var(--warning)] text-xs mt-1">⚠ El teléfono debe tener 10 dígitos ({dimoPhone.length}/10)</p>
+              <p className="text-[var(--warning)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> El teléfono debe tener 10 dígitos ({dimoPhone.length}/10)</p>
             )}
           </div>
         )}
@@ -511,7 +511,7 @@ export default function Pagos({
         </div>
         {cashPickupEnabled && !localPickup && (
           <p className="text-[var(--warning)] text-xs mt-2">
-            ⚠ Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
+          <i className="iconoir-warning-triangle" aria-hidden /> Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
           </p>
         )}
         {cashPickupEnabled && (

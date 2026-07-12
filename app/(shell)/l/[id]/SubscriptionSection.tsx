@@ -149,7 +149,7 @@ export default function SubscriptionSection({
     return (
       <div className="border border-green-200 bg-green-50 rounded-xl p-5 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">✅</span>
+          <span className="text-2xl"><i className="iconoir-check-circle" aria-hidden /></span>
           <p className="font-semibold text-green-800">¡Suscripción registrada!</p>
         </div>
         <p className="text-sm text-green-700">{speiResult.message}</p>
@@ -242,7 +242,7 @@ export default function SubscriptionSection({
                   <ul className="mt-2 space-y-1">
                     {tier.features.slice(0, 4).map((f, i) => (
                       <li key={i} className="text-xs text-[var(--color-text)] flex items-start gap-1">
-                        <span className="text-[var(--color-accent)] shrink-0 mt-0.5">✓</span>
+                        <i className="iconoir-check text-[var(--color-accent)] shrink-0 mt-0.5" aria-hidden />
                         <span>{f}</span>
                       </li>
                     ))}
@@ -261,7 +261,7 @@ export default function SubscriptionSection({
       <div className="px-5 pb-5 space-y-2">
         {error && (
           <p className="text-red-600 text-sm flex items-center gap-1.5">
-            <span>⚠</span> {error}
+            <i className="iconoir-warning-triangle" aria-hidden /> {error}
           </p>
         )}
 
@@ -298,7 +298,7 @@ export default function SubscriptionSection({
                 onClick={() => setShowSpei(true)}
                 className="w-full border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-lg text-sm hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
               >
-                💳 Pagar con SPEI / transferencia bancaria
+                <i className="iconoir-credit-card" aria-hidden /> Pagar con SPEI / transferencia bancaria
               </button>
             )}
 

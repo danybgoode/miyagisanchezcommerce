@@ -64,7 +64,7 @@ export default function ManageDashboard({
         <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight">{shop.name}</h1>
           {shop.location && (
-            <p className="text-sm text-[var(--color-muted)] mt-0.5">📍 {shop.location}</p>
+            <p className="text-sm text-[var(--color-muted)] mt-0.5"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>
           )}
           {/* Navigation lives in the SellerNav rail (lib/seller-nav.ts) — the
               dashboard header keeps only the public-shop link + a compact
@@ -145,7 +145,7 @@ export default function ManageDashboard({
 
         {initialListings.length === 0 ? (
           <div className="py-4 text-center">
-            <div className="text-3xl mb-2">📦</div>
+            <div className="text-3xl mb-2"><i className="iconoir-package" aria-hidden /></div>
             <p className="text-sm text-[var(--color-muted)]">
               Publica tu primer producto, servicio o renta en menos de 2 minutos.
             </p>
@@ -157,7 +157,7 @@ export default function ManageDashboard({
                 {listing.images?.[0]?.url ? (
                   <img src={listing.images[0].url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+                  <div className="w-full h-full flex items-center justify-center text-xl"><i className="iconoir-package" aria-hidden /></div>
                 )}
               </div>
             ))}
@@ -172,7 +172,7 @@ export default function ManageDashboard({
 
       {/* ── Trust footer ────────────────────────────────────────────────────── */}
       <p className="text-xs text-center text-[var(--color-muted)] mt-10">
-        ✓ Sin comisiones · ✓ Publicación instantánea · ✓ 100% gratis
+        <i className="iconoir-check" aria-hidden /> Sin comisiones · <i className="iconoir-check" aria-hidden /> Publicación instantánea · <i className="iconoir-check" aria-hidden /> 100% gratis
       </p>
     </div>
   )

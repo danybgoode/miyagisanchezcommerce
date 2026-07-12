@@ -184,7 +184,7 @@ export default function NotificationPreferences() {
         {linked ? (
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1 text-sm text-[var(--color-accent)]">
-              Conectado ✓
+              Conectado <i className="iconoir-check" aria-hidden />
             </span>
             <button
               type="button"

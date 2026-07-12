@@ -163,7 +163,7 @@ export default function CheckoutPayButton({
           <>{PAY_LABEL[provider]} — {formatPrice(total, currency)}</>
         )}
       </button>
-      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center">⚠ {error}</p>}
+      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
     </div>
   )
 }

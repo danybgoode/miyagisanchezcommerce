@@ -133,7 +133,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
               }`}
             />
             {(webhookUrlError || webhookSaveError) && (
-              <p className="text-[var(--danger)] text-xs mt-1">⚠ {webhookUrlError || webhookSaveError}</p>
+              <p className="text-[var(--danger)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> {webhookUrlError || webhookSaveError}</p>
             )}
           </div>
 
@@ -168,7 +168,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                     }}
                     className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
                   >
-                    {webhookCopied ? '✓ Copiado' : 'Copiar'}
+                    {webhookCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
                   </button>
                   <button
                     type="button"
@@ -180,7 +180,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                 </div>
               ) : (
                 <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
-                  🔐 Cuando guardes los cambios, se generará una clave secreta automáticamente. Úsala para verificar que las notificaciones vienen de Miyagi Sánchez.
+                  <i className="iconoir-lock" aria-hidden /> Cuando guardes los cambios, se generará una clave secreta automáticamente. Úsala para verificar que las notificaciones vienen de Miyagi Sánchez.
                 </p>
               )}
             </div>

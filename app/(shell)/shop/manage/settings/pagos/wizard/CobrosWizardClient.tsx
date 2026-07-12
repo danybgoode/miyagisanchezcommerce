@@ -31,7 +31,7 @@ function WizardStepDots({ step }: { step: 1 | 2 | 3 }) {
                     : 'bg-[var(--color-border)] text-[var(--color-muted)]'
                 }`}
               >
-                {done ? '✓' : idx}
+                {done ? <i className="iconoir-check" aria-hidden /> : idx}
               </div>
               <span className={`text-sm font-medium ${active ? 'text-[var(--color-text)]' : 'text-[var(--color-muted)]'}`}>
                 {label}
@@ -121,7 +121,7 @@ export default function CobrosWizardClient({
       {step === 2 && (
         <Card variant="panel" className="p-5">
           <Banner variant="success" className="mb-4">
-            <span className="font-semibold">Mercado Pago conectado ✓</span>
+            <span className="font-semibold">Mercado Pago conectado <i className="iconoir-check" aria-hidden /></span>
           </Banner>
           <p className="text-sm text-[var(--color-muted)] mb-4">
             Tu cuenta está lista. Los pagos llegan directo a tu cuenta de Mercado Pago.
@@ -135,7 +135,7 @@ export default function CobrosWizardClient({
       {step === 3 && (
         <Card variant="panel" className="p-5 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[var(--success-soft)] rounded-[var(--r-pill)] mb-4">
-            <span className="text-3xl">✅</span>
+            <i className="iconoir-check-circle text-3xl" aria-hidden />
           </div>
           <h2 className="text-xl font-bold">¡Listo!</h2>
           <p className="text-sm text-[var(--color-muted)] mt-1">Ya puedes cobrar con Mercado Pago.</p>

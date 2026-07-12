@@ -59,7 +59,7 @@ export default async function PromoterSellSheetPage() {
         <a href="/vende/promotor" style={{ textDecoration: 'underline', fontSize: 14 }}>← Volver</a>
         <span style={{ color: '#888', fontSize: 13 }}>Usa Imprimir / Guardar como PDF (⌘P)</span>
         <a href="/api/promoter/rate-card" style={{ textDecoration: 'underline', fontSize: 13, fontWeight: 600 }}>
-          📄 Descargar tarifario (anuncios impresos)
+          <i className="iconoir-page" aria-hidden /> Descargar tarifario (anuncios impresos)
         </a>
       </div>
 

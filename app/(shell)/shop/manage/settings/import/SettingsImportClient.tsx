@@ -30,7 +30,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
       }}
       className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
     >
-      {copied ? '✓ Copiado' : `📋 ${label}`}
+      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : <><i className="iconoir-copy" aria-hidden /> {label}</>}
     </button>
   )
 }
@@ -44,7 +44,7 @@ function BlockRow({ b }: { b: BlockResult }) {
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold">{b.label}</span>
         <span className={`text-xs font-semibold ${ok ? 'text-green-700' : 'text-red-700'}`}>
-          {ok ? `✓ ${b.appliedFields.length} campo(s)` : '✕ omitido'}
+          {ok ? <><i className="iconoir-check" aria-hidden /> {b.appliedFields.length} campo(s)</> : <><i className="iconoir-xmark" aria-hidden /> omitido</>}
         </span>
       </div>
       {b.issues.length > 0 && (
@@ -119,7 +119,7 @@ function ConfigUploader() {
 
       {!report && (
         <div className="text-center">
-          <div className="text-3xl mb-2">⚙️</div>
+          <div className="text-3xl mb-2"><i className="iconoir-settings" aria-hidden /></div>
           <h2 className="font-semibold mb-1">Subir tu configuración</h2>
           <p className="text-sm text-[var(--color-muted)] mb-4">
             Sube el archivo JSON que generó tu IA. Te mostramos qué se va a aplicar antes de guardar.
@@ -131,7 +131,7 @@ function ConfigUploader() {
           >
             Elegir archivo
           </button>
-          {fileName && <p className="text-xs text-[var(--color-muted)] mt-3">📄 {fileName}</p>}
+          {fileName && <p className="text-xs text-[var(--color-muted)] mt-3"><i className="iconoir-page" aria-hidden /> {fileName}</p>}
         </div>
       )}
 
@@ -163,7 +163,7 @@ function ConfigUploader() {
       {report && (
         <div>
           <div className="text-center mb-4">
-            <div className="text-3xl mb-2">✅</div>
+            <div className="text-3xl mb-2"><i className="iconoir-check-circle" aria-hidden /></div>
             <h2 className="font-semibold">Configuración aplicada</h2>
             <p className="text-sm text-[var(--color-muted)] mt-1">
               <Link href="/shop/manage/settings" className="text-[var(--color-accent)] hover:underline">Ver mi configuración →</Link>

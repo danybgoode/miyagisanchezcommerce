@@ -49,10 +49,10 @@ interface Social { instagram?: string; facebook?: string; whatsapp?: string; tik
 
 function SocialLinks({ social }: { social: Social }) {
   const links = [
-    social.instagram && { href: `https://instagram.com/${social.instagram}`, label: 'Instagram', icon: '📸' },
-    social.tiktok    && { href: `https://tiktok.com/@${social.tiktok}`,     label: 'TikTok',    icon: '🎵' },
-    social.facebook  && { href: social.facebook,                              label: 'Facebook',  icon: '👥' },
-    social.whatsapp  && { href: `https://wa.me/${social.whatsapp}`,           label: 'WhatsApp',  icon: '💬' },
+    social.instagram && { href: `https://instagram.com/${social.instagram}`, label: 'Instagram', icon: 'iconoir-camera' },
+    social.tiktok    && { href: `https://tiktok.com/@${social.tiktok}`,     label: 'TikTok',    icon: 'iconoir-music-note' },
+    social.facebook  && { href: social.facebook,                              label: 'Facebook',  icon: 'iconoir-community' },
+    social.whatsapp  && { href: `https://wa.me/${social.whatsapp}`,           label: 'WhatsApp',  icon: 'iconoir-chat-bubble' },
   ].filter(Boolean) as { href: string; label: string; icon: string }[]
 
   if (links.length === 0) return null
@@ -68,7 +68,7 @@ function SocialLinks({ social }: { social: Social }) {
           aria-label={l.label}
           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-white/30 text-white/90 hover:bg-white/20 transition-colors no-underline"
         >
-          <span>{l.icon}</span>
+          <i className={l.icon} aria-hidden />
           <span>{l.label}</span>
         </a>
       ))}
@@ -207,7 +207,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
               {shop.logo_url ? (
                 <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
               ) : (
-                <span>🏪</span>
+                <i className="iconoir-shop" aria-hidden />
               )}
             </div>
 
@@ -228,7 +228,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                 <p className="text-sm text-[var(--color-muted)] mt-0.5 italic">"{theme.tagline}"</p>
               )}
               {shop.location && (
-                <p className="text-xs text-[var(--color-muted)] mt-0.5">📍 {shop.location}</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>
               )}
             </div>
 
@@ -250,35 +250,35 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                   {theme.social?.instagram && (
                     <a href={`https://instagram.com/${theme.social.instagram}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:border-[var(--color-text)] transition-colors no-underline">
-                      <span>📸</span><span>@{theme.social.instagram}</span>
+                      <i className="iconoir-camera" aria-hidden /><span>@{theme.social.instagram}</span>
                     </a>
                   )}
                   {theme.social?.tiktok && (
                     <a href={`https://tiktok.com/@${theme.social.tiktok}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:border-[var(--color-text)] transition-colors no-underline">
-                      <span>🎵</span><span>@{theme.social.tiktok}</span>
+                      <i className="iconoir-music-note" aria-hidden /><span>@{theme.social.tiktok}</span>
                     </a>
                   )}
                   {visibleWhatsapp && (
                     <a href={`https://wa.me/${visibleWhatsapp}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors no-underline">
-                      <span>💬</span><span>WhatsApp</span>
+                      <i className="iconoir-chat-bubble" aria-hidden /><span>WhatsApp</span>
                     </a>
                   )}
                   {visiblePhone && (
                     <a href={`tel:${visiblePhone}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <span>☎</span><span>Teléfono</span>
+                      <i className="iconoir-phone" aria-hidden /><span>Teléfono</span>
                     </a>
                   )}
                   {checkout.show_email && checkout.contact_email && (
                     <a href={`mailto:${checkout.contact_email}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <span>✉</span><span>Email</span>
+                      <i className="iconoir-mail" aria-hidden /><span>Email</span>
                     </a>
                   )}
                   {theme.social?.facebook && (
                     <a href={theme.social.facebook} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <span>👥</span><span>Facebook</span>
+                      <i className="iconoir-community" aria-hidden /><span>Facebook</span>
                     </a>
                   )}
                 </div>
@@ -331,7 +331,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
         )}
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
-            <div className="text-4xl mb-3">📦</div>
+            <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
             <p className="font-medium">Esta tienda aún no tiene anuncios.</p>
           </div>
         ) : (
