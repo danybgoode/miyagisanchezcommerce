@@ -49,7 +49,7 @@ test.describe('home-personalization · pure helpers', () => {
     expect(sellerModule({ hasShop: false, sellerSnapshot: snap })).toBe('recruit')
   })
 
-  test('logPersonalizationFetchFailure (S1.3 breadcrumb) — warns once with the reason, on failure only', () => {
+  test('logPersonalizationFetchFailure (S1.3 breadcrumb) — warns exactly once per call, with the reason', () => {
     const original = console.warn
     const calls: unknown[][] = []
     console.warn = (...args: unknown[]) => {
