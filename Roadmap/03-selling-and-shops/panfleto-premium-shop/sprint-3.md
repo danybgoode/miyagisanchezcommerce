@@ -1,30 +1,50 @@
 # Panfleto — the first premium shop — Sprint 3: The horror convocatoria
 
-**Status:** ⬜ copy drafted, nothing live yet — **waiting on Daniel's read before any MCP call or
-portal action executes.** Branched fresh: `feat/panfleto-premium-shop-s3` off `origin/main`
-(`c6bb437`), in an isolated worktree (`apps/miyagisanchez` was mid-flight on a sibling agent's
-branch — not touched).
+**Status:** 🟡 in progress, live pieces landed. Copy approved by Daniel. Branched fresh:
+`feat/panfleto-premium-shop-s3` off `origin/main` (`c6bb437`), in an isolated worktree
+(`apps/miyagisanchez` was mid-flight on a sibling agent's branch — not touched); merged latest
+`origin/main` in on 2026-07-12 to pick up `mcp-parity-core` S1 (see below).
+
+**Live so far (via MCP, `POST /api/ucp/mcp` with the shop's own agent token):**
+- ✅ Reward listing created: **"Edición impresa — panfleto"**, `prod_01KXAHXB98GF5SJEJ8KK0RF3QN`,
+  $180 MXN, category `creatividad`. Still needs its second price tier (portal-only, see below).
+- ✅ Announcement bar live: points at `https://panfleto.miyagisanchez.com/convocatoria`. Confirmed
+  server-side via `get_store_configuration` re-read.
+- ✅ Launchpad opt-in + guidelines live: `accepts_manuscripts: true`, full guidelines text —
+  confirmed rendering on `https://panfleto.miyagisanchez.com/convocatoria` (200, guidelines text
+  present in the HTML).
 
 > `launchpad.enabled` is already **ON** (Daniel, 2026-07-09). No flag work here — this sprint is the
 > first live use: the call itself, its copy, a real reward product, and the never-yet-run money
 > smoke as the walkthrough.
 
-## Two research findings that reshape this sprint (confirmed against the actual code)
+## Mid-sprint update: `mcp-parity-core` Sprint 1 shipped and changed the shape of what's left
+
+The finding below (originally: "the launchpad has no MCP write tools, so this sprint needs a lot of
+Daniel's portal time") is now **stale** — a sibling epic, `mcp-parity-core`, was built and merged
+mid-sprint (PR [#237](https://github.com/danybgoode/miyagisanchezcommerce/pull/237), live 2026-07-12)
+specifically because this sprint's planning surfaced the gap. It shipped exactly the tools this
+sprint needs:
+- `review_submission` / `publish_submission` — I can now review + publish the seed manuscripts via
+  MCP once Daniel submits them (no portal step needed for this anymore).
+- `create_campaign` / `update_campaign` / `activate_campaign` — I can now build + activate the proof
+  campaign via MCP (no portal step needed for this anymore).
+- `launchpad` block in `patch_store_configuration` — done, see "Live so far" above (was originally
+  Daniel's action #1; now MCP-doable, confirmed with Daniel before executing since the plan hadn't
+  anticipated a brand-new capability shipping mid-sprint).
+
+**What's genuinely still portal-only:** adding a second price tier to the reward listing's
+"Opciones" (the CPP configurator has no MCP write path yet — that's `mcp-parity-core` Sprint 2,
+unbuilt) — the ONE remaining Daniel action below, aside from submitting the seed stories and running
+the money smoke.
+
+## Original research findings (kept for context; #2 superseded above)
 
 1. **Panfleto has no CPP-configured reward product.** The one existing listing (Stickers) has a
    single price tier — fails `isConfigurablePriceGrid` (`lib/launchpad-campaign-types.ts:93-96`:
-   needs >1 variant OR any variant with >1 quantity tier). This sprint creates one — see "The reward
-   product" below.
-2. **The launchpad has no MCP write tools.** `list_manuscript_submissions` /
-   `list_launchpad_campaigns` are read-only by design — the tool descriptions themselves say
-   "Creating/activating campaigns happens in the seller portal" (`app/api/ucp/mcp/route.ts:419,429`).
-   Same for reviewing/approving/publishing a manuscript, and for adding price-tier "Opciones" to a
-   listing (`create_listing`/`update_listing` have no variant/tier fields —
-   `app/api/ucp/mcp/route.ts:348-455`). `settings.launchpad` (accepts_manuscripts/guidelines) also
-   isn't wired into `applyStoreConfig` — UI-only (`app/api/sell/shop/route.ts:157-161`). **Net
-   effect:** more of this sprint is your hands-on portal time than Sprint 2 (which ran almost
-   entirely through MCP). Everything MCP-reachable, I do; everything else is an exact-values
-   checklist below — same shape as Sprint 2's "Daniel's three actions," just longer.
+   needs >1 variant OR any variant with >1 quantity tier). The base listing is created (see "Live so
+   far" above); it still needs its second tier — portal-only, see "Daniel's actions" below.
+2. ~~The launchpad has no MCP write tools.~~ **Superseded** — see "Mid-sprint update" above.
 
 **Also found:** the S2-created "Convocatorias" collection (plural) won't be picked up by the
 launchpad shelf's auto-suggest, which hard-matches the exact string `"Convocatoria"` (singular,
@@ -78,19 +98,21 @@ Content bar applied: es-MX, simple, concrete, direct address. No time-to-complet
 >
 > Cómo enviar: sube tu archivo (PDF, EPUB o DOCX) y verifica tu correo. No necesitas cuenta.
 
-### The reward product ("Opciones" step is yours — I create the base listing via MCP)
-- **Title:** Edición impresa — panfleto
+### The reward product — ✅ base listing created; "Opciones" tier still Daniel's
+- **Title:** Edición impresa — panfleto — `prod_01KXAHXB98GF5SJEJ8KK0RF3QN`
 - **Category:** `creatividad` (Arte y diseño — matches the Stickers listing's category)
 - **Description:** "La edición impresa del relato ganador de la convocatoria de terror de panfleto.
   Formato zine, impresión bajo demanda, tiraje limitado. Actualizamos el contenido cuando cierra la
   votación y se conoce el relato ganador."
-- **Starting price (I set via `create_listing`):** $180 MXN (1 copia)
+- **Starting price (set via `create_listing`):** $180 MXN (1 copia) — ✅ live.
 - **Second tier (you add via the listing's "Opciones"):** 3+ copias, $150 MXN c/u — the second tier
-  is what makes it pass `isConfigurablePriceGrid` and become a legal campaign reward.
+  is what makes it pass `isConfigurablePriceGrid` and become a legal campaign reward. **The only
+  remaining catalog-config step — CPP "Opciones" still has no MCP write path** (that's
+  `mcp-parity-core` Sprint 2, unbuilt).
 
-### Announcement bar (`profile.announcement`, I set via `patch_store_configuration`)
-- **text** (≤140 chars, this draft ~87): "panfleto busca relatos de terror de autores mexicanos y
-  latinoamericanos. Envía el tuyo."
+### Announcement bar (`profile.announcement`) — ✅ live via `patch_store_configuration`
+- **text:** "panfleto busca relatos de terror de autores mexicanos y latinoamericanos. Envía el
+  tuyo."
 - **link:** `https://panfleto.miyagisanchez.com/convocatoria`
 
 ### Two seed manuscripts (I submit these through the real public form to prove intake works;
@@ -155,22 +177,26 @@ legitimate first entries on the Historias shelf until real submissions arrive.
 > panfleto abre convocatoria de relatos de terror para autores de México y América Latina. Sin
 > cuenta, sin costo. Lee las bases: https://panfleto.miyagisanchez.com/convocatoria
 
-## Daniel's actions — what needs your live session (exact values above)
-1. `/shop/manage/convocatoria` → toggle "acepta manuscritos" ON, paste the guidelines copy.
-2. Review queue → approve + publish both seed manuscripts (after I submit them through the public
-   form).
-3. The new "Edición impresa — panfleto" listing → "Opciones" → add the 3+ copies / $150 MXN tier.
-4. `/shop/manage/convocatoria/campanas` → create the proof campaign with the values above, then
-   **Activar**.
-5. Run the money-step smoke below (vote → coupon → redeem).
+## Daniel's actions — shrunk after `mcp-parity-core` S1 shipped mid-sprint
+1. **Submit the two seed manuscripts yourself** through `https://panfleto.miyagisanchez.com/convocatoria`
+   (public form, no account) — confirmed 2026-07-12: you're doing this, not me (I have no inbox to
+   receive the email verification codes the public form requires).
+2. The "Edición impresa — panfleto" listing (`prod_01KXAHXB98GF5SJEJ8KK0RF3QN`) → "Opciones" → add
+   the 3+ copies / $150 MXN tier. The only remaining portal-only step.
+3. Run the money-step smoke below (vote → coupon → redeem) once the campaign is active.
 
-## What I do (MCP + public-form, no auth needed for either)
-- `create_listing` — the base reward listing.
-- Submit both seed manuscripts through `/s/panfleto/convocatoria` (public, no account).
-- `patch_store_configuration` — announcement bar.
-- `update_listing.collection_names` — assign both seed works into "Convocatorias" once published.
-- Extend a launchpad e2e spec asserting the convocatoria renders on the white-label subdomain path.
-- Write the final smoke walkthrough below with real values once the campaign exists.
+Everything else that used to be on this list — the launchpad opt-in, reviewing/publishing the
+manuscripts, building/activating the campaign — is now MCP-doable and I'll do it once step 1 lands.
+
+## What I do (MCP, using the shop's own agent token)
+- ✅ `create_listing` — the base reward listing.
+- ✅ `patch_store_configuration` — announcement bar + launchpad opt-in/guidelines.
+- ⬜ `review_submission` + `publish_submission` — once Daniel submits the two seed manuscripts.
+- ⬜ `update_listing.collection_names` — assign both seed works into "Convocatorias" once published.
+- ⬜ `create_campaign` + `update_campaign` + `activate_campaign` — once the reward listing's Opciones
+  tier is set (Daniel) and the seed works are published (me).
+- ⬜ Extend a launchpad e2e spec asserting the convocatoria renders on the white-label subdomain path.
+- ⬜ Write the final smoke walkthrough below with real values once the campaign exists.
 
 ## Sprint QA
 - **api spec(s):** convocatoria render on the panfleto identity → extend the launchpad specs (the
@@ -183,11 +209,15 @@ legitimate first entries on the Historias shelf until real submissions arrive.
 Env: production · https://panfleto.miyagisanchez.com
 
 1. Open https://panfleto.miyagisanchez.com/convocatoria in a private window.
-   → The horror call renders white-label: genre, eligibility, process — no account demanded.
-2. (Already done by me before this doc is marked ready) Confirm both seed manuscripts appear on
-   the Historias/Convocatorias shelves with a working "Lee un adelanto" excerpt.
-3. Complete Daniel's actions 1–4 above (opt-in, publish, Opciones tier, create + activate the
-   proof campaign). Note the campaign's `/v/<slug>` URL once created.
+   → The horror call renders white-label: genre, eligibility, process — no account demanded. ✅
+   confirmed live 2026-07-12.
+2. Daniel submits both seed manuscripts through that same public form.
+   → I review + publish them via MCP (`review_submission`/`publish_submission`), then assign them
+   into the Convocatorias collection. Confirm both appear on the Historias/Convocatorias shelves
+   with a working "Lee un adelanto" excerpt.
+3. Daniel adds the reward listing's second price tier (3+ copias, $150 MXN c/u) via "Opciones."
+   I then build + activate the proof campaign via MCP (`create_campaign`/`activate_campaign`).
+   Note the campaign's `/v/<slug>` URL once created.
 4. In three private windows, open `https://miyagisanchez.com/v/<slug>` (canonical host — the
    voting page has no subdomain rewrite, confirmed by reading `middleware.ts`), vote for either
    story from three different emails.
