@@ -381,10 +381,10 @@ function FirstRunApply() {
           {/* Config chips */}
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <StatusBadge token={profileBlock ? 'success' : 'neutral'}>
-              {profileBlock ? '✓ Diseño y colores' : 'Diseño y colores'}
+              {profileBlock ? <><i className="iconoir-check" aria-hidden /> Diseño y colores</> : 'Diseño y colores'}
             </StatusBadge>
             <StatusBadge token={shippingBlock ? 'success' : 'neutral'}>
-              {shippingBlock ? '✓ Políticas de envío' : 'Políticas de envío'}
+              {shippingBlock ? <><i className="iconoir-check" aria-hidden /> Políticas de envío</> : 'Políticas de envío'}
             </StatusBadge>
             <StatusBadge token="neutral">Cobros — después, ~4 min</StatusBadge>
           </div>
