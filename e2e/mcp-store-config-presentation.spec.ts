@@ -106,4 +106,52 @@ test.describe('own-shop premium presentation — MCP store-config round-trip (Sp
     expect(cleared.configuration.profile?.hero).toBeUndefined()
     expect(cleared.configuration.profile?.theme_preset).toBeUndefined()
   })
+
+  test('patch_store_configuration -> get_store_configuration round-trips the launchpad block (mcp-parity-core S1.3)', () => {
+    const manifest = { launchpad: { accepts_manuscripts: true, guidelines: 'Relatos de terror, 800-5000 palabras.' } }
+
+    const { patch } = validateConfig(manifest)
+    expect(patch.settings).toBeDefined()
+
+    const shop = { name: 'panfleto', metadata: { settings: patch.settings } }
+    const snapshot = buildStoreConfigSnapshot(shop)
+
+    expect(snapshot.configuration.launchpad).toEqual({ accepts_manuscripts: true, guidelines: 'Relatos de terror, 800-5000 palabras.' })
+    expect(snapshot.configured_blocks).toContain('launchpad')
+  })
+
+  test('launchpad.guidelines over 2000 chars is rejected before it ever reaches the stored shop', () => {
+    const { patch, blocks } = validateConfig({ launchpad: { guidelines: 'x'.repeat(2001) } })
+    expect(patch.settings?.launchpad).toBeUndefined()
+    const launchpadBlock = blocks.find((b) => b.key === 'launchpad')
+    expect(launchpadBlock?.issues).toEqual(expect.arrayContaining([expect.stringContaining('guidelines')]))
+  })
+
+  test('an agent CAN clear previously-set launchpad guidelines via patch_store_configuration', () => {
+    const set = validateConfig({ launchpad: { accepts_manuscripts: true, guidelines: 'Reglas iniciales.' } })
+    const shopWithConfig = { name: 'panfleto', metadata: { settings: set.patch.settings } }
+    expect(buildStoreConfigSnapshot(shopWithConfig).configuration.launchpad?.guidelines).toBe('Reglas iniciales.')
+
+    const clear = validateConfig({ launchpad: { guidelines: null } })
+    // `launchpad` is itself a NESTED settings object (unlike the flat top-level
+    // announcement/hero/theme_preset keys above), so simulating the real
+    // recursive `deepMerge` (lib/apply-shop-settings.ts) means merging the
+    // nested `launchpad` object directly — a shallow top-level spread would
+    // let the clear patch's `{ guidelines: null }` silently DROP
+    // `accepts_manuscripts` instead of preserving it, which is not what the
+    // real deep-merge does.
+    const mergedSettings = {
+      ...(set.patch.settings as Record<string, unknown>),
+      ...(clear.patch.settings as Record<string, unknown>),
+      launchpad: {
+        ...((set.patch.settings as Record<string, unknown>)?.launchpad as Record<string, unknown>),
+        ...((clear.patch.settings as Record<string, unknown>)?.launchpad as Record<string, unknown>),
+      },
+    }
+    const shopAfterClear = { name: 'panfleto', metadata: { settings: mergedSettings } }
+    const cleared = buildStoreConfigSnapshot(shopAfterClear)
+    expect(cleared.configuration.launchpad?.guidelines).toBeNull()
+    // accepts_manuscripts, untouched by the clear patch, survives the deep-merge.
+    expect(cleared.configuration.launchpad?.accepts_manuscripts).toBe(true)
+  })
 })

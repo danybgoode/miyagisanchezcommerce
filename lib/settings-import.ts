@@ -74,6 +74,17 @@ export interface StoreConfigManifest {
     about?: { body?: string } | null
     faq?: { items?: Array<{ question?: string; answer?: string }> } | null
   }
+  /**
+   * Bookshop launchpad (epic 03) — writer-submission opt-in + guidelines.
+   * Mirrors the length rule `app/api/sell/shop/route.ts`'s PATCH handler
+   * already enforces for `guidelines`; lifted here (mcp-parity-core S1.3)
+   * so a Storefront-as-Code manifest / the MCP `patch_store_configuration`
+   * tool can set it, not just the portal UI.
+   */
+  launchpad?: {
+    accepts_manuscripts?: boolean
+    guidelines?: string | null
+  }
 }
 
 /** The blocks a file can set, with a one-line description for the UI + prompt. */
@@ -86,6 +97,7 @@ export const CONFIG_BLOCKS: Array<{ key: keyof StoreConfigManifest; label: strin
   { key: 'returns_policy', label: 'Devoluciones', desc: 'Ventana, condiciones, quién paga el envío y nota personalizada.' },
   { key: 'scheduling', label: 'Enlaces de agenda', desc: 'Enlaces para agendar (etiqueta + URL). La conexión a Cal.com es aparte.' },
   { key: 'content', label: 'Acerca y FAQ', desc: 'Texto de Acerca de tu tienda y preguntas frecuentes (Políticas se toma de Devoluciones).' },
+  { key: 'launchpad', label: 'Convocatoria de manuscritos', desc: 'Si tu tienda acepta manuscritos de autores y las indicaciones de la convocatoria.' },
 ]
 
 /** Sections that need a manual step (OAuth / money / domain) and can't be set by file. */
@@ -485,6 +497,26 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
       }
     } else iss.push('el bloque "content" debe ser un objeto')
     record('content', f, iss)
+  }
+
+  // ── launchpad (writer-submission opt-in + guidelines) ──────────────────────
+  if (manifest.launchpad !== undefined) {
+    const f: string[] = []; const iss: string[] = []; const lp: Record<string, unknown> = {}
+    if (isObj(manifest.launchpad)) {
+      const l = manifest.launchpad
+      const ab = bool(l.accepts_manuscripts); if (ab !== undefined) { lp.accepts_manuscripts = ab; f.push('accepts_manuscripts') }
+      if (l.guidelines !== undefined) {
+        if (l.guidelines === null) {
+          lp.guidelines = null; f.push('guidelines (cleared)')
+        } else {
+          const g = str(l.guidelines)
+          if (g && g.length <= 2000) { lp.guidelines = g; f.push('guidelines') }
+          else iss.push('guidelines inválido (requerido, máx. 2000 caracteres)')
+        }
+      }
+      if (Object.keys(lp).length) settings.launchpad = lp
+    } else iss.push('el bloque "launchpad" debe ser un objeto')
+    record('launchpad', f, iss)
   }
 
   if (Object.keys(settings).length) patch.settings = settings

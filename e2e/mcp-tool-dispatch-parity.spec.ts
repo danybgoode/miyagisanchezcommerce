@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { MCP_TOOL_NAMES } from '../lib/ucp/capabilities'
 
 /**
  * Regression guard for a real bug (cross-agent review, 2026-07-07,
@@ -46,5 +47,29 @@ test.describe('MCP tool dispatch parity', () => {
   test('list_my_collections specifically is dispatched (the exact bug this guard catches)', () => {
     const dispatchedCases = extractDispatchedCases(ROUTE_SOURCE)
     expect(dispatchedCases).toContain('list_my_collections')
+  })
+})
+
+/**
+ * Manifest-sync drift guard (mcp-parity-core S1.4). `lib/ucp/capabilities.ts`'s
+ * `MCP_TOOL_NAMES` is hand-maintained, NOT derived from the live `TOOLS` array
+ * in route.ts — a real tool can exist, be dispatched, and still be missing
+ * from the manifest/agent briefing page (confirmed: `list_launchpad_campaigns`,
+ * `stage_bulk_action`, `apply_bulk_action`, `start_shopify_migration` were all
+ * live-and-dispatched but absent from `MCP_TOOL_NAMES` before this sprint).
+ * Asserts the two lists are the SAME SET in both directions, so this class of
+ * drift becomes a permanently red build rather than a one-time fix.
+ */
+test.describe('MCP manifest ⇄ dispatch parity (both directions)', () => {
+  test('every declared+dispatched tool is advertised in MCP_TOOL_NAMES', () => {
+    const toolNames = extractToolNames(ROUTE_SOURCE)
+    const missingFromManifest = toolNames.filter((n) => !MCP_TOOL_NAMES.includes(n))
+    expect(missingFromManifest, `Tool(s) declared+dispatched but missing from MCP_TOOL_NAMES: ${missingFromManifest.join(', ')}`).toEqual([])
+  })
+
+  test('every name in MCP_TOOL_NAMES is a real, declared tool', () => {
+    const toolNames = extractToolNames(ROUTE_SOURCE)
+    const stale = MCP_TOOL_NAMES.filter((n) => !toolNames.includes(n))
+    expect(stale, `MCP_TOOL_NAMES lists tool(s) no longer declared in TOOLS: ${stale.join(', ')}`).toEqual([])
   })
 })
