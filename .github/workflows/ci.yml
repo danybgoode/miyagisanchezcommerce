@@ -48,7 +48,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - name: Type-check
         run: npx tsc --noEmit
       - name: Build
@@ -68,7 +69,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci --no-audit --no-fund
 
       - name: Resolve Vercel preview URL for this commit
         run: |
