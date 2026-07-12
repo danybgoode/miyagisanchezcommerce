@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { previewOverrideValue } from '@/lib/copy-overrides-preview'
 
 /** One overridable dictionary leaf, as rendered on the admin surface. */
 export type OverrideKeyView = {
@@ -39,6 +40,15 @@ const inputStyle: React.CSSProperties = {
   background: 'var(--bg)',
   color: 'var(--fg)',
   resize: 'vertical',
+}
+
+const previewPaneStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: '4px 8px',
+  borderRadius: 4,
+  fontSize: 12,
+  wordBreak: 'break-word',
 }
 
 const buttonStyle: React.CSSProperties = {
@@ -113,6 +123,28 @@ export default function ContenidoAdminClient({
   function setDraft(r: OverrideKeyView, locale: Locale, value: string) {
     const path = pathOf(r)
     setDrafts((prev) => ({ ...prev, [path]: { ...prev[path], [locale]: value } }))
+  }
+
+  /** The value currently live (saved override, or the compile-time default). */
+  function currentValue(r: OverrideKeyView, locale: Locale): string {
+    return locale === 'es' ? r.overrideEs ?? r.defaultEs : r.overrideEn ?? r.defaultEn ?? ''
+  }
+
+  function isDirty(r: OverrideKeyView, locale: Locale): boolean {
+    return draftValue(r, locale) !== currentValue(r, locale)
+  }
+
+  /**
+   * Before/after preview, resolved through `previewOverrideValue` — the SAME
+   * `applyCopyOverrides`/`copy-tree` seam `getOverriddenDictionary()` reads
+   * through in production (Story 1.3), not a raw string compare.
+   */
+  function preview(r: OverrideKeyView, locale: Locale): { before: string; after: string } {
+    const defaultValue = locale === 'es' ? r.defaultEs : r.defaultEn ?? ''
+    return {
+      before: previewOverrideValue(r.namespace, r.key, locale, defaultValue, currentValue(r, locale)),
+      after: previewOverrideValue(r.namespace, r.key, locale, defaultValue, draftValue(r, locale)),
+    }
   }
 
   async function save(r: OverrideKeyView, locale: Locale) {
@@ -215,7 +247,8 @@ export default function ContenidoAdminClient({
       </p>
       <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 16px' }}>
         Solo se pueden editar claves que ya existen en el diccionario — «Original» siempre muestra el
-        valor de fábrica. «Restaurar» borra el override y vuelve al valor de fábrica.
+        valor de fábrica. «Restaurar» borra el override y vuelve al valor de fábrica. Mientras escribes,
+        verás «Antes» y «Después (borrador)» — la vista previa de cómo quedará antes de guardar.
       </p>
 
       {error && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '0 0 16px' }}>{error}</p>}
@@ -276,6 +309,27 @@ export default function ContenidoAdminClient({
                             editado{r.updatedBy ? ` por ${r.updatedBy}` : ''}
                           </div>
                         )}
+                        {isDirty(r, 'es') &&
+                          (() => {
+                            const { before, after } = preview(r, 'es')
+                            return (
+                              <div style={{ marginTop: 6 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
+                                  ● Cambios sin guardar
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
+                                  </div>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })()}
                         {r.bilingual && (
                           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
                             <span style={{ fontSize: 11, color: 'var(--fg-muted)', paddingTop: 8 }}>EN</span>
@@ -295,6 +349,28 @@ export default function ContenidoAdminClient({
                             )}
                           </div>
                         )}
+                        {r.bilingual &&
+                          isDirty(r, 'en') &&
+                          (() => {
+                            const { before, after } = preview(r, 'en')
+                            return (
+                              <div style={{ marginTop: 6 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
+                                  ● Cambios sin guardar (EN)
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
+                                  </div>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })()}
                       </div>
                     )
                   })}
