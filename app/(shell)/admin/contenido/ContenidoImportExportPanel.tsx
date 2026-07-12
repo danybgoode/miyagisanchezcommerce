@@ -1,7 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  countForScope,
+  describeExportScope,
+  namespacesInIndex,
+  sectionsForNamespace,
+  type KeyIndexEntry,
+} from '@/lib/copy-overrides-export-scope'
+import { namespaceLabel, routeForNamespaceSection } from '@/lib/copy-overrides-routes'
+
+export type { KeyIndexEntry }
 
 type ImportDiffAction = 'added' | 'changed' | 'unchanged' | 'skippedUnknown'
 
@@ -66,17 +76,30 @@ function formatForFile(file: File): 'csv' | 'xlsx' | 'json' | null {
 
 /**
  * Bulk export/import for the runtime copy-override layer (epic 08 ·
- * admin-content-and-announcements, Sprint 1). Export is a plain same-origin
- * download link (the Clerk session cookie rides along); import is a two-step
- * handshake — `POST .../import` parses + diffs WITHOUT writing, then the admin
- * reviews the diff and `POST .../import/apply` writes only the checked rows.
- * `unchanged` rows are never shown (they'd just be noise); `skippedUnknown` rows
- * are shown but can't be selected — the dictionary defines the universe.
+ * cms-contenido-restore-and-polish, Story 2.2 — scope inputs became
+ * predefined dropdowns with a default + a live plain-language summary,
+ * replacing the original free-text namespace/section fields). Export is a
+ * plain same-origin download link (the Clerk session cookie rides along);
+ * import is a two-step handshake — `POST .../import` parses + diffs WITHOUT
+ * writing, then the admin reviews the diff and `POST .../import/apply` writes
+ * only the checked rows. `unchanged` rows are never shown (they'd just be
+ * noise); `skippedUnknown` rows are shown but can't be selected — the
+ * dictionary defines the universe.
  */
-export default function ContenidoImportExportPanel() {
+export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: KeyIndexEntry[] }) {
   const router = useRouter()
   const [scopeNamespace, setScopeNamespace] = useState('')
   const [scopeSection, setScopeSection] = useState('')
+  const namespaces = useMemo(() => namespacesInIndex(keyIndex), [keyIndex])
+  const sections = useMemo(() => sectionsForNamespace(keyIndex, scopeNamespace), [keyIndex, scopeNamespace])
+  const scopeCount = useMemo(
+    () => countForScope(keyIndex, scopeNamespace, scopeSection),
+    [keyIndex, scopeNamespace, scopeSection],
+  )
+  const scopeSummary = useMemo(
+    () => describeExportScope(scopeNamespace, scopeSection, scopeCount),
+    [scopeNamespace, scopeSection, scopeCount],
+  )
   const [diff, setDiff] = useState<ImportDiffRow[] | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -179,21 +202,37 @@ export default function ContenidoImportExportPanel() {
       </p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        <input
-          type="text"
-          placeholder="Página (namespace) — opcional, ej. sellerAcquisition"
+        <select
           value={scopeNamespace}
-          onChange={(e) => setScopeNamespace(e.target.value)}
+          onChange={(e) => {
+            setScopeNamespace(e.target.value)
+            setScopeSection('') // cascading — a section from the PREVIOUS namespace can't carry over
+          }}
           style={{ ...inputStyle, flex: 'none', width: 260 }}
-        />
-        <input
-          type="text"
-          placeholder="Sección — opcional, ej. anchor"
+        >
+          <option value="">Todas las páginas</option>
+          {namespaces.map((ns) => (
+            <option key={ns} value={ns}>
+              {namespaceLabel(ns)}
+            </option>
+          ))}
+        </select>
+        <select
           value={scopeSection}
           onChange={(e) => setScopeSection(e.target.value)}
-          style={{ ...inputStyle, flex: 'none', width: 180 }}
-        />
+          disabled={!scopeNamespace}
+          style={{ ...inputStyle, flex: 'none', width: 220, opacity: scopeNamespace ? 1 : 0.5 }}
+        >
+          <option value="">Todas las secciones</option>
+          {sections.map((s) => (
+            <option key={s} value={s}>
+              {routeForNamespaceSection(scopeNamespace, s)?.label ?? s}
+            </option>
+          ))}
+        </select>
       </div>
+
+      <p style={{ color: 'var(--fg)', fontSize: 13, margin: '0 0 12px', fontWeight: 600 }}>{scopeSummary}</p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         {(['csv', 'xlsx', 'json'] as const).map((format) => {
