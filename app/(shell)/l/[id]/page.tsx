@@ -826,7 +826,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{effectivePrice}</p>
           {buyBoxBehavior.showAgotado && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
-              <i className="iconoir-cancel" style={{ fontSize: 12 }} />
+              <i className="iconoir-xmark" style={{ fontSize: 12 }} />
               Agotado
             </span>
           )}
@@ -1097,7 +1097,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {/* ── Sold-out notice (replaces buy CTAs) ─────────────────────────────── */}
         {buyBoxBehavior.showAgotado && showBuyerActions && !isDigital && !isSubscription && hasBuyablePrice && (
           <div style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
-            <i className="iconoir-cancel" style={{ fontSize: 22, color: 'var(--danger)' }} />
+            <i className="iconoir-xmark" style={{ fontSize: 22, color: 'var(--danger)' }} />
             <p style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>Artículo agotado</p>
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Este artículo ya se vendió y no está disponible.</p>
           </div>

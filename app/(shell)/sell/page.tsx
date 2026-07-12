@@ -60,7 +60,7 @@ export default async function SellPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           {[
             {
-              icon: 'iconoir-lightning-bolt',
+              icon: 'iconoir-flash',
               title: 'Publicación instantánea',
               desc: 'Tu anuncio aparece de inmediato, sin esperar aprobación.',
             },
