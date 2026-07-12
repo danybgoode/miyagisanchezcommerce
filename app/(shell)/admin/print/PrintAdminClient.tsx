@@ -42,7 +42,7 @@ export default function PrintAdminClient() {
       {showMaquetaNotice && (
         <div className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-accent)]/10 px-3 py-2 text-sm">
           <span>La maqueta ahora vive en el estudio zine.</span>
-          <button onClick={() => setShowMaquetaNotice(false)} className="text-xs text-[var(--color-muted)]" aria-label="Cerrar">✕</button>
+          <button onClick={() => setShowMaquetaNotice(false)} className="text-xs text-[var(--color-muted)]" aria-label="Cerrar"><i className="iconoir-xmark" aria-hidden /></button>
         </div>
       )}
       <div className="flex gap-2 mt-4 mb-6">
@@ -234,7 +234,7 @@ function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEditio
       <div className="mt-2 flex flex-wrap gap-1.5">
         {(edition.tiers ?? []).map((t: PrintTier) => (
           <span key={t.key} className="text-xs px-2 py-0.5 rounded-full border border-[var(--color-border)]" title={t.medusa_product_id ?? 'sin producto'}>
-            {t.label} · {money(t.price_cents)} · {(occ[t.key] ?? 0)}/{t.capacity}{!t.medusa_product_id && ' ⚠'}
+            {t.label} · {money(t.price_cents)} · {(occ[t.key] ?? 0)}/{t.capacity}{!t.medusa_product_id && <i className="iconoir-warning-triangle" aria-hidden />}
           </span>
         ))}
       </div>
@@ -243,10 +243,10 @@ function EditionRow({ api, edition, onChange }: { api: Api; edition: AdminEditio
           {open ? 'Ocultar anuncios' : 'Ver anuncios'}
         </button>
         <span className="text-xs text-[var(--color-muted)]" title="La maqueta ahora se edita en el estudio zine (local)">
-          ✎ Edición en el estudio zine
+          <i className="iconoir-edit-pencil" aria-hidden /> Edición en el estudio zine
         </span>
         <a href={exportHref} className="text-xs text-[var(--color-accent)] no-underline" download>
-          ⬇ Descargar paquete de producción
+          <i className="iconoir-download" aria-hidden /> Descargar paquete de producción
         </a>
       </div>
       {open && <Submissions api={api} editionId={edition.id} tiers={edition.tiers ?? []} />}

@@ -43,7 +43,7 @@ export default function ComunidadForm() {
   if (done) {
     return (
       <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <div className="text-4xl mb-3">📣</div>
+        <div className="text-4xl mb-3"><i className="iconoir-megaphone" aria-hidden /></div>
         <h1 className="text-xl font-bold mb-2">¡Gracias por compartir!</h1>
         <p className="text-sm text-[var(--color-muted)] mb-6">
           Miyagi revisará tu aporte y podría aparecer en la próxima edición impresa de tu colonia.
@@ -68,7 +68,7 @@ export default function ComunidadForm() {
     <div className="max-w-lg mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold">Comparte con tu colonia</h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
-        ¿Una recomendación, un equipo que ganó, una reunión, o solo un saludo? Lo mejor puede salir en la edición impresa. 🗞️
+        ¿Una recomendación, un equipo que ganó, una reunión, o solo un saludo? Lo mejor puede salir en la edición impresa. <i className="iconoir-journal" aria-hidden />
       </p>
 
       <div className="space-y-4">

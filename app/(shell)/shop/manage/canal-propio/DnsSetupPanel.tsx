@@ -68,7 +68,7 @@ export default function DnsSetupPanel({
           className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-alt)] transition-colors"
         >
           <div className="flex items-center gap-2.5">
-            <span className="text-lg">☁️</span>
+            <i className="iconoir-cloud text-lg" aria-hidden />
             <div>
               <p className="text-xs font-semibold">
                 {detectedRegistrar === 'cloudflare'
@@ -99,7 +99,7 @@ export default function DnsSetupPanel({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 bg-[var(--provider-envia)] text-[var(--fg-inverse)] text-xs font-semibold px-3 py-2 rounded-[var(--r-md)] hover:bg-[var(--provider-envia-hover)] transition-colors no-underline mb-3"
               >
-                <span>☁️</span> Abrir Cloudflare → Crear token
+                <i className="iconoir-cloud" aria-hidden /> Abrir Cloudflare → Crear token
               </a>
               <ol className="space-y-1.5">
                 {[
@@ -155,7 +155,7 @@ export default function DnsSetupPanel({
             )}
 
             <p className="text-[10px] text-[var(--color-muted)]">
-              🔒 El token se usa una sola vez para crear el registro y no se almacena en nuestros servidores.
+              <i className="iconoir-lock" aria-hidden /> El token se usa una sola vez para crear el registro y no se almacena en nuestros servidores.
             </p>
           </div>
         )}
@@ -165,7 +165,7 @@ export default function DnsSetupPanel({
       {detectedRegistrar && detectedRegistrar !== 'cloudflare' && detectedRegistrar !== 'unknown' && registrarGuides[detectedRegistrar] && (
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--color-surface-alt)] border-b border-[var(--color-border)]">
-            <span className="text-base">{registrarGuides[detectedRegistrar].icon}</span>
+            <i className={`text-base ${registrarGuides[detectedRegistrar].icon}`} aria-hidden />
             <div>
               <p className="text-xs font-semibold">
                 Instrucciones para {registrarGuides[detectedRegistrar].name}
@@ -187,7 +187,7 @@ export default function DnsSetupPanel({
           </ol>
           {dnsRecord && !dnsRecord.isApex && (
             <p className="px-4 pb-2 text-[10px] text-[var(--warning)]">
-              ⚠ Como es un subdominio, usa Nombre/Host{' '}
+              <i className="iconoir-warning-triangle" aria-hidden /> Como es un subdominio, usa Nombre/Host{' '}
               <span className="font-mono">{dnsRecord.host}</span> (no <span className="font-mono">@</span>).
             </p>
           )}

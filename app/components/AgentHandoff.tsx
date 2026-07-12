@@ -35,7 +35,7 @@ export default function AgentHandoff({
   return (
     <div className="border border-[var(--color-border)] rounded-xl p-4 bg-[var(--color-surface-alt)]">
       <div className="flex items-start gap-2.5 mb-3">
-        <span className="text-base mt-0.5 flex-shrink-0">✦</span>
+        <i className="iconoir-sparks text-base mt-0.5 flex-shrink-0" aria-hidden />
         <div>
           <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-relaxed">{subtitle}</p>
@@ -53,7 +53,7 @@ export default function AgentHandoff({
           onClick={copy}
           className="flex-1 text-sm font-semibold py-2.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text)] bg-[var(--color-background)] hover:bg-[var(--color-surface-alt)] transition-colors flex items-center justify-center gap-1.5"
         >
-          {copied ? '✓ ¡Copiado!' : '⧉ Copiar prompt'}
+          {copied ? <><i className="iconoir-check" aria-hidden /> ¡Copiado!</> : <><i className="iconoir-copy" aria-hidden /> Copiar prompt</>}
         </button>
         <a
           href={claudeUrl}
@@ -61,7 +61,7 @@ export default function AgentHandoff({
           rel="noopener noreferrer"
           className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] no-underline transition-colors flex items-center justify-center gap-1.5"
         >
-          ✦ {buttonLabel}
+          <i className="iconoir-sparks" aria-hidden /> {buttonLabel}
         </a>
       </div>
 

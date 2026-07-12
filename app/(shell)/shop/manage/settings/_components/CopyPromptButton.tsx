@@ -26,7 +26,7 @@ export function CopyPromptButton({ prompt }: { prompt: string }) {
           : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]'
       }`}
     >
-      <span>🤖</span>
+      <i className="iconoir-cpu" aria-hidden />
       {copied ? '¡Copiado! Pégalo en tu IA' : 'Pregunta a tu IA'}
     </button>
   )

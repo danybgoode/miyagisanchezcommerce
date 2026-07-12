@@ -135,7 +135,7 @@ export default function ContentClient({
         <form onSubmit={handleCreate} className="border border-[var(--color-accent)] rounded-xl p-5 space-y-4 bg-green-50/30">
           <p className="font-semibold text-[var(--color-text)]">Nuevo post de contenido</p>
 
-          {error && <p className="text-red-600 text-sm flex items-center gap-1"><span>⚠</span> {error}</p>}
+          {error && <p className="text-red-600 text-sm flex items-center gap-1"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
 
           <div>
             <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Título <span className="text-red-500">*</span></label>
@@ -219,7 +219,7 @@ export default function ContentClient({
                 <p className="font-medium text-sm">{item.title}</p>
                 {item.listing_id && (
                   <p className="text-xs text-[var(--color-accent)] mt-0.5">
-                    📌 {getListing(item.listing_id)?.title ?? 'Plan específico'}
+                    <i className="iconoir-pin" aria-hidden /> {getListing(item.listing_id)?.title ?? 'Plan específico'}
                   </p>
                 )}
                 {item.body && (
@@ -228,7 +228,7 @@ export default function ContentClient({
                 {item.file_url && (
                   <a href={item.file_url} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-[var(--color-accent)] mt-1 flex items-center gap-1 hover:underline">
-                    📎 Archivo adjunto
+                    <i className="iconoir-attachment" aria-hidden /> Archivo adjunto
                   </a>
                 )}
               </div>
@@ -251,7 +251,7 @@ export default function ContentClient({
 
         {items.length === 0 && !showForm && (
           <div className="text-center py-16 text-[var(--color-muted)]">
-            <p className="text-4xl mb-3">📝</p>
+            <p className="text-4xl mb-3"><i className="iconoir-notes" aria-hidden /></p>
             <p className="font-medium">Aún no hay contenido</p>
             <p className="text-sm mt-1">Publica tu primer post exclusivo para suscriptores.</p>
           </div>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { previewOverrideValue } from '@/lib/copy-overrides-preview'
+import { routeForNamespaceSection, NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
 
 /** One overridable dictionary leaf, as rendered on the admin surface. */
 export type OverrideKeyView = {
@@ -41,6 +43,15 @@ const inputStyle: React.CSSProperties = {
   resize: 'vertical',
 }
 
+const previewPaneStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: '4px 8px',
+  borderRadius: 4,
+  fontSize: 12,
+  wordBreak: 'break-word',
+}
+
 const buttonStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 6,
@@ -55,13 +66,16 @@ const buttonStyle: React.CSSProperties = {
 
 /**
  * `/admin/contenido` — the runtime copy-override editor (epic 08 ·
- * admin-content-and-announcements, Sprint 1). **Clerk-gated** — the same-origin
- * fetch carries the session cookie. Every key from the compile-time dictionary is
- * listed with its default value always visible; editing + saving upserts a
- * `platform_copy_overrides` row (live within ≤1 min via cache TTL, or instantly
- * via on-demand revalidation); «restaurar» deletes the row, reverting to the
- * compile-time default. `en` inputs render ONLY for a bilingual-allow-listed
- * namespace (AGENTS rule #5).
+ * cms-contenido-restore-and-polish, Story 2.1 — search/filter/sort/pagination
+ * moved server-side, mirrors `/admin/flags`'s `FlagsAdminClient` split).
+ * **Clerk-gated** — the same-origin fetch carries the session cookie.
+ *
+ * Receives only the CURRENT PAGE's already-filtered/sorted slice — `page.tsx`
+ * owns search/namespace/status/sort/pagination now (URL-search-param-driven).
+ * Editing + saving upserts a `platform_copy_overrides` row (live within ≤1 min
+ * via cache TTL, or instantly via on-demand revalidation); «restaurar» deletes
+ * the row, reverting to the compile-time default. `en` inputs render ONLY for
+ * a bilingual-allow-listed namespace (AGENTS rule #5).
  */
 export default function ContenidoAdminClient({
   keys,
@@ -72,7 +86,6 @@ export default function ContenidoAdminClient({
 }) {
   const [rows, setRows] = useState<OverrideKeyView[]>(keys)
   const [orphanRows, setOrphanRows] = useState<OrphanOverrideView[]>(orphans)
-  const [filter, setFilter] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, Partial<Record<Locale, string>>>>({})
@@ -83,17 +96,9 @@ export default function ContenidoAdminClient({
   useEffect(() => setRows(keys), [keys])
   useEffect(() => setOrphanRows(orphans), [orphans])
 
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
-      (r) => pathOf(r).toLowerCase().includes(q) || r.defaultEs.toLowerCase().includes(q),
-    )
-  }, [rows, filter])
-
   const grouped = useMemo(() => {
     const byNamespace = new Map<string, Map<string, OverrideKeyView[]>>()
-    for (const r of filtered) {
+    for (const r of rows) {
       const section = r.key.split('.')[0] ?? r.key
       if (!byNamespace.has(r.namespace)) byNamespace.set(r.namespace, new Map())
       const bySection = byNamespace.get(r.namespace)!
@@ -101,7 +106,7 @@ export default function ContenidoAdminClient({
       bySection.get(section)!.push(r)
     }
     return byNamespace
-  }, [filtered])
+  }, [rows])
 
   function draftValue(r: OverrideKeyView, locale: Locale): string {
     const d = drafts[pathOf(r)]
@@ -113,6 +118,28 @@ export default function ContenidoAdminClient({
   function setDraft(r: OverrideKeyView, locale: Locale, value: string) {
     const path = pathOf(r)
     setDrafts((prev) => ({ ...prev, [path]: { ...prev[path], [locale]: value } }))
+  }
+
+  /** The value currently live (saved override, or the compile-time default). */
+  function currentValue(r: OverrideKeyView, locale: Locale): string {
+    return locale === 'es' ? r.overrideEs ?? r.defaultEs : r.overrideEn ?? r.defaultEn ?? ''
+  }
+
+  function isDirty(r: OverrideKeyView, locale: Locale): boolean {
+    return draftValue(r, locale) !== currentValue(r, locale)
+  }
+
+  /**
+   * Before/after preview, resolved through `previewOverrideValue` — the SAME
+   * `applyCopyOverrides`/`copy-tree` seam `getOverriddenDictionary()` reads
+   * through in production (Story 1.3), not a raw string compare.
+   */
+  function preview(r: OverrideKeyView, locale: Locale): { before: string; after: string } {
+    const defaultValue = locale === 'es' ? r.defaultEs : r.defaultEn ?? ''
+    return {
+      before: previewOverrideValue(r.namespace, r.key, locale, defaultValue, currentValue(r, locale)),
+      after: previewOverrideValue(r.namespace, r.key, locale, defaultValue, draftValue(r, locale)),
+    }
   }
 
   async function save(r: OverrideKeyView, locale: Locale) {
@@ -209,36 +236,31 @@ export default function ContenidoAdminClient({
 
   return (
     <div style={{ maxWidth: 1100 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--fg)' }}>Contenido</h1>
-      <p style={{ color: 'var(--fg-muted)', fontSize: 14, margin: '0 0 8px' }}>
-        Edita el copy de marketing ya publicado, sin deploy. Se ve en vivo en ≤1 min (o al instante, tras guardar).
-      </p>
-      <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 16px' }}>
-        Solo se pueden editar claves que ya existen en el diccionario — «Original» siempre muestra el
-        valor de fábrica. «Restaurar» borra el override y vuelve al valor de fábrica.
-      </p>
-
       {error && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '0 0 16px' }}>{error}</p>}
 
-      <input
-        type="text"
-        placeholder="Buscar por página, sección o texto…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        style={{ ...inputStyle, marginBottom: 16, width: '100%', maxWidth: 400 }}
-      />
+      {rows.length === 0 && (
+        <p style={{ color: 'var(--fg-muted)', fontSize: 14, padding: '16px 0' }}>
+          Ninguna clave coincide con estos filtros.
+        </p>
+      )}
 
       {[...grouped.entries()].map(([namespace, sections]) => {
         const total = [...sections.values()].reduce((n, arr) => n + arr.length, 0)
         return (
-          <details key={namespace} open={filter.length > 0} style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <details key={namespace} open style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
             <summary style={{ fontWeight: 700, cursor: 'pointer', color: 'var(--fg)' }}>
               {namespace} <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}>({total})</span>
             </summary>
-            {[...sections.entries()].map(([section, items]) => (
-              <details key={section} open={filter.length > 0} style={{ marginLeft: 16, marginTop: 8 }}>
+            {[...sections.entries()].map(([section, items]) => {
+              const route = routeForNamespaceSection(namespace, section)
+              return (
+              <details key={section} open style={{ marginLeft: 16, marginTop: 8 }}>
                 <summary style={{ fontWeight: 600, cursor: 'pointer', color: 'var(--fg)', fontSize: 14 }}>
                   {section} <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}>({items.length})</span>
+                  {' — '}
+                  <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontFamily: 'var(--font-mono, monospace)' }}>
+                    {route ? `${route.label} · ${route.path}` : NO_SINGLE_PAGE_LABEL}
+                  </span>
                 </summary>
                 <div style={{ marginLeft: 16, marginTop: 4 }}>
                   {items.map((r) => {
@@ -276,6 +298,27 @@ export default function ContenidoAdminClient({
                             editado{r.updatedBy ? ` por ${r.updatedBy}` : ''}
                           </div>
                         )}
+                        {isDirty(r, 'es') &&
+                          (() => {
+                            const { before, after } = preview(r, 'es')
+                            return (
+                              <div style={{ marginTop: 6 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
+                                  ● Cambios sin guardar
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
+                                  </div>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })()}
                         {r.bilingual && (
                           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
                             <span style={{ fontSize: 11, color: 'var(--fg-muted)', paddingTop: 8 }}>EN</span>
@@ -295,12 +338,35 @@ export default function ContenidoAdminClient({
                             )}
                           </div>
                         )}
+                        {r.bilingual &&
+                          isDirty(r, 'en') &&
+                          (() => {
+                            const { before, after } = preview(r, 'en')
+                            return (
+                              <div style={{ marginTop: 6 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
+                                  ● Cambios sin guardar (EN)
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
+                                  </div>
+                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
+                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })()}
                       </div>
                     )
                   })}
                 </div>
               </details>
-            ))}
+              )
+            })}
           </details>
         )
       })}

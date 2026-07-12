@@ -125,7 +125,7 @@ export default function PrintAdStep({ shop, n }: { shop: Shop; n: number }) {
       {!editions ? (
         <p className="text-sm text-[var(--color-muted)]">Cargando ediciones…</p>
       ) : done ? (
-        <p className="text-sm text-[color:var(--success)]">✅ Anuncio registrado en la cola editorial.</p>
+        <p className="text-sm text-[color:var(--success)]"><i className="iconoir-check-circle" aria-hidden /> Anuncio registrado en la cola editorial.</p>
       ) : (
         <div className="space-y-3">
           <div className="flex gap-2">

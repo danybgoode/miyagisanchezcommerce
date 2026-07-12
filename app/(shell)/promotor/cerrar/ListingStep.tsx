@@ -76,7 +76,7 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
       </h2>
       {done ? (
         <p className="text-sm text-[color:var(--success)]">
-          ✅ Anuncio publicado — ya se ve en <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>.
+          <i className="iconoir-check-circle" aria-hidden /> Anuncio publicado — ya se ve en <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>.
         </p>
       ) : (
         <div className="space-y-3">

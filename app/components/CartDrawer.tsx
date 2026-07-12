@@ -90,7 +90,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
               {(item.personalization?.fields ?? []).map((f, i) => (
                 <p key={i} style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {f.type === 'file' ? (
-                    <>📎 {f.label || 'Arte adjunto'}</>
+                    <><i className="iconoir-attachment" aria-hidden /> {f.label || 'Arte adjunto'}</>
                   ) : (
                     <>{f.label ? `${f.label}: ${f.value}` : f.value}</>
                   )}

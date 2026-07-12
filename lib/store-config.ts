@@ -99,6 +99,8 @@ export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot
   if (returns && Object.keys(returns).length) configuration.returns_policy = returns as StoreConfigManifest['returns_policy']
   const scheduling = obj(settings.scheduling)
   if (scheduling && Array.isArray(scheduling.links)) configuration.scheduling = scheduling as StoreConfigManifest['scheduling']
+  const launchpad = obj(settings.launchpad)
+  if (launchpad && Object.keys(launchpad).length) configuration.launchpad = launchpad as StoreConfigManifest['launchpad']
 
   // Own-shop premium presentation (epic 07, Sprint 3) — Acerca + FAQ. No
   // `returns_policy` duplication here — that block above already covers

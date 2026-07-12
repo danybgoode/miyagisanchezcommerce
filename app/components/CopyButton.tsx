@@ -19,7 +19,7 @@ export default function CopyButton({ value, className }: { value: string; classN
       aria-label="Copiar"
       className={className ?? 'text-xs font-semibold text-[var(--color-accent)] border border-[var(--color-border)] rounded px-2 py-0.5'}
     >
-      {copied ? '✓ Copiado' : 'Copiar'}
+      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
     </button>
   )
 }

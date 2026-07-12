@@ -94,7 +94,7 @@ export default function ComparteClient({
             Compartir por WhatsApp
           </a>
           <button type="button" onClick={handleCopy} className="btn btn-secondary">
-            {copied ? '✓ Copiado' : 'Copiar enlace'}
+            {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar enlace'}
           </button>
           <a
             href="/api/sell/shop/story-image"

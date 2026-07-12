@@ -134,12 +134,12 @@ export default function Negociacion({ initial }: { initial: OffersSettings | nul
 
               {declinePct >= acceptPct && (
                 <Banner variant="danger" className="text-xs">
-                  ⚠ El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
+                  <i className="iconoir-warning-triangle" aria-hidden /> El porcentaje de rechazo ({declinePct}%) debe ser menor al de aceptación ({acceptPct}%).
                 </Banner>
               )}
               {counterPct > acceptPct && (
                 <Banner variant="warning" className="text-xs">
-                  ⚠ El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
+                  <i className="iconoir-warning-triangle" aria-hidden /> El porcentaje de contraoferta ({counterPct}%) debe ser menor o igual al de aceptación ({acceptPct}%).
                 </Banner>
               )}
             </div>

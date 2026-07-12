@@ -115,7 +115,7 @@ export default async function SettingsIndexPage() {
                   {isSoon ? (
                     <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning)', background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 'var(--r-pill)', padding: '2px 7px', flexShrink: 0 }}>Próximamente</span>
                   ) : done.has(section.key) ? (
-                    <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }}>✓</span>
+                    <i className="iconoir-check" aria-hidden style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, flexShrink: 0 }} />
                   ) : MANUAL_KEYS.has(section.key) ? (
                     <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-muted)', background: 'var(--bg-sunk)', border: '1px solid var(--border)', borderRadius: 'var(--r-pill)', padding: '2px 7px', flexShrink: 0 }}>Pendiente</span>
                   ) : null}

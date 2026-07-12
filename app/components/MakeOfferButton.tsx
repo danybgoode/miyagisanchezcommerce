@@ -133,7 +133,7 @@ function ActiveOfferCard({
               className="flex-1 font-semibold py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
               style={{ background: 'var(--accent)', color: 'var(--fg-inverse)' }}
             >
-              {busy ? '…' : '✓ Aceptar trato'}
+              {busy ? '…' : <><i className="iconoir-check" aria-hidden /> Aceptar trato</>}
             </button>
             <button
               type="button"
@@ -155,7 +155,7 @@ function ActiveOfferCard({
     return (
       <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--success)', background: 'var(--success-soft)' }}>
         <div className="flex items-start gap-3">
-          <span style={{ fontSize: 20, marginTop: 2 }}>✅</span>
+          <i className="iconoir-check-circle" aria-hidden style={{ fontSize: 20, marginTop: 2 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>¡Oferta aceptada!</div>
             <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
@@ -464,9 +464,9 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--fg-muted)' }}>{listing.currency}</span>
                   </div>
                   {offerCents > 0 && offerCents < listing.price_cents && <QualityBar offerCents={offerCents} askingCents={listing.price_cents} />}
-                  {fieldErrors.amount && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>⚠ {fieldErrors.amount}</p>}
-                  {!fieldErrors.amount && amountValidation?.level === 'warn' && <p style={{ color: 'var(--warning)', fontSize: 11, marginTop: 4 }}>⚠ {amountValidation.message}</p>}
-                  {!fieldErrors.amount && amountValidation?.level === 'block' && offerCents > 0 && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>⚠ {amountValidation.message}</p>}
+                  {fieldErrors.amount && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}><i className="iconoir-warning-triangle" aria-hidden /> {fieldErrors.amount}</p>}
+                  {!fieldErrors.amount && amountValidation?.level === 'warn' && <p style={{ color: 'var(--warning)', fontSize: 11, marginTop: 4 }}><i className="iconoir-warning-triangle" aria-hidden /> {amountValidation.message}</p>}
+                  {!fieldErrors.amount && amountValidation?.level === 'block' && offerCents > 0 && <p style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}><i className="iconoir-warning-triangle" aria-hidden /> {amountValidation.message}</p>}
                 </div>
 
                 {/* Expiry notice */}

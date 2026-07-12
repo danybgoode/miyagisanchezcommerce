@@ -15,11 +15,11 @@ export const metadata: Metadata = {
 const ENDPOINT = 'https://miyagisanchez.com'
 
 const PRODUCT_TYPES = [
-  { icon: '📦', label: 'Productos físicos', note: 'con envío opcional' },
-  { icon: '🎓', label: 'Productos digitales', note: 'entrega instantánea vía R2' },
-  { icon: '🔁', label: 'Suscripciones', note: 'cobro recurrente con Stripe' },
-  { icon: '🔧', label: 'Servicios', note: 'con reserva, a cotización' },
-  { icon: '🏠', label: 'Rentas', note: 'precio diario / semanal' },
+  { icon: 'iconoir-package', label: 'Productos físicos', note: 'con envío opcional' },
+  { icon: 'iconoir-graduation-cap', label: 'Productos digitales', note: 'entrega instantánea vía R2' },
+  { icon: 'iconoir-repeat', label: 'Suscripciones', note: 'cobro recurrente con Stripe' },
+  { icon: 'iconoir-wrench', label: 'Servicios', note: 'con reserva, a cotización' },
+  { icon: 'iconoir-home', label: 'Rentas', note: 'precio diario / semanal' },
 ]
 
 const PAYMENT_METHODS = [
@@ -309,7 +309,7 @@ export default async function AgentPage() {
                 fontSize: 14,
               }}
             >
-              <span style={{ fontSize: 20 }}>{icon}</span>
+              <i className={icon} aria-hidden style={{ fontSize: 20 }} />
               <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{label}</span>
               <span style={{ color: 'var(--fg-muted)', marginLeft: 'auto' }}>{note}</span>
             </div>

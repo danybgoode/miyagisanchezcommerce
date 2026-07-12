@@ -90,7 +90,7 @@ export default async function CollectionPage({
       <div className="max-w-6xl mx-auto px-4 pb-12">
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
-            <div className="text-4xl mb-3">📦</div>
+            <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
             <p className="font-medium">Esta colección todavía no tiene anuncios.</p>
           </div>
         ) : (

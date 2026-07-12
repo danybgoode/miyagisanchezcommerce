@@ -130,7 +130,7 @@ function CounterModal({
               {formatOfferAmount(suggested, offer.marketplace_listings.currency)} (punto medio)
             </button>
           </p>
-          {error && <p className="text-[var(--danger)] text-xs mb-3">⚠ {error}</p>}
+          {error && <p className="text-[var(--danger)] text-xs mb-3"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
 
           <label className="block text-sm font-medium mb-1.5">
             Mensaje <span className="text-xs font-normal text-[var(--color-muted)]">Opcional</span>
@@ -201,7 +201,7 @@ function OfferCard({
             <img src={thumb} alt={listing.title}
               className="w-12 h-12 object-cover rounded-[var(--r-md)] flex-shrink-0 border border-[var(--color-border)]" />
           ) : (
-            <div className="w-12 h-12 bg-gray-100 rounded-[var(--r-md)] flex-shrink-0 flex items-center justify-center text-xl">📦</div>
+            <div className="w-12 h-12 bg-gray-100 rounded-[var(--r-md)] flex-shrink-0 flex items-center justify-center text-xl"><i className="iconoir-package" aria-hidden /></div>
           )}
 
           {/* Info */}
@@ -297,7 +297,7 @@ function OfferCard({
           <button type="button"
             onClick={() => onRespond(offer.id, 'decline')}
             className="py-3 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors flex items-center justify-center gap-1.5">
-            ✕ Rechazar
+            <i className="iconoir-xmark" aria-hidden /> Rechazar
           </button>
         </div>
       )}
@@ -389,7 +389,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
       {/* Response time nudge */}
       {pendingOffers.length > 0 && (
         <div className="flex items-center gap-2 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-lg)] px-4 py-3 mb-5">
-          <span className="text-lg">⚡</span>
+          <i className="iconoir-flash text-lg" aria-hidden />
           <p className="text-sm text-[var(--warning)]">
             Los compradores que esperan más de 2 horas compran en otro lugar.
             <strong className="ml-1">Responde rápido para cerrar el trato.</strong>
@@ -421,7 +421,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
         <div className="text-center py-16">
           {filter === 'pending' && offers.length > 0 ? (
             <>
-              <div className="text-4xl mb-3">✓</div>
+              <div className="text-4xl mb-3"><i className="iconoir-check" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">Al día</h3>
               <p className="text-sm text-[var(--color-muted)]">No tienes ofertas pendientes.</p>
               <button type="button" onClick={() => setFilter('all')}
@@ -431,7 +431,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
             </>
           ) : (
             <>
-              <div className="text-4xl mb-3">💬</div>
+              <div className="text-4xl mb-3"><i className="iconoir-chat-bubble" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">Sin ofertas aún</h3>
               <p className="text-sm text-[var(--color-muted)] mb-4">
                 Cuando los compradores hagan ofertas en tus anuncios, aparecerán aquí.

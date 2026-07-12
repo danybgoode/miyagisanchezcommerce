@@ -99,7 +99,7 @@ export default async function EmbedShopPage({
 
           {listings.length === 0 ? (
             <div className="text-center py-16 text-[var(--embed-fg-subtle)]">
-              <div className="text-4xl mb-3">📦</div>
+              <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
               <p className="font-medium">Esta tienda aún no tiene anuncios.</p>
             </div>
           ) : (
@@ -117,7 +117,7 @@ export default async function EmbedShopPage({
                     <div className="aspect-square bg-[var(--embed-surface-sunk)] flex items-center justify-center overflow-hidden">
                       {img
                         ? <img src={img} alt={listing.title} className="w-full h-full object-cover" />
-                        : <span className="text-3xl text-[var(--embed-placeholder)]">🏪</span>}
+                        : <span className="text-3xl text-[var(--embed-placeholder)]"><i className="iconoir-shop" aria-hidden /></span>}
                     </div>
                     <div className="p-2.5">
                       <p className="text-[13px] font-semibold text-[var(--embed-fg)] line-clamp-2 leading-snug">{listing.title}</p>

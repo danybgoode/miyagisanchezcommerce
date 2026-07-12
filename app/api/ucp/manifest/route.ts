@@ -187,6 +187,15 @@ export async function GET(req: NextRequest) {
           mcp_tools: ['get_subdomain_entitlement', 'start_subdomain_subscription', 'switch_subdomain_cadence'],
         },
 
+        seller_launchpad: {
+          method: 'POST',
+          url: `${base}/api/ucp/mcp`,
+          description: "A seller's own agent can run the full bookshop launchpad loop — review writer manuscript submissions (list_manuscript_submissions, review_submission), mint an approved one as a draft digital product (publish_submission), and manage voting campaigns (list_launchpad_campaigns, create_campaign, update_campaign, activate_campaign, cancel_campaign). Behind the launchpad.enabled flag; a campaign's reward product must be owned by the shop and CPP-configured (multiple size/binding options or quantity tiers) to activate.",
+          auth: 'authorization_bearer_shop_token',
+          note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
+          mcp_tools: ['list_manuscript_submissions', 'review_submission', 'publish_submission', 'list_launchpad_campaigns', 'create_campaign', 'update_campaign', 'activate_campaign', 'cancel_campaign'],
+        },
+
         seller_onboarding: {
           method: 'GET',
           url: `${base}/api/ucp/setup-spec`,

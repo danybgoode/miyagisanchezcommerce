@@ -20,6 +20,7 @@ import { db } from '@/lib/supabase'
 import { getDictionary } from '@/lib/dictionary'
 import { flattenDictionary } from '@/lib/copy-tree'
 import { parseCopyOverrideWriteBody, parseCopyOverrideDeleteBody } from '@/lib/copy-overrides-admin'
+import { classifyOverrideStoreError, OVERRIDE_STORE_UNAVAILABLE_MESSAGE } from '@/lib/copy-overrides-errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,11 +32,24 @@ async function knownPaths(): Promise<Set<string>> {
   return new Set(flattenDictionary(dict).map((e) => `${e.namespace}.${e.key}`))
 }
 
+/**
+ * Shared error response: a missing/unreachable table gets a distinct 503 +
+ * actionable es-MX message (Story 1.2) instead of the same generic 500 every
+ * other failure returns — the exact ambiguity that hid the Story 1.1 gap for
+ * two days.
+ */
+function storeErrorResponse(error: unknown, genericMessage: string) {
+  if (classifyOverrideStoreError(error) === 'store_unavailable') {
+    return NextResponse.json({ error: OVERRIDE_STORE_UNAVAILABLE_MESSAGE, code: 'store_unavailable' }, { status: 503 })
+  }
+  return NextResponse.json({ error: genericMessage }, { status: 500 })
+}
+
 export const GET = withAdmin(async () => {
   const { data, error } = await db
     .from(TABLE)
     .select('namespace, key, locale, value, updated_at, updated_by')
-  if (error) return NextResponse.json({ error: 'No se pudieron leer los overrides.' }, { status: 500 })
+  if (error) return storeErrorResponse(error, 'No se pudieron leer los overrides.')
   return NextResponse.json({ overrides: data ?? [] })
 })
 
@@ -63,7 +77,7 @@ export const POST = withAdmin(async (req: NextRequest) => {
     },
     { onConflict: 'namespace,key,locale' },
   )
-  if (error) return NextResponse.json({ error: 'No se pudo guardar el override.' }, { status: 500 })
+  if (error) return storeErrorResponse(error, 'No se pudo guardar el override.')
 
   revalidateTag('copy-overrides', 'default')
   return NextResponse.json({ ok: true, namespace: parsed.namespace, key: parsed.key, locale: parsed.locale, value: parsed.value })
@@ -86,7 +100,7 @@ export const DELETE = withAdmin(async (req: NextRequest) => {
     .eq('namespace', parsed.namespace)
     .eq('key', parsed.key)
     .eq('locale', parsed.locale)
-  if (error) return NextResponse.json({ error: 'No se pudo restaurar.' }, { status: 500 })
+  if (error) return storeErrorResponse(error, 'No se pudo restaurar.')
 
   revalidateTag('copy-overrides', 'default')
   return NextResponse.json({ ok: true })

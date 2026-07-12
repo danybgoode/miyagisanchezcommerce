@@ -98,7 +98,7 @@ export default function SubscriptionsClient({
             disabled={confirming === sub.id}
             className="w-full bg-[var(--color-accent)] text-white text-sm font-semibold py-2 rounded transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
           >
-            {confirming === sub.id ? 'Confirmando…' : '✓ Confirmar pago SPEI recibido'}
+            {confirming === sub.id ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar pago SPEI recibido</>}
           </button>
         )}
       </div>
@@ -117,7 +117,7 @@ export default function SubscriptionsClient({
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3 flex items-center gap-2">
-          <span>⚠</span> {error}
+          <i className="iconoir-warning-triangle" aria-hidden /> {error}
         </div>
       )}
 
@@ -125,7 +125,7 @@ export default function SubscriptionsClient({
       {pending.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-amber-700 mb-3 flex items-center gap-2">
-            <span>⏳</span> Pendientes de confirmación ({pending.length})
+            <i className="iconoir-hourglass" aria-hidden /> Pendientes de confirmación ({pending.length})
           </h2>
           <div className="space-y-3">
             {pending.map(s => renderRow(s, true))}
@@ -159,7 +159,7 @@ export default function SubscriptionsClient({
 
       {subs.length === 0 && (
         <div className="text-center py-16 text-[var(--color-muted)]">
-          <p className="text-4xl mb-3">🔔</p>
+          <p className="text-4xl mb-3"><i className="iconoir-bell" aria-hidden /></p>
           <p className="font-medium">Aún no tienes suscriptores</p>
           <p className="text-sm mt-1">Publica un anuncio de tipo Suscripción para comenzar.</p>
         </div>

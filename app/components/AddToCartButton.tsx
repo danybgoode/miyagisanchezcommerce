@@ -26,7 +26,7 @@ export default function AddToCartButton({ item }: { item: CartItem }) {
       }}
     >
       <i
-        className={inCart ? 'iconoir-check' : 'iconoir-bag-plus'}
+        className={inCart ? 'iconoir-check' : 'iconoir-shopping-bag-plus'}
         style={{ fontSize: 16 }}
       />
       {inCart ? 'En carrito — Ver' : 'Agregar al carrito'}

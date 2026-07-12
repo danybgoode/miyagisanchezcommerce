@@ -133,7 +133,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
               onClick={() => { navigator.clipboard.writeText(connectorUrl); setConnectorCopied(true); setTimeout(() => setConnectorCopied(false), 2000) }}
               className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
             >
-              {connectorCopied ? '✓ Copiado' : 'Copiar'}
+              {connectorCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -162,7 +162,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
               Revocar
             </button>
           </div>
-          {connectorError && <p className="text-[11px] text-red-600 mt-2">⚠ {connectorError}</p>}
+          {connectorError && <p className="text-[11px] text-red-600 mt-2"><i className="iconoir-warning-triangle" aria-hidden /> {connectorError}</p>}
           <p className="text-[11px] text-[var(--color-muted)] mt-2">
             Rotar invalida el enlace anterior de inmediato. Pagos, dominio y Cal.com siempre se quedan en un
             paso manual.
@@ -190,7 +190,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
       {/* Token generation (show-once) — para Claude Desktop u otros clientes */}
       {token ? (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
-          <p className="text-xs font-semibold text-amber-800 mb-2">⚠️ Copia este token ahora — no se vuelve a mostrar.</p>
+          <p className="text-xs font-semibold text-amber-800 mb-2"><i className="iconoir-warning-triangle" aria-hidden /> Copia este token ahora — no se vuelve a mostrar.</p>
           <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-2">
             <code className="flex-1 text-xs font-mono text-[var(--color-foreground)] break-all">{token}</code>
             <button
@@ -198,7 +198,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
               onClick={() => { navigator.clipboard.writeText(token); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
               className="text-xs text-[var(--color-accent)] hover:underline flex-shrink-0 px-1.5"
             >
-              {tokenCopied ? '✓ Copiado' : 'Copiar'}
+              {tokenCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
             </button>
           </div>
         </div>
@@ -214,7 +214,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
           </button>
           {tokenSet && (
             <>
-              <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">✓ Token activo</span>
+              <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1"><i className="iconoir-check" aria-hidden /> Token activo</span>
               <button
                 type="button"
                 onClick={revoke}
@@ -239,7 +239,7 @@ export default function ConnectAgentPanel({ initialTokenSet = false }: { initial
           onClick={() => { navigator.clipboard.writeText(snippet); setSnippetCopied(true); setTimeout(() => setSnippetCopied(false), 2000) }}
           className="absolute top-2 right-2 text-[10px] bg-gray-700 text-gray-300 hover:bg-gray-600 px-2 py-0.5 rounded"
         >
-          {snippetCopied ? '✓ Copiado' : 'Copiar'}
+          {snippetCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
         </button>
       </div>
     </div>

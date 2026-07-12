@@ -79,7 +79,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
               className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               placeholder="Mi tienda"
             />
-            {fieldErrors.name && <p className="text-[var(--danger)] text-xs mt-1">⚠ {fieldErrors.name}</p>}
+            {fieldErrors.name && <p className="text-[var(--danger)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> {fieldErrors.name}</p>}
           </div>
 
           <div>
@@ -100,7 +100,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
               className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
               placeholder="Cuéntanos sobre tu tienda…"
             />
-            {fieldErrors.description && <p className="text-[var(--danger)] text-xs mt-1">⚠ {fieldErrors.description}</p>}
+            {fieldErrors.description && <p className="text-[var(--danger)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> {fieldErrors.description}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

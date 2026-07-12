@@ -331,7 +331,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
           <div className="pt-4">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                📦 Dirección de origen
+                <i className="iconoir-package" aria-hidden /> Dirección de origen
               </p>
               <span className="text-[10px] bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)] rounded-[var(--r-pill)] px-2 py-0.5 font-medium">
                 Envia.com
@@ -374,7 +374,7 @@ export default function Envios({ initial }: { initial: EnviosInitial }) {
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)] animate-pulse">·</span>
                   )}
                   {originCpResolved && !originCpLookupLoading && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--success)] text-sm">✓</span>
+                    <i className="iconoir-check absolute right-3 top-1/2 -translate-y-1/2 text-[var(--success)] text-sm" aria-hidden />
                   )}
                 </div>
                 {originCpLookupError && (

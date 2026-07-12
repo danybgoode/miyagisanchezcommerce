@@ -17,7 +17,7 @@ function AgentSetupNudge() {
       className="block no-underline rounded-2xl border border-[var(--color-border)] bg-[var(--surface-muted)] p-4 mb-5 hover:border-[var(--color-accent)] transition-colors"
     >
       <div className="flex items-start gap-3">
-        <span className="text-2xl leading-none">✨</span>
+        <i className="iconoir-sparks text-2xl leading-none" aria-hidden />
         <div>
           <p className="font-semibold text-[var(--fg)] text-sm">
             ¿Tu agente ya armó tu tienda? Pégala aquí.
@@ -60,7 +60,7 @@ export default async function SellPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           {[
             {
-              icon: 'iconoir-lightning-bolt',
+              icon: 'iconoir-flash',
               title: 'Publicación instantánea',
               desc: 'Tu anuncio aparece de inmediato, sin esperar aprobación.',
             },

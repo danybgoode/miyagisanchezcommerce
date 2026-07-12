@@ -70,14 +70,14 @@ export function PickupSpotManager({
         <div className="space-y-2 mb-3">
           {spots.map(spot => (
             <div key={spot.id} className="flex items-start gap-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2.5">
-              <span className="text-base mt-0.5 flex-shrink-0">📍</span>
+              <i className="iconoir-map-pin text-base mt-0.5 flex-shrink-0" aria-hidden />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{spot.name}</p>
                 <p className="text-xs text-[var(--color-muted)]">{spot.address}</p>
-                {spot.hours && <p className="text-xs text-[var(--color-muted)] mt-0.5">🕐 {spot.hours}</p>}
+                {spot.hours && <p className="text-xs text-[var(--color-muted)] mt-0.5"><i className="iconoir-clock" aria-hidden /> {spot.hours}</p>}
                 {spot.notes && <p className="text-xs text-[var(--color-muted)] mt-0.5 italic">{spot.notes}</p>}
                 {spot.scheduling_url && (
-                  <p className="text-xs text-[var(--color-accent)] mt-0.5 truncate">📅 Cita en línea configurada</p>
+                  <p className="text-xs text-[var(--color-accent)] mt-0.5 truncate"><i className="iconoir-calendar" aria-hidden /> Cita en línea configurada</p>
                 )}
               </div>
               <div className="flex gap-1 flex-shrink-0">
@@ -199,7 +199,7 @@ export function PickupSpotManager({
       )}
 
       <p className="text-xs text-[var(--color-muted)] mt-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 leading-relaxed">
-        💡 Los compradores verán estos puntos al finalizar su compra. Próximamente podrán elegir el punto y agendar hora de recogida directamente desde el anuncio.
+        <i className="iconoir-light-bulb" aria-hidden /> Los compradores verán estos puntos al finalizar su compra. Próximamente podrán elegir el punto y agendar hora de recogida directamente desde el anuncio.
       </p>
     </div>
   )
