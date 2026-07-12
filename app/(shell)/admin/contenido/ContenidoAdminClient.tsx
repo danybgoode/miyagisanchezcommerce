@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { previewOverrideValue } from '@/lib/copy-overrides-preview'
 import { NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
 import { humanizeKeyPath } from '@/lib/copy-overrides-labels'
+import { buildBatchApplyRows, removeAppliedDrafts, type DraftEntry } from '@/lib/copy-overrides-draft-batch'
 import type { NavNamespaceGroup } from '@/lib/copy-overrides-page-nav'
 import ContenidoPageNav from './ContenidoPageNav'
 
@@ -80,17 +82,44 @@ export default function ContenidoAdminClient({
   pagination: React.ReactNode
   resultsSummary: string
 }) {
+  const router = useRouter()
   const [rows, setRows] = useState<OverrideKeyView[]>(keys)
   const [orphanRows, setOrphanRows] = useState<OrphanOverrideView[]>(orphans)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [drafts, setDrafts] = useState<Record<string, Partial<Record<Locale, string>>>>({})
+  // Keyed the SAME way as pathOf() (`namespace.key`) but carries namespace/key
+  // explicitly (rather than re-splitting the path string) so a draft started
+  // on one page/section survives navigating to another — batched save can
+  // apply edits spanning multiple pages in one Guardar cambios (Story 3.2).
+  const [drafts, setDrafts] = useState<Record<string, DraftEntry>>({})
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [batchError, setBatchError] = useState<string | null>(null)
 
   // Re-sync from fresh server props after a `router.refresh()` — e.g. the bulk
-  // import/export panel triggers one after applying a batch, so the field list
-  // below doesn't keep showing pre-apply values until a manual reload.
+  // import/export panel (or a successful batched save) triggers one, so the
+  // field list below doesn't keep showing pre-apply values until a manual reload.
   useEffect(() => setRows(keys), [keys])
   useEffect(() => setOrphanRows(orphans), [orphans])
+
+  const dirtyPaths = Object.keys(drafts)
+
+  // Warn on tab close/refresh while there are unsaved drafts — the in-app
+  // page-nav guard (below) handles client-side navigation between groups.
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (dirtyPaths.length === 0) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [dirtyPaths.length])
+
+  /** Blocks navigation via a confirm() when there are unsaved drafts; a no-op (always proceeds) otherwise. */
+  function confirmDiscardIfDirty(): boolean {
+    if (dirtyPaths.length === 0) return true
+    return window.confirm('Tienes cambios sin guardar. ¿Salir de esta página sin guardarlos?')
+  }
 
   const activeGroup = groups.find((g) => g.namespace === activeNamespace)
   const activeEntry = activeGroup?.sections.find((s) => s.section === activeSection)
@@ -104,7 +133,7 @@ export default function ContenidoAdminClient({
 
   function setDraft(r: OverrideKeyView, locale: Locale, value: string) {
     const path = pathOf(r)
-    setDrafts((prev) => ({ ...prev, [path]: { ...prev[path], [locale]: value } }))
+    setDrafts((prev) => ({ ...prev, [path]: { ...prev[path], namespace: r.namespace, key: r.key, [locale]: value } }))
   }
 
   /** The value currently live (saved override, or the compile-time default). */
@@ -129,38 +158,45 @@ export default function ContenidoAdminClient({
     }
   }
 
-  async function save(r: OverrideKeyView, locale: Locale) {
-    const busyKey = `${pathOf(r)}:${locale}`
-    const value = draftValue(r, locale)
-    setBusyId(busyKey)
-    setError(null)
+  /**
+   * Batched save (Story 3.2) — collects EVERY dirty draft (which may span
+   * multiple pages/sections, since `drafts` persists across page-nav) into
+   * one call to the EXISTING bulk-apply route
+   * (`POST /api/admin/content-overrides/import/apply`), the same one the
+   * import/export panel already uses. A partial failure leaves only the
+   * rejected rows pending (named in the error text); full success clears
+   * every draft and refreshes the server data so the visible page reflects
+   * what was just saved.
+   */
+  async function saveAllDrafts() {
+    const rowsToApply = buildBatchApplyRows(drafts)
+    if (rowsToApply.length === 0) return
+    setBatchBusy(true)
+    setBatchError(null)
     try {
-      const res = await fetch('/api/admin/content-overrides', {
+      const res = await fetch('/api/admin/content-overrides/import/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ namespace: r.namespace, key: r.key, locale, value }),
+        body: JSON.stringify({ rows: rowsToApply }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data?.error ?? 'No se pudo guardar.')
+        setBatchError(data?.error ?? 'No se pudieron guardar los cambios.')
         return
       }
-      setRows((prev) =>
-        prev.map((row) =>
-          pathOf(row) === pathOf(r)
-            ? {
-                ...row,
-                overrideEs: locale === 'es' ? value : row.overrideEs,
-                overrideEn: locale === 'en' ? value : row.overrideEn,
-                updatedAt: new Date().toISOString(),
-              }
-            : row,
-        ),
-      )
+      const rejected: Array<{ namespace?: unknown; key?: unknown; error?: unknown }> = data.rejected ?? []
+      if (rejected.length > 0) {
+        setDrafts((prev) => removeAppliedDrafts(prev, rejected))
+        const names = rejected.map((r) => `${String(r.namespace)}.${String(r.key)}`).join(', ')
+        setBatchError(`Se guardaron ${data.applied ?? 0}. No se pudieron guardar: ${names}.`)
+      } else {
+        setDrafts({})
+      }
+      router.refresh()
     } catch {
-      setError('Error de red al guardar.')
+      setBatchError('Error de red al guardar los cambios.')
     } finally {
-      setBusyId(null)
+      setBatchBusy(false)
     }
   }
 
@@ -223,7 +259,12 @@ export default function ContenidoAdminClient({
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-      <ContenidoPageNav groups={groups} activeNamespace={activeNamespace} activeSection={activeSection} />
+      <ContenidoPageNav
+        groups={groups}
+        activeNamespace={activeNamespace}
+        activeSection={activeSection}
+        guard={confirmDiscardIfDirty}
+      />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: 16 }}>
@@ -276,12 +317,9 @@ export default function ContenidoAdminClient({
                     className="input"
                     style={{ flex: 1, resize: 'vertical' }}
                   />
-                  <button onClick={() => save(r, 'es')} disabled={busyEs} className="btn btn-primary btn-sm">
-                    {busyEs ? '…' : 'Guardar'}
-                  </button>
                   {hasOverrideEs && (
                     <button onClick={() => restore(r, 'es')} disabled={busyEs} className="btn btn-secondary btn-sm">
-                      Restaurar
+                      {busyEs ? '…' : 'Restaurar'}
                     </button>
                   )}
                 </div>
@@ -319,12 +357,9 @@ export default function ContenidoAdminClient({
                       className="input"
                       style={{ flex: 1, resize: 'vertical' }}
                     />
-                    <button onClick={() => save(r, 'en')} disabled={busyEn} className="btn btn-primary btn-sm">
-                      {busyEn ? '…' : 'Guardar'}
-                    </button>
                     {hasOverrideEn && (
                       <button onClick={() => restore(r, 'en')} disabled={busyEn} className="btn btn-secondary btn-sm">
-                        Restaurar
+                        {busyEn ? '…' : 'Restaurar'}
                       </button>
                     )}
                   </div>
@@ -353,6 +388,37 @@ export default function ContenidoAdminClient({
             )
           })}
         </div>
+
+        {dirtyPaths.length > 0 && (
+          <div
+            className="card-panel"
+            style={{
+              position: 'sticky',
+              bottom: 16,
+              marginTop: 16,
+              padding: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              boxShadow: 'var(--shadow-2)',
+              zIndex: 5,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg)' }}>
+                Cambios sin guardar ({dirtyPaths.length})
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                Puede incluir ediciones de otras páginas que aún no has guardado.
+              </div>
+              {batchError && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{batchError}</div>}
+            </div>
+            <button onClick={saveAllDrafts} disabled={batchBusy} className="btn btn-primary btn-sm">
+              {batchBusy ? '…' : 'Guardar cambios'}
+            </button>
+          </div>
+        )}
 
         {pagination}
 
