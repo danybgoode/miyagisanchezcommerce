@@ -14,8 +14,16 @@ import type { HomePersonalization } from '@/lib/home-personalization'
  * It mirrors the `FavoritesProvider` idiom: signed-out short-circuits, a `cancelled`
  * guard, best-effort try/catch. The static render never blocks on it — `data` is `null`
  * during SSR / loading / signed-out / failure, so both slots render nothing until real
- * data lands. (CORS: the endpoint allows the prod origin only, so on a preview the fetch
- * degrades to nothing — the authed hydration eyeball is owed to Daniel on prod.)
+ * data lands.
+ *
+ * `storeUrl`/`publishableApiKey` are passed as props from the Server Component parent
+ * (`app/(site)/page.tsx`), which reads them server-side at request time — the same
+ * pattern `<ClerkProvider>` (`app/layout.tsx`) uses internally. Reading them here via
+ * `process.env.NEXT_PUBLIC_*` directly (the original approach) requires Next to inline
+ * the value at `next build` time; the Cloud Run image build never passes those as Docker
+ * build-args, so the client bundle silently fell back to `http://localhost:9000` / `""`
+ * for every visitor since the Vercel→Cloud Run cutover — not a CORS issue, despite what
+ * this comment used to say (see `sprint-1.md` Story 1.1 for the live-bundle evidence).
  */
 
 type HomePersonalizationContextValue = { data: HomePersonalization | null }
@@ -26,14 +34,14 @@ export function useHomePersonalization(): HomePersonalization | null {
   return useContext(HomePersonalizationContext).data
 }
 
-const STORE_URL =
-  process.env.NEXT_PUBLIC_MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
 export default function HomePersonalizationProvider({
   children,
+  storeUrl,
+  publishableApiKey,
 }: {
   children: React.ReactNode
+  storeUrl: string
+  publishableApiKey: string
 }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth()
   const [data, setData] = useState<HomePersonalization | null>(null)
@@ -52,9 +60,9 @@ export default function HomePersonalizationProvider({
       try {
         const token = await getToken()
         if (!token || cancelled) return
-        const res = await fetch(`${STORE_URL}/store/home/personalization`, {
+        const res = await fetch(`${storeUrl}/store/home/personalization`, {
           headers: {
-            'x-publishable-api-key': PUB_KEY,
+            'x-publishable-api-key': publishableApiKey,
             Authorization: `Bearer ${token}`,
           },
         })
@@ -69,7 +77,7 @@ export default function HomePersonalizationProvider({
     return () => {
       cancelled = true
     }
-  }, [isLoaded, isSignedIn, userId, getToken])
+  }, [isLoaded, isSignedIn, userId, getToken, storeUrl, publishableApiKey])
 
   return (
     <HomePersonalizationContext.Provider value={{ data }}>

@@ -70,7 +70,10 @@ export default async function HomePage() {
   const seleccion: Listing[] = [...(featured ? [featured] : []), ...grid]
 
   return (
-    <HomePersonalizationProvider>
+    <HomePersonalizationProvider
+      storeUrl={process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'}
+      publishableApiKey={process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''}
+    >
     <div className="max-w-6xl mx-auto px-4 py-4">
       {/* Value-prop ribbon: one-line orientation in place of a hero. Shown to everyone
           now that the page is static (no auth branch). */}
