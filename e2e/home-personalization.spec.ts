@@ -3,6 +3,7 @@ import {
   priceLabel,
   favoriteConditionLabel,
   sellerModule,
+  logPersonalizationFetchFailure,
 } from '../lib/home-personalization'
 
 /**
@@ -46,5 +47,31 @@ test.describe('home-personalization · pure helpers', () => {
     expect(sellerModule({ hasShop: false, sellerSnapshot: null })).toBe('recruit')
     // hasShop:false with stale stats still recruits (hasShop is authoritative).
     expect(sellerModule({ hasShop: false, sellerSnapshot: snap })).toBe('recruit')
+  })
+
+  test('logPersonalizationFetchFailure (S1.3 breadcrumb) — warns exactly once per call, with the reason', () => {
+    const original = console.warn
+    const calls: unknown[][] = []
+    console.warn = (...args: unknown[]) => {
+      calls.push(args)
+    }
+    try {
+      // Success path: the provider never calls this helper at all — nothing to assert
+      // beyond "not called", which the fresh `calls` array already guarantees below.
+
+      // Non-ok response (e.g. a 401/404/500) — logs the status.
+      logPersonalizationFetchFailure(500)
+      expect(calls).toHaveLength(1)
+      expect(calls[0][0]).toBe('[home-personalization] fetch failed')
+      expect(calls[0][1]).toBe(500)
+
+      // Thrown/network error — logs the error, still exactly once.
+      const err = new Error('network down')
+      logPersonalizationFetchFailure(err)
+      expect(calls).toHaveLength(2)
+      expect(calls[1][1]).toBe(err)
+    } finally {
+      console.warn = original
+    }
   })
 })

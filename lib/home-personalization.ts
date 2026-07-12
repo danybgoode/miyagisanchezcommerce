@@ -72,3 +72,14 @@ export function sellerModule(p: {
   if (!p.hasShop) return 'recruit'
   return p.sellerSnapshot ? 'snapshot' : 'none'
 }
+
+/**
+ * The one breadcrumb for the island's fail-open fetch (S1.3) — "fail-open by design" must
+ * never again mask a prod outage silently the way the build-arg bug did (sprint-1.md
+ * Story 1.1). `reason` is either the HTTP status (non-ok response) or the caught error
+ * (network/JSON failure). No retry, no UI — just a console signal an on-call human or a
+ * log-based alert can pick up.
+ */
+export function logPersonalizationFetchFailure(reason: number | unknown): void {
+  console.warn('[home-personalization] fetch failed', reason)
+}
