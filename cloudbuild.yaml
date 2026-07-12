@@ -45,6 +45,8 @@ steps:
     args:
       - buildx
       - build
+      - --builder
+      - cloudbuildx
       - --cache-from
       - 'type=registry,ref=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:buildcache'
       - --cache-to
