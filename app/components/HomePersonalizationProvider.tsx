@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import type { HomePersonalization } from '@/lib/home-personalization'
+import { logPersonalizationFetchFailure, type HomePersonalization } from '@/lib/home-personalization'
 
 /**
  * Marketplace static-shell — Sprint 4 (Phase 2). The static homepage is a CDN asset
@@ -66,11 +66,16 @@ export default function HomePersonalizationProvider({
             Authorization: `Bearer ${token}`,
           },
         })
-        if (!res.ok || cancelled) return
+        if (!res.ok) {
+          if (!cancelled) logPersonalizationFetchFailure(res.status)
+          return
+        }
+        if (cancelled) return
         const json = (await res.json()) as HomePersonalization
         if (!cancelled) setData(json)
-      } catch {
-        // best-effort progressive enhancement — leave the islands empty on failure
+      } catch (err) {
+        // best-effort progressive enhancement — leave the islands empty, but never silent
+        if (!cancelled) logPersonalizationFetchFailure(err)
       }
     })()
 
