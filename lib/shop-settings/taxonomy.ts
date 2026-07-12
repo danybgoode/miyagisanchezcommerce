@@ -112,7 +112,7 @@ export const SECTIONS: SectionDef[] = [
     title: 'Diseño y marca',
     cardTitle: 'Diseño y marca',
     desc: 'Color de acento, redes sociales y tagline.',
-    icon: 'iconoir-colour-filter',
+    icon: 'iconoir-color-filter',
     color: 'var(--energy)',
     bg: 'var(--energy-soft)',
     group: 'tienda',

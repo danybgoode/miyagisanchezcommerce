@@ -63,7 +63,7 @@ export const SELLER_NAV: SellerNavGroup[] = [
     key: 'catalogo',
     label: 'Catálogo',
     entries: [
-      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-pricetags', mobileLabel: 'Catálogo' },
+      { key: 'anuncios', label: 'Anuncios', href: '/shop/manage/catalogo', icon: 'iconoir-shopping-bag', mobileLabel: 'Catálogo' },
       { key: 'colecciones', label: 'Colecciones', href: '/shop/manage/collections', icon: 'iconoir-view-grid' },
       // Repointed to the new federation page — dominio propio / subdominio / URL
       // gratis / embed (catalog-management S6.2). Previously this "Canales" label
