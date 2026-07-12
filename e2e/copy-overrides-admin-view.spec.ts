@@ -3,6 +3,7 @@ import {
   buildContenidoPageUrl,
   filterKeysByNamespace,
   filterKeysByQuery,
+  filterKeysBySection,
   filterKeysByStatus,
   firstOf,
   paginate,
@@ -35,6 +36,19 @@ test.describe('filterKeysByNamespace', () => {
     expect(filterKeysByNamespace(rows, 'all')).toHaveLength(rows.length)
     expect(filterKeysByNamespace(rows, 'sellerAcquisition')).toHaveLength(2)
     expect(filterKeysByNamespace(rows, 'home')).toHaveLength(1)
+  })
+})
+
+test.describe('filterKeysBySection', () => {
+  test('empty or "all" returns everything; a specific section filters by the key\'s first dot-segment', () => {
+    expect(filterKeysBySection(rows, '')).toHaveLength(rows.length)
+    expect(filterKeysBySection(rows, 'all')).toHaveLength(rows.length)
+    expect(filterKeysBySection(rows, 'autos')).toHaveLength(1)
+    expect(filterKeysBySection(rows, 'anchor')).toHaveLength(1)
+  })
+
+  test('a single-segment key matches on its own full value as the section', () => {
+    expect(filterKeysBySection(rows, 'title')).toHaveLength(1) // terms.title
   })
 })
 
@@ -109,5 +123,10 @@ test.describe('buildContenidoPageUrl', () => {
   test('includes only set, non-default params + page > 1', () => {
     const url = buildContenidoPageUrl({ q: 'autos', namespace: 'sellerAcquisition', status: 'overridden' }, 3)
     expect(url).toBe('/admin/contenido?q=autos&namespace=sellerAcquisition&status=overridden&page=3')
+  })
+
+  test('carries section alongside namespace (Story 3.1 page-first nav)', () => {
+    const url = buildContenidoPageUrl({ namespace: 'sellerAcquisition', section: 'autos' }, 1)
+    expect(url).toBe('/admin/contenido?namespace=sellerAcquisition&section=autos')
   })
 })

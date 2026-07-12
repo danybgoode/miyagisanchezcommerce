@@ -4,9 +4,9 @@ import { getDictionary } from '@/lib/dictionary'
 import { flattenDictionary } from '@/lib/copy-tree'
 import { isBilingualNamespace } from '@/lib/bilingual-namespaces'
 import {
-  buildContenidoPageUrl,
   filterKeysByNamespace,
   filterKeysByQuery,
+  filterKeysBySection,
   filterKeysByStatus,
   firstOf,
   paginate,
@@ -15,6 +15,7 @@ import {
   type ContenidoSort,
   type ContenidoStatusFilter,
 } from '@/lib/copy-overrides-admin-view'
+import { buildPageNavGroups, firstNavSelection, isValidNavSelection } from '@/lib/copy-overrides-page-nav'
 import ContenidoAdminClient, { type OverrideKeyView, type OrphanOverrideView } from './ContenidoAdminClient'
 import ContenidoImportExportPanel, { type KeyIndexEntry } from './ContenidoImportExportPanel'
 import ContenidoFilterBar from './ContenidoFilterBar'
@@ -52,15 +53,21 @@ type AnnouncementDbRow = {
 /**
  * Admin control surface for the runtime copy-override layer (epic 08 ·
  * admin-content-and-announcements Sprint 1; search/filter/sort/pagination
- * moved server-side here — cms-contenido-restore-and-polish Sprint 2, mirrors
- * `/admin/flags`'s `page.tsx`). Clerk-gated read-only list here; saves/restores
- * POST/DELETE `/api/admin/content-overrides`.
+ * moved server-side — Sprint 2; page-first sub-navigation — Sprint 3, Story
+ * 3.1). Clerk-gated read-only list here; saves/restores POST/DELETE
+ * `/api/admin/content-overrides`.
  *
  * The dictionary tree (via `getDictionary`, NOT the raw `locales/*.json`, NOT the
  * cached `getOverriddenDictionary`) is the "universe" every key is enumerated
  * from — the admin view always shows the LIVE, uncached override rows (a direct
  * `db` read, bypassing `lib/copy-overrides.ts`'s `unstable_cache`) so a save is
  * never shown stale to the person who just made it.
+ *
+ * Page-first IA (Story 3.1): the nav (`buildPageNavGroups`) is built from the
+ * FULL, unfiltered key list, so it never shrinks/reshuffles as search/status
+ * filters change — only the field list below it narrows. `namespace`+`section`
+ * together select ONE nav group; an invalid/missing selection deterministically
+ * falls back to the first group (alphabetical), never an unscoped full list.
  */
 // Next.js's real searchParams value for a repeated query key (`?q=a&q=b`) is a
 // `string[]`, not the plain `string` `ContenidoSearchParams` declares — accept
@@ -78,6 +85,7 @@ export default async function AdminContenidoPage({
   const params: ContenidoSearchParams = {
     q: firstOf(rawParams.q),
     namespace: firstOf(rawParams.namespace),
+    section: firstOf(rawParams.section),
     status: firstOf(rawParams.status),
     sort: firstOf(rawParams.sort),
     page: firstOf(rawParams.page),
@@ -158,20 +166,29 @@ export default async function AdminContenidoPage({
     updatedAt: r.updated_at,
   }))
 
-  const namespaces = [...new Set(keys.map((k) => k.namespace))].sort()
   const keyIndex: KeyIndexEntry[] = keys.map((k) => ({ namespace: k.namespace, key: k.key }))
 
+  // Page-first nav — built from the FULL key list, before any search/status
+  // narrowing, so switching a search term never reshuffles the nav itself.
+  const navGroups = buildPageNavGroups(keys)
+  const requestedNamespace = params.namespace ?? ''
+  const requestedSection = params.section ?? ''
+  const { namespace: activeNamespace, section: activeSection } = isValidNavSelection(navGroups, requestedNamespace, requestedSection)
+    ? { namespace: requestedNamespace, section: requestedSection }
+    : firstNavSelection(navGroups)
+
   const q = params.q ?? ''
-  const namespace = namespaces.includes(params.namespace ?? '') ? (params.namespace as string) : 'all'
   const status: ContenidoStatusFilter = STATUSES.includes(params.status as ContenidoStatusFilter)
     ? (params.status as ContenidoStatusFilter)
     : 'all'
   const sort: ContenidoSort = SORTS.includes(params.sort as ContenidoSort) ? (params.sort as ContenidoSort) : 'namespace_asc'
 
-  // Search + namespace narrow the set the status chips count against, so a
-  // chip's count answers "how many would show if I also picked this" — the
-  // status filter itself is applied AFTER (mirrors /admin/flags).
-  const searched = filterKeysByNamespace(filterKeysByQuery(keys, q), namespace)
+  // Scope to the active group FIRST (this is "the page" Daniel picked), then
+  // search/status narrow WITHIN it — so a chip's count answers "how many on
+  // THIS page would show if I also picked this filter" (mirrors /admin/flags'
+  // narrow-then-count-then-filter order, just group-scoped first).
+  const groupScoped = filterKeysBySection(filterKeysByNamespace(keys, activeNamespace), activeSection)
+  const searched = filterKeysByQuery(groupScoped, q)
   const statusCounts = {
     all: searched.length,
     overridden: searched.filter((k) => k.overrideEs !== null || k.overrideEn !== null).length,
@@ -187,10 +204,11 @@ export default async function AdminContenidoPage({
     PAGE_SIZE,
   )
 
-  // The CLAMPED values (an invalid ?status=bogus falls back to 'all' etc.) —
-  // used for every Link/hidden-input below so a bad query string can't
-  // persist itself across a filter-bar submit or a pagination click.
-  const sanitizedParams: ContenidoSearchParams = { q, namespace, status, sort }
+  // The CLAMPED/resolved values (an invalid ?section=bogus falls back to the
+  // first group, an invalid ?status=bogus falls back to 'all', etc.) — used
+  // for every Link/hidden-input below so a bad query string can't persist
+  // itself across a filter-bar submit or a pagination click.
+  const sanitizedParams: ContenidoSearchParams = { q, namespace: activeNamespace, section: activeSection, status, sort }
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
@@ -199,24 +217,23 @@ export default async function AdminContenidoPage({
         Edita el copy de marketing ya publicado, sin deploy. Se ve en vivo en ≤1 min (o al instante, tras guardar).
       </p>
       <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 16px' }}>
-        Solo se pueden editar claves que ya existen en el diccionario — «Original» siempre muestra el
-        valor de fábrica. «Restaurar» borra el override y vuelve al valor de fábrica. Mientras escribes,
+        Elige una página en el panel de la izquierda para editar solo sus campos. «Original» siempre
+        muestra el valor de fábrica; «Restaurar» borra el override y vuelve a él. Mientras escribes,
         verás «Antes» y «Después (borrador)» — la vista previa de cómo quedará antes de guardar.
       </p>
 
       <ContenidoImportExportPanel keyIndex={keyIndex} />
 
-      <ContenidoFilterBar params={sanitizedParams} namespaces={namespaces} statusCounts={statusCounts} />
-
-      <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
-        {filtered.length} de {keys.length} claves · página {page} de {totalPages}
-      </p>
-
-      <ContenidoPagination params={sanitizedParams} page={page} totalPages={totalPages} />
-
-      <ContenidoAdminClient keys={pageItems} orphans={orphans} />
-
-      <ContenidoPagination params={sanitizedParams} page={page} totalPages={totalPages} className="mt-4" />
+      <ContenidoAdminClient
+        keys={pageItems}
+        orphans={orphans}
+        groups={navGroups}
+        activeNamespace={activeNamespace}
+        activeSection={activeSection}
+        filterBar={<ContenidoFilterBar params={sanitizedParams} statusCounts={statusCounts} />}
+        pagination={<ContenidoPagination params={sanitizedParams} page={page} totalPages={totalPages} />}
+        resultsSummary={`${filtered.length} de ${searched.length} claves en esta página · página ${page} de ${totalPages}`}
+      />
 
       <AnunciosAdminClient announcements={announcements} />
     </div>

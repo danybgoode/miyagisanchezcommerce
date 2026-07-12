@@ -1,22 +1,21 @@
 import Link from 'next/link'
 import { buildContenidoPageUrl, type ContenidoSearchParams } from '@/lib/copy-overrides-admin-view'
-import { namespaceLabel } from '@/lib/copy-overrides-routes'
 
 /**
  * Zero-JS filter bar for `/admin/contenido` (epic 08 ·
- * cms-contenido-restore-and-polish, Story 2.1) — mirrors `FlagsFilterBar.tsx`
- * exactly (a status chip rail as `Link`s + a plain GET `<form>` for
- * search/namespace/sort), the established pattern for this repo's
- * server-filtered admin tables. Status lives outside the form, so a hidden
- * input preserves it across a form submit that changes the other filters.
+ * cms-contenido-restore-and-polish, Story 2.1 — search/status/sort; Story
+ * 3.1 — the namespace dropdown was superseded by the page-first nav column,
+ * so `namespace`/`section` now ride as hidden inputs instead of a visible
+ * `<select>`, preserving the active group across a search/sort submit).
+ * Mirrors `FlagsFilterBar.tsx`: a status chip rail as `Link`s + a plain GET
+ * `<form>`. Status lives outside the form, so a hidden input preserves it
+ * across a form submit that changes the other filters.
  */
 export default function ContenidoFilterBar({
   params,
-  namespaces,
   statusCounts,
 }: {
   params: ContenidoSearchParams
-  namespaces: readonly string[]
   statusCounts: { all: number; overridden: number; default: number }
 }) {
   return (
@@ -46,25 +45,15 @@ export default function ContenidoFilterBar({
       {/* Search + namespace + sort */}
       <form method="GET" action="/admin/contenido" className="flex flex-wrap gap-2 items-center">
         <input type="hidden" name="status" value={params.status ?? ''} />
+        <input type="hidden" name="namespace" value={params.namespace ?? ''} />
+        <input type="hidden" name="section" value={params.section ?? ''} />
         <input
           type="search"
           name="q"
           defaultValue={params.q ?? ''}
-          placeholder="Buscar por página, clave o texto…"
+          placeholder="Buscar por clave o texto en esta página…"
           className="flex-1 min-w-[220px] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
         />
-        <select
-          name="namespace"
-          defaultValue={params.namespace ?? ''}
-          className="border border-[var(--color-border)] rounded-lg px-2 py-2 text-sm"
-        >
-          <option value="">Todas las páginas</option>
-          {namespaces.map((ns) => (
-            <option key={ns} value={ns}>
-              {namespaceLabel(ns)}
-            </option>
-          ))}
-        </select>
         <select
           name="sort"
           defaultValue={params.sort ?? 'namespace_asc'}

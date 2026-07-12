@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { previewOverrideValue } from '@/lib/copy-overrides-preview'
-import { routeForNamespaceSection, NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
+import { NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
+import { humanizeKeyPath } from '@/lib/copy-overrides-labels'
+import type { NavNamespaceGroup } from '@/lib/copy-overrides-page-nav'
+import ContenidoPageNav from './ContenidoPageNav'
 
 /** One overridable dictionary leaf, as rendered on the admin surface. */
 export type OverrideKeyView = {
@@ -32,57 +35,50 @@ function pathOf(r: { namespace: string; key: string }): string {
   return `${r.namespace}.${r.key}`
 }
 
-const inputStyle: React.CSSProperties = {
-  flex: 1,
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: '6px 8px',
-  fontSize: 13,
-  background: 'var(--bg)',
-  color: 'var(--fg)',
-  resize: 'vertical',
-}
-
 const previewPaneStyle: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
   padding: '4px 8px',
-  borderRadius: 4,
+  borderRadius: 'var(--r-xs)',
   fontSize: 12,
   wordBreak: 'break-word',
-}
-
-const buttonStyle: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: '5px 10px',
-  fontSize: 12,
-  fontWeight: 600,
-  background: 'transparent',
-  color: 'var(--fg)',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
 }
 
 /**
  * `/admin/contenido` — the runtime copy-override editor (epic 08 ·
  * cms-contenido-restore-and-polish, Story 2.1 — search/filter/sort/pagination
- * moved server-side, mirrors `/admin/flags`'s `FlagsAdminClient` split).
+ * moved server-side; Story 3.1 — page-first IA: the flat/nested-`<details>`
+ * accordion became a `ContenidoPageNav` column + a flat field list for
+ * whichever ONE page/section is selected, with labels derived from the key
+ * path via `humanizeKeyPath` instead of a hand-curated map).
  * **Clerk-gated** — the same-origin fetch carries the session cookie.
  *
- * Receives only the CURRENT PAGE's already-filtered/sorted slice — `page.tsx`
- * owns search/namespace/status/sort/pagination now (URL-search-param-driven).
- * Editing + saving upserts a `platform_copy_overrides` row (live within ≤1 min
- * via cache TTL, or instantly via on-demand revalidation); «restaurar» deletes
- * the row, reverting to the compile-time default. `en` inputs render ONLY for
- * a bilingual-allow-listed namespace (AGENTS rule #5).
+ * Receives only the CURRENT PAGE/SECTION's already-filtered/sorted/paginated
+ * slice — `page.tsx` owns nav-group scoping + search/status/sort/pagination
+ * (URL-search-param-driven). Editing + saving upserts a
+ * `platform_copy_overrides` row (live within ≤1 min via cache TTL, or
+ * instantly via on-demand revalidation); «restaurar» deletes the row,
+ * reverting to the compile-time default. `en` inputs render ONLY for a
+ * bilingual-allow-listed namespace (AGENTS rule #5).
  */
 export default function ContenidoAdminClient({
   keys,
   orphans,
+  groups,
+  activeNamespace,
+  activeSection,
+  filterBar,
+  pagination,
+  resultsSummary,
 }: {
   keys: OverrideKeyView[]
   orphans: OrphanOverrideView[]
+  groups: NavNamespaceGroup[]
+  activeNamespace: string
+  activeSection: string
+  filterBar: React.ReactNode
+  pagination: React.ReactNode
+  resultsSummary: string
 }) {
   const [rows, setRows] = useState<OverrideKeyView[]>(keys)
   const [orphanRows, setOrphanRows] = useState<OrphanOverrideView[]>(orphans)
@@ -91,22 +87,13 @@ export default function ContenidoAdminClient({
   const [drafts, setDrafts] = useState<Record<string, Partial<Record<Locale, string>>>>({})
 
   // Re-sync from fresh server props after a `router.refresh()` — e.g. the bulk
-  // import/export panel triggers one after applying a batch, so the per-key list
+  // import/export panel triggers one after applying a batch, so the field list
   // below doesn't keep showing pre-apply values until a manual reload.
   useEffect(() => setRows(keys), [keys])
   useEffect(() => setOrphanRows(orphans), [orphans])
 
-  const grouped = useMemo(() => {
-    const byNamespace = new Map<string, Map<string, OverrideKeyView[]>>()
-    for (const r of rows) {
-      const section = r.key.split('.')[0] ?? r.key
-      if (!byNamespace.has(r.namespace)) byNamespace.set(r.namespace, new Map())
-      const bySection = byNamespace.get(r.namespace)!
-      if (!bySection.has(section)) bySection.set(section, [])
-      bySection.get(section)!.push(r)
-    }
-    return byNamespace
-  }, [rows])
+  const activeGroup = groups.find((g) => g.namespace === activeNamespace)
+  const activeEntry = activeGroup?.sections.find((s) => s.section === activeSection)
 
   function draftValue(r: OverrideKeyView, locale: Locale): string {
     const d = drafts[pathOf(r)]
@@ -235,167 +222,166 @@ export default function ContenidoAdminClient({
   }
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      {error && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '0 0 16px' }}>{error}</p>}
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <ContenidoPageNav groups={groups} activeNamespace={activeNamespace} activeSection={activeSection} />
 
-      {rows.length === 0 && (
-        <p style={{ color: 'var(--fg-muted)', fontSize: 14, padding: '16px 0' }}>
-          Ninguna clave coincide con estos filtros.
-        </p>
-      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+            Contenido <span style={{ margin: '0 4px' }}>›</span> {activeGroup?.label ?? activeNamespace}
+          </div>
+          <h2 className="t-h3" style={{ margin: '2px 0 0', color: 'var(--fg)' }}>
+            {activeEntry?.route ? activeEntry.route.label : `${activeSection || activeNamespace} — ${NO_SINGLE_PAGE_LABEL}`}
+          </h2>
+          {activeEntry?.route && (
+            <div className="badge-mono" style={{ marginTop: 4, display: 'inline-block' }}>
+              {activeEntry.route.path}
+            </div>
+          )}
+        </div>
 
-      {[...grouped.entries()].map(([namespace, sections]) => {
-        const total = [...sections.values()].reduce((n, arr) => n + arr.length, 0)
-        return (
-          <details key={namespace} open style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-            <summary style={{ fontWeight: 700, cursor: 'pointer', color: 'var(--fg)' }}>
-              {namespace} <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}>({total})</span>
-            </summary>
-            {[...sections.entries()].map(([section, items]) => {
-              const route = routeForNamespaceSection(namespace, section)
-              return (
-              <details key={section} open style={{ marginLeft: 16, marginTop: 8 }}>
-                <summary style={{ fontWeight: 600, cursor: 'pointer', color: 'var(--fg)', fontSize: 14 }}>
-                  {section} <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}>({items.length})</span>
-                  {' — '}
-                  <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontFamily: 'var(--font-mono, monospace)' }}>
-                    {route ? `${route.label} · ${route.path}` : NO_SINGLE_PAGE_LABEL}
-                  </span>
-                </summary>
-                <div style={{ marginLeft: 16, marginTop: 4 }}>
-                  {items.map((r) => {
-                    const path = pathOf(r)
-                    const hasOverrideEs = r.overrideEs !== null
-                    const hasOverrideEn = r.overrideEn !== null
-                    const busyEs = busyId === `${path}:es`
-                    const busyEn = busyId === `${path}:en`
+        {filterBar}
+
+        <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>{resultsSummary}</p>
+
+        {error && <p style={{ color: 'var(--danger)', fontSize: 14, margin: '0 0 16px' }}>{error}</p>}
+
+        {rows.length === 0 && (
+          <p style={{ color: 'var(--fg-muted)', fontSize: 14, padding: '16px 0' }}>
+            Ninguna clave coincide con estos filtros en esta página.
+          </p>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.map((r) => {
+            const path = pathOf(r)
+            const hasOverrideEs = r.overrideEs !== null
+            const hasOverrideEn = r.overrideEn !== null
+            const busyEs = busyId === `${path}:es`
+            const busyEn = busyId === `${path}:en`
+            return (
+              <div key={path} className="card-panel" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                  <h3 className="t-h4" style={{ margin: 0, color: 'var(--fg)' }}>
+                    {humanizeKeyPath(r.key)}
+                  </h3>
+                  <span className="badge-mono">{r.key}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 10px' }}>Original: {r.defaultEs}</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <textarea
+                    rows={2}
+                    value={draftValue(r, 'es')}
+                    onChange={(e) => setDraft(r, 'es', e.target.value)}
+                    className="input"
+                    style={{ flex: 1, resize: 'vertical' }}
+                  />
+                  <button onClick={() => save(r, 'es')} disabled={busyEs} className="btn btn-primary btn-sm">
+                    {busyEs ? '…' : 'Guardar'}
+                  </button>
+                  {hasOverrideEs && (
+                    <button onClick={() => restore(r, 'es')} disabled={busyEs} className="btn btn-secondary btn-sm">
+                      Restaurar
+                    </button>
+                  )}
+                </div>
+                {hasOverrideEs && (
+                  <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
+                    editado{r.updatedBy ? ` por ${r.updatedBy}` : ''}
+                  </div>
+                )}
+                {isDirty(r, 'es') &&
+                  (() => {
+                    const { before, after } = preview(r, 'es')
                     return (
-                      <div key={path} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
-                        <div style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: 'var(--fg-muted)' }}>
-                          {r.key}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 6px' }}>
-                          Original: {r.defaultEs}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                          <textarea
-                            rows={2}
-                            value={draftValue(r, 'es')}
-                            onChange={(e) => setDraft(r, 'es', e.target.value)}
-                            style={inputStyle}
-                          />
-                          <button onClick={() => save(r, 'es')} disabled={busyEs} style={buttonStyle}>
-                            {busyEs ? '…' : 'Guardar'}
-                          </button>
-                          {hasOverrideEs && (
-                            <button onClick={() => restore(r, 'es')} disabled={busyEs} style={buttonStyle}>
-                              Restaurar
-                            </button>
-                          )}
-                        </div>
-                        {hasOverrideEs && (
-                          <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
-                            editado{r.updatedBy ? ` por ${r.updatedBy}` : ''}
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)' }}>● Cambios sin guardar</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <div style={{ ...previewPaneStyle, background: 'var(--bg-sunk)' }}>
+                            <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                            <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
                           </div>
-                        )}
-                        {isDirty(r, 'es') &&
-                          (() => {
-                            const { before, after } = preview(r, 'es')
-                            return (
-                              <div style={{ marginTop: 6 }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
-                                  ● Cambios sin guardar
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
-                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
-                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
-                                  </div>
-                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
-                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
-                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })()}
-                        {r.bilingual && (
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
-                            <span style={{ fontSize: 11, color: 'var(--fg-muted)', paddingTop: 8 }}>EN</span>
-                            <textarea
-                              rows={2}
-                              value={draftValue(r, 'en')}
-                              onChange={(e) => setDraft(r, 'en', e.target.value)}
-                              style={inputStyle}
-                            />
-                            <button onClick={() => save(r, 'en')} disabled={busyEn} style={buttonStyle}>
-                              {busyEn ? '…' : 'Guardar'}
-                            </button>
-                            {hasOverrideEn && (
-                              <button onClick={() => restore(r, 'en')} disabled={busyEn} style={buttonStyle}>
-                                Restaurar
-                              </button>
-                            )}
+                          <div style={{ ...previewPaneStyle, background: 'var(--info-soft)' }}>
+                            <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                            <div style={{ color: 'var(--fg)' }}>{after}</div>
                           </div>
-                        )}
-                        {r.bilingual &&
-                          isDirty(r, 'en') &&
-                          (() => {
-                            const { before, after } = preview(r, 'en')
-                            return (
-                              <div style={{ marginTop: 6 }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning, #b45309)' }}>
-                                  ● Cambios sin guardar (EN)
-                                </div>
-                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(128,128,128,0.08))' }}>
-                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
-                                    <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
-                                  </div>
-                                  <div style={{ ...previewPaneStyle, background: 'var(--bg-subtle, rgba(59,130,246,0.08))' }}>
-                                    <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
-                                    <div style={{ color: 'var(--fg)' }}>{after}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })()}
+                        </div>
                       </div>
                     )
-                  })}
-                </div>
-              </details>
-              )
-            })}
-          </details>
-        )
-      })}
-
-      {orphanRows.length > 0 && (
-        <div style={{ marginTop: 32 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>Overrides huérfanos</h2>
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
-            Estas claves ya no existen en el diccionario (se renombraron o se borraron en el código).
-            No afectan nada — puedes eliminarlas para limpiar.
-          </p>
-          {orphanRows.map((o) => {
-            const busyKey = `orphan:${o.namespace}.${o.key}:${o.locale}`
-            return (
-              <div
-                key={busyKey}
-                style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}
-              >
-                <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12, flex: 1 }}>
-                  {o.namespace}.{o.key} ({o.locale}): {o.value}
-                </span>
-                <button onClick={() => deleteOrphan(o)} disabled={busyId === busyKey} style={buttonStyle}>
-                  {busyId === busyKey ? '…' : 'Eliminar'}
-                </button>
+                  })()}
+                {r.bilingual && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--fg-muted)', paddingTop: 8 }}>EN</span>
+                    <textarea
+                      rows={2}
+                      value={draftValue(r, 'en')}
+                      onChange={(e) => setDraft(r, 'en', e.target.value)}
+                      className="input"
+                      style={{ flex: 1, resize: 'vertical' }}
+                    />
+                    <button onClick={() => save(r, 'en')} disabled={busyEn} className="btn btn-primary btn-sm">
+                      {busyEn ? '…' : 'Guardar'}
+                    </button>
+                    {hasOverrideEn && (
+                      <button onClick={() => restore(r, 'en')} disabled={busyEn} className="btn btn-secondary btn-sm">
+                        Restaurar
+                      </button>
+                    )}
+                  </div>
+                )}
+                {r.bilingual &&
+                  isDirty(r, 'en') &&
+                  (() => {
+                    const { before, after } = preview(r, 'en')
+                    return (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)' }}>● Cambios sin guardar (EN)</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <div style={{ ...previewPaneStyle, background: 'var(--bg-sunk)' }}>
+                            <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Antes</div>
+                            <div style={{ color: 'var(--fg-muted)' }}>{before}</div>
+                          </div>
+                          <div style={{ ...previewPaneStyle, background: 'var(--info-soft)' }}>
+                            <div style={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 2 }}>Después (borrador)</div>
+                            <div style={{ color: 'var(--fg)' }}>{after}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
               </div>
             )
           })}
         </div>
-      )}
+
+        {pagination}
+
+        {orphanRows.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <h2 className="t-h4" style={{ color: 'var(--fg)' }}>Overrides huérfanos</h2>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
+              Estas claves ya no existen en el diccionario (se renombraron o se borraron en el código).
+              No afectan nada — puedes eliminarlas para limpiar.
+            </p>
+            {orphanRows.map((o) => {
+              const busyKey = `orphan:${o.namespace}.${o.key}:${o.locale}`
+              return (
+                <div
+                  key={busyKey}
+                  style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}
+                >
+                  <span className="badge-mono" style={{ flex: 1 }}>
+                    {o.namespace}.{o.key} ({o.locale}): {o.value}
+                  </span>
+                  <button onClick={() => deleteOrphan(o)} disabled={busyId === busyKey} className="btn btn-secondary btn-sm">
+                    {busyId === busyKey ? '…' : 'Eliminar'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
