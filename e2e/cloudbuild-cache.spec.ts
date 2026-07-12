@@ -54,7 +54,11 @@ test.describe('cloudbuild.yaml — deploy-pipeline-tuning S2 self-check', () => 
   })
 
   test('has no top-level images: list (buildx --push already pushes both tags)', () => {
-    expect(cloudbuild).not.toMatch(/^images:/m)
+    // Independent pr-reviewer catch: a top-level `images:` block conventionally
+    // sits BEFORE `steps:` (that's where it lived pre-S2) — asserting against
+    // the post-`steps:` `cloudbuild` slice wouldn't catch it reappearing in its
+    // normal position. Check the FULL file.
+    expect(cloudbuildFull).not.toMatch(/^images:/m)
   })
 
   test('the preamble comment still points to the reasoning for the cache mechanism chosen', () => {
