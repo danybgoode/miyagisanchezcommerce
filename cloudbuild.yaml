@@ -7,6 +7,18 @@
 # were set once by infra/gcp/deploy-frontend.sh and Cloud Run preserves them
 # across image-only deploys. Vercel prod deploy is untouched by this trigger —
 # both rails fire independently on the same push (S1.4 shadow soak).
+#
+# deploy-pipeline-tuning S2: registry-backed BuildKit layer cache via buildx
+# (mirrors apps/backend/cloudbuild.yaml's S2 change — see its comment for the
+# full "why not plain inline cache" reasoning). This app's Dockerfile has a
+# cleaner single-`npm ci`-stage shape than the backend's (no regenerated
+# build-artifact between stages), so this is expected to be a full win, not
+# a partial one — confirmed locally: a source-only change (no package.json/
+# lockfile change) hits `RUN npm ci` as CACHED in the `deps` stage. The
+# runner stage's `RUN npm install sharp` is unaffected either way — it's a
+# deliberate, unrelated fresh-reinstall-every-build workaround (standalone
+# tracing doesn't reliably bundle sharp's native binary), not something this
+# caching change tries to skip.
 
 substitutions:
   _REGION: us-east4
@@ -16,27 +28,33 @@ substitutions:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA'
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:latest'
-
 steps:
-  - id: build
+  - id: buildx-bootstrap
     name: gcr.io/cloud-builders/docker
     args:
+      - buildx
+      - create
+      - --name
+      - cloudbuildx
+      - --driver
+      - docker-container
+      - --use
+
+  - id: build-and-push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - buildx
       - build
+      - --cache-from
+      - 'type=registry,ref=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:buildcache'
+      - --cache-to
+      - 'type=registry,ref=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:buildcache,mode=max'
+      - --push
       - -t
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA'
       - -t
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:latest'
       - .
-
-  - id: push
-    name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - --all-tags
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend'
 
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
