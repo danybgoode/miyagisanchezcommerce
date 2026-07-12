@@ -36,11 +36,17 @@ import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
-import { resolveAgentShop } from '@/lib/agent-auth'
+import { resolveAgentShop, type AgentShop } from '@/lib/agent-auth'
 import { isEnabled } from '@/lib/flags'
-import { listSubmissionsForShop } from '@/lib/launchpad'
-import { listCampaignsForShop } from '@/lib/launchpad-campaigns'
+import { listSubmissionsForShop, getLaunchpadShopBySlug, transitionSubmission, publishSubmission } from '@/lib/launchpad'
+import { REVIEWABLE_TARGET_STATUSES, type SubmissionStatus } from '@/lib/launchpad-types'
+import {
+  listCampaignsForShop, createCampaign, updateCampaign, activateCampaign, cancelCampaign,
+  type SellerContext,
+} from '@/lib/launchpad-campaigns'
 import { thresholdReached } from '@/lib/launchpad-campaign-types'
+import { campaignErrorMessage } from '@/app/api/sell/launchpad/campaigns/route'
+import type { MedusaSellerForMirror } from '@/lib/provisioning'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
@@ -61,7 +67,7 @@ import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
 import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock } from '@/lib/seller-products'
 import { getShopCollections } from '@/lib/listings'
-import { shortCollectionSlug, validateCollectionName } from '@/lib/collection-derive'
+import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
@@ -315,6 +321,7 @@ const TOOLS = [
             returns_policy: { type: 'object', description: 'window, conditions, shipping_paid_by (buyer|seller), custom_note' },
             scheduling:     { type: 'object', description: 'links: [{label, url}] — booking links (Cal.com connection is separate/manual)' },
             content:        { type: 'object', description: 'about {body}, faq {items: [{question, answer}]} — the shop\'s public Acerca/FAQ pages. Políticas has no field here; it mirrors returns_policy above.' },
+            launchpad:      { type: 'object', description: 'Bookshop launchpad opt-in: accepts_manuscripts (boolean), guidelines (string, max 2000 chars, or null to clear) — the convocatoria rules shown on /s/[slug]/convocatoria.' },
           },
         },
       },
@@ -416,7 +423,7 @@ const TOOLS = [
   },
   {
     name: 'list_manuscript_submissions',
-    description: "SELLER TOOL. List the writer manuscripts submitted to YOUR OWN bookshop's convocatoria (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each submission's title, author, genre, curation status (submitted/in_review/approved/rejected/changes_requested), and format — reviewing/approving/publishing happens in the seller portal.",
+    description: "SELLER TOOL. List the writer manuscripts submitted to YOUR OWN bookshop's convocatoria (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each submission's title, author, genre, curation status (submitted/in_review/approved/rejected/changes_requested), and format. Use review_submission to move it through curation and publish_submission to mint an approved one as a digital product.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -425,12 +432,95 @@ const TOOLS = [
     },
   },
   {
+    name: 'review_submission',
+    description: "SELLER TOOL. Move a manuscript submission through curation (bookshop-launchpad). Requires the shop agent token, scoped to one shop. Valid targets: in_review, approved, rejected, changes_requested. A `note` is REQUIRED when rejecting or requesting changes (emailed to the writer). Emails the writer on every transition. Get the submission id from list_manuscript_submissions.",
+    inputSchema: {
+      type: 'object',
+      required: ['submission_id', 'status'],
+      properties: {
+        submission_id: { type: 'string', description: 'Submission id from list_manuscript_submissions' },
+        status: { type: 'string', enum: ['in_review', 'approved', 'rejected', 'changes_requested'], description: 'The curation status to move it to' },
+        note: { type: 'string', description: 'Message to the writer — required for rejected / changes_requested' },
+      },
+    },
+  },
+  {
+    name: 'publish_submission',
+    description: "SELLER TOOL. Mint an APPROVED manuscript submission as a draft digital product under your shop (bookshop-launchpad). Requires the shop agent token, scoped to one shop. Idempotent — calling it again on an already-published submission returns the existing product, never a duplicate. The product is created as DRAFT (no price/cover yet) — use update_listing + set_listing_status to finish and publish it.",
+    inputSchema: {
+      type: 'object',
+      required: ['submission_id'],
+      properties: {
+        submission_id: { type: 'string', description: 'Submission id from list_manuscript_submissions (must be status=approved)' },
+      },
+    },
+  },
+  {
     name: 'list_launchpad_campaigns',
-    description: "SELLER TOOL. List YOUR OWN bookshop's voting campaigns (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each campaign's title, status (draft/active/closed_met/closed_unmet/cancelled), vote count vs threshold, reward discount %, candidate-work count, public /v/[slug] URL, and — when unlocked — the minted coupon code. Creating/activating campaigns happens in the seller portal.",
+    description: "SELLER TOOL. List YOUR OWN bookshop's voting campaigns (bookshop-launchpad). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Read-only. Returns each campaign's title, status (draft/active/closed_met/closed_unmet/cancelled), vote count vs threshold, reward discount %, candidate-work count, public /v/[slug] URL, and — when unlocked — the minted coupon code. Use create_campaign/update_campaign/activate_campaign/cancel_campaign to manage one.",
     inputSchema: {
       type: 'object',
       properties: {
         status: { type: 'string', enum: ['draft', 'active', 'closed_met', 'closed_unmet', 'cancelled'], description: 'Filter by campaign status' },
+      },
+    },
+  },
+  {
+    name: 'create_campaign',
+    description: "SELLER TOOL. Create a DRAFT voting campaign for YOUR OWN bookshop (bookshop-launchpad). Requires the shop agent token, scoped to one shop. `work_product_ids` and `reward_product_id` are optional at draft time (can be set later with update_campaign) but both must already be products owned by your shop when provided — the reward must also be a CPP-configured product (multiple size/binding options or quantity-price tiers, set from the portal's Opciones screen). `reward_percent` defaults to 50. Returns the new campaign id — use activate_campaign once it's complete.",
+    inputSchema: {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: { type: 'string', description: 'Campaign title' },
+        description: { type: 'string', description: 'Campaign description shown on the public voting page' },
+        terms: { type: 'string', description: 'Optional terms/rules text' },
+        vote_threshold: { type: 'number', description: 'Votes needed to unlock the reward (must be > 0 to activate)' },
+        ends_at: { type: 'string', description: 'ISO end date/time (must be in the future to activate)' },
+        reward_percent: { type: 'number', minimum: 1, maximum: 100, description: 'Discount % the winning coupon grants (default 50)' },
+        reward_product_id: { type: 'string', description: 'Product id of the print listing the vote unlocks a discount on — must be owned by your shop and CPP-configured' },
+        work_product_ids: { type: 'array', items: { type: 'string' }, description: 'Product ids of the published works readers vote between — must be owned by your shop' },
+      },
+    },
+  },
+  {
+    name: 'update_campaign',
+    description: "SELLER TOOL. Edit a DRAFT voting campaign for YOUR OWN bookshop (bookshop-launchpad). Requires the shop agent token, scoped to one shop. Only draft campaigns are editable — once activated, terms are locked (an honest-campaign guarantee to voters). Passing `work_product_ids` fully replaces the candidate-work list. Get campaign_id from list_launchpad_campaigns.",
+    inputSchema: {
+      type: 'object',
+      required: ['campaign_id'],
+      properties: {
+        campaign_id: { type: 'string', description: 'Campaign id from list_launchpad_campaigns' },
+        title: { type: 'string', description: 'New title' },
+        description: { type: 'string', description: 'New description' },
+        terms: { type: 'string', description: 'New terms/rules text' },
+        vote_threshold: { type: 'number', description: 'New vote threshold' },
+        ends_at: { type: 'string', description: 'New ISO end date/time' },
+        reward_percent: { type: 'number', minimum: 1, maximum: 100, description: 'New discount %' },
+        reward_product_id: { type: 'string', description: 'New reward product id — must be owned by your shop and CPP-configured' },
+        work_product_ids: { type: 'array', items: { type: 'string' }, description: 'Full replacement set of candidate-work product ids — must be owned by your shop' },
+      },
+    },
+  },
+  {
+    name: 'activate_campaign',
+    description: "SELLER TOOL. Take a DRAFT campaign live at its public /v/[slug] voting page (bookshop-launchpad). Requires the shop agent token, scoped to one shop. Runs the full activation gate: title, description, a threshold > 0, a future end date, at least one candidate work, and an owned CPP-configured reward product. On failure returns exactly which fields are missing. Get campaign_id from list_launchpad_campaigns.",
+    inputSchema: {
+      type: 'object',
+      required: ['campaign_id'],
+      properties: {
+        campaign_id: { type: 'string', description: 'Campaign id from list_launchpad_campaigns' },
+      },
+    },
+  },
+  {
+    name: 'cancel_campaign',
+    description: "SELLER TOOL. Cancel a draft or active voting campaign for YOUR OWN bookshop (bookshop-launchpad). Requires the shop agent token, scoped to one shop. Terminal — a cancelled campaign can't be reactivated. Get campaign_id from list_launchpad_campaigns.",
+    inputSchema: {
+      type: 'object',
+      required: ['campaign_id'],
+      properties: {
+        campaign_id: { type: 'string', description: 'Campaign id from list_launchpad_campaigns' },
       },
     },
   },
@@ -1736,6 +1826,83 @@ async function handleListManuscriptSubmissions(args: Record<string, unknown>, au
   }
 }
 
+/** es-MX message for a submission transition failure reason (mirrors the portal route's inline switch). */
+function submissionTransitionErrorMessage(reason: string): string {
+  switch (reason) {
+    case 'note_required': return 'Escribe un mensaje para el autor (obligatorio al rechazar o pedir cambios).'
+    case 'invalid_transition': return 'Ese cambio de estado no es válido.'
+    case 'not_found': return 'Manuscrito no encontrado.'
+    default: return 'No se pudo actualizar.'
+  }
+}
+
+async function handleReviewSubmission(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
+  }
+  if (!agentShop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const submissionId = String(args.submission_id ?? '')
+  if (!submissionId) return { isError: true, content: [{ type: 'text', text: 'submission_id es obligatorio.' }] }
+  const to = args.status as SubmissionStatus | undefined
+  if (!to || !REVIEWABLE_TARGET_STATUSES.includes(to)) {
+    return { isError: true, content: [{ type: 'text', text: `status debe ser uno de: ${REVIEWABLE_TARGET_STATUSES.join(', ')}.` }] }
+  }
+  const note = typeof args.note === 'string' ? args.note : undefined
+
+  const shop = await getLaunchpadShopBySlug(agentShop.slug)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: 'Tienda no encontrada.' }] }
+
+  const result = await transitionSubmission({ shop, id: submissionId, to, note })
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: submissionTransitionErrorMessage(result.error) }] }
+  }
+  return {
+    content: [{ type: 'text', text: `✅ Manuscrito actualizado a **${result.submission.status}**.` }, { type: 'text', text: JSON.stringify({ submission: { id: result.submission.id, status: result.submission.status, review_note: result.submission.review_note } }, null, 2) }],
+  }
+}
+
+async function handlePublishSubmission(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
+  }
+  if (!agentShop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const submissionId = String(args.submission_id ?? '')
+  if (!submissionId) return { isError: true, content: [{ type: 'text', text: 'submission_id es obligatorio.' }] }
+
+  const shop = await getLaunchpadShopBySlug(agentShop.slug)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: 'Tienda no encontrada.' }] }
+
+  const result = await publishSubmission({ shop, id: submissionId })
+  if (!result.ok) {
+    const msg = result.error === 'not_approved'
+      ? 'Solo puedes publicar un manuscrito aprobado.'
+      : result.error === 'not_found'
+      ? 'Manuscrito no encontrado.'
+      : result.error === 'shop_slug_missing'
+      ? 'Tu tienda no tiene un identificador (slug) configurado.'
+      : result.error === 'already_publishing'
+      ? 'Este manuscrito ya se está publicando. Espera un momento y vuelve a intentar.'
+      : 'No se pudo publicar el manuscrito. Inténtalo de nuevo.'
+    return { isError: true, content: [{ type: 'text', text: msg }] }
+  }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Manuscrito publicado como producto borrador: \`${result.productId}\`. Usa update_listing para ponerle precio/portada y set_listing_status para activarlo.` },
+      { type: 'text', text: JSON.stringify({ ok: true, product_id: result.productId, manage_url: result.manageUrl }, null, 2) },
+    ],
+  }
+}
+
 async function handleListLaunchpadCampaigns(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1776,6 +1943,148 @@ async function handleListLaunchpadCampaigns(args: Record<string, unknown>, authH
   }
 }
 
+/**
+ * Bridge an MCP-authenticated `AgentShop` into the `SellerContext` shape
+ * `lib/launchpad-campaigns.ts`'s write functions expect (built for a Clerk
+ * session via `resolveCampaignSeller`). `context.shop.id` is the Supabase
+ * `marketplace_shops.id` (same id space as `AgentShop.id`), but
+ * `context.seller.id` must be the MEDUSA seller id — a DIFFERENT id space,
+ * confirmed live against Supabase during planning — since
+ * `productBelongsToShop` compares it against `getListing().shop_id`, which
+ * Medusa itself returns. Returns null when the shop's metadata is missing
+ * `medusa_seller_id` (shouldn't happen for a real shop; fails closed rather
+ * than silently comparing ownership against an empty string).
+ */
+function toCampaignSellerContext(shop: AgentShop): SellerContext | null {
+  const meta = (shop.metadata ?? {}) as Record<string, unknown>
+  const medusaSellerId = meta.medusa_seller_id
+  if (typeof medusaSellerId !== 'string' || !medusaSellerId) return null
+  const seller: MedusaSellerForMirror = {
+    id: medusaSellerId,
+    slug: shop.slug ?? '',
+    name: shop.name ?? shop.slug ?? '',
+  }
+  return {
+    userId: shop.clerk_user_id,
+    seller,
+    shop: { id: shop.id, slug: shop.slug ?? '', metadata: shop.metadata },
+  }
+}
+
+async function handleCreateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
+  }
+  const context = toCampaignSellerContext(agentShop)
+  if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
+
+  const title = typeof args.title === 'string' ? args.title : ''
+  if (!title.trim()) return { isError: true, content: [{ type: 'text', text: 'El título es obligatorio.' }] }
+
+  const result = await createCampaign({
+    context,
+    title,
+    description: typeof args.description === 'string' ? args.description : null,
+    terms: typeof args.terms === 'string' ? args.terms : null,
+    vote_threshold: Number(args.vote_threshold ?? 0),
+    ends_at: typeof args.ends_at === 'string' ? args.ends_at : null,
+    reward_percent: typeof args.reward_percent === 'number' ? args.reward_percent : null,
+    reward_product_id: typeof args.reward_product_id === 'string' ? args.reward_product_id : null,
+    work_product_ids: Array.isArray(args.work_product_ids) ? args.work_product_ids.filter((x): x is string => typeof x === 'string') : [],
+  })
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: campaignErrorMessage(result.error) }] }
+  }
+  return {
+    content: [
+      { type: 'text', text: `✅ Campaña creada en borrador: «${result.campaign.title}» (id: \`${result.campaign.id}\`). Usa activate_campaign cuando esté completa.` },
+      { type: 'text', text: JSON.stringify({ campaign: result.campaign }, null, 2) },
+    ],
+  }
+}
+
+async function handleUpdateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
+  }
+  const context = toCampaignSellerContext(agentShop)
+  if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
+
+  const campaignId = String(args.campaign_id ?? '')
+  if (!campaignId) return { isError: true, content: [{ type: 'text', text: 'campaign_id es obligatorio.' }] }
+
+  const result = await updateCampaign(context, campaignId, {
+    title: typeof args.title === 'string' ? args.title : undefined,
+    description: typeof args.description === 'string' ? args.description : undefined,
+    terms: typeof args.terms === 'string' ? args.terms : undefined,
+    vote_threshold: typeof args.vote_threshold === 'number' ? args.vote_threshold : undefined,
+    ends_at: typeof args.ends_at === 'string' ? args.ends_at : undefined,
+    reward_percent: typeof args.reward_percent === 'number' ? args.reward_percent : undefined,
+    reward_product_id: typeof args.reward_product_id === 'string' ? args.reward_product_id : undefined,
+    work_product_ids: Array.isArray(args.work_product_ids) ? args.work_product_ids.filter((x): x is string => typeof x === 'string') : undefined,
+  })
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: campaignErrorMessage(result.error) }] }
+  }
+  return {
+    content: [
+      { type: 'text', text: `✅ Campaña actualizada: «${result.campaign.title}».` },
+      { type: 'text', text: JSON.stringify({ campaign: result.campaign }, null, 2) },
+    ],
+  }
+}
+
+async function handleActivateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
+  }
+  const context = toCampaignSellerContext(agentShop)
+  if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
+
+  const campaignId = String(args.campaign_id ?? '')
+  if (!campaignId) return { isError: true, content: [{ type: 'text', text: 'campaign_id es obligatorio.' }] }
+
+  const result = await activateCampaign(context, campaignId)
+  if (!result.ok) {
+    const missing = result.missing?.length ? ` Falta: ${result.missing.join(', ')}.` : ''
+    return { isError: true, content: [{ type: 'text', text: `${campaignErrorMessage(result.error)}${missing}` }] }
+  }
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
+  return {
+    content: [
+      { type: 'text', text: `✅ Campaña activa: «${result.campaign.title}». Página pública: ${site}/v/${result.campaign.slug}` },
+      { type: 'text', text: JSON.stringify({ campaign: result.campaign }, null, 2) },
+    ],
+  }
+}
+
+async function handleCancelCampaign(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentShop = await resolveAgentShop(authHeader)
+  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!(await isEnabled('launchpad.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
+  }
+  const context = toCampaignSellerContext(agentShop)
+  if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
+
+  const campaignId = String(args.campaign_id ?? '')
+  if (!campaignId) return { isError: true, content: [{ type: 'text', text: 'campaign_id es obligatorio.' }] }
+
+  const result = await cancelCampaign(context, campaignId)
+  if (!result.ok) {
+    return { isError: true, content: [{ type: 'text', text: campaignErrorMessage(result.error) }] }
+  }
+  return {
+    content: [{ type: 'text', text: `✅ Campaña cancelada: «${result.campaign.title}».` }, { type: 'text', text: JSON.stringify({ campaign: result.campaign }, null, 2) }],
+  }
+}
+
 async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -1788,7 +2097,12 @@ async function handleUpdateListing(args: Record<string, unknown>, authHeader?: s
 
   const patch: { title?: string; description?: string | null; price_cents?: number | null; quantity?: number | null; collection_ids?: string[] } = {}
   const fields: string[] = []
-  if (typeof args.title === 'string') { patch.title = args.title; fields.push('title') }
+  if (typeof args.title === 'string') {
+    const validatedTitle = validateListingTitle(args.title)
+    if (!validatedTitle.ok) return { isError: true, content: [{ type: 'text', text: validatedTitle.error }] }
+    patch.title = validatedTitle.title
+    fields.push('title')
+  }
   if (typeof args.description === 'string') { patch.description = args.description; fields.push('description') }
   if (typeof args.price_mxn === 'number') { patch.price_cents = Math.round(args.price_mxn * 100); fields.push('price') }
   if (typeof args.quantity === 'number') { patch.quantity = Math.max(0, Math.floor(args.quantity)); fields.push('quantity') }
@@ -2241,7 +2555,13 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'create_collection':         { const r = await handleCreateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'review_submission':        { const r = await handleReviewSubmission(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'publish_submission':       { const r = await handlePublishSubmission(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_launchpad_campaigns': { const r = await handleListLaunchpadCampaigns(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_campaign':          { const r = await handleCreateCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'update_campaign':          { const r = await handleUpdateCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'activate_campaign':        { const r = await handleActivateCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'cancel_campaign':          { const r = await handleCancelCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

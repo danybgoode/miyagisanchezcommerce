@@ -76,6 +76,23 @@ export function validateCollectionName(raw: unknown): CollectionNameValidation {
   return { ok: true, name }
 }
 
+export type ListingTitleValidation = { ok: true; title: string } | { ok: false; error: string }
+
+/**
+ * Validates + trims a proposed listing title for `update_listing` (MCP
+ * parity-core S1.5) — the same bound `create_listing` already enforces via
+ * `validateRows` (`lib/catalog-import.ts`), checked here first so the tool
+ * rejects an out-of-bounds title with a clear error instead of the backend
+ * silently truncating it (`seller-product-update.ts`'s `.slice(0,100)`).
+ * Kept next-free so it's directly unit-testable.
+ */
+export function validateListingTitle(raw: unknown): ListingTitleValidation {
+  const title = typeof raw === 'string' ? raw.trim() : ''
+  if (!title) return { ok: false, error: 'El título no puede estar vacío.' }
+  if (title.length > 100) return { ok: false, error: 'El título es demasiado largo (máx. 100 caracteres).' }
+  return { ok: true, title }
+}
+
 export interface ShopCollectionNavEntry {
   href: string
   label: string

@@ -137,8 +137,18 @@ export const MCP_SELLER_TOOLS = [
   'create_collection',         // panfleto-premium-shop S2 (token-scoped)
   'update_listing',
   'set_listing_status',
+  'stage_bulk_action',          // catalog-management S? — bulk price/category/collection preview (token-scoped)
+  'apply_bulk_action',          // catalog-management S? — confirm a staged bulk batch (token-scoped)
+  'start_shopify_migration',    // platform-migrations — stage a Shopify catalog batch (token-scoped)
   'list_orders',                // ml-orders-native S3 · US-9 (token-scoped)
   'list_manuscript_submissions', // bookshop-launchpad S1.2 — writer submissions read (token-scoped)
+  'review_submission',          // mcp-parity-core S1.2 — move a submission through curation (token-scoped)
+  'publish_submission',         // mcp-parity-core S1.2 — mint an approved submission as a digital product (token-scoped)
+  'list_launchpad_campaigns',   // bookshop-launchpad S3.1 — voting campaigns read (token-scoped)
+  'create_campaign',            // mcp-parity-core S1.1 — draft a voting campaign (token-scoped)
+  'update_campaign',            // mcp-parity-core S1.1 — edit a draft campaign (token-scoped)
+  'activate_campaign',          // mcp-parity-core S1.1 — take a draft campaign live (token-scoped)
+  'cancel_campaign',            // mcp-parity-core S1.1 — cancel a draft/active campaign (token-scoped)
   'get_domain_entitlement',     // custom-domain paywall S3 (token-scoped)
   'start_domain_subscription',  // custom-domain paywall S3 (token-scoped)
   'get_subdomain_entitlement',     // subdomain-pricing S2 (token-scoped)
@@ -166,6 +176,7 @@ export const UCP_CAPABILITIES = [
   'seller_orders',        // list_orders — ml-orders-native S3 · US-9 (token-scoped)
   'seller_onboarding',    // Onboarding 0 — published setup spec + emit prompt (get_setup_spec)
   'seller_domain_subscription', // custom-domain SKU — entitlement + checkout over MCP, recurring + one-time cadence (token-scoped)
+  'seller_launchpad',     // bookshop launchpad — manuscript review/publish + voting-campaign CRUD over MCP (mcp-parity-core S1, token-scoped)
 ] as const
 
 /** Build absolute endpoint URLs for a given request base (e.g. https://miyagisanchez.com). */
