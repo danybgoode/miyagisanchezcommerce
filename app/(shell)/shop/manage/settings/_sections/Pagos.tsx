@@ -511,7 +511,7 @@ export default function Pagos({
         </div>
         {cashPickupEnabled && !localPickup && (
           <p className="text-[var(--warning)] text-xs mt-2">
-<i className="iconoir-warning-triangle" aria-hidden /> Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
+          <i className="iconoir-warning-triangle" aria-hidden /> Activa “Recolección en mano” en Envíos para que esta opción aparezca en el checkout.
           </p>
         )}
         {cashPickupEnabled && (
