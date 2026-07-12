@@ -8,6 +8,7 @@ import {
   filterKeysByNamespace,
   filterKeysByQuery,
   filterKeysByStatus,
+  firstOf,
   paginate,
   sortKeys,
   type ContenidoSearchParams,
@@ -50,8 +51,10 @@ type AnnouncementDbRow = {
 
 /**
  * Admin control surface for the runtime copy-override layer (epic 08 ·
- * admin-content-and-announcements, Sprint 1). Clerk-gated read-only list here;
- * saves/restores POST/DELETE `/api/admin/content-overrides`.
+ * admin-content-and-announcements Sprint 1; search/filter/sort/pagination
+ * moved server-side here — cms-contenido-restore-and-polish Sprint 2, mirrors
+ * `/admin/flags`'s `page.tsx`). Clerk-gated read-only list here; saves/restores
+ * POST/DELETE `/api/admin/content-overrides`.
  *
  * The dictionary tree (via `getDictionary`, NOT the raw `locales/*.json`, NOT the
  * cached `getOverriddenDictionary`) is the "universe" every key is enumerated
@@ -59,13 +62,26 @@ type AnnouncementDbRow = {
  * `db` read, bypassing `lib/copy-overrides.ts`'s `unstable_cache`) so a save is
  * never shown stale to the person who just made it.
  */
+// Next.js's real searchParams value for a repeated query key (`?q=a&q=b`) is a
+// `string[]`, not the plain `string` `ContenidoSearchParams` declares — accept
+// the wider raw shape here and normalize with `firstOf` immediately below,
+// before anything downstream ever sees a possible array.
+type RawContenidoSearchParams = { [K in keyof ContenidoSearchParams]?: string | string[] }
+
 export default async function AdminContenidoPage({
   searchParams,
 }: {
-  searchParams: Promise<ContenidoSearchParams>
+  searchParams: Promise<RawContenidoSearchParams>
 }) {
   await requireAdmin()
-  const params = await searchParams
+  const rawParams = await searchParams
+  const params: ContenidoSearchParams = {
+    q: firstOf(rawParams.q),
+    namespace: firstOf(rawParams.namespace),
+    status: firstOf(rawParams.status),
+    sort: firstOf(rawParams.sort),
+    page: firstOf(rawParams.page),
+  }
 
   const esDict = await getDictionary('es')
   const enDict = await getDictionary('en')
@@ -171,6 +187,11 @@ export default async function AdminContenidoPage({
     PAGE_SIZE,
   )
 
+  // The CLAMPED values (an invalid ?status=bogus falls back to 'all' etc.) —
+  // used for every Link/hidden-input below so a bad query string can't
+  // persist itself across a filter-bar submit or a pagination click.
+  const sanitizedParams: ContenidoSearchParams = { q, namespace, status, sort }
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--fg)' }}>Contenido</h1>
@@ -185,17 +206,17 @@ export default async function AdminContenidoPage({
 
       <ContenidoImportExportPanel keyIndex={keyIndex} />
 
-      <ContenidoFilterBar params={params} namespaces={namespaces} statusCounts={statusCounts} />
+      <ContenidoFilterBar params={sanitizedParams} namespaces={namespaces} statusCounts={statusCounts} />
 
       <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
         {filtered.length} de {keys.length} claves · página {page} de {totalPages}
       </p>
 
-      <ContenidoPagination params={params} page={page} totalPages={totalPages} />
+      <ContenidoPagination params={sanitizedParams} page={page} totalPages={totalPages} />
 
       <ContenidoAdminClient keys={pageItems} orphans={orphans} />
 
-      <ContenidoPagination params={params} page={page} totalPages={totalPages} className="mt-4" />
+      <ContenidoPagination params={sanitizedParams} page={page} totalPages={totalPages} className="mt-4" />
 
       <AnunciosAdminClient announcements={announcements} />
     </div>

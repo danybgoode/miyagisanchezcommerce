@@ -4,6 +4,7 @@ import {
   filterKeysByNamespace,
   filterKeysByQuery,
   filterKeysByStatus,
+  firstOf,
   paginate,
   sortKeys,
 } from '../lib/copy-overrides-admin-view'
@@ -82,6 +83,20 @@ test.describe('paginate', () => {
   test('a page <= 0 or NaN clamps to page 1', () => {
     expect(paginate(rows, 0, 2).page).toBe(1)
     expect(paginate(rows, NaN, 2).page).toBe(1)
+  })
+})
+
+test.describe('firstOf', () => {
+  test('a plain string passes through unchanged', () => {
+    expect(firstOf('autos')).toBe('autos')
+  })
+
+  test('a repeated query key (string[]) takes the first value — never throws downstream on .trim()', () => {
+    expect(firstOf(['a', 'b'])).toBe('a')
+  })
+
+  test('undefined stays undefined', () => {
+    expect(firstOf(undefined)).toBeUndefined()
   })
 })
 

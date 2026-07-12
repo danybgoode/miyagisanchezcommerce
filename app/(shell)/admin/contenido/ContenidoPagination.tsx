@@ -30,8 +30,11 @@ export default function ContenidoPagination({
         </Link>
       )}
       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-        const p = Math.max(1, page - 2) + i
-        return p <= totalPages ? (
+        // Clamp the window's start so it never shrinks below 5 pages near the
+        // END of a long list too (page-2 alone only guards the start).
+        const windowStart = Math.max(1, Math.min(page - 2, totalPages - 4))
+        const p = windowStart + i
+        return (
           <Link
             key={p}
             href={buildContenidoPageUrl(params, p)}
@@ -39,7 +42,7 @@ export default function ContenidoPagination({
           >
             {p}
           </Link>
-        ) : null
+        )
       })}
       {page < totalPages && (
         <Link href={buildContenidoPageUrl(params, page + 1)} className="btn btn-secondary btn-sm no-underline">

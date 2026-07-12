@@ -101,6 +101,17 @@ export interface ContenidoSearchParams {
   page?: string
 }
 
+/**
+ * Next.js's real `searchParams` value for a repeated query key (`?q=a&q=b`) is
+ * a `string[]`, not a `string` — always take the first value rather than
+ * passing the array straight into a string-only operation (e.g. `.trim()`),
+ * which would throw. Called once at the page boundary, before anything reads
+ * `ContenidoSearchParams`'s fields as plain strings.
+ */
+export function firstOf(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
 const ALLOWED_KEYS = ['q', 'namespace', 'status', 'sort'] as const
 
 /** Query string for an `/admin/contenido` page `Link` (keeps `page`, mirrors `buildFlagsPageUrl`). */
