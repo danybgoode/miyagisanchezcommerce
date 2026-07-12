@@ -202,4 +202,30 @@ test.describe('design-token foundation', () => {
       "app/(shell)/shop/manage/RogueToast.tsx:1: import { Toast } from './LocalToast' in import { Toast } from './LocalToast'",
     ])
   })
+
+  // ── cms-contenido-restore-and-polish S3.4 ──────────────────────────────────
+  // The whole `app/(shell)/admin/` prefix is normally EXCLUDED from every scan
+  // above (not merely unenforced) — Sprint 3's re-skin touched 4 admin files,
+  // so `enforcedDespiteExcludedPrefix` un-excludes exactly those 4 (paired with
+  // adding them to `enforcedSweptPaths`), while every other admin file stays
+  // fully excluded until it's touched.
+  test('a re-skinned admin/contenido file (Sprint 3) IS scanned and gated, despite the app/(shell)/admin/ prefix exclusion', () => {
+    const offenders = findRawPaletteClassOffendersInSourceFiles([{
+      filePath: 'app/(shell)/admin/AdminShell.tsx',
+      content: '<span className="bg-green-100 text-green-700">Activo</span>',
+    }])
+    expect(offenders.map(formatOffense)).toEqual([
+      'app/(shell)/admin/AdminShell.tsx:1: bg-green-100 in <span className="bg-green-100 text-green-700">Activo</span>',
+      'app/(shell)/admin/AdminShell.tsx:1: text-green-700 in <span className="bg-green-100 text-green-700">Activo</span>',
+    ])
+    expect(withinEnforcedSweep(offenders).map(formatOffense)).toEqual(offenders.map(formatOffense))
+  })
+
+  test('an UNTOUCHED admin file stays fully excluded (not scanned at all) — the broad prefix exclusion still applies elsewhere', () => {
+    const offenders = findRawPaletteClassOffendersInSourceFiles([{
+      filePath: 'app/(shell)/admin/coupons/AdminCouponsClient.tsx',
+      content: '<span className="bg-green-100 text-green-700">Activo</span>',
+    }])
+    expect(offenders).toEqual([])
+  })
 })
