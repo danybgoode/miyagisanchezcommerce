@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { routeForKey, routeForNamespaceSection, namespaceLabel, NO_SINGLE_PAGE_LABEL } from '../lib/copy-overrides-routes'
+import esDictionary from '../locales/es.json' with { type: 'json' }
 
 // Pure-seam coverage for the namespace/section → page/URL lookup (epic 08 ·
 // cms-contenido-restore-and-polish, Story 2.1). No browser, no network.
@@ -26,6 +27,29 @@ test.describe('routeForKey / routeForNamespaceSection', () => {
     expect(routeForNamespaceSection('sellerAcquisition', 'shared')).toBeNull()
     expect(routeForNamespaceSection('platformTheme', 'anything')).toBeNull()
     expect(routeForNamespaceSection('pwaSearch', 'anything')).toBeNull()
+  })
+
+  test('mundial, promotorMigracion, and aiChannel — the 3 sections a review pass found missing — now resolve', () => {
+    expect(routeForNamespaceSection('sellerAcquisition', 'mundial')).toEqual({
+      label: 'Vende — Mundial',
+      path: '/vende/mundial',
+    })
+    expect(routeForNamespaceSection('sellerAcquisition', 'promotorMigracion')).toEqual({
+      label: 'Vende — Promotor Migración',
+      path: '/vende/promotor/migracion',
+    })
+    expect(routeForNamespaceSection('sellerAcquisition', 'aiChannel')).toEqual({
+      label: 'Vende (portada)',
+      path: '/vende',
+    })
+  })
+
+  test('EVERY real sellerAcquisition section in the compiled dictionary resolves to a deliberate entry — not an accidental fallback', () => {
+    const realSections = Object.keys((esDictionary as { sellerAcquisition: Record<string, unknown> }).sellerAcquisition)
+    const unmapped = realSections.filter(
+      (section) => section !== 'shared' && routeForNamespaceSection('sellerAcquisition', section) === null,
+    )
+    expect(unmapped).toEqual([])
   })
 
   test('an unrecognized namespace resolves to null, same as the no-single-page case', () => {

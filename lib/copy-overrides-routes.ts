@@ -26,16 +26,22 @@ export interface RouteInfo {
 
 const SELLER_ACQUISITION_SECTIONS: Record<string, RouteInfo | null> = {
   anchor: { label: 'Vende (portada)', path: '/vende' },
+  // Rendered as part of the /vende portada (`buildAnchorPageConfig` reads
+  // `copy.aiChannel` directly, `app/(shell)/vende/_components/page-config.ts`)
+  // — same page as `anchor`, not a separate one.
+  aiChannel: { label: 'Vende (portada)', path: '/vende' },
   creadores: { label: 'Vende — Creadores', path: '/vende/creadores' },
   negocios: { label: 'Vende — Negocios', path: '/vende/negocios' },
   servicios: { label: 'Vende — Servicios', path: '/vende/servicios' },
   autos: { label: 'Vende — Autos', path: '/vende/autos' },
+  mundial: { label: 'Vende — Mundial', path: '/vende/mundial' },
   migracion: { label: 'Vende — Migración (hub)', path: '/vende/migracion' },
   migracionShopify: { label: 'Vende — Migración Shopify', path: '/vende/migracion/shopify' },
   migracionTiendanube: { label: 'Vende — Migración Tiendanube', path: '/vende/migracion/tiendanube' },
   migracionWoocommerce: { label: 'Vende — Migración WooCommerce', path: '/vende/migracion/woocommerce' },
   migracionBigcartel: { label: 'Vende — Migración BigCartel', path: '/vende/migracion/bigcartel' },
   promotor: { label: 'Vende — Promotor', path: '/vende/promotor' },
+  promotorMigracion: { label: 'Vende — Promotor Migración', path: '/vende/promotor/migracion' },
   // Shared copy (trust lines, FAQ, self-check aside, …) rendered across every
   // /vende/* page above — deliberately no single URL.
   shared: null,
