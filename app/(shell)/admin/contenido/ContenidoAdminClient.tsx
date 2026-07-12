@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { previewOverrideValue } from '@/lib/copy-overrides-preview'
 import { NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
 import { humanizeKeyPath } from '@/lib/copy-overrides-labels'
-import { buildBatchApplyRows, removeAppliedDrafts, type DraftEntry } from '@/lib/copy-overrides-draft-batch'
+import { buildBatchApplyRows, removeAppliedDrafts, updateDraftLocale, type DraftEntry } from '@/lib/copy-overrides-draft-batch'
 import type { NavNamespaceGroup } from '@/lib/copy-overrides-page-nav'
 import ContenidoPageNav from './ContenidoPageNav'
 
@@ -131,9 +131,22 @@ export default function ContenidoAdminClient({
     return r.overrideEn ?? r.defaultEn ?? ''
   }
 
+  /**
+   * Typing a value back to the live current value un-dirties that locale —
+   * otherwise an edit-then-revert would still count toward the batched-save
+   * bar/unsaved-changes guard (caught by cross-agent review on this PR).
+   * `updateDraftLocale` (pure, unit-tested) decides whether to drop the whole
+   * entry once neither locale is left dirty.
+   */
   function setDraft(r: OverrideKeyView, locale: Locale, value: string) {
     const path = pathOf(r)
-    setDrafts((prev) => ({ ...prev, [path]: { ...prev[path], namespace: r.namespace, key: r.key, [locale]: value } }))
+    setDrafts((prev) => {
+      const updated = updateDraftLocale(prev[path], r.namespace, r.key, locale, value, currentValue(r, locale))
+      const next = { ...prev }
+      if (updated) next[path] = updated
+      else delete next[path]
+      return next
+    })
   }
 
   /** The value currently live (saved override, or the compile-time default). */

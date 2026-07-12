@@ -28,6 +28,33 @@ export function draftPathOf(namespace: string, key: string): string {
   return `${namespace}.${key}`
 }
 
+/**
+ * Decides what a draft entry should become after typing `value` for one
+ * locale — typing back to the LIVE value (`currentLiveValue`) un-dirties that
+ * locale rather than recording a no-op draft, so an edit-then-revert never
+ * shows up as an unsaved change (caught by cross-agent review on the PR that
+ * introduced batched save). Returns `null` when the whole entry should be
+ * dropped (this was its only dirty locale); otherwise the updated entry.
+ */
+export function updateDraftLocale(
+  existing: DraftEntry | undefined,
+  namespace: string,
+  key: string,
+  locale: 'es' | 'en',
+  value: string,
+  currentLiveValue: string,
+): DraftEntry | null {
+  if (value !== currentLiveValue) {
+    return { ...existing, namespace, key, [locale]: value }
+  }
+  if (!existing) return null
+  const remaining: DraftEntry = { namespace, key }
+  if (locale !== 'es' && existing.es !== undefined) remaining.es = existing.es
+  if (locale !== 'en' && existing.en !== undefined) remaining.en = existing.en
+  if (remaining.es === undefined && remaining.en === undefined) return null
+  return remaining
+}
+
 /** Flattens every draft entry's set locale(s) into the bulk-apply route's `rows` shape. */
 export function buildBatchApplyRows(drafts: Record<string, DraftEntry>): BatchApplyRow[] {
   const rows: BatchApplyRow[] = []
