@@ -19,10 +19,11 @@
 # ---- deps -------------------------------------------------------------------
 FROM node:20-slim AS deps
 WORKDIR /app
-# No per-app lockfile in this monorepo (see apps/backend/Dockerfile) — installs
-# fresh, matching the caret-pinned ranges in package.json.
-COPY package.json ./
-RUN npm install
+# package-lock.json makes this a deterministic, reproducible install (deps are
+# caret-pinned in package.json, but npm ci pins to exactly what's in the
+# lockfile — a rebuild of the same commit always gets the same tree).
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # ---- builder ------------------------------------------------------------------
 FROM node:20-slim AS builder
