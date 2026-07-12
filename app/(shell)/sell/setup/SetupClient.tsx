@@ -48,7 +48,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
         }
       }}
     >
-      {copied ? '✓ Copiado' : `📋 ${label}`}
+      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : <><i className="iconoir-copy" aria-hidden /> {label}</>}
     </Button>
   )
 }
@@ -61,7 +61,7 @@ function BlockRow({ b }: { b: BlockResult }) {
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold">{b.label}</span>
         <span className="text-xs font-semibold">
-          {ok ? `✓ ${b.appliedFields.length} campo(s)` : '✕ omitido'}
+          {ok ? <><i className="iconoir-check" aria-hidden /> {b.appliedFields.length} campo(s)</> : <><i className="iconoir-xmark" aria-hidden /> omitido</>}
         </span>
       </div>
       {b.issues.length > 0 && (
@@ -284,7 +284,7 @@ function FirstRunApply() {
       {!report && (
         <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-4">
           <h2 className="font-semibold mb-1 flex items-center gap-2">
-            <span className="text-xl">✨</span> Pega el archivo de tu agente
+            <i className="iconoir-sparks text-xl" aria-hidden /> Pega el archivo de tu agente
           </h2>
           <p className="text-sm text-[var(--color-muted)] mb-3">
             Tu agente ya armó tu tienda en un solo archivo. Pégalo aquí (o súbelo) y lo revisamos antes de
@@ -314,7 +314,7 @@ function FirstRunApply() {
               Revisar
             </button>
           </div>
-          {fileName && <p className="text-xs text-[var(--color-muted)] mt-3">📄 {fileName}</p>}
+          {fileName && <p className="text-xs text-[var(--color-muted)] mt-3"><i className="iconoir-page" aria-hidden /> {fileName}</p>}
         </section>
       )}
 
@@ -473,7 +473,7 @@ function FirstRunApply() {
                           {!s.valid && reason && (
                             <tr className="border-b border-[var(--color-border)] last:border-0">
                               <td colSpan={5} className="px-3 pb-2 -mt-1">
-                                <p className="text-xs" style={{ color: 'var(--warning)' }}>⚠️ {reason} — tócalo arriba para corregirlo.</p>
+                                <p className="text-xs" style={{ color: 'var(--warning)' }}><i className="iconoir-warning-triangle" aria-hidden /> {reason} — tócalo arriba para corregirlo.</p>
                               </td>
                             </tr>
                           )}
@@ -541,7 +541,7 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
   if (!shopOk) {
     return (
       <div className="mt-2 text-center">
-        <div className="text-4xl mb-2">⚠️</div>
+        <div className="text-4xl mb-2"><i className="iconoir-warning-triangle" aria-hidden /></div>
         <h2 className="text-xl font-bold">No pudimos crear tu tienda</h2>
         {configIssueBlocks.length > 0 && (
           <div className="space-y-2 mt-4 text-left">
@@ -653,18 +653,18 @@ function LoopClose({ shopSlug }: { shopSlug: string | null }) {
         <h4 className="font-semibold mb-2">¿Qué sigue?</h4>
         <ul className="text-sm text-[var(--color-muted)] space-y-1.5">
           <li>
-            💳 <strong className="text-[var(--color-foreground)] font-medium">Agrega pagos</strong> — sigue
+            <i className="iconoir-credit-card" aria-hidden /> <strong className="text-[var(--color-foreground)] font-medium">Agrega pagos</strong> — sigue
             siendo un paso manual. Configúralos en{' '}
             <Link href="/shop/manage/settings" className="text-[var(--color-accent)] hover:underline">ajustes de tu tienda</Link>.
           </li>
           <li>
-            🔗 <strong className="text-[var(--color-foreground)] font-medium">Comparte tu tienda</strong>
+            <i className="iconoir-link" aria-hidden /> <strong className="text-[var(--color-foreground)] font-medium">Comparte tu tienda</strong>
             {shopSlug
               ? <> — tu enlace público es <Link href={`/s/${shopSlug}`} className="text-[var(--color-accent)] hover:underline">/s/{shopSlug}</Link>.</>
               : <> desde el panel de tu tienda.</>}
           </li>
           <li>
-            🤖 <strong className="text-[var(--color-foreground)] font-medium">Deja que tu agente la lleve</strong> —
+            <i className="iconoir-cpu" aria-hidden /> <strong className="text-[var(--color-foreground)] font-medium">Deja que tu agente la lleve</strong> —
             con el prompt y el token de arriba, tu IA se encarga del día a día.
           </li>
         </ul>

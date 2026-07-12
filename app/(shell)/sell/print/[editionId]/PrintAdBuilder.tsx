@@ -234,7 +234,7 @@ export default function PrintAdBuilder({
   if (manualInfo) {
     return (
       <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <div className="text-4xl mb-3">🗞️</div>
+        <div className="text-4xl mb-3"><i className="iconoir-journal" aria-hidden /></div>
         <h1 className="text-xl font-bold mb-2">¡Solicitud registrada!</h1>
         <p className="text-sm text-[var(--color-muted)] mb-6">
           Aparta tu lugar en <strong>{edition.title}</strong>. Realiza el pago para confirmar tu anuncio.

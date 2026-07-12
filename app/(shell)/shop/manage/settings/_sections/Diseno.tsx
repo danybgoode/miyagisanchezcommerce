@@ -197,7 +197,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               </div>
             ) : (
               <div className="text-center">
-                <div className="text-2xl mb-1">🖼️</div>
+                <div className="text-2xl mb-1"><i className="iconoir-media-image" aria-hidden /></div>
                 <div className="text-xs text-[var(--color-muted)]">Haz clic para subir banner</div>
                 <div className="text-xs text-[var(--color-muted)]">Recomendado: 1200 × 300 px · máx. 8 MB</div>
               </div>
@@ -224,7 +224,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
               {logoUploading ? (
                 <span className="text-[10px] text-[var(--color-muted)] animate-pulse text-center px-1">…</span>
               ) : !logoUrl && (
-                <span className="text-2xl">🏪</span>
+                <i className="iconoir-shop text-2xl" aria-hidden />
               )}
             </div>
             <div>
@@ -292,13 +292,13 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
           <label className="block text-sm font-medium mb-3">Redes sociales</label>
           <div className="space-y-2">
             {[
-              { icon: '📸', label: 'Instagram', value: instagram,      set: setInstagram,      placeholder: '@tutienda' },
-              { icon: '👥', label: 'Facebook',  value: facebook,       set: setFacebook,       placeholder: 'https://facebook.com/tutienda' },
-              { icon: '💬', label: 'WhatsApp',  value: whatsappHandle, set: setWhatsappHandle, placeholder: '52 55 1234 5678' },
-              { icon: '🎵', label: 'TikTok',    value: tiktok,         set: setTiktok,         placeholder: '@tutienda' },
+              { icon: 'iconoir-camera', label: 'Instagram', value: instagram,      set: setInstagram,      placeholder: '@tutienda' },
+              { icon: 'iconoir-community', label: 'Facebook',  value: facebook,       set: setFacebook,       placeholder: 'https://facebook.com/tutienda' },
+              { icon: 'iconoir-chat-bubble', label: 'WhatsApp',  value: whatsappHandle, set: setWhatsappHandle, placeholder: '52 55 1234 5678' },
+              { icon: 'iconoir-music-note', label: 'TikTok',    value: tiktok,         set: setTiktok,         placeholder: '@tutienda' },
             ].map(net => (
               <div key={net.label} className="flex items-center gap-2">
-                <span className="text-lg w-7 flex-shrink-0 text-center">{net.icon}</span>
+                <i className={`text-lg w-7 flex-shrink-0 text-center ${net.icon}`} aria-hidden />
                 <span className="text-xs text-[var(--color-muted)] w-20 flex-shrink-0">{net.label}</span>
                 <input
                   value={net.value}
@@ -390,11 +390,11 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                     {l.imageUrl ? (
                       <img src={l.imageUrl} alt={l.title} className="w-full h-16 object-cover" />
                     ) : (
-                      <div className="w-full h-16 bg-[var(--color-surface-alt)] flex items-center justify-center text-lg">📦</div>
+                      <div className="w-full h-16 bg-[var(--color-surface-alt)] flex items-center justify-center text-lg"><i className="iconoir-package" aria-hidden /></div>
                     )}
                     <p className="text-[10px] px-1 py-0.5 line-clamp-1">{l.title}</p>
                     {selected && (
-                      <span className="absolute top-1 right-1 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center">✓</span>
+                      <span className="absolute top-1 right-1 w-4 h-4 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center"><i className="iconoir-check" aria-hidden /></span>
                     )}
                   </button>
                 )
@@ -412,7 +412,7 @@ export default function Diseno({ initial }: { initial: DisenoInitial }) {
                 <span className="text-sm text-[var(--color-muted)] animate-pulse">Subiendo…</span>
               ) : !heroPromoImage && (
                 <div className="text-center">
-                  <div className="text-2xl mb-1">🖼️</div>
+                  <div className="text-2xl mb-1"><i className="iconoir-media-image" aria-hidden /></div>
                   <div className="text-xs text-[var(--color-muted)]">Haz clic para subir imagen</div>
                 </div>
               )}

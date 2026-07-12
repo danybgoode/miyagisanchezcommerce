@@ -148,7 +148,7 @@ function OrderCard({
         <div className="w-14 h-14 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
           {thumb
             ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-            : <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+            : <div className="w-full h-full flex items-center justify-center text-xl"><i className="iconoir-package" aria-hidden /></div>
           }
         </div>
 
@@ -186,7 +186,7 @@ function OrderCard({
           {/* Shipment tracking chip */}
           {shipment?.tracking_number && (
             <p className="mt-1.5 text-[11px] text-[var(--color-muted)] flex items-center gap-1">
-              <span>🚚</span>
+              <i className="iconoir-delivery-truck" aria-hidden />
               <span className="font-mono">{shipment.tracking_number}</span>
               <span>· {shipment.carrier.toUpperCase()}</span>
             </p>
@@ -200,7 +200,7 @@ function OrderCard({
       {/* Urgency footer */}
       {urgent && (
         <div className="border-t border-[var(--warning)] px-4 py-2 flex items-center gap-2">
-          <span className="text-[var(--warning)] text-sm">⚡</span>
+          <i className="iconoir-flash text-[var(--warning)] text-sm" aria-hidden />
           <p className="text-xs text-[var(--warning)] font-medium">
             {isUnpaidManual
               ? whoActsNext(manualState!, 'seller')
@@ -325,7 +325,7 @@ export default function OrdersInbox({
       {/* Urgency nudge */}
       {needsActionOrders.length > 0 && (
         <div className="flex items-start gap-3 bg-[var(--warning-soft)] border border-[var(--warning)] rounded-[var(--r-lg)] px-4 py-3 mb-5">
-          <span className="text-lg mt-0.5">⚡</span>
+          <i className="iconoir-flash text-lg mt-0.5" aria-hidden />
           <div>
             <p className="text-sm font-semibold text-[var(--warning)]">
               {needsActionOrders.length} pedido{needsActionOrders.length > 1 ? 's' : ''} esperando tu acción
@@ -422,7 +422,7 @@ export default function OrdersInbox({
         <div className="text-center py-16 border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-lg)]">
           {filter === 'pending' && initialOrders.length > 0 ? (
             <>
-              <div className="text-4xl mb-3">✓</div>
+              <div className="text-4xl mb-3"><i className="iconoir-check" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">¡Al día!</h3>
               <p className="text-sm text-[var(--color-muted)]">No tienes pedidos pendientes de enviar.</p>
               <button type="button" onClick={() => setFilter('all')}
@@ -432,7 +432,7 @@ export default function OrdersInbox({
             </>
           ) : (
             <>
-              <div className="text-4xl mb-3">📦</div>
+              <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">Sin pedidos aún</h3>
               <p className="text-sm text-[var(--color-muted)] mb-4 max-w-xs mx-auto">
                 Cuando los compradores paguen tus productos, aparecerán aquí.
@@ -460,7 +460,7 @@ export default function OrdersInbox({
       {/* AI tip */}
       {initialOrders.length > 0 && (
         <div className="mt-8 flex items-start gap-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] px-4 py-3">
-          <span className="text-base mt-0.5">✦</span>
+          <i className="iconoir-sparks text-base mt-0.5" aria-hidden />
           <p className="text-xs text-[var(--color-muted)] leading-relaxed">
             <strong className="text-[var(--color-text)]">Tip:</strong> Los vendedores que envían en menos de 24 h
             reciben un 23% más de reseñas positivas. Responder rápido construye reputación.

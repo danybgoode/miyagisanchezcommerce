@@ -310,13 +310,13 @@ function TierLadderEditor({
       </p>
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
+          <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
-          ✓ Niveles guardados.
+          <i className="iconoir-check" aria-hidden /> Niveles guardados.
         </div>
       )}
       <div className="space-y-1.5">
@@ -357,7 +357,7 @@ function TierLadderEditor({
               disabled={i === 0}
               aria-label="Quitar nivel"
               className="text-red-500 hover:text-red-600 px-1 disabled:opacity-30"
-            >✕</button>
+            ><i className="iconoir-xmark" aria-hidden /></button>
           </div>
         ))}
       </div>
@@ -439,13 +439,13 @@ function CostEditor({
       </p>
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
+          <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
-          ✓ Costo guardado.
+          <i className="iconoir-check" aria-hidden /> Costo guardado.
         </div>
       )}
       <div className="flex items-center gap-2">
@@ -527,13 +527,13 @@ function StockEditor({
       <p className="text-sm font-medium text-[var(--color-text)] mb-1">Stock de esta combinación</p>
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
+          <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
         <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
-          ✓ Stock actualizado.
+          <i className="iconoir-check" aria-hidden /> Stock actualizado.
         </div>
       )}
       <div className="flex items-center gap-2">
@@ -680,7 +680,7 @@ function DimensionsEditor({
     <div className="border border-[var(--color-border)] rounded-lg p-3 bg-[var(--color-background)] space-y-3">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm flex items-start gap-2">
-          <span className="mt-0.5 shrink-0">⚠</span>
+          <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
@@ -696,7 +696,7 @@ function DimensionsEditor({
                 onClick={() => setDims(dims.filter(d => d.key !== dim.key))}
                 aria-label="Eliminar dimensión"
                 className="text-red-500 hover:text-red-600 px-1"
-              >✕</button>
+              ><i className="iconoir-xmark" aria-hidden /></button>
             </div>
             <input
               type="text"
@@ -727,7 +727,7 @@ function DimensionsEditor({
                     onClick={() => updateDim(dim.key, { values: dim.values.filter((_, j) => j !== i) })}
                     aria-label="Quitar valor"
                     className="text-red-500 hover:text-red-600 px-1"
-                  >✕</button>
+                  ><i className="iconoir-xmark" aria-hidden /></button>
                 </div>
               ))}
             </div>
@@ -832,7 +832,7 @@ function DimensionsEditor({
               disabled={saving}
               className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {saving ? 'Creando…' : '✓ Confirmar y crear'}
+              {saving ? 'Creando…' : <><i className="iconoir-check" aria-hidden /> Confirmar y crear</>}
             </button>
             <button
               type="button"

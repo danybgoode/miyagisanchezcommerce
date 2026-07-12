@@ -31,13 +31,13 @@ export default function ClosetListingCard({
         {item.imageUrl ? (
           <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover" />
         ) : (
-          <div className="w-full h-36 bg-[var(--color-surface-alt)] flex items-center justify-center text-3xl">📦</div>
+          <div className="w-full h-36 bg-[var(--color-surface-alt)] flex items-center justify-center text-3xl"><i className="iconoir-package" aria-hidden /></div>
         )}
         <div className="p-2.5 pb-1">
           <p className="text-xs font-medium text-[var(--color-text)] line-clamp-2 leading-snug">{item.title}</p>
           {item.hasExcerpt && (
             <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
-              📖 Adelanto
+              <i className="iconoir-book" aria-hidden /> Adelanto
             </span>
           )}
           <p className="text-sm font-bold mt-1" style={{ color: accent }}>
@@ -58,7 +58,7 @@ export default function ClosetListingCard({
             }`}
             aria-label={inCart ? 'Quitar del paquete' : 'Agregar al paquete'}
           >
-            {inCart ? '✓ En paquete' : '+ Agregar al paquete'}
+            {inCart ? <><i className="iconoir-check" aria-hidden /> En paquete</> : '+ Agregar al paquete'}
           </button>
         </div>
       )}

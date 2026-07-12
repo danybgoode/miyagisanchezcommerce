@@ -34,7 +34,7 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string; steps: string[] }> = {
   cloudflare: {
     name: 'Cloudflare',
-    icon: '☁️',
+    icon: 'iconoir-cloud',
     url: 'https://dash.cloudflare.com',
     steps: [
       'Ve a dash.cloudflare.com → elige tu dominio',
@@ -45,7 +45,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
   godaddy: {
     name: 'GoDaddy',
-    icon: '🐐',
+    icon: 'iconoir-globe',
     url: 'https://dcc.godaddy.com/manage',
     steps: [
       'Ve a dcc.godaddy.com → Mis dominios → "Administrar DNS"',
@@ -56,7 +56,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
   namecheap: {
     name: 'Namecheap',
-    icon: '🌐',
+    icon: 'iconoir-globe',
     url: 'https://ap.www.namecheap.com/domains/list',
     steps: [
       'Ve a namecheap.com → Domain List → "Manage" junto a tu dominio',
@@ -67,7 +67,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
   google: {
     name: 'Google Domains / Squarespace',
-    icon: '🔠',
+    icon: 'iconoir-globe',
     url: 'https://domains.google.com',
     steps: [
       'Ve a domains.google.com → tu dominio → "DNS"',
@@ -78,7 +78,7 @@ const REGISTRAR_GUIDES: Record<string, { name: string; icon: string; url: string
   },
   squarespace: {
     name: 'Squarespace',
-    icon: '🔲',
+    icon: 'iconoir-globe',
     url: 'https://account.squarespace.com/domains',
     steps: [
       'Ve a account.squarespace.com/domains → tu dominio → "DNS settings"',
@@ -347,7 +347,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
               Canal Propio
             </h2>
             {domainStatus === 'active' && (
-              <StatusBadge token="success">🟢 Dominio activo</StatusBadge>
+              <StatusBadge token="success"><i className="iconoir-circle" aria-hidden /> Dominio activo</StatusBadge>
             )}
             {domainStatus === 'provisioning' && (
               <StatusBadge token="info">● Emitiendo SSL…</StatusBadge>
@@ -389,7 +389,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                     onClick={copyShopUrl}
                     className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${slugCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
-                    {slugCopied ? '✓ Copiado' : 'Copiar'}
+                    {slugCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
                   </button>
                   <button
                     type="button"
@@ -409,7 +409,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                     onClick={copySubdomainUrl}
                     className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${subCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
-                    {subCopied ? '✓ Copiado' : 'Copiar'}
+                    {subCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
                   </button>
                 </div>
                 {/* Ultra-short branded link */}
@@ -422,7 +422,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                     onClick={copyShortUrl}
                     className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${shortCopied ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]'}`}
                   >
-                    {shortCopied ? '✓ Copiado' : 'Copiar'}
+                    {shortCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
                   </button>
                 </div>
                 <p className="text-xs text-[var(--color-muted)] mt-2">
@@ -501,7 +501,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
           {/* ══ STEP 1 — Enter domain ════════════════════════════════════════ */}
           <div className="flex gap-2 items-start">
             <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${savedDomain ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
-              {savedDomain ? '✓' : '1'}
+              {savedDomain ? <i className="iconoir-check" aria-hidden /> : '1'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium mb-2">
@@ -588,7 +588,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                   </div>
                   {detectedRegistrar && detectedRegistrar !== 'unknown' && !domainDnsOk && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                      <span>{REGISTRAR_GUIDES[detectedRegistrar]?.icon ?? '🌐'}</span>
+                      <i className={REGISTRAR_GUIDES[detectedRegistrar]?.icon ?? 'iconoir-globe'} aria-hidden />
                       <span>
                         Registrador detectado:{' '}
                         <strong className="text-[var(--color-foreground)]">
@@ -599,7 +599,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                   )}
                 </div>
               )}
-              {domainError && <p className="mt-2 text-xs text-[var(--danger)]">⚠ {domainError}</p>}
+              {domainError && <p className="mt-2 text-xs text-[var(--danger)]"><i className="iconoir-warning-triangle" aria-hidden /> {domainError}</p>}
             </div>
           </div>
 
@@ -607,11 +607,11 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
           {savedDomain && (
             <div className={`flex gap-2 items-start transition-opacity ${domainDnsOk ? 'opacity-50' : ''}`}>
               <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border-2 border-[var(--color-accent)] text-[var(--color-accent)]'}`}>
-                {domainDnsOk ? '✓' : '2'}
+                {domainDnsOk ? <i className="iconoir-check" aria-hidden /> : '2'}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium mb-1">
-                  {domainDnsOk ? 'DNS configurado ✓' : 'Apunta tu dominio a Miyagi Sánchez'}
+                  {domainDnsOk ? <>DNS configurado <i className="iconoir-check" aria-hidden /></> : 'Apunta tu dominio a Miyagi Sánchez'}
                 </p>
                 <p className="text-xs text-[var(--color-muted)] mb-3">
                   {domainDnsOk
@@ -651,7 +651,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                       onClick={() => { navigator.clipboard.writeText(dnsRecord?.value ?? CNAME_TARGET); setDomainCopied(true); setTimeout(() => setDomainCopied(false), 2000) }}
                       className={`text-xs px-2 py-0.5 rounded-[var(--r-sm)] transition-all ${domainCopied ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
                     >
-                      {domainCopied ? '✓ Copiado' : 'Copiar valor'}
+                      {domainCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar valor'}
                     </button>
                   </div>
                   <div className="px-3 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
@@ -697,7 +697,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                       </>
                     ) : domainStatus === 'error' && domainCnameCurrent ? (
                       <>
-                        <span className="text-[var(--danger)]">⚠</span>
+                        <i className="iconoir-warning-triangle text-[var(--danger)]" aria-hidden />
                         <span>
                           CNAME actual: <span className="font-mono break-all">{domainCnameCurrent}</span> — apunta a otro lugar
                         </span>
@@ -715,7 +715,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                       disabled={domainChecking}
                       className="text-xs px-3 py-1.5 border border-[var(--color-border)] rounded-[var(--r-md)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0"
                     >
-                      {domainChecking ? 'Comprobando…' : '↻ Comprobar ahora'}
+                      {domainChecking ? 'Comprobando…' : <><i className="iconoir-refresh" aria-hidden /> Comprobar ahora</>}
                     </button>
                   )}
                 </div>
@@ -732,18 +732,18 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
           {savedDomain && (
             <div className={`flex gap-2 items-start transition-all ${!domainDnsOk ? 'opacity-40 pointer-events-none select-none' : ''}`}>
               <div className={`w-6 h-6 rounded-[var(--r-pill)] flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${domainDnsOk ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-muted)]'}`}>
-                {domainDnsOk ? '✓' : '3'}
+                {domainDnsOk ? <i className="iconoir-check" aria-hidden /> : '3'}
               </div>
               <div className="flex-1 min-w-0">
                 {domainStatus === 'active' ? (
                   <>
-                    <p className="text-sm font-semibold mb-3">🎉 ¡Tu tienda está activa en 2 canales!</p>
+                    <p className="text-sm font-semibold mb-3">🎉 ¡Tu tienda está activa en 2 canales!</p>{/* voice — celebratory, not chrome */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
 
                       {/* Canal propio */}
                       <div className="border-2 border-[var(--color-accent)] rounded-[var(--r-lg)] p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,white)]">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-sm">🌐</span>
+                          <i className="iconoir-globe text-sm" aria-hidden />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
                             Canal Propio
                           </span>
@@ -765,7 +765,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                       {/* Canal marketplace */}
                       <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-sm">🏪</span>
+                          <i className="iconoir-shop text-sm" aria-hidden />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)]">
                             Miyagi Sánchez
                           </span>
@@ -789,15 +789,15 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                       </div>
                     </div>
                     <p className="text-xs text-[var(--color-muted)] bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 leading-relaxed">
-                      💡 Los dos canales comparten el mismo inventario, checkout y panel de administración. Cada venta se etiqueta con su canal de origen para que puedas ver de dónde vienen tus clientes.
+                      <i className="iconoir-light-bulb" aria-hidden /> Los dos canales comparten el mismo inventario, checkout y panel de administración. Cada venta se etiqueta con su canal de origen para que puedas ver de dónde vienen tus clientes.
                     </p>
                   </>
                 ) : domainStatus === 'provisioning' ? (
                   <>
-                    <p className="text-sm font-medium mb-1">DNS correcto ✓ — emitiendo certificado SSL…</p>
+                    <p className="text-sm font-medium mb-1">DNS correcto <i className="iconoir-check" aria-hidden /> — emitiendo certificado SSL…</p>
                     <p className="text-xs text-[var(--color-muted)] leading-relaxed">
                       Tu dominio ya apunta a nosotros. Estamos emitiendo el certificado SSL (suele tardar uno o
-                      dos minutos). En cuanto esté listo, tu tienda abrirá con candado seguro 🔒.
+                      dos minutos). En cuanto esté listo, tu tienda abrirá con candado seguro <i className="iconoir-lock" aria-hidden />.
                     </p>
                   </>
                 ) : (

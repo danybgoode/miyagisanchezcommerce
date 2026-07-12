@@ -119,7 +119,7 @@ export default function ArtworkFileInput({
           {uploading ? (
             <><span className="animate-spin inline-block">⟳</span> Subiendo…</>
           ) : (
-            <>📎 Subir archivo ({allowedFormats.join(', ').toUpperCase()} · máx. {maxSizeMb} MB)</>
+            <><i className="iconoir-attachment" aria-hidden /> Subir archivo ({allowedFormats.join(', ').toUpperCase()} · máx. {maxSizeMb} MB)</>
           )}
         </label>
       ) : (
@@ -128,7 +128,7 @@ export default function ArtworkFileInput({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt="Vista previa del arte" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6 }} />
           ) : (
-            <span style={{ fontSize: 22 }}>📄</span>
+            <i className="iconoir-page" aria-hidden style={{ fontSize: 22 }} />
           )}
           <span style={{ flex: 1, fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {fileName ?? 'Archivo subido'}
@@ -140,7 +140,7 @@ export default function ArtworkFileInput({
       )}
 
       {error && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{error}</p>}
-      {warning && <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>⚠️ {warning}</p>}
+      {warning && <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}><i className="iconoir-warning-triangle" aria-hidden /> {warning}</p>}
     </div>
   )
 }

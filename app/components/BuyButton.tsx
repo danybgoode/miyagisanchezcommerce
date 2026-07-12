@@ -109,7 +109,7 @@ export default function BuyButton({
           <>{isDigital ? 'Comprar y descargar' : 'Comprar ahora'} — {price}</>
         )}
       </button>
-      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center">⚠ {error}</p>}
+      {error && <p className="text-[var(--danger)] text-xs mt-2 text-center"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
       <p className="text-xs text-center text-[var(--fg-muted)] mt-1.5">
         Pago seguro con Stripe · 0% comisión
       </p>

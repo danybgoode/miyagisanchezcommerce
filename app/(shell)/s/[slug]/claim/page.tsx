@@ -21,7 +21,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
         <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-[var(--color-background)] px-5 py-4 border-b border-[var(--color-border)] flex items-center gap-3">
-            <span className="text-2xl">🏪</span>
+            <i className="iconoir-shop text-2xl" aria-hidden />
             <div>
               <p className="font-bold text-[var(--color-text)]">{shop.name}</p>
               <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com/s/{slug}</p>
@@ -34,7 +34,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
           {/* Body: is it you? */}
           <div className="px-5 py-5 space-y-5">
             <div className="flex items-start gap-3 p-4 bg-[var(--claim-accent-soft)] border border-[var(--claim-accent-border)] rounded-lg">
-              <span className="text-xl mt-0.5">👤</span>
+              <i className="iconoir-user text-xl mt-0.5" aria-hidden />
               <div>
                 <p className="text-sm font-semibold text-[var(--color-text)] mb-1">
                   ¿Ya tienes cuenta y fuiste tú quien la reclamó?
@@ -52,7 +52,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
             </div>
 
             <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <span className="text-xl mt-0.5">⚠️</span>
+              <i className="iconoir-warning-triangle text-xl mt-0.5" aria-hidden />
               <div>
                 <p className="text-sm font-semibold text-[var(--color-text)] mb-1">
                   ¿Eres el dueño real pero no fuiste tú?

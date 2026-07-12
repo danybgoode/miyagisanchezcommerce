@@ -102,8 +102,8 @@ export function SlugField({
         />
         <span className="px-3 self-center text-sm" aria-hidden>
           {status === 'checking' && <span className="text-[var(--color-muted)]">…</span>}
-          {status === 'available' && <span className="text-green-600">✓</span>}
-          {(status === 'taken' || status === 'invalid') && <span className="text-red-500">✗</span>}
+          {status === 'available' && <i className="iconoir-check text-green-600" aria-hidden />}
+          {(status === 'taken' || status === 'invalid') && <i className="iconoir-xmark text-red-500" aria-hidden />}
         </span>
       </div>
       {reason && <p className="text-xs text-red-600 mt-1">{reason}</p>}

@@ -115,8 +115,8 @@ export default function PrintAdBlock({ block, tierLabel, size }: { block: PrintB
         {!hidden('contact') && (
           <div className="mt-auto pt-2 flex items-end justify-between gap-2" style={{ borderTop: `2px dashed ${GREEN}66` }}>
             <div className={`leading-relaxed ${bodyCls}`}>
-              {wa && <div>📱 {wa}</div>}
-              {content.contact?.phone && <div>☎ {content.contact.phone}</div>}
+              {wa && <div><i className="iconoir-smartphone-device" aria-hidden /> {wa}</div>}
+              {content.contact?.phone && <div><i className="iconoir-phone" aria-hidden /> {content.contact.phone}</div>}
               {content.cta_target?.url && (
                 <div className="break-all mt-0.5" style={{ color: GREEN }}>{content.cta_target.url.replace(/^https?:\/\//, '')}</div>
               )}

@@ -70,7 +70,7 @@ export default function AccountPrintAdsClient() {
 
       {rows.length === 0 ? (
         <div className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-10 text-center">
-          <div className="text-4xl mb-3">🗞️</div>
+          <div className="text-4xl mb-3"><i className="iconoir-journal" aria-hidden /></div>
           <p className="text-sm text-[var(--color-muted)] mb-4">Aún no tienes anuncios impresos.</p>
           <Link href="/shop/manage" className="inline-block bg-[var(--color-accent)] text-white px-5 py-2 rounded-lg text-sm font-semibold no-underline">
             Crear mi anuncio
@@ -123,14 +123,14 @@ export default function AccountPrintAdsClient() {
                       )}
                       <button onClick={() => reportPaid(s.id)} disabled={busyId === s.id || s.content?.payment_reported === true}
                         className="mt-2 bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">
-                        {s.content?.payment_reported ? '✓ Pago reportado' : 'Ya hice el pago'}
+                        {s.content?.payment_reported ? <><i className="iconoir-check" aria-hidden /> Pago reportado</> : 'Ya hice el pago'}
                       </button>
                     </div>
                   )}
 
                   {s.status === 'paid' && <p className="text-sm text-[var(--color-muted)]">⏳ En revisión por Miyagi. Te avisamos cuando esté aprobado.</p>}
-                  {s.status === 'approved' && <p className="text-sm text-green-700">✅ Aprobado{distrib && ` · aparecerá en la edición del ${distrib}`}.</p>}
-                  {s.status === 'placed' && <p className="text-sm text-emerald-700">🗞️ Publicado en la edición impresa.</p>}
+                  {s.status === 'approved' && <p className="text-sm text-green-700"><i className="iconoir-check-circle" aria-hidden /> Aprobado{distrib && ` · aparecerá en la edición del ${distrib}`}.</p>}
+                  {s.status === 'placed' && <p className="text-sm text-emerald-700"><i className="iconoir-journal" aria-hidden /> Publicado en la edición impresa.</p>}
 
                   {s.status === 'rejected' && (
                     <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm">

@@ -119,14 +119,14 @@ export default function AccountSubscriptionsClient({
             disabled={portalLoading}
             className="shrink-0 text-sm border border-[var(--color-border)] px-4 py-2 rounded-lg hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-60"
           >
-            {portalLoading ? 'Cargando…' : '⚙️ Gestionar pagos'}
+            {portalLoading ? 'Cargando…' : <><i className="iconoir-settings" aria-hidden /> Gestionar pagos</>}
           </button>
         )}
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3 flex items-center gap-2">
-          <span>⚠</span> {error}
+          <i className="iconoir-warning-triangle" aria-hidden /> {error}
         </div>
       )}
 
@@ -183,7 +183,7 @@ export default function AccountSubscriptionsClient({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-sm text-[var(--color-accent)] mt-2 hover:underline"
                       >
-                        📎 Ver archivo
+                        <i className="iconoir-attachment" aria-hidden /> Ver archivo
                       </a>
                     )}
                     <p className="text-xs text-[var(--color-muted)] mt-2">{formatDate(item.created_at)}</p>
@@ -217,7 +217,7 @@ export default function AccountSubscriptionsClient({
 
       {subs.length === 0 && (
         <div className="text-center py-16 text-[var(--color-muted)]">
-          <p className="text-4xl mb-3">🔔</p>
+          <p className="text-4xl mb-3"><i className="iconoir-bell" aria-hidden /></p>
           <p className="font-medium">No tienes suscripciones activas</p>
           <p className="text-sm mt-1">Explora anuncios de tipo Suscripción para acceder a contenido exclusivo.</p>
           <a href="/" className="inline-block mt-4 text-sm text-[var(--color-accent)] hover:underline">

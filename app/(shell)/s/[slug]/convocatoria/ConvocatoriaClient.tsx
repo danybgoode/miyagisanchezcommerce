@@ -125,7 +125,7 @@ export default function ConvocatoriaClient({
   if (done) {
     return (
       <div className="border border-[var(--color-border)] rounded-xl p-6 text-center">
-        <div className="text-4xl mb-3">📖</div>
+        <div className="text-4xl mb-3"><i className="iconoir-book" aria-hidden /></div>
         <h2 className="text-2xl font-bold">¡Recibido!</h2>
         <p className="mt-3 text-[var(--color-muted)] leading-7">
           {shopName} recibió tu manuscrito <strong>«{title.trim()}»</strong>. Te escribiremos a{' '}

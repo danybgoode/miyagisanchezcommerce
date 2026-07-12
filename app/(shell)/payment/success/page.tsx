@@ -225,7 +225,7 @@ export default async function PaymentSuccessPage({
         {listingType === 'digital' && (
           <div className="border border-blue-200 bg-blue-50 rounded-xl p-5 mb-6 text-left">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">📥</span>
+              <i className="iconoir-download text-xl" aria-hidden />
               <span className="font-semibold text-blue-800">Entrega digital</span>
             </div>
             {order?.digital_download_url ? (
@@ -233,7 +233,7 @@ export default async function PaymentSuccessPage({
                 <p className="text-sm text-blue-700 mb-3">Tu archivo está listo. También te lo enviamos por correo.</p>
                 <a href={order.digital_download_url}
                   className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold text-sm no-underline hover:bg-blue-700 transition-colors">
-                  📥 Descargar ahora
+                  <i className="iconoir-download" aria-hidden /> Descargar ahora
                 </a>
                 {order.digital_download_expires_at && (
                   <p className="text-xs text-blue-500 mt-2 text-center">
@@ -271,7 +271,7 @@ export default async function PaymentSuccessPage({
         </div>
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
-          ✓ Pago seguro con Stripe · ✓ Sin comisiones de plataforma
+          <i className="iconoir-check" aria-hidden /> Pago seguro con Stripe · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma
         </p>
       </div>
     </div>
@@ -381,7 +381,7 @@ function PrintSuccessUI({ amountPaid }: { amountPaid: string | null }) {
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
-        <div className="text-5xl mb-4">🗞️</div>
+        <div className="text-5xl mb-4"><i className="iconoir-journal" aria-hidden /></div>
         <h1 className="text-2xl font-bold mb-2">¡Recibimos tu anuncio!</h1>
         <p className="text-[var(--color-muted)] mb-6">
           {amountPaid ? <>Pagaste <strong className="text-[var(--color-foreground)]">{amountPaid}</strong>. </> : null}
@@ -531,8 +531,8 @@ function SuccessUI({
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
           {provider === 'mercadopago'
-            ? '✓ Pago seguro con Mercado Pago · ✓ Sin comisiones de plataforma'
-            : '✓ Pago seguro con Stripe · ✓ Sin comisiones de plataforma'}
+            ? <><i className="iconoir-check" aria-hidden /> Pago seguro con Mercado Pago · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma</>
+            : <><i className="iconoir-check" aria-hidden /> Pago seguro con Stripe · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma</>}
         </p>
       </div>
     </div>

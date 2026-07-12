@@ -203,7 +203,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
           </div>
           {role === 'buyer' && (
             proofApproved
-              ? <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: isMine ? 'var(--fg-inverse)' : 'var(--success)' }}>✓ Aprobada</div>
+              ? <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: isMine ? 'var(--fg-inverse)' : 'var(--success)' }}><i className="iconoir-check" aria-hidden /> Aprobada</div>
               : <ProofApproveButton conversationId={conversationId} onApproved={onRefresh} />
           )}
           <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--fg-subtle)', marginTop: 6 }}>{formatTime(event.created_at)}</div>
@@ -216,7 +216,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
     return (
       <div style={{ textAlign: 'center', padding: '6px 16px' }}>
         <span style={{ fontSize: 12, color: 'var(--fg-muted)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '4px 12px', display: 'inline-block' }}>
-          ✓ Prueba aprobada
+          <i className="iconoir-check" aria-hidden /> Prueba aprobada
         </span>
       </div>
     )
@@ -478,7 +478,7 @@ function OfferActionBar({
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
-          ✓ Aceptar trato
+          <i className="iconoir-check" aria-hidden /> Aceptar trato
         </button>
         <button
           type="button"
@@ -617,7 +617,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
-          ✓ Aceptar
+          <i className="iconoir-check" aria-hidden /> Aceptar
         </button>
         <button
           type="button"
@@ -626,7 +626,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="font-medium rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--info-soft)', color: 'var(--info)', border: '1.5px solid var(--info)', cursor: 'pointer', padding: '12px 16px' }}
         >
-          ↩ Contraofertar
+          <i className="iconoir-undo" aria-hidden /> Contraofertar
         </button>
         <button
           type="button"
@@ -635,7 +635,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="font-medium rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--bg-sunk)', color: 'var(--fg-muted)', border: '1px solid var(--border)', cursor: 'pointer', padding: '12px 16px' }}
         >
-          ✗
+          <i className="iconoir-xmark" aria-hidden />
         </button>
       </div>
     </div>

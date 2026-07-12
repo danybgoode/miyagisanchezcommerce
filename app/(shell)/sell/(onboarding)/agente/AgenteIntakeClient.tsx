@@ -27,7 +27,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
         }
       }}
     >
-      {copied ? '✓ Copiado' : `📋 ${label}`}
+      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : <><i className="iconoir-copy" aria-hidden /> {label}</>}
     </Button>
   )
 }

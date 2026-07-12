@@ -63,7 +63,7 @@ export default function DomainPaywallUpsell({
   return (
     <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 bg-[var(--color-surface-alt)]">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">🌐</span>
+        <i className="iconoir-globe text-lg" aria-hidden />
         <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
       </div>
       <p className="text-sm font-semibold mb-1.5">Dominio propio</p>
@@ -124,7 +124,7 @@ export default function DomainPaywallUpsell({
           ? <><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
           : (domainLapsed ? 'Reactivar dominio propio →' : 'Activar dominio propio →')}
       </Button>
-      {subscribeError && <p className="mt-2 text-xs text-[var(--danger)]">⚠ {subscribeError}</p>}
+      {subscribeError && <p className="mt-2 text-xs text-[var(--danger)]"><i className="iconoir-warning-triangle" aria-hidden /> {subscribeError}</p>}
     </div>
   )
 }

@@ -130,7 +130,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
         <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Suscriptores recientes</h2>
         {data.recentSubs.length === 0 ? (
           <div className="text-center py-10 text-[var(--color-muted)]">
-            <p className="text-3xl mb-2">📊</p>
+            <p className="text-3xl mb-2"><i className="iconoir-stats-report" aria-hidden /></p>
             <p className="text-sm">Aún no hay suscriptores.</p>
           </div>
         ) : (

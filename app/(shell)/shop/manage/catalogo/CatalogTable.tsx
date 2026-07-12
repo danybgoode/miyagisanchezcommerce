@@ -88,7 +88,7 @@ function MarginCellDisplay({ label, cell }: { label: string; cell: MarginCell })
   return (
     <span className={`text-[10px] ${cell.isKiller ? 'text-[var(--danger)] font-semibold' : 'text-[var(--color-muted)]'}`}>
       {label}: {formatCents(cell.marginCents ?? 0)} · {formatPct(cell.marginPct ?? null)}
-      {cell.isKiller && ' ⚠'}
+      {cell.isKiller && <i className="iconoir-warning-triangle" aria-hidden />}
     </span>
   )
 }
@@ -452,7 +452,7 @@ export default function CatalogTable({
                       {thumb ? (
                         <img src={thumb} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+                        <div className="w-full h-full flex items-center justify-center text-lg"><i className="iconoir-package" aria-hidden /></div>
                       )}
                     </div>
                     <span className="font-medium truncate max-w-[240px]">{listing.title}</span>

@@ -36,15 +36,15 @@ interface Order {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; badge: string; icon: string }> = {
-  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700', icon: '⏳' },
-  paid:       { label: 'Pago confirmado',  badge: 'bg-green-100 text-green-700',   icon: '✓' },
-  processing: { label: 'Preparando envío', badge: 'bg-blue-100 text-blue-700',     icon: '📋' },
-  shipped:    { label: 'Enviado',           badge: 'bg-indigo-100 text-indigo-700', icon: '📦' },
-  in_transit: { label: 'En camino',        badge: 'bg-purple-100 text-purple-700', icon: '🚚' },
-  delivered:  { label: 'Entregado',        badge: 'bg-green-100 text-green-700',   icon: '✓' },
-  completed:  { label: 'Completado',       badge: 'bg-gray-100 text-gray-500',     icon: '✓' },
-  refunded:   { label: 'Reembolsado',      badge: 'bg-red-100 text-red-600',       icon: '↩' },
-  fulfilled:  { label: 'Descarga lista',   badge: 'bg-green-100 text-green-700',   icon: '⬇' },
+  pending_payment: { label: 'Pago pendiente', badge: 'bg-amber-100 text-amber-700', icon: 'iconoir-hourglass' },
+  paid:       { label: 'Pago confirmado',  badge: 'bg-green-100 text-green-700',   icon: 'iconoir-check' },
+  processing: { label: 'Preparando envío', badge: 'bg-blue-100 text-blue-700',     icon: 'iconoir-notes' },
+  shipped:    { label: 'Enviado',           badge: 'bg-indigo-100 text-indigo-700', icon: 'iconoir-package' },
+  in_transit: { label: 'En camino',        badge: 'bg-purple-100 text-purple-700', icon: 'iconoir-delivery-truck' },
+  delivered:  { label: 'Entregado',        badge: 'bg-green-100 text-green-700',   icon: 'iconoir-check' },
+  completed:  { label: 'Completado',       badge: 'bg-gray-100 text-gray-500',     icon: 'iconoir-check' },
+  refunded:   { label: 'Reembolsado',      badge: 'bg-red-100 text-red-600',       icon: 'iconoir-undo' },
+  fulfilled:  { label: 'Descarga lista',   badge: 'bg-green-100 text-green-700',   icon: 'iconoir-download' },
 }
 
 const ACTIVE_STATUSES   = new Set(['pending_payment', 'paid', 'processing', 'shipped', 'in_transit'])
@@ -98,7 +98,7 @@ function OrderCard({ order }: { order: Order }) {
         <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
           {thumb
             ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-            : <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+            : <div className="w-full h-full flex items-center justify-center text-xl"><i className="iconoir-package" aria-hidden /></div>
           }
         </div>
 
@@ -126,7 +126,7 @@ function OrderCard({ order }: { order: Order }) {
           {/* Tracking chip */}
           {shipment?.tracking_number && (
             <p className="mt-1.5 text-[11px] text-[var(--color-muted)] flex items-center gap-1">
-              <span>🚚</span>
+              <i className="iconoir-delivery-truck" aria-hidden />
               <span>{carrierLabel(shipment.carrier)}</span>
               <span className="font-mono">· {shipment.tracking_number}</span>
             </p>
@@ -180,7 +180,7 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
       {/* Active order highlight */}
       {activeOrders.length > 0 && filter === 'active' && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
-          <span className="text-lg">🚚</span>
+          <span className="text-lg"><i className="iconoir-delivery-truck" aria-hidden /></span>
           <p className="text-sm text-blue-800">
             Tienes <strong>{activeOrders.length} pedido{activeOrders.length > 1 ? 's' : ''}</strong> en proceso.
           </p>
@@ -222,7 +222,7 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
         <div className="text-center py-16 border-2 border-dashed border-[var(--color-border)] rounded-xl">
           {filter === 'active' && orders.length > 0 ? (
             <>
-              <div className="text-4xl mb-3">✓</div>
+              <div className="text-4xl mb-3"><i className="iconoir-check" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">Sin pedidos activos</h3>
               <p className="text-sm text-[var(--color-muted)]">Todos tus pedidos han sido entregados.</p>
               <button type="button" onClick={() => setFilter('completed')}
@@ -232,7 +232,7 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
             </>
           ) : (
             <>
-              <div className="text-4xl mb-3">🛍️</div>
+              <div className="text-4xl mb-3"><i className="iconoir-shopping-bag" aria-hidden /></div>
               <h3 className="font-semibold text-lg mb-1">Aún no has comprado nada</h3>
               <p className="text-sm text-[var(--color-muted)] mb-5 max-w-xs mx-auto">
                 Explora miles de productos de vendedores locales en México.

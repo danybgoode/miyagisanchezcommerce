@@ -43,7 +43,7 @@ export default function PersonalizationEcho({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt={field.label || 'Arte del pedido'} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} />
         ) : (
-          <span>📄</span>
+          <i className="iconoir-page" aria-hidden />
         )}
         <a href={value} target="_blank" rel="noopener noreferrer" style={{ ...valueStyle, textDecoration: 'underline' }}>
           Descargar original

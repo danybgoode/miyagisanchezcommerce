@@ -156,13 +156,13 @@ const STATUS_META: Record<string, { badge: string; message: string }> = {
 
 // Delivery method display label and icon
 const DELIVERY_METHOD_CHIP: Record<string, { icon: string; label: string }> = {
-  shipping:     { icon: '📦', label: 'Envío a domicilio' },
-  local_pickup: { icon: '📍', label: 'Recolección en mano' },
-  none:         { icon: '🤝', label: 'Entrega acordada' },
-  coord:        { icon: '🤝', label: 'Entrega acordada' },
-  digital:      { icon: '💻', label: 'Entrega digital' },
-  service:      { icon: '🔧', label: 'Servicio' },
-  rental:       { icon: '🔑', label: 'Renta' },
+  shipping:     { icon: 'iconoir-package', label: 'Envío a domicilio' },
+  local_pickup: { icon: 'iconoir-map-pin', label: 'Recolección en mano' },
+  none:         { icon: 'iconoir-community', label: 'Entrega acordada' },
+  coord:        { icon: 'iconoir-community', label: 'Entrega acordada' },
+  digital:      { icon: 'iconoir-laptop', label: 'Entrega digital' },
+  service:      { icon: 'iconoir-wrench', label: 'Servicio' },
+  rental:       { icon: 'iconoir-key', label: 'Renta' },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ function Toast({ message, type, onDismiss }: { message: string; type: 'success' 
     <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
       type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
     }`}>
-      <span>{type === 'success' ? '✓' : '⚠'}</span>
+      <span>{type === 'success' ? <i className="iconoir-check" aria-hidden /> : <i className="iconoir-warning-triangle" aria-hidden />}</span>
       <span>{message}</span>
       <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100">×</button>
     </div>
@@ -498,16 +498,16 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       <div className={`rounded-xl px-4 py-3 mb-6 ${statusMeta.badge}`}>
         <div className="flex items-start gap-3">
           <span className="text-base mt-0.5 flex-shrink-0">
-            {effectiveStatusKey === 'out_for_delivery' || currentStatus === 'shipped' || currentStatus === 'in_transit' || effectiveStatusKey === 'picked_up' ? '🚚' :
-             currentStatus === 'delivered' || currentStatus === 'completed' ? '✓' :
-             currentStatus === 'refunded' ? '↩' :
-             effectiveStatusKey === 'exception' || effectiveStatusKey === 'cancelled_ship' ? '⚠️' : '📋'}
+            {effectiveStatusKey === 'out_for_delivery' || currentStatus === 'shipped' || currentStatus === 'in_transit' || effectiveStatusKey === 'picked_up' ? <i className="iconoir-delivery-truck" aria-hidden /> :
+             currentStatus === 'delivered' || currentStatus === 'completed' ? <i className="iconoir-check" aria-hidden /> :
+             currentStatus === 'refunded' ? <i className="iconoir-undo" aria-hidden /> :
+             effectiveStatusKey === 'exception' || effectiveStatusKey === 'cancelled_ship' ? <i className="iconoir-warning-triangle" aria-hidden /> : <i className="iconoir-notes" aria-hidden />}
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">{statusMeta.message}</p>
             {/* Delivery method chip */}
             <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-medium opacity-75">
-              {deliveryChip.icon} {deliveryChip.label}
+              <i className={deliveryChip.icon} aria-hidden /> {deliveryChip.label}
             </span>
           </div>
         </div>
@@ -517,7 +517,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {order.payment_method === 'manual' && !order.payment_received && order.manual_payment && (
         <section className="border-2 border-green-300 bg-green-50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">✅</span>
+            <span className="text-lg"><i className="iconoir-check-circle" aria-hidden /></span>
             <h2 className="text-sm font-bold text-green-900">Pedido reservado — completa tu pago</h2>
           </div>
           <p className="text-xs text-green-800 mb-3">
@@ -563,7 +563,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
             {thumb
               ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+              : <div className="w-full h-full flex items-center justify-center text-2xl"><i className="iconoir-package" aria-hidden /></div>
             }
           </div>
           <div className="flex-1 min-w-0">
@@ -613,7 +613,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
             )}
             <p className="text-sm">
-              {order.proof_approved ? '✓ Aprobaste esta prueba.' : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
+              {order.proof_approved ? <><i className="iconoir-check" aria-hidden /> Aprobaste esta prueba.</> : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
             </p>
           </div>
         )}
@@ -663,7 +663,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
           <h2 className="font-semibold text-sm mb-3">Seguimiento de envío</h2>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-xl flex-shrink-0">🚚</div>
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-xl flex-shrink-0"><i className="iconoir-delivery-truck" aria-hidden /></div>
             <div>
               <p className="font-semibold text-sm">{carrierLabel(shipment.carrier)}</p>
               {shipment.tracking_number && (
@@ -686,7 +686,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] no-underline transition-colors text-[var(--color-text)]"
             >
-              📍 Rastrear en {carrierLabel(shipment.carrier)}
+              <i className="iconoir-map-pin" aria-hidden /> Rastrear en {carrierLabel(shipment.carrier)}
             </a>
           )}
         </section>
@@ -704,7 +704,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {isSpeiOrder && !paymentReceived && (
         <section className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-amber-700">🏦</span>
+            <span className="text-amber-700"><i className="iconoir-bank" aria-hidden /></span>
             <p className="text-sm font-semibold text-amber-800">
               {buyerReportedPaid ? 'Pago reportado — en verificación' : 'Pago pendiente de verificación'}
             </p>
@@ -720,7 +720,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {isSpeiOrder && paymentReceived && (
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2">
-            <span>✓</span>
+            <i className="iconoir-check" aria-hidden />
             <p className="text-sm font-semibold text-green-800">Pago confirmado por el vendedor</p>
           </div>
         </section>
@@ -748,7 +748,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             disabled={confirming}
             className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
-            {confirming ? 'Confirmando…' : isEscrowOrder ? '✓ Sí, lo recibí — liberar pago' : '✓ Sí, lo recibí — todo bien'}
+            {confirming ? 'Confirmando…' : isEscrowOrder ? <><i className="iconoir-check" aria-hidden /> Sí, lo recibí — liberar pago</> : <><i className="iconoir-check" aria-hidden /> Sí, lo recibí — todo bien</>}
           </button>
         </section>
       )}
@@ -757,7 +757,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {isEscrowOrder && escrowConfirmed && currentStatus !== 'delivered' && (
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2">
-            <span>✓</span>
+            <i className="iconoir-check" aria-hidden />
             <p className="text-sm font-semibold text-green-800">Pago liberado al vendedor</p>
           </div>
           <p className="text-xs text-green-700 mt-1">El vendedor ya recibió el pago. ¡Gracias por tu compra!</p>
@@ -772,7 +772,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         return (
           <section className={`border rounded-xl p-4 mb-5 ${confirmed ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className={`font-semibold text-sm ${confirmed ? 'text-green-900' : 'text-amber-900'}`}>📅 Cita de recolección</h2>
+              <h2 className={`font-semibold text-sm ${confirmed ? 'text-green-900' : 'text-amber-900'}`}><i className="iconoir-calendar" aria-hidden /> Cita de recolección</h2>
               <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${confirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                 {pickupAppointmentBadge(paState)}
               </span>
@@ -786,7 +786,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                 disabled={confirmingPickup}
                 className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {confirmingPickup ? 'Confirmando…' : '✓ Confirmar esta hora'}
+                {confirmingPickup ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar esta hora</>}
               </button>
             )}
           </section>
@@ -800,7 +800,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         const lines = formatRentalBookingLines(order.rental_booking, order.currency)
         return (
           <section className="border rounded-xl p-4 mb-5 border-[var(--border)] bg-[var(--bg-sunk)]">
-            <h2 className="font-semibold text-sm mb-1">📅 Reserva de renta</h2>
+            <h2 className="font-semibold text-sm mb-1"><i className="iconoir-calendar" aria-hidden /> Reserva de renta</h2>
             <p className="text-sm font-semibold">{lines.dates}</p>
             <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
             {lines.deposit && <p className="text-xs text-[var(--fg-muted)]">{lines.deposit}</p>}
@@ -817,7 +817,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {(['aceptado', 'transferencia_pendiente'].includes(refundState) || (refundState === 'confirmado' && isSpeiOrder)) && (
         <section className={`border rounded-xl p-4 mb-5 ${refundState === 'confirmado' ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
           <div className="flex items-center gap-2 mb-1">
-            <span>{refundState === 'confirmado' ? '✓' : '💸'}</span>
+            <span>{refundState === 'confirmado' ? <i className="iconoir-check" aria-hidden /> : <i className="iconoir-cash" aria-hidden />}</span>
             <h2 className={`font-semibold text-sm ${refundState === 'confirmado' ? 'text-green-900' : 'text-amber-900'}`}>
               {refundBadge(refundState)}
             </h2>
@@ -832,7 +832,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               disabled={confirmingRefund}
               className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
-              {confirmingRefund ? 'Confirmando…' : '✓ Recibí el reembolso'}
+              {confirmingRefund ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Recibí el reembolso</>}
             </button>
           )}
         </section>
@@ -872,7 +872,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           onClick={() => setShowReturnForm(true)}
           className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
         >
-          <span>↩</span>
+          <span><i className="iconoir-undo" aria-hidden /></span>
           <span>¿Hay un problema con tu pedido? Solicitar devolución</span>
         </button>
       )}
@@ -979,7 +979,7 @@ function ReportPaymentButton({ orderId, initialReported = false }: { orderId: st
       disabled={state !== 'idle'}
       className="text-xs font-semibold bg-amber-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60"
     >
-      {state === 'done' ? '✓ Avisaste al vendedor' : state === 'sending' ? 'Avisando…' : 'Ya hice el pago'}
+      {state === 'done' ? <><i className="iconoir-check" aria-hidden /> Avisaste al vendedor</> : state === 'sending' ? 'Avisando…' : 'Ya hice el pago'}
     </button>
   )
 }

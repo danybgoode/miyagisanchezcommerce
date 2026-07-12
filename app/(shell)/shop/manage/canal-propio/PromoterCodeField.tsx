@@ -89,7 +89,7 @@ export default function PromoterCodeField({
           Descuento de promotor: −{pesos(discountCents)} · Pagarías {pesos(Math.max(0, priceCents - discountCents))}
         </p>
       )}
-      {msg && <p className="mt-1.5 text-xs text-[var(--danger)]">⚠ {msg}</p>}
+      {msg && <p className="mt-1.5 text-xs text-[var(--danger)]"><i className="iconoir-warning-triangle" aria-hidden /> {msg}</p>}
     </div>
   )
 }

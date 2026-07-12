@@ -117,7 +117,7 @@ export default function PersonalizationSection({
                   onClick={() => remove(field.id)}
                   aria-label="Eliminar campo"
                   className="text-red-500 hover:text-red-600 px-1"
-                >✕</button>
+                ><i className="iconoir-xmark" aria-hidden /></button>
               </div>
             </div>
 
@@ -274,7 +274,7 @@ function OptionsEditor({
               onClick={() => onChange(options.filter((_, j) => j !== i))}
               aria-label="Quitar opción"
               className="text-red-500 hover:text-red-600 px-1"
-            >✕</button>
+            ><i className="iconoir-xmark" aria-hidden /></button>
           </div>
         ))}
       </div>

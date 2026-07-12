@@ -159,7 +159,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             </>
           ) : (
             <>
-              <div className="text-4xl mb-3">📦</div>
+              <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
               <p className="font-semibold mb-1">No tienes anuncios publicados</p>
               <p className="text-sm text-[var(--color-muted)] mb-5">Publica tu primer producto, servicio o renta en menos de 2 minutos.</p>
               <Link href="/sell" className="btn btn-primary">Publicar primer anuncio</Link>

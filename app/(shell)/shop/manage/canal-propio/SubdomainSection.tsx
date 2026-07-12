@@ -95,7 +95,7 @@ export default function SubdomainSection({
     return (
       <div className="mt-3 border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-base">✦</span>
+          <i className="iconoir-sparks text-base" aria-hidden />
           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Función premium</span>
         </div>
         <p className="text-sm font-semibold mb-1">Subdominio propio</p>
@@ -153,7 +153,7 @@ export default function SubdomainSection({
   if (active) {
     return (
       <div className="mt-3 border border-[var(--color-border)] rounded-[var(--r-lg)] p-4 bg-[var(--color-surface-alt)]">
-        <p className="text-sm font-semibold mb-0.5">✓ Subdominio propio activo</p>
+        <p className="text-sm font-semibold mb-0.5"><i className="iconoir-check" aria-hidden /> Subdominio propio activo</p>
         <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-2.5">
           Tu tienda se sirve como sitio independiente en <span className="font-mono">{subdomainUrl}</span> (sin la barra de la plataforma).
           {hasMonthly && ' Cambia tu facturación cuando quieras — se prorratea, sin cargo doble.'}
@@ -187,7 +187,7 @@ export default function SubdomainSection({
   // ── Entitled via a grandfather / comp / one-time grant → plain note ────────
   return (
     <p className="mt-3 text-xs text-[var(--color-muted)]">
-      ✓ Tu subdominio propio (<span className="font-mono">{subdomainUrl}</span>) está activo — incluido en tu tienda.
+      <i className="iconoir-check" aria-hidden /> Tu subdominio propio (<span className="font-mono">{subdomainUrl}</span>) está activo — incluido en tu tienda.
     </p>
   )
 }
