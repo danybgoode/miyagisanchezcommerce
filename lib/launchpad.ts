@@ -31,6 +31,7 @@ import {
 import { uploadDigitalToR2, isR2DigitalConfigured, getR2DigitalSignedUrl } from '@/lib/r2'
 import { sendLaunchpadVerificationCode, sendLaunchpadStatusEmail, sendLaunchpadPublishedEmail } from '@/lib/email'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
+import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { sniffManuscript } from '@/lib/manuscript-sniff'
 import {
   MAX_MANUSCRIPT_SIZE_MB,
@@ -446,6 +447,26 @@ export async function publishSubmission(input: { shop: LaunchpadShop; id: string
       .eq('id', submission.id).eq('published_product_id', lockToken)
     return { ok: false, status: result.status || 500, error: result.error ?? 'mint_failed' }
   }
+
+  // Mirror to the Supabase storefront copy — same call `create_listing`'s MCP
+  // handler makes (route.ts) — so the newly-minted product shows in the portal
+  // Catálogo table + list_my_listings and passes the shopOwnsProduct ownership
+  // check every other listing-management tool (update_listing, set_listing_status,
+  // collection assignment) relies on. Missing this call left every
+  // launchpad-published product unmanageable until fixed (found live, 2026-07-12,
+  // panfleto-premium-shop S3 — see [[supabase-migration-file-vs-applied-gap]] for
+  // the sibling incident this session also found in this same epic).
+  // `marketplace_listings.status` has NO 'draft' value in its CHECK constraint
+  // (active|paused|sold|deleted only) — 'paused' is the correct not-yet-live
+  // mapping, matching create_listing's own draft→paused translation exactly.
+  await syncSupabaseListingMirror(input.shop.id, {
+    id: result.product_id,
+    title: submission.title,
+    description: submission.synopsis ?? null,
+    listing_type: 'digital',
+    status: 'paused',
+    ...(submission.genre ? { category: submission.genre } : {}),
+  })
 
   const { error: linkError } = await db
     .from('launchpad_submissions')
