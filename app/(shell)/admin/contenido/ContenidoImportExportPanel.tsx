@@ -29,26 +29,6 @@ type ApplyResult = {
   rejected: Array<{ namespace?: unknown; key?: unknown; error: string }>
 }
 
-const buttonStyle: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: '6px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  background: 'transparent',
-  color: 'var(--fg)',
-  cursor: 'pointer',
-}
-
-const inputStyle: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: '6px 8px',
-  fontSize: 13,
-  background: 'var(--bg)',
-  color: 'var(--fg)',
-}
-
 function rowKey(r: { namespace: string; key: string; locale: string }): string {
   return `${r.namespace}.${r.key}.${r.locale}`
 }
@@ -193,8 +173,8 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
   }
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 24 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 4px', color: 'var(--fg)' }}>Exportar / importar en bloque</h2>
+    <div className="card-panel" style={{ padding: 16, marginBottom: 24 }}>
+      <h2 className="t-h4" style={{ margin: '0 0 4px', color: 'var(--fg)' }}>Exportar / importar en bloque</h2>
       <p style={{ color: 'var(--fg-muted)', fontSize: 13, margin: '0 0 12px' }}>
         Exporta el copy (todo, o filtrado por página/sección), edítalo en una hoja de cálculo, y vuelve a
         importarlo. Solo se aplican las filas que revises y confirmes abajo — nunca se escribe nada al leer
@@ -208,7 +188,8 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
             setScopeNamespace(e.target.value)
             setScopeSection('') // cascading — a section from the PREVIOUS namespace can't carry over
           }}
-          style={{ ...inputStyle, flex: 'none', width: 260 }}
+          className="input"
+          style={{ flex: 'none', width: 260 }}
         >
           <option value="">Todas las páginas</option>
           {namespaces.map((ns) => (
@@ -221,7 +202,8 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
           value={scopeSection}
           onChange={(e) => setScopeSection(e.target.value)}
           disabled={!scopeNamespace}
-          style={{ ...inputStyle, flex: 'none', width: 220, opacity: scopeNamespace ? 1 : 0.5 }}
+          className="input"
+          style={{ flex: 'none', width: 220, opacity: scopeNamespace ? 1 : 0.5 }}
         >
           <option value="">Todas las secciones</option>
           {sections.map((s) => (
@@ -240,7 +222,11 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
           if (scopeNamespace) params.set('namespace', scopeNamespace)
           if (scopeSection) params.set('section', scopeSection)
           return (
-            <a key={format} href={`/api/admin/content-overrides/export?${params.toString()}`} style={buttonStyle}>
+            <a
+              key={format}
+              href={`/api/admin/content-overrides/export?${params.toString()}`}
+              className="btn btn-secondary btn-sm no-underline"
+            >
               Exportar {format.toUpperCase()}
             </a>
           )
@@ -301,8 +287,8 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
                           onChange={() => toggle(r)}
                         />
                       </td>
-                      <td style={{ padding: '6px 8px', fontFamily: 'var(--font-mono, monospace)' }}>
-                        {r.namespace}.{r.key}
+                      <td style={{ padding: '6px 8px' }}>
+                        <span className="badge-mono">{r.namespace}.{r.key}</span>
                       </td>
                       <td style={{ padding: '6px 8px' }}>{r.locale}</td>
                       <td style={{ padding: '6px 8px' }}>{actionLabel[r.action]}</td>
@@ -317,7 +303,8 @@ export default function ContenidoImportExportPanel({ keyIndex }: { keyIndex: Key
           <button
             onClick={applySelected}
             disabled={busy || selectedCount === 0}
-            style={{ ...buttonStyle, marginTop: 12, opacity: selectedCount === 0 ? 0.5 : 1 }}
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 12, opacity: selectedCount === 0 ? 0.5 : 1 }}
           >
             {busy ? '…' : `Confirmar e importar (${selectedCount})`}
           </button>
