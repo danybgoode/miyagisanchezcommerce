@@ -56,6 +56,17 @@ export function filterKeysByNamespace<T extends { namespace: string }>(keys: rea
   return keys.filter((k) => k.namespace === namespace)
 }
 
+/**
+ * `''` or `'all'` means every section. A key's "section" is its first
+ * dot-segment (`key.split('.')[0]`) — the same grouping the page-first nav
+ * (Story 3.1, `lib/copy-overrides-page-nav.ts`) and the editor's field
+ * grouping both use.
+ */
+export function filterKeysBySection<T extends { key: string }>(keys: readonly T[], section: string): T[] {
+  if (!section || section === 'all') return [...keys]
+  return keys.filter((k) => (k.key.split('.')[0] || k.key) === section)
+}
+
 export function filterKeysByStatus<T extends StatusableKey>(keys: readonly T[], status: ContenidoStatusFilter): T[] {
   if (status === 'all') return [...keys]
   return keys.filter((k) => {
@@ -96,6 +107,7 @@ export function paginate<T>(items: readonly T[], page: number, pageSize: number)
 export interface ContenidoSearchParams {
   q?: string
   namespace?: string
+  section?: string
   status?: string // ContenidoStatusFilter
   sort?: string // ContenidoSort
   page?: string
@@ -112,7 +124,7 @@ export function firstOf(value: string | string[] | undefined): string | undefine
   return Array.isArray(value) ? value[0] : value
 }
 
-const ALLOWED_KEYS = ['q', 'namespace', 'status', 'sort'] as const
+const ALLOWED_KEYS = ['q', 'namespace', 'section', 'status', 'sort'] as const
 
 /** Query string for an `/admin/contenido` page `Link` (keeps `page`, mirrors `buildFlagsPageUrl`). */
 export function buildContenidoPageUrl(params: ContenidoSearchParams, page: number): string {

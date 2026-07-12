@@ -15,6 +15,15 @@
 
 export type AdminRisk = 'low' | 'med' | 'high'
 
+/** Nav grouping (Sprint 3, Story 3.3) — rendered as section headers in `AdminShell`. */
+export type AdminSectionGroup = 'general' | 'sitio' | 'administracion'
+
+export const ADMIN_SECTION_GROUP_LABELS: Record<AdminSectionGroup, string> = {
+  general: 'General',
+  sitio: 'Sitio',
+  administracion: 'Administración',
+}
+
 export interface AdminSection {
   /** Stable id for keys/tests. */
   key: string
@@ -28,6 +37,8 @@ export interface AdminSection {
   icon: string
   /** Risk tier of the section's actions (informational in the nav). */
   risk: AdminRisk
+  /** Nav group heading this section renders under. */
+  group: AdminSectionGroup
   /** When true, `href` is an absolute URL that opens the external app. */
   external?: boolean
 }
@@ -40,6 +51,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/coupons',
     icon: 'iconoir-percentage-circle',
     risk: 'med',
+    group: 'general',
   },
   {
     key: 'print',
@@ -48,6 +60,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/print',
     icon: 'iconoir-printer',
     risk: 'med',
+    group: 'general',
   },
   {
     key: 'supply',
@@ -56,6 +69,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/supply',
     icon: 'iconoir-import',
     risk: 'med',
+    group: 'general',
   },
   {
     key: 'vecindario',
@@ -64,6 +78,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/vecindario',
     icon: 'iconoir-community',
     risk: 'low',
+    group: 'general',
   },
   {
     key: 'seleccion',
@@ -72,6 +87,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/seleccion',
     icon: 'iconoir-star',
     risk: 'med',
+    group: 'general',
   },
   {
     key: 'contenido',
@@ -80,6 +96,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/contenido',
     icon: 'iconoir-page-edit',
     risk: 'low',
+    group: 'sitio',
   },
   {
     key: 'referrals',
@@ -88,6 +105,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/referrals',
     icon: 'iconoir-gift',
     risk: 'med',
+    group: 'sitio',
   },
   {
     key: 'promoter',
@@ -96,6 +114,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/promoter',
     icon: 'iconoir-megaphone',
     risk: 'med',
+    group: 'sitio',
   },
   {
     key: 'audit',
@@ -104,6 +123,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/audit',
     icon: 'iconoir-list',
     risk: 'low',
+    group: 'administracion',
   },
   {
     key: 'tenants',
@@ -112,6 +132,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/tenants',
     icon: 'iconoir-shop',
     risk: 'low',
+    group: 'administracion',
   },
   {
     key: 'flags',
@@ -120,6 +141,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: '/admin/flags',
     icon: 'iconoir-switch-on',
     risk: 'high',
+    group: 'administracion',
   },
   {
     key: 'scraping',
@@ -128,6 +150,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     href: 'https://miyagisanchez-scraper.vercel.app/admin',
     icon: 'iconoir-spark',
     risk: 'low',
+    group: 'administracion',
     external: true,
   },
 ]

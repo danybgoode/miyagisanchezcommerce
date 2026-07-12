@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { ADMIN_SECTIONS, activeAdminSectionHref } from '../lib/admin/sections'
+import { ADMIN_SECTIONS, ADMIN_SECTION_GROUP_LABELS, activeAdminSectionHref } from '../lib/admin/sections'
 
 /**
  * Admin section registry — pure logic (api gate, no browser). `AdminShell` and
@@ -68,6 +68,22 @@ test.describe('admin · ADMIN_SECTIONS registry', () => {
     const scraping = ADMIN_SECTIONS.find(s => s.key === 'scraping')
     expect(scraping?.external).toBe(true)
     expect(scraping?.href).toContain('miyagisanchez-scraper.vercel.app')
+  })
+
+  test('every section has a valid nav group (Sprint 3 · Story 3.3 grouping)', () => {
+    const validGroups = Object.keys(ADMIN_SECTION_GROUP_LABELS)
+    for (const section of ADMIN_SECTIONS) {
+      expect(validGroups, section.key).toContain(section.group)
+    }
+  })
+
+  test('Contenido groups under Sitio, Flags/Audit/Tenants/Scraping under Administración (Story 3.3)', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.contenido?.group).toBe('sitio')
+    expect(byKey.flags?.group).toBe('administracion')
+    expect(byKey.audit?.group).toBe('administracion')
+    expect(byKey.tenants?.group).toBe('administracion')
+    expect(byKey.scraping?.group).toBe('administracion')
   })
 
   test('every section has a stable unique key, an Iconoir icon, and es-MX copy', () => {

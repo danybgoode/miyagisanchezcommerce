@@ -2,14 +2,36 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ADMIN_SECTIONS, activeAdminSectionHref, type AdminSection } from '@/lib/admin/sections'
+import {
+  ADMIN_SECTIONS,
+  ADMIN_SECTION_GROUP_LABELS,
+  activeAdminSectionHref,
+  type AdminSection,
+  type AdminSectionGroup,
+} from '@/lib/admin/sections'
 
 /**
  * Admin shell — the left-nav chrome rendered around every `/admin/*` page from
  * the `ADMIN_SECTIONS` registry. Presentational only (no auth — the per-page
  * guards own that). External sections open the linked app in a new tab. Modeled
  * on `app/(shell)/shop/manage/SellerNav.tsx`; icons are global Iconoir classes.
+ *
+ * Sprint 3 · Story 3.3: sections render under `General`/`Sitio`/`Administración`
+ * group headers (`AdminSection.group`); the desktop rail's sticky container
+ * gained an internal scroll (`maxHeight` + `overflowY: 'auto'`) — it was
+ * already `position: sticky` but had no height bound, so once the nav grew
+ * taller than the viewport it just overflowed downward with the page instead
+ * of scrolling in place. The mobile horizontal nav now uses the shared
+ * `.chip`/`.chip-rail` primitives instead of a bespoke local style object.
  */
+
+const GROUP_ORDER: readonly AdminSectionGroup[] = ['general', 'sitio', 'administracion']
+
+const GROUPED_SECTIONS = GROUP_ORDER.map((group) => ({
+  group,
+  label: ADMIN_SECTION_GROUP_LABELS[group],
+  sections: ADMIN_SECTIONS.filter((s) => s.group === group),
+})).filter((g) => g.sections.length > 0)
 
 function NavItem({ section, active }: { section: AdminSection; active: boolean }) {
   const common = {
@@ -70,6 +92,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           position: 'sticky',
           top: 16,
           alignSelf: 'flex-start',
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
         }}
       >
         <Link
@@ -90,14 +114,30 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <i className="iconoir-shield-alert" style={{ fontSize: 18, lineHeight: 1 }} />
           Admin
         </Link>
-        {ADMIN_SECTIONS.map(section => (
-          <NavItem key={section.key} section={section} active={section.href === active} />
+        {GROUPED_SECTIONS.map(({ group, label, sections }) => (
+          <div key={group} style={{ marginBottom: 8 }}>
+            <div
+              style={{
+                padding: '6px 12px 4px',
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: 'var(--fg-subtle)',
+              }}
+            >
+              {label}
+            </div>
+            {sections.map((section) => (
+              <NavItem key={section.key} section={section} active={section.href === active} />
+            ))}
+          </div>
         ))}
       </nav>
 
       {/* ── Mobile horizontal nav ── */}
       <nav
-        className="flex md:hidden"
+        className="chip-rail flex md:hidden"
         aria-label="Navegación de administración"
         style={{
           position: 'fixed',
@@ -105,19 +145,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           left: 0,
           right: 0,
           zIndex: 40,
-          gap: 6,
           padding: '8px 12px',
-          overflowX: 'auto',
           background: 'var(--bg)',
           borderBottom: '1px solid var(--border)',
         }}
       >
-        <Link href="/admin" style={{ ...chipStyle, fontWeight: 700 }}>
+        <Link href="/admin" className="chip" style={{ fontWeight: 700 }}>
           Admin
         </Link>
         {ADMIN_SECTIONS.map(section =>
           section.external ? (
-            <a key={section.key} href={section.href} target="_blank" rel="noopener noreferrer" style={chipStyle}>
+            <a key={section.key} href={section.href} target="_blank" rel="noopener noreferrer" className="chip">
               {section.label} ↗
             </a>
           ) : (
@@ -125,11 +163,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               key={section.key}
               href={section.href}
               aria-current={section.href === active ? 'page' : undefined}
-              style={{
-                ...chipStyle,
-                color: section.href === active ? 'var(--accent-ink)' : 'var(--fg-muted)',
-                background: section.href === active ? 'var(--accent-soft)' : 'var(--surface-muted)',
-              }}
+              className={`chip${section.href === active ? ' is-selected' : ''}`}
             >
               {section.label}
             </Link>
@@ -144,14 +178,3 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     </div>
   )
 }
-
-const chipStyle = {
-  whiteSpace: 'nowrap',
-  padding: '6px 12px',
-  borderRadius: 999,
-  textDecoration: 'none',
-  fontSize: 13,
-  fontFamily: 'var(--font-sans)',
-  color: 'var(--fg-muted)',
-  background: 'var(--surface-muted)',
-} as const

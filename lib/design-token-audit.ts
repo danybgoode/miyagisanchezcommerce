@@ -62,6 +62,21 @@ export const guardExcludedPrefixes = [
   'app/style-sandbox/',
 ]
 
+// cms-contenido-restore-and-polish S3.4 — the redesigned admin/contenido
+// files are checked in DESPITE the whole `app/(shell)/admin/` prefix being
+// excluded above (most admin pages are still un-swept and stay excluded).
+// Checked FIRST in `isGuardExcluded`, so listing a file here overrides the
+// broader prefix exclusion for exactly that file — the same incremental-
+// adoption shape as `enforcedSweptPaths` below, just for scan COVERAGE
+// rather than enforcement (a file must be scanned at all before its
+// enforcedSweptPaths entry can mean anything).
+export const enforcedDespiteExcludedPrefix = new Set<string>([
+  'app/(shell)/admin/AdminShell.tsx',
+  'app/(shell)/admin/contenido/ContenidoAdminClient.tsx',
+  'app/(shell)/admin/contenido/ContenidoImportExportPanel.tsx',
+  'app/(shell)/admin/contenido/ContenidoPageNav.tsx',
+])
+
 export const guardExcludedFiles = new Set([
   'app/apple-icon.tsx',
   'app/components/PrintAdBlock.tsx',
@@ -246,6 +261,13 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/shop/manage/settings/_components/PickupSpotManager.tsx',
   'app/(shell)/shop/manage/settings/_components/SectionSaveBar.tsx',
   'app/(shell)/shop/manage/settings/_components/ToggleSwitch.tsx',
+  // cms-contenido-restore-and-polish S3.4 — the Sprint 3 admin/contenido
+  // re-skin (paired with `enforcedDespiteExcludedPrefix` above, which un-
+  // excludes these same 4 files from the scan itself).
+  'app/(shell)/admin/AdminShell.tsx',
+  'app/(shell)/admin/contenido/ContenidoAdminClient.tsx',
+  'app/(shell)/admin/contenido/ContenidoImportExportPanel.tsx',
+  'app/(shell)/admin/contenido/ContenidoPageNav.tsx',
 ])
 
 export const documentedContrastPairs: ContrastPair[] = [
@@ -287,6 +309,7 @@ export async function collectSourceFiles(repoRoot: string, dir: string): Promise
 }
 
 export function isGuardExcluded(filePath: string) {
+  if (enforcedDespiteExcludedPrefix.has(filePath)) return false
   return guardExcludedFiles.has(filePath) || guardExcludedPrefixes.some((prefix) => filePath.startsWith(prefix))
 }
 
