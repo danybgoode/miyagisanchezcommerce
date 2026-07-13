@@ -49,10 +49,13 @@ const arrowStyle = (side: 'left' | 'right'): CSSProperties => ({
 
 /**
  * PDP image gallery — the one client island on an otherwise server-rendered PDP.
- * - 0 / 1 image → byte-for-byte the old static look (no controls, no lightbox).
- * - 2+ images  → interactive, via the duplicate-render idiom (`md:hidden` /
+ * - 0 images  → placeholder, with the same back/share chrome as every other PDP.
+ * - 1+ images → interactive, via the duplicate-render idiom (`md:hidden` /
  *   `hidden md:block`) sharing one `active` index: mobile = native scroll-snap
  *   track + dots; desktop = single active image + thumbnails + arrows + ←/→ keys.
+ *   Multi-image-only chrome (arrows, dots, thumbnail rail, the "N / total" counter)
+ *   is gated behind `count > 1` — a single image degrades to a static photo with
+ *   just the lightbox + back/share, nothing to navigate.
  * `overlay` is a slot the page fills with its FavoriteButton + views badge so they
  * stay pinned over the image (no channel coupling — the island reads no channel).
  */
@@ -110,35 +113,35 @@ export default function Gallery({
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
   }, [])
 
-  // ── 0 images → placeholder (unchanged) ──────────────────────────────────────
+  // ── 0 images → placeholder, with the same back/share chrome as every PDP ───
   if (count === 0) {
     return (
       <div style={{ position: 'relative' }} data-testid="pdp-gallery">
         <div style={{ ...MAIN_IMG, background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
         </div>
+        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6, zIndex: 6 }}>
+          <button type="button" aria-label="Volver" data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
+            <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
+          </button>
+          <button type="button" aria-label="Compartir" data-testid="gallery-share" onClick={share} style={cornerBtn}>
+            <i className={copied ? 'iconoir-check' : 'iconoir-share-android'} style={{ fontSize: 18 }} />
+          </button>
+          {copied && (
+            <span
+              data-testid="gallery-copied"
+              style={{ alignSelf: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)', whiteSpace: 'nowrap' }}
+            >
+              Enlace copiado
+            </span>
+          )}
+        </div>
         {overlay}
       </div>
     )
   }
 
-  // ── 1 image → single, no controls (unchanged) ──────────────────────────────
-  if (count === 1) {
-    return (
-      <div style={{ position: 'relative' }} data-testid="pdp-gallery">
-        <img
-          src={images[0].url}
-          alt={title}
-          fetchPriority="high"
-          style={{ ...MAIN_IMG, display: 'block', borderRadius: 'var(--r-lg)' }}
-          className="md:rounded-xl"
-        />
-        {overlay}
-      </div>
-    )
-  }
-
-  // ── 2+ images → interactive ─────────────────────────────────────────────────
+  // ── 1+ images → interactive (count===1 degrades: no arrows/dots/thumbs) ────
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft') {
       e.preventDefault()
@@ -199,42 +202,48 @@ export default function Gallery({
           style={{ ...MAIN_IMG, cursor: 'zoom-in' }}
         />
 
-        {/* DESKTOP — prev / next arrows */}
-        <button type="button" aria-label="Imagen anterior" onClick={() => go(active - 1)} className="hidden md:flex" style={arrowStyle('left')}>
-          <i className="iconoir-nav-arrow-left" style={{ fontSize: 22 }} />
-        </button>
-        <button type="button" aria-label="Imagen siguiente" onClick={() => go(active + 1)} className="hidden md:flex" style={arrowStyle('right')}>
-          <i className="iconoir-nav-arrow-right" style={{ fontSize: 22 }} />
-        </button>
+        {/* DESKTOP — prev / next arrows (nothing to navigate with just 1 image) */}
+        {count > 1 && (
+          <>
+            <button type="button" aria-label="Imagen anterior" onClick={() => go(active - 1)} className="hidden md:flex" style={arrowStyle('left')}>
+              <i className="iconoir-nav-arrow-left" style={{ fontSize: 22 }} />
+            </button>
+            <button type="button" aria-label="Imagen siguiente" onClick={() => go(active + 1)} className="hidden md:flex" style={arrowStyle('right')}>
+              <i className="iconoir-nav-arrow-right" style={{ fontSize: 22 }} />
+            </button>
+          </>
+        )}
 
         {/* MOBILE — dots */}
-        <div
-          className="flex md:hidden"
-          style={{ position: 'absolute', bottom: 6, left: 0, right: 0, justifyContent: 'center', gap: 2, pointerEvents: 'none' }}
-        >
-          {images.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Ir a la imagen ${i + 1} de ${count}`}
-              aria-current={i === active}
-              onClick={() => scrollToSlide(i)}
-              style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', pointerEvents: 'auto', lineHeight: 0 }}
-            >
-              <span
-                style={{
-                  display: 'block',
-                  width: i === active ? 8 : 6,
-                  height: i === active ? 8 : 6,
-                  borderRadius: '50%',
-                  background: i === active ? 'var(--fg-inverse)' : 'rgba(255,255,255,0.55)',
-                  boxShadow: '0 0 2px rgba(0,0,0,0.4)',
-                  transition: 'width .15s, height .15s',
-                }}
-              />
-            </button>
-          ))}
-        </div>
+        {count > 1 && (
+          <div
+            className="flex md:hidden"
+            style={{ position: 'absolute', bottom: 6, left: 0, right: 0, justifyContent: 'center', gap: 2, pointerEvents: 'none' }}
+          >
+            {images.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Ir a la imagen ${i + 1} de ${count}`}
+                aria-current={i === active}
+                onClick={() => scrollToSlide(i)}
+                style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', pointerEvents: 'auto', lineHeight: 0 }}
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    width: i === active ? 8 : 6,
+                    height: i === active ? 8 : 6,
+                    borderRadius: '50%',
+                    background: i === active ? 'var(--fg-inverse)' : 'rgba(255,255,255,0.55)',
+                    boxShadow: '0 0 2px rgba(0,0,0,0.4)',
+                    transition: 'width .15s, height .15s',
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* S2.3 — back + share (top-left). Top-right / bottom-left stay free for the
             page's `overlay` (favorite + views). Glass chrome reuses `cornerBtn`. */}
@@ -256,46 +265,50 @@ export default function Gallery({
         </div>
 
         {/* S2.3 — "N / total" counter, bound to the active image (bottom-right). */}
-        <div
-          data-testid="gallery-counter"
-          style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 6, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)' }}
-        >
-          {active + 1} / {count}
-        </div>
+        {count > 1 && (
+          <div
+            data-testid="gallery-counter"
+            style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 6, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)' }}
+          >
+            {active + 1} / {count}
+          </div>
+        )}
 
         {overlay}
       </div>
 
-      {/* DESKTOP — clickable thumbnail rail */}
-      <div className="hidden md:flex hide-scrollbar md:rounded-b-xl" style={{ gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }}>
-        {images.map((img, i) => (
-          <button
-            key={i}
-            type="button"
-            aria-label={`Ver imagen ${i + 1} de ${count}`}
-            aria-current={i === active}
-            onClick={() => setActive(i)}
-            data-testid="gallery-thumb"
-            style={{
-              padding: 0,
-              border: i === active ? '2px solid var(--fg)' : '2px solid transparent',
-              borderRadius: 6,
-              lineHeight: 0,
-              flexShrink: 0,
-              cursor: 'pointer',
-              background: 'none',
-            }}
-          >
-            <img
-              src={img.url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, display: 'block', opacity: i === active ? 1 : 0.85 }}
-            />
-          </button>
-        ))}
-      </div>
+      {/* DESKTOP — clickable thumbnail rail (nothing to switch between with 1 image) */}
+      {count > 1 && (
+        <div className="hidden md:flex hide-scrollbar md:rounded-b-xl" style={{ gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }}>
+          {images.map((img, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Ver imagen ${i + 1} de ${count}`}
+              aria-current={i === active}
+              onClick={() => setActive(i)}
+              data-testid="gallery-thumb"
+              style={{
+                padding: 0,
+                border: i === active ? '2px solid var(--fg)' : '2px solid transparent',
+                borderRadius: 6,
+                lineHeight: 0,
+                flexShrink: 0,
+                cursor: 'pointer',
+                background: 'none',
+              }}
+            >
+              <img
+                src={img.url}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                style={{ height: 64, width: 64, objectFit: 'cover', borderRadius: 4, display: 'block', opacity: i === active ? 1 : 0.85 }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Lightbox — lazy-mounted only when opened (zero cost until used). */}
       {lightbox && (
