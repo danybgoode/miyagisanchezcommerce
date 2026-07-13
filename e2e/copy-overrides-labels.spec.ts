@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { humanizeKeyPath } from '../lib/copy-overrides-labels'
+import { humanizeKeyPath, humanizeSectionName } from '../lib/copy-overrides-labels'
 
 // Pure-seam coverage for the derived field labels (epic 08 ·
 // cms-contenido-restore-and-polish, Story 3.1 — grooming dropped a
@@ -28,5 +28,19 @@ test.describe('humanizeKeyPath', () => {
 
   test('an all-caps acronym boundary does not split every letter', () => {
     expect(humanizeKeyPath('section.qrCodeURL')).toBe('Qr Code Url')
+  })
+})
+
+test.describe('humanizeSectionName', () => {
+  test('a curated section key gets its es-MX override, not a raw English word', () => {
+    expect(humanizeSectionName('seller')).toBe('Panel de tienda')
+    expect(humanizeSectionName('public')).toBe('Público')
+    expect(humanizeSectionName('email')).toBe('Correos')
+  })
+
+  test('an uncurated section key falls back to the same word-splitting humanizer', () => {
+    expect(humanizeSectionName('emptyState')).toBe('Empty State')
+    expect(humanizeSectionName('terminalCta')).toBe('Terminal Cta')
+    expect(humanizeSectionName('autos')).toBe('Autos')
   })
 })
