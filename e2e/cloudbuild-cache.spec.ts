@@ -39,13 +39,24 @@ test.describe('cloudbuild.yaml — deploy-pipeline-tuning S2 self-check', () => 
   })
 
   test('the build step explicitly selects the bootstrapped builder by name (cross-review, Codex) — each Cloud Build step is its own container, so a bare `docker buildx create --use` in a PRIOR step may not leave the "current builder" selection visible to a later step\'s buildx CLI invocation; passing `--builder cloudbuildx` removes any reliance on that implicit cross-step state', () => {
-    expect(cloudbuild).toMatch(/buildx\s*\n\s*-\s*build\s*\n\s*-\s*--builder\s*\n\s*-\s*cloudbuildx/)
+    // nextpublic-docker-buildargs-hardening switched this step from a plain
+    // args: array to `entrypoint: bash` + an inline `docker buildx build ...`
+    // command string (needed so secretEnv/substitution build-args can expand)
+    // — same intent, different literal shape: space-separated within the
+    // command string rather than one array item per line.
+    expect(cloudbuild).toMatch(/docker buildx build \\?\s*\n\s*--builder cloudbuildx/)
   })
 
   test('builds with buildx using a registry-backed mode=max cache (not the weaker inline-cache method)', () => {
     expect(cloudbuild).toMatch(/type=registry,ref=.*buildcache/)
     expect(cloudbuild).toMatch(/mode=max/)
-    expect(cloudbuild).not.toMatch(/--build-arg/)
+    // The REJECTED approach measured here was `--build-arg BUILDKIT_INLINE_CACHE=1`
+    // (the "plain inline-cache method" the header comment explains) — not
+    // build-args in general. nextpublic-docker-buildargs-hardening added real
+    // --build-arg NEXT_PUBLIC_* flags (unrelated to caching); this guard now
+    // only needs to confirm the rejected cache mechanism specifically never
+    // creeps back in.
+    expect(cloudbuild).not.toMatch(/--build-arg BUILDKIT_INLINE_CACHE/)
   })
 
   test('pushes directly via buildx build --push (not a separate docker push step)', () => {
