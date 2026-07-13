@@ -13,14 +13,18 @@
  * key order. Kept next-free so it's both client-importable and
  * Playwright-loadable.
  *
- * Sprint 4: every section gets its own friendly `label` (`humanizeSectionName`)
- * instead of repeating the group's shared page label — the bug Daniel
- * flagged from a screenshot review was every sibling section rendering
- * identical text. `uniformRoute` lets the caller show a shared destination
- * ONCE at the group header (e.g. `home`, where every section is the same
- * page) instead of per item, while a fan-out namespace (`sweepstakes`,
- * `events`, `sellerAcquisition` — sections on genuinely different surfaces)
- * gets `null` here so the caller shows each section's own real destination.
+ * Sprint 4: every section gets its own friendly `label` instead of repeating
+ * the group's shared page label — the bug Daniel flagged from a screenshot
+ * review was every sibling section rendering identical text. A section's
+ * OWN route label already differentiates it well when the group isn't
+ * uniform (`sellerAcquisition`'s curated "Vende — Autos" style labels,
+ * `sweepstakes`/`events`'s new per-surface labels from Story 4.1) — using it
+ * there preserves those, and reserves the generic `humanizeSectionName()`
+ * word-splitter for the case that actually needs it: a UNIFORM group (`home`,
+ * `terms`, …), where every section's route label is identical and therefore
+ * useless as a differentiator. `uniformRoute` lets the caller show a shared
+ * destination ONCE at the group header instead of per item; `null` when
+ * sections genuinely differ, so the caller shows each one's own destination.
  */
 import { humanizeSectionName } from './copy-overrides-labels'
 import { namespaceLabel, routeForNamespaceSection, type RouteInfo } from './copy-overrides-routes'
@@ -53,7 +57,7 @@ function routesEqual(a: RouteInfo | null, b: RouteInfo | null): boolean {
   return a.label === b.label && a.path === b.path
 }
 
-function computeUniformRoute(sections: readonly NavSectionEntry[]): RouteInfo | null {
+function computeUniformRoute(sections: readonly { route: RouteInfo | null }[]): RouteInfo | null {
   if (sections.length === 0) return null
   const first = sections[0].route
   return sections.every((s) => routesEqual(s.route, first)) ? first : null
@@ -71,20 +75,25 @@ export function buildPageNavGroups(keys: readonly NavSourceKey[]): NavNamespaceG
   return [...byNamespace.entries()]
     .sort(([a], [b]) => byStringAsc(a, b))
     .map(([namespace, bySection]) => {
-      const sections: NavSectionEntry[] = [...bySection.entries()]
+      const withRoutes = [...bySection.entries()]
         .sort(([a], [b]) => byStringAsc(a, b))
-        .map(([section, count]) => ({
-          section,
-          label: humanizeSectionName(section),
-          count,
-          route: routeForNamespaceSection(namespace, section),
-        }))
+        .map(([section, count]) => ({ section, count, route: routeForNamespaceSection(namespace, section) }))
+      const uniformRoute = computeUniformRoute(withRoutes)
+      // A uniform group's route label is identical for every section (useless
+      // as a differentiator) — humanize the section key instead. A non-uniform
+      // group's route label is already a real, curated distinguisher; prefer
+      // it, falling back to the humanized section only for a section whose
+      // route didn't resolve (a genuinely unrecognized one).
+      const sections: NavSectionEntry[] = withRoutes.map((s) => ({
+        ...s,
+        label: uniformRoute ? humanizeSectionName(s.section) : s.route?.label ?? humanizeSectionName(s.section),
+      }))
       return {
         namespace,
         label: namespaceLabel(namespace),
         count: sections.reduce((n, s) => n + s.count, 0),
         sections,
-        uniformRoute: computeUniformRoute(sections),
+        uniformRoute,
       }
     })
 }

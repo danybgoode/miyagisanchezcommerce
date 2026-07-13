@@ -45,13 +45,37 @@ test.describe('buildPageNavGroups', () => {
   })
 
   // Sprint 4 — Daniel flagged (via screenshot review) that the group header
-  // and every sibling section rendered the SAME text. Each section now gets
-  // its own friendly label instead of repeating the shared page label.
-  test('each section gets its own friendly label, not the shared route label', () => {
+  // and every sibling section rendered the SAME text.
+  test('a NON-uniform group (sellerAcquisition) keeps its curated per-section route label — cross-agent review caught a regression here', () => {
+    // sellerAcquisition's route.label is ALREADY a good, curated, per-section
+    // differentiator ("Vende — Autos", "Vende (portada)") — an earlier
+    // version of this fix replaced it with a generic word-split fallback
+    // ("Autos", "Anchor"), a real quality regression a cross-agent review
+    // caught. The section's own route label must win whenever it actually
+    // differentiates (i.e. the group isn't uniform).
     const groups = buildPageNavGroups(keys)
     const sa = groups.find((g) => g.namespace === 'sellerAcquisition')!
-    expect(sa.sections.find((s) => s.section === 'autos')?.label).toBe('Autos')
-    expect(sa.sections.find((s) => s.section === 'anchor')?.label).toBe('Anchor')
+    expect(sa.uniformRoute).toBeNull()
+    expect(sa.sections.find((s) => s.section === 'autos')?.label).toBe('Vende — Autos')
+    expect(sa.sections.find((s) => s.section === 'anchor')?.label).toBe('Vende (portada)')
+  })
+
+  test('a UNIFORM group (home, terms) falls back to the humanized section key, since every route label is identical', () => {
+    const groups = buildPageNavGroups(keys)
+    const home = groups.find((g) => g.namespace === 'home')!
+    expect(home.uniformRoute).not.toBeNull()
+    expect(home.sections.find((s) => s.section === 'ribbon')?.label).toBe('Ribbon')
+  })
+
+  test('a section whose route fails to resolve falls back to the humanized section key even in a non-uniform group', () => {
+    const groups = buildPageNavGroups([
+      { namespace: 'sweepstakes', key: 'public.notFound' },
+      { namespace: 'sweepstakes', key: 'bogusSection.x' },
+    ])
+    const sweepstakes = groups.find((g) => g.namespace === 'sweepstakes')!
+    expect(sweepstakes.uniformRoute).toBeNull()
+    expect(sweepstakes.sections.find((s) => s.section === 'bogusSection')?.route).toBeNull()
+    expect(sweepstakes.sections.find((s) => s.section === 'bogusSection')?.label).toBe('Bogus Section')
   })
 
   test('uniformRoute is set when every section in a group shares the exact same destination', () => {

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { NavNamespaceGroup } from '@/lib/copy-overrides-page-nav'
+import { NO_SINGLE_PAGE_LABEL } from '@/lib/copy-overrides-routes'
 
 /** `/admin/contenido?namespace=…&section=…` — always resets q/status/sort/page, a deliberate fresh start per group. */
 function navHref(namespace: string, section: string): string {
@@ -108,18 +109,18 @@ export default function ContenidoPageNav({
                   >
                     {entry.label}
                   </span>
-                  {!group.uniformRoute && entry.route && (
+                  {!group.uniformRoute && (
                     <span
                       style={{
                         display: 'block',
                         fontSize: 10,
-                        color: active ? 'var(--accent-ink)' : 'var(--fg-subtle)',
+                        color: entry.route ? (active ? 'var(--accent-ink)' : 'var(--fg-subtle)') : 'var(--warning)',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {entry.route.path}
+                      {entry.route ? entry.route.path : `⚠ ${NO_SINGLE_PAGE_LABEL}`}
                     </span>
                   )}
                 </span>
