@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
+import { esMX } from '@clerk/localizations'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import SiteAnalytics from '@/app/components/SiteAnalytics'
@@ -90,7 +91,7 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider localization={esMX}>
       <html lang="es" suppressHydrationWarning>
         <head>
           {/* Space Grotesk — display + body */}

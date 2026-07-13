@@ -2,22 +2,13 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { UserButton } from '@clerk/nextjs'
+import { ACCOUNT_HUB_LINKS } from '@/lib/account-hub-links'
 
 export const metadata = { title: 'Mi cuenta — Miyagi Sánchez' }
 
 // Account hub. Reachable from the PWA "Perfil" tab and the desktop user menu.
 // Previously /account had no page → the mobile nav linked here and 404'd.
-const LINKS: { href: string; icon: string; label: string; desc: string }[] = [
-  { href: '/account/orders',        icon: 'iconoir-shopping-bag', label: 'Mis compras',    desc: 'Pedidos y seguimiento de envíos' },
-  { href: '/account/favorites',     icon: 'iconoir-heart',        label: 'Favoritos',      desc: 'Anuncios que guardaste' },
-  { href: '/account/subscriptions', icon: 'iconoir-credit-card',  label: 'Suscripciones',  desc: 'Tus suscripciones activas' },
-  { href: '/account/print-ads',     icon: 'iconoir-journal',      label: 'Anuncios impresos', desc: 'Tus anuncios en la edición impresa' },
-  { href: '/account/referrals',     icon: 'iconoir-gift',         label: 'Invita y gana',  desc: 'Comparte tu enlace y gana crédito' },
-  { href: '/account/notificaciones', icon: 'iconoir-bell',        label: 'Notificaciones', desc: 'Elige qué te avisamos y por dónde' },
-  { href: '/comunidad/nuevo',       icon: 'iconoir-megaphone',    label: 'Comparte con tu colonia', desc: 'Aparece en la sección social impresa' },
-  { href: '/messages',              icon: 'iconoir-chat-bubble',  label: 'Mensajes',       desc: 'Conversaciones con vendedores' },
-  { href: '/shop/manage',           icon: 'iconoir-shop',         label: 'Mi tienda',      desc: 'Vende y gestiona tus anuncios' },
-]
+const LINKS = ACCOUNT_HUB_LINKS
 
 export default async function AccountPage() {
   const user = await currentUser()
