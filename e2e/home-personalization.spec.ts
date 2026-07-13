@@ -4,6 +4,7 @@ import {
   favoriteConditionLabel,
   sellerModule,
   logPersonalizationFetchFailure,
+  derivePriceDrop,
 } from '../lib/home-personalization'
 
 /**
@@ -47,6 +48,19 @@ test.describe('home-personalization · pure helpers', () => {
     expect(sellerModule({ hasShop: false, sellerSnapshot: null })).toBe('recruit')
     // hasShop:false with stale stats still recruits (hasShop is authoritative).
     expect(sellerModule({ hasShop: false, sellerSnapshot: snap })).toBe('recruit')
+  })
+
+  test('derivePriceDrop (S2.2 badge) — mirrors the /account/favorites comparison exactly', () => {
+    // A real drop: snapshot was higher than the current price.
+    expect(derivePriceDrop(30000, 25000)).toEqual({ dropped: true, dropAmountCents: 5000 })
+    // No snapshot (favorite saved before the column existed) — no badge, no crash.
+    expect(derivePriceDrop(null, 25000)).toEqual({ dropped: false, dropAmountCents: 0 })
+    // Same price — not a drop.
+    expect(derivePriceDrop(25000, 25000)).toEqual({ dropped: false, dropAmountCents: 0 })
+    // Price went UP since favoriting — not a drop.
+    expect(derivePriceDrop(25000, 30000)).toEqual({ dropped: false, dropAmountCents: 0 })
+    // Listing price itself missing ("Precio a consultar") — no crash, no badge.
+    expect(derivePriceDrop(25000, null)).toEqual({ dropped: false, dropAmountCents: 0 })
   })
 
   test('logPersonalizationFetchFailure (S1.3 breadcrumb) — warns exactly once per call, with the reason', () => {
