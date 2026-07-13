@@ -27,12 +27,15 @@ export async function GET(req: NextRequest) {
   // back from Stripe's return_url), so an authenticated user must not be
   // able to attach another seller's real, connected account_id to their OWN
   // shop by crafting this URL (which would misroute this shop's future
-  // Stripe payouts to that other account). `/api/stripe/connect` always
-  // persists a shop's account_id BEFORE redirecting to Stripe onboarding, so
-  // by the time Stripe redirects back here the shop should already have a
-  // matching stored value — only trust the param when it matches.
+  // Stripe payouts to that other account). `/api/stripe/connect` ALWAYS
+  // persists a shop's account_id BEFORE redirecting to Stripe onboarding —
+  // there is no legitimate case where this route is hit for a shop with no
+  // stored account_id yet, so an empty `existingBeforeUpdate.account_id` is
+  // NOT treated as "first connection, trust the param" (that would let an
+  // attacker with a fresh shop plant a victim's account_id on their first
+  // hit). Only an exact match to the already-stored value is ever trusted.
   const accountId =
-    requestedAccountId && (!existingBeforeUpdate.account_id || requestedAccountId === existingBeforeUpdate.account_id)
+    requestedAccountId && requestedAccountId === existingBeforeUpdate.account_id
       ? requestedAccountId
       : existingBeforeUpdate.account_id ?? null
 

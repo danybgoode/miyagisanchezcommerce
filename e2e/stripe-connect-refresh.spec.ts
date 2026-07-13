@@ -47,6 +47,18 @@ test.describe('stripe/connect/refresh + return · account_id ownership check (st
     expect(source).toMatch(/eq\('clerk_user_id',\s*userId\)/)
     expect(source).toMatch(/requestedAccountId\s*===\s*existingBeforeUpdate\.account_id/)
   })
+
+  // A first attempt at this fix let a shop with NO stored account_id yet
+  // trust whatever account_id was passed — an attacker with a fresh shop
+  // could plant a victim's account_id on their own shop via a single
+  // crafted GET (`/return` always persists what it decides to trust; there's
+  // no legitimate case where this route is hit before /connect has already
+  // stored the account_id). A second Codex advisory pass caught this before
+  // merge. This guards against that exact fallback reappearing.
+  test('return route does NOT trust a requested account_id just because the shop has none stored yet', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/stripe/connect/return/route.ts'), 'utf8')
+    expect(source).not.toMatch(/!existingBeforeUpdate\.account_id/)
+  })
 })
 
 test.describe('stripe/connect/refresh · anonymous shape', () => {
