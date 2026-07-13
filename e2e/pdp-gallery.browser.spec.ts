@@ -84,3 +84,73 @@ test.describe('pdp · interactive gallery (browser)', () => {
     await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0)
   })
 })
+
+/**
+ * Single-image gallery parity (pdp-single-image-gallery-parity fix) — the
+ * count===1 early return used to render a bare, inert `<img>` predating the
+ * S2.3 lightbox/back/share redesign. Fixed by folding count===1 into the same
+ * interactive render path (which already degrades correctly: no arrows/dots/
+ * thumbs for a 1-length array), so this asserts it gets the lightbox + back/
+ * share for free while the multi-image-only chrome stays absent.
+ *
+ * Fixture: MS_TEST_GALLERY_SINGLE_LISTING_ID — a PUBLIC listing with exactly 1
+ * photo. Skips cleanly when unset; self-skips if the listing actually has 2+
+ * (wrong fixture configured), mirroring the <2 self-skip above.
+ */
+const SINGLE_LISTING_ID = process.env.MS_TEST_GALLERY_SINGLE_LISTING_ID
+
+test.describe('pdp · single-image gallery parity (browser)', () => {
+  test.beforeEach(async ({ page }) => {
+    requireEnv(SINGLE_LISTING_ID, 'MS_TEST_GALLERY_SINGLE_LISTING_ID')
+    await page.goto(`/l/${SINGLE_LISTING_ID}`)
+    await expect(page.getByTestId('pdp-gallery')).toBeVisible()
+    const n = await thumbs(page).count()
+    test.skip(n > 0, 'listing has 2+ photos — wrong fixture for the single-image case')
+  })
+
+  test('no multi-image chrome renders for a single photo', async ({ page }) => {
+    await expect(page.getByTestId('gallery-thumb')).toHaveCount(0)
+    await expect(page.getByTestId('gallery-counter')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Imagen siguiente' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Imagen anterior' })).toHaveCount(0)
+  })
+
+  test('back + share render; tap opens the lightbox with no arrows/counter', async ({ page }) => {
+    await expect(page.getByTestId('gallery-back')).toBeVisible()
+    await expect(page.getByTestId('gallery-share')).toBeVisible()
+
+    await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0)
+    await mainImg(page).click()
+    const lb = page.getByTestId('gallery-lightbox')
+    await expect(lb).toBeVisible()
+    await expect(lb).toHaveAttribute('role', 'dialog')
+
+    // The lightbox's own count>1 gate hides arrows/counter for a single image.
+    await expect(lb.getByRole('button', { name: 'Imagen siguiente' })).toHaveCount(0)
+    await expect(lb.getByRole('button', { name: 'Imagen anterior' })).toHaveCount(0)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0)
+  })
+})
+
+/**
+ * Zero-image placeholder parity (pdp-single-image-gallery-parity fix) — the
+ * count===0 placeholder branch had the same back/share gap as the 1-image
+ * branch (there's still a PDP to leave/share even with no photo).
+ *
+ * Fixture: MS_TEST_GALLERY_ZERO_LISTING_ID — a PUBLIC listing with no photos.
+ * Skips cleanly when unset.
+ */
+const ZERO_LISTING_ID = process.env.MS_TEST_GALLERY_ZERO_LISTING_ID
+
+test.describe('pdp · zero-image placeholder parity (browser)', () => {
+  test('back + share render over the placeholder', async ({ page }) => {
+    requireEnv(ZERO_LISTING_ID, 'MS_TEST_GALLERY_ZERO_LISTING_ID')
+    await page.goto(`/l/${ZERO_LISTING_ID}`)
+    await expect(page.getByTestId('pdp-gallery')).toBeVisible()
+
+    await expect(page.getByTestId('gallery-back')).toBeVisible()
+    await expect(page.getByTestId('gallery-share')).toBeVisible()
+  })
+})
