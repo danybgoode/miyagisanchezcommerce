@@ -12,6 +12,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { exchangeMpCode, mpSettingsFromToken, getShopMercadoPago } from '@/lib/mercadopago-connect'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
+import { resolveOrigin } from '@/lib/request-origin'
 
 export async function GET(req: NextRequest) {
   const { userId, getToken } = await auth()
@@ -50,8 +51,13 @@ export async function GET(req: NextRequest) {
   if (!shop) return NextResponse.redirect(new URL('/sell', req.url))
 
   // Must byte-match the redirect_uri used at authorization AND registered in MP
-  // (trailing slash → invalid_grant). Strip any trailing slash defensively.
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`).replace(/\/+$/, '')
+  // (trailing slash → invalid_grant) — resolveOrigin() strips one defensively.
+  let origin: string
+  try {
+    origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return errorRedirect(e instanceof Error ? e.message : 'origin_unresolvable')
+  }
   const redirectUri = `${origin}/api/mp/connect/callback`
 
   const codeVerifier = req.cookies.get('mp_pkce_verifier')?.value

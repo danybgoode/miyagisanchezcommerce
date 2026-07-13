@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { stripe, createAccountLink, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
+import { resolveOrigin } from '@/lib/request-origin'
 
 // GET — initiate Stripe Connect onboarding for the current seller
 export async function GET(req: NextRequest) {
@@ -33,7 +34,12 @@ export async function GET(req: NextRequest) {
   const settings = (meta.settings ?? {}) as Record<string, unknown>
   const stripeSettings = getShopStripe(shop.metadata as Record<string, unknown> | null)
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let origin: string
+  try {
+    origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return errorRedirect(e instanceof Error ? e.message : 'origin_unresolvable')
+  }
 
   // ── Create or retrieve Connect account ───────────────────────────────────
   let accountId = stripeSettings.account_id

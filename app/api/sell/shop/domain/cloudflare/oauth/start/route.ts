@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
+import { resolveOrigin } from '@/lib/request-origin'
 import crypto from 'crypto'
 
 const CF_OAUTH_AUTHORIZE = 'https://dash.cloudflare.com/oauth2/auth'
@@ -58,7 +59,15 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let siteUrl: string
+  try {
+    siteUrl = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'No se pudo iniciar la conexión con Cloudflare.' },
+      { status: 500 },
+    )
+  }
   const redirectUri = `${siteUrl}/api/sell/shop/domain/cloudflare/oauth/callback`
 
   // CSRF state token — store in a short-lived cookie, validated in callback

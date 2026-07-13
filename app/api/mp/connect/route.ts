@@ -10,6 +10,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { buildMpAuthorizationUrl, generateMpPkce } from '@/lib/mercadopago-connect'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
+import { resolveOrigin } from '@/lib/request-origin'
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth()
@@ -28,11 +29,11 @@ export async function GET(req: NextRequest) {
 
   if (!shop) return NextResponse.redirect(new URL('/sell', req.url))
 
-  // Strip any trailing slash so the redirect_uri byte-matches the value sent at
-  // token exchange AND the one registered in the MP app (a mismatch → invalid_grant).
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`).replace(/\/+$/, '')
-
   try {
+    // resolveOrigin() already strips a trailing slash, so the redirect_uri
+    // byte-matches the value sent at token exchange AND the one registered
+    // in the MP app (a mismatch → invalid_grant).
+    const origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
     const state = randomUUID()
     const { verifier, challenge } = generateMpPkce()
     const url = buildMpAuthorizationUrl({ state, redirectUri: `${origin}/api/mp/connect/callback`, codeChallenge: challenge })
