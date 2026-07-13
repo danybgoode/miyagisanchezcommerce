@@ -280,7 +280,19 @@ export default function ContenidoAdminClient({
       />
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ marginBottom: 16 }}>
+        {/* Sticky so the "where am I editing" context survives scrolling past a long field list (Story 4.3). */}
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 4,
+            background: 'var(--bg)',
+            paddingTop: 4,
+            paddingBottom: 12,
+            marginBottom: 4,
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
           <div className="t-caption" style={{ color: 'var(--fg-muted)' }}>
             Contenido <span style={{ margin: '0 4px' }}>›</span> {activeGroup?.label ?? activeNamespace}
           </div>
@@ -357,6 +369,11 @@ export default function ContenidoAdminClient({
                             <div style={{ color: 'var(--fg)' }}>{after}</div>
                           </div>
                         </div>
+                        {activeEntry?.route && (
+                          <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 4 }}>
+                            Se aplicará en <span className="badge-mono">{activeEntry.route.path}</span>
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
@@ -394,6 +411,11 @@ export default function ContenidoAdminClient({
                             <div style={{ color: 'var(--fg)' }}>{after}</div>
                           </div>
                         </div>
+                        {activeEntry?.route && (
+                          <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 4 }}>
+                            Se aplicará en <span className="badge-mono">{activeEntry.route.path}</span>
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
