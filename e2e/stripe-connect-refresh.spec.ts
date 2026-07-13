@@ -30,6 +30,25 @@ test.describe('Pagos.tsx · "Completar configuración" link static check', () =>
     expect(hrefLine).toMatch(/account_id=\$\{initial\.stripe\.account_id\}/)
   })
 })
+test.describe('stripe/connect/refresh + return · account_id ownership check (static)', () => {
+  // A real cross-account exploit check needs a second live shop + a real
+  // authenticated session (writes/PII) — same constraint as the rest of this
+  // file. What's cheaply, meaningfully testable: the routes must not trust
+  // the caller-supplied account_id without cross-checking it against the
+  // requester's OWN shop record before minting a link / persisting it.
+  test('refresh route looks up the caller\'s own shop and rejects a mismatched account_id', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/stripe/connect/refresh/route.ts'), 'utf8')
+    expect(source).toMatch(/clerk_user_id.*userId|eq\('clerk_user_id',\s*userId\)/)
+    expect(source).toMatch(/accountId\s*!==\s*stripeSettings\.account_id/)
+  })
+
+  test('return route only trusts a requested account_id that matches the shop\'s existing stored value', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/stripe/connect/return/route.ts'), 'utf8')
+    expect(source).toMatch(/eq\('clerk_user_id',\s*userId\)/)
+    expect(source).toMatch(/requestedAccountId\s*===\s*existingBeforeUpdate\.account_id/)
+  })
+})
+
 test.describe('stripe/connect/refresh · anonymous shape', () => {
   test('anonymous caller is redirected to sign-in, regardless of account_id', async ({ request }) => {
     const res = await request.get('/api/stripe/connect/refresh', { maxRedirects: 0 })

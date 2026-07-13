@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const { userId, getToken } = await auth()
   if (!userId) return NextResponse.redirect(new URL('/sign-in', req.url))
 
-  const accountId = req.nextUrl.searchParams.get('account_id')
+  const requestedAccountId = req.nextUrl.searchParams.get('account_id')
 
   const { data: shop } = await db
     .from('marketplace_shops')
@@ -20,6 +20,21 @@ export async function GET(req: NextRequest) {
     .maybeSingle()
 
   if (!shop) return NextResponse.redirect(new URL('/sell', req.url))
+
+  const existingBeforeUpdate = getShopStripe(shop.metadata as Record<string, unknown> | null)
+
+  // Ownership check — account_id is caller-supplied (a query param echoed
+  // back from Stripe's return_url), so an authenticated user must not be
+  // able to attach another seller's real, connected account_id to their OWN
+  // shop by crafting this URL (which would misroute this shop's future
+  // Stripe payouts to that other account). `/api/stripe/connect` always
+  // persists a shop's account_id BEFORE redirecting to Stripe onboarding, so
+  // by the time Stripe redirects back here the shop should already have a
+  // matching stored value — only trust the param when it matches.
+  const accountId =
+    requestedAccountId && (!existingBeforeUpdate.account_id || requestedAccountId === existingBeforeUpdate.account_id)
+      ? requestedAccountId
+      : existingBeforeUpdate.account_id ?? null
 
   // ── Check actual account capabilities from Stripe ─────────────────────────
   let chargesEnabled = false
@@ -38,12 +53,11 @@ export async function GET(req: NextRequest) {
   // ── Persist updated stripe status ─────────────────────────────────────────
   const meta = (shop.metadata ?? {}) as Record<string, unknown>
   const settings = (meta.settings ?? {}) as Record<string, unknown>
-  const existing = getShopStripe(shop.metadata as Record<string, unknown> | null)
   const nextSettings = {
     ...settings,
     stripe: {
-      ...existing,
-      account_id: accountId ?? existing.account_id,
+      ...existingBeforeUpdate,
+      account_id: accountId ?? existingBeforeUpdate.account_id,
       charges_enabled: chargesEnabled,
       details_submitted: detailsSubmitted,
       onboarding_complete: chargesEnabled && detailsSubmitted,
