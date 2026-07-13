@@ -175,6 +175,24 @@ export const allowedLiteralRules: AllowedLiteralRule[] = [
     reason: 'accent fallback serialized into the support-widget iframe markup (extracted from ShopSettings monolith)',
   },
   {
+    // mobile-clerk-account-management — Clerk's <UserProfile> appearance.variables
+    // needs a concrete color, not a CSS custom property: Clerk's own docs warn their
+    // color-mix()-based theming doesn't reliably resolve var(--...) for broader browser
+    // support, and recommend a direct hex value instead. Mirrors --color-accent.
+    path: 'app/(shell)/account/settings/[[...rest]]/page.tsx',
+    literal: '#1d6f42',
+    contains: "colorPrimary: '#1d6f42'",
+    reason: "Clerk appearance.variables requires a literal hex (their color-mix() theming doesn't reliably resolve CSS custom properties); mirrors --color-accent",
+  },
+  {
+    // mobile-clerk-account-management — same Clerk appearance.variables constraint
+    // as above, mirrors --color-background.
+    path: 'app/(shell)/account/settings/[[...rest]]/page.tsx',
+    literal: '#f9f9f7',
+    contains: "colorBackground: '#f9f9f7'",
+    reason: "Clerk appearance.variables requires a literal hex (their color-mix() theming doesn't reliably resolve CSS custom properties); mirrors --color-background",
+  },
+  {
     // Moved from settings/page.tsx to lib/setup-guide.ts (seller-portal-setup-guide
     // epic, B.1 extraction) — same comparison, new location.
     path: 'lib/setup-guide.ts',
