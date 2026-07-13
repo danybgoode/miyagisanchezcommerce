@@ -41,6 +41,10 @@ export interface ViewedWithCard {
  * recency, not an unbounded history). Deliberately a CALENDAR-DAY diff, not a raw
  * 24h/48h window — an 11pm-yesterday view should read "ayer", not "hoy", and a view
  * 20h ago that hasn't crossed midnight should still read "hoy".
+ *
+ * `Math.round` (not a raw division) intentionally absorbs a DST transition: two local
+ * midnights can be 23h or 25h apart instead of exactly 24h, but rounding
+ * (23h/24h ≈ 0.96, 25h/24h ≈ 1.04) still lands on the correct whole-day count either way.
  */
 export function viewedLabel(ts: number, now: number): 'Visto hoy' | 'Visto ayer' | null {
   const startOfDay = (t: number) => {

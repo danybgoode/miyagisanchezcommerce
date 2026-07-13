@@ -21,10 +21,15 @@ export default function HomeRetomaOffers() {
   const [railCards, setRailCards] = useState<RailCard[]>([])
 
   const recentFavorites = data?.recentFavorites ?? []
+  // A stable, content-based key (not the `data` object identity) so the effect below
+  // only re-runs when a favorite's actual fields change — not on every re-render that
+  // happens to produce a new (but equal) `data` object from the provider. Cheap at this
+  // scale (≤3 favorites).
+  const favoritesContentKey = JSON.stringify(recentFavorites)
 
   // S2.3 — merge in recently-viewed (device-local, no auth needed). Runs once favorites
   // are known so the favorites-win-on-collision filter has real ids to check against;
-  // re-runs if `data` changes (e.g. the personalization fetch resolves after mount).
+  // re-runs only when a favorite's actual content changes.
   useEffect(() => {
     let cancelled = false
     const favoriteIds = new Set(recentFavorites.map(f => f.medusaId))
@@ -35,7 +40,8 @@ export default function HomeRetomaOffers() {
       return
     }
 
-    fetch(`/api/listings/by-ids?ids=${viewed.map(v => v.id).join(',')}`)
+    const ids = viewed.map(v => encodeURIComponent(v.id)).join(',')
+    fetch(`/api/listings/by-ids?ids=${ids}`)
       .then(res => (res.ok ? res.json() : { listings: [] }))
       .then((json: { listings?: ViewedWithCard['card'][] }) => {
         if (cancelled) return
@@ -51,7 +57,7 @@ export default function HomeRetomaOffers() {
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
+  }, [favoritesContentKey])
 
   if (!data) return null
 
