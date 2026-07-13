@@ -43,6 +43,42 @@ test.describe('buildPageNavGroups', () => {
   test('an empty key list produces an empty nav', () => {
     expect(buildPageNavGroups([])).toEqual([])
   })
+
+  // Sprint 4 — Daniel flagged (via screenshot review) that the group header
+  // and every sibling section rendered the SAME text. Each section now gets
+  // its own friendly label instead of repeating the shared page label.
+  test('each section gets its own friendly label, not the shared route label', () => {
+    const groups = buildPageNavGroups(keys)
+    const sa = groups.find((g) => g.namespace === 'sellerAcquisition')!
+    expect(sa.sections.find((s) => s.section === 'autos')?.label).toBe('Autos')
+    expect(sa.sections.find((s) => s.section === 'anchor')?.label).toBe('Anchor')
+  })
+
+  test('uniformRoute is set when every section in a group shares the exact same destination', () => {
+    // Simulates `home`: multiple sections, all rendering on the same page.
+    const groups = buildPageNavGroups([
+      { namespace: 'home', key: 'ribbon.body' },
+      { namespace: 'home', key: 'selection.heading' },
+    ])
+    const home = groups.find((g) => g.namespace === 'home')!
+    expect(home.uniformRoute).toEqual({ label: 'Inicio', path: '/' })
+  })
+
+  test('uniformRoute is null when a group\'s sections genuinely point at different destinations', () => {
+    // Simulates `sweepstakes`: seller/public sections render on different surfaces (Sprint 4 routing fix).
+    const groups = buildPageNavGroups([
+      { namespace: 'sweepstakes', key: 'public.notFound' },
+      { namespace: 'sweepstakes', key: 'seller.killSwitch' },
+    ])
+    const sweepstakes = groups.find((g) => g.namespace === 'sweepstakes')!
+    expect(sweepstakes.uniformRoute).toBeNull()
+  })
+
+  test('a single-section group is trivially uniform', () => {
+    const groups = buildPageNavGroups(keys)
+    const terms = groups.find((g) => g.namespace === 'terms')!
+    expect(terms.uniformRoute).toEqual({ label: 'Términos', path: '/terminos' })
+  })
 })
 
 test.describe('firstNavSelection', () => {

@@ -12,11 +12,22 @@
  * alphabetically for a stable, deterministic nav regardless of dictionary
  * key order. Kept next-free so it's both client-importable and
  * Playwright-loadable.
+ *
+ * Sprint 4: every section gets its own friendly `label` (`humanizeSectionName`)
+ * instead of repeating the group's shared page label — the bug Daniel
+ * flagged from a screenshot review was every sibling section rendering
+ * identical text. `uniformRoute` lets the caller show a shared destination
+ * ONCE at the group header (e.g. `home`, where every section is the same
+ * page) instead of per item, while a fan-out namespace (`sweepstakes`,
+ * `events`, `sellerAcquisition` — sections on genuinely different surfaces)
+ * gets `null` here so the caller shows each section's own real destination.
  */
+import { humanizeSectionName } from './copy-overrides-labels'
 import { namespaceLabel, routeForNamespaceSection, type RouteInfo } from './copy-overrides-routes'
 
 export interface NavSectionEntry {
   section: string
+  label: string
   count: number
   route: RouteInfo | null
 }
@@ -26,6 +37,8 @@ export interface NavNamespaceGroup {
   label: string
   count: number
   sections: NavSectionEntry[]
+  /** Set only when every section resolves to the exact same route; `null` when they genuinely differ. */
+  uniformRoute: RouteInfo | null
 }
 
 interface NavSourceKey {
@@ -34,6 +47,17 @@ interface NavSourceKey {
 }
 
 const byStringAsc = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
+function routesEqual(a: RouteInfo | null, b: RouteInfo | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.label === b.label && a.path === b.path
+}
+
+function computeUniformRoute(sections: readonly NavSectionEntry[]): RouteInfo | null {
+  if (sections.length === 0) return null
+  const first = sections[0].route
+  return sections.every((s) => routesEqual(s.route, first)) ? first : null
+}
 
 export function buildPageNavGroups(keys: readonly NavSourceKey[]): NavNamespaceGroup[] {
   const byNamespace = new Map<string, Map<string, number>>()
@@ -51,6 +75,7 @@ export function buildPageNavGroups(keys: readonly NavSourceKey[]): NavNamespaceG
         .sort(([a], [b]) => byStringAsc(a, b))
         .map(([section, count]) => ({
           section,
+          label: humanizeSectionName(section),
           count,
           route: routeForNamespaceSection(namespace, section),
         }))
@@ -59,6 +84,7 @@ export function buildPageNavGroups(keys: readonly NavSourceKey[]): NavNamespaceG
         label: namespaceLabel(namespace),
         count: sections.reduce((n, s) => n + s.count, 0),
         sections,
+        uniformRoute: computeUniformRoute(sections),
       }
     })
 }

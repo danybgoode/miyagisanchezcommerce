@@ -37,3 +37,29 @@ export function humanizeKeyPath(key: string): string {
   const words = rest.flatMap(splitWords)
   return titleCase(words)
 }
+
+/**
+ * A small, bounded set of section keys (Sprint 4) that read as raw English
+ * words in an es-MX admin surface and repeat identically across multiple
+ * namespaces (`seller`/`public`/`email` on both `sweepstakes` and `events`)
+ * — worth curating directly, unlike the 1,121-key field-label map grooming
+ * already declined to hand-curate. Anything not listed here falls through to
+ * the same word-splitting humanizer `humanizeKeyPath` uses, so a brand-new
+ * namespace/section stays covered with zero code changes.
+ */
+const SECTION_LABEL_OVERRIDES: Record<string, string> = {
+  seller: 'Panel de tienda',
+  public: 'Público',
+  email: 'Correos',
+  toggle: 'Interruptor',
+  shared: 'Compartido',
+}
+
+/**
+ * Derives a readable label for a SECTION key itself (the page-nav's item
+ * text — distinct from `humanizeKeyPath`, which labels an individual FIELD
+ * within an already-selected section).
+ */
+export function humanizeSectionName(section: string): string {
+  return SECTION_LABEL_OVERRIDES[section] ?? titleCase(splitWords(section))
+}
