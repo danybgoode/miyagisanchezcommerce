@@ -23,6 +23,14 @@ test.describe('isUsableHost · rejects obviously-broken Host values', () => {
     expect(isUsableHost('miyagisanchez.com')).toBe(true)
     expect(isUsableHost('localhost:3001')).toBe(true)
   })
+
+  test('rejects loopback addresses (v4 and v6, bracketed or not)', () => {
+    expect(isUsableHost('127.0.0.1')).toBe(false)
+    expect(isUsableHost('127.0.0.1:3000')).toBe(false)
+    expect(isUsableHost('::1')).toBe(false)
+    expect(isUsableHost('[::1]')).toBe(false)
+    expect(isUsableHost('[::1]:3000')).toBe(false)
+  })
 })
 
 test.describe('resolveOrigin · prefers NEXT_PUBLIC_SITE_URL, sanitizes the Host fallback', () => {

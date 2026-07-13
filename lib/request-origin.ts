@@ -8,7 +8,7 @@
  *   `process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}``
  * duplicated across 10+ files. `NEXT_PUBLIC_SITE_URL` is read here as an
  * ordinary **server-side runtime env var** (not the client-bundle
- * build-time-inlining bug fixed in #244/#245 — that only affects `'use
+ * build-time-inlining bug fixed in PR 244 / PR 245 — that only affects `'use
  * client'` code) — so when it's unset, the Host-header fallback is the only
  * signal left, and Host headers are untrustworthy behind a bare Docker
  * `-p PORT:PORT` run with no explicit hostname config (Cloud Run's own
@@ -21,12 +21,20 @@
  * var and the Host header look wrong.
  */
 
-const OBVIOUSLY_WRONG_HOSTS = new Set(['0.0.0.0', 'undefined', 'null', ''])
+const OBVIOUSLY_WRONG_HOSTS = new Set(['0.0.0.0', '127.0.0.1', '::1', 'undefined', 'null', ''])
+
+/** Strips a trailing `:port`, respecting IPv6 bracket notation (`[::1]:3000`). */
+function stripPort(host: string): string {
+  if (host.startsWith('[')) {
+    return host.slice(1, host.indexOf(']') === -1 ? undefined : host.indexOf(']'))
+  }
+  return host.split(':')[0]
+}
 
 /** True when a would-be Host value is unusable for a public-facing redirect URL. */
 export function isUsableHost(host: string | null | undefined): boolean {
   if (!host) return false
-  const hostname = host.split(':')[0].trim().toLowerCase()
+  const hostname = stripPort(host).trim().toLowerCase()
   return !OBVIOUSLY_WRONG_HOSTS.has(hostname)
 }
 

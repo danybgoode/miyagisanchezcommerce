@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 /**
  * GET /api/stripe/connect/refresh · fix/stripe-connect-redirect-bugs.
@@ -12,8 +14,22 @@ import { test, expect } from '@playwright/test'
  * the route + the fixed Pagos.tsx href directly. What this gate CAN assert
  * without a real Clerk session or a real Connect account (both writes/PII)
  * is the anonymous-caller shape: auth gated, and no route ever hands out a
- * live Stripe onboarding URL to an anonymous caller.
+ * live Stripe onboarding URL to an anonymous caller — plus a cheap static
+ * check on the actual regression (a future edit re-dropping `account_id`
+ * from the Pagos.tsx href), which the anonymous-only HTTP checks can't see.
  */
+
+test.describe('Pagos.tsx · "Completar configuración" link static check', () => {
+  test('the pending-onboarding link includes account_id in its href', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'app/(shell)/shop/manage/settings/_sections/Pagos.tsx'),
+      'utf8',
+    )
+    const hrefLine = source.split('\n').find(l => l.includes('/api/stripe/connect/refresh'))
+    expect(hrefLine).toBeTruthy()
+    expect(hrefLine).toMatch(/account_id=\$\{initial\.stripe\.account_id\}/)
+  })
+})
 test.describe('stripe/connect/refresh · anonymous shape', () => {
   test('anonymous caller is redirected to sign-in, regardless of account_id', async ({ request }) => {
     const res = await request.get('/api/stripe/connect/refresh', { maxRedirects: 0 })
