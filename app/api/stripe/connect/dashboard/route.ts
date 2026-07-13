@@ -12,10 +12,16 @@ import { db } from '@/lib/supabase'
 import { getShopStripe } from '@/lib/stripe'
 
 export async function GET(req: NextRequest) {
+  // These are all internal redirects (never sent to a third party as a
+  // callback/redirect_uri, unlike /connect and /connect/refresh) — resolve
+  // them against the incoming request's own URL, which is always correct,
+  // rather than the env/Host-header-derived origin this route never
+  // actually needed (the fragile fallback that produced the 0.0.0.0
+  // redirect Daniel hit lived in the OAuth-callback-building routes, not
+  // here — this file just never needed `origin` in the first place).
   const user = await currentUser()
   if (!user) {
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
-    return NextResponse.redirect(new URL('/sign-in', origin))
+    return NextResponse.redirect(new URL('/sign-in', req.url))
   }
 
   // ── Fetch seller's shop ──────────────────────────────────────────────────
@@ -27,18 +33,15 @@ export async function GET(req: NextRequest) {
     .limit(1)
     .maybeSingle()
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
-  const settingsUrl = new URL('/shop/manage/settings', origin)
-
   if (!shop) {
-    return NextResponse.redirect(new URL('/sell', origin))
+    return NextResponse.redirect(new URL('/sell', req.url))
   }
 
   const stripeSettings = getShopStripe(shop.metadata as Record<string, unknown> | null)
 
   if (!stripeSettings.account_id) {
     return NextResponse.redirect(
-      new URL('/shop/manage/settings?stripe=error&reason=No+hay+cuenta+Stripe+conectada.', origin),
+      new URL('/shop/manage/settings?stripe=error&reason=No+hay+cuenta+Stripe+conectada.', req.url),
     )
   }
 
@@ -47,7 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(loginLink.url)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error al acceder al panel Stripe.'
-    const url = new URL('/shop/manage/settings', origin)
+    const url = new URL('/shop/manage/settings', req.url)
     url.searchParams.set('stripe', 'error')
     url.searchParams.set('reason', msg)
     return NextResponse.redirect(url)

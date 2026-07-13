@@ -269,7 +269,7 @@ export default function Pagos({
                 </div>
               </div>
             </div>
-            <a href="/api/stripe/connect/refresh"
+            <a href={`/api/stripe/connect/refresh?account_id=${initial.stripe.account_id}`}
               className="flex items-center justify-center gap-2 w-full bg-[var(--warning)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm no-underline hover:opacity-90 transition-colors">
               Completar configuración →
             </a>

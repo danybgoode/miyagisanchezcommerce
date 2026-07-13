@@ -16,6 +16,7 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/supabase'
 import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { CNAME_TARGET } from '@/lib/domain-utils'
+import { resolveOrigin } from '@/lib/request-origin'
 
 const CF_TOKEN_URL = 'https://dash.cloudflare.com/oauth2/token'
 const CF_API = 'https://api.cloudflare.com/client/v4'
@@ -55,7 +56,12 @@ export async function GET(req: NextRequest) {
   const clientSecret = process.env.CLOUDFLARE_CLIENT_SECRET
   if (!clientId || !clientSecret) return popupClose('error', 'OAuth no configurado.')
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let siteUrl: string
+  try {
+    siteUrl = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return popupClose('error', e instanceof Error ? e.message : 'No se pudo determinar el origen de la solicitud.')
+  }
   const redirectUri = `${siteUrl}/api/sell/shop/domain/cloudflare/oauth/callback`
 
   // ── Exchange code for token ───────────────────────────────────────────────

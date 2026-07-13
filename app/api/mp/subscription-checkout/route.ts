@@ -13,6 +13,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createMpPreapprovalPlan, createMpPreapproval } from '@/lib/mercadopago'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { resolveOrigin } from '@/lib/request-origin'
 
 export async function POST(req: NextRequest) {
   // ── Auth required — subscriptions need buyer identity for lifecycle management ──
@@ -102,7 +103,12 @@ export async function POST(req: NextRequest) {
 
   const buyerEmail = clerkUser.emailAddresses?.[0]?.emailAddress
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let origin: string
+  try {
+    origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo iniciar el pago.' }, { status: 500 })
+  }
 
   // ── Get or create preapproval plan (idempotent) ───────────────────────────
   let planId = storedPlanId

@@ -5,6 +5,7 @@ import { getShopStripe } from '@/lib/stripe'
 import { createSubscriptionCheckout } from '@/lib/stripe-subscriptions'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { detectChannel } from '@/lib/channel'
+import { resolveOrigin } from '@/lib/request-origin'
 
 export async function POST(req: NextRequest) {
   // ── Auth required — subscriptions need buyer identity for lifecycle management ──
@@ -80,7 +81,12 @@ export async function POST(req: NextRequest) {
   // ── Buyer info (already authenticated above) ─────────────────────────────
   const buyerEmail = user.emailAddresses?.[0]?.emailAddress
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let origin: string
+  try {
+    origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo iniciar el pago.' }, { status: 500 })
+  }
 
   const url = await createSubscriptionCheckout({
     priceId,

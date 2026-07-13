@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { detectChannel } from '@/lib/channel'
+import { resolveOrigin } from '@/lib/request-origin'
 
 interface CheckoutBody {
   listingId: string
@@ -68,7 +69,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
+  let origin: string
+  try {
+    origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo iniciar el pago.' }, { status: 500 })
+  }
   const thumb = (listing.images as Array<{ url: string }> | null)?.[0]?.url
 
   // Physical products need a shipping address collected at checkout

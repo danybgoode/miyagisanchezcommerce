@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { createBillingPortalSession } from '@/lib/stripe-subscriptions'
+import { resolveOrigin } from '@/lib/request-origin'
 
 export async function POST(req: NextRequest) {
   const user = await currentUser()
@@ -39,8 +40,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${req.headers.get('host')}`
-  const returnUrl = body.returnUrl ?? `${origin}/account/subscriptions`
+  let returnUrl = body.returnUrl
+  if (!returnUrl) {
+    try {
+      const origin = resolveOrigin({ siteUrl: process.env.NEXT_PUBLIC_SITE_URL, host: req.headers.get('host') })
+      returnUrl = `${origin}/account/subscriptions`
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo abrir el portal de facturación.' }, { status: 500 })
+    }
+  }
 
   const url = await createBillingPortalSession(sub.stripe_customer_id, returnUrl)
   return NextResponse.json({ url })
