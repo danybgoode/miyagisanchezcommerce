@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth, useUser } from '@clerk/nextjs'
-import { startCheckout } from '@/lib/cart'
+import { startCheckout } from '@/lib/cart-client'
 import { signInHopHref } from '@/lib/checkout-hop'
 
 interface BuyButtonProps {
