@@ -29,8 +29,11 @@ export default function HomeRetomaOffers() {
 
   // S2.3 — merge in recently-viewed (device-local, no auth needed). Runs once favorites
   // are known so the favorites-win-on-collision filter has real ids to check against;
-  // re-runs only when a favorite's actual content changes.
+  // re-runs only when a favorite's actual content changes. Skips entirely while `data`
+  // is null (signed-out/loading) — the rail never renders then anyway (see the early
+  // return below), so there's no point firing the by-ids fetch.
   useEffect(() => {
+    if (!data) return
     let cancelled = false
     const favoriteIds = new Set(recentFavorites.map(f => f.medusaId))
     const viewed = readRecentlyViewed().filter(v => !favoriteIds.has(v.id))
@@ -56,8 +59,11 @@ export default function HomeRetomaOffers() {
       })
 
     return () => { cancelled = true }
+    // `!!data` catches the null→object transition (e.g. a signed-in user with zero
+    // favorites) that `favoritesContentKey` alone can't see, since `recentFavorites`
+    // defaults to `[]` both before and after when there are no favorites either way.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [favoritesContentKey])
+  }, [!!data, favoritesContentKey])
 
   if (!data) return null
 
