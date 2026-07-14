@@ -21,10 +21,10 @@
  * the user's own language. `/acerca` is the one deliberate human page on the bilingual allow-list
  * (AGENTS rule 5) — see `lib/bilingual-namespaces.ts`.
  *
- * Grounding: six of the seven sections are written from shipped facts only. `founder` is the
- * ONLY `stub: true` placeholder (no invented founder claims — Daniel fills it in later). `pricing`
- * is fully shipped, real content (`stub: false`) — it publishes the live custom-subdomain/
- * custom-domain prices, not a placeholder.
+ * Grounding: every section is written from real, verifiable facts — no invented claims. `founder`
+ * (the /acerca mobile+content refresh) is grounded from the founder's own CV; no section is a
+ * `stub: true` placeholder any more. `pricing` publishes the live custom-subdomain/custom-domain
+ * prices.
  *
  * Pure data + tiny accessors. No DB, no Medusa, no Supabase, no `next/*` imports — so the Playwright
  * `api` runner can unit-test it directly.
@@ -44,6 +44,10 @@ export type AboutSectionId =
 export type AboutPoint = {
   title: string
   body: string
+  /** Optional Iconoir class, rendered above the point card's title — same
+   * treatment as /vende's ProofSection cards (only use a glyph already
+   * confirmed present in the loaded Iconoir bundle elsewhere in the app). */
+  icon?: string
 }
 
 export type AboutCopy = {
@@ -134,9 +138,9 @@ export const ABOUT_SECTIONS: AboutSection[] = [
         'Está construido sobre Medusa (el motor de comercio) y es nativo para agentes: cumple los estándares abiertos UCP y MCP, así que un asistente de IA puede explorar el catálogo, negociar y comprar sin necesidad de un navegador.',
       ],
       points: [
-        { title: 'Multi-vendedor', body: 'Muchas tiendas independientes en una sola plataforma.' },
-        { title: 'Para México', body: 'Pagos y métodos locales: SPEI, efectivo, MercadoPago y Stripe.' },
-        { title: 'Nativo para agentes', body: 'Tu IA puede leernos y operar por ti vía UCP y MCP.' },
+        { title: 'Multi-vendedor', body: 'Muchas tiendas independientes en una sola plataforma.', icon: 'iconoir-shop-four-tiles' },
+        { title: 'Para México', body: 'Pagos y métodos locales: SPEI, efectivo, DiMo, MercadoPago y Stripe.', icon: 'iconoir-map-pin' },
+        { title: 'Nativo para agentes', body: 'Tu IA puede leernos y operar por ti vía UCP y MCP.', icon: 'iconoir-sparks' },
       ],
     },
     en: {
@@ -147,9 +151,9 @@ export const ABOUT_SECTIONS: AboutSection[] = [
         'It is built on Medusa (the commerce engine) and is agent-native: it follows the open UCP and MCP standards, so an AI assistant can browse the catalog, negotiate, and buy without needing a browser.',
       ],
       points: [
-        { title: 'Multi-seller', body: 'Many independent shops on a single platform.' },
-        { title: 'Built for Mexico', body: 'Local payments and methods: SPEI, cash, MercadoPago, and Stripe.' },
-        { title: 'Agent-native', body: 'Your AI can read us and act on your behalf via UCP and MCP.' },
+        { title: 'Multi-seller', body: 'Many independent shops on a single platform.', icon: 'iconoir-shop-four-tiles' },
+        { title: 'Built for Mexico', body: 'Local payments and methods: SPEI, cash, DiMo, MercadoPago, and Stripe.', icon: 'iconoir-map-pin' },
+        { title: 'Agent-native', body: 'Your AI can read us and act on your behalf via UCP and MCP.', icon: 'iconoir-sparks' },
       ],
     },
   },
@@ -164,10 +168,10 @@ export const ABOUT_SECTIONS: AboutSection[] = [
         'Tu catálogo vive una sola vez y aparece en muchos lugares: el marketplace, tu propio dominio de marca, un widget que pegas en cualquier sitio, y una API/agente para compras programáticas.',
       ],
       points: [
-        { title: '0% de comisión', body: 'No cobramos por venta. Publicar y vender es gratis.' },
-        { title: 'Multicanal', body: 'Marketplace, dominio propio, widget embebible y API/agentes — un solo catálogo.' },
-        { title: 'Comercio con IA', body: 'Compradores y agentes pueden explorar y negociar ofertas de forma nativa.' },
-        { title: 'Migración exprés', body: 'Importa tu catálogo desde un archivo, texto pegado o JSON; la IA lo estructura por ti.' },
+        { title: '0% de comisión', body: 'No cobramos por venta. Publicar y vender es gratis.', icon: 'iconoir-hand-cash' },
+        { title: 'Multicanal', body: 'Marketplace, dominio propio, widget embebible y API/agentes — un solo catálogo.', icon: 'iconoir-share-android' },
+        { title: 'Comercio con IA', body: 'Compradores y agentes pueden explorar y negociar ofertas de forma nativa.', icon: 'iconoir-chat-bubble' },
+        { title: 'Migración exprés', body: 'Importa tu catálogo desde un archivo, texto pegado o JSON; la IA lo estructura por ti.', icon: 'iconoir-cloud-upload' },
       ],
     },
     en: {
@@ -178,10 +182,10 @@ export const ABOUT_SECTIONS: AboutSection[] = [
         'Your catalog lives once and appears in many places: the marketplace, your own branded domain, a widget you paste on any site, and an API/agent for programmatic purchases.',
       ],
       points: [
-        { title: '0% commission', body: 'We don’t charge per sale. Listing and selling are free.' },
-        { title: 'Multi-channel', body: 'Marketplace, own domain, embeddable widget, and API/agents — one catalog.' },
-        { title: 'AI commerce', body: 'Buyers and agents can browse and negotiate offers natively.' },
-        { title: 'Express migration', body: 'Import your catalog from a file, pasted text, or JSON; the AI structures it for you.' },
+        { title: '0% commission', body: 'We don’t charge per sale. Listing and selling are free.', icon: 'iconoir-hand-cash' },
+        { title: 'Multi-channel', body: 'Marketplace, own domain, embeddable widget, and API/agents — one catalog.', icon: 'iconoir-share-android' },
+        { title: 'AI commerce', body: 'Buyers and agents can browse and negotiate offers natively.', icon: 'iconoir-chat-bubble' },
+        { title: 'Express migration', body: 'Import your catalog from a file, pasted text, or JSON; the AI structures it for you.', icon: 'iconoir-cloud-upload' },
       ],
     },
   },
@@ -192,7 +196,7 @@ export const ABOUT_SECTIONS: AboutSection[] = [
       heading: 'Cómo empezar',
       lead: 'De cero a tienda con catálogo en minutos — y tu agente puede hacer casi todo.',
       body: [
-        'Crea tu cuenta (unos 20 segundos con Google) y entra al onboarding. Importa tu catálogo subiendo un archivo, pegando texto o cargando un JSON: la IA lo interpreta y crea tus productos.',
+        'Crea tu cuenta (unos 20 segundos con Google) y entra al onboarding. Importa tu catálogo subiendo un archivo, pegando texto o cargando un JSON: la IA lo interpreta y crea tus productos. Revisas todo en una vista previa antes de que se cree nada, y una guía paso a paso te ayuda a configurar cómo vas a cobrar.',
         '¿Tienes un asistente de IA? Pídele que lea miyagisanchez.com y prepare tu tienda: la imagen de la marca y los productos listos para importar. Tú revisas y publicas.',
       ],
       points: [
@@ -205,7 +209,7 @@ export const ABOUT_SECTIONS: AboutSection[] = [
       heading: 'How to start',
       lead: 'From zero to a stocked shop in minutes — and your agent can do almost all of it.',
       body: [
-        'Create your account (about 20 seconds with Google) and enter onboarding. Import your catalog by uploading a file, pasting text, or loading a JSON: the AI parses it and creates your products.',
+        'Create your account (about 20 seconds with Google) and enter onboarding. Import your catalog by uploading a file, pasting text, or loading a JSON: the AI parses it and creates your products. You review everything in a preview before anything is created, and a step-by-step guide helps you set up how you get paid.',
         'Have an AI assistant? Ask it to read miyagisanchez.com and prepare your shop: the brand dressing and products ready to import. You review and publish.',
       ],
       points: [
@@ -259,19 +263,35 @@ export const ABOUT_SECTIONS: AboutSection[] = [
   },
   {
     id: 'founder',
-    stub: true,
+    stub: false,
     es: {
       heading: 'Quién está detrás',
-      lead: 'Próximamente.',
+      lead: 'Miyagi Sánchez lo construyó una sola persona, con experiencia real dirigiendo comercio a gran escala y levantando negocios propios desde cero.',
       body: [
-        'Próximamente: un perfil del fundador (anonimizado, sin datos personales) que valida la experiencia detrás del proyecto, y una nota personal del fundador. Aún no está publicado — no inventamos afirmaciones.',
+        'Daniel Vásquez es el fundador. Antes de este proyecto dirigió producto a nivel global en AB InBev, la mayor corporativa de consumo masivo del mundo, liderando un equipo de más de 70 personas y presupuestos de capital por encima de $70M USD. Antes de eso, como gerente senior de producto en Linio, dirigió la integración técnica cuando Falabella adquirió la empresa.',
+        'También ha sido fundador dos veces. En Bicimensajero.com construyó él mismo, de cero, toda la arquitectura de software de un servicio de logística bajo demanda, y llegó a operar una red de más de 100 mensajeros en bicicleta antes de negociar su venta. Tiene una maestría en Finanzas — la razón por la que este proyecto está diseñado para operar con costos mínimos, lo que hace posible cobrar 0% de comisión de verdad.',
+        'Si quieres platicar del proyecto, escribe a daniel@miyagisanchez.com.',
+      ],
+      points: [
+        { title: '+70 personas', body: 'Equipo de producto e ingeniería dirigido en AB InBev.', icon: 'iconoir-community' },
+        { title: '+$70M USD', body: 'Presupuesto de capital gestionado en AB InBev.', icon: 'iconoir-coins' },
+        { title: '2 startups fundadas', body: 'Construidas y operadas de cero: Bicimensajero.com y Pokapok.mx.', icon: 'iconoir-shop' },
+        { title: 'MSc en Finanzas', body: 'University of Aberdeen, 2024.', icon: 'iconoir-graduation-cap' },
       ],
     },
     en: {
       heading: 'Who is behind this',
-      lead: 'Coming soon.',
+      lead: 'Miyagi Sánchez was built by one person, with real experience running large-scale commerce and building businesses from zero.',
       body: [
-        'Coming soon: an anonymized founder profile (no personal data) that validates the experience behind the project, plus a personal note from the founder. It is not published yet — we don’t invent claims.',
+        'Daniel Vásquez is the founder. Before this project he led product globally at AB InBev, the largest consumer-goods corporation in the world, directing a team of more than 70 people and capital budgets exceeding $70M USD. Before that, as a senior product manager at Linio, he led the technical integration when Falabella acquired the company.',
+        'He has also been a founder twice. At Bicimensajero.com he built the entire software architecture of an on-demand logistics service himself, from scratch, and went on to operate a network of more than 100 bike messengers before negotiating its sale. He holds a Master’s in Finance — the reason this project is designed to run on minimal costs, which is what makes a genuine 0% commission possible.',
+        'Want to talk about the project? Write to daniel@miyagisanchez.com.',
+      ],
+      points: [
+        { title: '70+ people', body: 'Product and engineering team led at AB InBev.', icon: 'iconoir-community' },
+        { title: '$70M+ USD', body: 'Capital budget managed at AB InBev.', icon: 'iconoir-coins' },
+        { title: '2 startups founded', body: 'Built and operated from zero: Bicimensajero.com and Pokapok.mx.', icon: 'iconoir-shop' },
+        { title: 'MSc in Finance', body: 'University of Aberdeen, 2024.', icon: 'iconoir-graduation-cap' },
       ],
     },
   },

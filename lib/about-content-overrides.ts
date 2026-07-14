@@ -22,8 +22,12 @@ import {
   type AboutSectionId,
 } from './about-content'
 
-/** Mirrors `about-content.ts`'s grounding note: `founder` is the only stub section. */
-const STUB_SECTION_IDS = new Set<AboutSectionId>(['founder'])
+/**
+ * Mirrors `about-content.ts`'s grounding note. Empty since the /acerca mobile+content refresh
+ * grounded the founder section (previously the only stub) — kept as a live `Set`, not deleted,
+ * so a future placeholder section has an obvious place to register.
+ */
+const STUB_SECTION_IDS = new Set<AboutSectionId>([])
 
 /** Overridden `ABOUT_PAGE[locale]` — reflects any admin copy edit to the `acerca.page` namespace. */
 export async function getOverriddenAboutPage(locale: AboutLocale): Promise<AboutPageCopy> {

@@ -53,7 +53,15 @@ export function AboutPage({
             {page.langToggleLabel}
           </Link>
         </div>
-        <h1 className="t-h1" style={{ fontSize: 'var(--t-4xl)', letterSpacing: 0, marginBottom: 'var(--s-4)' }}>
+        <h1
+          className="t-h1"
+          style={{
+            fontSize: 'clamp(var(--t-2xl), 7vw, var(--t-4xl))',
+            letterSpacing: 0,
+            marginBottom: 'var(--s-4)',
+            overflowWrap: 'break-word',
+          }}
+        >
           {page.title}
         </h1>
         <p className="t-lead" style={{ marginBottom: 'var(--s-5)' }}>
@@ -134,6 +142,13 @@ function AboutSectionBlock({
         >
           {copy.points.map((point) => (
             <article key={point.title} className="card-panel" style={{ padding: 'var(--s-5)' }}>
+              {point.icon ? (
+                <i
+                  className={point.icon}
+                  aria-hidden="true"
+                  style={{ color: 'var(--accent)', fontSize: 28, display: 'block', marginBottom: 'var(--s-4)' }}
+                />
+              ) : null}
               <h3 className="t-h4" style={{ letterSpacing: 0, marginBottom: 'var(--s-2)' }}>
                 {point.title}
               </h3>

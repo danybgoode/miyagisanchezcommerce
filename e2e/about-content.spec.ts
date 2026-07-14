@@ -7,12 +7,15 @@ import {
   aboutCopy,
   getAboutSection,
   type AboutLocale,
+  type AboutSectionId,
 } from '../lib/about-content'
 
 const LOCALES: AboutLocale[] = ['es', 'en']
 // custom-domain-paywall S2.3: `pricing` is now grounded (real $499/yr price).
-const STUB_IDS = ['founder'] as const
-const GROUNDED_IDS = ['what_is', 'why_sell', 'how_to_start', 'cost_transparency', 'pricing', 'philosophy'] as const
+// The /acerca mobile+content refresh: `founder` is now grounded too
+// (real bio from the founder's own CV) — no section is a stub any more.
+const STUB_IDS: readonly AboutSectionId[] = []
+const GROUNDED_IDS = ['what_is', 'why_sell', 'how_to_start', 'cost_transparency', 'pricing', 'founder', 'philosophy'] as const
 
 test.describe('about-content · single bilingual source', () => {
   test('section ids cover exactly the seven sections, in order, no dupes', () => {
@@ -45,7 +48,7 @@ test.describe('about-content · single bilingual source', () => {
     }
   })
 
-  test('founder is the only flagged stub; the six grounded sections are not', () => {
+  test('no section is a flagged stub; all seven are grounded', () => {
     for (const id of STUB_IDS) {
       expect(getAboutSection(id).stub, `${id} should be a stub`).toBe(true)
     }
@@ -62,6 +65,17 @@ test.describe('about-content · single bilingual source', () => {
       expect(text, `${locale} pricing mentions the annual price`).toContain('$499')
       expect(text, `${locale} pricing mentions the monthly equivalent`).toContain('$42')
       expect(text.toLowerCase(), `${locale} pricing no longer says coming soon`).not.toMatch(/próximamente|coming soon/)
+    }
+  })
+
+  test('founder section is grounded, names the founder, and no longer says coming soon', () => {
+    const founder = getAboutSection('founder')
+    expect(founder.stub, 'founder must be grounded').toBe(false)
+    for (const locale of LOCALES) {
+      const text = aboutCopy(founder, locale).body.join(' ')
+      expect(text, `${locale} founder section names Daniel Vásquez`).toContain('Daniel Vásquez')
+      expect(text, `${locale} founder section mentions a real, verifiable fact`).toContain('AB InBev')
+      expect(text.toLowerCase(), `${locale} founder section no longer says coming soon`).not.toMatch(/próximamente|coming soon/)
     }
   })
 

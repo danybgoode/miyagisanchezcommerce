@@ -47,9 +47,12 @@ const rawPaletteClassPattern = /\b(?:bg|text|border)-(?:green|amber|red|blue|ind
 const bgWhitePattern = /\bbg-white(?![\w/])/g
 // Bare `rounded`, a named Tailwind radius suffix, a directional/corner variant
 // (`rounded-l`, `rounded-tl`, …), or a corner+size combo (`rounded-l-lg`) — but
-// NOT `rounded-[var(--r-*)]` or `rounded-l-[var(--r-*)]` (the negative lookahead
-// rejects a following `-` that isn't one of the named suffixes, which is exactly
-// what the `-[var(...)]` arbitrary-value form has). Found missing the directional
+// NOT the arbitrary-value form using a --r- token (e.g. rounded with a bracketed
+// var reference) — the negative lookahead rejects a following `-` that isn't one
+// of the named suffixes, which is exactly what that arbitrary-value form has.
+// (Written without literal brackets here — Tailwind's own content scanner reads
+// this file as source and chokes trying to generate CSS for a bracketed literal
+// candidate it finds inside a comment.) Found missing the directional
 // variants entirely in the seller-portal-rails-foundation S2.5 cleanup — `Envios.tsx`
 // used `rounded-l`/`rounded-r` on grouped input+suffix controls and the original
 // pattern couldn't see them at all.
