@@ -39,6 +39,10 @@ test.describe('home chrome · ribbon + footer + vecindario entry', () => {
 
     // The Términos link is present in the footer links row.
     expect(html).toContain('href="/terminos"')
+
+    // mobile-clerk-account-management fast-follow — the footer now also
+    // carries "Acerca de" (/acerca had no footer/nav entry point before).
+    expect(html).toMatch(/href="\/acerca"[^>]*>\s*Acerca de/)
   })
 
   test('S3.4 — the Vecindario entry keeps its testid on a /vecindario anchor', async ({ request }) => {

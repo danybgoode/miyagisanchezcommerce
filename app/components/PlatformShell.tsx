@@ -321,6 +321,7 @@ export default async function PlatformShell({
           <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
             Agent API
           </Link>
+          <Link href="/acerca" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Acerca de</Link>
           <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Términos</Link>
         </div>
       </footer>
