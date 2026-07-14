@@ -22,8 +22,8 @@
  * (AGENTS rule 5) — see `lib/bilingual-namespaces.ts`.
  *
  * Grounding: every section is written from real, verifiable facts — no invented claims. `founder`
- * (mobile-clerk-account-management fast-follow) is grounded from the founder's own CV; no section is
- * a `stub: true` placeholder any more. `pricing` publishes the live custom-subdomain/custom-domain
+ * (the /acerca mobile+content refresh) is grounded from the founder's own CV; no section is a
+ * `stub: true` placeholder any more. `pricing` publishes the live custom-subdomain/custom-domain
  * prices.
  *
  * Pure data + tiny accessors. No DB, no Medusa, no Supabase, no `next/*` imports — so the Playwright

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 /**
  * Anonymous browser smoke for the `/acerca` about page (no auth, no money — NOT owed to Daniel).
  * Asserts the rendered page: es + en render, no section is a placeholder stub any more
- * (mobile-clerk-account-management fast-follow grounded the founder section), and the soft
+ * (the /acerca mobile+content refresh grounded the founder section), and the soft
  * CTA navigates to onboarding with the about attribution.
  */
 test.describe('about · /acerca human page', () => {

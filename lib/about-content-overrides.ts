@@ -23,7 +23,7 @@ import {
 } from './about-content'
 
 /**
- * Mirrors `about-content.ts`'s grounding note. Empty since mobile-clerk-account-management
+ * Mirrors `about-content.ts`'s grounding note. Empty since the /acerca mobile+content refresh
  * grounded the founder section (previously the only stub) — kept as a live `Set`, not deleted,
  * so a future placeholder section has an obvious place to register.
  */

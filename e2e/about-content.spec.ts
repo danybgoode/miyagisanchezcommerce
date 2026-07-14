@@ -12,7 +12,7 @@ import {
 
 const LOCALES: AboutLocale[] = ['es', 'en']
 // custom-domain-paywall S2.3: `pricing` is now grounded (real $499/yr price).
-// mobile-clerk-account-management fast-follow: `founder` is now grounded too
+// The /acerca mobile+content refresh: `founder` is now grounded too
 // (real bio from the founder's own CV) — no section is a stub any more.
 const STUB_IDS: readonly AboutSectionId[] = []
 const GROUNDED_IDS = ['what_is', 'why_sell', 'how_to_start', 'cost_transparency', 'pricing', 'founder', 'philosophy'] as const
@@ -48,7 +48,7 @@ test.describe('about-content · single bilingual source', () => {
     }
   })
 
-  test('founder is the only flagged stub; the six grounded sections are not', () => {
+  test('no section is a flagged stub; all seven are grounded', () => {
     for (const id of STUB_IDS) {
       expect(getAboutSection(id).stub, `${id} should be a stub`).toBe(true)
     }
