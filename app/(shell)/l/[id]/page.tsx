@@ -36,6 +36,7 @@ import { ticketQuantityCap } from '@/lib/ticket-quantity'
 import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
 import Gallery from './Gallery'
+import RecordRecentView from './RecordRecentView'
 import { SetAgentContext } from '@/app/components/AgentContext'
 import StickyBuyBar from './StickyBuyBar'
 import CollapsibleDescription from './CollapsibleDescription'
@@ -729,6 +730,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           copied prompt names this product (S2.2). `effectivePrice` mirrors what the
           shopper sees; clears on navigation away. */}
       <SetAgentContext title={listing.title} price={effectivePrice} />
+      {/* S2.3 — records this view to the visitor's device-local recently-viewed ring
+          buffer, consumed by the signed-in homepage rail ("Visto hoy"/"Visto ayer").
+          Inert side-effect-only client island, renders nothing. */}
+      <RecordRecentView medusaId={listing.id} />
       {/* ── Desktop 2-col grid ──────────────────────────────────────────────── */}
       <div className="md:grid md:gap-10 md:[grid-template-columns:46%_1fr]">
 

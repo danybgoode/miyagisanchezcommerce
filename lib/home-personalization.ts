@@ -39,6 +39,24 @@ export function priceLabel(cents: number | null, currency: string): string {
   }
 }
 
+export interface PriceDrop {
+  dropped: boolean
+  dropAmountCents: number
+}
+
+/**
+ * Price-drop derivation for the retoma rail's "↓ Bajó $N" badge (S2.2). Mirrors
+ * exactly the comparison already proven on `/account/favorites`
+ * (`app/(shell)/account/favorites/page.tsx`): both operands must be truthy
+ * (non-null, non-zero) and the current price strictly less than the snapshot —
+ * `priceCentsAtSave: null` (a favorite saved before the snapshot column existed,
+ * or the listing price itself missing) degrades to no badge, never a crash.
+ */
+export function derivePriceDrop(priceCentsAtSave: number | null, priceCents: number | null): PriceDrop {
+  const dropped = !!(priceCentsAtSave && priceCents && priceCents < priceCentsAtSave)
+  return { dropped, dropAmountCents: dropped ? priceCentsAtSave! - priceCents! : 0 }
+}
+
 /**
  * es-MX condition label — the next-free twin of `lib/listings.ts conditionLabel`
  * (which can't be imported client-side). Same map; `null`/unknown degrade safely.
