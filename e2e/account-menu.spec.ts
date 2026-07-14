@@ -9,12 +9,12 @@ import { ACCOUNT_MENU_ITEMS } from '../lib/account-menu'
 test.describe('account-menu · ACCOUNT_MENU_ITEMS', () => {
   test('has exactly the eight Cuenta entries, in order', () => {
     expect(ACCOUNT_MENU_ITEMS.map(i => i.label)).toEqual([
+      'Mi cuenta',
       'Favoritos',
       'Pedidos',
       'Suscripciones',
       'Referidos',
       'Notificaciones',
-      'Agente IA',
       'Tema',
       'Cambiar a modo vendedor',
     ])
@@ -25,14 +25,23 @@ test.describe('account-menu · ACCOUNT_MENU_ITEMS', () => {
       ACCOUNT_MENU_ITEMS.filter(i => i.kind === 'link').map(i => [i.key, i.href]),
     )
     expect(hrefs).toEqual({
+      'account-home': '/account',
       favorites: '/account/favorites',
       orders: '/account/orders',
       subscriptions: '/account/subscriptions',
       referrals: '/account/referrals',
       notifications: '/account/notificaciones',
-      agent: '/agent',
       'seller-mode': '/shop/manage',
     })
+  })
+
+  test('"Mi cuenta" is the first entry and leads to the bare /account hub', () => {
+    expect(ACCOUNT_MENU_ITEMS[0]).toMatchObject({ kind: 'link', key: 'account-home', label: 'Mi cuenta', href: '/account' })
+  })
+
+  test('no "Agente IA" row (dropped — already reachable via the footer + search-bar agent affordances)', () => {
+    expect(ACCOUNT_MENU_ITEMS.find(i => i.key === 'agent')).toBeUndefined()
+    expect(ACCOUNT_MENU_ITEMS.map(i => i.label)).not.toContain('Agente IA')
   })
 
   test('"Cambiar a modo vendedor" is the doorway to /shop/manage', () => {
