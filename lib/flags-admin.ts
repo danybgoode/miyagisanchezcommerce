@@ -139,6 +139,14 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // S1). Enablement: default OFF ⇒ /sell keeps today's SellWizard entry
   // unchanged. Flip ON after the Sprint 1 smoke walkthrough passes.
   'onboarding.three_doors_enabled': { polarity: 'enablement', default: false },
+  // Forwards the setup-guide funnel (guide_view, guide_step_complete,
+  // first_share_tap) to the golden-beans Growth Engine's POST /v1/track
+  // (golden-beans Roadmap/01-growth-engine/growth-engine-v1 S1.3). Enablement:
+  // default OFF ⇒ app/api/growth/track/route.ts returns { skipped: true }
+  // without ever calling lib/growth-engine.ts — a standalone telemetry sink,
+  // not a money/auth path. Flip ON once golden-beans is deployed and Daniel's
+  // live flag-flip + live-event smoke passes.
+  'growth.telemetry_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
