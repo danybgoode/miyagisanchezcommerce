@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useSettingsSave } from './settings/_components/useSettingsSave'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
+import { pushGrowthEvent } from '@/lib/growth-events'
 import type { SetupStep } from '@/lib/setup-guide'
 
 /**
@@ -42,9 +43,14 @@ export default function SetupGuideCard({
   const visible = !dismissed && !allDone
   const openStep = steps.find((step) => step.open)
 
-  // guide_view — once per mount while the card is actually on screen.
+  // guide_view — once per mount while the card is actually on screen. Also forwarded
+  // to the golden-beans Growth Engine (Story 1.3) — the internal route no-ops when
+  // growth.telemetry_enabled is OFF, so this call is always safe to make.
   useEffect(() => {
-    if (visible) pushAnalyticsEvent('guide_view')
+    if (visible) {
+      pushAnalyticsEvent('guide_view')
+      pushGrowthEvent('setup_guide_viewed', { featureId: 'setup_guide' })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -76,6 +82,7 @@ export default function SetupGuideCard({
         { step_id: step.id },
         { dedupeKey: `guide_step_complete_${shopSlug}_${step.id}` },
       )
+      pushGrowthEvent('setup_guide_step_completed', { featureId: 'setup_guide', tags: { step_id: step.id } })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps])

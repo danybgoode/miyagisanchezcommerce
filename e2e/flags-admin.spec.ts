@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 28 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(28)
+  test('covers all 29 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(29)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -66,6 +66,10 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // Per-listing delivery_mode carrier|arranged (arranged-only-delivery epic S1) —
     // enablement, fail-open OFF (every listing behaves as carrier until flipped).
     expect(FLAG_META['shipping.arranged_only_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // Setup-guide funnel forwarding to the golden-beans Growth Engine
+    // (growth-engine-v1 S1.3) — enablement, fail-open OFF (zero outbound calls
+    // until golden-beans is deployed and Daniel flips it on).
+    expect(FLAG_META['growth.telemetry_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 
