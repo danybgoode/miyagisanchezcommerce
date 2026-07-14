@@ -82,7 +82,11 @@ export default function SetupGuideCard({
         { step_id: step.id },
         { dedupeKey: `guide_step_complete_${shopSlug}_${step.id}` },
       )
-      pushGrowthEvent('setup_guide_step_completed', { featureId: 'setup_guide', tags: { step_id: step.id } })
+      pushGrowthEvent(
+        'setup_guide_step_completed',
+        { featureId: 'setup_guide', tags: { step_id: step.id } },
+        { dedupeKey: `setup_guide_step_completed_${shopSlug}_${step.id}` },
+      )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps])

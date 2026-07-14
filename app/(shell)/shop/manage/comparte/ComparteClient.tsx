@@ -37,8 +37,14 @@ export default function ComparteClient({
     // here, and vice versa.
     pushAnalyticsEvent('first_share_tap', { channel }, { dedupeKey: `first_share_tap_${shopSlug}` })
     // Retained signal for the golden-beans Growth Engine funnel (Story 1.3) — the
-    // route no-ops when growth.telemetry_enabled is OFF.
-    pushGrowthEvent('setup_guide_share_tapped', { featureId: 'setup_guide', tags: { channel } })
+    // route no-ops when growth.telemetry_enabled is OFF. Deduped at-most-once per
+    // shop, matching first_share_tap's own semantics (a "did this happen at all"
+    // Retained signal, not a per-tap counter).
+    pushGrowthEvent(
+      'setup_guide_share_tapped',
+      { featureId: 'setup_guide', tags: { channel } },
+      { dedupeKey: `setup_guide_share_tapped_${shopSlug}` },
+    )
     // Mark the guide's `comparte` step done — the same settings.guide.share_done
     // seam the guide card used to set itself before this page took over the
     // action. Fire-and-forget: a failed write just means the guide step

@@ -6,9 +6,12 @@ import { sendGrowthEvent } from '@/lib/growth-engine'
 
 // Forwards setup-guide funnel events to the golden-beans Growth Engine
 // (Roadmap/01-growth-engine/growth-engine-v1, Sprint 1 · Story 1.3), gated by
-// growth.telemetry_enabled. Same-origin only, Clerk-authed — userId is resolved
-// server-side (never trusted from the body), and the flag check happens here so
-// no client code needs to know whether telemetry is on.
+// growth.telemetry_enabled. Clerk-authed — userId is resolved server-side (never
+// trusted from the body), and the flag check happens here so no client code needs
+// to know whether telemetry is on. No explicit Origin/Sec-Fetch-Site check: a
+// cross-site POST would need a valid Clerk session to do anything beyond emitting a
+// telemetry event for the calling user's own id, which is a low-value forgery target
+// (no data read, no mutation of anything but this project's own event stream).
 const KNOWN_EVENTS = new Set([
   'setup_guide_viewed',
   'setup_guide_step_completed',
