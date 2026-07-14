@@ -167,7 +167,7 @@ test.describe('design-token foundation', () => {
     ])
   })
 
-  test('negative fixture: literal radii go red, rounded-[var(--r-*)] tokens stay green', () => {
+  test('negative fixture: literal radii go red, the token-var arbitrary form stays green', () => {
     const offenders = findLiteralRadiusOffendersInSourceFiles([{
       filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx',
       content: '<div className="rounded"><span className="rounded-lg" /><i className="rounded-[var(--r-md)]" /></div>',
@@ -182,7 +182,7 @@ test.describe('design-token foundation', () => {
   // matched bare `rounded` or `rounded-<size>`, silently missing Tailwind's
   // directional/corner classes (`rounded-l`, `rounded-tl`, …) entirely. `Envios.tsx`
   // used `rounded-l`/`rounded-r` on grouped input+suffix controls with zero coverage.
-  test('negative fixture: directional/corner radii go red, their rounded-*-[var(--r-*)] fixed form stays green', () => {
+  test('negative fixture: directional/corner radii go red, their fixed token-var arbitrary form stays green', () => {
     const offenders = findLiteralRadiusOffendersInSourceFiles([{
       filePath: 'app/(shell)/shop/manage/ManageDashboard.tsx',
       content: '<input className="rounded-l" /><span className="rounded-r-lg" /><i className="rounded-l-[var(--r-sm)]" />',
