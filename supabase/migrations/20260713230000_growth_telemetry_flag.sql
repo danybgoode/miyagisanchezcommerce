@@ -13,5 +13,6 @@
 -- (fail-open OFF) can never break checkout or any seller-facing surface, it only silences
 -- the growth engine's inputs. ON CONFLICT DO NOTHING so re-running never clobbers a live flip.
 INSERT INTO platform_flags (key, enabled, polarity, description) VALUES
-  ('growth.telemetry_enabled', false, 'enablement', 'Forwards the setup-guide funnel to the golden-beans Growth Engine (growth-engine-v1 S1.3). OFF ⇒ zero outbound calls.')
+  ('growth.telemetry_enabled', false, 'enablement',
+    'Envío de eventos de la guía de configuración al motor de crecimiento (golden-beans). Actívala cuando golden-beans esté desplegado para empezar a medir el embudo; apagada, no se envía ningún evento.')
 ON CONFLICT (key) DO NOTHING;
