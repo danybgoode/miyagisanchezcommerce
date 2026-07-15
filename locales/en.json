@@ -1592,8 +1592,13 @@
       "secondaryCta": "Keep exploring"
     },
     "sellerBlock": {
+      "eyebrow": "Sell on Miyagi",
       "heading": "Set up your spot in the neighborhood",
-      "reassurances": ["Free, no commissions", "Your own domain", "Protected payments"],
+      "reassurances": [
+        "Free, no commissions, always",
+        "Your shop, even with your own domain",
+        "Protected payments for you and your buyer"
+      ],
       "cta": "Open your shop for free"
     }
   },
