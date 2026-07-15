@@ -7,7 +7,7 @@ import esDictionary from '../locales/es.json' with { type: 'json' }
 
 test.describe('routeForKey / routeForNamespaceSection', () => {
   test('simple single-page namespaces resolve to their real route', () => {
-    expect(routeForKey('home', 'ribbon.body')).toEqual({ label: 'Inicio', path: '/' })
+    expect(routeForKey('home', 'hero.heading')).toEqual({ label: 'Inicio', path: '/' })
     expect(routeForKey('terms', 'title')).toEqual({ label: 'Términos', path: '/terminos' })
     expect(routeForKey('acerca', 'intro')).toEqual({ label: 'Acerca (plataforma)', path: '/acerca' })
   })

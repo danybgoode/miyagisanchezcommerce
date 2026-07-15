@@ -770,6 +770,8 @@ html, body {
   color: var(--fg-inverse);
   font-weight: 500;
 }
+.chip-count { font-size: 11px; color: var(--fg-muted); }
+.chip.is-selected .chip-count { color: inherit; opacity: 0.85; }
 
 /* ── Card ── */
 .card-tile {

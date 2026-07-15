@@ -72,7 +72,11 @@ test.describe('static homepage · curated shell, no personalization', () => {
     expect(rows.length).toBeGreaterThan(0)
     const chipRail = html.match(/chip-rail mb-6"[\s\S]*?<\/div>/)?.[0] ?? ''
     for (const [, label, count] of rows) {
-      expect(chipRail).toContain(`${label}<!-- --> ${count}`)
+      // Label and count are separate <span>s (not one interpolated text node), so
+      // this asserts both are present within the same chip <a> without depending
+      // on React's SSR comment-node serialization between adjacent text children.
+      expect(chipRail).toContain(`>${label}</span>`)
+      expect(chipRail).toContain(`class="chip-count">${count}</span>`)
     }
     // The lead chip reads "Todas →" (relabeled from "Todo") once counts are passed.
     expect(chipRail).toContain('Todas')

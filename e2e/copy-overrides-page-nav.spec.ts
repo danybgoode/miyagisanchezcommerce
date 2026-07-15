@@ -10,7 +10,7 @@ const keys = [
   { namespace: 'sellerAcquisition', key: 'autos.heroTitle' },
   { namespace: 'sellerAcquisition', key: 'autos.heroBody' },
   { namespace: 'sellerAcquisition', key: 'anchor.heroTitle' },
-  { namespace: 'home', key: 'ribbon.body' },
+  { namespace: 'home', key: 'hero.heading' },
   { namespace: 'terms', key: 'title' },
 ]
 
@@ -64,7 +64,7 @@ test.describe('buildPageNavGroups', () => {
     const groups = buildPageNavGroups(keys)
     const home = groups.find((g) => g.namespace === 'home')!
     expect(home.uniformRoute).not.toBeNull()
-    expect(home.sections.find((s) => s.section === 'ribbon')?.label).toBe('Ribbon')
+    expect(home.sections.find((s) => s.section === 'hero')?.label).toBe('Hero')
   })
 
   test('a section whose route fails to resolve falls back to the humanized section key even in a non-uniform group', () => {
@@ -81,7 +81,7 @@ test.describe('buildPageNavGroups', () => {
   test('uniformRoute is set when every section in a group shares the exact same destination', () => {
     // Simulates `home`: multiple sections, all rendering on the same page.
     const groups = buildPageNavGroups([
-      { namespace: 'home', key: 'ribbon.body' },
+      { namespace: 'home', key: 'hero.heading' },
       { namespace: 'home', key: 'selection.heading' },
     ])
     const home = groups.find((g) => g.namespace === 'home')!
@@ -108,7 +108,7 @@ test.describe('buildPageNavGroups', () => {
 test.describe('firstNavSelection', () => {
   test('picks the alphabetically-first namespace and its first section', () => {
     const groups = buildPageNavGroups(keys)
-    expect(firstNavSelection(groups)).toEqual({ namespace: 'home', section: 'ribbon' })
+    expect(firstNavSelection(groups)).toEqual({ namespace: 'home', section: 'hero' })
   })
 
   test('an empty nav resolves to empty strings, never throws', () => {

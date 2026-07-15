@@ -20,7 +20,10 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
   // browse-by-category rail down with it (that's a distinct concern from the
   // "only categories with ≥1 listing" rule the Categorías list section applies).
   const hasCounts = !!counts && counts.length > 0
-  const items = hasCounts ? counts! : CATEGORIES
+  // Normalize to one shape regardless of source, so the render below never casts.
+  const items: ReadonlyArray<{ key: string; label: string; icon: string; count?: number }> = hasCounts
+    ? counts!
+    : CATEGORIES
   return (
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
       {/* Lead chip — clears category filter */}
@@ -39,7 +42,8 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
           className={`chip${cat.key === activeCategory ? ' is-selected' : ''}`}
         >
           <i className={`iconoir-${cat.icon}`} aria-hidden />
-          <span>{cat.label}{hasCounts ? ` ${(cat as CategoryCount).count}` : ''}</span>
+          <span>{cat.label}</span>
+          {cat.count !== undefined && <span className="chip-count">{cat.count}</span>}
         </Link>
       ))}
     </div>
