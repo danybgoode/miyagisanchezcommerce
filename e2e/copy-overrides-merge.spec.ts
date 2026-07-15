@@ -165,15 +165,15 @@ test.describe('resolveOverriddenDictionary · injectable-deps core (flag-OFF / n
       {
         isEnabled: async () => true,
         getOverrides: async () => [
-          { namespace: 'home', key: 'ribbon.body', locale: 'es', value: 'Promoción de temporada — envíos gratis.' },
+          { namespace: 'home', key: 'hero.heading', locale: 'es', value: 'Promoción de temporada — envíos gratis.' },
         ],
         getDictionary: async () => esDictionary as never,
       },
       'es',
     )
     const home = (result as typeof esDictionary).home
-    expect(home.ribbon.body).toBe('Promoción de temporada — envíos gratis.')
-    expect(home.ribbon.cta).toBe(esDictionary.home.ribbon.cta) // sibling key unaffected
+    expect(home.hero.heading).toBe('Promoción de temporada — envíos gratis.')
+    expect(home.hero.badges).toEqual(esDictionary.home.hero.badges) // sibling key unaffected
     expect(home.selection.heading).toBe(esDictionary.home.selection.heading) // sibling section unaffected
   })
 })

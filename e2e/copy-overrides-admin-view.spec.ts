@@ -17,14 +17,14 @@ import {
 const rows = [
   { namespace: 'sellerAcquisition', key: 'autos.heroTitle', defaultEs: 'Vende tu auto', defaultEn: null, overrideEs: null, overrideEn: null, updatedAt: null },
   { namespace: 'sellerAcquisition', key: 'anchor.heroTitle', defaultEs: 'Vende lo que sea', defaultEn: null, overrideEs: 'Vende gratis', overrideEn: null, updatedAt: '2026-07-10T00:00:00Z' },
-  { namespace: 'home', key: 'ribbon.body', defaultEs: 'Promoción de temporada', defaultEn: null, overrideEs: null, overrideEn: null, updatedAt: null },
+  { namespace: 'home', key: 'hero.heading', defaultEs: 'Promoción de temporada', defaultEn: null, overrideEs: null, overrideEn: null, updatedAt: null },
   { namespace: 'terms', key: 'title', defaultEs: 'Términos de uso', defaultEn: 'Terms of use', overrideEs: null, overrideEn: 'Terms — edited', updatedAt: '2026-07-12T00:00:00Z' },
 ]
 
 test.describe('filterKeysByQuery', () => {
   test('matches namespace, key, or either locale default, case-insensitively', () => {
     expect(filterKeysByQuery(rows, 'autos')).toHaveLength(1)
-    expect(filterKeysByQuery(rows, 'HERO')).toHaveLength(2)
+    expect(filterKeysByQuery(rows, 'HERO')).toHaveLength(3) // autos.heroTitle, anchor.heroTitle, home.hero.heading
     expect(filterKeysByQuery(rows, 'terms of use')).toHaveLength(1)
     expect(filterKeysByQuery(rows, '')).toHaveLength(rows.length)
   })
@@ -64,7 +64,7 @@ test.describe('sortKeys', () => {
   test('namespace_asc sorts by namespace then key, fully deterministic', () => {
     const sorted = sortKeys(rows, 'namespace_asc')
     expect(sorted.map((r) => `${r.namespace}.${r.key}`)).toEqual([
-      'home.ribbon.body',
+      'home.hero.heading',
       'sellerAcquisition.anchor.heroTitle',
       'sellerAcquisition.autos.heroTitle',
       'terms.title',
@@ -76,7 +76,7 @@ test.describe('sortKeys', () => {
     expect(sorted.map((r) => `${r.namespace}.${r.key}`)).toEqual([
       'terms.title', // 2026-07-12
       'sellerAcquisition.anchor.heroTitle', // 2026-07-10
-      'home.ribbon.body', // null — tie-broken by namespace+key
+      'home.hero.heading', // null — tie-broken by namespace+key
       'sellerAcquisition.autos.heroTitle', // null
     ])
   })

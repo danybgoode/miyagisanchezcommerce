@@ -1560,13 +1560,18 @@
     }
   },
   "home": {
-    "ribbon": {
-      "body": "Buy and sell in Mexico — free, protected, and with offers.",
-      "cta": "How it works →"
+    "hero": {
+      "heading": "What your neighborhood sells, buys, and recommends",
+      "badges": ["Protected purchase", "Make an offer", "0% commissions"]
     },
     "selection": {
       "heading": "This week's picks",
       "cta": "View all →"
+    },
+    "recienLlegado": {
+      "heading": "New in the neighborhood",
+      "cta": "View all →",
+      "newBadge": "New today"
     },
     "categories": {
       "heading": "Categories"
@@ -1585,6 +1590,16 @@
       "body": "Save favorites, make offers, and open your shop — no commissions.",
       "primaryCta": "Create account",
       "secondaryCta": "Keep exploring"
+    },
+    "sellerBlock": {
+      "eyebrow": "Sell on Miyagi",
+      "heading": "Set up your spot in the neighborhood",
+      "reassurances": [
+        "Free, no commissions, always",
+        "Your shop, even with your own domain",
+        "Protected payments for you and your buyer"
+      ],
+      "cta": "Open your shop for free"
     }
   },
   "acerca": {

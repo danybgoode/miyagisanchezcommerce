@@ -14,8 +14,8 @@ const index: KeyIndexEntry[] = [
   { namespace: 'sellerAcquisition', key: 'autos.heroTitle' },
   { namespace: 'sellerAcquisition', key: 'autos.heroLead' },
   { namespace: 'sellerAcquisition', key: 'anchor.heroTitle' },
-  { namespace: 'home', key: 'ribbon.body' },
-  { namespace: 'home', key: 'ribbon.cta' },
+  { namespace: 'home', key: 'hero.heading' },
+  { namespace: 'home', key: 'hero.badges' },
   { namespace: 'terms', key: 'title' },
 ]
 
@@ -28,7 +28,7 @@ test.describe('namespacesInIndex', () => {
 test.describe('sectionsForNamespace', () => {
   test('cascades to the sections within the chosen namespace only', () => {
     expect(sectionsForNamespace(index, 'sellerAcquisition')).toEqual(['anchor', 'autos'])
-    expect(sectionsForNamespace(index, 'home')).toEqual(['ribbon'])
+    expect(sectionsForNamespace(index, 'home')).toEqual(['hero'])
   })
 
   test('an empty namespace (no selection) yields no sections', () => {

@@ -723,6 +723,16 @@ html, body {
 }
 .btn-dark:hover { background: var(--papel-700); }
 
+/* Light pill CTA for a dark/branded surface (e.g. the homepage seller-recruitment
+   card) — the inverse of .btn-primary's filled-accent-on-light treatment. */
+.btn-inverse {
+  background: var(--fg-inverse);
+  color: var(--accent-ink);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-1);
+}
+.btn-inverse:hover { background: var(--selva-50); box-shadow: var(--shadow-2); }
+
 .btn-sm { padding: 6px 14px; font-size: 13px; }
 .btn-lg { padding: 14px 26px; font-size: 15px; }
 
@@ -770,6 +780,8 @@ html, body {
   color: var(--fg-inverse);
   font-weight: 500;
 }
+.chip-count { font-size: 11px; color: var(--fg-muted); }
+.chip.is-selected .chip-count { color: inherit; opacity: 0.85; }
 
 /* ── Card ── */
 .card-tile {
