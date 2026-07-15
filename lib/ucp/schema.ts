@@ -367,7 +367,15 @@ export function toUcpListing(
     } : {
       id: listing.shop_id,
       name: 'Unknown',
-      slug: '',
+      // NEVER emit '' here: an empty slug lets any consumer's naive URL builder
+      // (`${ORIGIN}/embed/s/${slug}`, our own EmbedSnippetSection included)
+      // collapse to a bare `/embed/s/` — which Next's OWN trailing-slash
+      // canonicalization 308-redirects BEFORE middleware ever runs, so a
+      // middleware-level guard structurally cannot catch this shape (confirmed
+      // live, 2026-07-15: middleware correctly 404s `/embed/s` but never even
+      // sees `/embed/s/`). A guaranteed-non-empty, honestly-fake slug instead
+      // 404s through the already-correct unknown-slug path (CSP header intact).
+      slug: `unresolved-${publicListingId}`,
       verified: false,
       location: null,
       url: baseUrl,

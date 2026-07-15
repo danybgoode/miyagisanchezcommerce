@@ -105,4 +105,18 @@ test.describe('UCP shop payload — about + returns_policy (Sprint 3)', () => {
     expect(ucp.shop.about).toBeNull()
     expect(ucp.shop.returns_policy).toBeNull()
   })
+
+  test('the unknown-shop fallback branch never emits an empty slug', () => {
+    // Regression for a real production incident (2026-07-15): this fallback
+    // used to be `slug: ''`. Any consumer building an embed URL from it
+    // (`${ORIGIN}/embed/s/${slug}`) collapsed to a bare `/embed/s/` — and
+    // Next's own trailing-slash canonicalization 308-redirects that BEFORE
+    // middleware or the [slug] page's own notFound() ever run, dropping the
+    // required CSP `frame-ancestors` header. A guaranteed-non-empty,
+    // honestly-fake slug instead 404s through the already-correct
+    // unknown-slug path (see e2e/embed-shop.spec.ts's CSP assertion).
+    const ucp = toUcpListing(listing({ medusa_product_id: 'prod_test_orphan', shop: undefined }), 'https://miyagisanchez.com')
+    expect(ucp.shop.slug).not.toBe('')
+    expect(ucp.shop.slug).toBe('unresolved-prod_test_orphan')
+  })
 })
