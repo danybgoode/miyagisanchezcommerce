@@ -4,10 +4,11 @@ import {
   getFeaturedListing,
   getCuratedListings,
   getCategoryCounts,
+  getRecentListings,
   formatPrice,
   conditionLabel,
 } from '@/lib/listings'
-import { isRecentForBadge } from '@/lib/home-curation'
+import { isRecentForBadge, isNewToday, excludeIds } from '@/lib/home-curation'
 import type { Listing } from '@/lib/types'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
@@ -30,6 +31,11 @@ import { getActiveAnnouncement } from '@/lib/announcements'
 // `revalidate` to be statically analyzable). This is what turns the homepage from a
 // per-request function (~30 s cold-start) into an ISR-prerendered static page.
 export const revalidate = 60
+
+// S3.2 — Recién llegado al barrio: how many cards to show once Selección overlaps
+// are excluded (over-fetch past this via getRecentListings so there's room to filter).
+const RECIEN_LLEGADO_SIZE = 4
+const RECIEN_LLEGADO_FETCH_LIMIT = 12
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -57,17 +63,22 @@ export default async function HomePage() {
   // now prerendered at BUILD time, a thrown Medusa/Supabase fetch (e.g. a transient
   // backend hiccup during the Vercel build) would otherwise fail the whole deploy. Here
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
-  const [featured, grid, categories, pulse, dict, buyerAnnouncement] = await Promise.all([
+  const [featured, grid, categories, pulse, dict, buyerAnnouncement, recentPool] = await Promise.all([
     getFeaturedListing(now).catch(() => null),
     getCuratedListings(now).catch(() => []),
     getCategoryCounts().catch(() => []),
     getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
     getOverriddenDictionary('es'),
     getActiveAnnouncement('buyer').catch(() => null), // S3.3 — understated homepage card, ISR-safe read
+    getRecentListings(RECIEN_LLEGADO_FETCH_LIMIT).catch(() => []), // S3.2 — Recién llegado al barrio
   ])
   const home = dict.home
 
   const seleccion: Listing[] = [...(featured ? [featured] : []), ...grid]
+
+  // S3.2 — newest-first, excluding anything already shown in Selección, so the two
+  // rows never repeat a listing.
+  const recienLlegado = excludeIds(recentPool, seleccion.map(l => l.id)).slice(0, RECIEN_LLEGADO_SIZE)
 
   return (
     <HomePersonalizationProvider
@@ -75,33 +86,41 @@ export default async function HomePage() {
       publishableApiKey={process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''}
     >
     <div className="max-w-6xl mx-auto px-4 py-4">
-      {/* Value-prop ribbon: one-line orientation in place of a hero. Signed-out only —
-          for a returning signed-in buyer the ribbon's job is done, so the personalized
-          rows (HomeRetomaOffers) sit at the top instead (S2.1). Prerenders into static
-          HTML for anonymous/loading visitors; hydration removes it once Clerk confirms
-          a real session. */}
+      {/* Hero + trust badges — signed-out first-visit orientation (S3.1). Supersedes the
+          value-prop ribbon entirely: for a returning signed-in buyer this job is already
+          done, so the personalized rows (HomeRetomaOffers) sit at the top instead (S2.1).
+          Prerenders into static HTML for anonymous/loading visitors; hydration removes it
+          once Clerk confirms a real session. */}
       <AuthShow when="signed-out">
-        <div
-          data-testid="home-ribbon"
-          className="mb-6"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-            background: 'var(--accent-soft)',
-            border: '1px solid var(--selva-100)',
-            borderRadius: 'var(--r-sm)',
-            padding: '9px 14px',
-          }}
-        >
-          <i className="iconoir-shield-check" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
-          <span style={{ fontSize: 13, color: 'var(--fg)' }}>
-            {home.ribbon.body}
-          </span>
-          <Link href="/acerca" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            {home.ribbon.cta}
-          </Link>
+        <div data-testid="home-hero" className="mb-6" style={{ textAlign: 'center', padding: '20px 12px 4px' }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              fontSize: 'var(--t-xl, 22px)',
+              color: 'var(--fg)',
+              lineHeight: 1.25,
+              margin: '0 0 14px',
+            }}
+          >
+            {home.hero.heading}
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { icon: 'shield-check', label: home.hero.badges[0] },
+              { icon: 'chat-bubble', label: home.hero.badges[1] },
+              { icon: 'percentage', label: home.hero.badges[2] },
+            ].map(badge => (
+              <span
+                key={badge.icon}
+                className="badge badge-soft"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '5px 10px' }}
+              >
+                <i className={`iconoir-${badge.icon}`} style={{ fontSize: 14, color: 'var(--accent)' }} aria-hidden />
+                {badge.label}
+              </span>
+            ))}
+          </div>
         </div>
       </AuthShow>
 
@@ -124,7 +143,68 @@ export default async function HomePage() {
           the static page is unchanged for signed-out/loading visitors. */}
       <HomeRetomaOffers />
 
-      <CategoryChips className="mb-6" />
+      {/* S3.2 — Recién llegado al barrio: newest-first, deduped against Selección so no
+          listing appears twice. Same card visual language as the Selección grid below. */}
+      {recienLlegado.length > 0 && (
+        <FavoritesProvider>
+          <section className="mb-8" data-testid="home-recien-llegado">
+            <div className="flex items-center justify-between mb-4">
+              <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
+                {home.recienLlegado.heading}
+              </h2>
+              <Link href="/l?sort=reciente" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
+                {home.recienLlegado.cta}
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {recienLlegado.map(listing => (
+                <div key={listing.id} style={{ position: 'relative' }}>
+                  <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
+                    <div style={{ position: 'relative' }}>
+                      {listing.images?.[0] ? (
+                        <img
+                          src={listing.images[0].url}
+                          alt={listing.images[0].alt ?? listing.title}
+                          className="w-full object-cover"
+                          style={{ aspectRatio: '1 / 1' }}
+                        />
+                      ) : (
+                        <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>
+                          <i className="iconoir-package" style={{ fontSize: 36, color: 'var(--fg-subtle)' }} />
+                        </div>
+                      )}
+                      {isNewToday(listing.created_at, now) && (
+                        <span
+                          className="badge badge-soft"
+                          style={{ position: 'absolute', bottom: 6, left: 6, fontSize: 10 }}
+                        >
+                          {home.recienLlegado.newBadge}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing)}</p>
+                      <p style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '3px 0' }}>
+                        {listing.title}
+                      </p>
+                      {(listing.location || listing.condition) && (
+                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {[listing.location, conditionLabel(listing.condition)].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                  <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>
+                    <FavoriteButton listingId={listing.id} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </FavoritesProvider>
+      )}
+
+      <CategoryChips className="mb-6" counts={categories} />
 
       {/* S3.4 — Vecindario live strip: 1–2 real approved pulse items from the same source as
           /vecindario. Empty → the original banner. The "Ver vecindario →" link keeps the
@@ -391,9 +471,36 @@ export default async function HomePage() {
       {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Signed-out
           only: gated by the client AuthShow (no headers(), so / stays static) — the
           signed-out HTML still prerenders, then hydrates away for signed-in sessions,
-          who get their HomeSellerModule island instead of a duplicate recruit prompt. */}
+          who get their HomeSellerModule island instead of a duplicate recruit prompt.
+          S3.4 adds the dark seller-recruitment card above the unchanged signup row. */}
       {seleccion.length > 0 && (
         <AuthShow when="signed-out">
+          <section
+            data-testid="home-seller-block"
+            className="mb-6"
+            style={{
+              textAlign: 'center',
+              padding: '28px 20px',
+              borderRadius: 'var(--r-md, 12px)',
+              background: 'var(--fg)',
+              color: 'var(--fg-inverse)',
+              marginTop: 8,
+            }}
+          >
+            <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 12 }}>
+              {home.sellerBlock.heading}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 18, fontSize: 12.5, opacity: 0.85 }}>
+              {home.sellerBlock.reassurances.map(reassurance => (
+                <span key={reassurance} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <i className="iconoir-check-circle" style={{ fontSize: 13 }} aria-hidden />
+                  {reassurance}
+                </span>
+              ))}
+            </div>
+            <Link href="/vende" data-testid="home-seller-block-cta" className="btn btn-primary">{home.sellerBlock.cta}</Link>
+          </section>
+
           <section
             className="mb-4"
             style={{

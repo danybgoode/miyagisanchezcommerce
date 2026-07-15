@@ -1639,13 +1639,18 @@
     }
   },
   "home": {
-    "ribbon": {
-      "body": "Compra y vende en México — gratis, protegido y con ofertas.",
-      "cta": "Cómo funciona →"
+    "hero": {
+      "heading": "Lo que tu barrio vende, compra y recomienda",
+      "badges": ["Compra protegida", "Haz tu oferta", "0% comisiones"]
     },
     "selection": {
       "heading": "Selección de la semana",
       "cta": "Ver todo →"
+    },
+    "recienLlegado": {
+      "heading": "Recién llegado al barrio",
+      "cta": "Ver todo →",
+      "newBadge": "Nuevo hoy"
     },
     "categories": {
       "heading": "Categorías"
@@ -1664,6 +1669,11 @@
       "body": "Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.",
       "primaryCta": "Crear cuenta",
       "secondaryCta": "Seguir explorando"
+    },
+    "sellerBlock": {
+      "heading": "Pon tu puesto en el barrio",
+      "reassurances": ["Gratis y sin comisiones", "Tu propio dominio", "Pagos protegidos"],
+      "cta": "Abre tu tienda gratis"
     }
   },
   "acerca": {

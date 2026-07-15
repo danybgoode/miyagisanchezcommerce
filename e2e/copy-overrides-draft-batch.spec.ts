@@ -14,12 +14,12 @@ test.describe('draftPathOf', () => {
 test.describe('buildBatchApplyRows', () => {
   test('emits one row per SET locale field, across multiple drafts', () => {
     const drafts: Record<string, DraftEntry> = {
-      'home.ribbon.body': { namespace: 'home', key: 'ribbon.body', es: 'Nuevo texto' },
+      'home.hero.heading': { namespace: 'home', key: 'hero.heading', es: 'Nuevo texto' },
       'terms.title': { namespace: 'terms', key: 'title', es: 'Términos v2', en: 'Terms v2' },
     }
     const rows = buildBatchApplyRows(drafts)
     expect(rows).toEqual([
-      { namespace: 'home', key: 'ribbon.body', locale: 'es', value: 'Nuevo texto' },
+      { namespace: 'home', key: 'hero.heading', locale: 'es', value: 'Nuevo texto' },
       { namespace: 'terms', key: 'title', locale: 'es', value: 'Términos v2' },
       { namespace: 'terms', key: 'title', locale: 'en', value: 'Terms v2' },
     ])
@@ -38,7 +38,7 @@ test.describe('buildBatchApplyRows', () => {
 test.describe('removeAppliedDrafts', () => {
   test('a fully-successful save (empty rejected) clears every draft', () => {
     const drafts: Record<string, DraftEntry> = {
-      'home.ribbon.body': { namespace: 'home', key: 'ribbon.body', es: 'x' },
+      'home.hero.heading': { namespace: 'home', key: 'hero.heading', es: 'x' },
       'terms.title': { namespace: 'terms', key: 'title', es: 'y' },
     }
     expect(removeAppliedDrafts(drafts, [])).toEqual({})
@@ -46,7 +46,7 @@ test.describe('removeAppliedDrafts', () => {
 
   test('a partial failure keeps ONLY the rejected drafts pending', () => {
     const drafts: Record<string, DraftEntry> = {
-      'home.ribbon.body': { namespace: 'home', key: 'ribbon.body', es: 'x' },
+      'home.hero.heading': { namespace: 'home', key: 'hero.heading', es: 'x' },
       'terms.title': { namespace: 'terms', key: 'title', es: 'y' },
     }
     const next = removeAppliedDrafts(drafts, [{ namespace: 'terms', key: 'title', error: 'unknown key' }])
@@ -61,13 +61,13 @@ test.describe('removeAppliedDrafts', () => {
 
 test.describe('updateDraftLocale', () => {
   test('a new value different from the live value creates a fresh draft entry', () => {
-    const updated = updateDraftLocale(undefined, 'home', 'ribbon.body', 'es', 'Nuevo texto', 'Promoción de temporada')
-    expect(updated).toEqual({ namespace: 'home', key: 'ribbon.body', es: 'Nuevo texto' })
+    const updated = updateDraftLocale(undefined, 'home', 'hero.heading', 'es', 'Nuevo texto', 'Promoción de temporada')
+    expect(updated).toEqual({ namespace: 'home', key: 'hero.heading', es: 'Nuevo texto' })
   })
 
   test('typing back to the live value on the ONLY dirty locale drops the whole entry (edit-then-revert)', () => {
-    const existing: DraftEntry = { namespace: 'home', key: 'ribbon.body', es: 'Nuevo texto' }
-    const updated = updateDraftLocale(existing, 'home', 'ribbon.body', 'es', 'Promoción de temporada', 'Promoción de temporada')
+    const existing: DraftEntry = { namespace: 'home', key: 'hero.heading', es: 'Nuevo texto' }
+    const updated = updateDraftLocale(existing, 'home', 'hero.heading', 'es', 'Promoción de temporada', 'Promoción de temporada')
     expect(updated).toBeNull()
   })
 
