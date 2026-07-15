@@ -82,7 +82,7 @@ test.describe('static homepage · curated shell, no personalization', () => {
     expect(chipRail).toContain('Todas')
   })
 
-  test('the seller block renders above the unchanged signup row (S3.4)', async ({ request }) => {
+  test('the seller block is the sole closing CTA, linking straight to /sign-up (S3.4 follow-up)', async ({ request }) => {
     const res = await request.get('/', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
@@ -97,12 +97,12 @@ test.describe('static homepage · curated shell, no personalization', () => {
     }
     const cta = html.match(/<a[^>]*data-testid="home-seller-block-cta"[^>]*>/)?.[0] ?? ''
     expect(cta).not.toBe('')
-    expect(cta).toContain('href="/vende"')
+    expect(cta).toContain('href="/sign-up"')
 
-    // Unchanged — the signup/explore row must still carry its exact original testid/href.
-    const uneteLink = html.match(/<a[^>]*data-testid="home-unete-signup"[^>]*>/)?.[0] ?? ''
-    expect(uneteLink).not.toBe('')
-    expect(uneteLink).toContain('href="/sign-up"')
+    // The separate "Únete a la comunidad" signup row was removed as redundant once
+    // this card became the closing CTA — assert it's genuinely gone, not just moved.
+    expect(html).not.toContain('data-testid="home-unete-signup"')
+    expect(html).not.toContain('Únete a la comunidad')
   })
 
   // admin-content-and-announcements S2.2 — the homepage's editorial strings now flow
