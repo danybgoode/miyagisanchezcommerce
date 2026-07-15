@@ -78,6 +78,29 @@ test.describe('static homepage · curated shell, no personalization', () => {
     expect(chipRail).toContain('Todas')
   })
 
+  test('the seller block renders above the unchanged signup row (S3.4)', async ({ request }) => {
+    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    // Gated on Selección being non-empty (same condition page.tsx renders on) —
+    // rather than a different endpoint's non-emptiness, which can disagree with it.
+    const hasSellerBlock = html.includes('data-testid="home-seller-block"')
+    test.skip(!hasSellerBlock, 'Selección is empty in this environment (seller block hidden)')
+
+    expect(html).toContain(es.home.sellerBlock.heading)
+    for (const reassurance of es.home.sellerBlock.reassurances) {
+      expect(html).toContain(reassurance)
+    }
+    const cta = html.match(/<a[^>]*data-testid="home-seller-block-cta"[^>]*>/)?.[0] ?? ''
+    expect(cta).not.toBe('')
+    expect(cta).toContain('href="/vende"')
+
+    // Unchanged — the signup/explore row must still carry its exact original testid/href.
+    const uneteLink = html.match(/<a[^>]*data-testid="home-unete-signup"[^>]*>/)?.[0] ?? ''
+    expect(uneteLink).not.toBe('')
+    expect(uneteLink).toContain('href="/sign-up"')
+  })
+
   // admin-content-and-announcements S2.2 — the homepage's editorial strings now flow
   // through `getOverriddenDictionary('es').home` (locales/es.json's `home` namespace)
   // instead of being hardcoded JSX literals. Asserting against the imported dictionary

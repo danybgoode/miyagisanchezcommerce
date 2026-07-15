@@ -1590,6 +1590,11 @@
       "body": "Save favorites, make offers, and open your shop — no commissions.",
       "primaryCta": "Create account",
       "secondaryCta": "Keep exploring"
+    },
+    "sellerBlock": {
+      "heading": "Set up your spot in the neighborhood",
+      "reassurances": ["Free, no commissions", "Your own domain", "Protected payments"],
+      "cta": "Open your shop for free"
     }
   },
   "acerca": {

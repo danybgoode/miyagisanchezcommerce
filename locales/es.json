@@ -1669,6 +1669,11 @@
       "body": "Guarda favoritos, haz ofertas y abre tu tienda — sin comisiones.",
       "primaryCta": "Crear cuenta",
       "secondaryCta": "Seguir explorando"
+    },
+    "sellerBlock": {
+      "heading": "Pon tu puesto en el barrio",
+      "reassurances": ["Gratis y sin comisiones", "Tu propio dominio", "Pagos protegidos"],
+      "cta": "Abre tu tienda gratis"
     }
   },
   "acerca": {

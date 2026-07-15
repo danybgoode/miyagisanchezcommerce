@@ -471,9 +471,36 @@ export default async function HomePage() {
       {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Signed-out
           only: gated by the client AuthShow (no headers(), so / stays static) — the
           signed-out HTML still prerenders, then hydrates away for signed-in sessions,
-          who get their HomeSellerModule island instead of a duplicate recruit prompt. */}
+          who get their HomeSellerModule island instead of a duplicate recruit prompt.
+          S3.4 adds the dark seller-recruitment card above the unchanged signup row. */}
       {seleccion.length > 0 && (
         <AuthShow when="signed-out">
+          <section
+            data-testid="home-seller-block"
+            className="mb-6"
+            style={{
+              textAlign: 'center',
+              padding: '28px 20px',
+              borderRadius: 'var(--r-md, 12px)',
+              background: 'var(--fg)',
+              color: 'var(--fg-inverse)',
+              marginTop: 8,
+            }}
+          >
+            <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 12 }}>
+              {home.sellerBlock.heading}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 18, fontSize: 12.5, opacity: 0.85 }}>
+              {home.sellerBlock.reassurances.map(reassurance => (
+                <span key={reassurance} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <i className="iconoir-check-circle" style={{ fontSize: 13 }} aria-hidden />
+                  {reassurance}
+                </span>
+              ))}
+            </div>
+            <Link href="/vende" data-testid="home-seller-block-cta" className="btn btn-primary">{home.sellerBlock.cta}</Link>
+          </section>
+
           <section
             className="mb-4"
             style={{
