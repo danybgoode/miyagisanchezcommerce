@@ -105,4 +105,18 @@ test.describe('UCP shop payload — about + returns_policy (Sprint 3)', () => {
     expect(ucp.shop.about).toBeNull()
     expect(ucp.shop.returns_policy).toBeNull()
   })
+
+  test('the unknown-shop fallback branch keeps slug falsy (deliberately empty, not a fake placeholder)', () => {
+    // A fake non-empty "unresolved-<id>" slug was tried for this fallback
+    // (2026-07-15 embed-iframe incident response) and reverted: every other
+    // consumer in this codebase (own-shop-seo.spec.ts, static-shell-split.spec.ts,
+    // e2e/embed-shop.spec.ts) reads `shop?.slug` and treats falsy as "no real
+    // shop" to skip/guard — a synthetic truthy slug defeated that check and sent
+    // them to a slug that doesn't exist, breaking 3 previously-green specs in CI.
+    // The actual fix lives upstream: apps/backend's seller-product-create.ts now
+    // makes product-create + seller-link atomic, so a listing can no longer reach
+    // this fallback branch as a live, catalog-visible product in the first place.
+    const ucp = toUcpListing(listing({ shop: undefined }), 'https://miyagisanchez.com')
+    expect(ucp.shop.slug).toBe('')
+  })
 })

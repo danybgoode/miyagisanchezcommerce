@@ -367,6 +367,16 @@ export function toUcpListing(
     } : {
       id: listing.shop_id,
       name: 'Unknown',
+      // Deliberately '' (not a fake non-empty slug — tried and reverted, see
+      // PR history): every other consumer in this codebase (own-shop-seo.spec.ts,
+      // static-shell-split.spec.ts, this file's own e2e/embed-shop.spec.ts) reads
+      // `shop?.slug` and treats falsy as "no real shop" — a synthetic truthy
+      // placeholder defeats that check and sends them to a slug that doesn't
+      // exist. The actual fix for the 2026-07-15 embed-iframe incident is
+      // upstream of this fallback: apps/backend's seller-product-create.ts now
+      // makes product-create + seller-link atomic, so a published, catalog-
+      // visible, seller-less listing (the thing that reaches this branch at
+      // all) can no longer be created — see the paired backend PR.
       slug: '',
       verified: false,
       location: null,

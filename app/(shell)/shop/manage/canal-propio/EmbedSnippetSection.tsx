@@ -54,6 +54,21 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
     scriptLoaded.current = true
   }, [])
 
+  // Defense-in-depth: this component only ever renders for the logged-in
+  // seller's OWN shop, so `slug` should never be empty in practice — but an
+  // unresolved-seller listing elsewhere in the catalog showed a shop CAN reach
+  // downstream consumers with an empty slug, so never emit a broken
+  // `/embed/s/` snippet. AFTER the hooks above (never before — an early
+  // return ahead of useState/useEffect would violate the Rules of Hooks the
+  // moment `slug` changed from empty to non-empty on the same instance).
+  if (!slug) {
+    return (
+      <section id="widget" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <p className="text-sm text-[var(--color-muted)]">El widget de tienda no está disponible por ahora.</p>
+      </section>
+    )
+  }
+
   async function rotate() {
     setRotating(true)
     try {
