@@ -106,17 +106,17 @@ test.describe('UCP shop payload — about + returns_policy (Sprint 3)', () => {
     expect(ucp.shop.returns_policy).toBeNull()
   })
 
-  test('the unknown-shop fallback branch never emits an empty slug', () => {
-    // Regression for a real production incident (2026-07-15): this fallback
-    // used to be `slug: ''`. Any consumer building an embed URL from it
-    // (`${ORIGIN}/embed/s/${slug}`) collapsed to a bare `/embed/s/` — and
-    // Next's own trailing-slash canonicalization 308-redirects that BEFORE
-    // middleware or the [slug] page's own notFound() ever run, dropping the
-    // required CSP `frame-ancestors` header. A guaranteed-non-empty,
-    // honestly-fake slug instead 404s through the already-correct
-    // unknown-slug path (see e2e/embed-shop.spec.ts's CSP assertion).
-    const ucp = toUcpListing(listing({ medusa_product_id: 'prod_test_orphan', shop: undefined }), 'https://miyagisanchez.com')
-    expect(ucp.shop.slug).not.toBe('')
-    expect(ucp.shop.slug).toBe('unresolved-prod_test_orphan')
+  test('the unknown-shop fallback branch keeps slug falsy (deliberately empty, not a fake placeholder)', () => {
+    // A fake non-empty "unresolved-<id>" slug was tried for this fallback
+    // (2026-07-15 embed-iframe incident response) and reverted: every other
+    // consumer in this codebase (own-shop-seo.spec.ts, static-shell-split.spec.ts,
+    // e2e/embed-shop.spec.ts) reads `shop?.slug` and treats falsy as "no real
+    // shop" to skip/guard — a synthetic truthy slug defeated that check and sent
+    // them to a slug that doesn't exist, breaking 3 previously-green specs in CI.
+    // The actual fix lives upstream: apps/backend's seller-product-create.ts now
+    // makes product-create + seller-link atomic, so a listing can no longer reach
+    // this fallback branch as a live, catalog-visible product in the first place.
+    const ucp = toUcpListing(listing({ shop: undefined }), 'https://miyagisanchez.com')
+    expect(ucp.shop.slug).toBe('')
   })
 })

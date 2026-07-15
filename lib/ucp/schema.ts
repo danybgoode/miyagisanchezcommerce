@@ -367,15 +367,17 @@ export function toUcpListing(
     } : {
       id: listing.shop_id,
       name: 'Unknown',
-      // NEVER emit '' here: an empty slug lets any consumer's naive URL builder
-      // (`${ORIGIN}/embed/s/${slug}`, our own EmbedSnippetSection included)
-      // collapse to a bare `/embed/s/` — which Next's OWN trailing-slash
-      // canonicalization 308-redirects BEFORE middleware ever runs, so a
-      // middleware-level guard structurally cannot catch this shape (confirmed
-      // live, 2026-07-15: middleware correctly 404s `/embed/s` but never even
-      // sees `/embed/s/`). A guaranteed-non-empty, honestly-fake slug instead
-      // 404s through the already-correct unknown-slug path (CSP header intact).
-      slug: `unresolved-${publicListingId}`,
+      // Deliberately '' (not a fake non-empty slug — tried and reverted, see
+      // PR history): every other consumer in this codebase (own-shop-seo.spec.ts,
+      // static-shell-split.spec.ts, this file's own e2e/embed-shop.spec.ts) reads
+      // `shop?.slug` and treats falsy as "no real shop" — a synthetic truthy
+      // placeholder defeats that check and sends them to a slug that doesn't
+      // exist. The actual fix for the 2026-07-15 embed-iframe incident is
+      // upstream of this fallback: apps/backend's seller-product-create.ts now
+      // makes product-create + seller-link atomic, so a published, catalog-
+      // visible, seller-less listing (the thing that reaches this branch at
+      // all) can no longer be created — see the paired backend PR.
+      slug: '',
       verified: false,
       location: null,
       url: baseUrl,

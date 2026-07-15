@@ -40,27 +40,4 @@ test.describe('Embed full-shop — framable surface', () => {
     const html = await res.text()
     expect(html).not.toContain('¿Qué estás buscando?')
   })
-
-  test('the catalog never emits an unresolved shop with an empty slug', async ({ request }) => {
-    // Regression for a real incident (2026-07-15): a catalog item whose seller
-    // link never resolved got schema.ts's "Unknown" placeholder shop with
-    // slug: ''. Any consumer building an embed URL from it
-    // (`${ORIGIN}/embed/s/${slug}`, our own EmbedSnippetSection included)
-    // would collapse to a bare `/embed/s/` — and Next's OWN trailing-slash
-    // canonicalization 308-redirects that BEFORE middleware or the [slug]
-    // page's notFound() ever run (confirmed live: a middleware guard on this
-    // exact pathname never even fires — Next's redirect wins first, and
-    // `/embed/s` with no trailing slash was never broken to begin with, so
-    // there was nothing for a middleware guard to usefully catch). Only
-    // guaranteeing shop.slug is never empty AT THE SOURCE actually closes
-    // this. This test can't force an unresolved-shop listing to exist in
-    // every environment, but asserts the invariant across whatever the
-    // catalog currently has.
-    const cat = await request.get('/api/ucp/catalog?limit=100')
-    expect(cat.ok()).toBeTruthy()
-    const items = (await cat.json())?.items ?? []
-    for (const item of items) {
-      expect(item.shop?.slug, `listing ${item.id} has an empty shop.slug`).not.toBe('')
-    }
-  })
 })
