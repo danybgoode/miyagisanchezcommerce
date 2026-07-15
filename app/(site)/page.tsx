@@ -472,7 +472,9 @@ export default async function HomePage() {
           only: gated by the client AuthShow (no headers(), so / stays static) — the
           signed-out HTML still prerenders, then hydrates away for signed-in sessions,
           who get their HomeSellerModule island instead of a duplicate recruit prompt.
-          S3.4 adds the dark seller-recruitment card above the unchanged signup row. */}
+          This IS the closing CTA (the separate "Únete a la comunidad" signup row was
+          removed as redundant once this card shipped — the CTA below goes straight to
+          /sign-up so there's exactly one bottom-of-page ask, not two). */}
       {seleccion.length > 0 && (
         <AuthShow when="signed-out">
           <section
@@ -500,30 +502,9 @@ export default async function HomePage() {
                 </span>
               ))}
             </div>
-            <Link href="/vende" data-testid="home-seller-block-cta" className="btn btn-inverse">
+            <Link href="/sign-up" data-testid="home-seller-block-cta" className="btn btn-inverse">
               {home.sellerBlock.cta}
             </Link>
-          </section>
-
-          <section
-            className="mb-4"
-            style={{
-              textAlign: 'center',
-              padding: '28px 16px',
-              borderTop: '1px solid var(--border)',
-              marginTop: 8,
-            }}
-          >
-            <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 4 }}>
-              {home.terminalCta.heading}
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
-              {home.terminalCta.body}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Link href="/sign-up" data-testid="home-unete-signup" className="btn btn-primary">{home.terminalCta.primaryCta}</Link>
-              <Link href="/l" className="btn btn-secondary">{home.terminalCta.secondaryCta}</Link>
-            </div>
           </section>
         </AuthShow>
       )}

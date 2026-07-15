@@ -16,19 +16,20 @@ import { test, expect } from '@playwright/test'
  * regexes are the robust form (LEARNINGS, nav-reorg S4).
  */
 test.describe('home auth-state · signed-out CTAs prerender into the static HTML', () => {
-  test('S1.2 — the "Únete a la comunidad" recruit CTA is present for anonymous (signed-out) viewers', async ({
+  test('S1.2 — the seller-block recruit CTA is present for anonymous (signed-out) viewers, linking to /sign-up', async ({
     request,
   }) => {
     const res = await request.get('/', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
-    // The terminal recruit section prerenders, AND its OWN "Crear cuenta" button points
-    // to /sign-up — scoped via the testid so a stray footer /sign-up can't pass this test.
-    expect(html).toContain('Únete a la comunidad')
-    const uneteLink = html.match(/<a[^>]*data-testid="home-unete-signup"[^>]*>/)?.[0] ?? ''
-    expect(uneteLink).not.toBe('')
-    expect(uneteLink).toContain('href="/sign-up"')
+    // The seller-recruitment card is the sole closing CTA (the separate "Únete a la
+    // comunidad" signup row was removed as redundant once this card shipped) — scoped
+    // via the testid so a stray footer /sign-up can't pass this test.
+    expect(html).toContain('data-testid="home-seller-block"')
+    const sellerCta = html.match(/<a[^>]*data-testid="home-seller-block-cta"[^>]*>/)?.[0] ?? ''
+    expect(sellerCta).not.toBe('')
+    expect(sellerCta).toContain('href="/sign-up"')
   })
 
   test('S1.3 — the footer "Crear cuenta" → /sign-up link prerenders for anonymous viewers', async ({
