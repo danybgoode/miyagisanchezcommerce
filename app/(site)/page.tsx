@@ -204,7 +204,7 @@ export default async function HomePage() {
         </FavoritesProvider>
       )}
 
-      <CategoryChips className="mb-6" />
+      <CategoryChips className="mb-6" counts={categories} />
 
       {/* S3.4 — Vecindario live strip: 1–2 real approved pulse items from the same source as
           /vecindario. Empty → the original banner. The "Ver vecindario →" link keeps the

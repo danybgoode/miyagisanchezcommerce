@@ -56,6 +56,28 @@ test.describe('static homepage · curated shell, no personalization', () => {
     expect(html).toMatch(/href="\/l\?sort=reciente"[^>]*>\s*Ver todo/)
   })
 
+  test('Pasillos chips carry the same live counts as the Categorías list (S3.3)', async ({ request }) => {
+    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+
+    const categoriasSection = html.match(/<h2[^>]*>Categorías<\/h2>[\s\S]*?<\/section>/)?.[0]
+    test.skip(!categoriasSection, 'no categories with active listings in this environment')
+
+    // Every "label count" pair from the Categorías list must also appear in the
+    // chip rail, proving both read the same getCategoryCounts() data (no drift).
+    const rows = [...categoriasSection!.matchAll(
+      /<span[^>]*>([^<]+)<\/span><span[^>]*>(\d+)<\/span>/g,
+    )]
+    expect(rows.length).toBeGreaterThan(0)
+    const chipRail = html.match(/chip-rail mb-6"[\s\S]*?<\/div>/)?.[0] ?? ''
+    for (const [, label, count] of rows) {
+      expect(chipRail).toContain(`${label}<!-- --> ${count}`)
+    }
+    // The lead chip reads "Todas →" (relabeled from "Todo") once counts are passed.
+    expect(chipRail).toContain('Todas')
+  })
+
   // admin-content-and-announcements S2.2 — the homepage's editorial strings now flow
   // through `getOverriddenDictionary('es').home` (locales/es.json's `home` namespace)
   // instead of being hardcoded JSX literals. Asserting against the imported dictionary
