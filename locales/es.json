@@ -1671,8 +1671,13 @@
       "secondaryCta": "Seguir explorando"
     },
     "sellerBlock": {
+      "eyebrow": "Vende en Miyagi",
       "heading": "Pon tu puesto en el barrio",
-      "reassurances": ["Gratis y sin comisiones", "Tu propio dominio", "Pagos protegidos"],
+      "reassurances": [
+        "Gratis y sin comisiones, siempre",
+        "Tu tienda, hasta con tu propio dominio",
+        "Pagos protegidos para ti y tu cliente"
+      ],
       "cta": "Abre tu tienda gratis"
     }
   },

@@ -479,26 +479,30 @@ export default async function HomePage() {
             data-testid="home-seller-block"
             className="mb-6"
             style={{
-              textAlign: 'center',
-              padding: '28px 20px',
-              borderRadius: 'var(--r-md, 12px)',
-              background: 'var(--fg)',
-              color: 'var(--fg-inverse)',
+              textAlign: 'left',
+              padding: '28px 24px',
+              borderRadius: 'var(--r-lg)',
+              background: 'var(--selva-800)',
               marginTop: 8,
             }}
           >
-            <p style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 12 }}>
+            <p className="t-eyebrow" style={{ color: 'var(--selva-300)', marginBottom: 8 }}>
+              {home.sellerBlock.eyebrow}
+            </p>
+            <p style={{ fontWeight: 700, fontSize: 20, color: 'var(--fg-inverse)', lineHeight: 1.25, marginBottom: 18 }}>
               {home.sellerBlock.heading}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 18, fontSize: 12.5, opacity: 0.85 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
               {home.sellerBlock.reassurances.map(reassurance => (
-                <span key={reassurance} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <i className="iconoir-check-circle" style={{ fontSize: 13 }} aria-hidden />
+                <span key={reassurance} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--fg-inverse)' }}>
+                  <i className="iconoir-check-circle" style={{ fontSize: 16, color: 'var(--selva-300)', flexShrink: 0 }} aria-hidden />
                   {reassurance}
                 </span>
               ))}
             </div>
-            <Link href="/vende" data-testid="home-seller-block-cta" className="btn btn-primary">{home.sellerBlock.cta}</Link>
+            <Link href="/vende" data-testid="home-seller-block-cta" className="btn btn-inverse">
+              {home.sellerBlock.cta}
+            </Link>
           </section>
 
           <section
