@@ -202,6 +202,24 @@ export function isRecentForBadge(createdAt: string, now: number): boolean {
   return ageMs(createdAt, now) < RECENT_HOURS * HOUR_MS
 }
 
+/** Whether a listing published within the last 24h earns the "Nuevo hoy" badge
+ * (S3.2, Recién llegado row) — a tighter, distinct window from `isRecentForBadge`'s
+ * 48h Selección-grid timestamp badge. */
+export function isNewToday(createdAt: string, now: number): boolean {
+  return ageMs(createdAt, now) < 24 * HOUR_MS
+}
+
+/**
+ * Filters `ids` out of `listings` — the dedupe primitive for a second row that must
+ * never repeat a listing another row already surfaced (S3.2: Recién llegado vs
+ * Selección). Distinct from `unionById`, which merges two pools together rather
+ * than excluding one from another.
+ */
+export function excludeIds<T extends { id: string }>(listings: T[], ids: string[]): T[] {
+  const exclude = new Set(ids)
+  return listings.filter(l => !exclude.has(l.id))
+}
+
 export type CategoryCount = { key: string; label: string; icon: string; count: number }
 
 /**

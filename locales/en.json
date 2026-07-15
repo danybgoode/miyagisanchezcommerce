@@ -1568,6 +1568,11 @@
       "heading": "This week's picks",
       "cta": "View all →"
     },
+    "recienLlegado": {
+      "heading": "New in the neighborhood",
+      "cta": "View all →",
+      "newBadge": "New today"
+    },
     "categories": {
       "heading": "Categories"
     },

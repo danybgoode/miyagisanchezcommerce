@@ -4,10 +4,11 @@ import {
   getFeaturedListing,
   getCuratedListings,
   getCategoryCounts,
+  getRecentListings,
   formatPrice,
   conditionLabel,
 } from '@/lib/listings'
-import { isRecentForBadge } from '@/lib/home-curation'
+import { isRecentForBadge, isNewToday, excludeIds } from '@/lib/home-curation'
 import type { Listing } from '@/lib/types'
 import CategoryChips from '@/app/components/CategoryChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
@@ -30,6 +31,11 @@ import { getActiveAnnouncement } from '@/lib/announcements'
 // `revalidate` to be statically analyzable). This is what turns the homepage from a
 // per-request function (~30 s cold-start) into an ISR-prerendered static page.
 export const revalidate = 60
+
+// S3.2 — Recién llegado al barrio: how many cards to show once Selección overlaps
+// are excluded (over-fetch past this via getRecentListings so there's room to filter).
+const RECIEN_LLEGADO_SIZE = 4
+const RECIEN_LLEGADO_FETCH_LIMIT = 12
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -57,17 +63,22 @@ export default async function HomePage() {
   // now prerendered at BUILD time, a thrown Medusa/Supabase fetch (e.g. a transient
   // backend hiccup during the Vercel build) would otherwise fail the whole deploy. Here
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
-  const [featured, grid, categories, pulse, dict, buyerAnnouncement] = await Promise.all([
+  const [featured, grid, categories, pulse, dict, buyerAnnouncement, recentPool] = await Promise.all([
     getFeaturedListing(now).catch(() => null),
     getCuratedListings(now).catch(() => []),
     getCategoryCounts().catch(() => []),
     getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
     getOverriddenDictionary('es'),
     getActiveAnnouncement('buyer').catch(() => null), // S3.3 — understated homepage card, ISR-safe read
+    getRecentListings(RECIEN_LLEGADO_FETCH_LIMIT).catch(() => []), // S3.2 — Recién llegado al barrio
   ])
   const home = dict.home
 
   const seleccion: Listing[] = [...(featured ? [featured] : []), ...grid]
+
+  // S3.2 — newest-first, excluding anything already shown in Selección, so the two
+  // rows never repeat a listing.
+  const recienLlegado = excludeIds(recentPool, seleccion.map(l => l.id)).slice(0, RECIEN_LLEGADO_SIZE)
 
   return (
     <HomePersonalizationProvider
@@ -131,6 +142,67 @@ export default async function HomePage() {
           Hydrate client-side from the S3 Cloud Run endpoint; render nothing otherwise so
           the static page is unchanged for signed-out/loading visitors. */}
       <HomeRetomaOffers />
+
+      {/* S3.2 — Recién llegado al barrio: newest-first, deduped against Selección so no
+          listing appears twice. Same card visual language as the Selección grid below. */}
+      {recienLlegado.length > 0 && (
+        <FavoritesProvider>
+          <section className="mb-8" data-testid="home-recien-llegado">
+            <div className="flex items-center justify-between mb-4">
+              <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
+                {home.recienLlegado.heading}
+              </h2>
+              <Link href="/l?sort=reciente" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
+                {home.recienLlegado.cta}
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {recienLlegado.map(listing => (
+                <div key={listing.id} style={{ position: 'relative' }}>
+                  <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
+                    <div style={{ position: 'relative' }}>
+                      {listing.images?.[0] ? (
+                        <img
+                          src={listing.images[0].url}
+                          alt={listing.images[0].alt ?? listing.title}
+                          className="w-full object-cover"
+                          style={{ aspectRatio: '1 / 1' }}
+                        />
+                      ) : (
+                        <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>
+                          <i className="iconoir-package" style={{ fontSize: 36, color: 'var(--fg-subtle)' }} />
+                        </div>
+                      )}
+                      {isNewToday(listing.created_at, now) && (
+                        <span
+                          className="badge badge-soft"
+                          style={{ position: 'absolute', bottom: 6, left: 6, fontSize: 10 }}
+                        >
+                          {home.recienLlegado.newBadge}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing)}</p>
+                      <p style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '3px 0' }}>
+                        {listing.title}
+                      </p>
+                      {(listing.location || listing.condition) && (
+                        <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {[listing.location, conditionLabel(listing.condition)].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                  <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>
+                    <FavoriteButton listingId={listing.id} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </FavoritesProvider>
+      )}
 
       <CategoryChips className="mb-6" />
 

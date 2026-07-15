@@ -46,6 +46,16 @@ test.describe('static homepage · curated shell, no personalization', () => {
     expect(html).toContain('Selección de la semana')
   })
 
+  test('Recién llegado al barrio renders anonymously when the recent-listings pool is non-empty', async ({ request }) => {
+    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    const hasRecienLlegado = html.includes('data-testid="home-recien-llegado"')
+    test.skip(!hasRecienLlegado, 'no listings available for Recién llegado in this environment')
+    expect(html).toContain(es.home.recienLlegado.heading)
+    expect(html).toMatch(/href="\/l\?sort=reciente"[^>]*>\s*Ver todo/)
+  })
+
   // admin-content-and-announcements S2.2 — the homepage's editorial strings now flow
   // through `getOverriddenDictionary('es').home` (locales/es.json's `home` namespace)
   // instead of being hardcoded JSX literals. Asserting against the imported dictionary

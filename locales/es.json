@@ -1647,6 +1647,11 @@
       "heading": "Selección de la semana",
       "cta": "Ver todo →"
     },
+    "recienLlegado": {
+      "heading": "Recién llegado al barrio",
+      "cta": "Ver todo →",
+      "newBadge": "Nuevo hoy"
+    },
     "categories": {
       "heading": "Categorías"
     },

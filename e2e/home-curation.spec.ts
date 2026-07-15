@@ -7,6 +7,8 @@ import {
   curatedGridSize,
   featuredRank,
   isRecentForBadge,
+  isNewToday,
+  excludeIds,
   liveCategoryCounts,
   seededShuffle,
   windowSeed,
@@ -286,6 +288,37 @@ test.describe('home-curation · recent badge', () => {
   test('true under 48h, false at/after', () => {
     expect(isRecentForBadge(new Date(NOW - (RECENT_HOURS - 1) * HOUR).toISOString(), NOW)).toBe(true)
     expect(isRecentForBadge(new Date(NOW - (RECENT_HOURS + 1) * HOUR).toISOString(), NOW)).toBe(false)
+  })
+})
+
+test.describe('home-curation · Nuevo hoy badge (S3.2)', () => {
+  test('true under 24h, false at/after — a tighter window than the 48h recent badge', () => {
+    expect(isNewToday(new Date(NOW - 23 * HOUR).toISOString(), NOW)).toBe(true)
+    expect(isNewToday(new Date(NOW - 25 * HOUR).toISOString(), NOW)).toBe(false)
+    expect(isNewToday(new Date(NOW - 24 * HOUR).toISOString(), NOW)).toBe(false) // boundary excluded
+  })
+})
+
+test.describe('home-curation · excludeIds — Recién llegado dedupe (S3.2)', () => {
+  test('drops listings whose id is in the exclude set, keeps the rest in order', () => {
+    const pool = [fresh, stale, makeListing({ id: 'c' })]
+    expect(excludeIds(pool, ['stale']).map(l => l.id)).toEqual(['fresh', 'c'])
+  })
+
+  test('an empty exclude list is a no-op', () => {
+    const pool = [fresh, stale]
+    expect(excludeIds(pool, []).map(l => l.id)).toEqual(['fresh', 'stale'])
+  })
+
+  test('excluding every id yields an empty array', () => {
+    const pool = [fresh, stale]
+    expect(excludeIds(pool, ['fresh', 'stale'])).toEqual([])
+  })
+
+  test('is non-mutating', () => {
+    const pool = [fresh, stale]
+    excludeIds(pool, ['stale'])
+    expect(pool.map(l => l.id)).toEqual(['fresh', 'stale'])
   })
 })
 
