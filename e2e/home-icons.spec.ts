@@ -34,10 +34,14 @@ test.describe('homepage icon language', () => {
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
-    // Positive: the category rail rendered Iconoir classes server-side.
-    expect(html).toContain('iconoir-view-grid') // the "Todo" chip
-    expect(html).toContain('iconoir-car')        // autos
-    expect(html).toContain('iconoir-home')       // inmuebles
+    // Positive: the category rail rendered Iconoir classes server-side. The lead
+    // chip icon is data-independent; individual category icons are asserted
+    // generically (home-dynamic-rows-restore-and-polish S3.3 filters Pasillos
+    // chips to categories with ≥1 live listing, so a specific category like
+    // "autos" is no longer guaranteed present in every environment).
+    expect(html).toContain('iconoir-view-grid') // the lead chip, always present
+    const anyCategoryIconRendered = CATEGORIES.some(cat => html.includes(`iconoir-${cat.icon}`))
+    expect(anyCategoryIconRendered, 'expected at least one Iconoir category glyph in the homepage SSR').toBe(true)
 
     // Negative: none of the design emoji we migrated away from survive.
     for (const emoji of REMOVED_DESIGN_EMOJI) {

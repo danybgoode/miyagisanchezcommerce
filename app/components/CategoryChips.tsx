@@ -15,7 +15,12 @@ type Props = {
 }
 
 export default function CategoryChips({ activeCategory, className, counts }: Props) {
-  const items = counts ?? CATEGORIES
+  // Degrade to the full static list (no counts) when the live-counts fetch comes
+  // back empty — a transient `getCategoryCounts()` gap must never take the whole
+  // browse-by-category rail down with it (that's a distinct concern from the
+  // "only categories with ≥1 listing" rule the Categorías list section applies).
+  const hasCounts = !!counts && counts.length > 0
+  const items = hasCounts ? counts! : CATEGORIES
   return (
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
       {/* Lead chip — clears category filter */}
@@ -24,7 +29,7 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
         className={`chip${!activeCategory ? ' is-selected' : ''}`}
       >
         <i className="iconoir-view-grid" aria-hidden />
-        <span>{counts ? 'Todas →' : 'Todo'}</span>
+        <span>{hasCounts ? 'Todas →' : 'Todo'}</span>
       </Link>
 
       {items.map(cat => (
@@ -34,7 +39,7 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
           className={`chip${cat.key === activeCategory ? ' is-selected' : ''}`}
         >
           <i className={`iconoir-${cat.icon}`} aria-hidden />
-          <span>{cat.label}{counts ? ` ${(cat as CategoryCount).count}` : ''}</span>
+          <span>{cat.label}{hasCounts ? ` ${(cat as CategoryCount).count}` : ''}</span>
         </Link>
       ))}
     </div>
