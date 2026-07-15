@@ -75,33 +75,41 @@ export default async function HomePage() {
       publishableApiKey={process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''}
     >
     <div className="max-w-6xl mx-auto px-4 py-4">
-      {/* Value-prop ribbon: one-line orientation in place of a hero. Signed-out only —
-          for a returning signed-in buyer the ribbon's job is done, so the personalized
-          rows (HomeRetomaOffers) sit at the top instead (S2.1). Prerenders into static
-          HTML for anonymous/loading visitors; hydration removes it once Clerk confirms
-          a real session. */}
+      {/* Hero + trust badges — signed-out first-visit orientation (S3.1). Supersedes the
+          value-prop ribbon entirely: for a returning signed-in buyer this job is already
+          done, so the personalized rows (HomeRetomaOffers) sit at the top instead (S2.1).
+          Prerenders into static HTML for anonymous/loading visitors; hydration removes it
+          once Clerk confirms a real session. */}
       <AuthShow when="signed-out">
-        <div
-          data-testid="home-ribbon"
-          className="mb-6"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-            background: 'var(--accent-soft)',
-            border: '1px solid var(--selva-100)',
-            borderRadius: 'var(--r-sm)',
-            padding: '9px 14px',
-          }}
-        >
-          <i className="iconoir-shield-check" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
-          <span style={{ fontSize: 13, color: 'var(--fg)' }}>
-            {home.ribbon.body}
-          </span>
-          <Link href="/acerca" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            {home.ribbon.cta}
-          </Link>
+        <div data-testid="home-hero" className="mb-6" style={{ textAlign: 'center', padding: '20px 12px 4px' }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              fontSize: 'var(--t-xl, 22px)',
+              color: 'var(--fg)',
+              lineHeight: 1.25,
+              margin: '0 0 14px',
+            }}
+          >
+            {home.hero.heading}
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { icon: 'shield-check', label: home.hero.badges[0] },
+              { icon: 'chat-bubble', label: home.hero.badges[1] },
+              { icon: 'percentage', label: home.hero.badges[2] },
+            ].map(badge => (
+              <span
+                key={badge.icon}
+                className="badge badge-soft"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '5px 10px' }}
+              >
+                <i className={`iconoir-${badge.icon}`} style={{ fontSize: 14, color: 'var(--accent)' }} aria-hidden />
+                {badge.label}
+              </span>
+            ))}
+          </div>
         </div>
       </AuthShow>
 

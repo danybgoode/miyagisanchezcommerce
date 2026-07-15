@@ -1639,9 +1639,9 @@
     }
   },
   "home": {
-    "ribbon": {
-      "body": "Compra y vende en México — gratis, protegido y con ofertas.",
-      "cta": "Cómo funciona →"
+    "hero": {
+      "heading": "Lo que tu barrio vende, compra y recomienda",
+      "badges": ["Compra protegida", "Haz tu oferta", "0% comisiones"]
     },
     "selection": {
       "heading": "Selección de la semana",

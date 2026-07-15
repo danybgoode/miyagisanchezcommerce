@@ -41,8 +41,8 @@ test.describe('static homepage · curated shell, no personalization', () => {
     const res = await request.get('/', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
-    // Curated shell markers — the value-prop ribbon (always) + the Selección heading.
-    expect(html).toContain('data-testid="home-ribbon"')
+    // Curated shell markers — the hero (always) + the Selección heading.
+    expect(html).toContain('data-testid="home-hero"')
     expect(html).toContain('Selección de la semana')
   })
 
@@ -51,11 +51,13 @@ test.describe('static homepage · curated shell, no personalization', () => {
   // instead of being hardcoded JSX literals. Asserting against the imported dictionary
   // values (not a hardcoded string) means this fails loud if the wiring is ever reverted
   // to a literal, and self-updates if the copy is edited in `locales/es.json` directly.
-  test('the ribbon renders the home.ribbon dictionary copy (no live override applied)', async ({ request }) => {
+  test('the hero renders the home.hero dictionary copy (no live override applied)', async ({ request }) => {
     const res = await request.get('/', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
-    expect(html).toContain(es.home.ribbon.body)
-    expect(html).toContain(es.home.ribbon.cta)
+    expect(html).toContain(es.home.hero.heading)
+    for (const badge of es.home.hero.badges) {
+      expect(html).toContain(badge)
+    }
   })
 })

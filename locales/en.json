@@ -1560,9 +1560,9 @@
     }
   },
   "home": {
-    "ribbon": {
-      "body": "Buy and sell in Mexico — free, protected, and with offers.",
-      "cta": "How it works →"
+    "hero": {
+      "heading": "What your neighborhood sells, buys, and recommends",
+      "badges": ["Protected purchase", "Make an offer", "0% commissions"]
     },
     "selection": {
       "heading": "This week's picks",
