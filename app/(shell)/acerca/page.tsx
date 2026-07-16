@@ -37,7 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: 'website',
       locale: 'es_MX',
       url: `${BASE_URL}${PAGE_PATH}`,
-      siteName: 'Miyagi Sanchez',
+      siteName: 'Miyagi Sánchez',
       title: meta.metaTitle,
       description: meta.metaDescription,
     },
@@ -61,7 +61,7 @@ export default async function AcercaPage({ searchParams }: AcercaPageProps) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'Miyagi Sanchez',
+    name: 'Miyagi Sánchez',
     url: BASE_URL,
     description,
     inLanguage: locale === 'en' ? 'en' : 'es-MX',

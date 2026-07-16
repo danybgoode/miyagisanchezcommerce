@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getDictionary, normalizeLocale } from '@/lib/dictionary'
 
 export const metadata = {
-  title: 'Terminos de uso - Miyagi Sanchez',
+  title: 'Términos de uso - Miyagi Sánchez',
 }
 
 export default async function TermsPage({

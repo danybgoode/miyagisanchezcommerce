@@ -75,9 +75,9 @@
     },
     "anchor": {
       "metadata": {
-        "title": "Sell with no commissions in Mexico — Miyagi Sanchez",
-        "description": "Open a free shop on Miyagi Sanchez. Sell products, services, experiences, or full catalogs with no platform commissions.",
-        "ogAlt": "Miyagi Sanchez: sell anything in Mexico with no commissions."
+        "title": "Sell with no commissions in Mexico — Miyagi Sánchez",
+        "description": "Open a free shop on Miyagi Sánchez. Sell products, services, experiences, or full catalogs with no platform commissions.",
+        "ogAlt": "Miyagi Sánchez: sell anything in Mexico with no commissions."
       },
       "eyebrow": "Sellers in Mexico",
       "heroTitle": "Sell anything in Mexico. No commissions.",
@@ -350,9 +350,9 @@
     },
     "creadores": {
       "metadata": {
-        "title": "Sell your creative catalog with no commissions — Miyagi Sanchez",
+        "title": "Sell your creative catalog with no commissions — Miyagi Sánchez",
         "description": "Bring your Instagram catalog into your own shop. 0% commission, domain or subdomain, widget, and direct payouts.",
-        "ogAlt": "Miyagi Sanchez for creators: owned catalog, 0% commission, and direct payouts."
+        "ogAlt": "Miyagi Sánchez for creators: owned catalog, 0% commission, and direct payouts."
       },
       "eyebrow": "Creators and designers",
       "heroTitle": "Stop paying Shopify commissions and losing sales in DMs.",
@@ -442,9 +442,9 @@
     },
     "negocios": {
       "metadata": {
-        "title": "Bring your local business online — Miyagi Sanchez",
+        "title": "Bring your local business online — Miyagi Sánchez",
         "description": "Open a shop for your local business with no commissions. Migrate catalog, sell with QR, and connect to the Mexico-86 print magazine.",
-        "ogAlt": "Miyagi Sanchez for local businesses: online shop, QR, and Mexico-86 magazine."
+        "ogAlt": "Miyagi Sánchez for local businesses: online shop, QR, and Mexico-86 magazine."
       },
       "eyebrow": "Local businesses",
       "heroTitle": "Your corner business, now online too — and in the magazine.",
@@ -534,9 +534,9 @@
     },
     "servicios": {
       "metadata": {
-        "title": "Sell professional services with no commissions — Miyagi Sanchez",
+        "title": "Sell professional services with no commissions — Miyagi Sánchez",
         "description": "Publish services, schedule appointments with Cal.com, and get paid directly. No platform commissions for professionals in Mexico.",
-        "ogAlt": "Miyagi Sanchez for professional services: schedule, get paid, and sell with no commissions."
+        "ogAlt": "Miyagi Sánchez for professional services: schedule, get paid, and sell with no commissions."
       },
       "eyebrow": "Professional services",
       "heroTitle": "Get paid and scheduled without friction. No commissions.",
@@ -626,9 +626,9 @@
     },
     "autos": {
       "metadata": {
-        "title": "Sell cars with specs, inspection, and monthly-payment display — Miyagi Sanchez",
+        "title": "Sell cars with specs, inspection, and monthly-payment display — Miyagi Sánchez",
         "description": "Publish your car catalog with specs, an inspection report, warranty, and an informative monthly-payment hint. Real search by make, model, year, and price. No commissions.",
-        "ogAlt": "Miyagi Sanchez for selling cars: specs, inspection, and monthly-payment display, with no commissions."
+        "ogAlt": "Miyagi Sánchez for selling cars: specs, inspection, and monthly-payment display, with no commissions."
       },
       "eyebrow": "",
       "heroTitle": "Sell cars with the trust of a professional dealer lot.",
@@ -1233,9 +1233,9 @@
     },
     "mundial": {
       "metadata": {
-        "title": "Sell World Cup experiences — Miyagi Sanchez",
+        "title": "Sell World Cup experiences — Miyagi Sánchez",
         "description": "Publish tours, food spots, and rentals for the 2026 World Cup in Mexico. No platform commissions and payouts to your own account.",
-        "ogAlt": "Miyagi Sanchez World Cup 2026: sell experiences in Mexico with no commissions."
+        "ogAlt": "Miyagi Sánchez World Cup 2026: sell experiences in Mexico with no commissions."
       },
       "eyebrow": "World Cup 2026 · Mexico",
       "heroTitle": "Capture the World Cup's global audience.",
@@ -1316,13 +1316,13 @@
   },
   "terms": {
     "title": "Terms of use",
-    "subtitle": "Basic rules for using Miyagi Sanchez.",
-    "language": "Espanol",
+    "subtitle": "Basic rules for using Miyagi Sánchez.",
+    "language": "Español",
     "languageHref": "/terminos?lang=es",
     "sections": [
       {
         "title": "Commission-free marketplace",
-        "body": "Miyagi Sanchez connects buyers and sellers. Each shop defines its products, prices, payment methods, delivery options, promotions, and policies. When you buy from a shop, the primary commercial relationship is between buyer and seller."
+        "body": "Miyagi Sánchez connects buyers and sellers. Each shop defines its products, prices, payment methods, delivery options, promotions, and policies. When you buy from a shop, the primary commercial relationship is between buyer and seller."
       },
       {
         "title": "Sweepstakes and promotions",
@@ -1398,7 +1398,7 @@
       "killSwitch": "Sweepstakes are paused by the platform."
     },
     "public": {
-      "language": "Espanol",
+      "language": "Español",
       "languageHrefSuffix": "lang=es",
       "notFound": "Sweepstakes not found.",
       "paused": "Sweepstakes are temporarily paused.",
@@ -1502,7 +1502,7 @@
       "error": "The action could not be completed."
     },
     "public": {
-      "language": "Espanol",
+      "language": "Español",
       "notFound": "Event not found.",
       "cancelled": "This event was cancelled.",
       "ended": "Registration for this event has closed.",
