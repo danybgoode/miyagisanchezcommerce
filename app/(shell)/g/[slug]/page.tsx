@@ -25,7 +25,7 @@ export async function generateMetadata({
   const { lang } = await searchParams
   const locale = normalizeLocale(lang)
   const campaign = await getCampaignBySlug(slug)
-  if (!campaign) return { title: 'Sweepstakes - Miyagi Sanchez' }
+  if (!campaign) return { title: 'Sweepstakes - Miyagi Sánchez' }
   return {
     title: campaignTitle(campaign, locale),
     description: campaignDescription(campaign, locale),
