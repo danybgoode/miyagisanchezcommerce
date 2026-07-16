@@ -163,7 +163,7 @@
           "eyebrow": "Local business",
           "title": "I have a local business",
           "body": "Print shop, workshop, physical store, or inventory you want to bring online.",
-          "icon": "iconoir-store",
+          "icon": "iconoir-shop",
           "statusLabel": ""
         },
         {
@@ -206,7 +206,7 @@
         "lead": "Features you pay extra for on other platforms — here they are part of the marketplace.",
         "items": [
           {
-            "icon": "iconoir-ticket",
+            "icon": "iconoir-qr-code",
             "label": "Tickets and events",
             "sub": "Sell admissions and run your event."
           },
@@ -226,7 +226,7 @@
             "sub": "Charge recurring and sell your own content."
           },
           {
-            "icon": "iconoir-pricetag",
+            "icon": "iconoir-percentage-circle",
             "label": "Coupons and promotions",
             "sub": "Discounts and codes for your campaigns."
           },
@@ -388,7 +388,7 @@
           "body": "Stop losing margin on every sale. Miyagi does not take a percentage of your order."
         },
         {
-          "icon": "iconoir-domain",
+          "icon": "iconoir-internet",
           "title": "Your own storefront",
           "body": "Free link, subdomain, custom domain, and embeddable widget for your website or bio."
         },
@@ -1109,7 +1109,7 @@
           "body": "theirshop.miyagisanchez.com — free for everyone. Use it as a hook: a nice address at no cost."
         },
         {
-          "icon": "iconoir-newspaper",
+          "icon": "iconoir-journal",
           "title": "Printed ad",
           "body": "A spot in Miyagi Sánchez's printed edition circulating in their area. Price depends on size and edition; charged once."
         },
