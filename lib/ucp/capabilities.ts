@@ -137,6 +137,9 @@ export const MCP_SELLER_TOOLS = [
   'create_collection',         // panfleto-premium-shop S2 (token-scoped)
   'update_listing',
   'set_listing_status',
+  'configure_listing_options',  // mcp-parity-core S2 — priced option dimensions + quantity tiers (token-scoped, flag mcp.configure_options.enabled)
+  'delete_listing',             // mcp-parity-core S3.1 — soft-delete an owned listing (token-scoped, flag mcp.delete_listing.enabled)
+  'apply_price',                // mcp-parity-core S3.2 — one-click price apply, Profit Analyzer pipeline (token-scoped, flag mcp.apply_price.enabled)
   'stage_bulk_action',          // catalog-management S? — bulk price/category/collection preview (token-scoped)
   'apply_bulk_action',          // catalog-management S? — confirm a staged bulk batch (token-scoped)
   'start_shopify_migration',    // platform-migrations — stage a Shopify catalog batch (token-scoped)

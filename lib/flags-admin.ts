@@ -147,6 +147,17 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // not a money/auth path. Flip ON once golden-beans is deployed and Daniel's
   // live flag-flip + live-event smoke passes.
   'growth.telemetry_enabled': { polarity: 'enablement', default: false },
+  // MCP configure_listing_options tool (mcp-parity-core S2) — an agent building
+  // priced option dimensions / per-combo prices / quantity tiers. Enablement:
+  // default OFF ⇒ the tool refuses; flip ON after Daniel's live CPP-build smoke.
+  'mcp.configure_options.enabled': { polarity: 'enablement', default: false },
+  // MCP delete_listing tool (mcp-parity-core S3.1) — agent soft-delete of an
+  // owned listing. Enablement: default OFF; flip ON after Daniel's live smoke.
+  'mcp.delete_listing.enabled': { polarity: 'enablement', default: false },
+  // MCP apply_price tool (mcp-parity-core S3.2) — agent one-click price apply
+  // (same pipeline as Profit Analyzer). Enablement: default OFF; flip ON after
+  // Daniel's live cart-verified smoke.
+  'mcp.apply_price.enabled': { polarity: 'enablement', default: false },
   // MCP patch_store_configuration `support` block (mcp-parity-core S4.1) —
   // enabling support via agent provisions a REAL product. Enablement: default
   // OFF; flip ON after Daniel's live provision-and-purchase smoke.
@@ -154,8 +165,7 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // MCP patch_store_configuration `checkout` block (mcp-parity-core S4.2) —
   // escrow/CTA presentation via agent. Enablement: default OFF; flip ON after
   // Daniel's live escrow-mode checkout smoke.
-  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },
-}
+  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },}
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
 export const FLAG_KEYS = Object.keys(FLAG_META) as FlagKey[]

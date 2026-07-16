@@ -65,13 +65,14 @@ import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
-import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock, deleteSellerProductViaInternal, applySellerPriceViaInternal, type SellerProductPatch } from '@/lib/seller-products'
 import { getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
+import { closeMlProduct } from '@/lib/ml-publish-bridge'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import { getNeighborhoodPulseAgentView } from '@/lib/neighborhood-pulse-agent'
 import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
@@ -554,6 +555,76 @@ const TOOLS = [
       properties: {
         product_id: { type: 'string', description: 'Product id from list_my_listings' },
         status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
+      },
+    },
+  },
+  {
+    name: 'configure_listing_options',
+    description: "SELLER TOOL. Configure one of YOUR OWN listings as a print-configurator product: priced option dimensions (e.g. Tamaño/Material) with a price per combination, and/or a quantity-break price ladder for one variant. Requires the shop agent token, scoped to one shop. TWO MUTUALLY EXCLUSIVE modes per call — (1) option_dimensions + variant_prices together: converts the listing to one variant per combination (one-way; dimensions can be re-defined later but never removed); (2) variant_tiers (+ variant_id when the product has several variants): replaces that variant's quantity-price ladder. Prices are integer CENTS. Changing prices changes what buyers pay — it's audited and the seller is alerted. Get product_id from list_my_listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id'],
+      properties: {
+        product_id: { type: 'string', description: 'Product id from list_my_listings' },
+        option_dimensions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['title', 'values'],
+            properties: {
+              title:  { type: 'string', description: 'Dimension name shown to buyers, e.g. "Tamaño" (max 40 chars)' },
+              values: { type: 'array', items: { type: 'string' }, description: 'Option values, e.g. ["Chico","Grande"] (max 40 chars each, unique)' },
+            },
+          },
+          description: 'Max 3 dimensions, max 60 total combinations. Requires variant_prices in the SAME call (one price per combination). Cannot be combined with variant_tiers.',
+        },
+        variant_prices: {
+          type: 'object',
+          additionalProperties: { type: 'number' },
+          description: 'Price in integer CENTS (>0) per combination, keyed by the ALPHABETICALLY-SORTED combo key "Título:Valor|Título:Valor" — e.g. {"Tamaño:Chico": 5000, "Tamaño:Grande": 9000} is $50.00/$90.00 MXN. Every combination implied by option_dimensions must have a price. Only valid alongside option_dimensions.',
+        },
+        variant_id: {
+          type: 'string',
+          description: 'Variant to target with variant_tiers — REQUIRED when the product has more than one variant (variant ids appear in the get_listing price grid). Omit for a single-variant product.',
+        },
+        variant_tiers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['min_quantity', 'max_quantity', 'amount'],
+            properties: {
+              min_quantity: { type: 'number', description: 'Tier start (first tier must start at 1)' },
+              max_quantity: { type: ['number', 'null'], description: 'Tier end inclusive; null = sin límite (the last tier must be null)' },
+              amount:       { type: 'number', description: 'Unit price in integer CENTS for this tier (>0)' },
+            },
+          },
+          description: 'Full-replacement quantity-break ladder for ONE variant: gapless, non-overlapping, starts at 1, last tier open-ended (max_quantity null). E.g. [{min_quantity:1,max_quantity:2,amount:20000},{min_quantity:3,max_quantity:null,amount:15000}]. Cannot be combined with option_dimensions.',
+        },
+      },
+    },
+  },
+  {
+    name: 'delete_listing',
+    description: "SELLER TOOL. Delete (soft-delete) one of YOUR OWN listings — it disappears from your catalog, search, and the storefront, while past order history stays intact (the deletion is a native soft-delete, so orders that included it keep resolving). Requires the shop agent token, scoped to one shop. This cannot be undone from the portal. Get product_id from list_my_listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id'],
+      properties: {
+        product_id: { type: 'string', description: 'Product id from list_my_listings' },
+      },
+    },
+  },
+  {
+    name: 'apply_price',
+    description: "SELLER TOOL. Apply a computed price to ONE variant of YOUR OWN listings — the same pipeline as the Profit Analyzer's one-click Apply: writes the Miyagi price, then (only if the product is linked to Mercado Libre and publishing is enabled) pushes the new price to ML too, logging the attempt either way. Returns the honest partial state (miyagi ok + ml ok/skipped/failed) — a Miyagi success is never rolled back on an ML failure. Changing the price changes what buyers pay — it's audited and the seller is alerted. Requires the shop agent token, scoped to one shop.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id', 'variant_id', 'new_price_cents'],
+      properties: {
+        product_id:        { type: 'string', description: 'Product id from list_my_listings' },
+        variant_id:        { type: 'string', description: 'Variant to reprice (variant ids appear in the get_listing price grid)' },
+        new_price_cents:   { type: 'number', description: 'New unit price in integer CENTS (>0), e.g. 15000 = $150.00 MXN' },
+        target_margin_pct: { type: 'number', description: 'Optional: the margin target that produced this price — recorded in the activity log for traceability' },
       },
     },
   },
@@ -2187,6 +2258,259 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   return { content: [{ type: 'text', text: `✅ Anuncio ${status === 'active' ? 'activado' : 'pausado'}.` }] }
 }
 
+/**
+ * configure_listing_options (mcp-parity-core S2) — the agent door to the
+ * portal's "Opciones" screen. All REAL validation (mutual exclusivity,
+ * restructure/order-history guards, dimension/combo caps, the tier-ladder
+ * rules) lives in the backend's shared `updateSellerProduct`; this handler
+ * only shape-checks (mirroring the PUT /api/sell/listing/[id] proxy's checks,
+ * same es-MX messages) and surfaces the backend's 4xx messages verbatim so
+ * every named failure mode reaches the agent legibly, never a generic error.
+ * After a successful write it syncs the Supabase mirror the same way the PUT
+ * route does: a convert stamps `has_variants` + the cheapest combo price; a
+ * tier edit recomputes the "desde $X" price from the live price-grid.
+ */
+async function handleConfigureListingOptions(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+  if (!(await isEnabled('mcp.configure_options.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const productId = String(args.product_id ?? '')
+  if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const patch: SellerProductPatch = {}
+  const fields: string[] = []
+
+  if (args.option_dimensions !== undefined) {
+    const dims = args.option_dimensions
+    const valid = Array.isArray(dims) && dims.length > 0 && dims.every((d) =>
+      d && typeof d === 'object' && typeof (d as Record<string, unknown>).title === 'string'
+      && Array.isArray((d as Record<string, unknown>).values)
+      && ((d as Record<string, unknown>).values as unknown[]).every((v) => typeof v === 'string'))
+    if (!valid) {
+      return { isError: true, content: [{ type: 'text', text: 'option_dimensions debe ser una lista de { title, values[] } (títulos y valores de texto).' }] }
+    }
+    patch.option_dimensions = dims as Array<{ title: string; values: string[] }>
+    fields.push('option_dimensions')
+  }
+  if (args.variant_prices !== undefined) {
+    const vp = args.variant_prices
+    const vals = vp && typeof vp === 'object' && !Array.isArray(vp) ? Object.values(vp as Record<string, unknown>) : []
+    if (vals.length === 0 || vals.some((v) => !Number.isInteger(v) || (v as number) <= 0)) {
+      return { isError: true, content: [{ type: 'text', text: 'Cada combinación necesita un precio entero en centavos mayor a 0.' }] }
+    }
+    patch.variant_prices = vp as Record<string, number>
+    fields.push('variant_prices', 'price')
+  }
+  if (args.variant_id !== undefined) {
+    patch.variant_id = String(args.variant_id)
+  }
+  if (args.variant_tiers !== undefined) {
+    const tiers = args.variant_tiers
+    if (!Array.isArray(tiers) || tiers.some((t) => !t || typeof t !== 'object'
+      || !Number.isInteger((t as Record<string, unknown>).amount) || ((t as Record<string, unknown>).amount as number) <= 0)) {
+      return { isError: true, content: [{ type: 'text', text: 'Cada nivel necesita un precio entero en centavos mayor a 0.' }] }
+    }
+    patch.variant_tiers = tiers as Array<{ min_quantity: number; max_quantity: number | null; amount: number }>
+    fields.push('variant_tiers', 'price')
+  }
+
+  if (!patch.option_dimensions && !patch.variant_tiers) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica option_dimensions + variant_prices (convertir a combinaciones con precio) o variant_tiers (niveles por cantidad).' }] }
+  }
+
+  const result = await patchSellerProductViaInternal(shop.slug, productId, patch)
+  if (!result.ok) {
+    // The backend's es-MX 4xx message IS the contract (mutual exclusivity,
+    // restructure/order-history refusal, caps, tier-ladder errors) — verbatim.
+    return { isError: true, content: [{ type: 'text', text: `No se pudo configurar el anuncio: ${result.error}` }] }
+  }
+
+  // ── Mirror sync — parity with PUT /api/sell/listing/[id] ────────────────────
+  const mirror: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (patch.option_dimensions !== undefined) {
+    // Dimensions can never be removed, so has_variants never needs clearing.
+    const { data: row } = await db
+      .from('marketplace_listings').select('metadata').eq('medusa_product_id', productId).maybeSingle()
+    const meta = ((row?.metadata ?? {}) as Record<string, unknown>)
+    meta.has_variants = true
+    mirror.metadata = meta
+  }
+  let minVariantPrice = patch.option_dimensions !== undefined && patch.variant_prices
+    ? Math.min(...Object.values(patch.variant_prices))
+    : undefined
+  if (patch.variant_tiers !== undefined && minVariantPrice === undefined) {
+    // "desde $X" = min across variants of each variant's lowest-min_quantity
+    // tier — best-effort, same as the PUT route (a failed read keeps the
+    // current mirror price rather than failing the save).
+    try {
+      const gridRes = await fetch(`${MEDUSA_BASE}/store/listings/${productId}/price-grid`, {
+        headers: MEDUSA_HEADERS,
+        cache: 'no-store',
+      })
+      if (gridRes.ok) {
+        const grid = (await gridRes.json())?.price_grid as
+          | { variants?: Array<{ tiers?: Array<{ amount?: number }> }> }
+          | undefined
+        const basePrices = (grid?.variants ?? [])
+          .map((v) => v.tiers?.[0]?.amount)
+          .filter((a): a is number => typeof a === 'number' && a > 0)
+        if (basePrices.length > 0) minVariantPrice = Math.min(...basePrices)
+      }
+    } catch { /* best-effort — keep the current mirror price */ }
+  }
+  if (minVariantPrice !== undefined && Number.isFinite(minVariantPrice)) mirror.price_cents = minVariantPrice
+  // The Medusa write already landed — a mirror failure must not fail the call,
+  // but the success message must not promise a "desde" update that didn't
+  // happen (Codex cross-review catch): report the honest partial state so the
+  // agent/seller knows listing cards may briefly show the old price.
+  const { error: mirrorError } = await db
+    .from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[configure_listing_options] mirror update failed (non-fatal):', mirrorError)
+
+  await recordAgentListingAction(shop, { productId, fields })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const mirrorNote = mirrorError
+    ? ' ⚠ El precio "desde" de las tarjetas puede tardar en reflejarse (falló la sincronización del espejo; el precio real de compra ya quedó actualizado).'
+    : ''
+  const summary = patch.option_dimensions !== undefined
+    ? `✅ Anuncio convertido a combinaciones con precio (${Object.keys(patch.variant_prices ?? {}).length} combinación(es))${mirrorError ? '.' : '; precio "desde" actualizado.'}${mirrorNote}`
+    : `✅ Niveles de precio por cantidad actualizados (${patch.variant_tiers!.length} nivel(es)).${mirrorNote}`
+  return { content: [{ type: 'text', text: summary }] }
+}
+
+/**
+ * delete_listing (mcp-parity-core S3.1) — the agent door to the portal's
+ * listing delete. Same native Medusa soft-delete (via the internal service
+ * route), so past order line-items keep resolving — there is deliberately no
+ * order-linked refusal guard, matching the portal exactly (parity, not
+ * policy). Mirror + best-effort ML-close mirror lib/listing-status.ts's
+ * deleteListing (which needs a Clerk JWT this path doesn't have).
+ */
+async function handleDeleteListing(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+  if (!(await isEnabled('mcp.delete_listing.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const productId = String(args.product_id ?? '')
+  if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const result = await deleteSellerProductViaInternal(shop.slug, productId)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo eliminar el anuncio: ${result.error}` }] }
+
+  // Mirror + cascade — parity with lib/listing-status.ts deleteListing().
+  const { error: mirrorError } = await db
+    .from('marketplace_listings')
+    .update({ status: 'deleted', updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[delete_listing] mirror update failed (non-fatal):', mirrorError)
+  try {
+    if (await isEnabled('ml.publish_enabled')) await closeMlProduct(shop.slug, productId)
+  } catch { /* never block the delete on an ML failure */ }
+
+  await recordAgentListingAction(shop, { productId, fields: ['deleted'] })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return { content: [{ type: 'text', text: `✅ Anuncio eliminado.${mirrorError ? ' ⚠ Las tarjetas del catálogo pueden tardar en reflejarlo (falló la sincronización del espejo).' : ''}` }] }
+}
+
+/**
+ * apply_price (mcp-parity-core S3.2) — the agent door to the Profit
+ * Analyzer's one-click Apply. The whole pipeline (ownership re-check, Miyagi
+ * write, conditional ML push, price_apply activity log) is the backend's
+ * shared applySellerPrice core, reached via the internal service route; this
+ * handler surfaces the honest partial-state result verbatim and mirrors the
+ * new price to the Supabase listing card (single-variant semantics: the
+ * mirror's price_cents is the "desde" price, so only update it when the
+ * backend confirms the Miyagi write).
+ */
+async function handleApplyPrice(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+  if (!(await isEnabled('mcp.apply_price.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const productId = String(args.product_id ?? '')
+  const variantId = String(args.variant_id ?? '')
+  const newPriceCents = args.new_price_cents
+  if (!productId || !variantId || !Number.isInteger(newPriceCents) || (newPriceCents as number) <= 0) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica product_id, variant_id y new_price_cents (entero en centavos, mayor a 0).' }] }
+  }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const result = await applySellerPriceViaInternal(shop.slug, {
+    product_id: productId,
+    variant_id: variantId,
+    new_price_cents: newPriceCents as number,
+    ...(typeof args.target_margin_pct === 'number' ? { target_margin_pct: args.target_margin_pct } : {}),
+  })
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo aplicar el precio: ${result.error}` }] }
+
+  const body = result.body ?? {}
+  // Mirror the card's "desde" price. On a MULTI-variant product the applied
+  // variant may not be the cheapest one, so blindly writing new_price_cents
+  // could show a wrong starting price on catalog cards (Codex cross-review
+  // catch) — recompute the true min base price from the live price-grid
+  // instead (the backend already confirmed the Miyagi write, so the grid
+  // reflects it). Best-effort: a failed read skips the price write and keeps
+  // the current mirror price rather than writing a possibly-wrong one.
+  let mirrorPriceCents: number | undefined
+  try {
+    const gridRes = await fetch(`${MEDUSA_BASE}/store/listings/${productId}/price-grid`, {
+      headers: MEDUSA_HEADERS,
+      cache: 'no-store',
+    })
+    if (gridRes.ok) {
+      const grid = (await gridRes.json())?.price_grid as
+        | { variants?: Array<{ tiers?: Array<{ amount?: number }> }> }
+        | undefined
+      const basePrices = (grid?.variants ?? [])
+        .map((v) => v.tiers?.[0]?.amount)
+        .filter((a): a is number => typeof a === 'number' && a > 0)
+      if (basePrices.length > 0) mirrorPriceCents = Math.min(...basePrices)
+    }
+  } catch { /* best-effort — keep the current mirror price */ }
+  const mirrorUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (mirrorPriceCents !== undefined && Number.isFinite(mirrorPriceCents)) mirrorUpdate.price_cents = mirrorPriceCents
+  const { error: mirrorError } = await db
+    .from('marketplace_listings')
+    .update(mirrorUpdate)
+    .eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[apply_price] mirror update failed (non-fatal):', mirrorError)
+
+  await recordAgentListingAction(shop, { productId, fields: ['price'] })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const mlNote = body.ml === 'ok'
+    ? ` También se actualizó en Mercado Libre${body.permalink ? ` (${body.permalink})` : ''}.`
+    : body.ml === 'failed'
+      ? ` ⚠ Mercado Libre NO se actualizó: ${body.ml_reason ?? 'error desconocido'} — el precio de Miyagi sí quedó aplicado.`
+      : ''
+  return {
+    content: [
+      { type: 'text', text: `✅ Precio aplicado: $${((newPriceCents as number) / 100).toFixed(2)} MXN.${mlNote}${mirrorError ? ' ⚠ Las tarjetas del catálogo pueden tardar en reflejarlo (falló la sincronización del espejo).' : ''}` },
+      { type: 'text', text: JSON.stringify({ ok: true, ...body }, null, 2) },
+    ],
+  }
+}
+
 const BULK_CATEGORY_LABELS: Record<string, string> = {
   autos: 'Autos y motos', inmuebles: 'Inmuebles', electronica: 'Electrónica', hogar: 'Hogar y jardín',
   moda: 'Moda y ropa', deportes: 'Deportes', servicios: 'Servicios', mascotas: 'Mascotas',
@@ -2582,6 +2906,9 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'cancel_campaign':          { const r = await handleCancelCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'configure_listing_options': { const r = await handleConfigureListingOptions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'delete_listing':            { const r = await handleDeleteListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'apply_price':               { const r = await handleApplyPrice(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'apply_bulk_action':         { const r = await handleApplyBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_shopify_migration':   { const r = await handleStartShopifyMigration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -252,6 +252,29 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    surface (this is a standalone observability sink, not a money/auth
  *    path). Flip ON only once golden-beans is deployed and Daniel's live
  *    flag-flip + live-event smoke passes.
+ *  - ENABLEMENT (`mcp.configure_options.enabled`): default `false`
+ *    (mcp-parity-core S2). Gates ONLY the MCP `configure_listing_options`
+ *    tool — an agent building a CPP-configurable product (priced option
+ *    dimensions, per-combo prices, quantity tiers) through the same backend
+ *    write path as the portal "Opciones" screen. Default OFF ⇒ the tool
+ *    refuses with "no disponible"; the portal Opciones editor is untouched
+ *    either way (it has its own `configurator.enabled` kill-switch). Flip ON
+ *    only after Daniel's live smoke (build a real CPP product via the tool,
+ *    confirm the PDP grid + checkout price).
+ *  - ENABLEMENT (`mcp.delete_listing.enabled`): default `false`
+ *    (mcp-parity-core S3.1). Gates ONLY the MCP `delete_listing` tool — an
+ *    agent soft-deleting one of its shop's listings through the same native
+ *    Medusa soft-delete the portal uses. Default OFF ⇒ the tool refuses with
+ *    "no disponible"; the portal delete is untouched. Flip ON only after
+ *    Daniel's live smoke (delete a clean test listing; confirm an order-linked
+ *    one soft-deletes with order history intact).
+ *  - ENABLEMENT (`mcp.apply_price.enabled`): default `false`
+ *    (mcp-parity-core S3.2). Gates ONLY the MCP `apply_price` tool — an agent
+ *    applying a computed price to a live variant through the same pipeline as
+ *    the Profit Analyzer's one-click Apply (Miyagi write + conditional ML push
+ *    + activity log). Default OFF ⇒ the tool refuses; the portal Apply is
+ *    untouched (its own ops.profit_enabled gate). Flip ON only after Daniel's
+ *    live smoke (apply a price, confirm it in a real cart).
  *  - ENABLEMENT (`mcp.support_config.enabled`): default `false`
  *    (mcp-parity-core S4.1). Gates ONLY the `support` block of the MCP
  *    `patch_store_configuration` tool — enabling support via agent
@@ -267,8 +290,7 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    settable regardless). Default OFF ⇒ a patch carrying `checkout` is
  *    refused whole; the portal checkout settings are untouched either way.
  *    Flip ON only after Daniel's live smoke (flip escrow_mode via tool,
- *    confirm a real test checkout changes).
- */
+ *    confirm a real test checkout changes). */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'checkout.rental_pricing_enabled': false,
@@ -299,6 +321,9 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'seller.shell_on_sell_enabled': true,
   'onboarding.three_doors_enabled': false,
   'growth.telemetry_enabled': false,
+  'mcp.configure_options.enabled': false,
+  'mcp.delete_listing.enabled': false,
+  'mcp.apply_price.enabled': false,
   'mcp.support_config.enabled': false,
   'mcp.checkout_config.enabled': false,
 }
