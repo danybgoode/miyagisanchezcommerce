@@ -65,13 +65,14 @@ import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
-import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock } from '@/lib/seller-products'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock, deleteSellerProductViaInternal, applySellerPriceViaInternal } from '@/lib/seller-products'
 import { getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { db } from '@/lib/supabase'
+import { closeMlProduct } from '@/lib/ml-publish-bridge'
 import { MANUAL_SECTIONS, type StoreConfigManifest } from '@/lib/settings-import'
 import { getNeighborhoodPulseAgentView } from '@/lib/neighborhood-pulse-agent'
 import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
@@ -552,6 +553,31 @@ const TOOLS = [
       properties: {
         product_id: { type: 'string', description: 'Product id from list_my_listings' },
         status:     { type: 'string', enum: ['active', 'paused'], description: 'active = publish, paused = unpublish' },
+      },
+    },
+  },
+  {
+    name: 'delete_listing',
+    description: "SELLER TOOL. Delete (soft-delete) one of YOUR OWN listings — it disappears from your catalog, search, and the storefront, while past order history stays intact (the deletion is a native soft-delete, so orders that included it keep resolving). Requires the shop agent token, scoped to one shop. This cannot be undone from the portal. Get product_id from list_my_listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id'],
+      properties: {
+        product_id: { type: 'string', description: 'Product id from list_my_listings' },
+      },
+    },
+  },
+  {
+    name: 'apply_price',
+    description: "SELLER TOOL. Apply a computed price to ONE variant of YOUR OWN listings — the same pipeline as the Profit Analyzer's one-click Apply: writes the Miyagi price, then (only if the product is linked to Mercado Libre and publishing is enabled) pushes the new price to ML too, logging the attempt either way. Returns the honest partial state (miyagi ok + ml ok/skipped/failed) — a Miyagi success is never rolled back on an ML failure. Changing the price changes what buyers pay — it's audited and the seller is alerted. Requires the shop agent token, scoped to one shop.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id', 'variant_id', 'new_price_cents'],
+      properties: {
+        product_id:        { type: 'string', description: 'Product id from list_my_listings' },
+        variant_id:        { type: 'string', description: 'Variant to reprice (variant ids appear in the get_listing price grid)' },
+        new_price_cents:   { type: 'number', description: 'New unit price in integer CENTS (>0), e.g. 15000 = $150.00 MXN' },
+        target_margin_pct: { type: 'number', description: 'Optional: the margin target that produced this price — recorded in the activity log for traceability' },
       },
     },
   },
@@ -2169,6 +2195,108 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   return { content: [{ type: 'text', text: `✅ Anuncio ${status === 'active' ? 'activado' : 'pausado'}.` }] }
 }
 
+/**
+ * delete_listing (mcp-parity-core S3.1) — the agent door to the portal's
+ * listing delete. Same native Medusa soft-delete (via the internal service
+ * route), so past order line-items keep resolving — there is deliberately no
+ * order-linked refusal guard, matching the portal exactly (parity, not
+ * policy). Mirror + best-effort ML-close mirror lib/listing-status.ts's
+ * deleteListing (which needs a Clerk JWT this path doesn't have).
+ */
+async function handleDeleteListing(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+  if (!(await isEnabled('mcp.delete_listing.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const productId = String(args.product_id ?? '')
+  if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const result = await deleteSellerProductViaInternal(shop.slug, productId)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo eliminar el anuncio: ${result.error}` }] }
+
+  // Mirror + cascade — parity with lib/listing-status.ts deleteListing().
+  const { error: mirrorError } = await db
+    .from('marketplace_listings')
+    .update({ status: 'deleted', updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[delete_listing] mirror update failed (non-fatal):', mirrorError)
+  try {
+    if (await isEnabled('ml.publish_enabled')) await closeMlProduct(shop.slug, productId)
+  } catch { /* never block the delete on an ML failure */ }
+
+  await recordAgentListingAction(shop, { productId, fields: ['deleted'] })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return { content: [{ type: 'text', text: `✅ Anuncio eliminado.${mirrorError ? ' ⚠ Las tarjetas del catálogo pueden tardar en reflejarlo (falló la sincronización del espejo).' : ''}` }] }
+}
+
+/**
+ * apply_price (mcp-parity-core S3.2) — the agent door to the Profit
+ * Analyzer's one-click Apply. The whole pipeline (ownership re-check, Miyagi
+ * write, conditional ML push, price_apply activity log) is the backend's
+ * shared applySellerPrice core, reached via the internal service route; this
+ * handler surfaces the honest partial-state result verbatim and mirrors the
+ * new price to the Supabase listing card (single-variant semantics: the
+ * mirror's price_cents is the "desde" price, so only update it when the
+ * backend confirms the Miyagi write).
+ */
+async function handleApplyPrice(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+  if (!(await isEnabled('mcp.apply_price.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
+  }
+
+  const productId = String(args.product_id ?? '')
+  const variantId = String(args.variant_id ?? '')
+  const newPriceCents = args.new_price_cents
+  if (!productId || !variantId || !Number.isInteger(newPriceCents) || (newPriceCents as number) <= 0) {
+    return { isError: true, content: [{ type: 'text', text: 'Indica product_id, variant_id y new_price_cents (entero en centavos, mayor a 0).' }] }
+  }
+  const owned = await shopOwnsProduct(shop.id, productId)
+  if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const result = await applySellerPriceViaInternal(shop.slug, {
+    product_id: productId,
+    variant_id: variantId,
+    new_price_cents: newPriceCents as number,
+    ...(typeof args.target_margin_pct === 'number' ? { target_margin_pct: args.target_margin_pct } : {}),
+  })
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo aplicar el precio: ${result.error}` }] }
+
+  const body = result.body ?? {}
+  // Mirror the card's "desde" price — same semantics as update_listing's
+  // price_mxn mirror write (the backend already confirmed the Miyagi write).
+  const { error: mirrorError } = await db
+    .from('marketplace_listings')
+    .update({ price_cents: newPriceCents as number, updated_at: new Date().toISOString() })
+    .eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[apply_price] mirror update failed (non-fatal):', mirrorError)
+
+  await recordAgentListingAction(shop, { productId, fields: ['price'] })
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  const mlNote = body.ml === 'ok'
+    ? ` También se actualizó en Mercado Libre${body.permalink ? ` (${body.permalink})` : ''}.`
+    : body.ml === 'failed'
+      ? ` ⚠ Mercado Libre NO se actualizó: ${body.ml_reason ?? 'error desconocido'} — el precio de Miyagi sí quedó aplicado.`
+      : ''
+  return {
+    content: [
+      { type: 'text', text: `✅ Precio aplicado: $${((newPriceCents as number) / 100).toFixed(2)} MXN.${mlNote}${mirrorError ? ' ⚠ Las tarjetas del catálogo pueden tardar en reflejarlo (falló la sincronización del espejo).' : ''}` },
+      { type: 'text', text: JSON.stringify({ ok: true, ...body }, null, 2) },
+    ],
+  }
+}
+
 const BULK_CATEGORY_LABELS: Record<string, string> = {
   autos: 'Autos y motos', inmuebles: 'Inmuebles', electronica: 'Electrónica', hogar: 'Hogar y jardín',
   moda: 'Moda y ropa', deportes: 'Deportes', servicios: 'Servicios', mascotas: 'Mascotas',
@@ -2564,6 +2692,8 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'cancel_campaign':          { const r = await handleCancelCampaign(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_listing':            { const r = await handleUpdateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'set_listing_status':        { const r = await handleSetListingStatus(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'delete_listing':            { const r = await handleDeleteListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'apply_price':               { const r = await handleApplyPrice(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'apply_bulk_action':         { const r = await handleApplyBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_shopify_migration':   { const r = await handleStartShopifyMigration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
