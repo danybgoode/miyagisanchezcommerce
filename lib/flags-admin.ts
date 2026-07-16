@@ -147,6 +147,10 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // not a money/auth path. Flip ON once golden-beans is deployed and Daniel's
   // live flag-flip + live-event smoke passes.
   'growth.telemetry_enabled': { polarity: 'enablement', default: false },
+  // MCP configure_listing_options tool (mcp-parity-core S2) — an agent building
+  // priced option dimensions / per-combo prices / quantity tiers. Enablement:
+  // default OFF ⇒ the tool refuses; flip ON after Daniel's live CPP-build smoke.
+  'mcp.configure_options.enabled': { polarity: 'enablement', default: false },
   // MCP delete_listing tool (mcp-parity-core S3.1) — agent soft-delete of an
   // owned listing. Enablement: default OFF; flip ON after Daniel's live smoke.
   'mcp.delete_listing.enabled': { polarity: 'enablement', default: false },

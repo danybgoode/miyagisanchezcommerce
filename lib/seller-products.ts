@@ -63,6 +63,17 @@ export interface SellerProductPatch {
   status?: 'published' | 'draft'
   /** Full replacement set of seller-owned collection ids (own-shop-premium-presentation S2). */
   collection_ids?: string[]
+  // Opciones — priced option dimensions + per-variant quantity tiers
+  // (mcp-parity-core S2). The backend internal route passes the full
+  // SellerProductUpdateBody through to the shared updateSellerProduct, so the
+  // contract + real validation (mutual-exclusivity, restructure guards, tier
+  // ladder) live there; this bridge only names the fields.
+  option_dimensions?: Array<{ title: string; values: string[] }>
+  /** Per-combination price in cents, keyed by sorted "Title:Value|Title:Value". */
+  variant_prices?: Record<string, number>
+  /** Explicit variant to target for variant_tiers on a multi-variant product. */
+  variant_id?: string
+  variant_tiers?: Array<{ min_quantity: number; max_quantity: number | null; amount: number }>
 }
 
 /** PATCH the product through the backend internal route (x-internal-secret). */
