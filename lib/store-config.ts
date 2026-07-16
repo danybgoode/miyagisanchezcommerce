@@ -112,6 +112,35 @@ export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot
   if (faq && Array.isArray(faq.items) && faq.items.length) content.faq = { items: faq.items as Array<{ question: string; answer: string }> }
   if (Object.keys(content).length) configuration.content = content
 
+  // ── support / checkout (mcp-parity-core S4) — explicit SECRET-FREE
+  // projections, never a raw pass-through: settings.checkout also holds
+  // bank_transfer (a real CLABE) and contact_email, which must never reach an
+  // agent-readable snapshot. support settings carry nothing sensitive.
+  const support = obj(settings.support)
+  if (support && Object.keys(support).length) {
+    configuration.support = {
+      ...(typeof support.enabled === 'boolean' ? { enabled: support.enabled } : {}),
+      ...(Array.isArray(support.preset_amount_cents) ? { preset_amount_cents: support.preset_amount_cents as number[] } : {}),
+      ...(typeof support.custom_min_cents === 'number' ? { custom_min_cents: support.custom_min_cents } : {}),
+      ...(typeof support.custom_max_cents === 'number' ? { custom_max_cents: support.custom_max_cents } : {}),
+      ...(typeof support.currency === 'string' ? { currency: support.currency } : {}),
+      ...(support.default_visibility === 'private' || support.default_visibility === 'public'
+        ? { default_visibility: support.default_visibility } : {}),
+    }
+  }
+  const checkoutStored = obj(settings.checkout)
+  if (checkoutStored) {
+    const co: NonNullable<StoreConfigManifest['checkout']> = {}
+    if (checkoutStored.escrow_mode === 'off' || checkoutStored.escrow_mode === 'optional' || checkoutStored.escrow_mode === 'required') {
+      co.escrow_mode = checkoutStored.escrow_mode
+    }
+    if (typeof checkoutStored.whatsapp_cta === 'boolean') co.whatsapp_cta = checkoutStored.whatsapp_cta
+    if (typeof checkoutStored.show_phone === 'boolean') co.show_phone = checkoutStored.show_phone
+    const cash = obj(checkoutStored.cash_pickup)
+    if (cash && typeof cash.enabled === 'boolean') co.cash_pickup = { enabled: cash.enabled }
+    if (Object.keys(co).length) configuration.checkout = co
+  }
+
   const configured_blocks = CONFIG_BLOCKS
     .map((b) => b.key)
     .filter((k) => configuration[k] !== undefined)

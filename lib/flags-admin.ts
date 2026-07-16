@@ -147,6 +147,14 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // not a money/auth path. Flip ON once golden-beans is deployed and Daniel's
   // live flag-flip + live-event smoke passes.
   'growth.telemetry_enabled': { polarity: 'enablement', default: false },
+  // MCP patch_store_configuration `support` block (mcp-parity-core S4.1) —
+  // enabling support via agent provisions a REAL product. Enablement: default
+  // OFF; flip ON after Daniel's live provision-and-purchase smoke.
+  'mcp.support_config.enabled': { polarity: 'enablement', default: false },
+  // MCP patch_store_configuration `checkout` block (mcp-parity-core S4.2) —
+  // escrow/CTA presentation via agent. Enablement: default OFF; flip ON after
+  // Daniel's live escrow-mode checkout smoke.
+  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

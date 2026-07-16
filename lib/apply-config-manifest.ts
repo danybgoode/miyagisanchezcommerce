@@ -7,11 +7,22 @@
  * file and one applied by an agent go through exactly the same validation and
  * write path. Partial manifests are fine: validateConfig only emits the blocks
  * present, and applyShopSettings deep-merges, so untouched blocks are preserved.
+ *
+ * The `support` block (mcp-parity-core S4.1) is the one block with a REAL side
+ * effect: enabling it live-provisions a Medusa support product (through the
+ * same reuse-first backend core the portal uses) BEFORE any settings write —
+ * a provisioning failure aborts the whole apply, mirroring the portal route's
+ * 502-without-write semantics. The provisioned id is stamped server-side into
+ * `settings.support.support_product_id` (caller input for it is always
+ * dropped in validateConfig) and reported back so callers can tell the user a
+ * real product was created, not just that "config was applied."
  */
 
 import { validateConfig, type StoreConfigManifest, type BlockResult } from './settings-import'
 import { applyShopSettings } from './apply-shop-settings'
 import { ingestImageUrls } from './image-ingest'
+import { ensureSupportProductViaInternal } from './seller-products'
+import { db } from './supabase'
 
 export interface ApplyConfigResult {
   ok: boolean
@@ -19,6 +30,8 @@ export interface ApplyConfigResult {
   error?: string
   /** True when at least one block validated and was written. */
   appliedAny: boolean
+  /** Set when this apply provisioned (or re-confirmed) the shop's support product. */
+  supportProduct?: { product_id: string; reused: boolean }
 }
 
 export async function applyStoreConfig(
@@ -32,6 +45,30 @@ export async function applyStoreConfig(
 
   if (appliedBlocks.length === 0) {
     return { ok: false, blocks, appliedAny: false, error: 'No encontramos configuración válida para aplicar. Revisa los datos.' }
+  }
+
+  // ── support enable ⇒ provision the real product FIRST (portal semantics:
+  // a provisioning failure means nothing is written at all) ───────────────────
+  let supportProduct: { product_id: string; reused: boolean } | undefined
+  const supportPatch = patch.settings?.support as { enabled?: boolean } | undefined
+  if (supportPatch?.enabled === true) {
+    const { data: shopRow } = await db
+      .from('marketplace_shops')
+      .select('slug')
+      .eq('clerk_user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    const slug = shopRow?.slug as string | undefined
+    if (!slug) {
+      return { ok: false, blocks, appliedAny: true, error: 'Tienda no encontrada para aprovisionar el producto de apoyos.' }
+    }
+    const provision = await ensureSupportProductViaInternal(slug)
+    if (!provision.ok || !provision.product_id) {
+      return { ok: false, blocks, appliedAny: true, error: provision.error ?? 'No se pudo preparar el producto de apoyos.' }
+    }
+    supportProduct = { product_id: provision.product_id, reused: provision.reused === true }
+    ;(patch.settings!.support as Record<string, unknown>).support_product_id = provision.product_id
   }
 
   // Pull remote logo/banner URLs into our R2 storage so brand assets don't
@@ -54,5 +91,5 @@ export async function applyStoreConfig(
   if (!result.ok) {
     return { ok: false, blocks, appliedAny: true, error: result.error ?? 'No se pudo aplicar la configuración.' }
   }
-  return { ok: true, blocks, appliedAny: true }
+  return { ok: true, blocks, appliedAny: true, ...(supportProduct ? { supportProduct } : {}) }
 }

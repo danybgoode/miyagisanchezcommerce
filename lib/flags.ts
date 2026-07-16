@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -252,6 +252,22 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    surface (this is a standalone observability sink, not a money/auth
  *    path). Flip ON only once golden-beans is deployed and Daniel's live
  *    flag-flip + live-event smoke passes.
+ *  - ENABLEMENT (`mcp.support_config.enabled`): default `false`
+ *    (mcp-parity-core S4.1). Gates ONLY the `support` block of the MCP
+ *    `patch_store_configuration` tool — enabling support via agent
+ *    live-provisions a REAL purchasable Medusa product, not pure config.
+ *    Default OFF ⇒ a patch carrying `support` is refused whole; the portal
+ *    support settings are untouched either way. Flip ON only after Daniel's
+ *    live smoke (enable via tool, confirm the provisioned product appears
+ *    and is purchasable).
+ *  - ENABLEMENT (`mcp.checkout_config.enabled`): default `false`
+ *    (mcp-parity-core S4.2). Gates ONLY the `checkout` block of the MCP
+ *    `patch_store_configuration` tool (escrow_mode/whatsapp_cta/show_phone/
+ *    cash_pickup.enabled — bank_transfer and contact_email are never agent-
+ *    settable regardless). Default OFF ⇒ a patch carrying `checkout` is
+ *    refused whole; the portal checkout settings are untouched either way.
+ *    Flip ON only after Daniel's live smoke (flip escrow_mode via tool,
+ *    confirm a real test checkout changes).
  */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
@@ -283,6 +299,8 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'seller.shell_on_sell_enabled': true,
   'onboarding.three_doors_enabled': false,
   'growth.telemetry_enabled': false,
+  'mcp.support_config.enabled': false,
+  'mcp.checkout_config.enabled': false,
 }
 
 const TABLE = 'platform_flags'
