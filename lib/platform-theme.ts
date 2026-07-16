@@ -77,7 +77,7 @@ export const PLATFORM_THEME_CORE_ID: PlatformThemeChoice = 'core'
 export const PLATFORM_THEME_ALLOWED_PREFIXES = ['/l', '/agent'] as const
 
 const DEFAULT_LOGO: PlatformThemeLogo = {
-  desktop: 'Miyagi Sanchez',
+  desktop: 'Miyagi Sánchez',
   compact: 'MS',
 }
 
