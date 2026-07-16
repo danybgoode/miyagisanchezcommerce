@@ -2272,11 +2272,34 @@ async function handleApplyPrice(args: Record<string, unknown>, authHeader?: stri
   if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo aplicar el precio: ${result.error}` }] }
 
   const body = result.body ?? {}
-  // Mirror the card's "desde" price — same semantics as update_listing's
-  // price_mxn mirror write (the backend already confirmed the Miyagi write).
+  // Mirror the card's "desde" price. On a MULTI-variant product the applied
+  // variant may not be the cheapest one, so blindly writing new_price_cents
+  // could show a wrong starting price on catalog cards (Codex cross-review
+  // catch) — recompute the true min base price from the live price-grid
+  // instead (the backend already confirmed the Miyagi write, so the grid
+  // reflects it). Best-effort: a failed read skips the price write and keeps
+  // the current mirror price rather than writing a possibly-wrong one.
+  let mirrorPriceCents: number | undefined
+  try {
+    const gridRes = await fetch(`${MEDUSA_BASE}/store/listings/${productId}/price-grid`, {
+      headers: MEDUSA_HEADERS,
+      cache: 'no-store',
+    })
+    if (gridRes.ok) {
+      const grid = (await gridRes.json())?.price_grid as
+        | { variants?: Array<{ tiers?: Array<{ amount?: number }> }> }
+        | undefined
+      const basePrices = (grid?.variants ?? [])
+        .map((v) => v.tiers?.[0]?.amount)
+        .filter((a): a is number => typeof a === 'number' && a > 0)
+      if (basePrices.length > 0) mirrorPriceCents = Math.min(...basePrices)
+    }
+  } catch { /* best-effort — keep the current mirror price */ }
+  const mirrorUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (mirrorPriceCents !== undefined && Number.isFinite(mirrorPriceCents)) mirrorUpdate.price_cents = mirrorPriceCents
   const { error: mirrorError } = await db
     .from('marketplace_listings')
-    .update({ price_cents: newPriceCents as number, updated_at: new Date().toISOString() })
+    .update(mirrorUpdate)
     .eq('medusa_product_id', productId)
   if (mirrorError) console.error('[apply_price] mirror update failed (non-fatal):', mirrorError)
 
