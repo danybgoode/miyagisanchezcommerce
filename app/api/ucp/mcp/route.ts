@@ -2321,15 +2321,24 @@ async function handleConfigureListingOptions(args: Record<string, unknown>, auth
     } catch { /* best-effort — keep the current mirror price */ }
   }
   if (minVariantPrice !== undefined && Number.isFinite(minVariantPrice)) mirror.price_cents = minVariantPrice
-  await db.from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
+  // The Medusa write already landed — a mirror failure must not fail the call,
+  // but the success message must not promise a "desde" update that didn't
+  // happen (Codex cross-review catch): report the honest partial state so the
+  // agent/seller knows listing cards may briefly show the old price.
+  const { error: mirrorError } = await db
+    .from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
+  if (mirrorError) console.error('[configure_listing_options] mirror update failed (non-fatal):', mirrorError)
 
   await recordAgentListingAction(shop, { productId, fields })
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
 
+  const mirrorNote = mirrorError
+    ? ' ⚠ El precio "desde" de las tarjetas puede tardar en reflejarse (falló la sincronización del espejo; el precio real de compra ya quedó actualizado).'
+    : ''
   const summary = patch.option_dimensions !== undefined
-    ? `✅ Anuncio convertido a combinaciones con precio (${Object.keys(patch.variant_prices ?? {}).length} combinación(es)); precio "desde" actualizado.`
-    : `✅ Niveles de precio por cantidad actualizados (${patch.variant_tiers!.length} nivel(es)).`
+    ? `✅ Anuncio convertido a combinaciones con precio (${Object.keys(patch.variant_prices ?? {}).length} combinación(es))${mirrorError ? '.' : '; precio "desde" actualizado.'}${mirrorNote}`
+    : `✅ Niveles de precio por cantidad actualizados (${patch.variant_tiers!.length} nivel(es)).${mirrorNote}`
   return { content: [{ type: 'text', text: summary }] }
 }
 
