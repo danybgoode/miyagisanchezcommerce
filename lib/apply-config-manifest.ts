@@ -52,20 +52,27 @@ export async function applyStoreConfig(
   let supportProduct: { product_id: string; reused: boolean } | undefined
   const supportPatch = patch.settings?.support as { enabled?: boolean } | undefined
   if (supportPatch?.enabled === true) {
-    const { data: shopRow } = await db
+    const { data: shopRow, error: shopErr } = await db
       .from('marketplace_shops')
       .select('slug')
       .eq('clerk_user_id', userId)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
+    // Distinguish an infrastructure failure from a genuinely missing shop —
+    // collapsing both into "not found" hides real outages (Codex catch).
+    if (shopErr) {
+      console.error('[apply-config] shop lookup failed:', shopErr)
+      return { ok: false, blocks, appliedAny: false, error: 'No se pudo consultar la tienda para aprovisionar los apoyos. Intenta de nuevo.' }
+    }
     const slug = shopRow?.slug as string | undefined
     if (!slug) {
-      return { ok: false, blocks, appliedAny: true, error: 'Tienda no encontrada para aprovisionar el producto de apoyos.' }
+      return { ok: false, blocks, appliedAny: false, error: 'Tienda no encontrada para aprovisionar el producto de apoyos.' }
     }
     const provision = await ensureSupportProductViaInternal(slug)
     if (!provision.ok || !provision.product_id) {
-      return { ok: false, blocks, appliedAny: true, error: provision.error ?? 'No se pudo preparar el producto de apoyos.' }
+      // Abort BEFORE any settings write — appliedAny false (nothing written).
+      return { ok: false, blocks, appliedAny: false, error: provision.error ?? 'No se pudo preparar el producto de apoyos.' }
     }
     supportProduct = { product_id: provision.product_id, reused: provision.reused === true }
     ;(patch.settings!.support as Record<string, unknown>).support_product_id = provision.product_id
