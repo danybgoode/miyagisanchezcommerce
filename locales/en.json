@@ -1317,7 +1317,7 @@
   "terms": {
     "title": "Terms of use",
     "subtitle": "Basic rules for using Miyagi Sánchez.",
-    "language": "Espanol",
+    "language": "Español",
     "languageHref": "/terminos?lang=es",
     "sections": [
       {
@@ -1398,7 +1398,7 @@
       "killSwitch": "Sweepstakes are paused by the platform."
     },
     "public": {
-      "language": "Espanol",
+      "language": "Español",
       "languageHrefSuffix": "lang=es",
       "notFound": "Sweepstakes not found.",
       "paused": "Sweepstakes are temporarily paused.",
@@ -1502,7 +1502,7 @@
       "error": "The action could not be completed."
     },
     "public": {
-      "language": "Espanol",
+      "language": "Español",
       "notFound": "Event not found.",
       "cancelled": "This event was cancelled.",
       "ended": "Registration for this event has closed.",
