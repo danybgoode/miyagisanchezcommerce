@@ -239,6 +239,32 @@ export async function applySellerPriceViaInternal(
   }
 }
 
+/** Provision (or reuse) the shop's hidden support product through the backend
+ *  internal route (x-internal-secret) — the same reuse-first core the Clerk
+ *  portal path uses (backend _utils/support-product-ensure.ts). Idempotent;
+ *  re-stamps settings.support.support_product_id server-side
+ *  (mcp-parity-core S4.1). */
+export async function ensureSupportProductViaInternal(
+  sellerSlug: string,
+): Promise<{ ok: boolean; status: number; product_id?: string; reused?: boolean; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/support-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug }),
+      cache: 'no-store',
+    })
+    const d = (await res.json().catch(() => ({}))) as { product_id?: string; reused?: boolean; message?: string }
+    if (!res.ok || !d.product_id) {
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: res.status, product_id: d.product_id, reused: d.reused === true }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
 function normalizeClabe(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\D/g, '') : ''
 }

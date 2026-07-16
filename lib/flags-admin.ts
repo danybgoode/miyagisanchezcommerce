@@ -158,7 +158,14 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // (same pipeline as Profit Analyzer). Enablement: default OFF; flip ON after
   // Daniel's live cart-verified smoke.
   'mcp.apply_price.enabled': { polarity: 'enablement', default: false },
-}
+  // MCP patch_store_configuration `support` block (mcp-parity-core S4.1) —
+  // enabling support via agent provisions a REAL product. Enablement: default
+  // OFF; flip ON after Daniel's live provision-and-purchase smoke.
+  'mcp.support_config.enabled': { polarity: 'enablement', default: false },
+  // MCP patch_store_configuration `checkout` block (mcp-parity-core S4.2) —
+  // escrow/CTA presentation via agent. Enablement: default OFF; flip ON after
+  // Daniel's live escrow-mode checkout smoke.
+  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },}
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
 export const FLAG_KEYS = Object.keys(FLAG_META) as FlagKey[]

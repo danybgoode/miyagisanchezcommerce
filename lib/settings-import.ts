@@ -12,6 +12,7 @@
  */
 
 import { isValidThemePresetKey } from './shop-settings/theme-presets'
+import { normalizeSupportSettings } from './support-widget'
 
 // ── Manifest shape (the declarative subset) ──────────────────────────────────
 
@@ -85,6 +86,37 @@ export interface StoreConfigManifest {
     accepts_manuscripts?: boolean
     guidelines?: string | null
   }
+  /**
+   * Support widget (mcp-parity-core S4.1) — validated by the existing
+   * `normalizeSupportSettings` (lib/support-widget.ts) verbatim. NOTE:
+   * enabling it is NOT pure config — the apply pipeline live-provisions a
+   * real Medusa support product and stamps `support_product_id` itself;
+   * a caller-supplied `support_product_id` is always dropped (server-owned).
+   */
+  support?: {
+    enabled?: boolean
+    preset_amount_cents?: number[]
+    custom_min_cents?: number
+    custom_max_cents?: number
+    currency?: string
+    default_visibility?: 'public' | 'private'
+  }
+  /**
+   * Checkout presentation (mcp-parity-core S4.2) — the one block whose
+   * validation is AUTHORED here rather than lifted (the portal route never
+   * validated it). Deliberately narrow: `escrow_mode` enum + three booleans.
+   * `bank_transfer` (real payment info: CLABE) is manual-only — same class
+   * as Stripe/MP in MANUAL_SECTIONS. `contact_email` is server-derived only
+   * (from show_email + the Clerk user's email, a derivation only the portal
+   * session can do) — neither is ever settable from a manifest/agent, and
+   * both are dropped with an issue if present.
+   */
+  checkout?: {
+    escrow_mode?: 'off' | 'optional' | 'required'
+    whatsapp_cta?: boolean
+    show_phone?: boolean
+    cash_pickup?: { enabled?: boolean }
+  }
 }
 
 /** The blocks a file can set, with a one-line description for the UI + prompt. */
@@ -98,6 +130,8 @@ export const CONFIG_BLOCKS: Array<{ key: keyof StoreConfigManifest; label: strin
   { key: 'scheduling', label: 'Enlaces de agenda', desc: 'Enlaces para agendar (etiqueta + URL). La conexión a Cal.com es aparte.' },
   { key: 'content', label: 'Acerca y FAQ', desc: 'Texto de Acerca de tu tienda y preguntas frecuentes (Políticas se toma de Devoluciones).' },
   { key: 'launchpad', label: 'Convocatoria de manuscritos', desc: 'Si tu tienda acepta manuscritos de autores y las indicaciones de la convocatoria.' },
+  { key: 'support', label: 'Apoyos (propinas)', desc: 'Widget de apoyos: tres montos sugeridos, rango del monto libre y visibilidad. Activarlo crea un producto real de apoyos en tu catálogo.' },
+  { key: 'checkout', label: 'Presentación del checkout', desc: 'Modo de apoderado (escrow), botón de WhatsApp, mostrar teléfono y pago en efectivo al recoger. La CLABE/transferencia y el correo de contacto NO se configuran por aquí.' },
 ]
 
 /** Sections that need a manual step (OAuth / money / domain) and can't be set by file. */
@@ -517,6 +551,64 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
       if (Object.keys(lp).length) settings.launchpad = lp
     } else iss.push('el bloque "launchpad" debe ser un objeto')
     record('launchpad', f, iss)
+  }
+
+  // ── support (widget config; enabling provisions a REAL product later) ──────
+  if (manifest.support !== undefined) {
+    const f: string[] = []; const iss: string[] = []
+    if (isObj(manifest.support)) {
+      const raw = manifest.support as Record<string, unknown>
+      if ('support_product_id' in raw) {
+        iss.push('support_product_id lo asigna el servidor al aprovisionar — se ignoró')
+      }
+      // The exact validator the portal PATCH uses (lib/support-widget.ts) —
+      // exactly 3 presets, min≥$1, max≤$5,000, min≤max, presets in range,
+      // 3-letter currency. Its es-MX message surfaces verbatim as the issue.
+      const normalized = normalizeSupportSettings({ ...raw, support_product_id: undefined })
+      if (!normalized.ok) {
+        iss.push(normalized.error)
+      } else {
+        // support_product_id is stamped by the provisioning step in
+        // applyStoreConfig — never from caller input.
+        const { support_product_id: _ignored, ...safe } = normalized.settings
+        settings.support = safe
+        f.push(...Object.keys(safe))
+      }
+    } else iss.push('el bloque "support" debe ser un objeto')
+    record('support', f, iss)
+  }
+
+  // ── checkout (presentation only — authored validation, see the manifest doc) ──
+  if (manifest.checkout !== undefined) {
+    const f: string[] = []; const iss: string[] = []; const co: Record<string, unknown> = {}
+    if (isObj(manifest.checkout)) {
+      const c = manifest.checkout as Record<string, unknown>
+      for (const forbidden of ['bank_transfer', 'contact_email', 'show_email', 'phone', 'payment_methods'] as const) {
+        if (forbidden in c) {
+          iss.push(`${forbidden} no se puede configurar por manifiesto/agente (paso manual o derivado por el servidor) — se ignoró`)
+        }
+      }
+      if (c.escrow_mode !== undefined) {
+        if (c.escrow_mode === 'off' || c.escrow_mode === 'optional' || c.escrow_mode === 'required') {
+          co.escrow_mode = c.escrow_mode; f.push('escrow_mode')
+        } else iss.push('escrow_mode debe ser off | optional | required')
+      }
+      for (const k of ['whatsapp_cta', 'show_phone'] as const) {
+        if (c[k] !== undefined) {
+          const b = bool(c[k])
+          if (b !== undefined) { co[k] = b; f.push(k) } else iss.push(`${k} debe ser booleano`)
+        }
+      }
+      if (c.cash_pickup !== undefined) {
+        if (isObj(c.cash_pickup) && c.cash_pickup.enabled !== undefined) {
+          const b = bool(c.cash_pickup.enabled)
+          if (b !== undefined) { co.cash_pickup = { enabled: b }; f.push('cash_pickup.enabled') }
+          else iss.push('cash_pickup.enabled debe ser booleano')
+        } else iss.push('cash_pickup debe ser un objeto { enabled: booleano }')
+      }
+      if (Object.keys(co).length) settings.checkout = co
+    } else iss.push('el bloque "checkout" debe ser un objeto')
+    record('checkout', f, iss)
   }
 
   if (Object.keys(settings).length) patch.settings = settings

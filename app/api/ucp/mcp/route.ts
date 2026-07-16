@@ -323,6 +323,8 @@ const TOOLS = [
             scheduling:     { type: 'object', description: 'links: [{label, url}] — booking links (Cal.com connection is separate/manual)' },
             content:        { type: 'object', description: 'about {body}, faq {items: [{question, answer}]} — the shop\'s public Acerca/FAQ pages. Políticas has no field here; it mirrors returns_policy above.' },
             launchpad:      { type: 'object', description: 'Bookshop launchpad opt-in: accepts_manuscripts (boolean), guidelines (string, max 2000 chars, or null to clear) — the convocatoria rules shown on /s/[slug]/convocatoria.' },
+            support:        { type: 'object', description: 'Support-widget (tips) config: enabled (boolean), preset_amount_cents (EXACTLY 3 integers), custom_min_cents (≥100), custom_max_cents (≤500000, min≤max, presets in range), currency (3-letter ISO code, e.g. MXN — the platform default), default_visibility (public|private). ⚠️ Enabling it PROVISIONS A REAL, purchasable support product in the shop catalog — the response names its product_id. support_product_id is server-assigned and ignored if sent.' },
+            checkout:       { type: 'object', description: 'Checkout presentation: escrow_mode (off|optional|required), whatsapp_cta (boolean), show_phone (boolean), cash_pickup {enabled: boolean}. bank_transfer (CLABE) and contact_email are NEVER settable here — manual/server-derived only, ignored if sent.' },
           },
         },
       },
@@ -1553,6 +1555,16 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
   const manualKeys = new Set(MANUAL_SECTIONS.map((m) => m.key))
   const ignoredManual = Object.keys(raw).filter((k) => manualKeys.has(k))
 
+  // HIGH-risk blocks each behind their own kill-switch (mcp-parity-core S4) —
+  // refuse the whole call rather than silently dropping the block, so the
+  // agent knows exactly why nothing changed and can retry without it.
+  if ('support' in raw && !(await isEnabled('mcp.support_config.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'El bloque "support" aún no está disponible por agente. Reintenta sin ese bloque, o configúralo desde el portal.' }] }
+  }
+  if ('checkout' in raw && !(await isEnabled('mcp.checkout_config.enabled'))) {
+    return { isError: true, content: [{ type: 'text', text: 'El bloque "checkout" aún no está disponible por agente. Reintenta sin ese bloque, o configúralo desde el portal.' }] }
+  }
+
   const result = await applyStoreConfig(shop.clerk_user_id, null, raw as StoreConfigManifest)
 
   if (!result.ok) {
@@ -1578,13 +1590,19 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
   const summary = [
     `## Configuración actualizada — ${shop.name ?? 'tu tienda'}`,
     ...lines,
+    // NOT pure config — a real, purchasable Medusa product now exists (or was
+    // re-confirmed) in the shop's catalog. The agent caller must be told
+    // (mcp-parity-core S4.1 acceptance).
+    ...(result.supportProduct
+      ? ['', `⚠️ Al activar los apoyos se ${result.supportProduct.reused ? 'reutilizó' : 'CREÓ'} un producto real de apoyos en tu catálogo (product_id: ${result.supportProduct.product_id}) — no es solo configuración.`]
+      : []),
     ...(ignoredManual.length ? ['', `⚠️ Ignorado (requiere paso manual): ${ignoredManual.join(', ')}`] : []),
   ].join('\n')
 
   return {
     content: [
       { type: 'text', text: summary },
-      { type: 'text', text: JSON.stringify({ ok: true, blocks: result.blocks, ignored_manual: ignoredManual }, null, 2) },
+      { type: 'text', text: JSON.stringify({ ok: true, blocks: result.blocks, ignored_manual: ignoredManual, ...(result.supportProduct ? { support_product: result.supportProduct } : {}) }, null, 2) },
     ],
   }
 }
