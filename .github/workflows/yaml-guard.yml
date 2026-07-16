@@ -1,0 +1,41 @@
+# YAML lint — semantic checks on GitHub Actions workflow files that a syntax-only YAML parser can't
+# catch (bad `uses:` refs, invalid `needs:`, typo'd `${{ }}` context expressions, shellcheck on inline
+# `run:` blocks). Deploy-critical `cloudbuild.yaml` correctness is a SEPARATE, stricter check — see
+# `lib/yaml-audit.ts` + `e2e/yaml-integrity.spec.ts`, which ride the existing required `test:e2e` gate.
+#
+# There is no official reusable "actionlint action" — actionlint's own docs (docs/usage.md) recommend
+# downloading the release binary via its download script. The actionlint VERSION is pinned explicitly
+# below; the tiny download-script wrapper itself is fetched unpinned from the tool's own `main` branch
+# (its documented, standard install method — a few stable lines, much lower drift risk than an
+# unpinned asset CDN, but still a residual trust point worth naming rather than hiding).
+#
+# ADVISORY for now (continue-on-error) — no findings verified yet against these 12 workflow files.
+# Flip to required (drop continue-on-error) after one green cycle, per this repo's standing convention
+# for rolling out a new guard (see the raw-color guard's and emoji-guard's own rollout in LEARNINGS.md).
+name: yaml-guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+env:
+  ACTIONLINT_VERSION: '1.7.12'
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actionlint
+        id: get_actionlint
+        shell: bash
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
+      - name: Check workflow files
+        shell: bash
+        continue-on-error: true
+        run: ${{ steps.get_actionlint.outputs.executable }} -color
