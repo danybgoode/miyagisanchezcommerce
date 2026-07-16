@@ -167,7 +167,7 @@
           "eyebrow": "",
           "title": "Tengo un negocio local",
           "body": "Imprenta, taller, tienda física o inventario que quieres poner en línea.",
-          "icon": "iconoir-store",
+          "icon": "iconoir-shop",
           "statusLabel": ""
         },
         {
@@ -210,7 +210,7 @@
         "lead": "Funciones que en otras plataformas pagas aparte — aquí son parte del marketplace.",
         "items": [
           {
-            "icon": "iconoir-ticket",
+            "icon": "iconoir-qr-code",
             "label": "Boletos y eventos",
             "sub": "Vende admisiones y maneja tu evento."
           },
@@ -230,7 +230,7 @@
             "sub": "Cobra recurrente y vende contenido propio."
           },
           {
-            "icon": "iconoir-pricetag",
+            "icon": "iconoir-percentage-circle",
             "label": "Cupones y promociones",
             "sub": "Descuentos y códigos para tus campañas."
           },
@@ -392,7 +392,7 @@
           "body": "Deja de perder margen en cada venta. miyagisanchez.com no toma un porcentaje de tu pedido."
         },
         {
-          "icon": "iconoir-domain",
+          "icon": "iconoir-internet",
           "title": "Tu propia vitrina",
           "body": "Link gratis, subdominio, dominio propio y widget para tu web o tu bio."
         },
@@ -1113,7 +1113,7 @@
           "body": "sutienda.miyagisanchez.com — dirección propia sin comprar un dominio. $199 MXN/año, GRATIS el primer año con tu código de promotor: el gancho perfecto para cerrar hoy."
         },
         {
-          "icon": "iconoir-newspaper",
+          "icon": "iconoir-journal",
           "title": "Anuncio impreso",
           "body": "Un espacio en la edición impresa de Miyagi Sánchez que circula en su zona: tráfico físico a la tienda, no solo en línea. El precio depende del tamaño y la edición; se cobra una sola vez."
         },
