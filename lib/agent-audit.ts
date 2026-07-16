@@ -157,19 +157,28 @@ export async function recordAgentListingCreate(
 
 /**
  * Audit + notify a seller agent's listing change. A price change moves what
- * buyers pay → sensitive → the seller also gets a security email. Best-effort.
+ * buyers pay → sensitive → the seller also gets a security email. A DELETE is
+ * sensitive too (mcp-parity-core S3.1, fresh-review catch): removing a live,
+ * possibly revenue-producing listing under a compromised token is at least as
+ * consequential as repricing it, so the seller gets the same alert.
+ * Best-effort.
  */
 export async function recordAgentListingAction(
   shop: AgentShop,
   entry: { productId: string; fields: string[]; title?: string },
 ): Promise<void> {
-  const sensitive = entry.fields.includes('price')
+  const priceSensitive = entry.fields.includes('price')
+  const deleteSensitive = entry.fields.includes('deleted')
+  const sensitive = priceSensitive || deleteSensitive
   await appendAuditEntry(shop.id, {
     at: new Date().toISOString(),
     tool: 'manage_listing',
     applied_blocks: [`listing:${entry.productId}`],
     fields: { [entry.productId]: entry.fields },
-    sensitive_blocks: sensitive ? ['listing_price'] : [],
+    sensitive_blocks: [
+      ...(priceSensitive ? ['listing_price'] : []),
+      ...(deleteSensitive ? ['listing_delete'] : []),
+    ],
   })
   try {
     await tgNotify(

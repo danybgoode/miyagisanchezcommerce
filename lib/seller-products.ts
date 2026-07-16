@@ -177,6 +177,68 @@ export async function createSellerCollectionViaInternal(
   }
 }
 
+/** Soft-delete the product through the backend internal route (x-internal-secret).
+ *  Sibling of patchSellerProductViaInternal — the exact same native Medusa
+ *  soft-delete the portal DELETE runs (order line-items keep resolving, which
+ *  is why no order-linked refusal guard exists on this path — parity by
+ *  design; mcp-parity-core S3.1). */
+export async function deleteSellerProductViaInternal(
+  sellerSlug: string,
+  productId: string,
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(
+      `${MEDUSA_BASE}/internal/seller-products/${productId}?seller_slug=${encodeURIComponent(sellerSlug)}`,
+      {
+        method: 'DELETE',
+        headers: { 'x-internal-secret': INTERNAL_SECRET },
+      },
+    )
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { message?: string }
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: 200 }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
+export interface ApplyPriceViaInternalResult {
+  ok: boolean
+  status: number
+  error?: string
+  /** The backend's honest partial-state body on success ({ miyagi, ml, ... }). */
+  body?: Record<string, unknown>
+}
+
+/** Apply a variant price through the backend internal route (x-internal-secret).
+ *  Sibling of patchSellerProductViaInternal — same pipeline as the portal's
+ *  one-click Apply (ownership → Miyagi write → conditional ML push →
+ *  price_apply activity log; mcp-parity-core S3.2). */
+export async function applySellerPriceViaInternal(
+  sellerSlug: string,
+  input: { product_id: string; variant_id: string; new_price_cents: number; target_margin_pct?: number },
+): Promise<ApplyPriceViaInternalResult> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/profit/apply-price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug, ...input }),
+      cache: 'no-store',
+    })
+    const d = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: (d.message as string) ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: res.status, body: d }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
 function normalizeClabe(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\D/g, '') : ''
 }

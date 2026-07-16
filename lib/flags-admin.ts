@@ -151,6 +151,13 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // priced option dimensions / per-combo prices / quantity tiers. Enablement:
   // default OFF ⇒ the tool refuses; flip ON after Daniel's live CPP-build smoke.
   'mcp.configure_options.enabled': { polarity: 'enablement', default: false },
+  // MCP delete_listing tool (mcp-parity-core S3.1) — agent soft-delete of an
+  // owned listing. Enablement: default OFF; flip ON after Daniel's live smoke.
+  'mcp.delete_listing.enabled': { polarity: 'enablement', default: false },
+  // MCP apply_price tool (mcp-parity-core S3.2) — agent one-click price apply
+  // (same pipeline as Profit Analyzer). Enablement: default OFF; flip ON after
+  // Daniel's live cart-verified smoke.
+  'mcp.apply_price.enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
