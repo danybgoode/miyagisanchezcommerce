@@ -72,7 +72,8 @@ import { validateSlug, buildSlugAliasHistory } from '@/lib/slug'
 import { SLUG_REDIRECT_TAG } from '@/lib/slug-redirect'
 import { resolvePrefs, audienceTelegramInUse, EVENT_GROUPS, CHANNELS, type PrefRow } from '@/lib/notifications/preferences'
 import { genLinkToken, LINK_TOKEN_TTL_MS } from '@/lib/notifications/telegram-link'
-import { getBotUsername, tgSend } from '@/lib/telegram'
+import { getBotUsername, tgSend, tg } from '@/lib/telegram'
+import { validateFeedbackInput } from '@/lib/feedback'
 import { getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
@@ -869,6 +870,19 @@ const TOOLS = [
         interval: { type: 'string', enum: ['year', 'month'], description: "Target billing interval: 'year' ($199/yr) or 'month' ($25/mo)." },
       },
       required: ['interval'],
+    },
+  },
+  {
+    name: 'send_feedback',
+    description: "File structured product feedback about Miyagi Sánchez itself or its agent tools — the moment you hit a missing capability, a confusing or wrong tool result, or a bug, file it right then rather than silently working around it or waiting to be asked. Requires a seller shop token (Authorization: Bearer ms_agent_…/ms_connector_…) or a partner token (Authorization: Bearer ms_partner_…, any role incl. viewer) — the author identity is resolved from whichever credential you're using, never taken from your input. category=mcp-tool for a tool that's missing/confusing/broken (pass tool_name), category=bug for something actually broken, category=feature for a capability you wish existed.",
+    inputSchema: {
+      type: 'object',
+      required: ['category', 'message'],
+      properties: {
+        category:  { type: 'string', enum: ['feature', 'mcp-tool', 'bug'], description: 'feature (capability request), mcp-tool (a tool is missing/confusing/wrong), or bug (something is broken).' },
+        message:   { type: 'string', description: 'Free-text report, 5–2000 characters. Be specific — what you expected vs. what happened.' },
+        tool_name: { type: 'string', description: 'Optional — the MCP tool name this feedback is about (e.g. "get_checkout_options").' },
+      },
     },
   },
   {
@@ -3440,6 +3454,52 @@ async function handleSwitchSubdomainCadence(args: Record<string, unknown>, authH
   }
 }
 
+/**
+ * `send_feedback` — miyagi-partners-mcp S3. Available to BOTH credential shapes
+ * `resolveToolShop` resolves (seller ms_agent_/ms_connector_, and partner
+ * ms_partner_ — any role, incl. viewer, since filing feedback isn't a shop
+ * mutation: PARTNER_READ_TOOLS in lib/partner-tools.ts includes it). The author
+ * identity is ALWAYS derived from which credential resolved, never taken from
+ * caller input — `agentAuth.partner` present ⇒ 'partner', absent ⇒ 'seller'.
+ * `platform_feedback.author_kind` also permits 'agent' at the schema level for a
+ * future unauthenticated path; no caller mints that value yet (see lib/feedback.ts).
+ * Best-effort Telegram notify — never fails the tool (tg.feedbackFiled → tgNotify
+ * never throws; see lib/telegram.ts).
+ */
+async function handleSendFeedback(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'send_feedback')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const { shop, partner } = agentAuth
+
+  const validated = validateFeedbackInput(args)
+  if (!validated.ok) return { isError: true, content: [{ type: 'text', text: validated.error }] }
+
+  const authorKind: 'seller' | 'partner' = partner ? 'partner' : 'seller'
+  const authorId = partner ? partner.id : shop.id
+  const authorLabel = partner
+    ? (partner.name ? `${partner.name} (${partner.code})` : partner.code)
+    : (shop.name ?? shop.slug ?? shop.id)
+
+  const { error } = await db.from('platform_feedback').insert({
+    author_kind: authorKind,
+    author_id: authorId,
+    author_label: authorLabel,
+    category: validated.category,
+    tool_name: validated.toolName,
+    message: validated.message,
+  })
+  if (error) {
+    console.error('[send_feedback] insert failed:', error.message)
+    return { isError: true, content: [{ type: 'text', text: 'No se pudo registrar tu feedback — intenta de nuevo.' }] }
+  }
+
+  await tg.feedbackFiled(authorLabel, authorKind, validated.category, validated.toolName, validated.message)
+
+  return {
+    content: [{ type: 'text', text: 'Gracias — tu feedback quedó registrado.' }],
+  }
+}
+
 // ── MCP method dispatcher ─────────────────────────────────────────────────────
 
 async function handleAboutMiyagi(baseUrl: string) {
@@ -3552,6 +3612,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_subdomain_subscription': { const r = await handleStartSubdomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'switch_subdomain_cadence':     { const r = await handleSwitchSubdomainCadence(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'send_feedback':                { const r = await handleSendFeedback(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       default:                     return null  // will become MethodNotFound error
     }
   }

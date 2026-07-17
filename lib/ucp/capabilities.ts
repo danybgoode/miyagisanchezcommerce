@@ -169,6 +169,8 @@ export const MCP_SELLER_TOOLS = [
   'get_subdomain_entitlement',     // subdomain-pricing S2 (token-scoped)
   'start_subdomain_subscription',  // subdomain-pricing S2 (token-scoped)
   'switch_subdomain_cadence',      // subdomain-pricing S3 — monthly↔yearly switch (token-scoped)
+  'send_feedback',                 // miyagi-partners-mcp S3 — structured product feedback; callable by
+                                    // seller AND partner credentials, incl. a viewer-role partner (token-scoped)
 ] as const
 
 /** Every MCP tool name, in discovery order. */

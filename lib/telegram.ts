@@ -150,6 +150,15 @@ export const tg = {
     return tgNotify(`📝 <b>Nueva solicitud de promotor</b>\n${esc(name)}${city ? ` · ${esc(city)}` : ''}\n${esc(adminUrl)}`)
   },
 
+  /** send_feedback MCP tool filed a report (miyagi-partners-mcp S3). */
+  feedbackFiled(authorLabel: string, authorKind: string, category: string, toolName: string | null, message: string) {
+    return tgNotify(
+      `🗣️ <b>Feedback de agente</b>\n${esc(authorLabel)} (${esc(authorKind)}) · ${esc(category)}` +
+      (toolName ? ` · herramienta: <code>${esc(toolName)}</code>` : '') +
+      `\n${esc(message)}`,
+    )
+  },
+
   /** A migration's parity report is "very custom" (untrustworthy pull) — no price
    *  was offered; route to Daniel with the report (epic 03 · platform-migrations
    *  S2 · US-2.3). Links the report instead of attaching a file (this codebase
