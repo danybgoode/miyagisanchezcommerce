@@ -18,6 +18,7 @@ import HomeRetomaOffers from '@/app/components/HomeRetomaOffers'
 import HomeSellerModule from '@/app/components/HomeSellerModule'
 import HomeAnnouncementCard from '@/app/components/HomeAnnouncementCard'
 import AuthShow from '@/app/components/AuthShow'
+import ComparadorTeaserCard from '@/app/components/ComparadorTeaserCard'
 import {
   NEIGHBORHOOD_PULSE_COPY,
   printSocialTypeLabel,
@@ -142,6 +143,12 @@ export default async function HomePage() {
           Hydrate client-side from the S3 Cloud Run endpoint; render nothing otherwise so
           the static page is unchanged for signed-out/loading visitors. */}
       <HomeRetomaOffers />
+
+      {/* cost-comparator-homepage epic (08), Sprint 1 · US-1.4 — teaser linking the
+          public /comparador tool. A CLIENT island (ComparadorTeaserCard) so this static
+          page's own server render is untouched — no new dynamic API, `/` stays a
+          prerendered CDN asset (asserted in e2e/home-static.spec.ts). */}
+      <ComparadorTeaserCard />
 
       {/* S3.2 — Recién llegado al barrio: newest-first, deduped against Selección so no
           listing appears twice. Same card visual language as the Selección grid below. */}

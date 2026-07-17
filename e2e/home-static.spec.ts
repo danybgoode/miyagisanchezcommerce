@@ -119,4 +119,22 @@ test.describe('static homepage · curated shell, no personalization', () => {
       expect(html).toContain(badge)
     }
   })
+
+  // cost-comparator-homepage epic (08), Sprint 1 · US-1.4 — the teaser card linking
+  // `/comparador` is a CLIENT island (`ComparadorTeaserCard`, `'use client'`), so its
+  // markup IS present in the static server render (React SSRs client components into
+  // the initial HTML same as any other) — its interactive UTM-forwarding href only
+  // resolves after hydration, so this spec only proves the anchor + copy shipped. The
+  // load-bearing static-ness proof is the `next build` route table showing `○ /` (no
+  // `ƒ`) — this component adds no headers()/cookies()/searchParams read, so it can't
+  // force the route dynamic.
+  test('the comparador teaser card renders and links to /comparador', async ({ request }) => {
+    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    const teaser = html.match(/<a[^>]*data-testid="home-comparador-teaser"[^>]*>/)?.[0] ?? ''
+    expect(teaser).not.toBe('')
+    expect(teaser).toContain('href="/comparador"')
+    expect(html).toContain('¿Cuánto pagas hoy contra Miyagi?')
+  })
 })
