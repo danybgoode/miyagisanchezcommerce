@@ -27,15 +27,15 @@
  *   - best-effort: a failure here NEVER fails the close (log + `tg.alert`; the
  *     caller always gets a resolved result, never a thrown error).
  *
- * Idempotent: `partner_grants_active_uniq` (promoter_id, shop_id WHERE
- * revoked_at IS NULL) 409s a duplicate insert (Postgres `23505`) — an active
- * grant for this pair already exists. If it's already `manager`, that's a
- * pure no-op (a retried/duplicate close). If it's `viewer` (only reachable if
- * an admin granted `viewer` on this exact shop_id between two idempotent
- * `shop/setup` retries for the same merchant — see `shop/setup`'s own
- * `promoter://` source_url idempotency), it's upgraded to `manager` in place,
- * since a promoter-close always intends full manager access — never silently
- * left at a lesser role than the acceptance criteria promises.
+ * Idempotent AND intent-preserving: the funnel only ever creates a grant on a
+ * pair with NO history. A retried/duplicate close is a no-op; an existing
+ * active `viewer` grant is NEVER upgraded (an admin set that role
+ * deliberately); a REVOKED pair is NEVER silently re-granted (the seller's
+ * revoke — S2.3's "always under my control" — must not be undoable by the
+ * promoter re-running the close). Each skipped case posts an ops note so the
+ * attempt stays visible; re-granting is an explicit admin/seller action.
+ * A concurrent duplicate insert racing the history read is absorbed by
+ * `partner_grants_active_uniq` (23505 → no-op).
  *
  * server-only (Supabase + Telegram + the platform flag reader).
  */
@@ -75,38 +75,48 @@ export async function autoGrantPartnerOnClose(input: {
     // No partner credential — this promoter closes exactly as today. No error, no grant.
     if (!promoter?.partner_token_hash) return { ok: true, granted: false }
 
+    // Deliberate human decisions WIN over the funnel (fresh-review decision,
+    // S2 — reversible if Daniel prefers funnel-wins semantics):
+    //  * a REVOKED pair is never silently re-granted (a seller's revoke must
+    //    not be undoable by the promoter re-running the close);
+    //  * an existing active `viewer` grant is never upgraded (an admin set it).
+    // Both cases: no-op + ops note, so the override attempt stays visible.
+    const { data: priorRows, error: priorError } = await db
+      .from('partner_grants')
+      .select('id, role, revoked_at')
+      .eq('promoter_id', promoterId)
+      .eq('shop_id', shopId)
+    if (priorError) throw new Error(priorError.message)
+    const prior = priorRows ?? []
+    if (prior.length > 0) {
+      const active = prior.find((g) => g.revoked_at === null)
+      tg.alert(
+        active
+          ? `ℹ️ Cierre repetido: el socio ya tiene acceso (${active.role}) a la tienda — sin cambios.\nShop: ${shopId}\nPromotor: ${promoterId}`
+          : `ℹ️ Cierre de socio sobre un acceso REVOCADO — NO se re-otorga automáticamente (el vendedor lo revocó; re-otorgar requiere admin o al vendedor).\nShop: ${shopId}\nPromotor: ${promoterId}`,
+      ).catch(() => {})
+      return { ok: true, granted: false }
+    }
+
     const { data: inserted, error: insertError } = await db
       .from('partner_grants')
       .insert({ promoter_id: promoterId, shop_id: shopId, role: 'manager', granted_by: 'promoter-close' })
       .select('id')
     if (insertError) {
-      // 23505 = unique_violation on partner_grants_active_uniq — an ACTIVE grant
-      // for this promoter↔shop pair already exists. Read it back and, if it's
-      // NOT already manager, upgrade it in place (see file header) — otherwise
-      // it's a pure no-op (the common idempotent-retry case).
-      if (insertError.code === '23505') {
-        const { data: existing, error: readExistingError } = await db
-          .from('partner_grants')
-          .select('id, role')
-          .eq('promoter_id', promoterId)
-          .eq('shop_id', shopId)
-          .is('revoked_at', null)
-          .maybeSingle()
-        if (readExistingError) throw new Error(readExistingError.message)
-        if (existing && existing.role !== 'manager') {
-          const { error: upgradeError } = await db
-            .from('partner_grants')
-            .update({ role: 'manager' })
-            .eq('id', existing.id)
-          if (upgradeError) throw new Error(upgradeError.message)
-        }
-        return { ok: true, granted: false }
-      }
+      // 23505 = unique_violation on partner_grants_active_uniq — a concurrent
+      // duplicate close raced us past the prior-rows read. Pure no-op.
+      if (insertError.code === '23505') return { ok: true, granted: false }
       throw new Error(insertError.message)
     }
     if (!inserted || inserted.length === 0) {
       throw new Error(`grant insert matched 0 rows (shop ${shopId}, promoter ${promoterId})`)
     }
+
+    // Success is audited too (fresh-review catch) — a new grant into the auth
+    // table should be as visible as a failed one. Best-effort.
+    tg.alert(
+      `🤝 Auto-grant de socio: acceso manager otorgado al cerrar la tienda.\nShop: ${shopId}\nPromotor: ${promoterId}`,
+    ).catch(() => {})
 
     return { ok: true, granted: true }
   } catch (e) {
