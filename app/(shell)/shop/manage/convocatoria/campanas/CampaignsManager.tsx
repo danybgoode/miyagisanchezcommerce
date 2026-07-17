@@ -225,7 +225,7 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
                   {/* mschz-full-coverage (07, Sprint 1, US-1.3) — the shareable link
                       is the short branded form (mschz.org/v/…); the passthrough
                       (US-1.1) 301s it to the identical /v/<slug> page. */}
-                  Página pública: <a href={`${SHORTLINK_ORIGIN}/v/${c.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-info)' }}>mschz.org/v/{c.slug}</a>
+                  Página pública: <a href={`${SHORTLINK_ORIGIN}/v/${c.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-info)' }}>{SHORTLINK_ORIGIN.replace(/^https?:\/\//, '')}/v/{c.slug}</a>
                 </p>
               )}
               {c.status === 'closed_met' && c.coupon_code && (
