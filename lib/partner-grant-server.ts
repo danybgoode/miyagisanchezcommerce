@@ -28,8 +28,14 @@
  *     caller always gets a resolved result, never a thrown error).
  *
  * Idempotent: `partner_grants_active_uniq` (promoter_id, shop_id WHERE
- * revoked_at IS NULL) 409s a duplicate insert (Postgres `23505`) — treated as a
- * no-op, not a failure, so a retried/duplicate close never errors.
+ * revoked_at IS NULL) 409s a duplicate insert (Postgres `23505`) — an active
+ * grant for this pair already exists. If it's already `manager`, that's a
+ * pure no-op (a retried/duplicate close). If it's `viewer` (only reachable if
+ * an admin granted `viewer` on this exact shop_id between two idempotent
+ * `shop/setup` retries for the same merchant — see `shop/setup`'s own
+ * `promoter://` source_url idempotency), it's upgraded to `manager` in place,
+ * since a promoter-close always intends full manager access — never silently
+ * left at a lesser role than the acceptance criteria promises.
  *
  * server-only (Supabase + Telegram + the platform flag reader).
  */
@@ -75,9 +81,27 @@ export async function autoGrantPartnerOnClose(input: {
       .select('id')
     if (insertError) {
       // 23505 = unique_violation on partner_grants_active_uniq — an ACTIVE grant
-      // for this promoter↔shop pair already exists (idempotent retry / double
-      // close). No-op, not a failure.
-      if (insertError.code === '23505') return { ok: true, granted: false }
+      // for this promoter↔shop pair already exists. Read it back and, if it's
+      // NOT already manager, upgrade it in place (see file header) — otherwise
+      // it's a pure no-op (the common idempotent-retry case).
+      if (insertError.code === '23505') {
+        const { data: existing, error: readExistingError } = await db
+          .from('partner_grants')
+          .select('id, role')
+          .eq('promoter_id', promoterId)
+          .eq('shop_id', shopId)
+          .is('revoked_at', null)
+          .maybeSingle()
+        if (readExistingError) throw new Error(readExistingError.message)
+        if (existing && existing.role !== 'manager') {
+          const { error: upgradeError } = await db
+            .from('partner_grants')
+            .update({ role: 'manager' })
+            .eq('id', existing.id)
+          if (upgradeError) throw new Error(upgradeError.message)
+        }
+        return { ok: true, granted: false }
+      }
       throw new Error(insertError.message)
     }
     if (!inserted || inserted.length === 0) {
@@ -91,7 +115,7 @@ export async function autoGrantPartnerOnClose(input: {
     tg.alert(
       `Auto-grant de socio falló tras cerrar una tienda — repara a mano si el promotor ` +
       `tiene credencial de socio (\`partner_token_hash\`).\nShop: ${shopId}\nPromotor: ${promoterId}\nError: ${message}`,
-    )
+    ).catch(() => {})
     return { ok: true, granted: false }
   }
 }

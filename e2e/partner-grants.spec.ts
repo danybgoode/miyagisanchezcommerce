@@ -52,9 +52,12 @@ test.describe('partner-grants · DELETE /api/sell/partner-grants is a real JSON 
     expect(res.headers()['content-type'] ?? '').toContain('application/json')
   })
 
-  test('a well-formed but missing grant_id never 500s, even once authed (shape-only check)', async ({ request }) => {
-    // Can't authenticate here (no seller fixture) — this only proves the route
-    // never 5xx's on a garbage body when it DOES resolve past auth/flag gates.
+  test('a missing grant_id body never 500s while anonymous (flag/auth gate short-circuits first)', async ({ request }) => {
+    // Can't authenticate here (no seller fixture) — this ONLY proves the route
+    // never 5xx's on a garbage body while it's still resolving the flag/auth
+    // gate (401/404). It does NOT exercise the grant_id validation branch
+    // itself — that requires a real authed seller session (owed to Daniel,
+    // see the file header and sprint-2.md's smoke walkthrough).
     const res = await request.delete('/api/sell/partner-grants', { data: {} })
     expect(res.status()).toBeLessThan(500)
   })

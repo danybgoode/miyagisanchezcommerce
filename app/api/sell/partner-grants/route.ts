@@ -113,7 +113,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Best-effort ops notification — never fails the revoke itself.
-  tg.alert(`Acceso de socio revocado por el vendedor.\nTienda: ${shop.name} (${shop.slug})\nGrant: ${grantId}`)
+  tg.alert(`Acceso de socio revocado por el vendedor.\nTienda: ${shop.name} (${shop.slug})\nGrant: ${grantId}`).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }
