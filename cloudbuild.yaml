@@ -35,6 +35,14 @@ substitutions:
   _NEXT_PUBLIC_CLERK_SIGN_UP_URL: '/sign-up'
   _NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: '/'
   _NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: '/'
+  # GTM container id — public by definition (visible in every page's gtm.js URL).
+  # Was Vercel-only env; the 2026-07-10 Cloud Run cutover silently dropped it and
+  # analytics went dark (found by the nextpublic-buildtime-inlining-audit seed).
+  _NEXT_PUBLIC_GTM_ID: 'GTM-MWHVLJ3M'
+  # Concierge WhatsApp for print ads — value was Vercel-only (write-only, not
+  # recoverable from any repo/GCP source); empty default preserves today's
+  # server-side '' fallback until Daniel sets the trigger substitution.
+  _NEXT_PUBLIC_MIYAGI_WHATSAPP: ''
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -105,6 +113,8 @@ steps:
           --build-arg NEXT_PUBLIC_CLERK_SIGN_UP_URL="${_NEXT_PUBLIC_CLERK_SIGN_UP_URL}" \
           --build-arg NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL="${_NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL}" \
           --build-arg NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL="${_NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL}" \
+          --build-arg NEXT_PUBLIC_GTM_ID="${_NEXT_PUBLIC_GTM_ID}" \
+          --build-arg NEXT_PUBLIC_MIYAGI_WHATSAPP="${_NEXT_PUBLIC_MIYAGI_WHATSAPP}" \
           --push \
           -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA \
           -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:latest \
