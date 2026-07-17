@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
 
 /**
  * Bookshop launchpad · Sprint 3.1 — the campaign builder + list (client).
@@ -221,7 +222,10 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
               </p>
               {c.status === 'active' && (
                 <p style={{ fontSize: 13, marginTop: 6 }}>
-                  Página pública: <a href={`/v/${c.slug}`} style={{ color: 'var(--color-info)' }}>/v/{c.slug}</a>
+                  {/* mschz-full-coverage (07, Sprint 1, US-1.3) — the shareable link
+                      is the short branded form (mschz.org/v/…); the passthrough
+                      (US-1.1) 301s it to the identical /v/<slug> page. */}
+                  Página pública: <a href={`${SHORTLINK_ORIGIN}/v/${c.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-info)' }}>mschz.org/v/{c.slug}</a>
                 </p>
               )}
               {c.status === 'closed_met' && c.coupon_code && (

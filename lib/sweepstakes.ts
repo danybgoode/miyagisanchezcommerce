@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/supabase'
 import { normalizeLocale, type Locale } from '@/lib/dictionary'
+import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
 import {
   sendSweepstakesConsolation,
   sendSweepstakesVerificationCode,
@@ -16,7 +17,6 @@ import type {
   SweepstakesStats,
 } from '@/lib/sweepstakes-types'
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
 const CODE_TTL_MS = 15 * 60 * 1000
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
@@ -67,8 +67,11 @@ export function maskEmail(email: string | null | undefined): string {
   return `${head}***@${domain}`
 }
 
+// mschz-full-coverage (07, Sprint 1, US-1.3) — the public/shareable sweepstakes
+// URL is now the short branded form (mschz.org/g/…); the passthrough (US-1.1)
+// 301s it to the identical /g/<slug> page on the platform origin.
 export function publicSweepstakesUrl(slug: string, locale?: Locale): string {
-  const url = `${SITE_URL}/g/${encodeURIComponent(slug)}`
+  const url = `${SHORTLINK_ORIGIN}/g/${encodeURIComponent(slug)}`
   return locale === 'en' ? `${url}?lang=en` : url
 }
 
