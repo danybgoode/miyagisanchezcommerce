@@ -48,6 +48,11 @@ const NEXT_PUBLIC_VARS = [
   'NEXT_PUBLIC_CLERK_SIGN_UP_URL',
   'NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL',
   'NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL',
+  // Added 2026-07-17 (nextpublic-buildtime-inlining-audit close-out): GTM_ID was
+  // Vercel-only env — the Cloud Run cutover dropped it and analytics went dark
+  // (live-bundle-confirmed). MIYAGI_WHATSAPP is server-read today but same class.
+  'NEXT_PUBLIC_GTM_ID',
+  'NEXT_PUBLIC_MIYAGI_WHATSAPP',
 ]
 
 const SUBSTITUTION_VARS = [
@@ -57,6 +62,8 @@ const SUBSTITUTION_VARS = [
   'NEXT_PUBLIC_CLERK_SIGN_UP_URL',
   'NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL',
   'NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL',
+  'NEXT_PUBLIC_GTM_ID',
+  'NEXT_PUBLIC_MIYAGI_WHATSAPP',
 ]
 const SECRET_VARS = NEXT_PUBLIC_VARS.filter((n) => !SUBSTITUTION_VARS.includes(n))
 
@@ -95,7 +102,7 @@ test.describe('cloudbuild.yaml — NEXT_PUBLIC_* build-args', () => {
     }
   })
 
-  test('the 6 default-bearing vars resolve from substitutions, not secrets', () => {
+  test('the default-bearing vars resolve from substitutions, not secrets', () => {
     for (const name of SUBSTITUTION_VARS) {
       expect(cloudbuild, `missing _${name}: under substitutions:`).toMatch(new RegExp(`_${name}:`))
       expect(cloudbuild, `${name} build-arg must reference the substitution`).toMatch(
@@ -104,7 +111,7 @@ test.describe('cloudbuild.yaml — NEXT_PUBLIC_* build-args', () => {
     }
   })
 
-  test('the 8 real-key vars resolve from Secret Manager secretEnv, not substitutions', () => {
+  test('the real-key vars resolve from Secret Manager secretEnv, not substitutions', () => {
     for (const name of SECRET_VARS) {
       expect(cloudbuild, `missing ${name} under secretEnv:`).toMatch(new RegExp(`^\\s*- ${name}\\s*$`, 'm'))
       expect(cloudbuild, `${name} build-arg must reference the secretEnv var`).toMatch(
@@ -123,5 +130,56 @@ test.describe('cloudbuild.yaml — NEXT_PUBLIC_* build-args', () => {
     expect(cloudbuild).toMatch(/--push/)
     expect(cloudbuild).toMatch(/-t \$\{_REGION\}-docker\.pkg\.dev\/\$PROJECT_ID\/\$\{_AR_REPO\}\/frontend:\$SHORT_SHA/)
     expect(cloudbuild).toMatch(/-t \$\{_REGION\}-docker\.pkg\.dev\/\$PROJECT_ID\/\$\{_AR_REPO\}\/frontend:latest/)
+  })
+})
+
+// ── Source-scan guard — the systemic close of nextpublic-buildtime-inlining-audit ──
+//
+// The lists above lock the PIPELINE side (Dockerfile/cloudbuild carry every known
+// var). This test locks the SOURCE side: any `process.env.NEXT_PUBLIC_X` read that
+// appears anywhere in app code must be in NEXT_PUBLIC_VARS, or the Cloud Run image
+// build never receives it and every 'use client' read inlines `undefined` — the
+// exact failure that shipped three times (Medusa URL, checkout MEDUSA_BASE, GTM_ID,
+// the last one killing analytics silently for a week). With this test, introducing
+// a new NEXT_PUBLIC_* var without extending the build-arg rail is a red gate
+// locally and in CI instead of a silent prod regression.
+
+import { readdirSync, statSync } from 'fs'
+
+const SOURCE_DIRS = ['app', 'lib', 'components', 'hooks'].filter((d) => {
+  try {
+    return statSync(join(ROOT, d)).isDirectory()
+  } catch {
+    return false
+  }
+})
+
+function collectSourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue
+    const p = join(dir, entry.name)
+    if (entry.isDirectory()) collectSourceFiles(p, out)
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push(p)
+  }
+  return out
+}
+
+test.describe('app source — every NEXT_PUBLIC_* read is covered by the build-arg rail', () => {
+  test('no process.env.NEXT_PUBLIC_* read of a var missing from NEXT_PUBLIC_VARS', () => {
+    const offenders: string[] = []
+    for (const dir of SOURCE_DIRS) {
+      for (const file of collectSourceFiles(join(ROOT, dir))) {
+        const src = readFileSync(file, 'utf8')
+        for (const m of src.matchAll(/process\.env\.(NEXT_PUBLIC_[A-Z0-9_]+)/g)) {
+          if (!NEXT_PUBLIC_VARS.includes(m[1])) {
+            offenders.push(`${file.slice(ROOT.length + 1)} reads ${m[1]}`)
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      `NEXT_PUBLIC_* vars read in source but missing from the build-arg rail — add them to NEXT_PUBLIC_VARS here AND in Dockerfile + cloudbuild.yaml + the root repo's infra/gcp/test/frontend-build-args.test.js + deploy-frontend.sh, or they inline undefined on Cloud Run:\n${offenders.join('\n')}`,
+    ).toEqual([])
   })
 })
