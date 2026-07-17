@@ -14,10 +14,18 @@ import { ADMIN_SECTIONS, ADMIN_SECTION_GROUP_LABELS, activeAdminSectionHref } fr
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido + miyagi-partners-mcp S3 feedback)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'tenants', 'flags', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'feedback', 'tenants', 'flags', 'scraping',
     ])
+  })
+
+  test('miyagi-partners-mcp S3 registers the read-only send_feedback list (internal, low-risk, administración group)', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.feedback?.href).toBe('/admin/feedback')
+    expect(byKey.feedback?.external).toBeUndefined()
+    expect(byKey.feedback?.risk).toBe('low')
+    expect(byKey.feedback?.group).toBe('administracion')
   })
 
   test('admin-content-and-announcements S1.2 registers the runtime copy-override editor', () => {
