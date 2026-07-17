@@ -18,4 +18,5 @@ export const PARTNER_READ_TOOLS = new Set<string>([
   'list_launchpad_campaigns',
   'get_domain_entitlement',
   'get_subdomain_entitlement',
+  'send_feedback', // miyagi-partners-mcp S3 — product feedback, not a shop mutation; viewer-safe
 ])

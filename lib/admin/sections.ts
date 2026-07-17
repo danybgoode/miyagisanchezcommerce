@@ -126,6 +126,15 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     group: 'administracion',
   },
   {
+    key: 'feedback',
+    label: 'Feedback',
+    description: 'Reportes de vendedores y socios vía la herramienta MCP send_feedback.',
+    href: '/admin/feedback',
+    icon: 'iconoir-chat-bubble',
+    risk: 'low',
+    group: 'administracion',
+  },
+  {
     key: 'tenants',
     label: 'Tiendas',
     description: 'Directorio de tiendas y vendedores: identidad, reclamo, dominio y plan.',
