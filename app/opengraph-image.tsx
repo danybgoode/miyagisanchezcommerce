@@ -4,7 +4,9 @@ import { createMarketingOgImage, marketingOgSize, marketingOgContentType } from 
 // overrides it). Reuses the shared marketing-OG template (agent-readability-
 // marketing-surface epic, Story 1.2) with the general pitch, so `/` shows the
 // same branded visual frame as `/vende`, `/acerca`, and `/agent` — each with
-// its own page-appropriate headline.
+// its own page-appropriate headline. The copy is the marketplace-positioning
+// set guarded by e2e/marketplace-positioning.spec.ts (tagline + all four
+// pills) — change it there first.
 export const alt = 'Miyagi Sánchez — Abre tu tienda, compra y vende'
 export const size = marketingOgSize
 export const contentType = marketingOgContentType
@@ -12,9 +14,9 @@ export const contentType = marketingOgContentType
 export default function OGImage() {
   return createMarketingOgImage({
     eyebrow: 'Marketplace para México',
-    title: 'Compra y vende de todo. 0% de comisión.',
+    title: 'Compra y vende de todo en México · Sin comisiones',
     lead: 'Encuentra cosas de segunda mano, eventos, productos o servicios, abre tu propia tienda y vende sin comisiones.',
     path: '/',
-    tags: ['Marketplace', 'Segundamano', '0% comisión'],
+    tags: ['Marketplace', 'Segundamano', 'Tu propia tienda', '0% comisión'],
   })
 }
