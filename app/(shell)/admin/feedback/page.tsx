@@ -4,7 +4,7 @@ import { db } from '@/lib/supabase'
 import { FEEDBACK_CATEGORIES, FEEDBACK_AUTHOR_KINDS, type FeedbackCategory, type FeedbackAuthorKind } from '@/lib/feedback'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Feedback — Admin' }
+export const metadata = { title: 'Retroalimentación — Admin' }
 
 type FeedbackRow = {
   id: string
@@ -22,7 +22,7 @@ type FeedbackSearchParams = { category?: string; author_kind?: string }
 const CATEGORY_LABEL: Record<FeedbackCategory, string> = {
   feature: 'Función',
   'mcp-tool': 'Herramienta MCP',
-  bug: 'Bug',
+  bug: 'Error',
 }
 
 const AUTHOR_KIND_LABEL: Record<FeedbackAuthorKind, string> = {
@@ -79,9 +79,9 @@ export default async function AdminFeedbackPage({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-1">Feedback</h1>
+      <h1 className="text-2xl font-bold mb-1">Retroalimentación</h1>
       <p className="text-sm text-[var(--fg-muted)] mb-5">
-        Reportes filed vía la herramienta MCP <code>send_feedback</code> — vendedores y socios. Más recientes primero.
+        Reportes enviados vía la herramienta MCP <code>send_feedback</code> — vendedores y socios. Más recientes primero.
       </p>
 
       <div className="flex flex-wrap gap-2 mb-3">
@@ -117,8 +117,12 @@ export default async function AdminFeedbackPage({
         <button type="submit" className="btn btn-secondary btn-sm">Filtrar</button>
       </form>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-[var(--fg-muted)]">Sin feedback registrado todavía.</p>
+      {error ? (
+        <p className="text-sm text-red-600">
+          No se pudo leer la tabla de retroalimentación — intenta recargar. ({error.message})
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[var(--fg-muted)]">Sin retroalimentación registrada todavía.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
