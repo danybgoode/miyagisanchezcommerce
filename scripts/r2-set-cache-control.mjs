@@ -32,6 +32,16 @@ import {
 const APPLY = process.argv.includes('--apply')
 const TARGET_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
+// S3-compatible CopySource needs slash-PRESERVING encoding: encode each path
+// segment on its own and rejoin with '/'. A bare `encodeURIComponent(key)`
+// over the whole key turns every '/' into '%2F', which R2 then looks up as a
+// literal (non-existent) key instead of treating it as a path separator —
+// every real listing key is nested (e.g. `listing-images/supply/foo.jpg`),
+// so the naive form would have failed on every single object.
+function encodeCopySourceKey(key) {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
 const accountId = process.env.R2_ACCOUNT_ID
 const accessKeyId = process.env.R2_ACCESS_KEY_ID
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
@@ -79,7 +89,7 @@ do {
       await client.send(new CopyObjectCommand({
         Bucket: bucket,
         Key: key,
-        CopySource: `${bucket}/${encodeURIComponent(key)}`,
+        CopySource: `${bucket}/${encodeCopySourceKey(key)}`,
         MetadataDirective: 'REPLACE',
         CacheControl: TARGET_CACHE_CONTROL,
         ContentType: head.ContentType,

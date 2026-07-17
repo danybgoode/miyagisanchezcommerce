@@ -50,6 +50,22 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(route).toMatch(/Cache-Control['"]?:\s*['"]public, max-age=31536000, immutable['"]/)
   })
 
+  test('/api/img refuses to follow redirects from the origin fetch (no allow-list bypass via 3xx)', () => {
+    const route = read('app/api/img/route.ts')
+    // Scoped to the actual fetch() call, not just "the string exists somewhere" —
+    // the surrounding comment also explains WHY, which would let a bare
+    // substring check pass even if the option were ever dropped from the call.
+    const fetchCall = route.match(/upstream = await fetch\([\s\S]*?\)\)/)?.[0]
+    expect(fetchCall, 'expected the upstream fetch() call in /api/img').toBeTruthy()
+    expect(fetchCall).toMatch(/redirect:\s*'error'/)
+  })
+
+  test('/api/img snaps quality to a small fixed ladder, not a free 40-90 range (DoS-amplification guard)', () => {
+    const route = read('app/api/img/route.ts')
+    expect(route).toMatch(/QUALITY_LADDER\s*=\s*\[60,\s*75,\s*90\]/)
+    expect(route).toMatch(/const quality = snapQuality\(/)
+  })
+
   test('new R2 uploads get a long-lived Cache-Control at the object level', () => {
     const r2 = read('lib/r2.ts')
     expect(r2).toMatch(/CacheControl:\s*'public, max-age=31536000, immutable'/)
@@ -58,28 +74,37 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   test('the homepage LCP element (Selección featured card) uses next/image with priority', () => {
     const page = read('app/(site)/page.tsx')
     expect(page).toMatch(/import Image from 'next\/image'/)
-    // The featured-card <Image> block: fill + priority + sizes, no plain <img> left
-    // for the featured slot.
     const featuredBlock = page.slice(page.indexOf('Featured card'), page.indexOf('Grid — price 16px'))
-    expect(featuredBlock).toMatch(/<Image/)
-    expect(featuredBlock).toMatch(/priority/)
-    expect(featuredBlock).toMatch(/sizes=/)
     expect(featuredBlock).not.toMatch(/<img\s/)
+    // Assert `priority`/`sizes` INSIDE the captured <Image ... /> tag itself, not
+    // just "somewhere in this block" — the block also contains a prose comment
+    // that says the word "priority" (explaining why), which would let this pass
+    // even if the actual JSX attribute were ever deleted. Scoping to the tag
+    // closes that gap.
+    const imageTag = featuredBlock.match(/<Image\b[\s\S]*?\/>/)?.[0]
+    expect(imageTag, 'expected a self-closing <Image ... /> tag in the featured-card block').toBeTruthy()
+    expect(imageTag).toMatch(/\bpriority\b/)
+    expect(imageTag).toMatch(/\bsizes=/)
   })
 
   test('the Selección grid marks only the first row (idx < 2) as priority', () => {
     const page = read('app/(site)/page.tsx')
     const gridBlock = page.slice(page.indexOf('Grid — price 16px'), page.indexOf('Categorías —'))
-    expect(gridBlock).toMatch(/priority=\{idx < 2\}/)
     expect(gridBlock).not.toMatch(/<img\s/)
+    // Same tag-scoping as the featured-card check above.
+    const imageTag = gridBlock.match(/<Image\b[\s\S]*?\/>/)?.[0]
+    expect(imageTag, 'expected a self-closing <Image ... /> tag in the grid block').toBeTruthy()
+    expect(imageTag).toMatch(/priority=\{idx < 2\}/)
   })
 
   test('supply-import ingests hotlinked images into R2 before creating a listing', () => {
     const supplyImport = read('lib/supply-import.ts')
     expect(supplyImport).toMatch(/ingestImageUrls/)
-    // Ingestion must run BEFORE supplyItemToProductBody builds the create payload,
-    // not after — otherwise the product would still be created with hotlinks.
-    const ingestIdx = supplyImport.indexOf('ingestImageUrls(')
+    // Anchor on the actual CALL (`await ingestImageUrls(`), not just the bare
+    // function name — a doc comment right above the call site also names
+    // `ingestImageUrls(` in prose, which `indexOf('ingestImageUrls(')` alone
+    // would happily match first even if the real call were ever removed.
+    const ingestIdx = supplyImport.indexOf('await ingestImageUrls(')
     const bodyIdx = supplyImport.indexOf('supplyItemToProductBody(itemForCreate')
     expect(ingestIdx).toBeGreaterThan(-1)
     expect(bodyIdx).toBeGreaterThan(-1)

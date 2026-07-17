@@ -12,7 +12,7 @@
  * stage) that resizes + re-encodes on request, called via next/image's
  * CUSTOM loader (lib/image-loader.ts) — never through the broken route.
  *
- *   GET /api/img?url=<https URL>&w=<width>&q=<quality 40-90>
+ *   GET /api/img?url=<https URL>&w=<width>&q=<quality — snapped to {60,75,90}>
  *
  * Security: `url` must be `https:` and its hostname must be in the allow-list
  * derived from R2_PUBLIC_URL (+ NEXT_PUBLIC_SUPABASE_URL, the storage
@@ -36,8 +36,15 @@ import sharp from 'sharp'
 export const runtime = 'nodejs'
 
 const WIDTH_LADDER = [64, 96, 128, 160, 256, 320, 384, 480, 640, 750, 828, 960, 1080, 1200, 1600, 1920]
-const MIN_Q = 40
-const MAX_Q = 90
+// Quality is snapped to a small fixed ladder, not accepted freely across
+// 40-90 — an arbitrary-quality param multiplies the cardinality of
+// (width × quality × format) variants an attacker could force this route to
+// sharp-encode, which is a cheap DoS-amplification lever against a
+// resize/transcode endpoint. Three values is enough range for real UI needs;
+// it also keeps the cache-key space small for the Cloudflare Cache Rule ask
+// (sprint-1.md) — the aggregate defense against repeated-request abuse, this
+// ladder is the per-request defense against combinatorial blow-up.
+const QUALITY_LADDER = [60, 75, 90]
 const DEFAULT_Q = 75
 const FETCH_TIMEOUT_MS = 10_000
 // Guard against a runaway origin response inflating memory before sharp gets to shrink it.
@@ -57,8 +64,13 @@ function snapWidth(requested: number): number {
   return WIDTH_LADDER[WIDTH_LADDER.length - 1]
 }
 
-function clampQuality(requested: number): number {
-  return Math.min(MAX_Q, Math.max(MIN_Q, requested))
+function snapQuality(requested: number): number {
+  // Nearest ladder value, not "first ≥ requested" (unlike snapWidth) — quality
+  // has no natural monotonic UI need for "at least this good," so nearest is
+  // the more honest snap.
+  return QUALITY_LADDER.reduce((best, q) =>
+    Math.abs(q - requested) < Math.abs(best - requested) ? q : best
+  )
 }
 
 export async function GET(req: NextRequest) {
@@ -81,11 +93,18 @@ export async function GET(req: NextRequest) {
   const requestedW = parseInt(searchParams.get('w') ?? '', 10)
   const width = snapWidth(Number.isFinite(requestedW) && requestedW > 0 ? requestedW : 640)
   const requestedQ = parseInt(searchParams.get('q') ?? '', 10)
-  const quality = clampQuality(Number.isFinite(requestedQ) && requestedQ > 0 ? requestedQ : DEFAULT_Q)
+  const quality = snapQuality(Number.isFinite(requestedQ) && requestedQ > 0 ? requestedQ : DEFAULT_Q)
 
   let upstream: Response
   try {
-    upstream = await fetch(parsed.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+    // redirect: 'error' — the hostname allow-list above only validated the
+    // INITIAL url. Without this, Node would transparently follow up to 20
+    // redirects and never re-check the Location host, so a 3xx response from
+    // an allow-listed origin (the Supabase project host especially — it's a
+    // generic multi-tenant domain, not one we control end-to-end) could pivot
+    // this server-side fetch anywhere. Our own R2/Supabase image URLs never
+    // legitimately redirect, so erroring out is correct, not just safe.
+    upstream = await fetch(parsed.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), redirect: 'error' })
   } catch {
     return NextResponse.json({ error: 'no se pudo descargar la imagen de origen.' }, { status: 502 })
   }
@@ -101,10 +120,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'imagen de origen demasiado grande.' }, { status: 413 })
   }
 
-  const srcBuf = Buffer.from(await upstream.arrayBuffer())
-  if (srcBuf.byteLength > MAX_SOURCE_BYTES) {
-    return NextResponse.json({ error: 'imagen de origen demasiado grande.' }, { status: 413 })
+  // Stream with a running byte counter instead of `await upstream.arrayBuffer()`
+  // — content-length is advisory (absent on a chunked response, or simply
+  // wrong), and arrayBuffer() would buffer the ENTIRE body into memory before
+  // any size check ran. Cancel the read the moment the running total crosses
+  // the cap, so a chunked large image — even from an allowed origin — can't
+  // spike memory regardless of what header it claimed.
+  const reader = upstream.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > MAX_SOURCE_BYTES) {
+        await reader.cancel('source too large').catch(() => {})
+        return NextResponse.json({ error: 'imagen de origen demasiado grande.' }, { status: 413 })
+      }
+      chunks.push(value)
+    }
+  } catch {
+    return NextResponse.json({ error: 'no se pudo descargar la imagen de origen.' }, { status: 502 })
   }
+  const srcBuf = Buffer.concat(chunks)
 
   const accept = req.headers.get('accept') ?? ''
   const format: 'avif' | 'webp' | 'jpeg' = accept.includes('image/avif')
