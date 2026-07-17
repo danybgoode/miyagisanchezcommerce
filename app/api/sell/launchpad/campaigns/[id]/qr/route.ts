@@ -7,10 +7,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { isEnabled } from '@/lib/flags'
 import { resolveCampaignSeller, getCampaignForShop } from '@/lib/launchpad-campaigns'
+import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
 
 export const dynamic = 'force-dynamic'
-
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isEnabled('launchpad.enabled'))) {
@@ -23,7 +22,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const campaign = await getCampaignForShop(context.shop.id, id)
   if (!campaign) return NextResponse.json({ error: 'No encontrada.' }, { status: 404 })
 
-  const png = await QRCode.toBuffer(`${SITE_URL}/v/${campaign.slug}`, {
+  // mschz-full-coverage (07, Sprint 1, US-1.3) — the printed/scannable QR is the
+  // short branded form (mschz.org/v/…); the passthrough (US-1.1) 301s it to the
+  // identical /v/<slug> page on the platform origin.
+  const png = await QRCode.toBuffer(`${SHORTLINK_ORIGIN}/v/${campaign.slug}`, {
     errorCorrectionLevel: 'H', type: 'png', margin: 2, scale: 10,
     color: { dark: '#000000ff', light: '#ffffffff' },
   })

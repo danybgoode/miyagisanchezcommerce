@@ -6,6 +6,7 @@ import { shopSlugFromHost, ROOT_DOMAIN } from '@/lib/subdomain'
 import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
 import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget, HOME_TARGET, NOT_FOUND_TARGET,
+  passthroughTarget,
 } from '@/lib/shortlink'
 import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib/route-shape'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
@@ -176,6 +177,22 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isShortLinkHost(hostname)) {
     const seg = firstSegment(req.nextUrl.pathname)
     if (!seg) return NextResponse.redirect(HOME_TARGET, 301)
+
+    // ── Known-prefix passthrough (mschz-full-coverage, Sprint 1, US-1.1) ──────
+    // Multi-segment paths whose first segment is an allowlisted public prefix
+    // (g/e/v/s/l — sweepstakes, events, launchpad voting, shops+subpages,
+    // listings) 301 to the IDENTICAL path + query on the platform origin, before
+    // the flat single-segment resolver below ever runs. Single-segment paths
+    // (the existing flat namespace) are completely unaffected — this branch is
+    // gated on segment count, not just the prefix letter. Non-allowlisted
+    // multi-segment paths (e.g. /checkout/x, /shop/manage) fall through to the
+    // same branded 404 as an unknown flat segment (Daniel-decided carve-out,
+    // 2026-07-09 — pure additive 301 allowlist, no flag needed).
+    const isMultiSegment = req.nextUrl.pathname.split('/').filter(Boolean).length > 1
+    if (isMultiSegment) {
+      const target = passthroughTarget(req.nextUrl.pathname, req.nextUrl.search)
+      return NextResponse.redirect(target ?? NOT_FOUND_TARGET, 301)
+    }
 
     let target: string | null = null
     try {

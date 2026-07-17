@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/dictionary'
+import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
 import type { SweepstakesCampaign, SweepstakesSettings, SweepstakesStats } from '@/lib/sweepstakes-types'
 
 type SellerUi = Dictionary['sweepstakes']['seller']
@@ -203,7 +204,9 @@ export default function SweepstakesManager({
   }
 
   async function copyPublic(slug: string) {
-    const href = `${window.location.origin}/g/${slug}`
+    // mschz-full-coverage (07, Sprint 1, US-1.3) — copy the short branded form
+    // (mschz.org/g/…), not the admin's own origin.
+    const href = `${SHORTLINK_ORIGIN}/g/${slug}`
     await navigator.clipboard.writeText(href)
   }
 
