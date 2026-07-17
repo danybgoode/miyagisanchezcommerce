@@ -15,7 +15,7 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 34 known flags with a polarity + a matching fail-open default', () => {
+  test('covers all 35 known flags with a polarity + a matching fail-open default', () => {
     expect(FLAG_KEYS).toHaveLength(35)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]

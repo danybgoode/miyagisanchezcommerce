@@ -27,15 +27,17 @@ export const GET = withAdmin(async () => {
     .order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: 'No se pudieron leer los socios.' }, { status: 500 })
 
-  const { data: grants } = await db
+  const { data: grants, error: grantsError } = await db
     .from('partner_grants')
     .select('id, promoter_id, shop_id, role, granted_by, created_at, revoked_at')
     .order('created_at', { ascending: false })
+  if (grantsError) return NextResponse.json({ error: 'No se pudieron leer los accesos.' }, { status: 500 })
 
   const shopIds = [...new Set((grants ?? []).map((g) => g.shop_id))]
-  const { data: shops } = shopIds.length
+  const { data: shops, error: shopsError } = shopIds.length
     ? await db.from('marketplace_shops').select('id, slug, name').in('id', shopIds)
-    : { data: [] }
+    : { data: [], error: null }
+  if (shopsError) return NextResponse.json({ error: 'No se pudieron leer las tiendas.' }, { status: 500 })
   const shopById = new Map((shops ?? []).map((s) => [s.id, s]))
 
   return NextResponse.json({
@@ -61,7 +63,11 @@ export const GET = withAdmin(async () => {
 
 export const POST = withAdmin(async (req: NextRequest) => {
   let body: { action?: string; promoter_id?: string; shop_slug?: string; role?: string; grant_id?: string }
-  try { body = await req.json() } catch {
+  try {
+    const parsed: unknown = await req.json()
+    if (typeof parsed !== 'object' || parsed === null) throw new Error('not an object')
+    body = parsed
+  } catch {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
@@ -89,7 +95,12 @@ export const POST = withAdmin(async (req: NextRequest) => {
     if (!body.promoter_id || !body.shop_slug) {
       return NextResponse.json({ error: 'promoter_id y shop_slug son obligatorios.' }, { status: 400 })
     }
-    const role = body.role === 'viewer' ? 'viewer' : 'manager'
+    // Reject unknown roles rather than silently upgrading a typo to manager
+    // (mutation on an auth surface: reject, don't coerce — LEARNINGS).
+    const role = body.role ?? 'manager'
+    if (role !== 'viewer' && role !== 'manager') {
+      return NextResponse.json({ error: 'role debe ser manager o viewer.' }, { status: 400 })
+    }
     const { data: shop } = await db
       .from('marketplace_shops')
       .select('id, slug, name')

@@ -110,7 +110,9 @@ async function auditPartnerCall(entry: {
   outcome: 'ok' | 'denied_no_grant' | 'denied_role' | 'denied_ambiguous' | 'denied_revoked'
 }): Promise<void> {
   try {
-    await db.from('partner_tool_calls').insert({
+    // supabase-js reports failures via the returned error, not by throwing —
+    // check it, or a failed security-audit write disappears silently.
+    const { error } = await db.from('partner_tool_calls').insert({
       promoter_id: entry.promoterId,
       shop_id: entry.shopId ?? null,
       shop_slug: entry.shopSlug ?? null,
@@ -118,6 +120,7 @@ async function auditPartnerCall(entry: {
       role: entry.role ?? null,
       outcome: entry.outcome,
     })
+    if (error) console.error('[partner-auth] audit write failed:', error.message)
   } catch (e) {
     console.error('[partner-auth] audit write failed:', e)
   }
