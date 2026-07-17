@@ -30,6 +30,11 @@ import { db } from './supabase'
 
 const TOKEN_PREFIX = 'ms_agent_'
 export const CONNECTOR_PREFIX = 'ms_connector_'
+// Third credential shape (miyagi-partners-mcp S1): a multi-shop PARTNER
+// credential. Unlike the two seller shapes above it is NOT scoped to one shop
+// by construction — resolution + per-call grant checks live in
+// lib/partner-auth.ts; this module only knows the shape.
+export const PARTNER_PREFIX = 'ms_partner_'
 
 export interface AgentShop {
   id: string
@@ -68,7 +73,7 @@ export function parseBearer(authHeader?: string | null): string | null {
   const m = /^Bearer\s+(.+)$/i.exec(authHeader.trim())
   const token = m?.[1]?.trim()
   if (!token) return null
-  if (!token.startsWith(TOKEN_PREFIX) && !token.startsWith(CONNECTOR_PREFIX)) return null
+  if (!token.startsWith(TOKEN_PREFIX) && !token.startsWith(CONNECTOR_PREFIX) && !token.startsWith(PARTNER_PREFIX)) return null
   return token
 }
 
@@ -76,10 +81,18 @@ export function parseBearer(authHeader?: string | null): string | null {
  * Which credential shape a (already-parsed) Bearer value is, or null if neither.
  * Pure — no DB, no I/O — so the shape-dispatch is unit-testable on its own.
  */
-export function classifyAgentCredential(token: string): 'bearer' | 'connector' | null {
+export function classifyAgentCredential(token: string): 'bearer' | 'connector' | 'partner' | null {
   if (token.startsWith(TOKEN_PREFIX)) return 'bearer'
   if (token.startsWith(CONNECTOR_PREFIX)) return 'connector'
+  if (token.startsWith(PARTNER_PREFIX)) return 'partner'
   return null
+}
+
+/** Generate a fresh partner token (miyagi-partners-mcp S1). Same show-once +
+ *  SHA-256 storage discipline as generateAgentToken, third prefix. */
+export function generatePartnerToken(): { token: string; hash: string } {
+  const token = PARTNER_PREFIX + randomBytes(32).toString('hex')
+  return { token, hash: hashAgentToken(token) }
 }
 
 /**
@@ -91,6 +104,11 @@ export function classifyAgentCredential(token: string): 'bearer' | 'connector' |
 export async function resolveAgentShop(authHeader?: string | null): Promise<AgentShop | null> {
   const token = parseBearer(authHeader)
   if (!token) return null
+
+  // A partner credential is multi-shop and never resolves here — the
+  // grant-checked path is resolveToolShop (lib/partner-auth.ts). Explicit
+  // so it can't fall through into the single-shop hash lookup below.
+  if (classifyAgentCredential(token) === 'partner') return null
 
   if (classifyAgentCredential(token) === 'connector') {
     const slug = token.slice(CONNECTOR_PREFIX.length)

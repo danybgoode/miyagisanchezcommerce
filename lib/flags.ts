@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -290,7 +290,13 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    settable regardless). Default OFF ⇒ a patch carrying `checkout` is
  *    refused whole; the portal checkout settings are untouched either way.
  *    Flip ON only after Daniel's live smoke (flip escrow_mode via tool,
- *    confirm a real test checkout changes). */
+ *    confirm a real test checkout changes).
+ *  - ENABLEMENT (`partners.mcp_enabled`): default `false` (miyagi-partners-mcp
+ *    S1.1). Gates every ms_partner_ credential code path — resolver, /p/<slug>
+ *    connector route, and (S2) the /partner dashboard + auto-grant. Default
+ *    OFF ⇒ a partner token resolves as unknown-credential (401), byte-
+ *    identical to a garbage token, so the whole epic merges dark. Flip ON
+ *    only in a controlled window after Daniel's Sprint-1 smoke walkthrough. */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'checkout.rental_pricing_enabled': false,
@@ -326,6 +332,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'mcp.apply_price.enabled': false,
   'mcp.support_config.enabled': false,
   'mcp.checkout_config.enabled': false,
+  'partners.mcp_enabled': false,
 }
 
 const TABLE = 'platform_flags'

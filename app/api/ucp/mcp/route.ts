@@ -37,6 +37,8 @@ import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import { resolveAgentShop, type AgentShop } from '@/lib/agent-auth'
+import { resolveToolShop } from '@/lib/partner-auth'
+import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
 import { listSubmissionsForShop, getLaunchpadShopBySlug, transitionSubmission, publishSubmission } from '@/lib/launchpad'
 import { REVIEWABLE_TARGET_STATUSES, type SubmissionStatus } from '@/lib/launchpad-types'
@@ -887,6 +889,23 @@ const TOOLS = [
   },
 ]
 
+// miyagi-partners-mcp S1.4 — every SELLER tool accepts an optional `shop_slug`
+// so a multi-shop partner credential (ms_partner_…) can address one of its
+// granted shops. Injected once at module init (not 40+ hand-edits) from the
+// same MCP_SELLER_TOOLS list the dispatch⇄manifest parity spec enforces.
+// Seller credentials ignore the argument entirely (resolveToolShop parity).
+for (const tool of TOOLS) {
+  if ((MCP_SELLER_TOOLS as readonly string[]).includes(tool.name)) {
+    ;(tool.inputSchema as { properties: Record<string, unknown> }).properties = {
+      ...(tool.inputSchema as { properties?: Record<string, unknown> }).properties,
+      shop_slug: {
+        type: 'string',
+        description: 'Solo credencial de socio (ms_partner_…): slug de la tienda asignada a operar. Con una sola tienda asignada puede omitirse. Las credenciales de vendedor (ms_agent_/ms_connector_) lo ignoran.',
+      },
+    }
+  }
+}
+
 // ── Tool handlers ──────────────────────────────────────────────────────────────
 
 async function handleSearchListings(args: Record<string, unknown>, baseUrl: string) {
@@ -1648,11 +1667,10 @@ const AGENT_AUTH_HINT =
   'Generate or rotate it under “Agentes e integraciones” in your Miyagi Sánchez shop settings. ' +
   'The token is scoped to a single shop.'
 
-async function handleGetStoreConfiguration(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) {
-    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
-  }
+async function handleGetStoreConfiguration(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'get_store_configuration')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const snapshot = buildStoreConfigSnapshot(shop)
   const manualLines = snapshot.manual_sections.map((m) => `- ${m.label}: ${m.why}`).join('\n')
@@ -1673,10 +1691,9 @@ async function handleGetStoreConfiguration(authHeader?: string | null) {
 }
 
 async function handlePatchStoreConfiguration(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) {
-    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
-  }
+  const agentAuth = await resolveToolShop(authHeader, args, 'patch_store_configuration')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   // Accept either { configuration: {...} } or the manifest at the top level.
   const raw = (args.configuration && typeof args.configuration === 'object' && !Array.isArray(args.configuration))
@@ -1743,10 +1760,9 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
 }
 
 async function handleListOffers(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) {
-    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
-  }
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_offers')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const offers = await listShopOffers(shop.id, { actionableOnly: args.pending_only === true })
   if (offers.length === 0) {
@@ -1769,10 +1785,9 @@ async function handleListOffers(args: Record<string, unknown>, authHeader?: stri
 }
 
 async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: string, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) {
-    return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
-  }
+  const agentAuth = await resolveToolShop(authHeader, args, 'respond_to_offer')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const offerId = String(args.offer_id ?? '')
   const action = String(args.action ?? '') as 'accept' | 'counter' | 'decline'
@@ -1813,8 +1828,9 @@ async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: stri
 }
 
 async function handleCreateListing(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'create_listing')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   // Shape the agent's args into a catalog-import row and re-validate server-side
@@ -1923,9 +1939,10 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
   }
 }
 
-async function handleListMyListings(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleListMyListings(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_my_listings')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const listings = await listShopListings(shop.id)
   if (listings.length === 0) return { content: [{ type: 'text', text: 'No tienes anuncios todavía.' }] }
@@ -1941,9 +1958,10 @@ async function handleListMyListings(authHeader?: string | null) {
   }
 }
 
-async function handleListMyCollections(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleListMyCollections(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_my_collections')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const collections = await getShopCollections(shop.slug)
@@ -1960,8 +1978,9 @@ async function handleListMyCollections(authHeader?: string | null) {
 }
 
 async function handleCreateCollection(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'create_collection')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const validated = validateCollectionName(args.name)
@@ -1991,8 +2010,9 @@ async function resolveOwnCollection(shopSlug: string, collectionSlug: string) {
 }
 
 async function handleUpdateCollection(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'update_collection')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const validated = validateCollectionName(args.name)
@@ -2016,8 +2036,9 @@ async function handleUpdateCollection(args: Record<string, unknown>, authHeader?
 }
 
 async function handleDeleteCollection(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'delete_collection')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const collectionSlug = String(args.collection_slug ?? '')
@@ -2038,8 +2059,9 @@ async function handleDeleteCollection(args: Record<string, unknown>, authHeader?
 }
 
 async function handleReorderCollections(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'reorder_collections')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const ordered = args.ordered_slugs
@@ -2079,8 +2101,9 @@ async function handleReorderCollections(args: Record<string, unknown>, authHeade
  * only surfaces REPUVE on autos listings).
  */
 async function handleSetListingRepuve(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'set_listing_repuve')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const productId = String(args.product_id ?? '')
   if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
@@ -2133,8 +2156,9 @@ async function handleSetListingRepuve(args: Record<string, unknown>, authHeader?
  * 301-redirects for 90 days (custom-slugs US-4), unchanged.
  */
 async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'set_shop_slug')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const newSlug = String(args.slug ?? '').trim().toLowerCase()
@@ -2187,8 +2211,9 @@ async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: str
  * portal PATCH verbatim, including the telegram-requires-linked-chat guard.
  */
 async function handleSetNotificationPreferences(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'set_notification_preferences')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada — reclámala primero para configurar notificaciones.' }] }
 
   const { channel, event_group: eventGroup, enabled } = args
@@ -2235,8 +2260,9 @@ async function handleSetNotificationPreferences(args: Record<string, unknown>, a
 }
 
 async function handleCreateContent(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'create_content')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const titleClean = String(args.title ?? '').trim()
   if (titleClean.length < 2) return { isError: true, content: [{ type: 'text', text: 'El título debe tener al menos 2 caracteres.' }] }
@@ -2280,8 +2306,9 @@ async function handleCreateContent(args: Record<string, unknown>, authHeader?: s
 }
 
 async function handleUpdateContent(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'update_content')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const contentId = String(args.content_id ?? '')
   if (!contentId) return { isError: true, content: [{ type: 'text', text: 'content_id es obligatorio.' }] }
@@ -2313,8 +2340,9 @@ async function handleUpdateContent(args: Record<string, unknown>, authHeader?: s
 }
 
 async function handleDeleteContent(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'delete_content')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const contentId = String(args.content_id ?? '')
   if (!contentId) return { isError: true, content: [{ type: 'text', text: 'content_id es obligatorio.' }] }
@@ -2339,9 +2367,10 @@ async function handleDeleteContent(args: Record<string, unknown>, authHeader?: s
  * Rate-limited per shop account (the portal keys on user+IP; MCP handlers
  * have no request IP, so the account id alone is the key).
  */
-async function handleLinkTelegram(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleLinkTelegram(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'link_telegram')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada — reclámala primero para conectar Telegram.' }] }
 
   const rl = await checkRateLimit('telegram_link', `${shop.clerk_user_id}:mcp`)
@@ -2365,9 +2394,10 @@ async function handleLinkTelegram(authHeader?: string | null) {
   }
 }
 
-async function handleUnlinkTelegram(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleUnlinkTelegram(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'unlink_telegram')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada.' }] }
 
   // Audience-safe unlink — same semantics as the portal DELETE: turn off all
@@ -2399,9 +2429,10 @@ async function handleUnlinkTelegram(authHeader?: string | null) {
   }
 }
 
-async function handleTestTelegram(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleTestTelegram(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'test_telegram')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada.' }] }
 
   const { data } = await db
@@ -2420,8 +2451,9 @@ async function handleTestTelegram(authHeader?: string | null) {
 }
 
 async function handleListOrders(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_orders')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const result = await listShopOrdersViaInternal(shop.slug)
@@ -2451,8 +2483,9 @@ async function handleListOrders(args: Record<string, unknown>, authHeader?: stri
 }
 
 async function handleListManuscriptSubmissions(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_manuscript_submissions')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
   }
@@ -2496,8 +2529,9 @@ function submissionTransitionErrorMessage(reason: string): string {
 }
 
 async function handleReviewSubmission(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'review_submission')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
   }
@@ -2524,8 +2558,9 @@ async function handleReviewSubmission(args: Record<string, unknown>, authHeader?
 }
 
 async function handlePublishSubmission(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'publish_submission')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'La convocatoria de manuscritos no está disponible en tu tienda.' }] }
   }
@@ -2563,8 +2598,9 @@ async function handlePublishSubmission(args: Record<string, unknown>, authHeader
 }
 
 async function handleListLaunchpadCampaigns(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'list_launchpad_campaigns')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
   }
@@ -2631,8 +2667,9 @@ function toCampaignSellerContext(shop: AgentShop): SellerContext | null {
 }
 
 async function handleCreateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'create_campaign')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
   }
@@ -2665,8 +2702,9 @@ async function handleCreateCampaign(args: Record<string, unknown>, authHeader?: 
 }
 
 async function handleUpdateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'update_campaign')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
   }
@@ -2698,8 +2736,9 @@ async function handleUpdateCampaign(args: Record<string, unknown>, authHeader?: 
 }
 
 async function handleActivateCampaign(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'activate_campaign')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
   }
@@ -2724,8 +2763,9 @@ async function handleActivateCampaign(args: Record<string, unknown>, authHeader?
 }
 
 async function handleCancelCampaign(args: Record<string, unknown>, authHeader?: string | null) {
-  const agentShop = await resolveAgentShop(authHeader)
-  if (!agentShop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'cancel_campaign')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentShop = agentAuth.shop
   if (!(await isEnabled('launchpad.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Las campañas de votación no están disponibles en tu tienda.' }] }
   }
@@ -2745,8 +2785,9 @@ async function handleCancelCampaign(args: Record<string, unknown>, authHeader?: 
 }
 
 async function handleUpdateListing(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'update_listing')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const productId = String(args.product_id ?? '')
@@ -2800,8 +2841,9 @@ async function handleUpdateListing(args: Record<string, unknown>, authHeader?: s
 }
 
 async function handleSetListingStatus(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'set_listing_status')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
 
   const productId = String(args.product_id ?? '')
@@ -2841,8 +2883,9 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
  * tier edit recomputes the "desde $X" price from the live price-grid.
  */
 async function handleConfigureListingOptions(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'configure_listing_options')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
   if (!(await isEnabled('mcp.configure_options.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
@@ -2965,8 +3008,9 @@ async function handleConfigureListingOptions(args: Record<string, unknown>, auth
  * deleteListing (which needs a Clerk JWT this path doesn't have).
  */
 async function handleDeleteListing(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'delete_listing')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
   if (!(await isEnabled('mcp.delete_listing.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
@@ -3008,8 +3052,9 @@ async function handleDeleteListing(args: Record<string, unknown>, authHeader?: s
  * backend confirms the Miyagi write).
  */
 async function handleApplyPrice(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'apply_price')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
   if (!(await isEnabled('mcp.apply_price.enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
@@ -3132,8 +3177,9 @@ async function buildBulkActionPayload(
 }
 
 async function handleStageBulkAction(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'stage_bulk_action')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!(await isEnabled('catalog.bulk_enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
   }
@@ -3171,8 +3217,9 @@ async function handleStageBulkAction(args: Record<string, unknown>, authHeader?:
 }
 
 async function handleApplyBulkAction(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'apply_bulk_action')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!(await isEnabled('catalog.bulk_enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
   }
@@ -3198,8 +3245,9 @@ async function handleApplyBulkAction(args: Record<string, unknown>, authHeader?:
 // centrally, inside lib/shopify-mcp-client.ts, shared with the HTTP route.
 
 async function handleStartShopifyMigration(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'start_shopify_migration')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
   if (!(await isEnabled('migrations.connector_enabled'))) {
     return { isError: true, content: [{ type: 'text', text: 'Esta función aún no está disponible.' }] }
   }
@@ -3227,9 +3275,10 @@ async function handleStartShopifyMigration(args: Record<string, unknown>, authHe
 
 // ── Custom-domain paywall (epic 07 · S3) — seller-agent domain SKU tools ──────
 
-async function handleGetDomainEntitlement(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleGetDomainEntitlement(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'get_domain_entitlement')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const ent = await resolveDomainEntitlement(shop.metadata, { sellerClerkId: shop.clerk_user_id })
   const summary = ent.entitled
@@ -3259,8 +3308,9 @@ async function handleGetDomainEntitlement(authHeader?: string | null) {
 }
 
 async function handleStartDomainSubscription(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'start_domain_subscription')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const couponCode = typeof args.coupon === 'string' ? args.coupon : null
   const cadence = asDomainCadence(args.cadence) ?? 'recurring'
@@ -3294,9 +3344,10 @@ async function handleStartDomainSubscription(args: Record<string, unknown>, auth
 
 // ── Subdomain paywall (epic 07 · subdomain-pricing S2) — seller-agent SKU tools ─
 
-async function handleGetSubdomainEntitlement(authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+async function handleGetSubdomainEntitlement(args: Record<string, unknown>, authHeader?: string | null) {
+  const agentAuth = await resolveToolShop(authHeader, args, 'get_subdomain_entitlement')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const ent = await resolveSubdomainEntitlement(shop.metadata, { sellerClerkId: shop.clerk_user_id })
   const summary = ent.entitled
@@ -3325,8 +3376,9 @@ async function handleGetSubdomainEntitlement(authHeader?: string | null) {
 }
 
 async function handleStartSubdomainSubscription(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'start_subdomain_subscription')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   const cadence = asDomainCadence(args.cadence) ?? 'recurring'
   const interval = coerceSubdomainInterval(args.interval)
@@ -3361,8 +3413,9 @@ async function handleStartSubdomainSubscription(args: Record<string, unknown>, a
 }
 
 async function handleSwitchSubdomainCadence(args: Record<string, unknown>, authHeader?: string | null) {
-  const shop = await resolveAgentShop(authHeader)
-  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const agentAuth = await resolveToolShop(authHeader, args, 'switch_subdomain_cadence')
+  if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  const shop = agentAuth.shop
 
   // Pass the raw arg — the switch builder validates it strictly (a billing mutation
   // rejects a missing/invalid interval rather than defaulting).
@@ -3457,13 +3510,13 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_buyer_trust':      { const r = await handleGetBuyerTrust(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'about_miyagi':         return { content: (await handleAboutMiyagi(baseUrl)).content }
       case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
-      case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'patch_store_configuration': { const r = await handlePatchStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_offers':               { const r = await handleListOffers(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'respond_to_offer':          { const r = await handleRespondToOffer(args, baseUrl, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_listing':            { const r = await handleCreateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_my_listings':          { const r = await handleListMyListings(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_my_collections':       { const r = await handleListMyCollections(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_collection':         { const r = await handleCreateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_collection':         { const r = await handleUpdateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'delete_collection':         { const r = await handleDeleteCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
@@ -3474,9 +3527,9 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'create_content':            { const r = await handleCreateContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_content':            { const r = await handleUpdateContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'delete_content':            { const r = await handleDeleteContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'link_telegram':             { const r = await handleLinkTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'unlink_telegram':           { const r = await handleUnlinkTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'test_telegram':             { const r = await handleTestTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'link_telegram':             { const r = await handleLinkTelegram(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'unlink_telegram':           { const r = await handleUnlinkTelegram(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'test_telegram':             { const r = await handleTestTelegram(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'review_submission':        { const r = await handleReviewSubmission(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
@@ -3494,9 +3547,9 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'stage_bulk_action':         { const r = await handleStageBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'apply_bulk_action':         { const r = await handleApplyBulkAction(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_shopify_migration':   { const r = await handleStartShopifyMigration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_domain_entitlement':    { const r = await handleGetDomainEntitlement(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_domain_subscription': { const r = await handleStartDomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
-      case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'get_subdomain_entitlement':    { const r = await handleGetSubdomainEntitlement(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'start_subdomain_subscription': { const r = await handleStartSubdomainSubscription(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'switch_subdomain_cadence':     { const r = await handleSwitchSubdomainCadence(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       default:                     return null  // will become MethodNotFound error
