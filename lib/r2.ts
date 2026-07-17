@@ -67,6 +67,14 @@ export async function uploadToR2(
     ContentType: contentType,
     // Public read — works because the bucket has public access enabled
     ACL: 'public-read',
+    // hyper-performant-website S1.1 — every new object gets a long-lived,
+    // immutable cache header at the object level (defense in depth: the app
+    // itself serves images through /api/img, which sets its own Cache-Control
+    // regardless of this, but a raw r2.dev URL — old links, other consumers —
+    // should still be cache-friendly). Objects uploaded BEFORE this change need
+    // a one-off backfill; see scripts/r2-set-cache-control.mjs (needs R2 creds
+    // this agent doesn't have — not run here).
+    CacheControl: 'public, max-age=31536000, immutable',
   }))
 
   return `${publicUrl}/${key}`
