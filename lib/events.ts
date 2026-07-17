@@ -3,6 +3,7 @@ import 'server-only'
 import { randomBytes } from 'crypto'
 import { db } from '@/lib/supabase'
 import { normalizeLocale, type Locale } from '@/lib/dictionary'
+import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
 import {
   cleanEmail,
   hashSweepstakesEmail,
@@ -15,13 +16,19 @@ import { sendEventRegistrationConfirmation, sendEventVerificationCode } from '@/
 import { absoluteTicketQrUrl, ensureFreeRegistrationTicket, ticketFromRegistration } from '@/lib/event-tickets'
 import type { MarketplaceEvent, MarketplaceEventRegistration, MarketplaceEventStats } from '@/lib/events-types'
 
+// Ticket QR verification links (absoluteTicketQrUrl below) deliberately stay on
+// the platform origin — a door-scan verification surface, not a shareable link
+// (out of the mschz-full-coverage US-1.3 scope).
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '')
 const CODE_TTL_MS = 15 * 60 * 1000
 
 export { isValidEmail }
 
+// mschz-full-coverage (07, Sprint 1, US-1.3) — the public/shareable event URL is
+// now the short branded form (mschz.org/e/…); the passthrough (US-1.1) 301s it
+// to the identical /e/<slug> page on the platform origin.
 export function publicEventUrl(slug: string, locale?: Locale): string {
-  const url = `${SITE_URL}/e/${encodeURIComponent(slug)}`
+  const url = `${SHORTLINK_ORIGIN}/e/${encodeURIComponent(slug)}`
   return locale === 'en' ? `${url}?lang=en` : url
 }
 
