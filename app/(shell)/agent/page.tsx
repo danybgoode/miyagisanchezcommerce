@@ -5,11 +5,28 @@ import { RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupPrompt, EXAMPLE_SETUP, SETUP_SPEC_VERSION, SETUP_LANGUAGE_DIRECTIVE } from '@/lib/setup-spec'
 
+const BASE_URL = 'https://miyagisanchez.com'
+const PAGE_PATH = '/agent'
+const TITLE = 'Ficha para agentes — Miyagi Sánchez'
+const DESCRIPTION =
+  'Ficha legible por máquinas para agentes de IA y clientes MCP: capacidades, casos de uso UCP, endpoints de la API y cómo operar como dependiente de tienda en miyagisanchez.com.'
+
 export const metadata: Metadata = {
-  title: 'Ficha para agentes — Miyagi Sánchez',
-  description:
-    'Ficha legible por máquinas para agentes de IA y clientes MCP: capacidades, casos de uso UCP, endpoints de la API y cómo operar como dependiente de tienda en miyagisanchez.com.',
+  title: TITLE,
+  description: DESCRIPTION,
   robots: { index: true, follow: true },
+  // Was missing entirely (agent-readability-marketing-surface Story 1.2) — the
+  // page inherited the root layout's canonical-less default and its og:url
+  // pointed at `/` instead of itself. Both fixed here, self-referential.
+  alternates: { canonical: `${BASE_URL}${PAGE_PATH}` },
+  openGraph: {
+    type: 'website',
+    locale: 'es_MX',
+    url: `${BASE_URL}${PAGE_PATH}`,
+    siteName: 'Miyagi Sánchez',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 }
 
 const ENDPOINT = 'https://miyagisanchez.com'

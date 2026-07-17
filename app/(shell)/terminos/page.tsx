@@ -1,8 +1,23 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getDictionary, normalizeLocale } from '@/lib/dictionary'
 
-export const metadata = {
-  title: 'Términos de uso - Miyagi Sánchez',
+const BASE_URL = 'https://miyagisanchez.com'
+const PAGE_PATH = '/terminos'
+const TITLE = 'Términos de uso - Miyagi Sánchez'
+
+export const metadata: Metadata = {
+  title: TITLE,
+  // Had no openGraph override (agent-readability-marketing-surface Story 1.2)
+  // — inherited the root layout's og:url pointing at `/` instead of itself.
+  alternates: { canonical: `${BASE_URL}${PAGE_PATH}` },
+  openGraph: {
+    type: 'website',
+    locale: 'es_MX',
+    url: `${BASE_URL}${PAGE_PATH}`,
+    siteName: 'Miyagi Sánchez',
+    title: TITLE,
+  },
 }
 
 export default async function TermsPage({
