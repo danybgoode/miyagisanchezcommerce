@@ -4,6 +4,7 @@ import { UCP_ENDPOINTS, MCP_BUYER_TOOLS, MCP_SELLER_TOOLS } from '@/lib/ucp/capa
 import { RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupPrompt, EXAMPLE_SETUP, SETUP_SPEC_VERSION, SETUP_LANGUAGE_DIRECTIVE } from '@/lib/setup-spec'
+import { getComparatorDataset } from '@/lib/cost-comparator-data'
 
 const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/agent'
@@ -54,6 +55,12 @@ export default async function AgentPage() {
   const WHY_SELL = sections.find((s) => s.id === 'why_sell')!.es
   const HOW_TO_START = sections.find((s) => s.id === 'how_to_start')!.es
   const COST = sections.find((s) => s.id === 'cost_transparency')!.es
+
+  // Comparador de costos (epic 08 · cost-comparator-homepage, Sprint 2 · US-2.3) —
+  // dataset + methodology, agent-readable. Same getComparatorDataset() the
+  // /comparador page and the compare_costs MCP tool both read — one source, three
+  // surfaces, never drifts (AGENTS rule #3).
+  const comparatorDataset = await getComparatorDataset('es')
 
   return (
     <div
@@ -352,6 +359,34 @@ export default async function AgentPage() {
               <span style={{ color: 'var(--fg-muted)', display: 'block', marginTop: 2 }}>{note}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Comparador de costos — dataset + methodology (epic 08, Sprint 2 · US-2.3) */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 className="t-h3" style={{ marginBottom: 12 }}>Comparador de costos — dataset y metodología</h2>
+        <p style={{ fontSize: 14, color: 'var(--fg-muted)', lineHeight: 1.7, marginBottom: 12 }}>
+          Miyagi Sánchez publica un modelo de costos apilados (plan/hosting + procesamiento de pago +
+          apps premium) para comparar lo que un comercio paga hoy en <strong>Shopify</strong>,{' '}
+          <strong>Mercado Libre</strong>, <strong>WooCommerce</strong> o <strong>Tiendanube</strong> contra
+          el equivalente en Miyagi (0% de comisión, apps incluidas). Cada cifra de la competencia está
+          fechada y citada — nunca se inventa un número. La herramienta MCP{' '}
+          <code style={{ fontFamily: 'var(--font-mono)' }}>compare_costs</code> calcula con el{' '}
+          <strong>mismo modelo puro</strong> que renderiza la página pública, por lo que la respuesta de
+          un agente y lo que muestra la página nunca divergen.
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, marginBottom: 14 }}>
+          Dataset actual verificado: <strong>{comparatorDataset.generatedAt}</strong> ·{' '}
+          {Object.keys(comparatorDataset.figures).length} cifras sourced (plan/hosting, tarifa de pago,
+          comisión por categoría, tipo de cambio USD→MXN, apps premium típicas). El dataset puede
+          editarse en vivo vía el mismo mecanismo de overrides de contenido de la plataforma; sin
+          overrides, sirve la línea base versionada en el repositorio.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <a href={`${ENDPOINT}/comparador`} className="btn btn-agent btn-sm">
+            <i className="iconoir-stats-report" style={{ fontSize: 14 }} />
+            Comparador — /comparador
+          </a>
         </div>
       </section>
 

@@ -87,6 +87,17 @@ import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupSpec } from '@/lib/setup-spec'
 import type { Listing } from '@/lib/types'
+import {
+  computeShopifyCost, computeMercadoLibreCost, computeWooCommerceCost, computeTiendanubeCost, computeMiyagiCost,
+  computeSelectedAppsMonthlyMxn, formatMxn,
+  type ShopifyTier, type MlBand, type MlPublicationType, type WooCommerceHostingTier, type TiendanubeTier,
+} from '@/lib/cost-comparator'
+import { getComparatorDataset } from '@/lib/cost-comparator-data'
+import {
+  shopifyRatesFromDataset, mercadoLibreRatesFromDataset, wooCommerceRatesFromDataset, tiendanubeRatesFromDataset,
+  miyagiRatesFromDataset, premiumAppsFromDataset, fxUsdToMxnFromDataset, lineSourceFigureKey,
+  type ComparatorPlatform as CostComparatorPlatform, type LineSourceContext,
+} from '@/lib/cost-comparator-dataset'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -899,6 +910,29 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'compare_costs',
+    description: "Comparador de costos — compare a merchant's current platform cost (Shopify, Mercado Libre, WooCommerce, or Tiendanube) against the equivalent Miyagi Sánchez (0% commission) cost, using their own sales volume and average order value. Read-only, no auth. Computed by the EXACT SAME pure model that powers miyagisanchez.com/comparador — never drifts from what the page shows. Every competitor figure is sourced and dated; the response's `sources` array cites each one plus the dataset's overall `verified_at` date. Use this when a seller (or their agent) asks what they'd pay elsewhere, or what switching to Miyagi would save them.",
+    inputSchema: {
+      type: 'object',
+      required: ['platform', 'volume_monthly', 'aov_mxn'],
+      properties: {
+        platform: { type: 'string', enum: ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube'], description: 'Competitor platform to compare against' },
+        volume_monthly: { type: 'number', description: 'Sales per month' },
+        aov_mxn: { type: 'number', description: 'Average order value, MXN' },
+        shopify_tier: { type: 'string', enum: ['basico', 'crecimiento', 'avanzado'], default: 'basico', description: 'Shopify plan tier — only used when platform=shopify' },
+        ml_band: { type: 'string', enum: ['baja', 'media', 'alta'], default: 'media', description: 'Mercado Libre commission band (category-driven) — only used when platform=mercadolibre' },
+        ml_publication_type: { type: 'string', enum: ['clasica', 'premium'], default: 'clasica', description: 'Mercado Libre listing type — only used when platform=mercadolibre' },
+        woo_hosting_tier: { type: 'string', enum: ['entrada', 'crecimiento'], default: 'entrada', description: 'WooCommerce hosting tier — only used when platform=woocommerce' },
+        tiendanube_tier: { type: 'string', enum: ['gratis', 'basico', 'tiendanube', 'avanzado'], default: 'basico', description: 'Tiendanube plan tier — only used when platform=tiendanube' },
+        tiendanube_own_gateway: { type: 'boolean', default: true, description: 'true = Pago Nube (their own gateway); false = external gateway — only used when platform=tiendanube' },
+        apps: { type: 'array', items: { type: 'string', enum: ['liveChat', 'coupons', 'offers'] }, description: 'Premium competitor apps the merchant already pays for; each is natively included in Miyagi at $0' },
+        miyagi_subdomain: { type: 'boolean', default: false, description: "Include Miyagi's optional subdomain SKU in the Miyagi total" },
+        miyagi_custom_domain: { type: 'boolean', default: false, description: "Include Miyagi's optional custom-domain SKU in the Miyagi total" },
+        miyagi_ml_sync: { type: 'boolean', default: false, description: "Include Miyagi's optional Mercado Libre sync SKU in the Miyagi total" },
+      },
     },
   },
 ]
@@ -3517,6 +3551,119 @@ function handleGetSetupSpec() {
   return { content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }] }
 }
 
+const COMPARE_COSTS_PLATFORMS = ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube'] as const
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/**
+ * Comparador de costos (epic 08 · cost-comparator-homepage, Sprint 2 · US-2.3) —
+ * the MCP `compare_costs` tool. Computes via the EXACT SAME pure functions
+ * `app/(shell)/comparador/page.tsx` renders from (lib/cost-comparator.ts +
+ * lib/cost-comparator-dataset.ts's *RatesFromDataset adapters + the same
+ * getComparatorDataset() fail-open dataset reader) — the rental_quote no-drift
+ * precedent (epic README). No auth, no flag: same read-only/no-side-effect shape
+ * as about_miyagi/get_checkout_options/search_listings (see
+ * lib/ucp/capabilities.ts MCP_BUYER_TOOLS) — the mcp.*.enabled flags only gate
+ * the newer SELLER write tools (configure_listing_options, delete_listing,
+ * apply_price, the support/checkout config blocks), never a stateless calculator.
+ */
+async function handleCompareCosts(args: Record<string, unknown>) {
+  const platform = String(args.platform ?? '')
+  if (!(COMPARE_COSTS_PLATFORMS as readonly string[]).includes(platform)) {
+    return { isError: true, content: [{ type: 'text', text: 'platform must be one of: shopify, mercadolibre, woocommerce, tiendanube' }] }
+  }
+  const volumeMonthly = Number(args.volume_monthly)
+  const aovMxn = Number(args.aov_mxn)
+  if (!Number.isFinite(volumeMonthly) || volumeMonthly < 0 || !Number.isFinite(aovMxn) || aovMxn < 0) {
+    return { isError: true, content: [{ type: 'text', text: 'volume_monthly and aov_mxn must both be non-negative numbers' }] }
+  }
+
+  const dataset = await getComparatorDataset('es')
+  const inputs = { volumeMonthly, aovMxn }
+  const apps = premiumAppsFromDataset(dataset)
+  const requestedAppIds = Array.isArray(args.apps) ? args.apps.map((a) => String(a)) : []
+  const fx = fxUsdToMxnFromDataset(dataset)
+  const appsMonthlyMxn = computeSelectedAppsMonthlyMxn(apps, requestedAppIds, fx)
+
+  let competitorStack: ReturnType<typeof computeShopifyCost>
+  let platformLabel: string
+  let ctx: LineSourceContext = {}
+
+  if (platform === 'shopify') {
+    const tier = (['basico', 'crecimiento', 'avanzado'].includes(String(args.shopify_tier)) ? args.shopify_tier : 'basico') as ShopifyTier
+    competitorStack = computeShopifyCost(inputs, tier, shopifyRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Shopify (${tier})`
+    ctx = { shopifyTier: tier }
+  } else if (platform === 'mercadolibre') {
+    const band = (['baja', 'media', 'alta'].includes(String(args.ml_band)) ? args.ml_band : 'media') as MlBand
+    const type = (['clasica', 'premium'].includes(String(args.ml_publication_type)) ? args.ml_publication_type : 'clasica') as MlPublicationType
+    competitorStack = computeMercadoLibreCost(inputs, band, type, mercadoLibreRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Mercado Libre (${band}/${type})`
+    ctx = { mlBand: band, mlPublicationType: type }
+  } else if (platform === 'woocommerce') {
+    const tier = (['entrada', 'crecimiento'].includes(String(args.woo_hosting_tier)) ? args.woo_hosting_tier : 'entrada') as WooCommerceHostingTier
+    competitorStack = computeWooCommerceCost(inputs, tier, wooCommerceRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `WooCommerce (${tier})`
+    ctx = { wooTier: tier }
+  } else {
+    const tier = (['gratis', 'basico', 'tiendanube', 'avanzado'].includes(String(args.tiendanube_tier)) ? args.tiendanube_tier : 'basico') as TiendanubeTier
+    const ownGateway = args.tiendanube_own_gateway !== false
+    competitorStack = computeTiendanubeCost(inputs, tier, ownGateway, tiendanubeRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Tiendanube (${tier}${ownGateway ? '' : ', pasarela externa'})`
+    ctx = { tnTier: tier, tnOwnGateway: ownGateway }
+  }
+
+  const miyagiSkus = {
+    subdomain: args.miyagi_subdomain === true,
+    customDomain: args.miyagi_custom_domain === true,
+    mlSync: args.miyagi_ml_sync === true,
+  }
+  const miyagiStack = computeMiyagiCost(inputs, miyagiSkus, miyagiRatesFromDataset(dataset))
+
+  // Every sourced figure backing either stack, deduped by dataset key.
+  const sourceKeys = new Set<string>()
+  for (const line of competitorStack.lines) {
+    const k = lineSourceFigureKey(platform as CostComparatorPlatform, line.key, ctx)
+    if (k) sourceKeys.add(k)
+  }
+  for (const line of miyagiStack.lines) {
+    const k = lineSourceFigureKey('miyagi', line.key, {})
+    if (k) sourceKeys.add(k)
+  }
+  const sources = Array.from(sourceKeys)
+    .map((k) => dataset.figures[k])
+    .filter((f): f is NonNullable<typeof f> => Boolean(f))
+    .map((f) => ({ label: f.label, source: f.source, verified_at: f.verifiedAt }))
+
+  const result = {
+    platform,
+    platform_label: platformLabel,
+    inputs: { volume_monthly: volumeMonthly, aov_mxn: aovMxn, apps: requestedAppIds },
+    competitor: {
+      monthly_total_mxn: competitorStack.monthlyTotalMxn,
+      annual_total_mxn: competitorStack.annualTotalMxn,
+      lines: competitorStack.lines,
+    },
+    miyagi: {
+      monthly_total_mxn: miyagiStack.monthlyTotalMxn,
+      annual_total_mxn: miyagiStack.annualTotalMxn,
+      lines: miyagiStack.lines,
+    },
+    savings: {
+      monthly_mxn: round2(competitorStack.monthlyTotalMxn - miyagiStack.monthlyTotalMxn),
+      annual_mxn: round2(competitorStack.annualTotalMxn - miyagiStack.annualTotalMxn),
+    },
+    verified_at: dataset.generatedAt,
+    sources,
+  }
+
+  const summary = `${platformLabel}: ${formatMxn(competitorStack.monthlyTotalMxn)}/mes vs. Miyagi Sánchez: ${formatMxn(miyagiStack.monthlyTotalMxn)}/mes (0% comisión). Datos verificados: ${dataset.generatedAt}.`
+
+  return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(result, null, 2) }] }
+}
+
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
@@ -3570,6 +3717,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_buyer_trust':      { const r = await handleGetBuyerTrust(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'about_miyagi':         return { content: (await handleAboutMiyagi(baseUrl)).content }
       case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
+      case 'compare_costs':        { const r = await handleCompareCosts(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'patch_store_configuration': { const r = await handlePatchStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_offers':               { const r = await handleListOffers(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

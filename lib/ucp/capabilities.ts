@@ -119,6 +119,7 @@ export const MCP_BUYER_TOOLS = [
   'create_support_checkout',
   'about_miyagi',
   'get_setup_spec',
+  'compare_costs',   // cost-comparator-homepage S2 · US-2.3 — same pure lib as /comparador, no auth, no flag
 ] as const
 
 /**
@@ -194,6 +195,7 @@ export const UCP_CAPABILITIES = [
   'seller_onboarding',    // Onboarding 0 — published setup spec + emit prompt (get_setup_spec)
   'seller_domain_subscription', // custom-domain SKU — entitlement + checkout over MCP, recurring + one-time cadence (token-scoped)
   'seller_launchpad',     // bookshop launchpad — manuscript review/publish + voting-campaign CRUD over MCP (mcp-parity-core S1, token-scoped)
+  'cost_comparator',      // cost-comparator-homepage S2 · US-2.3 — compare_costs MCP tool, same pure lib as /comparador
 ] as const
 
 /** Build absolute endpoint URLs for a given request base (e.g. https://miyagisanchez.com). */
