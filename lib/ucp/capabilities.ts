@@ -135,6 +135,18 @@ export const MCP_SELLER_TOOLS = [
   'list_my_listings',
   'list_my_collections',       // own-shop-premium-presentation S2 (token-scoped)
   'create_collection',         // panfleto-premium-shop S2 (token-scoped)
+  'update_collection',         // mcp-parity-config S1.1 — rename a collection (token-scoped)
+  'delete_collection',         // mcp-parity-config S1.1 — delete a collection, listings untouched (token-scoped)
+  'reorder_collections',       // mcp-parity-config S1.2 — full-list nav reorder (token-scoped)
+  'set_listing_repuve',        // mcp-parity-config S1.3 — REPUVE verification data on a listing (token-scoped)
+  'set_shop_slug',             // mcp-parity-config S2.1 — change /s/[slug], old slug 301s 90 days (token-scoped)
+  'set_notification_preferences', // mcp-parity-config S2.2 — granular event-group × channel grid (token-scoped)
+  'create_content',            // mcp-parity-config S2.3 — subscriber/launchpad content post (token-scoped)
+  'update_content',            // mcp-parity-config S2.3 (token-scoped)
+  'delete_content',            // mcp-parity-config S2.3 (token-scoped)
+  'link_telegram',             // mcp-parity-config S2.4 — mint the t.me deep link; seller completes it (token-scoped)
+  'unlink_telegram',           // mcp-parity-config S2.4 — audience-safe disconnect (token-scoped)
+  'test_telegram',             // mcp-parity-config S2.4 — delivery test to the linked chat (token-scoped)
   'update_listing',
   'set_listing_status',
   'configure_listing_options',  // mcp-parity-core S2 — priced option dimensions + quantity tiers (token-scoped, flag mcp.configure_options.enabled)

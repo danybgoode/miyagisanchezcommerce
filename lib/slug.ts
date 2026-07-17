@@ -65,6 +65,32 @@ export function pickAliasTarget(
   return current
 }
 
+export const SLUG_ALIAS_TTL_MS = 90 * 24 * 60 * 60 * 1000
+export const MAX_PREVIOUS_SLUGS = 10
+
+/**
+ * Pure builder for the alias history a slug change leaves behind (US-4): keep
+ * non-expired entries, drop any equal to the new slug (it's live again), add
+ * the old slug with a fresh 90-day TTL, cap the list. Extracted verbatim from
+ * the portal PATCH (app/api/sell/shop/slug) so the MCP `set_shop_slug` tool
+ * shares the exact same computation (mcp-parity-config S2.1).
+ */
+export function buildSlugAliasHistory(
+  metadata: Record<string, unknown> | null,
+  oldSlug: string,
+  newSlug: string,
+  now: number = Date.now(),
+): { previousSlugs: PreviousSlug[]; previousSlugKeys: string[] } {
+  const meta = metadata ?? {}
+  const existing = (Array.isArray(meta.previous_slugs) ? meta.previous_slugs : []) as PreviousSlug[]
+  const kept = existing.filter(p => p?.slug && p.slug !== newSlug && new Date(p.until).getTime() > now)
+  const previousSlugs: PreviousSlug[] = [
+    ...kept,
+    { slug: oldSlug, until: new Date(now + SLUG_ALIAS_TTL_MS).toISOString() },
+  ].slice(-MAX_PREVIOUS_SLUGS)
+  return { previousSlugs, previousSlugKeys: previousSlugs.map(p => p.slug) }
+}
+
 export type SlugValidation = { valid: true } | { valid: false; reason: string }
 
 /**

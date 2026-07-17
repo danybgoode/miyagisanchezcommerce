@@ -14,16 +14,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
-import { validateSlug } from '@/lib/slug'
+import { validateSlug, buildSlugAliasHistory } from '@/lib/slug'
 import { SLUG_REDIRECT_TAG } from '@/lib/slug-redirect'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-const MAX_PREVIOUS_SLUGS = 10
-
-type PreviousSlug = { slug: string; until: string }
 
 function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -66,17 +61,10 @@ export async function PATCH(req: NextRequest) {
   const oldSlug = (shop as { slug: string }).slug
   if (oldSlug === newSlug) return NextResponse.json({ slug: newSlug }) // no-op
 
-  // Build the new alias history: keep non-expired entries, drop any equal to the
-  // new slug (it's live again), add the old slug, cap the list.
+  // Alias history (shared pure builder — the MCP set_shop_slug tool uses the
+  // same computation, mcp-parity-config S2.1).
   const meta = ((shop as { metadata: Record<string, unknown> | null }).metadata ?? {}) as Record<string, unknown>
-  const now = Date.now()
-  const existing = (Array.isArray(meta.previous_slugs) ? meta.previous_slugs : []) as PreviousSlug[]
-  const kept = existing.filter(p => p?.slug && p.slug !== newSlug && new Date(p.until).getTime() > now)
-  const previousSlugs: PreviousSlug[] = [
-    ...kept,
-    { slug: oldSlug, until: new Date(now + NINETY_DAYS_MS).toISOString() },
-  ].slice(-MAX_PREVIOUS_SLUGS)
-  const previousSlugKeys = previousSlugs.map(p => p.slug)
+  const { previousSlugs, previousSlugKeys } = buildSlugAliasHistory(meta, oldSlug, newSlug)
 
   // 1) Authoritative write to Medusa (slug + metadata). Backend owns uniqueness.
   const patchRes = await medusaFetch('/store/sellers/me', clerkJwt, {
