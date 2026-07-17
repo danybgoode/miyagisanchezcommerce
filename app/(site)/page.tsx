@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import {
   getFeaturedListing,
@@ -160,16 +161,20 @@ export default async function HomePage() {
               {recienLlegado.map(listing => (
                 <div key={listing.id} style={{ position: 'relative' }}>
                   <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                       {listing.images?.[0] ? (
-                        <img
+                        // Not the measured LCP element (that's the Selección featured
+                        // card below) — default lazy loading here keeps this section's
+                        // bytes from competing with the real LCP fetch.
+                        <Image
                           src={listing.images[0].url}
                           alt={listing.images[0].alt ?? listing.title}
-                          className="w-full object-cover"
-                          style={{ aspectRatio: '1 / 1' }}
+                          fill
+                          sizes="(min-width: 1024px) 25vw, 50vw"
+                          className="object-cover"
                         />
                       ) : (
-                        <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>
+                        <div className="w-full h-full flex items-center justify-center">
                           <i className="iconoir-package" style={{ fontSize: 36, color: 'var(--fg-subtle)' }} />
                         </div>
                       )}
@@ -320,16 +325,23 @@ export default async function HomePage() {
             {featured && (
               <div style={{ position: 'relative', marginBottom: 12 }}>
                 <Link href={`/l/${featured.id}`} className="card-tile no-underline block">
-                  <div style={{ position: 'relative' }}>
+                  <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                     {featured.images?.[0] ? (
-                      <img
+                      // This is the confirmed LCP element (validated PageSpeed run,
+                      // 2026-07-14 — the "Flashback (original)" 16:9 featured card).
+                      // priority => no lazy + fetchpriority="high" + a dynamic
+                      // <link rel=preload> for THIS render's actual image URL (never
+                      // a hard-coded one — the row is only known at render time).
+                      <Image
                         src={featured.images[0].url}
                         alt={featured.images[0].alt ?? featured.title}
-                        className="w-full object-cover"
-                        style={{ aspectRatio: '16 / 9' }}
+                        fill
+                        priority
+                        sizes="(min-width: 1024px) 1120px, 100vw"
+                        className="object-cover"
                       />
                     ) : (
-                      <div className="w-full flex items-center justify-center" style={{ aspectRatio: '16 / 9', background: 'var(--bg-sunk)' }}>
+                      <div className="w-full h-full flex items-center justify-center">
                         <i className="iconoir-package" style={{ fontSize: 48, color: 'var(--fg-subtle)' }} />
                       </div>
                     )}
@@ -366,19 +378,24 @@ export default async function HomePage() {
             {/* Grid — price 16px loudest, ONE meta line, <48h timestamp badge */}
             {grid.length > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {grid.map(listing => (
+                {grid.map((listing, idx) => (
                   <div key={listing.id} style={{ position: 'relative' }}>
                     <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
-                      <div style={{ position: 'relative' }}>
+                      <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                         {listing.images?.[0] ? (
-                          <img
+                          // First row on mobile (grid-cols-2, the measured viewport) is
+                          // idx 0-1 — fetchpriority=high + no lazy, per Story 1.2. The
+                          // rest default-lazy so they don't compete for bandwidth.
+                          <Image
                             src={listing.images[0].url}
                             alt={listing.images[0].alt ?? listing.title}
-                            className="w-full object-cover"
-                            style={{ aspectRatio: '1 / 1' }}
+                            fill
+                            priority={idx < 2}
+                            sizes="(min-width: 1024px) 25vw, 50vw"
+                            className="object-cover"
                           />
                         ) : (
-                          <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>
+                          <div className="w-full h-full flex items-center justify-center">
                             <i className="iconoir-package" style={{ fontSize: 36, color: 'var(--fg-subtle)' }} />
                           </div>
                         )}
