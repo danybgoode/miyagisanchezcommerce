@@ -18,6 +18,7 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { supplyItemToProductBody, type SupplyItem } from '@/lib/supply'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
+import { ingestImageUrls } from '@/lib/image-ingest'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
@@ -91,8 +92,25 @@ export async function importApprovedItems(items: SupplyItem[], hooks: ImportHook
 
       const { sellerSlug, mirrorId } = await hooks.resolveSeller(item)
 
+      // ── Copy hotlinked images into R2 (hyper-performant-website S1.3) ─────
+      // Same ingestImageUrls() the bulk/MCP catalog-import paths already use
+      // (lib/image-ingest.ts) — this was the one product-creation path that
+      // hadn't been wired up yet, so a scraped listing (e.g. the 369 KiB
+      // teatrounam.com.mx image the PageSpeed audit flagged) shipped with a
+      // permanent third-party hotlink. Best-effort: a failed image keeps its
+      // original URL rather than failing the whole import; ingest.failed > 0
+      // is logged so a bad batch is visible without blocking it.
+      const imageUrls = (item.images ?? []).map((img) => img.url).filter(Boolean)
+      const ingest = imageUrls.length > 0
+        ? await ingestImageUrls(item.batch_id, imageUrls, item.listing_title ?? sellerSlug)
+        : { images: [] as Array<{ url: string; alt?: string }>, ingested: 0, failed: 0 }
+      if (ingest.failed > 0) {
+        console.error(`[supply-import] ${ingest.failed}/${imageUrls.length} image(s) failed to ingest to R2 for item ${item.id}, kept original hotlink(s)`)
+      }
+      const itemForCreate: SupplyItem = { ...item, images: ingest.images.length > 0 ? ingest.images : item.images }
+
       // ── Create the REAL listing: a Medusa product linked to the seller ────
-      const productBody = supplyItemToProductBody(item, sellerSlug, hooks.targetStatus)
+      const productBody = supplyItemToProductBody(itemForCreate, sellerSlug, hooks.targetStatus)
       const productRes = await internalFetch('/internal/seller-products', productBody)
       const productData = await productRes.json().catch(() => ({})) as { product_id?: string; message?: string }
       if (!productRes.ok || !productData.product_id) {

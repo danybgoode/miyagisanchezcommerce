@@ -7,11 +7,20 @@ const nextConfig: NextConfig = {
   // and keeps using its own build output, so this is a no-op there.
   output: 'standalone',
   images: {
+    // 09-platform-infra/hyper-performant-website S1.1 — the built-in `/_next/image`
+    // optimizer 500s/400s under `output: 'standalone'` (open upstream Next.js
+    // regression, vercel/next.js#82610 — confirmed against this exact Dockerfile,
+    // see that commit's message and lib/image-loader.ts's header comment). A
+    // CUSTOM loader bypasses `/_next/image` entirely, so `remotePatterns`/`formats`
+    // below are vestigial under this mode (Next ignores them for a custom loader)
+    // but left in place as documentation of intent + a cheap revert path if the
+    // upstream bug is ever fixed.
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
     ],
-    // Allow Next.js image optimizer to serve WebP/AVIF
     formats: ['image/avif', 'image/webp'],
+    loader: 'custom',
+    loaderFile: './lib/image-loader.ts',
   },
   async rewrites() {
     return [
