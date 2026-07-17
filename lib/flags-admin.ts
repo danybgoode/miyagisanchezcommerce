@@ -165,7 +165,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // MCP patch_store_configuration `checkout` block (mcp-parity-core S4.2) —
   // escrow/CTA presentation via agent. Enablement: default OFF; flip ON after
   // Daniel's live escrow-mode checkout smoke.
-  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },}
+  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },
+  // Miyagi Partners multi-shop MCP credential (miyagi-partners-mcp S1) — every
+  // ms_partner_ code path. Enablement: default OFF ⇒ a partner token is rejected
+  // like a garbage token; flip ON after Daniel's Sprint-1 smoke walkthrough.
+  'partners.mcp_enabled': { polarity: 'enablement', default: false },}
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
 export const FLAG_KEYS = Object.keys(FLAG_META) as FlagKey[]
