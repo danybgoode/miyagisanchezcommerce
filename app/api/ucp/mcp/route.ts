@@ -65,7 +65,12 @@ import { applyStoreConfig } from '@/lib/apply-config-manifest'
 import { recordAgentConfigChange, recordAgentOfferAction, recordAgentListingAction, recordAgentListingCreate } from '@/lib/agent-audit'
 import { listShopOffers, respondToOffer } from '@/lib/offer-respond'
 import { listShopOrdersViaInternal } from '@/lib/agent-orders'
-import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock, deleteSellerProductViaInternal, applySellerPriceViaInternal, type SellerProductPatch } from '@/lib/seller-products'
+import { listShopListings, shopOwnsProduct, patchSellerProductViaInternal, createSellerProductViaInternal, createSellerCollectionViaInternal, listingActivationBlock, deleteSellerProductViaInternal, applySellerPriceViaInternal, renameSellerCollectionViaInternal, deleteSellerCollectionViaInternal, reorderSellerCollectionsViaInternal, patchSellerSlugViaInternal, type SellerProductPatch } from '@/lib/seller-products'
+import { validateSlug, buildSlugAliasHistory } from '@/lib/slug'
+import { SLUG_REDIRECT_TAG } from '@/lib/slug-redirect'
+import { resolvePrefs, audienceTelegramInUse, EVENT_GROUPS, CHANNELS, type PrefRow } from '@/lib/notifications/preferences'
+import { genLinkToken, LINK_TOKEN_TTL_MS } from '@/lib/notifications/telegram-link'
+import { getBotUsername, tgSend } from '@/lib/telegram'
 import { getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
@@ -411,6 +416,136 @@ const TOOLS = [
         name: { type: 'string', description: 'Collection name, 2–60 characters (e.g. "Historias").' },
       },
     },
+  },
+  {
+    name: 'update_collection',
+    description: "SELLER TOOL. Rename one of YOUR OWN shop's collections. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The collection's short slug and /c/… URL stay stable across a rename — only the display name changes. Use list_my_collections to find the collection_slug.",
+    inputSchema: {
+      type: 'object',
+      required: ['collection_slug', 'name'],
+      properties: {
+        collection_slug: { type: 'string', description: 'The collection short slug (from list_my_collections).' },
+        name: { type: 'string', description: 'New collection name, 2–60 characters.' },
+      },
+    },
+  },
+  {
+    name: 'delete_collection',
+    description: "SELLER TOOL. Delete one of YOUR OWN shop's collections. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Member listings are NOT deleted — they only stop being grouped under this collection. Use list_my_collections to find the collection_slug.",
+    inputSchema: {
+      type: 'object',
+      required: ['collection_slug'],
+      properties: {
+        collection_slug: { type: 'string', description: 'The collection short slug (from list_my_collections).' },
+      },
+    },
+  },
+  {
+    name: 'reorder_collections',
+    description: "SELLER TOOL. Set the display order of YOUR OWN shop's collections (the storefront nav strip). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Pass the FULL list of your collection slugs in the desired order — a partial or duplicated list is rejected, nothing is applied.",
+    inputSchema: {
+      type: 'object',
+      required: ['ordered_slugs'],
+      properties: {
+        ordered_slugs: { type: 'array', items: { type: 'string' }, description: 'Every collection short slug (from list_my_collections), each exactly once, in display order.' },
+      },
+    },
+  },
+  {
+    name: 'set_listing_repuve',
+    description: "SELLER TOOL. Set the REPUVE (Registro Público Vehicular) verification data on one of YOUR OWN vehicle listings. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Records the check result shown on the listing's trust panel.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_id', 'status'],
+      properties: {
+        product_id: { type: 'string', description: 'The listing product_id (from list_my_listings).' },
+        status: { type: 'string', enum: ['sin_reporte', 'con_reporte'], description: 'REPUVE check result: sin_reporte (clean) or con_reporte (has a report).' },
+        folio: { type: 'string', description: 'Optional REPUVE folio/reference (uppercased).' },
+        notes: { type: 'string', description: 'Optional free-form verification notes.' },
+      },
+    },
+  },
+  {
+    name: 'set_shop_slug',
+    description: "SELLER TOOL. Change YOUR OWN shop's public URL slug (miyagisanchez.com/s/<slug>). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The old slug keeps 301-redirecting to the new one for 90 days. Format: 3–40 chars, lowercase letters/numbers/hyphens; reserved words rejected; taken slugs rejected.",
+    inputSchema: {
+      type: 'object',
+      required: ['slug'],
+      properties: {
+        slug: { type: 'string', description: 'The new shop slug.' },
+      },
+    },
+  },
+  {
+    name: 'set_notification_preferences',
+    description: "SELLER TOOL. Toggle one cell of YOUR OWN shop's notification-preference grid (event group × channel). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Channels: email, push, telegram (telegram requires a linked chat — see link_telegram). Event groups: orders, offers, payments, returns. Returns the full resolved grid.",
+    inputSchema: {
+      type: 'object',
+      required: ['channel', 'event_group', 'enabled'],
+      properties: {
+        channel: { type: 'string', enum: ['email', 'push', 'telegram'] },
+        event_group: { type: 'string', enum: ['orders', 'offers', 'payments', 'returns'] },
+        enabled: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'create_content',
+    description: "SELLER TOOL. Create a content post for YOUR OWN shop's subscriber/launchpad content area (beyond the about/faq blocks patch_store_configuration already covers). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Optionally attach it to one of your listings.",
+    inputSchema: {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: { type: 'string', description: 'Post title, 2–200 characters.' },
+        body: { type: 'string', description: 'Optional post body text.' },
+        product_id: { type: 'string', description: 'Optional listing product_id (from list_my_listings) to attach the post to.' },
+        file_url: { type: 'string', description: 'Optional file/media URL.' },
+        file_type: { type: 'string', description: 'Optional file MIME type or kind.' },
+        is_published: { type: 'boolean', description: 'Publish immediately (default true).' },
+      },
+    },
+  },
+  {
+    name: 'update_content',
+    description: "SELLER TOOL. Update one of YOUR OWN shop's content posts (title, body, file, publish state). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop.",
+    inputSchema: {
+      type: 'object',
+      required: ['content_id'],
+      properties: {
+        content_id: { type: 'string', description: 'The content post id (returned by create_content).' },
+        title: { type: 'string', description: 'New title, 2–200 characters.' },
+        body: { type: 'string' },
+        file_url: { type: 'string' },
+        file_type: { type: 'string' },
+        is_published: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'delete_content',
+    description: "SELLER TOOL. Delete one of YOUR OWN shop's content posts. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop.",
+    inputSchema: {
+      type: 'object',
+      required: ['content_id'],
+      properties: {
+        content_id: { type: 'string', description: 'The content post id.' },
+      },
+    },
+  },
+  {
+    name: 'link_telegram',
+    description: "SELLER TOOL. Start linking YOUR OWN shop's Telegram notifications. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns a t.me deep link — the SELLER must open it and press Start in Telegram to complete the link (an agent cannot finish this step). Once linked, enable telegram cells via set_notification_preferences.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'unlink_telegram',
+    description: "SELLER TOOL. Disconnect YOUR OWN shop's Telegram notifications (turns off all seller telegram preferences; keeps the person's buyer-side Telegram if they use it). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'test_telegram',
+    description: "SELLER TOOL. Send a test message to YOUR OWN shop's linked Telegram chat to confirm delivery. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Fails with a clear message when no chat is linked.",
+    inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'list_orders',
@@ -1849,6 +1984,426 @@ async function handleCreateCollection(args: Record<string, unknown>, authHeader?
   }
 }
 
+/** Resolve a collection short slug → the shop's collection row (id/handle/name), or null. */
+async function resolveOwnCollection(shopSlug: string, collectionSlug: string) {
+  const collections = await getShopCollections(shopSlug)
+  return collections.find((c) => shortCollectionSlug(c.handle, shopSlug) === collectionSlug) ?? null
+}
+
+async function handleUpdateCollection(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const validated = validateCollectionName(args.name)
+  if (!validated.ok) return { isError: true, content: [{ type: 'text', text: validated.error }] }
+
+  const collectionSlug = String(args.collection_slug ?? '')
+  const collection = await resolveOwnCollection(shop.slug, collectionSlug)
+  if (!collection) return { isError: true, content: [{ type: 'text', text: `No encontré la colección \`${collectionSlug}\` en tu tienda. Usa list_my_collections para ver tus colecciones.` }] }
+
+  const result = await renameSellerCollectionViaInternal(shop.slug, collection.id, validated.name)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo renombrar la colección: ${result.error}` }] }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Colección renombrada: «${collection.name}» → «${validated.name}» (slug: \`${collectionSlug}\`, sin cambios — las URLs /c/… se mantienen).` },
+    ],
+  }
+}
+
+async function handleDeleteCollection(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const collectionSlug = String(args.collection_slug ?? '')
+  const collection = await resolveOwnCollection(shop.slug, collectionSlug)
+  if (!collection) return { isError: true, content: [{ type: 'text', text: `No encontré la colección \`${collectionSlug}\` en tu tienda. Usa list_my_collections para ver tus colecciones.` }] }
+
+  const result = await deleteSellerCollectionViaInternal(shop.slug, collection.id)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo eliminar la colección: ${result.error}` }] }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Colección eliminada: «${collection.name}». Sus anuncios NO se eliminaron — solo dejaron de estar agrupados en esa colección.` },
+    ],
+  }
+}
+
+async function handleReorderCollections(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const ordered = args.ordered_slugs
+  if (!Array.isArray(ordered) || ordered.length === 0 || ordered.some((s) => typeof s !== 'string')) {
+    return { isError: true, content: [{ type: 'text', text: 'ordered_slugs debe ser una lista de slugs de colección (usa list_my_collections).' }] }
+  }
+
+  const collections = await getShopCollections(shop.slug)
+  const bySlug = new Map(collections.map((c) => [shortCollectionSlug(c.handle, shop.slug!), c]))
+  const unknown = (ordered as string[]).filter((s) => !bySlug.has(s))
+  if (unknown.length > 0) {
+    return { isError: true, content: [{ type: 'text', text: `No encontré esta(s) colección(es) en tu tienda: ${unknown.map((s) => `\`${s}\``).join(', ')}. Usa list_my_collections.` }] }
+  }
+
+  const orderedIds = (ordered as string[]).map((s) => bySlug.get(s)!.id)
+  const result = await reorderSellerCollectionsViaInternal(shop.slug, orderedIds)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo reordenar: ${result.error}` }] }
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Colecciones reordenadas:\n${(ordered as string[]).map((s, i) => `${i + 1}. ${bySlug.get(s)!.name}`).join('\n')}` },
+    ],
+  }
+}
+
+/**
+ * set_listing_repuve (mcp-parity-config S1.3) — mirrors the portal
+ * PATCH /api/sell/listing/:id/repuve verbatim: same status vocabulary, same
+ * folio/notes normalization, same metadata.repuve write. Deliberately no
+ * category guard — the portal route has none (parity, not policy; the UI just
+ * only surfaces REPUVE on autos listings).
+ */
+async function handleSetListingRepuve(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const productId = String(args.product_id ?? '')
+  if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
+  const status = String(args.status ?? '')
+  if (!['sin_reporte', 'con_reporte'].includes(status)) {
+    return { isError: true, content: [{ type: 'text', text: 'Estado inválido. Usa "sin_reporte" o "con_reporte".' }] }
+  }
+
+  const { data: listing } = await db
+    .from('marketplace_listings')
+    .select('id, metadata')
+    .eq('shop_id', shop.id)
+    .eq('medusa_product_id', productId)
+    .maybeSingle()
+  if (!listing) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  const existingMeta = (listing.metadata ?? {}) as Record<string, unknown>
+  const folio = typeof args.folio === 'string' ? args.folio : undefined
+  const notes = typeof args.notes === 'string' ? args.notes : undefined
+  const repuve = {
+    status,
+    folio: folio?.trim().toUpperCase() || null,
+    notes: notes?.trim() || null,
+    verified_at: new Date().toISOString(),
+  }
+
+  const { error } = await db
+    .from('marketplace_listings')
+    .update({ metadata: { ...existingMeta, repuve } })
+    .eq('id', listing.id)
+  if (error) return { isError: true, content: [{ type: 'text', text: 'Error al guardar.' }] }
+
+  return {
+    content: [
+      { type: 'text', text: `✅ REPUVE actualizado (${status === 'sin_reporte' ? 'sin reporte' : 'con reporte'}).` },
+      { type: 'text', text: JSON.stringify({ repuve }, null, 2) },
+    ],
+  }
+}
+
+/**
+ * set_shop_slug (mcp-parity-config S2.1) — same pipeline as the portal
+ * PATCH /api/sell/shop/slug: frontend validateSlug (format + reserved),
+ * shared buildSlugAliasHistory, authoritative Medusa write (uniqueness →
+ * 409) via the internal door, Supabase mirror, cache bust. The old slug
+ * 301-redirects for 90 days (custom-slugs US-4), unchanged.
+ */
+async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  const newSlug = String(args.slug ?? '').trim().toLowerCase()
+  const check = validateSlug(newSlug)
+  if (!check.valid) return { isError: true, content: [{ type: 'text', text: check.reason }] }
+  if (newSlug === shop.slug) {
+    return { content: [{ type: 'text', text: `Tu tienda ya usa el slug \`${newSlug}\` — no hay nada que cambiar.` }] }
+  }
+
+  const { previousSlugs, previousSlugKeys } = buildSlugAliasHistory(shop.metadata ?? {}, shop.slug, newSlug)
+
+  const result = await patchSellerSlugViaInternal(shop.slug, newSlug, previousSlugs, previousSlugKeys)
+  if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo cambiar el slug: ${result.error}` }] }
+
+  const meta = (shop.metadata ?? {}) as Record<string, unknown>
+  const { error: mirrorError } = await db
+    .from('marketplace_shops')
+    .update({
+      slug: newSlug,
+      metadata: { ...meta, previous_slugs: previousSlugs, previous_slug_keys: previousSlugKeys },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', shop.id)
+  if (mirrorError) console.error('[set_shop_slug] mirror update failed (non-fatal):', mirrorError)
+
+  revalidateTag('listings', 'default')
+  revalidateTag('shops', 'default')
+  revalidateTag(SLUG_REDIRECT_TAG, 'default')
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Slug cambiado: \`${shop.slug}\` → \`${newSlug}\`.\n\nTu tienda ahora vive en https://miyagisanchez.com/s/${newSlug} — el slug anterior seguirá redirigiendo (301) durante 90 días.${mirrorError ? '\n⚠ El espejo del catálogo puede tardar en reflejarlo.' : ''}` },
+    ],
+  }
+}
+
+/**
+ * set_notification_preferences (mcp-parity-config S2.2) — the granular
+ * event-group × channel grid (PATCH /api/sell/notification-preferences),
+ * which is a different store from the two email booleans the `notifications`
+ * config block in patch_store_configuration already covers. Mirrors the
+ * portal PATCH verbatim, including the telegram-requires-linked-chat guard.
+ */
+async function handleSetNotificationPreferences(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada — reclámala primero para configurar notificaciones.' }] }
+
+  const { channel, event_group: eventGroup, enabled } = args
+  const validChannel = typeof channel === 'string' && (CHANNELS as readonly string[]).includes(channel)
+  const validGroup = typeof eventGroup === 'string' && (EVENT_GROUPS as readonly string[]).includes(eventGroup)
+  if (!validChannel || !validGroup || typeof enabled !== 'boolean') {
+    return { isError: true, content: [{ type: 'text', text: `Parámetros inválidos. channel: ${CHANNELS.join('|')}; event_group: ${EVENT_GROUPS.join('|')}; enabled: boolean.` }] }
+  }
+
+  if (channel === 'telegram') {
+    const { data: link } = await db
+      .from('telegram_links')
+      .select('chat_id')
+      .eq('clerk_user_id', shop.clerk_user_id)
+      .maybeSingle()
+    if (!link) {
+      return { isError: true, content: [{ type: 'text', text: 'Conecta Telegram para activar este canal (usa link_telegram).' }] }
+    }
+  }
+
+  const { error } = await db.from('notification_preferences').upsert(
+    {
+      clerk_user_id: shop.clerk_user_id,
+      channel,
+      event_group: eventGroup,
+      enabled,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'clerk_user_id,channel,event_group' },
+  )
+  if (error) return { isError: true, content: [{ type: 'text', text: 'No se pudo guardar.' }] }
+
+  const { data: rows } = await db
+    .from('notification_preferences')
+    .select('channel, event_group, enabled')
+    .eq('clerk_user_id', shop.clerk_user_id)
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Preferencia guardada: ${eventGroup} × ${channel} → ${enabled ? 'activado' : 'desactivado'}.` },
+      { type: 'text', text: JSON.stringify({ prefs: resolvePrefs((rows as PrefRow[] | null) ?? []) }, null, 2) },
+    ],
+  }
+}
+
+async function handleCreateContent(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const titleClean = String(args.title ?? '').trim()
+  if (titleClean.length < 2) return { isError: true, content: [{ type: 'text', text: 'El título debe tener al menos 2 caracteres.' }] }
+  if (titleClean.length > 200) return { isError: true, content: [{ type: 'text', text: 'El título no puede superar los 200 caracteres.' }] }
+
+  // Optional listing attach — the agent-facing arg is product_id (the id
+  // list_my_listings returns); resolve it to the mirror row the content
+  // table references, ownership included.
+  let listingId: string | null = null
+  if (args.product_id) {
+    const { data: listing } = await db
+      .from('marketplace_listings')
+      .select('id')
+      .eq('shop_id', shop.id)
+      .eq('medusa_product_id', String(args.product_id))
+      .maybeSingle()
+    if (!listing) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+    listingId = listing.id
+  }
+
+  const { data: content, error } = await db
+    .from('marketplace_subscription_content')
+    .insert({
+      shop_id: shop.id,
+      listing_id: listingId,
+      title: titleClean,
+      body: typeof args.body === 'string' ? args.body.trim() : null,
+      file_url: typeof args.file_url === 'string' ? args.file_url : null,
+      file_type: typeof args.file_type === 'string' ? args.file_type : null,
+      is_published: typeof args.is_published === 'boolean' ? args.is_published : true,
+    })
+    .select('id')
+    .single()
+  if (error || !content) return { isError: true, content: [{ type: 'text', text: 'Error al crear el contenido.' }] }
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Contenido creado: «${titleClean}».\n\ncontent_id: \`${content.id}\`` },
+    ],
+  }
+}
+
+async function handleUpdateContent(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const contentId = String(args.content_id ?? '')
+  if (!contentId) return { isError: true, content: [{ type: 'text', text: 'content_id es obligatorio.' }] }
+
+  const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (args.title !== undefined) {
+    const t = String(args.title).trim()
+    if (t.length < 2 || t.length > 200) return { isError: true, content: [{ type: 'text', text: 'Título inválido (2–200 caracteres).' }] }
+    updatePayload.title = t
+  }
+  if (args.body !== undefined) updatePayload.body = typeof args.body === 'string' ? args.body.trim() : null
+  if (args.file_url !== undefined) updatePayload.file_url = args.file_url
+  if (args.file_type !== undefined) updatePayload.file_type = args.file_type
+  if (args.is_published !== undefined) {
+    if (typeof args.is_published !== 'boolean') return { isError: true, content: [{ type: 'text', text: 'is_published debe ser booleano.' }] }
+    updatePayload.is_published = args.is_published
+  }
+
+  const { data: updated, error } = await db
+    .from('marketplace_subscription_content')
+    .update(updatePayload)
+    .eq('id', contentId)
+    .eq('shop_id', shop.id)  // ownership check (same as the portal PATCH)
+    .select('id')
+  if (error) return { isError: true, content: [{ type: 'text', text: 'Error al actualizar.' }] }
+  if (!updated || updated.length === 0) return { isError: true, content: [{ type: 'text', text: 'Contenido no encontrado en tu tienda.' }] }
+
+  return { content: [{ type: 'text', text: '✅ Contenido actualizado.' }] }
+}
+
+async function handleDeleteContent(args: Record<string, unknown>, authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+
+  const contentId = String(args.content_id ?? '')
+  if (!contentId) return { isError: true, content: [{ type: 'text', text: 'content_id es obligatorio.' }] }
+
+  const { data: deleted, error } = await db
+    .from('marketplace_subscription_content')
+    .delete()
+    .eq('id', contentId)
+    .eq('shop_id', shop.id)  // ownership check (same as the portal DELETE)
+    .select('id')
+  if (error) return { isError: true, content: [{ type: 'text', text: 'Error al eliminar.' }] }
+  if (!deleted || deleted.length === 0) return { isError: true, content: [{ type: 'text', text: 'Contenido no encontrado en tu tienda.' }] }
+
+  return { content: [{ type: 'text', text: '✅ Contenido eliminado.' }] }
+}
+
+/**
+ * link_telegram (mcp-parity-config S2.4) — mints the same single-use t.me
+ * deep link the portal POST /api/sell/telegram/link does. The link is a
+ * two-step handshake by design: the SELLER must open the link and press
+ * Start; the bot webhook redeems the token. An agent can only mint the link.
+ * Rate-limited per shop account (the portal keys on user+IP; MCP handlers
+ * have no request IP, so the account id alone is the key).
+ */
+async function handleLinkTelegram(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada — reclámala primero para conectar Telegram.' }] }
+
+  const rl = await checkRateLimit('telegram_link', `${shop.clerk_user_id}:mcp`)
+  if (!rl.allowed) return { isError: true, content: [{ type: 'text', text: 'Demasiados intentos. Espera un momento.' }] }
+
+  const username = await getBotUsername()
+  if (!username) return { isError: true, content: [{ type: 'text', text: 'Telegram no está disponible por ahora. Inténtalo más tarde.' }] }
+
+  const token = genLinkToken()
+  const { error } = await db.from('telegram_link_tokens').insert({
+    token,
+    clerk_user_id: shop.clerk_user_id,
+    expires_at: new Date(Date.now() + LINK_TOKEN_TTL_MS).toISOString(),
+  })
+  if (error) return { isError: true, content: [{ type: 'text', text: 'No se pudo generar el enlace.' }] }
+
+  return {
+    content: [
+      { type: 'text', text: `Enlace de vinculación (válido 10 minutos, un solo uso):\n\nhttps://t.me/${username}?start=${token}\n\n⚠ Este paso lo debe completar la persona dueña de la tienda: abre el enlace en Telegram y pulsa «Iniciar». Después activa los avisos con set_notification_preferences (canal telegram).` },
+    ],
+  }
+}
+
+async function handleUnlinkTelegram(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada.' }] }
+
+  // Audience-safe unlink — same semantics as the portal DELETE: turn off all
+  // seller-group telegram prefs, then remove the shared chat row ONLY when the
+  // buyer audience doesn't still use Telegram.
+  await db
+    .from('notification_preferences')
+    .delete()
+    .eq('clerk_user_id', shop.clerk_user_id)
+    .eq('channel', 'telegram')
+    .in('event_group', [...EVENT_GROUPS])
+
+  const { data } = await db
+    .from('notification_preferences')
+    .select('channel, event_group, enabled')
+    .eq('clerk_user_id', shop.clerk_user_id)
+
+  let rowDeleted = false
+  if (!audienceTelegramInUse((data as PrefRow[] | null) ?? [], 'buyer')) {
+    const { error } = await db.from('telegram_links').delete().eq('clerk_user_id', shop.clerk_user_id)
+    if (error) return { isError: true, content: [{ type: 'text', text: 'No se pudo desconectar.' }] }
+    rowDeleted = true
+  }
+
+  return {
+    content: [
+      { type: 'text', text: `✅ Telegram desconectado para los avisos de tu tienda.${rowDeleted ? '' : ' (La cuenta compradora sigue usando Telegram, así que el chat queda vinculado para ella.)'}` },
+    ],
+  }
+}
+
+async function handleTestTelegram(authHeader?: string | null) {
+  const shop = await resolveAgentShop(authHeader)
+  if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
+  if (!shop.clerk_user_id) return { isError: true, content: [{ type: 'text', text: 'Tu tienda aún no tiene una cuenta vinculada.' }] }
+
+  const { data } = await db
+    .from('telegram_links')
+    .select('chat_id')
+    .eq('clerk_user_id', shop.clerk_user_id)
+    .maybeSingle()
+  if (!data?.chat_id) return { isError: true, content: [{ type: 'text', text: 'Conecta Telegram primero (usa link_telegram).' }] }
+
+  await tgSend(
+    data.chat_id,
+    '🔔 <b>Prueba</b>\nTu Telegram está conectado a tu tienda de Miyagi Sánchez. Aquí te llegarán los avisos que actives.',
+  )
+
+  return { content: [{ type: 'text', text: '✅ Mensaje de prueba enviado a tu Telegram.' }] }
+}
+
 async function handleListOrders(args: Record<string, unknown>, authHeader?: string | null) {
   const shop = await resolveAgentShop(authHeader)
   if (!shop) return { isError: true, content: [{ type: 'text', text: `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -2895,6 +3450,18 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'list_my_listings':          { const r = await handleListMyListings(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_collections':       { const r = await handleListMyCollections(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_collection':         { const r = await handleCreateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'update_collection':         { const r = await handleUpdateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'delete_collection':         { const r = await handleDeleteCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'reorder_collections':       { const r = await handleReorderCollections(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'set_listing_repuve':        { const r = await handleSetListingRepuve(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'set_shop_slug':             { const r = await handleSetShopSlug(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'set_notification_preferences': { const r = await handleSetNotificationPreferences(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_content':            { const r = await handleCreateContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'update_content':            { const r = await handleUpdateContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'delete_content':            { const r = await handleDeleteContent(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'link_telegram':             { const r = await handleLinkTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'unlink_telegram':           { const r = await handleUnlinkTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'test_telegram':             { const r = await handleTestTelegram(authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_orders':               { const r = await handleListOrders(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_manuscript_submissions': { const r = await handleListManuscriptSubmissions(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'review_submission':        { const r = await handleReviewSubmission(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

@@ -265,6 +265,112 @@ export async function ensureSupportProductViaInternal(
   }
 }
 
+/** Rename a collection through the backend internal route (x-internal-secret).
+ *  Sibling of createSellerCollectionViaInternal — same shared
+ *  renameSellerCollection logic the Clerk-authed portal PATCH runs, ownership
+ *  re-checked backend-side (mcp-parity-config S1.1). */
+export async function renameSellerCollectionViaInternal(
+  sellerSlug: string,
+  collectionId: string,
+  name: string,
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/seller-collections/${collectionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug, name }),
+    })
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { message?: string }
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: 200 }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
+/** Delete a collection through the backend internal route (x-internal-secret).
+ *  Same shared deleteSellerCollection the portal DELETE runs — removes the
+ *  category + its links only, NEVER the member products (mcp-parity-config S1.1). */
+export async function deleteSellerCollectionViaInternal(
+  sellerSlug: string,
+  collectionId: string,
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(
+      `${MEDUSA_BASE}/internal/seller-collections/${collectionId}?seller_slug=${encodeURIComponent(sellerSlug)}`,
+      { method: 'DELETE', headers: { 'x-internal-secret': INTERNAL_SECRET } },
+    )
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { message?: string }
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: 200 }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
+/** Reorder collections through the backend internal route (x-internal-secret).
+ *  Same shared reorderSellerCollections the portal PATCH runs — including the
+ *  full-set guard (every owned collection exactly once) (mcp-parity-config S1.2). */
+export async function reorderSellerCollectionsViaInternal(
+  sellerSlug: string,
+  orderedIds: string[],
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/seller-collections/reorder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({ seller_slug: sellerSlug, ordered_ids: orderedIds }),
+    })
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { message?: string }
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: 200 }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
+/** Change the seller's slug through the backend internal route
+ *  (x-internal-secret). Medusa owns uniqueness (409) exactly as the portal's
+ *  Clerk-JWT PATCH /store/sellers/me does; the caller must have already run
+ *  lib/slug.ts validateSlug (format + reserved words) and computed the alias
+ *  history via buildSlugAliasHistory (mcp-parity-config S2.1). */
+export async function patchSellerSlugViaInternal(
+  sellerSlug: string,
+  newSlug: string,
+  previousSlugs: Array<{ slug: string; until: string }>,
+  previousSlugKeys: string[],
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!INTERNAL_SECRET) return { ok: false, status: 500, error: 'Internal secret not configured.' }
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/internal/sellers/slug`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify({
+        seller_slug: sellerSlug,
+        new_slug: newSlug,
+        previous_slugs: previousSlugs,
+        previous_slug_keys: previousSlugKeys,
+      }),
+    })
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { message?: string }
+      return { ok: false, status: res.status, error: d.message ?? `Error ${res.status}` }
+    }
+    return { ok: true, status: 200 }
+  } catch (e) {
+    return { ok: false, status: 500, error: String(e) }
+  }
+}
+
 function normalizeClabe(v: unknown): string {
   return typeof v === 'string' ? v.replace(/\D/g, '') : ''
 }
