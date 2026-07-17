@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { computeShopifyCost, formatMxn } from '../lib/cost-comparator'
-import { shopifyRatesFromDataset } from '../lib/cost-comparator-dataset'
+import { shopifyRatesFromDataset, lineSourceHint } from '../lib/cost-comparator-dataset'
 import type { ComparatorDataset } from '../lib/cost-comparator-dataset'
 // Import attribute required for the same reason e2e/cost-comparator-dataset.spec.ts
 // needs it — see lib/cost-comparator-dataset.ts's file header.
@@ -46,7 +46,7 @@ test.describe('comparador · route renders anonymously', () => {
     expect(html).toContain('data-testid="comparador-app-liveChat"')
     expect(html).toContain('data-testid="comparador-app-coupons"')
     expect(html).toContain('data-testid="comparador-app-offers"')
-    expect(html).toContain('Miyagi: incluido')
+    expect(html).toContain('Incluido en Miyagi')
   })
 })
 
@@ -68,5 +68,24 @@ test.describe('comparador · a known prefill produces the lib\'s exact number', 
     expect(html).toContain(`data-testid="comparador-monthly-competitor-total"`)
     expect(html).toContain(formatMxn(expected.monthlyTotalMxn))
     expect(html).toContain(formatMxn(expected.annualTotalMxn))
+  })
+})
+
+// codex cross-review (should-fix) — the footer claims every figure "muestra su
+// fuente al pasar el cursor"; prove the rendered line for the Shopify plan tier
+// actually carries that source+date in its `title` attribute, not just the
+// pure lineSourceHint() function in isolation (cost-comparator-dataset.spec.ts).
+test.describe('comparador · sourced-figure hover tooltip (codex should-fix)', () => {
+  test('the Shopify plan line carries its dataset source + verifiedAt in a title attribute', async ({ request }) => {
+    const res = await request.get('/comparador?platform=shopify&tier=basico', { headers: { Accept: 'text/html' } })
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+
+    const expectedHint = lineSourceHint(baseline, 'shopify', 'plan', { shopifyTier: 'basico' })
+    expect(expectedHint).toContain('Fuente:')
+
+    const input = html.match(/<input[^>]*data-testid="comparador-line-shopify-plan"[^>]*>/)?.[0] ?? ''
+    expect(input).not.toBe('')
+    expect(input).toContain(`title="${expectedHint.replace(/"/g, '&quot;')}"`)
   })
 })

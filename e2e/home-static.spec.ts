@@ -135,6 +135,6 @@ test.describe('static homepage · curated shell, no personalization', () => {
     const teaser = html.match(/<a[^>]*data-testid="home-comparador-teaser"[^>]*>/)?.[0] ?? ''
     expect(teaser).not.toBe('')
     expect(teaser).toContain('href="/comparador"')
-    expect(html).toContain('¿Cuánto pagas hoy vs. Miyagi?')
+    expect(html).toContain('¿Cuánto pagas hoy contra Miyagi?')
   })
 })

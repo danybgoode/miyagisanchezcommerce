@@ -23,6 +23,7 @@ import {
   type PremiumAppOption,
   type StackedCost,
 } from '@/lib/cost-comparator'
+import { lineSourceHint, type ComparatorDataset } from '@/lib/cost-comparator-dataset'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
 
 export type CompetitorPlatform = 'shopify' | 'mercadolibre' | 'woocommerce' | 'tiendanube'
@@ -34,10 +35,14 @@ const PLATFORM_LABELS: Record<CompetitorPlatform, string> = {
   tiendanube: 'Tiendanube',
 }
 
+// "Basic" / "Grow" / "Advanced" are Shopify's own plan brand names (unchanged
+// even on Shopify's own es-MX pricing page) — they stay as-is per AGENTS rule 5
+// ("brand names stay as-is"), presented as "Plan <Nombre>" so they read as a
+// proper-noun plan name rather than a stray English word.
 const SHOPIFY_TIER_LABELS: Record<ShopifyTier, string> = {
-  basico: 'Basic (~$19 USD/mes)',
-  crecimiento: 'Grow (~$52 USD/mes)',
-  avanzado: 'Advanced (~$399 USD/mes)',
+  basico: 'Plan Basic (~$19 USD/mes)',
+  crecimiento: 'Plan Grow (~$52 USD/mes)',
+  avanzado: 'Plan Advanced (~$399 USD/mes)',
 }
 
 const ML_BAND_LABELS: Record<MlBand, string> = {
@@ -47,8 +52,8 @@ const ML_BAND_LABELS: Record<MlBand, string> = {
 }
 
 const WOO_TIER_LABELS: Record<WooCommerceHostingTier, string> = {
-  entrada: 'Hosting de entrada (~$19 USD/mes)',
-  crecimiento: 'Hosting de crecimiento (~$28 USD/mes)',
+  entrada: 'Alojamiento de entrada (~$19 USD/mes)',
+  crecimiento: 'Alojamiento de crecimiento (~$28 USD/mes)',
 }
 
 const TN_TIER_LABELS: Record<TiendanubeTier, string> = {
@@ -83,6 +88,7 @@ interface ComparadorToolProps {
   apps: PremiumAppOption[]
   fx: number
   initial: ComparadorInitial
+  dataset: ComparatorDataset
 }
 
 function EditableLine({
@@ -90,24 +96,35 @@ function EditableLine({
   label,
   value,
   original,
+  sourceHint,
   onChange,
 }: {
   testId: string
   label: string
   value: number
   original: number
+  sourceHint: string
   onChange: (next: number) => void
 }) {
   const overridden = Math.round(value * 100) !== Math.round(original * 100)
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s-3)', padding: '6px 0' }}>
-      <span className="t-small" style={{ color: 'var(--fg-muted)', flex: '1 1 auto', minWidth: 0 }}>{label}</span>
+      <span
+        className="t-small"
+        title={sourceHint}
+        data-testid={`${testId}-source`}
+        style={{ color: 'var(--fg-muted)', flex: '1 1 auto', minWidth: 0, cursor: 'help', textDecoration: 'underline dotted', textUnderlineOffset: 3 }}
+      >
+        {label}
+        <i className="iconoir-info-circle" aria-hidden="true" style={{ marginLeft: 4, fontSize: 12, color: 'var(--fg-subtle)', verticalAlign: 'middle' }} />
+      </span>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
         <input
           type="number"
           step="0.01"
           className="input"
           data-testid={testId}
+          title={sourceHint}
           value={value}
           onChange={(e) => {
             const next = e.target.valueAsNumber
@@ -154,7 +171,7 @@ function StackedBar({
   )
 }
 
-export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorToolProps) {
+export default function ComparadorTool({ rates, apps, fx, initial, dataset }: ComparadorToolProps) {
   const [platform, setPlatform] = useState<CompetitorPlatform>(initial.platform)
   const [shopifyTier, setShopifyTier] = useState<ShopifyTier>(initial.shopifyTier)
   const [mlBand, setMlBand] = useState<MlBand>(initial.mlBand)
@@ -169,10 +186,14 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
   const [lineOverrides, setLineOverrides] = useState<Record<string, number>>({})
   const [interacted, setInteracted] = useState(false)
 
-  const markInteracted = () => {
+  // `nextPlatform` lets the platform-change handler pass the value it's ABOUT to
+  // set — `setPlatform` is async (queued), so reading the `platform` closure
+  // variable at call time would still read the PREVIOUS value for that one
+  // interaction and misattribute the "first calculation" event to it.
+  const markInteracted = (nextPlatform?: CompetitorPlatform) => {
     if (interacted) return
     setInteracted(true)
-    pushAnalyticsEvent('comparador_calculated', { platform }, { dedupeKey: 'comparador_calculated' })
+    pushAnalyticsEvent('comparador_calculated', { platform: nextPlatform ?? platform }, { dedupeKey: 'comparador_calculated' })
   }
 
   const inputs = { volumeMonthly: Math.max(0, volume), aovMxn: Math.max(0, aov) }
@@ -239,6 +260,12 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
   const maxMonthly = Math.max(competitorStack.monthlyTotalMxn, miyagiStack.monthlyTotalMxn, 1)
   const maxAnnual = Math.max(competitorStack.annualTotalMxn, miyagiStack.annualTotalMxn, 1)
 
+  // The tier/band selections currently in effect — feeds lineSourceHint() so each
+  // editable line's hover tooltip cites the figure that actually backs it right now
+  // (e.g. Shopify's "payment" line cites the Basic-tier rate while Basic is picked,
+  // the Advanced-tier rate once Advanced is picked).
+  const sourceCtx = { shopifyTier, mlBand, mlPublicationType, wooTier, tnTier, tnOwnGateway }
+
   return (
     <div style={{ display: 'grid', gap: 'var(--s-6)' }}>
       {/* Platform + tier pickers */}
@@ -249,7 +276,11 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
             className="input"
             data-testid="comparador-platform-select"
             value={platform}
-            onChange={(e) => { setPlatform(e.target.value as CompetitorPlatform); markInteracted() }}
+            onChange={(e) => {
+              const next = e.target.value as CompetitorPlatform
+              setPlatform(next)
+              markInteracted(next)
+            }}
           >
             {(Object.keys(PLATFORM_LABELS) as CompetitorPlatform[]).map((p) => (
               <option key={p} value={p}>{PLATFORM_LABELS[p]}</option>
@@ -290,7 +321,7 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
 
         {platform === 'woocommerce' && (
           <label style={{ display: 'grid', gap: 'var(--s-1)' }}>
-            <span className="t-small" style={{ color: 'var(--fg-muted)' }}>Hosting</span>
+            <span className="t-small" style={{ color: 'var(--fg-muted)' }}>Alojamiento</span>
             <select className="input" data-testid="comparador-woo-tier-select" value={wooTier} onChange={(e) => { setWooTier(e.target.value as WooCommerceHostingTier); markInteracted() }}>
               {(Object.keys(WOO_TIER_LABELS) as WooCommerceHostingTier[]).map((t) => (
                 <option key={t} value={t}>{WOO_TIER_LABELS[t]}</option>
@@ -364,7 +395,7 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
               <span className="t-caption" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 ~{formatMxn(app.monthlyUsd * fx)}/mes ·{' '}
                 {app.miyagiIncluded ? (
-                  <span className="badge badge-verified" style={{ fontSize: 10 }}>Miyagi: incluido</span>
+                  <span className="badge badge-verified" style={{ fontSize: 10 }}>Incluido en Miyagi</span>
                 ) : null}
               </span>
             </label>
@@ -434,6 +465,7 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
               label={line.label}
               value={line.monthlyMxn}
               original={baseCompetitorStack.lines[i]?.monthlyMxn ?? line.monthlyMxn}
+              sourceHint={lineSourceHint(dataset, platform, line.key, sourceCtx)}
               onChange={(next) => {
                 setLineOverrides((prev) => ({ ...prev, [competitorOverrideKey(line.key)]: next }))
                 markInteracted()
@@ -450,6 +482,7 @@ export default function ComparadorTool({ rates, apps, fx, initial }: ComparadorT
               label={line.label}
               value={line.monthlyMxn}
               original={baseMiyagiStack.lines[i]?.monthlyMxn ?? line.monthlyMxn}
+              sourceHint={lineSourceHint(dataset, 'miyagi', line.key, {})}
               onChange={(next) => {
                 setLineOverrides((prev) => ({ ...prev, [miyagiOverrideKey(line.key)]: next }))
                 markInteracted()

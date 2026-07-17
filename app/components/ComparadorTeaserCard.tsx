@@ -56,7 +56,7 @@ export default function ComparadorTeaserCard() {
           Comparador de costos
         </p>
         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
-          ¿Cuánto pagas hoy vs. Miyagi?
+          ¿Cuánto pagas hoy contra Miyagi?
         </p>
         <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           Compara Shopify, Mercado Libre, WooCommerce o Tiendanube con tus propios números.

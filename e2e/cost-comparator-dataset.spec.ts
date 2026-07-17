@@ -4,6 +4,8 @@ import {
   applyDatasetOverrides,
   shopifyRatesFromDataset,
   premiumAppsFromDataset,
+  lineSourceFigureKey,
+  lineSourceHint,
   type ComparatorDataset,
 } from '../lib/cost-comparator-dataset'
 import type { OverrideRow } from '../lib/copy-overrides-merge'
@@ -123,5 +125,51 @@ test.describe('cost-comparator-dataset · applyDatasetOverrides (the applyCopyOv
 
   test('no overrides at all returns the baseline untouched', () => {
     expect(applyDatasetOverrides(dataset, [], 'es')).toBe(dataset)
+  })
+})
+
+// cost-comparator-homepage epic (08), Sprint 1 · US-1.3 — codex cross-review caught
+// that the page's footer claims "cada cifra... muestra su fuente al pasar el
+// cursor" while ComparadorTool rendered no such tooltip. lineSourceFigureKey /
+// lineSourceHint is the fix: resolve every rendered line back to the sourced
+// dataset figure (or an honest explanation when there isn't a single one).
+test.describe('cost-comparator-dataset · lineSourceFigureKey / lineSourceHint (the hover-tooltip claim)', () => {
+  test('resolves a tier-dependent figure for each real platform + line', () => {
+    expect(lineSourceFigureKey('shopify', 'plan', { shopifyTier: 'basico' })).toBe('shopify.plan.basico.monthlyUsd')
+    expect(lineSourceFigureKey('shopify', 'payment', { shopifyTier: 'avanzado' })).toBe('shopify.payment.avanzado.pct')
+    expect(lineSourceFigureKey('mercadolibre', 'commission', { mlBand: 'media', mlPublicationType: 'premium' })).toBe(
+      'mercadolibre.commission.media.premiumPct',
+    )
+    expect(lineSourceFigureKey('mercadolibre', 'fixedFee', {})).toBe('mercadolibre.fixedFee.under99Mxn')
+    expect(lineSourceFigureKey('woocommerce', 'hosting', { wooTier: 'crecimiento' })).toBe('woocommerce.hosting.crecimiento.monthlyUsd')
+    expect(lineSourceFigureKey('woocommerce', 'payment', {})).toBe('woocommerce.payment.pct')
+    expect(lineSourceFigureKey('tiendanube', 'plan', { tnTier: 'avanzado' })).toBe('tiendanube.plan.avanzado.monthlyMxn')
+    expect(lineSourceFigureKey('miyagi', 'payment', {})).toBe('miyagi.payment.pct')
+    expect(lineSourceFigureKey('miyagi', 'subdomain', {})).toBe('miyagi.sku.subdomain.monthlyMxn')
+  })
+
+  test('Tiendanube payment cites Pago Nube or the external-gateway figure depending on tnOwnGateway', () => {
+    expect(lineSourceFigureKey('tiendanube', 'payment', { tnTier: 'basico', tnOwnGateway: true })).toBe('tiendanube.gateway.basico.pct')
+    expect(lineSourceFigureKey('tiendanube', 'payment', { tnTier: 'basico', tnOwnGateway: false })).toBe('tiendanube.external.basico.pct')
+  })
+
+  test('returns null for a line with no single sourced figure (never fabricates a citation)', () => {
+    expect(lineSourceFigureKey('shopify', 'apps', {})).toBeNull()
+    expect(lineSourceFigureKey('miyagi', 'commission', {})).toBeNull()
+    expect(lineSourceFigureKey('miyagi', 'apps', {})).toBeNull()
+    // missing the tier needed to resolve the key — also null, not a guess.
+    expect(lineSourceFigureKey('shopify', 'plan', {})).toBeNull()
+  })
+
+  test('lineSourceHint cites the real source + date on the shipped baseline', () => {
+    const hint = lineSourceHint(baseline, 'shopify', 'plan', { shopifyTier: 'basico' })
+    expect(hint).toContain('Fuente:')
+    expect(hint).toContain(baseline.figures['shopify.plan.basico.monthlyUsd'].source)
+    expect(hint).toContain(baseline.figures['shopify.plan.basico.monthlyUsd'].verifiedAt)
+  })
+
+  test('lineSourceHint gives an honest (non-blank) explanation for an aggregate/definitional line', () => {
+    expect(lineSourceHint(baseline, 'shopify', 'apps', {})).not.toBe('')
+    expect(lineSourceHint(baseline, 'miyagi', 'commission', {})).toContain('0%')
   })
 })

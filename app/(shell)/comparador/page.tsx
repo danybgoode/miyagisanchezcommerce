@@ -133,7 +133,7 @@ export default async function ComparadorPage({ searchParams }: ComparadorPagePro
         </span>
       </div>
 
-      <ComparadorTool rates={rates} apps={apps} fx={fx} initial={initial} />
+      <ComparadorTool rates={rates} apps={apps} fx={fx} initial={initial} dataset={dataset} />
 
       <p className="t-caption" style={{ color: 'var(--fg-muted)', marginTop: 'var(--s-6)' }}>
         Comparación de referencia con tarifas públicas de cada plataforma — cada cifra es editable y muestra

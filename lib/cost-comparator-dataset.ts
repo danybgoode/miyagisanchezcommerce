@@ -35,6 +35,11 @@ import type {
   TiendanubeRates,
   MiyagiRates,
   PremiumAppOption,
+  ShopifyTier,
+  MlBand,
+  MlPublicationType,
+  WooCommerceHostingTier,
+  TiendanubeTier,
 } from './cost-comparator'
 
 export const COMPARATOR_NAMESPACE = 'comparator'
@@ -240,4 +245,96 @@ export function premiumAppsFromDataset(dataset: ComparatorDataset): PremiumAppOp
 
 export function fxUsdToMxnFromDataset(dataset: ComparatorDataset): number {
   return value(dataset, 'fx.usdToMxn')
+}
+
+// ---------------------------------------------------------------------------
+// Line → source figure — the sourcing-discipline hover claim (US-1.3's "cada
+// cifra... muestra su fuente al pasar el cursor"). Maps a RENDERED stacked-cost
+// line (`StackedCostLine.key`) back to the dataset figure key that sourced it, so
+// the UI can look up `{ source, verifiedAt }` and put it in a `title` tooltip.
+// Lives here (not in the UI component) so it's a pure, unit-testable function of
+// the same figure-key vocabulary `*RatesFromDataset` already knows.
+// ---------------------------------------------------------------------------
+
+export type ComparatorPlatform = 'shopify' | 'mercadolibre' | 'woocommerce' | 'tiendanube' | 'miyagi'
+
+/** The tier/band selections in effect when a line was rendered — only the ones
+ * relevant to the current platform need to be set. */
+export interface LineSourceContext {
+  shopifyTier?: ShopifyTier
+  mlBand?: MlBand
+  mlPublicationType?: MlPublicationType
+  wooTier?: WooCommerceHostingTier
+  tnTier?: TiendanubeTier
+  tnOwnGateway?: boolean
+}
+
+/**
+ * Returns the dataset figure key backing a rendered line, or `null` when the
+ * line has no single sourced figure (an aggregate across several sources — the
+ * "apps" line sums whichever premium apps are selected — or a line that's
+ * definitionally $0/0%, like Miyagi's commission).
+ */
+export function lineSourceFigureKey(
+  platform: ComparatorPlatform,
+  lineKey: string,
+  ctx: LineSourceContext,
+): string | null {
+  switch (platform) {
+    case 'shopify':
+      if (lineKey === 'plan' && ctx.shopifyTier) return `shopify.plan.${ctx.shopifyTier}.monthlyUsd`
+      if (lineKey === 'payment' && ctx.shopifyTier) return `shopify.payment.${ctx.shopifyTier}.pct`
+      return null
+    case 'mercadolibre':
+      if (lineKey === 'commission' && ctx.mlBand && ctx.mlPublicationType) {
+        return `mercadolibre.commission.${ctx.mlBand}.${ctx.mlPublicationType}Pct`
+      }
+      // All three price brackets share one source + verifiedAt (same page) — any
+      // one of them cites it correctly regardless of which bracket applied.
+      if (lineKey === 'fixedFee') return 'mercadolibre.fixedFee.under99Mxn'
+      return null
+    case 'woocommerce':
+      if (lineKey === 'hosting' && ctx.wooTier) return `woocommerce.hosting.${ctx.wooTier}.monthlyUsd`
+      if (lineKey === 'payment') return 'woocommerce.payment.pct'
+      return null
+    case 'tiendanube':
+      if (lineKey === 'plan' && ctx.tnTier) return `tiendanube.plan.${ctx.tnTier}.monthlyMxn`
+      if (lineKey === 'payment' && ctx.tnTier) {
+        return ctx.tnOwnGateway === false
+          ? `tiendanube.external.${ctx.tnTier}.pct`
+          : `tiendanube.gateway.${ctx.tnTier}.pct`
+      }
+      return null
+    case 'miyagi':
+      if (lineKey === 'payment') return 'miyagi.payment.pct'
+      if (lineKey === 'subdomain') return 'miyagi.sku.subdomain.monthlyMxn'
+      if (lineKey === 'customDomain') return 'miyagi.sku.customDomain.monthlyMxn'
+      if (lineKey === 'mlSync') return 'miyagi.sku.mlSync.monthlyMxn'
+      return null
+  }
+}
+
+/**
+ * The hover-tooltip text for a rendered line: the sourced figure's citation when
+ * one resolves, else an honest explanation of why there isn't one (never silent —
+ * a blank tooltip on an "editable, sourced" figure would be the same false claim
+ * codex flagged). Dates are shown as-is (`YYYY-MM-DD`) — the UI's own verified-date
+ * badge already renders the dataset's overall date in prose.
+ */
+export function lineSourceHint(
+  dataset: ComparatorDataset,
+  platform: ComparatorPlatform,
+  lineKey: string,
+  ctx: LineSourceContext,
+): string {
+  const key = lineSourceFigureKey(platform, lineKey, ctx)
+  const figure = key ? dataset.figures[key] : undefined
+  if (figure) return `Fuente: ${figure.source} · Verificado: ${figure.verifiedAt}`
+  if (platform === 'miyagi' && (lineKey === 'commission' || lineKey === 'apps')) {
+    return 'Miyagi: 0% de comisión y apps incluidas — no hay una tarifa de mercado que citar aquí.'
+  }
+  if (lineKey === 'apps') {
+    return 'Suma de las apps premium seleccionadas — cada una cita su propia fuente en la sección de arriba.'
+  }
+  return 'Cifra calculada a partir de otras cifras de esta comparación.'
 }
