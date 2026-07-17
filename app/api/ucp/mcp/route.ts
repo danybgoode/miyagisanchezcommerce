@@ -2046,6 +2046,9 @@ async function handleReorderCollections(args: Record<string, unknown>, authHeade
   if (!Array.isArray(ordered) || ordered.length === 0 || ordered.some((s) => typeof s !== 'string')) {
     return { isError: true, content: [{ type: 'text', text: 'ordered_slugs debe ser una lista de slugs de colección (usa list_my_collections).' }] }
   }
+  if (new Set(ordered).size !== ordered.length) {
+    return { isError: true, content: [{ type: 'text', text: 'ordered_slugs contiene slugs repetidos — incluye cada colección exactamente una vez.' }] }
+  }
 
   const collections = await getShopCollections(shop.slug)
   const bySlug = new Map(collections.map((c) => [shortCollectionSlug(c.handle, shop.slug!), c]))
