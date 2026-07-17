@@ -46,7 +46,11 @@ export const GET = withAdmin(async () => {
       code: p.code,
       name: p.name,
       has_credential: !!p.partner_token_hash,
-      connector_slug_set: !!p.partner_connector_slug,
+      // The connector slug is stored PLAINTEXT precisely so the URL is
+      // re-showable (the token is not — hash only). Admin-gated surface.
+      connector_url: p.partner_connector_slug
+        ? `https://miyagisanchez.com/api/ucp/mcp/p/${p.partner_connector_slug}`
+        : null,
       grants: (grants ?? [])
         .filter((g) => g.promoter_id === p.id)
         .map((g) => ({

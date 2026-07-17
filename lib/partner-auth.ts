@@ -152,18 +152,22 @@ export async function resolveToolShop(
   const partner = await resolvePartnerRow(token)
   if (!partner) return { ok: false, message: null }
 
-  const requestedSlug = typeof args?.shop_slug === 'string' ? args.shop_slug.trim().toLowerCase() : null
+  // Cap the audited slug (caller-controlled) so the audit table can't be
+  // bloated; shop slugs are ≤40 chars by policy.
+  const requestedSlug = typeof args?.shop_slug === 'string' ? args.shop_slug.trim().toLowerCase().slice(0, 64) : null
 
-  // Grants are checked PER CALL — a revoke denies the very next call.
+  // Grants are checked PER CALL — a revoke denies the very next call. Fetch
+  // revoked rows too so the audit can tell "revoked" from "never granted".
   const { data: grants } = await db
     .from('partner_grants')
-    .select('shop_id, role')
+    .select('shop_id, role, revoked_at')
     .eq('promoter_id', partner.id)
-    .is('revoked_at', null)
-  const grantList = (grants ?? []) as Array<{ shop_id: string; role: PartnerRole }>
+  const allGrants = (grants ?? []) as Array<{ shop_id: string; role: PartnerRole; revoked_at: string | null }>
+  const grantList = allGrants.filter((g) => g.revoked_at === null)
+  const hadRevoked = allGrants.length > grantList.length
 
   if (grantList.length === 0) {
-    await auditPartnerCall({ promoterId: partner.id, shopSlug: requestedSlug, tool, outcome: 'denied_no_grant' })
+    await auditPartnerCall({ promoterId: partner.id, shopSlug: requestedSlug, tool, outcome: hadRevoked ? 'denied_revoked' : 'denied_no_grant' })
     return { ok: false, message: 'Tu credencial de socio no tiene tiendas asignadas (o el acceso fue revocado).' }
   }
 
@@ -180,9 +184,11 @@ export async function resolveToolShop(
     shop = (data as AgentShop | null) ?? null
     grant = shop ? grantList.find((g) => g.shop_id === shop!.id) : undefined
     if (!shop || !grant) {
-      // Same message whether the shop doesn't exist or just isn't granted —
-      // never confirm a shop's existence to an un-granted credential.
-      await auditPartnerCall({ promoterId: partner.id, shopId: shop?.id ?? null, shopSlug: requestedSlug, tool, outcome: 'denied_no_grant' })
+      // Same MESSAGE whether the shop doesn't exist, isn't granted, or was
+      // revoked — never confirm a shop's existence to an un-granted
+      // credential. The audit row does distinguish a revoked pair.
+      const wasRevoked = !!shop && allGrants.some((g) => g.shop_id === shop!.id && g.revoked_at !== null)
+      await auditPartnerCall({ promoterId: partner.id, shopId: shop?.id ?? null, shopSlug: requestedSlug, tool, outcome: wasRevoked ? 'denied_revoked' : 'denied_no_grant' })
       return { ok: false, message: `No tienes acceso a la tienda \`${requestedSlug}\`. Usa shop_slug con una de tus tiendas asignadas.` }
     }
   } else if (grantList.length === 1) {
