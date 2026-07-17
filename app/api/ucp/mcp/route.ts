@@ -2113,6 +2113,10 @@ async function handleSetListingRepuve(args: Record<string, unknown>, authHeader?
     .eq('id', listing.id)
   if (error) return { isError: true, content: [{ type: 'text', text: 'Error al guardar.' }] }
 
+  // Buyer-facing trust-panel claim ("sin reporte" = clean vehicle) — every agent
+  // listing mutation is audited (fresh-review catch, mcp-parity-config).
+  await recordAgentListingAction(shop, { productId, fields: ['repuve'] })
+
   return {
     content: [
       { type: 'text', text: `✅ REPUVE actualizado (${status === 'sin_reporte' ? 'sin reporte' : 'con reporte'}).` },
@@ -2159,6 +2163,14 @@ async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: str
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
   revalidateTag(SLUG_REDIRECT_TAG, 'default')
+
+  // The shop's public URL is a high-value config change — audit + ops notify,
+  // same rail as patch_store_configuration (fresh-review catch).
+  await recordAgentConfigChange(shop, {
+    ok: true,
+    appliedAny: true,
+    blocks: [{ key: 'slug', label: 'Slug de la tienda', status: 'applied', appliedFields: [`${shop.slug} → ${newSlug}`], issues: [] }],
+  }, 'set_shop_slug')
 
   return {
     content: [
