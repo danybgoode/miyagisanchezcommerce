@@ -47,6 +47,36 @@ export function listingTarget(productId: string): string {
 export const HOME_TARGET = PLATFORM_ORIGIN
 export const NOT_FOUND_TARGET = `${PLATFORM_ORIGIN}/404`
 
+/**
+ * mschz-full-coverage · Sprint 1 — known-prefix passthrough (Daniel, 2026-07-09).
+ * Public, shareable route families that get a 301 to the IDENTICAL path+query on
+ * the platform origin instead of a flat single-segment lookup: sweepstakes (/g),
+ * events (/e), launchpad voting (/v), shops incl. subpages (/s), listings (/l).
+ * Deliberately excludes session-bound/private surfaces (checkout, account,
+ * /shop/manage, /admin, API routes) — nothing shareable lives there.
+ */
+export const PASSTHROUGH_PREFIXES = new Set(['g', 'e', 'v', 's', 'l'])
+
+/** The short domain merchants should share (mschz.org/<prefix>/…). */
+export const SHORTLINK_ORIGIN = `https://${SHORTLINK_HOSTS[0]}`
+
+/**
+ * Pure matcher for the known-prefix passthrough. Only fires for MULTI-segment
+ * paths (single-segment stays on the flat resolver, unchanged) whose first
+ * segment (case-insensitive) is in PASSTHROUGH_PREFIXES — returns the identical
+ * path + query on the platform origin, verbatim (only the prefix match is
+ * lowercased; the rest of the path/query is untouched). Returns null when the
+ * path is single-segment (defer to the flat resolver) OR multi-segment but not
+ * allowlisted (caller sends it to NOT_FOUND_TARGET).
+ */
+export function passthroughTarget(pathname: string, search: string): string | null {
+  const segments = (pathname || '').split('/').filter(Boolean)
+  if (segments.length < 2) return null
+  const prefix = segments[0].toLowerCase()
+  if (!PASSTHROUGH_PREFIXES.has(prefix)) return null
+  return `${PLATFORM_ORIGIN}${pathname}${search || ''}`
+}
+
 // Lowercase base36 (no uppercase, so links stay case-insensitive-safe and tidy).
 const CODE_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 

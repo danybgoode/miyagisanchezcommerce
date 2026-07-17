@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   isShortLinkHost, firstSegment, shopTarget, listingTarget,
   HOME_TARGET, NOT_FOUND_TARGET, PLATFORM_ORIGIN,
+  PASSTHROUGH_PREFIXES, passthroughTarget,
 } from '../lib/shortlink'
 
 /**
@@ -38,5 +39,51 @@ test.describe('shortlink · targets', () => {
   test('home + branded 404 targets', () => {
     expect(HOME_TARGET).toBe('https://miyagisanchez.com')
     expect(NOT_FOUND_TARGET).toBe('https://miyagisanchez.com/404')
+  })
+})
+
+/**
+ * mschz-full-coverage · Sprint 1, Story 1.1 — known-prefix passthrough. Pure
+ * matcher: multi-segment `mschz.org/<prefix>/…` 301s to the IDENTICAL path+query
+ * on miyagisanchez.com for the allowlisted prefixes (g/e/v/s/l); everything else
+ * multi-segment → null (caller sends it to the branded 404); single-segment paths
+ * are untouched (defer to the flat resolver) even when the segment happens to
+ * match a prefix letter.
+ */
+test.describe('shortlink · known-prefix passthrough', () => {
+  test('allowlist contains exactly g, e, v, s, l', () => {
+    expect([...PASSTHROUGH_PREFIXES].sort()).toEqual(['e', 'g', 'l', 's', 'v'])
+  })
+
+  test('all 5 prefixes 301 to the identical multi-segment path on the platform origin', () => {
+    expect(passthroughTarget('/g/verano-2026', '')).toBe(`${PLATFORM_ORIGIN}/g/verano-2026`)
+    expect(passthroughTarget('/e/lanzamiento', '')).toBe(`${PLATFORM_ORIGIN}/e/lanzamiento`)
+    expect(passthroughTarget('/v/vota-mi-obra', '')).toBe(`${PLATFORM_ORIGIN}/v/vota-mi-obra`)
+    expect(passthroughTarget('/l/prod_01ABC', '')).toBe(`${PLATFORM_ORIGIN}/l/prod_01ABC`)
+    expect(passthroughTarget('/s/mi-tienda/c/coleccion', '')).toBe(`${PLATFORM_ORIGIN}/s/mi-tienda/c/coleccion`)
+  })
+
+  test('prefix match is case-insensitive; path case is preserved verbatim', () => {
+    expect(passthroughTarget('/G/Verano-2026', '')).toBe(`${PLATFORM_ORIGIN}/G/Verano-2026`)
+    expect(passthroughTarget('/E/lanzamiento', '')).toBe(`${PLATFORM_ORIGIN}/E/lanzamiento`)
+  })
+
+  test('query string is preserved verbatim alongside the path', () => {
+    expect(passthroughTarget('/e/lanzamiento', '?lang=en')).toBe(`${PLATFORM_ORIGIN}/e/lanzamiento?lang=en`)
+    expect(passthroughTarget('/s/mi-tienda/c/coleccion', '?utm_source=ig&ref=abc'))
+      .toBe(`${PLATFORM_ORIGIN}/s/mi-tienda/c/coleccion?utm_source=ig&ref=abc`)
+  })
+
+  test('multi-segment, non-allowlisted prefix → null (caller 404s it)', () => {
+    expect(passthroughTarget('/checkout/anything', '')).toBeNull()
+    expect(passthroughTarget('/shop/manage', '')).toBeNull()
+    expect(passthroughTarget('/admin/whatever', '')).toBeNull()
+  })
+
+  test('single-segment paths never trigger passthrough, even on a prefix letter', () => {
+    expect(passthroughTarget('/g', '')).toBeNull()
+    expect(passthroughTarget('/g/', '')).toBeNull()
+    expect(passthroughTarget('/s', '')).toBeNull()
+    expect(passthroughTarget('/mi-tienda', '')).toBeNull()
   })
 })
