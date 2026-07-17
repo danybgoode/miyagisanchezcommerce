@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-17",
+  "figures": {
+    "fx.usdToMxn": {
+      "value": 17.39,
+      "source": "https://www.banxico.org.mx/SieInternet/consultarDirectorioInternetAction.do?sector=6&accion=consultarCuadro&idCuadro=CF373&locale=es",
+      "verifiedAt": "2026-07-16",
+      "label": "Tipo de cambio USD→MXN (FIX Banxico)"
+    },
+    "shopify.plan.basico.monthlyUsd": {
+      "value": 19,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify — Plan Basic, mensual"
+    },
+    "shopify.plan.crecimiento.monthlyUsd": {
+      "value": 52,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify — Plan Grow, mensual"
+    },
+    "shopify.plan.avanzado.monthlyUsd": {
+      "value": 399,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify — Plan Advanced, mensual"
+    },
+    "shopify.payment.basico.pct": {
+      "value": 3.5,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify Payments — tarifa tarjeta, Plan Basic"
+    },
+    "shopify.payment.crecimiento.pct": {
+      "value": 3.4,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify Payments — tarifa tarjeta, Plan Grow"
+    },
+    "shopify.payment.avanzado.pct": {
+      "value": 3.3,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify Payments — tarifa tarjeta, Plan Advanced"
+    },
+    "shopify.payment.fixedMxn": {
+      "value": 3,
+      "source": "https://www.shopify.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Shopify Payments — cargo fijo por transacción (MXN)"
+    },
+    "mercadolibre.commission.baja.clasicaPct": {
+      "value": 10,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Clásica, categorías de comisión baja (ej. celulares, electrónica)"
+    },
+    "mercadolibre.commission.baja.premiumPct": {
+      "value": 12.5,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Premium, categorías de comisión baja"
+    },
+    "mercadolibre.commission.media.clasicaPct": {
+      "value": 13,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Clásica, categorías de comisión media"
+    },
+    "mercadolibre.commission.media.premiumPct": {
+      "value": 16,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Premium, categorías de comisión media"
+    },
+    "mercadolibre.commission.alta.clasicaPct": {
+      "value": 15,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Clásica, categorías de comisión alta (ej. ropa, joyería)"
+    },
+    "mercadolibre.commission.alta.premiumPct": {
+      "value": 19.5,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — comisión Premium, categorías de comisión alta"
+    },
+    "mercadolibre.fixedFee.under99Mxn": {
+      "value": 25,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — cargo fijo Clásica, producto < $99 MXN"
+    },
+    "mercadolibre.fixedFee.under149Mxn": {
+      "value": 30,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — cargo fijo Clásica, producto $99–$149 MXN"
+    },
+    "mercadolibre.fixedFee.under299Mxn": {
+      "value": 37,
+      "source": "https://www.profitosapp.com/blog/cuanto-cobra-mercado-libre-por-vender-mexico-2026",
+      "verifiedAt": "2026-07-17",
+      "label": "Mercado Libre — cargo fijo Clásica, producto $149–$299 MXN"
+    },
+    "woocommerce.hosting.entrada.monthlyUsd": {
+      "value": 18.99,
+      "source": "https://www.hostinger.com/woocommerce-hosting",
+      "verifiedAt": "2026-07-17",
+      "label": "WooCommerce — hosting Hostinger Unlimited, precio regular mensual (sin promo)"
+    },
+    "woocommerce.hosting.crecimiento.monthlyUsd": {
+      "value": 27.99,
+      "source": "https://www.hostinger.com/woocommerce-hosting",
+      "verifiedAt": "2026-07-17",
+      "label": "WooCommerce — hosting Hostinger Cloud Startup, precio regular mensual (sin promo)"
+    },
+    "woocommerce.payment.pct": {
+      "value": 3.6,
+      "source": "https://stripe.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Stripe México — tarifa tarjeta nacional"
+    },
+    "woocommerce.payment.fixedMxn": {
+      "value": 3,
+      "source": "https://stripe.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Stripe México — cargo fijo por transacción (MXN)"
+    },
+    "tiendanube.plan.gratis.monthlyMxn": {
+      "value": 0,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Plan Gratis, mensual"
+    },
+    "tiendanube.plan.basico.monthlyMxn": {
+      "value": 149,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Plan Básico, mensual"
+    },
+    "tiendanube.plan.tiendanube.monthlyMxn": {
+      "value": 374,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Plan Tiendanube, mensual"
+    },
+    "tiendanube.plan.avanzado.monthlyMxn": {
+      "value": 999,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Plan Avanzado, mensual"
+    },
+    "tiendanube.gateway.gratis.pct": {
+      "value": 3.99,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Pago Nube, Plan Gratis"
+    },
+    "tiendanube.gateway.basico.pct": {
+      "value": 3.49,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Pago Nube, Plan Básico"
+    },
+    "tiendanube.gateway.tiendanube.pct": {
+      "value": 3.39,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Pago Nube, Plan Tiendanube"
+    },
+    "tiendanube.gateway.avanzado.pct": {
+      "value": 3.29,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Pago Nube, Plan Avanzado"
+    },
+    "tiendanube.gateway.fixedMxn": {
+      "value": 3,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — Pago Nube, cargo fijo por transacción (MXN)"
+    },
+    "tiendanube.external.gratis.pct": {
+      "value": 2,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — comisión por pasarela externa, Plan Gratis"
+    },
+    "tiendanube.external.basico.pct": {
+      "value": 1,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — comisión por pasarela externa, Plan Básico"
+    },
+    "tiendanube.external.tiendanube.pct": {
+      "value": 0.6,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — comisión por pasarela externa, Plan Tiendanube"
+    },
+    "tiendanube.external.avanzado.pct": {
+      "value": 0,
+      "source": "https://www.tiendanube.com/mx/planes-y-precios/",
+      "verifiedAt": "2026-07-17",
+      "label": "Tiendanube — comisión por pasarela externa, Plan Avanzado (negociable; 0 hasta que el vendedor la ajuste)"
+    },
+    "miyagi.sku.subdomain.monthlyMxn": {
+      "value": 25,
+      "source": "lib/subdomain-pricing.ts (SUBDOMAIN_PRICE_MONTHLY_MXN — SKU en producción)",
+      "verifiedAt": "2026-07-17",
+      "label": "Miyagi — subdominio propio, cadencia mensual"
+    },
+    "miyagi.sku.customDomain.monthlyMxn": {
+      "value": 42,
+      "source": "lib/domain-pricing.ts (CUSTOM_DOMAIN_PRICE_MONTHLY_MXN — SKU en producción)",
+      "verifiedAt": "2026-07-17",
+      "label": "Miyagi — dominio propio, equivalente mensual"
+    },
+    "miyagi.sku.mlSync.monthlyMxn": {
+      "value": 30,
+      "source": "lib/ml-sync-pricing.ts (ML_SYNC_PRICE_MONTHLY_MXN — SKU en producción)",
+      "verifiedAt": "2026-07-17",
+      "label": "Miyagi — sincronización de inventario con Mercado Libre, cadencia mensual"
+    },
+    "miyagi.payment.pct": {
+      "value": 3.6,
+      "source": "https://stripe.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Miyagi — procesamiento de pago (tu pasarela, sin margen de plataforma; misma tarifa Stripe México)"
+    },
+    "miyagi.payment.fixedMxn": {
+      "value": 3,
+      "source": "https://stripe.com/mx/pricing",
+      "verifiedAt": "2026-07-17",
+      "label": "Miyagi — procesamiento de pago, cargo fijo por transacción (MXN)"
+    },
+    "apps.liveChat.competitorMonthlyUsd": {
+      "value": 29,
+      "source": "https://apps.shopify.com/tidio-chat",
+      "verifiedAt": "2026-07-17",
+      "label": "Chat en vivo / mensajería (Tidio, plan Customer Service)"
+    },
+    "apps.coupons.competitorMonthlyUsd": {
+      "value": 19.99,
+      "source": "https://apps.shopify.com/product-discount",
+      "verifiedAt": "2026-07-17",
+      "label": "Cupones y descuentos (Bold Discounts, plan Essentials)"
+    },
+    "apps.offers.competitorMonthlyUsd": {
+      "value": 20,
+      "source": "https://apps.shopify.com/offerly",
+      "verifiedAt": "2026-07-17",
+      "label": "Ofertas y negociación de precio (Offerly, plan Pro)"
+    }
+  }
+}
