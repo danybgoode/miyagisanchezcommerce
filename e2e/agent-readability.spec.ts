@@ -79,6 +79,7 @@ test.describe('Agent-readability surface — substantive content', () => {
     // didn't reproduce live — see PR body), point the same assertion at a
     // path that genuinely 404s, so this file demonstrably CAN fail red.
     const res = await request.get('/acerca-does-not-exist-guard-check')
+    expect(res.ok()).toBeFalsy()  // a real not-found, not a thin 200 shell
     const html = await res.text()
     expect(html).not.toContain('Quién está detrás')
   })
@@ -147,6 +148,11 @@ test.describe('Agent-readability surface — OG/social-preview sweep (Story 1.2)
     expect(homeAlt).not.toBe(vendeAlt)
   })
 
+  // Canonical/og:url are deliberately PRODUCTION-absolute on every host —
+  // that's how canonicals work (a preview page's canonical must point at the
+  // prod URL, never at the preview), so these assertions hardcode the prod
+  // origin on purpose and hold against prod, preview, and local alike
+  // (confirmed by this PR's own CI run vs the Vercel preview).
   test('/agent has a self-referential canonical + og:url (was missing / pointed at "/")', async ({ request }) => {
     const res = await request.get('/agent')
     const html = await res.text()
