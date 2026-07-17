@@ -30,6 +30,7 @@ import { SectionTitle } from '../_components/SectionTitle'
 import { CopyPromptButton } from '../_components/CopyPromptButton'
 import { generateHex32 } from '@/lib/shop-settings/helpers'
 import ConnectAgentPanel from '@/components/ConnectAgentPanel'
+import PartnerGrantsPanel from './PartnerGrantsPanel'
 
 export interface AgentesInitial {
   ucp_webhook_url?: string | null
@@ -270,6 +271,10 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
           </div>
           <ConnectAgentPanel initialTokenSet={initial.agent_token_set ?? false} />
         </div>
+
+        {/* ── Acceso de socios (Miyagi Partners S2) — hidden entirely unless the
+            partners.mcp_enabled flag is on AND this shop has grants to show. ── */}
+        <PartnerGrantsPanel />
       </section>
 
       {/* ── Save button ───────────────────────────────────────────────────── */}
