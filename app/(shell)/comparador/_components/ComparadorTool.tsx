@@ -23,10 +23,17 @@ import {
   type PremiumAppOption,
   type StackedCost,
 } from '@/lib/cost-comparator'
-import { lineSourceHint, type ComparatorDataset } from '@/lib/cost-comparator-dataset'
+import { lineSourceHint, lineSourceFigureKey, type ComparatorDataset } from '@/lib/cost-comparator-dataset'
+import { buildComparatorReportMarkdown, type ComparatorReportSource } from '@/lib/cost-comparator-report'
+import { buildSmalldocsUrl } from '@/lib/smalldocs'
+import {
+  buildComparadorShareParams,
+  type CompetitorPlatform,
+  type ComparadorMiyagiSkus,
+} from '@/lib/cost-comparator-url'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
 
-export type CompetitorPlatform = 'shopify' | 'mercadolibre' | 'woocommerce' | 'tiendanube'
+export type { CompetitorPlatform }
 
 const PLATFORM_LABELS: Record<CompetitorPlatform, string> = {
   shopify: 'Shopify',
@@ -63,6 +70,9 @@ const TN_TIER_LABELS: Record<TiendanubeTier, string> = {
   avanzado: 'Avanzado ($999 MXN/mes)',
 }
 
+// US-2.2 — the SAME shape lib/cost-comparator-url.ts's ComparadorState codec
+// builds/parses, so the page's SSR prefill and this component's "Copiar enlace"
+// share button can never drift on which fields exist.
 export interface ComparadorInitial {
   platform: CompetitorPlatform
   shopifyTier: ShopifyTier
@@ -73,6 +83,8 @@ export interface ComparadorInitial {
   tnOwnGateway: boolean
   volume: number
   aov: number
+  selectedAppIds: string[]
+  miyagiSkus: ComparadorMiyagiSkus
 }
 
 export interface ComparadorRates {
@@ -181,10 +193,12 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   const [tnOwnGateway, setTnOwnGateway] = useState(initial.tnOwnGateway)
   const [volume, setVolume] = useState(initial.volume)
   const [aov, setAov] = useState(initial.aov)
-  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([])
-  const [miyagiSkus, setMiyagiSkus] = useState({ subdomain: false, customDomain: false, mlSync: false })
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>(initial.selectedAppIds)
+  const [miyagiSkus, setMiyagiSkus] = useState<ComparadorMiyagiSkus>(initial.miyagiSkus)
   const [lineOverrides, setLineOverrides] = useState<Record<string, number>>({})
   const [interacted, setInteracted] = useState(false)
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [exportStatus, setExportStatus] = useState<'idle' | 'building' | 'error'>('idle')
 
   // `nextPlatform` lets the platform-change handler pass the value it's ABOUT to
   // set — `setPlatform` is async (queued), so reading the `platform` closure
@@ -265,6 +279,81 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // (e.g. Shopify's "payment" line cites the Basic-tier rate while Basic is picked,
   // the Advanced-tier rate once Advanced is picked).
   const sourceCtx = { shopifyTier, mlBand, mlPublicationType, wooTier, tnTier, tnOwnGateway }
+
+  // US-2.2 — "Copiar enlace": serializes the FULL current state (platform, its
+  // own tier/band/type/hosting/gateway, volume, AOV, selected apps, Miyagi SKUs)
+  // through the same codec page.tsx's SSR prefill parses, so the copied link
+  // restores exactly what's on screen right now (line overrides excepted — see
+  // lib/cost-comparator-url.ts's header for why).
+  const handleCopyLink = async () => {
+    const params = buildComparadorShareParams({
+      platform, shopifyTier, mlBand, mlPublicationType, wooTier, tnTier, tnOwnGateway,
+      volume, aov, selectedAppIds, miyagiSkus,
+    })
+    const url = `${window.location.origin}/comparador?${params.toString()}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareStatus('copied')
+      pushAnalyticsEvent('comparador_share_link', { platform })
+      window.setTimeout(() => setShareStatus('idle'), 2500)
+    } catch {
+      setShareStatus('error')
+    }
+  }
+
+  // Every sourced figure currently backing either stack, deduped by dataset key —
+  // feeds the report's "Fuentes" section (US-2.1) exactly like the per-line hover
+  // tooltip does, just collected instead of shown one at a time.
+  const reportSources = useMemo<ComparatorReportSource[]>(() => {
+    const keys = new Set<string>()
+    for (const line of competitorStack.lines) {
+      const k = lineSourceFigureKey(platform, line.key, sourceCtx)
+      if (k) keys.add(k)
+    }
+    for (const line of miyagiStack.lines) {
+      const k = lineSourceFigureKey('miyagi', line.key, {})
+      if (k) keys.add(k)
+    }
+    return Array.from(keys)
+      .map((k) => dataset.figures[k])
+      .filter((f): f is NonNullable<typeof f> => Boolean(f))
+      .map((f) => ({ label: f.label, source: f.source, verifiedAt: f.verifiedAt }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitorStack, miyagiStack, platform, dataset])
+
+  const platformDisplayLabel = (() => {
+    switch (platform) {
+      case 'shopify': return `Shopify (${SHOPIFY_TIER_LABELS[shopifyTier]})`
+      case 'mercadolibre': return `Mercado Libre (${ML_BAND_LABELS[mlBand]}, ${mlPublicationType === 'clasica' ? 'Clásica' : 'Premium'})`
+      case 'woocommerce': return `WooCommerce (${WOO_TIER_LABELS[wooTier]})`
+      case 'tiendanube': return `Tiendanube (${TN_TIER_LABELS[tnTier]}${tnOwnGateway ? '' : ', pasarela externa'})`
+    }
+  })()
+
+  // US-2.1 — "Exportar reporte": builds the styled es-MX markdown from what's on
+  // screen right now, then hands it to lib/smalldocs.ts (client-only compress +
+  // base64url into the URL hash) and opens smalldocs.org in a new tab. Nothing
+  // here ever leaves the browser except the smalldocs.org navigation itself.
+  const handleExportReport = async () => {
+    setExportStatus('building')
+    try {
+      const markdown = buildComparatorReportMarkdown({
+        platformLabel: platformDisplayLabel,
+        volumeMonthly: inputs.volumeMonthly,
+        aovMxn: inputs.aovMxn,
+        competitorStack,
+        miyagiStack,
+        datasetVerifiedAt: dataset.generatedAt,
+        sources: reportSources,
+      })
+      const url = await buildSmalldocsUrl(markdown)
+      pushAnalyticsEvent('comparador_export', { platform })
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setExportStatus('idle')
+    } catch {
+      setExportStatus('error')
+    }
+  }
 
   return (
     <div style={{ display: 'grid', gap: 'var(--s-6)' }}>
@@ -490,6 +579,47 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
             />
           ))}
         </div>
+      </div>
+
+      {/* Compartir / Exportar — US-2.1 (smalldocs report) + US-2.2 (prefill link) */}
+      <div className="card-panel" style={{ padding: 'var(--s-5)', display: 'grid', gap: 'var(--s-3)' }}>
+        <p className="t-small" style={{ fontWeight: 600 }}>Comparte o guarda esta comparación</p>
+        <div style={{ display: 'flex', gap: 'var(--s-3)', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            data-testid="comparador-export-button"
+            disabled={exportStatus === 'building'}
+            onClick={handleExportReport}
+          >
+            <i className="iconoir-page" aria-hidden style={{ fontSize: 14 }} />
+            {exportStatus === 'building' ? 'Generando…' : 'Exportar reporte'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="comparador-share-link-button"
+            onClick={handleCopyLink}
+          >
+            <i className="iconoir-link" aria-hidden style={{ fontSize: 14 }} />
+            {shareStatus === 'copied' ? '¡Enlace copiado!' : 'Copiar enlace'}
+          </button>
+        </div>
+        {exportStatus === 'error' && (
+          <p className="t-caption" style={{ color: 'var(--danger, #b91c1c)' }}>
+            No se pudo generar el reporte. Intenta de nuevo.
+          </p>
+        )}
+        {shareStatus === 'error' && (
+          <p className="t-caption" style={{ color: 'var(--danger, #b91c1c)' }}>
+            No se pudo copiar el enlace. Copia la URL de la barra de direcciones.
+          </p>
+        )}
+        <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+          «Exportar reporte» abre un reporte es-MX en smalldocs.org (nunca toca nuestro servidor: el
+          documento viaja comprimido en la URL). «Copiar enlace» copia esta comparación exacta para
+          compartirla — útil para un promotor durante una visita.
+        </p>
       </div>
     </div>
   )

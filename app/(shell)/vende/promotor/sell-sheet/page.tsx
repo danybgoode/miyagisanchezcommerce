@@ -63,6 +63,19 @@ export default async function PromoterSellSheetPage() {
         </a>
       </div>
 
+      {/* Comparador de costos (epic 08 · cost-comparator-homepage S2 · US-2.2) —
+          the in-visit leave-behind: no per-visit data to prefill from a static
+          printable page, so this points at the generic /comparador entry point. A
+          live session's own "Copiar enlace" button (on /comparador itself) hands
+          over the exact prefilled comparison once numbers are on screen. */}
+      <p style={{ fontSize: 13, margin: '4px 0 20px' }}>
+        <a href="/comparador" style={{ textDecoration: 'underline', fontWeight: 600 }}>
+          <i className="iconoir-stats-report" aria-hidden /> Comparador de costos
+        </a>{' '}
+        — úsalo en la visita: carga los números reales del comercio ahí mismo y comparte el enlace
+        o exporta un reporte al cerrar.
+      </p>
+
       <h1 className="ss-h1">{p.handbookTitle}</h1>
       <p className="ss-sub">{p.handbookLead}</p>
 
