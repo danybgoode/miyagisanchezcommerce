@@ -15,6 +15,7 @@ import { isEnabled } from '@/lib/flags'
 import { getPromoterByClerkId, recordAttribution } from '@/lib/promoter'
 import { promoterSourceUrl } from '@/lib/promoter-close'
 import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +123,13 @@ export async function POST(req: NextRequest) {
   // Enroll the attribution now (survives the claim) so the promoter's link is
   // credited even before the close. Idempotent on (promoter, seller, sku).
   await recordAttribution({ promoterId: promoter.id, sellerId: mirrorId, sku: 'custom_domain' })
+
+  // Miyagi Partners · Sprint 2 (US-2.1) — this is the ONE seam every close
+  // variant converges on (the shop is created HERE; every /api/promoter/close/*
+  // route only operates on a shop that already exists). If this promoter holds
+  // a partner MCP credential, auto-grant them manager access to the shop they
+  // just stood up. Best-effort; NEVER fails the close — see lib/partner-grant-server.ts.
+  await autoGrantPartnerOnClose({ promoterId: promoter.id, shopId: mirrorId })
 
   revalidateTag('shops', 'default')
   return NextResponse.json({
