@@ -362,11 +362,11 @@ export default async function AgentPage() {
         </div>
       </section>
 
-      {/* Comparador de costos — dataset + methodology (epic 08, Sprint 2 · US-2.3) */}
+      {/* Comparador de costos — datos + metodología (epic 08, Sprint 2 · US-2.3) */}
       <section style={{ marginBottom: 40 }}>
-        <h2 className="t-h3" style={{ marginBottom: 12 }}>Comparador de costos — dataset y metodología</h2>
+        <h2 className="t-h3" style={{ marginBottom: 12 }}>Comparador de costos — datos y metodología</h2>
         <p style={{ fontSize: 14, color: 'var(--fg-muted)', lineHeight: 1.7, marginBottom: 12 }}>
-          Miyagi Sánchez publica un modelo de costos apilados (plan/hosting + procesamiento de pago +
+          Miyagi Sánchez publica un modelo de costos apilados (plan/alojamiento + procesamiento de pago +
           apps premium) para comparar lo que un comercio paga hoy en <strong>Shopify</strong>,{' '}
           <strong>Mercado Libre</strong>, <strong>WooCommerce</strong> o <strong>Tiendanube</strong> contra
           el equivalente en Miyagi (0% de comisión, apps incluidas). Cada cifra de la competencia está
@@ -376,11 +376,11 @@ export default async function AgentPage() {
           un agente y lo que muestra la página nunca divergen.
         </p>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, marginBottom: 14 }}>
-          Dataset actual verificado: <strong>{comparatorDataset.generatedAt}</strong> ·{' '}
-          {Object.keys(comparatorDataset.figures).length} cifras sourced (plan/hosting, tarifa de pago,
-          comisión por categoría, tipo de cambio USD→MXN, apps premium típicas). El dataset puede
-          editarse en vivo vía el mismo mecanismo de overrides de contenido de la plataforma; sin
-          overrides, sirve la línea base versionada en el repositorio.
+          Datos verificados: <strong>{comparatorDataset.generatedAt}</strong> ·{' '}
+          {Object.keys(comparatorDataset.figures).length} cifras con fuente (plan/alojamiento, tarifa de
+          pago, comisión por categoría, tipo de cambio USD→MXN, apps premium típicas). Estos datos pueden
+          editarse en vivo desde el panel de administración; sin ediciones, se sirve la línea base
+          versionada en el repositorio.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a href={`${ENDPOINT}/comparador`} className="btn btn-agent btn-sm">
