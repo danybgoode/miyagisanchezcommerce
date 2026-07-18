@@ -1,4 +1,4 @@
-import { SignUp } from '@clerk/nextjs'
+import LazySignUp from '@/app/components/clerk-lazy/LazySignUp'
 
 export const metadata = { title: 'Crear cuenta' }
 
@@ -8,7 +8,7 @@ export default function SignUpPage() {
       <p className="text-sm text-[var(--color-muted)] mb-6 text-center">
         Crea tu cuenta gratis y empieza a vender en minutos.
       </p>
-      <SignUp routing="hash" />
+      <LazySignUp routing="hash" />
     </div>
   )
 }
