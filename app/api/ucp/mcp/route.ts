@@ -96,8 +96,17 @@ import { getComparatorDataset } from '@/lib/cost-comparator-data'
 import {
   shopifyRatesFromDataset, mercadoLibreRatesFromDataset, wooCommerceRatesFromDataset, tiendanubeRatesFromDataset,
   miyagiRatesFromDataset, premiumAppsFromDataset, fxUsdToMxnFromDataset, lineSourceFigureKey,
-  type ComparatorPlatform as CostComparatorPlatform, type LineSourceContext,
+  type ComparatorPlatform as CostComparatorPlatform, type LineSourceContext, type ComparatorDataset,
 } from '@/lib/cost-comparator-dataset'
+// Baseline dataset import ONLY to derive the compare_costs tool schema's `apps`
+// enum at module init (second-opinion review, PR #278 — "don't hardcode the apps
+// enum, derive it from premiumAppsFromDataset"). Runtime computation still reads
+// the LIVE dataset via getComparatorDataset() inside the handler; this baseline
+// read is schema-time only, so an admin content-override can never add a NEW app
+// id anyway (applyDatasetOverrides only replaces existing figures' VALUES, never
+// adds new ones — see that file's header), making the baseline's id set always
+// correct for the schema too.
+import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -132,6 +141,10 @@ function ok(id: string | number | null, result: unknown): JsonRpcResponse {
 function err(id: string | number | null, code: number, message: string): JsonRpcResponse {
   return { jsonrpc: '2.0', id, error: { code, message } }
 }
+
+// compare_costs' `apps` enum, derived from the baseline dataset once at module
+// init rather than hand-duplicated (second-opinion review, PR #278).
+const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDataset as ComparatorDataset).map((a) => a.id)
 
 // ── Tool definitions ───────────────────────────────────────────────────────────
 
@@ -928,7 +941,7 @@ const TOOLS = [
         woo_hosting_tier: { type: 'string', enum: ['entrada', 'crecimiento'], default: 'entrada', description: 'WooCommerce hosting tier — only used when platform=woocommerce' },
         tiendanube_tier: { type: 'string', enum: ['gratis', 'basico', 'tiendanube', 'avanzado'], default: 'basico', description: 'Tiendanube plan tier — only used when platform=tiendanube' },
         tiendanube_own_gateway: { type: 'boolean', default: true, description: 'true = Pago Nube (their own gateway); false = external gateway — only used when platform=tiendanube' },
-        apps: { type: 'array', items: { type: 'string', enum: ['liveChat', 'coupons', 'offers'] }, description: 'Premium competitor apps the merchant already pays for; each is natively included in Miyagi at $0' },
+        apps: { type: 'array', items: { type: 'string', enum: COMPARE_COSTS_APP_IDS }, description: 'Premium competitor apps the merchant already pays for; each is natively included in Miyagi at $0. An unknown id is dropped from the calculation and reported in the response — never silently echoed as accepted.' },
         miyagi_subdomain: { type: 'boolean', default: false, description: "Include Miyagi's optional subdomain SKU in the Miyagi total" },
         miyagi_custom_domain: { type: 'boolean', default: false, description: "Include Miyagi's optional custom-domain SKU in the Miyagi total" },
         miyagi_ml_sync: { type: 'boolean', default: false, description: "Include Miyagi's optional Mercado Libre sync SKU in the Miyagi total" },
@@ -3552,9 +3565,44 @@ function handleGetSetupSpec() {
 }
 
 const COMPARE_COSTS_PLATFORMS = ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube'] as const
+const COMPARE_COSTS_SHOPIFY_TIERS = ['basico', 'crecimiento', 'avanzado'] as const
+const COMPARE_COSTS_ML_BANDS = ['baja', 'media', 'alta'] as const
+const COMPARE_COSTS_ML_TYPES = ['clasica', 'premium'] as const
+const COMPARE_COSTS_WOO_TIERS = ['entrada', 'crecimiento'] as const
+const COMPARE_COSTS_TN_TIERS = ['gratis', 'basico', 'tiendanube', 'avanzado'] as const
+
+// es-MX labels for the tool's `platform_label`/summary text (nit, PR #278 —
+// raw dataset slugs like "Shopify (basico)" read as unpolished next to the
+// page's own es-MX tier names). Deliberately a SEPARATE, shorter label set from
+// ComparadorTool.tsx's UI labels (those carry full pricing detail meant for a
+// dropdown, e.g. "Plan Basic (~$19 USD/mes)" — redundant here since the actual
+// computed MXN total is already in the summary).
+const SHOPIFY_TIER_ES: Record<ShopifyTier, string> = { basico: 'Plan Basic', crecimiento: 'Plan Grow', avanzado: 'Plan Advanced' }
+const ML_BAND_ES: Record<MlBand, string> = { baja: 'comisión baja', media: 'comisión media', alta: 'comisión alta' }
+const ML_TYPE_ES: Record<MlPublicationType, string> = { clasica: 'Clásica', premium: 'Premium' }
+const WOO_TIER_ES: Record<WooCommerceHostingTier, string> = { entrada: 'alojamiento de entrada', crecimiento: 'alojamiento de crecimiento' }
+const TN_TIER_ES: Record<TiendanubeTier, string> = { gratis: 'Gratis', basico: 'Básico', tiendanube: 'Tiendanube', avanzado: 'Avanzado' }
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+/** Validates an OPTIONAL enum arg: absent/undefined → the default (matches the
+ * schema's own `default`); present but not in `allowed` → a clear error instead
+ * of a silent fallback (second-opinion + codex review, PR #278 — an agent that
+ * typo'd a tier name deserves to know, not get a silently-wrong comparison). */
+function validateEnumArg<T extends string>(
+  args: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): { ok: true; value: T } | { ok: false; error: string } {
+  if (args[key] === undefined || args[key] === null) return { ok: true, value: fallback }
+  const raw = String(args[key])
+  if (!(allowed as readonly string[]).includes(raw)) {
+    return { ok: false, error: `${key} must be one of: ${allowed.join(', ')} (got "${raw}")` }
+  }
+  return { ok: true, value: raw as T }
 }
 
 /**
@@ -3583,35 +3631,53 @@ async function handleCompareCosts(args: Record<string, unknown>) {
   const dataset = await getComparatorDataset('es')
   const inputs = { volumeMonthly, aovMxn }
   const apps = premiumAppsFromDataset(dataset)
-  const requestedAppIds = Array.isArray(args.apps) ? args.apps.map((a) => String(a)) : []
+
+  // Validate `apps` against the LIVE dataset's actual app ids (never the schema's
+  // static enum alone) — an unknown id is dropped from the calculation AND
+  // reported back, never silently echoed as if it were accepted (should-fix,
+  // codex review PR #278).
+  const validAppIds = apps.map((a) => a.id)
+  const requestedAppIdsRaw = Array.isArray(args.apps) ? args.apps.map((a) => String(a)) : []
+  const acceptedAppIds = requestedAppIdsRaw.filter((id) => validAppIds.includes(id))
+  const unknownAppIds = requestedAppIdsRaw.filter((id) => !validAppIds.includes(id))
   const fx = fxUsdToMxnFromDataset(dataset)
-  const appsMonthlyMxn = computeSelectedAppsMonthlyMxn(apps, requestedAppIds, fx)
+  const appsMonthlyMxn = computeSelectedAppsMonthlyMxn(apps, acceptedAppIds, fx)
 
   let competitorStack: ReturnType<typeof computeShopifyCost>
   let platformLabel: string
   let ctx: LineSourceContext = {}
 
   if (platform === 'shopify') {
-    const tier = (['basico', 'crecimiento', 'avanzado'].includes(String(args.shopify_tier)) ? args.shopify_tier : 'basico') as ShopifyTier
+    const tierResult = validateEnumArg(args, 'shopify_tier', COMPARE_COSTS_SHOPIFY_TIERS, 'basico')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
     competitorStack = computeShopifyCost(inputs, tier, shopifyRatesFromDataset(dataset), appsMonthlyMxn)
-    platformLabel = `Shopify (${tier})`
+    platformLabel = `Shopify (${SHOPIFY_TIER_ES[tier]})`
     ctx = { shopifyTier: tier }
   } else if (platform === 'mercadolibre') {
-    const band = (['baja', 'media', 'alta'].includes(String(args.ml_band)) ? args.ml_band : 'media') as MlBand
-    const type = (['clasica', 'premium'].includes(String(args.ml_publication_type)) ? args.ml_publication_type : 'clasica') as MlPublicationType
+    const bandResult = validateEnumArg(args, 'ml_band', COMPARE_COSTS_ML_BANDS, 'media')
+    if (!bandResult.ok) return { isError: true, content: [{ type: 'text', text: bandResult.error }] }
+    const typeResult = validateEnumArg(args, 'ml_publication_type', COMPARE_COSTS_ML_TYPES, 'clasica')
+    if (!typeResult.ok) return { isError: true, content: [{ type: 'text', text: typeResult.error }] }
+    const band = bandResult.value
+    const type = typeResult.value
     competitorStack = computeMercadoLibreCost(inputs, band, type, mercadoLibreRatesFromDataset(dataset), appsMonthlyMxn)
-    platformLabel = `Mercado Libre (${band}/${type})`
+    platformLabel = `Mercado Libre (${ML_BAND_ES[band]}, ${ML_TYPE_ES[type]})`
     ctx = { mlBand: band, mlPublicationType: type }
   } else if (platform === 'woocommerce') {
-    const tier = (['entrada', 'crecimiento'].includes(String(args.woo_hosting_tier)) ? args.woo_hosting_tier : 'entrada') as WooCommerceHostingTier
+    const tierResult = validateEnumArg(args, 'woo_hosting_tier', COMPARE_COSTS_WOO_TIERS, 'entrada')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
     competitorStack = computeWooCommerceCost(inputs, tier, wooCommerceRatesFromDataset(dataset), appsMonthlyMxn)
-    platformLabel = `WooCommerce (${tier})`
+    platformLabel = `WooCommerce (${WOO_TIER_ES[tier]})`
     ctx = { wooTier: tier }
   } else {
-    const tier = (['gratis', 'basico', 'tiendanube', 'avanzado'].includes(String(args.tiendanube_tier)) ? args.tiendanube_tier : 'basico') as TiendanubeTier
+    const tierResult = validateEnumArg(args, 'tiendanube_tier', COMPARE_COSTS_TN_TIERS, 'basico')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
     const ownGateway = args.tiendanube_own_gateway !== false
     competitorStack = computeTiendanubeCost(inputs, tier, ownGateway, tiendanubeRatesFromDataset(dataset), appsMonthlyMxn)
-    platformLabel = `Tiendanube (${tier}${ownGateway ? '' : ', pasarela externa'})`
+    platformLabel = `Tiendanube (${TN_TIER_ES[tier]}${ownGateway ? '' : ', pasarela externa'})`
     ctx = { tnTier: tier, tnOwnGateway: ownGateway }
   }
 
@@ -3640,7 +3706,10 @@ async function handleCompareCosts(args: Record<string, unknown>) {
   const result = {
     platform,
     platform_label: platformLabel,
-    inputs: { volume_monthly: volumeMonthly, aov_mxn: aovMxn, apps: requestedAppIds },
+    inputs: { volume_monthly: volumeMonthly, aov_mxn: aovMxn, apps: acceptedAppIds },
+    // Present ONLY when the caller sent an id this dataset doesn't recognize —
+    // never silently dropped, never silently echoed as accepted either.
+    ...(unknownAppIds.length > 0 ? { warnings: [`Unknown app id(s) ignored: ${unknownAppIds.join(', ')}. Valid ids: ${validAppIds.join(', ')}.`] } : {}),
     competitor: {
       monthly_total_mxn: competitorStack.monthlyTotalMxn,
       annual_total_mxn: competitorStack.annualTotalMxn,
