@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { UserButton } from '@clerk/nextjs'
+import LazyUserButton from '@/app/components/clerk-lazy/LazyUserButton'
 import AuthShow from '@/app/components/AuthShow'
 import MobileTabBar from '@/app/components/MobileTabBar'
 import AIAgentButton from '@/app/components/AIAgentButton'
@@ -271,7 +271,7 @@ export default async function PlatformShell({
                       />
                     }
                   />
-                  <UserButton />
+                  <LazyUserButton />
                 </AuthShow>
                 <AuthShow when="signed-out">
                   {/* No Cuenta menu when signed out — keep the standalone toggle

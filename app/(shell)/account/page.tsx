@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
-import { UserButton } from '@clerk/nextjs'
+import LazyUserButton from '@/app/components/clerk-lazy/LazyUserButton'
 import { ACCOUNT_HUB_LINKS } from '@/lib/account-hub-links'
 
 export const metadata = { title: 'Mi cuenta — Miyagi Sánchez' }
@@ -24,7 +24,7 @@ export default async function AccountPage() {
           <h1 className="text-xl font-bold truncate">Hola, {name}</h1>
           {email && <p className="text-sm text-[var(--color-muted)] truncate">{email}</p>}
         </div>
-        <UserButton />
+        <LazyUserButton />
       </header>
 
       <nav className="flex flex-col gap-2">
