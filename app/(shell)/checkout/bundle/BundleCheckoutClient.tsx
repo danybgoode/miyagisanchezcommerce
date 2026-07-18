@@ -116,7 +116,7 @@ export default function BundleCheckoutClient() {
                 </div>
                 <button type="button" onClick={() => removeItem(item.productId)} aria-label="Quitar del paquete"
                   style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <i className="iconoir-xmark" style={{ fontSize: 15 }} />
+                  <i className="iconoir-xmark" style={{ fontSize: 'var(--t-base)' }} />
                 </button>
               </div>
             ))}

@@ -151,7 +151,7 @@ export default function CheckoutPayButton({
         type="button"
         onClick={pay}
         disabled={disabled || loading}
-        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm disabled:opacity-60 transition-colors"
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm disabled:opacity-60 transition-colors"
         style={{
           background: provider === 'mercadopago' ? 'var(--provider-mercadopago)' : isManual ? 'var(--bg-elevated)' : 'var(--fg)',
           color: provider === 'mercadopago' ? 'var(--fg-inverse)' : isManual ? 'var(--fg)' : 'var(--fg-inverse)',
