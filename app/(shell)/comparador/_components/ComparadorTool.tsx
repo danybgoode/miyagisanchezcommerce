@@ -205,7 +205,7 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [exportStatus, setExportStatus] = useState<'idle' | 'building' | 'error'>('idle')
   // Set only when the synchronous popup got blocked anyway — an inline fallback
-  // link instead of a silent no-op (second-opinion review, PR #278).
+  // link instead of a silent no-op (second-opinion review, PR 278).
   const [exportFallbackUrl, setExportFallbackUrl] = useState<string | null>(null)
 
   // `nextPlatform` lets the platform-change handler pass the value it's ABOUT to
@@ -313,7 +313,7 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // feeds the report's "Fuentes" section (US-2.1) exactly like the per-line hover
   // tooltip does, just collected instead of shown one at a time.
   //
-  // HONESTY GUARANTEE (codex blocking finding, PR #278) — a line the visitor
+  // HONESTY GUARANTEE (codex blocking finding, PR 278) — a line the visitor
   // hand-edited (US-1.3 inline override) is EXCLUDED from `reportSources`: the
   // dataset's citation verified the ORIGINAL figure, not the edited one, so citing
   // it here would misattribute a user-typed number as sourced/verified. Instead it
@@ -370,7 +370,7 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // base64url into the URL hash) and opens smalldocs.org in a new tab. Nothing
   // here ever leaves the browser except the smalldocs.org navigation itself.
   //
-  // POPUP HARDENING (second-opinion review, PR #278) — `window.open` after an
+  // POPUP HARDENING (second-opinion review, PR 278) — `window.open` after an
   // `await` loses the click's transient user-activation in Safari/strict popup
   // blockers, so a naive `await ...; window.open(url)` can silently no-op. Instead
   // we open a BLANK tab synchronously (inside the click handler, before any
@@ -672,12 +672,12 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
           </p>
         )}
         {exportStatus === 'error' && (
-          <p className="t-caption" style={{ color: 'var(--danger, #b91c1c)' }}>
+          <p className="t-caption" style={{ color: 'var(--danger)' }}>
             No se pudo generar el reporte. Intenta de nuevo.
           </p>
         )}
         {shareStatus === 'error' && (
-          <p className="t-caption" style={{ color: 'var(--danger, #b91c1c)' }}>
+          <p className="t-caption" style={{ color: 'var(--danger)' }}>
             No se pudo copiar el enlace. Copia la URL de la barra de direcciones.
           </p>
         )}

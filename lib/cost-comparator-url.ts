@@ -16,7 +16,7 @@
  * live session's "Copiar enlace" always round-trips through here.
  *
  * LINE OVERRIDES ARE INCLUDED (revised from the original Sprint-2 draft — see PR
- * #278 review): the "Copiar enlace" copy claims "comparación exacta", and a
+ * 278 review): the "Copiar enlace" copy claims "comparación exacta", and a
  * consultant who hand-tuned a competitor's figure before sharing expects that edit
  * to survive the link too. Serialized as a single `ov` param (URI-encoded JSON,
  * `{ [lineKey]: monthlyMxn }`); an unparseable blob or a non-finite value is
@@ -25,7 +25,7 @@
  * space is dynamic (platform:tier:lineKey / miyagi:lineKey) and unbounded in
  * principle, but realistically tiny (a handful of edited figures at most).
  *
- * PLATFORM-GATED PARSING (fixed in this revision — see PR #278 review): `tier` is
+ * PLATFORM-GATED PARSING (fixed in this revision — see PR 278 review): `tier` is
  * shared between Shopify and Tiendanube (both have tier names like "basico"/
  * "avanzado"). Earlier this file parsed BOTH `shopifyTier` and `tnTier` from
  * `sp.tier` unconditionally, so a Shopify link (`?platform=shopify&tier=avanzado`)

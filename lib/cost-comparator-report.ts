@@ -18,8 +18,9 @@
  * Format decisions (verified against github.com/espressoplease/smalldocs,
  * 2026-07-17 — README.md + chart-gallery.md + CLI.md):
  *   - YAML front matter with a `styles.chart.accent` key set to Miyagi's brand
- *     green (`#1d6f42`, `--color-accent` in app/globals.css) — the documented
- *     `styles:` front-matter shape (CLI.md → "SmallDocs — Styles Schema").
+ *     green (the platform's `--color-accent` / `PLATFORM_OG_COLORS.accent` value,
+ *     see the import below) — the documented `styles:` front-matter shape
+ *     (CLI.md → "SmallDocs — Styles Schema").
  *   - A ```chart fenced block with a `"type":"bar"` payload — the exact JSON shape
  *     documented in chart-gallery.md's "Bar Charts" section (labels + values +
  *     format:"currency").
@@ -29,10 +30,12 @@
 
 import type { StackedCost } from './cost-comparator'
 import { formatMxn } from './cost-comparator'
-
-/** Miyagi's brand accent green (`--color-accent`, app/globals.css) — used as the
- * smalldocs chart accent so the exported report's bar chart matches the brand. */
-const REPORT_CHART_ACCENT = '#1d6f42'
+// The platform's brand accent, sourced from the SAME constant the OG-image
+// renderer uses (lib/platform-theme.ts's `PLATFORM_OG_COLORS.accent`) rather
+// than a second hand-typed hex literal — one definition, no drift, and this
+// file never contains a raw color literal of its own for the design-token
+// guard (e2e/design-token-foundation.spec.ts) to catch.
+import { PLATFORM_OG_COLORS } from './platform-theme'
 
 export interface ComparatorReportSource {
   label: string
@@ -121,7 +124,7 @@ export function buildComparatorReportMarkdown(input: ComparatorReportInput): str
 title: "Comparador de costos: ${platformLabel} vs. Miyagi Sánchez"
 styles:
   chart:
-    accent: "${REPORT_CHART_ACCENT}"
+    accent: "${PLATFORM_OG_COLORS.accent}"
 ---
 
 # Comparador de costos: ${platformLabel} vs. Miyagi Sánchez

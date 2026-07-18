@@ -99,7 +99,7 @@ import {
   type ComparatorPlatform as CostComparatorPlatform, type LineSourceContext, type ComparatorDataset,
 } from '@/lib/cost-comparator-dataset'
 // Baseline dataset import ONLY to derive the compare_costs tool schema's `apps`
-// enum at module init (second-opinion review, PR #278 — "don't hardcode the apps
+// enum at module init (second-opinion review, PR 278 — "don't hardcode the apps
 // enum, derive it from premiumAppsFromDataset"). Runtime computation still reads
 // the LIVE dataset via getComparatorDataset() inside the handler; this baseline
 // read is schema-time only, so an admin content-override can never add a NEW app
@@ -143,7 +143,7 @@ function err(id: string | number | null, code: number, message: string): JsonRpc
 }
 
 // compare_costs' `apps` enum, derived from the baseline dataset once at module
-// init rather than hand-duplicated (second-opinion review, PR #278).
+// init rather than hand-duplicated (second-opinion review, PR 278).
 const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDataset as ComparatorDataset).map((a) => a.id)
 
 // ── Tool definitions ───────────────────────────────────────────────────────────
@@ -3571,7 +3571,7 @@ const COMPARE_COSTS_ML_TYPES = ['clasica', 'premium'] as const
 const COMPARE_COSTS_WOO_TIERS = ['entrada', 'crecimiento'] as const
 const COMPARE_COSTS_TN_TIERS = ['gratis', 'basico', 'tiendanube', 'avanzado'] as const
 
-// es-MX labels for the tool's `platform_label`/summary text (nit, PR #278 —
+// es-MX labels for the tool's `platform_label`/summary text (nit, PR 278 —
 // raw dataset slugs like "Shopify (basico)" read as unpolished next to the
 // page's own es-MX tier names). Deliberately a SEPARATE, shorter label set from
 // ComparadorTool.tsx's UI labels (those carry full pricing detail meant for a
@@ -3589,7 +3589,7 @@ function round2(n: number): number {
 
 /** Validates an OPTIONAL enum arg: absent/undefined → the default (matches the
  * schema's own `default`); present but not in `allowed` → a clear error instead
- * of a silent fallback (second-opinion + codex review, PR #278 — an agent that
+ * of a silent fallback (second-opinion + codex review, PR 278 — an agent that
  * typo'd a tier name deserves to know, not get a silently-wrong comparison). */
 function validateEnumArg<T extends string>(
   args: Record<string, unknown>,
@@ -3635,7 +3635,7 @@ async function handleCompareCosts(args: Record<string, unknown>) {
   // Validate `apps` against the LIVE dataset's actual app ids (never the schema's
   // static enum alone) — an unknown id is dropped from the calculation AND
   // reported back, never silently echoed as if it were accepted (should-fix,
-  // codex review PR #278).
+  // codex review PR 278).
   const validAppIds = apps.map((a) => a.id)
   const requestedAppIdsRaw = Array.isArray(args.apps) ? args.apps.map((a) => String(a)) : []
   const acceptedAppIds = requestedAppIdsRaw.filter((id) => validAppIds.includes(id))
