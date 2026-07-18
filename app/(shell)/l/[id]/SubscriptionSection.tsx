@@ -147,14 +147,14 @@ export default function SubscriptionSection({
 
   if (speiResult) {
     return (
-      <div className="border border-green-200 bg-green-50 rounded-xl p-5 space-y-3">
+      <div className="border border-green-200 bg-green-50 rounded-[var(--r-lg)] p-5 space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-2xl"><i className="iconoir-check-circle" aria-hidden /></span>
           <p className="font-semibold text-green-800">¡Suscripción registrada!</p>
         </div>
         <p className="text-sm text-green-700">{speiResult.message}</p>
         {speiResult.clabe && (
-          <div className="bg-white border border-green-200 rounded-lg p-3 space-y-1.5">
+          <div className="bg-white border border-green-200 rounded-[var(--r-md)] p-3 space-y-1.5">
             <p className="text-xs text-green-600 font-medium">CLABE interbancaria del vendedor:</p>
             <p className="font-mono text-lg font-bold text-green-900 tracking-wider">{speiResult.clabe}</p>
             {speiResult.bank_name && (
@@ -172,7 +172,7 @@ export default function SubscriptionSection({
   }
 
   return (
-    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+    <div className="border border-[var(--color-border)] rounded-[var(--r-lg)] overflow-hidden">
       {/* Header */}
       <div className="px-5 pt-5 pb-3">
         <p className="text-xs uppercase tracking-wide text-[var(--color-muted)] font-medium mb-1">
@@ -183,18 +183,18 @@ export default function SubscriptionSection({
       {/* S4.4 — mensual / anual toggle (only when both intervals exist) */}
       {showToggle && (
         <div className="px-5 pb-3">
-          <div data-testid="subscription-interval-toggle" className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5 bg-[var(--color-surface-alt)]">
+          <div data-testid="subscription-interval-toggle" className="inline-flex rounded-[var(--r-md)] border border-[var(--color-border)] p-0.5 bg-[var(--color-surface-alt)]">
             <button
               type="button"
               onClick={() => switchInterval('month')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${billingInterval === 'month' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
+              className={`px-3 py-1.5 rounded-[var(--r-sm)] text-xs font-semibold transition-colors ${billingInterval === 'month' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
             >
               Mensual
             </button>
             <button
               type="button"
               onClick={() => switchInterval('year')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${billingInterval === 'year' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
+              className={`px-3 py-1.5 rounded-[var(--r-sm)] text-xs font-semibold transition-colors ${billingInterval === 'year' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
             >
               Anual
             </button>
@@ -217,14 +217,14 @@ export default function SubscriptionSection({
                 key={tier.id}
                 type="button"
                 onClick={() => setSelectedTierId(tier.id)}
-                className={`relative border rounded-xl p-3 text-left transition-all ${
+                className={`relative border rounded-[var(--r-md)] p-3 text-left transition-all ${
                   isSelected
                     ? 'border-[var(--color-accent)] bg-green-50 ring-2 ring-[var(--color-accent)] ring-offset-1'
                     : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
                 }`}
               >
                 {tier.is_highlighted && (
-                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[var(--color-accent)] text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[var(--color-accent)] text-white text-[10px] font-bold px-2 py-0.5 rounded-[var(--r-pill)] whitespace-nowrap">
                     Popular
                   </span>
                 )}
@@ -272,7 +272,7 @@ export default function SubscriptionSection({
                 type="button"
                 onClick={handleStripeSubscribe}
                 disabled={loading}
-                className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-60"
+                className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded-[var(--r-md)] text-sm transition-colors disabled:opacity-60"
               >
                 {loading ? 'Cargando…' : `Suscribirme — ${selectedTier ? tierLabel(selectedTier) : ''}`}
               </button>
@@ -283,7 +283,7 @@ export default function SubscriptionSection({
                 type="button"
                 onClick={handleMpSubscribe}
                 disabled={loading}
-                className="w-full bg-[var(--provider-mercadopago)] hover:bg-[var(--provider-mercadopago-hover)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full bg-[var(--provider-mercadopago)] hover:bg-[var(--provider-mercadopago-hover)] text-[var(--fg-inverse)] font-semibold py-2.5 rounded-[var(--r-md)] text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor">
                   <path d="M28 16a12 12 0 1 1-24 0 12 12 0 0 1 24 0zm-14.7 4.4 7.6-4.4-7.6-4.4v8.8z"/>
@@ -296,7 +296,7 @@ export default function SubscriptionSection({
               <button
                 type="button"
                 onClick={() => setShowSpei(true)}
-                className="w-full border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-lg text-sm hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+                className="w-full border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-[var(--r-md)] text-sm hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
               >
                 <i className="iconoir-credit-card" aria-hidden /> Pagar con SPEI / transferencia bancaria
               </button>
@@ -314,7 +314,7 @@ export default function SubscriptionSection({
           <form onSubmit={handleSpeiSubscribe} className="space-y-3">
             <p className="text-sm font-medium text-[var(--color-text)]">Registra tu suscripción SPEI</p>
             {isSignedIn && buyerDisplayName && buyerUserEmail ? (
-              <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--color-muted)] space-y-0.5">
+              <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2.5 text-sm text-[var(--color-muted)] space-y-0.5">
                 <p className="font-medium text-[var(--color-text)]">{buyerDisplayName}</p>
                 <p>{buyerUserEmail}</p>
               </div>
@@ -322,19 +322,19 @@ export default function SubscriptionSection({
               <>
                 <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
                   placeholder="Tu nombre completo" required minLength={2}
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
                 <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
                   placeholder="Tu correo electrónico" required
-                  className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
+                  className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </>
             )}
             <div className="flex gap-2">
               <button type="button" onClick={() => { setShowSpei(false); setError(null) }}
-                className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--color-background)] transition-colors">
+                className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-[var(--r-md)] text-sm font-medium hover:bg-[var(--color-background)] transition-colors">
                 ← Atrás
               </button>
               <button type="submit" disabled={loading}
-                className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60">
+                className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60">
                 {loading ? 'Registrando…' : 'Confirmar'}
               </button>
             </div>

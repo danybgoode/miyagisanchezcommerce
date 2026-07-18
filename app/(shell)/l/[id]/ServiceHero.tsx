@@ -49,7 +49,7 @@ export default function ServiceHero({
             target="_blank"
             rel="noopener noreferrer"
             data-testid="pdp-service-agendar"
-            className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+            className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
             style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
           >
             <i className="iconoir-calendar" style={{ fontSize: 16 }} />
@@ -66,7 +66,7 @@ export default function ServiceHero({
       {/* ── "Qué incluye" — service attrs + description ───────────────────────── */}
       {(inclusions.length > 0 || description) && (
         <div data-testid="pdp-service-incluye" style={{ background: 'var(--bg-sunk)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <h2 style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Qué incluye</h2>
+          <h2 style={{ fontWeight: 700, fontSize: 'var(--t-base)', marginBottom: 10 }}>Qué incluye</h2>
           {inclusions.length > 0 && (
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', marginBottom: description ? 12 : 0 }}>
               {inclusions.map(spec => (

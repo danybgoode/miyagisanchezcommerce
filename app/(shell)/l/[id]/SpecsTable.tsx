@@ -11,7 +11,7 @@ export default function SpecsTable({ rows }: { rows: Spec[] }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Especificaciones</h2>
+      <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Especificaciones</h2>
       <dl
         style={{
           border: '1px solid var(--border)',

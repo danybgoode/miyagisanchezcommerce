@@ -128,7 +128,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                   <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: 4 }}>
                     {listing.title}
                   </p>
-                  <p className="t-price" style={{ fontSize: 15 }}>{formatPrice(listing)}</p>
+                  <p className="t-price" style={{ fontSize: 'var(--t-base)' }}>{formatPrice(listing)}</p>
                   {(() => {
                     const chip = financingChip(listing)
                     return chip && <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 1 }}>{chip}</p>

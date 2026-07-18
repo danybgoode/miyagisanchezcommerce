@@ -462,7 +462,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       {isPrintPlacement && (
         <Link
           href={printEditionId ? `/sell/print/${printEditionId}` : '/shop/manage'}
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
           <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
@@ -511,11 +511,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               signInBuyLabel={eventModel ? signInBuyLabel : undefined}
             />
           ) : isSignedIn ? (
-            <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Comprar ahora — {effectivePrice}
             </Link>
           ) : (
-            <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               Inicia sesión para comprar
             </Link>
           )
@@ -537,7 +537,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         />
       )}
       {activeDeal?.status === 'accepted_unpaid' && activeDeal.conversationId && (
-        <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
+        <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
           <i className="iconoir-message-text" style={{ fontSize: 16 }} />
           Ver conversación
         </Link>
@@ -605,11 +605,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         signInLabel={signInBuyLabel}
       />
     ) : isSignedIn ? (
-      <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+      <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
         {buyNowLabel}
       </Link>
     ) : (
-      <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+      <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
         {signInBuyLabel}
       </Link>
     )
@@ -637,7 +637,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
           {redesignPrimaryCta}
           {activeDeal?.conversationId && (
-            <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
+            <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
               <i className="iconoir-message-text" style={{ fontSize: 16 }} />
               Ver conversación
             </Link>
@@ -668,7 +668,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         <>
           <Link
             href={printEditionId ? `/sell/print/${printEditionId}` : '/shop/manage'}
-            className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+            className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
             style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
           >
             <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
@@ -1001,7 +1001,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         )}
         {redesign && !serviceLed && listing.description && (
           <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Descripción</h2>
             <CollapsibleDescription text={listing.description} />
           </div>
         )}
@@ -1169,15 +1169,15 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             "Qué incluye" block instead. */}
         {listing.description && !serviceLed && (
           <div className={redesign ? 'hidden md:block' : undefined} style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Descripción</h2>
-            <p style={{ fontSize: 14, color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Descripción</h2>
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
           </div>
         )}
 
         {/* Digital goods have no returns surface (S4.3 — no envío/devoluciones). */}
         {returnsLabel && !digitalLed && (
           <div style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Política de devoluciones</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Política de devoluciones</h2>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
               Acepta devoluciones durante {returnsLabel.toLowerCase()}
               {returnsPolicySettings?.conditions === 'unopened' ? ' si el producto sigue cerrado' : ''}
