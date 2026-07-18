@@ -40,7 +40,7 @@ function ConfirmApplyDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-[var(--fg-inverse)] rounded-[var(--r-md)] shadow-xl w-full max-w-sm p-6">
         <h2 className="font-bold text-base mb-2">¿Aplicar nuevo precio?</h2>
         <p className="text-sm text-[var(--color-muted)] mb-1">
           <strong>{row.title}</strong>
@@ -50,13 +50,13 @@ function ConfirmApplyDialog({
           {' '}· margen objetivo {targetMarginPct}%
         </p>
         <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} disabled={pending} className="px-4 py-2 text-sm rounded-lg border border-[var(--color-border)]">
+          <button onClick={onCancel} disabled={pending} className="px-4 py-2 text-sm rounded-[var(--r-md)] border border-[var(--color-border)]">
             Cancelar
           </button>
           <button
             onClick={onConfirm}
             disabled={pending}
-            className="px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] text-white font-medium disabled:opacity-60"
+            className="px-4 py-2 text-sm rounded-[var(--r-md)] bg-[var(--color-accent)] text-white font-medium disabled:opacity-60"
           >
             {pending ? 'Aplicando…' : 'Sí, aplicar'}
           </button>
@@ -166,7 +166,7 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
   }
 
   return (
-    <div className="border border-[var(--color-border)] rounded-lg p-4">
+    <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
       <p className="text-sm font-medium text-[var(--color-text)] truncate">{row.title}</p>
       <p className="text-xs text-[var(--color-muted)] mb-3">
         Precio actual (promedio reciente): {formatCents(currentPriceCents)}
@@ -198,7 +198,7 @@ export default function PricingCard({ row }: { row: SkuMarginRow }) {
         <button
           onClick={startConfirm}
           disabled={!solved.achievable || pending || verifying}
-          className="px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] text-white font-medium disabled:opacity-40"
+          className="px-4 py-2 text-sm rounded-[var(--r-md)] bg-[var(--color-accent)] text-white font-medium disabled:opacity-40"
         >
           {verifying ? 'Verificando…' : 'Aplicar'}
         </button>

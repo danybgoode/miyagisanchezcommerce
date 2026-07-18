@@ -28,7 +28,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
           /* clipboard blocked — textarea is still selectable */
         }
       }}
-      className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
+      className="inline-flex items-center gap-1.5 bg-[var(--color-accent)] text-white px-3 py-1.5 rounded-[var(--r-md)] text-xs font-semibold hover:bg-[var(--color-accent-hover)] transition-colors"
     >
       {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : <><i className="iconoir-copy" aria-hidden /> {label}</>}
     </button>
@@ -40,7 +40,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 function BlockRow({ b }: { b: BlockResult }) {
   const ok = b.status === 'applied'
   return (
-    <div className={`rounded-lg border p-3 ${ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+    <div className={`rounded-[var(--r-md)] border p-3 ${ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold">{b.label}</span>
         <span className={`text-xs font-semibold ${ok ? 'text-green-700' : 'text-red-700'}`}>
@@ -108,7 +108,7 @@ function ConfigUploader() {
   const appliedCount = (preview ?? []).filter((b) => b.status === 'applied').length
 
   return (
-    <section className="border-2 border-dashed border-[var(--color-border)] rounded-2xl p-6">
+    <section className="border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-lg)] p-6">
       <input
         ref={inputRef}
         type="file"
@@ -127,7 +127,7 @@ function ConfigUploader() {
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium hover:bg-[var(--color-accent-hover)] transition-colors"
+            className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-[var(--r-md)] font-medium hover:bg-[var(--color-accent-hover)] transition-colors"
           >
             Elegir archivo
           </button>
@@ -136,7 +136,7 @@ function ConfigUploader() {
       )}
 
       {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div className="mt-4 rounded-[var(--r-md)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
 
       {/* Preview before applying */}
@@ -148,7 +148,7 @@ function ConfigUploader() {
               type="button"
               onClick={apply}
               disabled={applying || appliedCount === 0}
-              className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-[var(--r-md)] text-sm font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {applying ? 'Aplicando…' : 'Aplicar configuración'}
             </button>
@@ -197,10 +197,10 @@ export default function SettingsImportClient() {
       </div>
 
       {/* Step 1: Copilot prompt */}
-      <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">1</span>
             Copilot de configuración
           </h2>
           <CopyButton text={prompt} label="Copiar prompt" />
@@ -214,28 +214,28 @@ export default function SettingsImportClient() {
           value={prompt}
           onFocus={(e) => e.currentTarget.select()}
           rows={12}
-          className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
+          className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] resize-y"
         />
       </section>
 
       {/* Step 2: Blocks reference */}
-      <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <h2 className="font-semibold flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">2</span>
           Qué puedes configurar por archivo
         </h2>
         <p className="text-sm text-[var(--color-muted)] mb-3">Cada bloque es opcional. Incluye solo los que tengas.</p>
         <div className="space-y-2">
           {CONFIG_BLOCKS.map((b) => (
             <div key={String(b.key)} className="flex gap-2 text-sm">
-              <code className="font-mono text-xs bg-[var(--surface-muted)] rounded px-1.5 py-0.5 h-fit">{String(b.key)}</code>
+              <code className="font-mono text-xs bg-[var(--surface-muted)] rounded-[var(--r-sm)] px-1.5 py-0.5 h-fit">{String(b.key)}</code>
               <span className="text-[var(--color-muted)]">{b.desc}</span>
             </div>
           ))}
         </div>
 
         {/* Manual sections */}
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <div className="mt-4 rounded-[var(--r-md)] border border-amber-200 bg-amber-50 p-3">
           <p className="text-xs font-semibold text-amber-800 mb-1.5">Esto se queda en un paso manual (por seguridad):</p>
           <ul className="space-y-1">
             {MANUAL_SECTIONS.map((m) => (
@@ -248,15 +248,15 @@ export default function SettingsImportClient() {
       </section>
 
       {/* Step 3: Example */}
-      <section className="border border-[var(--color-border)] rounded-2xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-lg)] p-5 mb-5">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold">3</span>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-[var(--r-pill)] bg-[var(--color-accent)] text-white text-xs font-bold">3</span>
             Ejemplo de archivo
           </h2>
           <CopyButton text={exampleJson} label="Copiar ejemplo" />
         </div>
-        <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] overflow-x-auto">
+        <pre className="w-full font-mono text-xs leading-relaxed p-3 rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--fg)] overflow-x-auto">
           {exampleJson}
         </pre>
       </section>

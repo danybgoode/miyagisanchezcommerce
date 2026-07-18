@@ -246,18 +246,18 @@ export default function SweepstakesManager({
         <button
           type="button"
           onClick={() => { setForm(emptyForm); setMessage(null); setError(null) }}
-          className="px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-semibold"
+          className="px-4 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-semibold"
         >
           {ui.newCampaign}
         </button>
       </div>
 
       {!settings.enabled && (
-        <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="mb-5 rounded-[var(--r-md)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {ui.killSwitch}
         </p>
       )}
-      <p className="mb-5 rounded-lg border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-muted)]">
+      <p className="mb-5 rounded-[var(--r-md)] border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-muted)]">
         {ui.legalNote}
       </p>
 
@@ -265,40 +265,40 @@ export default function SweepstakesManager({
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.95fr] gap-6">
-        <form onSubmit={save} className="border border-[var(--color-border)] rounded-xl p-5">
+        <form onSubmit={save} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5">
           <h2 className="font-semibold mb-4">{editing ? statusLabel(ui, selectedCampaign?.status ?? '') : ui.newCampaign}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block text-sm font-medium">
               {ui.titleEs}
-              <input value={form.title_es} onChange={e => set('title_es', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.title_es} onChange={e => set('title_es', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.titleEn}
-              <input value={form.title_en} onChange={e => set('title_en', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.title_en} onChange={e => set('title_en', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.descriptionEs}
-              <textarea value={form.prize_description_es} onChange={e => set('prize_description_es', e.target.value)} rows={3} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <textarea value={form.prize_description_es} onChange={e => set('prize_description_es', e.target.value)} rows={3} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.descriptionEn}
-              <textarea value={form.prize_description_en} onChange={e => set('prize_description_en', e.target.value)} rows={3} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <textarea value={form.prize_description_en} onChange={e => set('prize_description_en', e.target.value)} rows={3} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.start}
-              <input type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.end}
-              <input type="datetime-local" value={form.ends_at} onChange={e => set('ends_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input type="datetime-local" value={form.ends_at} onChange={e => set('ends_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.freeTickets}
-              <input type="number" min="1" value={form.free_ticket_value} onChange={e => set('free_ticket_value', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input type="number" min="1" value={form.free_ticket_value} onChange={e => set('free_ticket_value', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.purchaseTickets}
-              <input type="number" min="1" disabled={!form.purchase_bonus_enabled} value={form.purchase_ticket_value} onChange={e => set('purchase_ticket_value', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] disabled:opacity-50" />
+              <input type="number" min="1" disabled={!form.purchase_bonus_enabled} value={form.purchase_ticket_value} onChange={e => set('purchase_ticket_value', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)] disabled:opacity-50" />
             </label>
             <label className="sm:col-span-2 flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.purchase_bonus_enabled} onChange={e => set('purchase_bonus_enabled', e.target.checked)} />
@@ -307,8 +307,8 @@ export default function SweepstakesManager({
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.prizeImage}
               <div className="mt-1 flex gap-2">
-                <input value={form.prize_image_url} onChange={e => set('prize_image_url', e.target.value)} className="min-w-0 flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
-                <label className="shrink-0 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm font-semibold cursor-pointer">
+                <input value={form.prize_image_url} onChange={e => set('prize_image_url', e.target.value)} className="min-w-0 flex-1 border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
+                <label className="shrink-0 px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] text-sm font-semibold cursor-pointer">
                   {uploading ? ui.saving : ui.uploadImage}
                   <input type="file" accept="image/*" className="hidden" onChange={e => upload(e.target.files?.[0] ?? null)} />
                 </label>
@@ -316,23 +316,23 @@ export default function SweepstakesManager({
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.termsEs}
-              <textarea value={form.terms_es} onChange={e => set('terms_es', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <textarea value={form.terms_es} onChange={e => set('terms_es', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.termsEn}
-              <textarea value={form.terms_en} onChange={e => set('terms_en', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <textarea value={form.terms_en} onChange={e => set('terms_en', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.organizer}
-              <input value={form.organizer_name} onChange={e => set('organizer_name', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.organizer_name} onChange={e => set('organizer_name', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.organizerContact}
-              <input value={form.organizer_contact} onChange={e => set('organizer_contact', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.organizer_contact} onChange={e => set('organizer_contact', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.permit}
-              <input value={form.permit_reference} onChange={e => set('permit_reference', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.permit_reference} onChange={e => set('permit_reference', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="sm:col-span-2 flex items-start gap-2 text-sm text-[var(--color-muted)]">
               <input className="mt-1" type="checkbox" checked={form.attested} onChange={e => set('attested', e.target.checked)} />
@@ -340,7 +340,7 @@ export default function SweepstakesManager({
             </label>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50">
+            <button type="submit" disabled={saving} className="px-4 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50">
               {saving ? ui.saving : ui.save}
             </button>
           </div>
@@ -349,13 +349,13 @@ export default function SweepstakesManager({
         <section>
           <h2 className="font-semibold mb-3">{ui.campaigns}</h2>
           {campaigns.length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)] border border-[var(--color-border)] rounded-xl p-5">{ui.empty}</p>
+            <p className="text-sm text-[var(--color-muted)] border border-[var(--color-border)] rounded-[var(--r-md)] p-5">{ui.empty}</p>
           ) : (
             <div className="space-y-3">
               {campaigns.map(campaign => {
                 const b = broadcast[campaign.id] ?? { es: '', en: '', coupon: '', sending: false }
                 return (
-                  <article key={campaign.id} className="border border-[var(--color-border)] rounded-xl p-4">
+                  <article key={campaign.id} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{campaign.title_es ?? campaign.title_en ?? campaign.slug}</h3>
@@ -369,28 +369,28 @@ export default function SweepstakesManager({
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={`/g/${campaign.slug}`} target="_blank" className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm no-underline">{ui.viewPublic}</Link>
-                      <button className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm" onClick={() => copyPublic(campaign.slug)}>{ui.copyLink}</button>
-                      <a href={`/api/sell/sweepstakes/${campaign.id}/qr`} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm no-underline">{ui.downloadQr}</a>
+                      <Link href={`/g/${campaign.slug}`} target="_blank" className="px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] text-sm no-underline">{ui.viewPublic}</Link>
+                      <button className="px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] text-sm" onClick={() => copyPublic(campaign.slug)}>{ui.copyLink}</button>
+                      <a href={`/api/sell/sweepstakes/${campaign.id}/qr`} className="px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] text-sm no-underline">{ui.downloadQr}</a>
                       {campaign.status === 'draft' && (
-                        <button disabled={!canPublish || publishingId === campaign.id} className="px-3 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50" onClick={() => publish(campaign)}>
+                        <button disabled={!canPublish || publishingId === campaign.id} className="px-3 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50" onClick={() => publish(campaign)}>
                           {publishingId === campaign.id ? ui.publishing : ui.publish}
                         </button>
                       )}
                     </div>
 
                     {campaign.status === 'completed' && (
-                      <div className="mt-4 rounded-lg bg-[var(--color-surface-alt)] p-3">
+                      <div className="mt-4 rounded-[var(--r-md)] bg-[var(--color-surface-alt)] p-3">
                         <p className="text-sm font-semibold">{ui.winner}</p>
                         <p className="text-sm text-[var(--color-muted)]">{ui.maskedContact}: {campaign.winner_masked_contact ?? '-'}</p>
                         <pre className="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap">{JSON.stringify(campaign.draw_audit ?? {}, null, 2)}</pre>
 
                         {!campaign.consolation_sent_at && (
                           <div className="mt-3 space-y-2">
-                            <textarea placeholder={ui.consolationEs} value={b.es} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, es: e.target.value } }))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] text-sm" />
-                            <textarea placeholder={ui.consolationEn} value={b.en} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, en: e.target.value } }))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] text-sm" />
-                            <input placeholder={ui.couponCode} value={b.coupon} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, coupon: e.target.value.toUpperCase() } }))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] text-sm" />
-                            <button disabled={b.sending} onClick={() => sendConsolation(campaign)} className="px-3 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50">
+                            <textarea placeholder={ui.consolationEs} value={b.es} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, es: e.target.value } }))} className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)] text-sm" />
+                            <textarea placeholder={ui.consolationEn} value={b.en} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, en: e.target.value } }))} className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)] text-sm" />
+                            <input placeholder={ui.couponCode} value={b.coupon} onChange={e => setBroadcast(prev => ({ ...prev, [campaign.id]: { ...b, coupon: e.target.value.toUpperCase() } }))} className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)] text-sm" />
+                            <button disabled={b.sending} onClick={() => sendConsolation(campaign)} className="px-3 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-semibold disabled:opacity-50">
                               {ui.sendConsolation}
                             </button>
                           </div>

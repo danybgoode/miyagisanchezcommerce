@@ -63,7 +63,7 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
   // moment `slug` changed from empty to non-empty on the same instance).
   if (!slug) {
     return (
-      <section id="widget" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section id="widget" className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-5">
         <p className="text-sm text-[var(--color-muted)]">El widget de tienda no está disponible por ahora.</p>
       </section>
     )
@@ -108,12 +108,12 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
   const previewKey = `${listingId}|${accent}|${locale}|${k}`
 
   return (
-    <section id="widget" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+    <section id="widget" className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-5">
       <div className="mb-1 flex items-center gap-2">
         <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
           Pon tu tienda en cualquier web
         </h2>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Widget</span>
+        <span className="text-xs px-2 py-0.5 rounded-[var(--r-pill)] bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Widget</span>
       </div>
       <p className="text-xs text-[var(--color-muted)] mb-4">
         Pega un fragmento en tu blog, Wix, WordPress o landing y vende desde ahí. Tus clientes
@@ -129,7 +129,7 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
           {/* Key + controls */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-[var(--color-muted)]">Tu llave (pública):</span>
-            <code className="px-2 py-1 rounded bg-[var(--color-surface-alt)] font-mono">{k}</code>
+            <code className="px-2 py-1 rounded-[var(--r-sm)] bg-[var(--color-surface-alt)] font-mono">{k}</code>
             <button
               type="button"
               onClick={rotate}
@@ -140,7 +140,7 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
             </button>
             <span className="text-[var(--color-muted)]">·</span>
             <span className="text-[var(--color-muted)]">Idioma:</span>
-            <div className="inline-flex rounded-md overflow-hidden border border-[var(--color-border)]">
+            <div className="inline-flex rounded-[var(--r-sm)] overflow-hidden border border-[var(--color-border)]">
               {(['es', 'en'] as const).map(l => (
                 <button
                   key={l}
@@ -161,7 +161,7 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
               value={listingId}
               onChange={e => setListingId(e.target.value)}
               placeholder="prod_… — lo encuentras en la página de tu anuncio"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
 
@@ -171,7 +171,7 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
             { id: 'card' as const, title: 'Tarjeta de producto', desc: 'Foto, precio y condición de un anuncio.' },
             { id: 'shop' as const, title: 'Tienda completa', desc: 'Toda tu tienda dentro de un iframe.' },
           ]).map(s => (
-            <div key={s.id} className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+            <div key={s.id} className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 bg-[var(--color-surface-alt)]">
                 <div>
                   <p className="text-sm font-semibold">{s.title}</p>
@@ -180,12 +180,12 @@ export default function EmbedSnippetSection({ slug, accent }: { slug: string; ac
                 <button
                   type="button"
                   onClick={() => copy(s.id)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+                  className="text-xs font-semibold px-3 py-1.5 rounded-[var(--r-sm)] bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
                 >
                   {copied === s.id ? '¡Copiado!' : 'Copiar'}
                 </button>
               </div>
-              <pre className="text-xs p-3 overflow-x-auto bg-white whitespace-pre-wrap break-all font-mono text-[var(--color-foreground)]">{snippets[s.id]}</pre>
+              <pre className="text-xs p-3 overflow-x-auto bg-[var(--fg-inverse)] whitespace-pre-wrap break-all font-mono text-[var(--color-foreground)]">{snippets[s.id]}</pre>
 
               {/* Live preview */}
               <div className="border-t border-[var(--color-border)] p-3 bg-[var(--color-surface-alt)]">

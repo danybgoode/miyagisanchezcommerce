@@ -214,7 +214,7 @@ export default function CampaignsManager({ shopSlug }: { shopSlug: string }) {
           {campaigns.map((c) => (
             <div key={c.id} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <strong style={{ fontSize: 15 }}>{c.title ?? '(sin título)'}</strong>
+                <strong style={{ fontSize: 'var(--t-base)' }}>{c.title ?? '(sin título)'}</strong>
                 <span style={badgeStyle(c.status)}>{STATUS_LABEL[c.status]}</span>
               </div>
               <p style={{ fontSize: 13, color: 'var(--color-muted)', marginTop: 6 }}>

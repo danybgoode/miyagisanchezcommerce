@@ -41,7 +41,7 @@ export default function ConvocatoriaSettingsClient({
 
   return (
     <div>
-      <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+      <section className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-5">
         <SectionTitle>Convocatoria de manuscritos</SectionTitle>
         <p className="text-sm text-[var(--color-muted)] mb-3 leading-relaxed">
           Abre tu tienda a escritores. Cuando la convocatoria está activa, cualquier
@@ -71,7 +71,7 @@ export default function ConvocatoriaSettingsClient({
               onChange={e => { setGuidelines(e.target.value.slice(0, MAX_GUIDELINES)); markDirty() }}
               rows={5}
               placeholder="Ej. Buscamos narrativa breve en español, de 5 000 a 20 000 palabras, en PDF o EPUB…"
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-sm leading-relaxed"
+              className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-sm leading-relaxed"
             />
             <div className="mt-1 text-right text-xs text-[var(--color-muted)]">
               {guidelines.length}/{MAX_GUIDELINES}

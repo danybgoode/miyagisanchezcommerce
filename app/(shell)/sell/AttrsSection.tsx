@@ -16,7 +16,7 @@ export type Attrs = Record<string, string | number | boolean>
 export type ListingType = 'product' | 'service' | 'rental' | 'digital' | 'subscription'
 
 const inputClass =
-  'w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent'
+  'w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent'
 
 /** Single schema-driven field renderer (text / number / select / date / time). */
 function AttrInput({ field, attrs, setAttr }: {
@@ -76,7 +76,7 @@ export function AttrsSection({ category, listingType, attrs, setAttr }: {
   category: string; listingType: ListingType; attrs: Attrs; setAttr: (k: string, v: string) => void
 }) {
   const eventBlock = (
-    <div className="space-y-3 border border-purple-200 bg-purple-50/60 rounded-xl p-4">
+    <div className="space-y-3 border border-purple-200 bg-purple-50/60 rounded-[var(--r-md)] p-4">
       <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Detalles del evento</p>
       <FieldGrid fields={EVENT_FIELDS} attrs={attrs} setAttr={setAttr} />
       <p className="text-xs text-[var(--color-muted)]">
@@ -86,7 +86,7 @@ export function AttrsSection({ category, listingType, attrs, setAttr }: {
   )
 
   const panel = (group: { title: string; panelClass: string; fields: AttrField[] }) => (
-    <div className={`space-y-3 border rounded-xl p-4 ${group.panelClass}`}>
+    <div className={`space-y-3 border rounded-[var(--r-md)] p-4 ${group.panelClass}`}>
       <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">{group.title}</p>
       <FieldGrid fields={group.fields} attrs={attrs} setAttr={setAttr} />
     </div>

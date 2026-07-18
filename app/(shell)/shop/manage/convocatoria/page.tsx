@@ -65,7 +65,7 @@ export default async function ConvocatoriaManagePage() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
-            <strong style={{ fontSize: 15 }}>Campañas de votación</strong>
+            <strong style={{ fontSize: 'var(--t-base)' }}>Campañas de votación</strong>
             <p style={{ fontSize: 13, color: 'var(--color-muted)', marginTop: 4 }}>
               La comunidad vota por las obras; al alcanzar el umbral se desbloquea el cupón de impresión.
             </p>

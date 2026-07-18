@@ -253,7 +253,7 @@ export default function MercadoLibreStatus({
             background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-1)',
           }}
         >
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Sincronización de inventario y pedidos</h2>
+          <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 700, margin: '0 0 4px' }}>Sincronización de inventario y pedidos</h2>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 14px' }}>
             Mantén tu existencia igual en Mercado Libre y en Miyagi — cada venta descuenta de ambos, sin vender de más.
             Tus pedidos de Mercado Libre también aparecen en tu bandeja de pedidos de Miyagi.
@@ -330,7 +330,7 @@ export default function MercadoLibreStatus({
             background: 'var(--bg-elevated)', boxShadow: 'var(--shadow-1)',
           }}
         >
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 12px' }}>Actividad reciente</h2>
+          <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 700, margin: '0 0 12px' }}>Actividad reciente</h2>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {events.map((e) => (
               <li key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>

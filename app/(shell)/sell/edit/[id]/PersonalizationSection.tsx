@@ -84,7 +84,7 @@ export default function PersonalizationSection({
       </p>
 
       {fields.length === 0 && (
-        <div className="border border-dashed border-[var(--color-border)] rounded-lg px-4 py-5 text-center mb-3">
+        <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-5 text-center mb-3">
           <p className="text-sm text-[var(--color-muted)]">Sin campos de personalización.</p>
         </div>
       )}
@@ -93,7 +93,7 @@ export default function PersonalizationSection({
         {fields.map((field, idx) => (
           <div
             key={field.id}
-            className="border border-[var(--color-border)] rounded-lg p-3 bg-[var(--color-background)]"
+            className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 bg-[var(--color-background)]"
           >
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-medium text-[var(--color-muted)]">Campo {idx + 1}</span>
@@ -129,12 +129,12 @@ export default function PersonalizationSection({
                 onChange={e => update(field.id, { label: e.target.value })}
                 maxLength={60}
                 placeholder="Etiqueta (p. ej. Nombre a grabar)"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               />
               <select
                 value={field.type}
                 onChange={e => changeType(field.id, e.target.value as CustomFieldType)}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               >
                 {CUSTOM_FIELD_TYPES.map(t => (
                   <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
@@ -150,7 +150,7 @@ export default function PersonalizationSection({
                 onChange={e => update(field.id, { placeholder: e.target.value })}
                 maxLength={100}
                 placeholder="Texto de ayuda (p. ej. Hasta 15 caracteres)"
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               />
             )}
 
@@ -191,7 +191,7 @@ export default function PersonalizationSection({
                       const n = parseInt(e.target.value, 10)
                       update(field.id, { max_size_mb: Number.isFinite(n) && n > 0 ? Math.min(n, MAX_ARTWORK_SIZE_MB) : MAX_ARTWORK_SIZE_MB })
                     }}
-                    className="w-20 border border-[var(--color-border)] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                    className="w-20 border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                   />
                 </label>
               </div>
@@ -213,7 +213,7 @@ export default function PersonalizationSection({
                       update(field.id, { max_length: Number.isFinite(n) && n > 0 ? n : undefined })
                     }}
                     placeholder={String(typeCap(field.type))}
-                    className="w-20 border border-[var(--color-border)] rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                    className="w-20 border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                   />
                 </label>
               ) : <span />}
@@ -267,7 +267,7 @@ function OptionsEditor({
               }}
               maxLength={60}
               placeholder={`Opción ${i + 1}`}
-              className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
             />
             <button
               type="button"

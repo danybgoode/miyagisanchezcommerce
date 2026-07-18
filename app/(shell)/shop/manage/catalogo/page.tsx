@@ -150,7 +150,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       />
 
       {listings.length === 0 ? (
-        <div className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-12 text-center mt-4">
+        <div className="border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-md)] p-12 text-center mt-4">
           {hasAnyFilter ? (
             <>
               <p className="font-semibold mb-1">Sin resultados para estos filtros</p>

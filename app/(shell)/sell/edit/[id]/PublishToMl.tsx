@@ -132,7 +132,7 @@ export default function PublishToMl({
   return (
     <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>Mercado Libre</span>
+        <span style={{ fontSize: 'var(--t-base)', fontWeight: 700, color: 'var(--fg)' }}>Mercado Libre</span>
         {view.linked && (
           <span style={{ fontSize: 12, fontWeight: 600, color: view.mlStatus === 'closed' ? 'var(--fg-muted)' : 'var(--success)' }}>
             · {view.mlStatus === 'closed' ? 'Cerrada' : 'Publicada'}
