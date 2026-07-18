@@ -40,6 +40,12 @@ import { pushAnalyticsEvent } from '@/lib/analytics-events'
 
 export type { CompetitorPlatform }
 
+/** Natural es-MX pluralization for a count + noun pair — "1 producto" /
+ *  "2 productos", never the `producto(s)` shorthand (review catch, S3). */
+function pluralEs(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 const PLATFORM_LABELS: Record<CompetitorPlatform, string> = {
   shopify: 'Shopify',
   mercadolibre: 'Mercado Libre',
@@ -503,10 +509,14 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
             <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
               {analyzerResult.platform
                 ? `Detectamos ${PLATFORM_LABELS[analyzerResult.platform]} — prellenamos la plataforma abajo.`
-                : 'No pudimos identificar la plataforma automáticamente — elige la tuya abajo.'}{' '}
-              Catálogo aproximado: {analyzerResult.inventory.catalogCount} producto(s),{' '}
-              {analyzerResult.inventory.sectionCount} sección(es).
-              {analyzerResult.truncated ? ' (solo pudimos leer una parte de la página)' : ''}
+                : 'No pudimos identificar la plataforma automáticamente — elige la tuya abajo.'}
+            </p>
+            <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+              Catálogo aproximado (solo para contexto — no calculamos tu volumen de ventas a partir de
+              esto): {pluralEs(analyzerResult.inventory.catalogCount, 'producto', 'productos')} y{' '}
+              {pluralEs(analyzerResult.inventory.sectionCount, 'sección', 'secciones')}.
+              {analyzerResult.truncated ? ' (solo pudimos leer una parte de la página)' : ''}{' '}
+              Ajusta tu volumen mensual y ticket promedio abajo con tus propios números.
             </p>
             {analyzerResult.parity ? (
               <div style={{ display: 'grid', gap: 4 }}>

@@ -14,9 +14,23 @@
  *
  *  1. `isPublicDomainShape` (lib/ssrf-guard.ts) — friendly early-reject for a
  *     bad shape / bare IP literal / localhost, before any DNS or network call.
- *  2. `assertPublicHost` — the REAL boundary: resolves DNS and rejects if ANY
- *     resolved address is loopback/private/link-local/reserved (closes the
- *     DNS-rebinding gap step 1 alone leaves open). Fails closed on DNS error.
+ *  2. `assertPublicHost` — resolves DNS and rejects if ANY resolved address is
+ *     loopback/private/link-local/reserved before the real fetch goes out.
+ *     CORRECTION (2026-07-18 review round — an earlier draft of this comment
+ *     and the PR body overclaimed this as "closing" the DNS-rebinding gap):
+ *     this SUBSTANTIALLY MITIGATES rebinding, it does not fully close it —
+ *     there is an inherent TOCTOU between this resolve and the `fetch()` call
+ *     a few lines later (same resolve-then-fetch pattern as the pre-existing
+ *     `assertPublicHost` in lib/shopify-mcp-client.ts, and the same residual
+ *     gap). Narrowed further by: https-only (TLS certificate validation
+ *     against the original SNI/hostname — a rebound IP presenting the wrong
+ *     cert can't silently succeed), `redirect: 'error'`, an 8s timeout, a 2 MB
+ *     cap, and — specific to this analyzer — the raw fetched body is never
+ *     returned to the caller (only derived counts/booleans), so even a
+ *     successful rebind can't exfiltrate arbitrary bytes through this
+ *     endpoint. A real fix (DNS-pin the resolved IP so the later `fetch()`
+ *     can't re-resolve at all) is tracked as a follow-up, not done here — see
+ *     Roadmap/00-ideas/seeds/ssrf-dns-pinning.md.
  *  3. https-only, `redirect: 'error'` (mirrors app/api/img/route.ts — a 3xx
  *     from an already-validated host could otherwise pivot the fetch to an
  *     unvalidated one; Node would silently follow up to 20 redirects without
@@ -24,7 +38,10 @@
  *  4. A running byte-counter cap on the streamed response body (mirrors
  *     app/api/img/route.ts) — `content-length` is advisory, so this cancels
  *     the read the instant the true total crosses the cap, never buffers an
- *     unbounded body into memory first.
+ *     unbounded body into memory first. The boundary chunk (the one that
+ *     crosses the cap) is trimmed and kept, not dropped whole — otherwise a
+ *     cap crossed mid-chunk would silently lose up to one chunk's worth of
+ *     real HTML right at the boundary.
  *  5. Short timeout (`AbortSignal.timeout`) + content-type gate (`text/html`
  *     only) — bounds both latency and the class of response this route will
  *     ever try to parse as a storefront page.
@@ -49,12 +66,14 @@ const FETCH_TIMEOUT_MS = 8_000
 const MAX_HTML_BYTES = 2 * 1024 * 1024
 
 /**
- * The real SSRF boundary — see file header. Identical contract to
- * `assertPublicHost` in lib/shopify-mcp-client.ts (not imported from there:
- * that file is scoped to the Shopify UCP-MCP connector's own retry/pagination
- * concerns, and duplicating this ~10-line DNS wrapper here keeps this file's
- * only coupling to the migrations epic the classifiers it re-uses from
- * lib/ssrf-guard.ts, not an unrelated connector module).
+ * A substantial SSRF mitigation, not a hard boundary — see file header for
+ * the full residual-TOCTOU caveat and the DNS-pinning follow-up. Identical
+ * contract (and identical residual gap) to `assertPublicHost` in
+ * lib/shopify-mcp-client.ts (not imported from there: that file is scoped to
+ * the Shopify UCP-MCP connector's own retry/pagination concerns, and
+ * duplicating this ~10-line DNS wrapper here keeps this file's only coupling
+ * to the migrations epic the classifiers it re-uses from lib/ssrf-guard.ts,
+ * not an unrelated connector module).
  */
 async function assertPublicHost(host: string): Promise<boolean> {
   try {
@@ -118,13 +137,20 @@ export async function analyzeShopUrl(rawUrl: string): Promise<AnalyzeShopUrlResu
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      total += value.byteLength
-      if (total > MAX_HTML_BYTES) {
+      const remaining = MAX_HTML_BYTES - total
+      if (value.byteLength > remaining) {
+        // The boundary chunk (the one that crosses the cap): keep the part
+        // that still fits instead of dropping the whole chunk — otherwise a
+        // cap crossed mid-chunk silently loses up to one chunk's worth of
+        // real HTML right at the boundary (codex catch, 2026-07-18 review).
         truncated = true
+        if (remaining > 0) chunks.push(value.slice(0, remaining))
+        total += remaining
         await reader.cancel('source too large').catch(() => {})
         break
       }
       chunks.push(value)
+      total += value.byteLength
     }
   } catch {
     return { ok: false, status: 502, error: 'No pudimos leer esa tienda. Llena los datos a mano abajo.' }
