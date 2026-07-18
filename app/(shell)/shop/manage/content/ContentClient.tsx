@@ -123,7 +123,7 @@ export default function ContentClient({
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="shrink-0 bg-[var(--color-accent)] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[var(--color-accent-hover)] transition-colors"
+            className="shrink-0 bg-[var(--color-accent)] text-white text-sm font-semibold px-4 py-2 rounded-[var(--r-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
           >
             + Nuevo post
           </button>
@@ -132,7 +132,7 @@ export default function ContentClient({
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="border border-[var(--color-accent)] rounded-xl p-5 space-y-4 bg-green-50/30">
+        <form onSubmit={handleCreate} className="border border-[var(--color-accent)] rounded-[var(--r-md)] p-5 space-y-4 bg-green-50/30">
           <p className="font-semibold text-[var(--color-text)]">Nuevo post de contenido</p>
 
           {error && <p className="text-red-600 text-sm flex items-center gap-1"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
@@ -145,7 +145,7 @@ export default function ContentClient({
               onChange={e => setFormTitle(e.target.value)}
               placeholder="Ej: Receta exclusiva de temporada"
               maxLength={200}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
             />
           </div>
 
@@ -156,7 +156,7 @@ export default function ContentClient({
               onChange={e => setFormBody(e.target.value)}
               placeholder="Escribe aquí el contenido exclusivo para tus suscriptores..."
               rows={5}
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-none"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent resize-none"
             />
           </div>
 
@@ -167,7 +167,7 @@ export default function ContentClient({
               value={formFileUrl}
               onChange={e => setFormFileUrl(e.target.value)}
               placeholder="https://... (imagen, video, PDF...)"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
             />
           </div>
 
@@ -177,7 +177,7 @@ export default function ContentClient({
               <select
                 value={formListingId}
                 onChange={e => setFormListingId(e.target.value)}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               >
                 <option value="">Todos los suscriptores</option>
                 {subscriptionListings.map(l => (
@@ -199,11 +199,11 @@ export default function ContentClient({
 
           <div className="flex gap-2">
             <button type="button" onClick={resetForm}
-              className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--color-background)] transition-colors">
+              className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-[var(--r-md)] text-sm font-medium hover:bg-[var(--color-background)] transition-colors">
               Cancelar
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60">
+              className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60">
               {saving ? 'Guardando…' : 'Publicar'}
             </button>
           </div>
@@ -213,7 +213,7 @@ export default function ContentClient({
       {/* Content list */}
       <div className="space-y-3">
         {items.map(item => (
-          <div key={item.id} className={`border rounded-xl p-4 space-y-2 ${item.is_published ? 'border-[var(--color-border)]' : 'border-dashed border-[var(--color-border)] opacity-60'}`}>
+          <div key={item.id} className={`border rounded-[var(--r-md)] p-4 space-y-2 ${item.is_published ? 'border-[var(--color-border)]' : 'border-dashed border-[var(--color-border)] opacity-60'}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium text-sm">{item.title}</p>
@@ -232,17 +232,17 @@ export default function ContentClient({
                   </a>
                 )}
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${item.is_published ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-[var(--r-pill)] font-medium shrink-0 ${item.is_published ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                 {item.is_published ? 'Publicado' : 'Borrador'}
               </span>
             </div>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => togglePublish(item)}
-                className="text-xs border border-[var(--color-border)] px-3 py-1.5 rounded hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors">
+                className="text-xs border border-[var(--color-border)] px-3 py-1.5 rounded-[var(--r-sm)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors">
                 {item.is_published ? 'Ocultar' : 'Publicar'}
               </button>
               <button type="button" onClick={() => handleDelete(item.id)} disabled={deleting === item.id}
-                className="text-xs border border-red-200 text-red-600 px-3 py-1.5 rounded hover:bg-red-50 transition-colors disabled:opacity-60">
+                className="text-xs border border-red-200 text-red-600 px-3 py-1.5 rounded-[var(--r-sm)] hover:bg-red-50 transition-colors disabled:opacity-60">
                 {deleting === item.id ? '…' : 'Eliminar'}
               </button>
             </div>

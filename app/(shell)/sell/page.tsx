@@ -14,7 +14,7 @@ function AgentSetupNudge() {
   return (
     <Link
       href="/sell/setup"
-      className="block no-underline rounded-2xl border border-[var(--color-border)] bg-[var(--surface-muted)] p-4 mb-5 hover:border-[var(--color-accent)] transition-colors"
+      className="block no-underline rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--surface-muted)] p-4 mb-5 hover:border-[var(--color-accent)] transition-colors"
     >
       <div className="flex items-start gap-3">
         <i className="iconoir-sparks text-2xl leading-none" aria-hidden />

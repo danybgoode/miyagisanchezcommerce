@@ -20,10 +20,10 @@ function MiniToggle({ checked, onChange }: { checked: boolean; onChange: (value:
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[var(--color-accent)]' : 'bg-gray-300'}`}
+      className={`relative inline-flex h-6 w-11 items-center rounded-[var(--r-pill)] transition-colors ${checked ? 'bg-[var(--color-accent)]' : 'bg-gray-300'}`}
       aria-pressed={checked}
     >
-      <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+      <span className={`inline-block h-5 w-5 transform rounded-[var(--r-pill)] bg-[var(--fg-inverse)] transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
     </button>
   )
 }
@@ -231,14 +231,14 @@ export default function SupportWidgetSection({
   }
 
   return (
-    <section id="apoyo" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+    <section id="apoyo" className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-5">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--color-muted)]">
               Apoyos
             </h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Widget</span>
+            <span className="text-xs px-2 py-0.5 rounded-[var(--r-pill)] bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Widget</span>
           </div>
           <p className="text-xs text-[var(--color-muted)]">
             Recibe contribuciones rápidas desde blogs, newsletters o tu propia web.
@@ -251,7 +251,7 @@ export default function SupportWidgetSection({
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mb-4 rounded-[var(--r-md)] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -263,7 +263,7 @@ export default function SupportWidgetSection({
             {[0, 1, 2].map((index) => (
               <label key={index} className="block">
                 <span className="mb-1 block text-xs text-[var(--color-muted)]">Monto {index + 1}</span>
-                <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-white px-3 py-2">
+                <div className="flex items-center rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)] px-3 py-2">
                   <span className="mr-2 text-sm text-[var(--color-muted)]">$</span>
                   <input
                     type="number"
@@ -284,7 +284,7 @@ export default function SupportWidgetSection({
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="mb-1 block text-xs text-[var(--color-muted)]">Mínimo personalizado</span>
-            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-white px-3 py-2">
+            <div className="flex items-center rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)] px-3 py-2">
               <span className="mr-2 text-sm text-[var(--color-muted)]">$</span>
               <input
                 type="number"
@@ -299,7 +299,7 @@ export default function SupportWidgetSection({
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-[var(--color-muted)]">Máximo personalizado</span>
-            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-white px-3 py-2">
+            <div className="flex items-center rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)] px-3 py-2">
               <span className="mr-2 text-sm text-[var(--color-muted)]">$</span>
               <input
                 type="number"
@@ -314,7 +314,7 @@ export default function SupportWidgetSection({
           </label>
           <div>
             <span className="mb-1 block text-xs text-[var(--color-muted)]">Visibilidad inicial</span>
-            <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+            <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)]">
               {(['public', 'private'] as const).map((visibility) => (
                 <button
                   key={visibility}
@@ -330,7 +330,7 @@ export default function SupportWidgetSection({
           </div>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <div className="rounded-[var(--r-md)] border border-[var(--color-border)] overflow-hidden">
           <div className="flex items-center justify-between gap-3 bg-[var(--color-surface-alt)] px-3 py-2">
             <div>
               <p className="text-sm font-semibold">Snippet de apoyo</p>
@@ -342,21 +342,21 @@ export default function SupportWidgetSection({
               type="button"
               onClick={copySnippet}
               disabled={loadingKey || !key}
-              className="rounded bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              className="rounded-[var(--r-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >
               {copied ? 'Copiado' : 'Copiar'}
             </button>
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-all bg-white p-3 font-mono text-xs text-[var(--color-foreground)]">{snippet}</pre>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-all bg-[var(--fg-inverse)] p-3 font-mono text-xs text-[var(--color-foreground)]">{snippet}</pre>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <div className="rounded-[var(--r-md)] border border-[var(--color-border)] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-alt)] px-3 py-2">
             <div>
               <p className="text-sm font-semibold">Vista previa</p>
               <p className="text-xs text-[var(--color-muted)]">Así se verá el botón flotante en una página externa.</p>
             </div>
-            <div className="grid grid-cols-2 overflow-hidden rounded-md border border-[var(--color-border)] bg-white">
+            <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-sm)] border border-[var(--color-border)] bg-[var(--fg-inverse)]">
               {([
                 ['bottom-right', 'Derecha'],
                 ['bottom-left', 'Izquierda'],
@@ -372,8 +372,8 @@ export default function SupportWidgetSection({
               ))}
             </div>
           </div>
-          <div className="grid gap-4 bg-white p-3 lg:grid-cols-[minmax(220px,0.85fr)_minmax(320px,1.15fr)]">
-            <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+          <div className="grid gap-4 bg-[var(--fg-inverse)] p-3 lg:grid-cols-[minmax(220px,0.85fr)_minmax(320px,1.15fr)]">
+            <div className="overflow-hidden rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)]">
               <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-alt)] px-3 py-2">
                 <p className="text-xs font-semibold text-[var(--color-foreground)]">Cerrado</p>
                 <p className="text-[11px] text-[var(--color-muted)]">{position === 'bottom-right' ? 'Abajo derecha' : 'Abajo izquierda'}</p>
@@ -383,11 +383,11 @@ export default function SupportWidgetSection({
                 title="Vista previa cerrada del widget de apoyo"
                 srcDoc={closedPreviewDoc}
                 sandbox="allow-scripts allow-popups"
-                className="block h-[240px] w-full bg-white"
+                className="block h-[240px] w-full bg-[var(--fg-inverse)]"
               />
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+            <div className="overflow-hidden rounded-[var(--r-md)] border border-[var(--color-border)] bg-[var(--fg-inverse)]">
               <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-alt)] px-3 py-2">
                 <p className="text-xs font-semibold text-[var(--color-foreground)]">Abierto</p>
                 <p className="text-[11px] text-[var(--color-muted)]">{position === 'bottom-right' ? 'Abajo derecha' : 'Abajo izquierda'}</p>
@@ -397,7 +397,7 @@ export default function SupportWidgetSection({
                 title="Vista previa abierta del widget de apoyo"
                 srcDoc={openPreviewDoc}
                 sandbox="allow-scripts allow-popups"
-                className="block h-[420px] w-full bg-white"
+                className="block h-[420px] w-full bg-[var(--fg-inverse)]"
               />
             </div>
           </div>

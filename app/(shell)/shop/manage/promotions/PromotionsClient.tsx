@@ -125,7 +125,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
       </p>
 
       {/* Create form */}
-      <form onSubmit={handleCreate} className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
+      <form onSubmit={handleCreate} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-8">
         <h2 className="font-semibold mb-4">Nuevo cupón</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -137,12 +137,12 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
                 onChange={e => setCode(e.target.value.toUpperCase())}
                 placeholder="VERANO20"
                 maxLength={24}
-                className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-mono tracking-wide bg-[var(--color-background)]"
+                className="flex-1 border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm font-mono tracking-wide bg-[var(--color-background)]"
               />
               <button
                 type="button"
                 onClick={() => setCode(randomCode())}
-                className="px-3 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--surface-muted)] whitespace-nowrap"
+                className="px-3 py-2 text-sm border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface-muted)] whitespace-nowrap"
               >
                 Generar
               </button>
@@ -154,7 +154,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
             <select
               value={type}
               onChange={e => setType(e.target.value as DiscountType)}
-              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--color-background)]"
             >
               <option value="percentage">Porcentaje (%)</option>
               <option value="fixed">Monto fijo (MXN)</option>
@@ -172,7 +172,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
               value={value}
               onChange={e => setValue(e.target.value)}
               placeholder={type === 'percentage' ? '20' : '100'}
-              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--color-background)]"
             />
           </div>
 
@@ -182,7 +182,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
               type="date"
               value={expiry}
               onChange={e => setExpiry(e.target.value)}
-              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--color-background)]"
             />
           </div>
 
@@ -195,7 +195,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
               value={usageLimit}
               onChange={e => setUsageLimit(e.target.value)}
               placeholder="Sin límite"
-              className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--color-background)]"
             />
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
         <button
           type="submit"
           disabled={creating}
-          className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50"
+          className="mt-4 px-4 py-2 text-sm font-medium rounded-[var(--r-md)] bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50"
         >
           {creating ? 'Creando…' : 'Crear cupón'}
         </button>
@@ -227,15 +227,15 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
             return (
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-4 border border-[var(--color-border)] rounded-xl px-4 py-3"
+                className="flex items-center justify-between gap-4 border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-3"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono font-semibold tracking-wide">{c.code}</span>
                     <span className="text-sm text-[var(--color-muted)]">· {formatDiscount(c)} de descuento</span>
-                    {!c.active && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">Inactivo</span>}
-                    {expired && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">Vencido</span>}
-                    {depleted && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Agotado</span>}
+                    {!c.active && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-[var(--r-sm)] bg-gray-100 text-gray-600">Inactivo</span>}
+                    {expired && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-[var(--r-sm)] bg-red-100 text-red-600">Vencido</span>}
+                    {depleted && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-[var(--r-sm)] bg-amber-100 text-amber-700">Agotado</span>}
                   </div>
                   <div className="text-xs text-[var(--color-muted)] mt-0.5">
                     {formatExpiry(c.expiry)} · {c.usage_limit != null ? `${c.uses} / ${c.usage_limit} usos` : `${c.uses} usos`}

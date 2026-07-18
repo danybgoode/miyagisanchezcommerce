@@ -139,17 +139,17 @@ export default function SubmissionsQueue() {
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
       {items.length === 0 ? (
-        <div className="border border-dashed border-[var(--color-border)] rounded-xl p-6 text-center text-sm text-[var(--color-muted)]">
+        <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] p-6 text-center text-sm text-[var(--color-muted)]">
           Aún no recibes manuscritos. Comparte tu página de convocatoria para empezar.
         </div>
       ) : (
         <div className="space-y-3">
           {items.map(item => (
-            <div key={item.id} className="border border-[var(--color-border)] rounded-xl p-4">
+            <div key={item.id} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                    <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-[var(--r-pill)]"
                       style={{ color: STATUS_COLOR[item.status], border: `1px solid ${STATUS_COLOR[item.status]}` }}>
                       {STATUS_LABEL[item.status]}
                     </span>
@@ -163,7 +163,7 @@ export default function SubmissionsQueue() {
                 <a
                   href={`/api/sell/launchpad/submissions/${item.id}/download`}
                   target="_blank" rel="noreferrer"
-                  className="shrink-0 inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[var(--color-border)] no-underline hover:bg-[var(--color-surface-alt)]"
+                  className="shrink-0 inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] no-underline hover:bg-[var(--color-surface-alt)]"
                 >
                   <i className="iconoir-download" style={{ fontSize: 14 }} />
                   {item.manuscript_format.toUpperCase()}{item.manuscript_size ? ` · ${formatSize(item.manuscript_size)}` : ''}
@@ -175,7 +175,7 @@ export default function SubmissionsQueue() {
               )}
 
               {item.review_note && (
-                <p className="text-xs mt-3 p-2 rounded-lg bg-[var(--color-surface-alt)] text-[var(--color-muted)]">
+                <p className="text-xs mt-3 p-2 rounded-[var(--r-md)] bg-[var(--color-surface-alt)] text-[var(--color-muted)]">
                   <strong>Tu nota al autor:</strong> {item.review_note}
                 </p>
               )}
@@ -186,7 +186,7 @@ export default function SubmissionsQueue() {
                   <button
                     onClick={() => publish(item)}
                     disabled={busyId === item.id}
-                    className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white font-semibold disabled:opacity-50"
+                    className="text-sm px-3 py-1.5 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white font-semibold disabled:opacity-50"
                   >
                     Publicar como producto digital
                   </button>
@@ -194,7 +194,7 @@ export default function SubmissionsQueue() {
                 {item.status === 'approved' && item.published_product_id && (
                   <a
                     href="/shop/manage/catalogo"
-                    className="text-sm px-3 py-1.5 rounded-lg border border-[var(--color-border)] font-medium no-underline hover:bg-[var(--color-surface-alt)]"
+                    className="text-sm px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] font-medium no-underline hover:bg-[var(--color-surface-alt)]"
                   >
                     Editar borrador y activar →
                   </a>
@@ -204,7 +204,7 @@ export default function SubmissionsQueue() {
                     key={to}
                     onClick={() => act(item, to)}
                     disabled={busyId === item.id}
-                    className="text-sm px-3 py-1.5 rounded-lg border border-[var(--color-border)] font-medium disabled:opacity-50 hover:bg-[var(--color-surface-alt)]"
+                    className="text-sm px-3 py-1.5 rounded-[var(--r-md)] border border-[var(--color-border)] font-medium disabled:opacity-50 hover:bg-[var(--color-surface-alt)]"
                   >
                     {ACTION_LABEL[to]}
                   </button>

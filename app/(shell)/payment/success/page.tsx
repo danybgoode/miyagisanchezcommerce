@@ -223,7 +223,7 @@ export default async function PaymentSuccessPage({
         )}
 
         {listingType === 'digital' && (
-          <div className="border border-blue-200 bg-blue-50 rounded-xl p-5 mb-6 text-left">
+          <div className="border border-blue-200 bg-blue-50 rounded-[var(--r-md)] p-5 mb-6 text-left">
             <div className="flex items-center gap-2 mb-2">
               <i className="iconoir-download text-xl" aria-hidden />
               <span className="font-semibold text-blue-800">Entrega digital</span>
@@ -232,7 +232,7 @@ export default async function PaymentSuccessPage({
               <>
                 <p className="text-sm text-blue-700 mb-3">Tu archivo está listo. También te lo enviamos por correo.</p>
                 <a href={order.digital_download_url}
-                  className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold text-sm no-underline hover:bg-blue-700 transition-colors">
+                  className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-2.5 rounded-[var(--r-md)] font-semibold text-sm no-underline hover:bg-blue-700 transition-colors">
                   <i className="iconoir-download" aria-hidden /> Descargar ahora
                 </a>
                 {order.digital_download_expires_at && (
@@ -250,7 +250,7 @@ export default async function PaymentSuccessPage({
         )}
 
         {listingType !== 'digital' && (
-          <div className="border border-[var(--color-border)] rounded-xl p-4 mb-6 text-sm text-left">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
             <p className="text-[var(--color-muted)]">
               El vendedor recibirá una notificación y se pondrá en contacto contigo para coordinar la entrega.
             </p>
@@ -260,7 +260,7 @@ export default async function PaymentSuccessPage({
         <div className="flex flex-col gap-3">
           {listingId && (
             <Link href={`/l/${listingId}`}
-              className="border border-[var(--color-border)] px-5 py-2.5 rounded-lg text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
+              className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}
@@ -341,7 +341,7 @@ function SupportSuccessUI({
           {amountPaid ? <>Tu contribución de <strong className="text-[var(--color-foreground)]">{amountPaid}</strong> fue recibida.</> : 'Tu contribución fue recibida.'}
         </p>
 
-        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-6 text-sm text-left">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
           <div className="flex justify-between gap-3 py-1">
             <span className="text-[var(--color-muted)]">Concepto</span>
             <span className="font-medium text-right">Apoyo / contribución</span>
@@ -357,7 +357,7 @@ function SupportSuccessUI({
         <div className="flex flex-col gap-3">
           {sellerSlug && (
             <Link href={`/s/${sellerSlug}`}
-              className="border border-[var(--color-border)] px-5 py-2.5 rounded-lg text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
+              className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver la tienda
             </Link>
           )}
@@ -389,7 +389,7 @@ function PrintSuccessUI({ amountPaid }: { amountPaid: string | null }) {
         </p>
         <Link
           href="/account/print-ads"
-          className="inline-block bg-[var(--color-accent)] text-white px-6 py-3 rounded-lg font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
+          className="inline-block bg-[var(--color-accent)] text-white px-6 py-3 rounded-[var(--r-md)] font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           Ver mis anuncios
         </Link>
@@ -402,7 +402,7 @@ function PrintSuccessUI({ amountPaid }: { amountPaid: string | null }) {
 
 function CheckIcon() {
   return (
-    <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
+    <div className="w-16 h-16 rounded-[var(--r-pill)] bg-green-100 flex items-center justify-center mx-auto mb-5">
       <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
       </svg>
@@ -430,7 +430,7 @@ function PaymentPendingRecovery({
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
-        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-6">
+        <div className="w-16 h-16 rounded-[var(--r-pill)] bg-amber-100 flex items-center justify-center mx-auto mb-6">
           <span className="text-3xl" aria-hidden>⏳</span>
         </div>
         <h1 className="text-2xl font-bold mb-1">Estamos confirmando tu pedido</h1>
@@ -440,11 +440,11 @@ function PaymentPendingRecovery({
         </p>
         <div className="flex flex-col gap-2">
           <Link href={retryHref} prefetch={false}
-            className="w-full bg-[var(--color-accent)] text-white py-3 rounded-xl text-sm font-semibold no-underline">
+            className="w-full bg-[var(--color-accent)] text-white py-3 rounded-[var(--r-md)] text-sm font-semibold no-underline">
             Revisar de nuevo
           </Link>
           <Link href="/account/orders"
-            className="w-full border border-[var(--color-border)] py-3 rounded-xl text-sm font-semibold no-underline text-[var(--color-text)]">
+            className="w-full border border-[var(--color-border)] py-3 rounded-[var(--r-md)] text-sm font-semibold no-underline text-[var(--color-text)]">
             Ver mis pedidos
           </Link>
         </div>
@@ -487,7 +487,7 @@ function SuccessUI({
         )}
 
         {/* Order summary */}
-        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-4 text-sm text-left">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-4 text-sm text-left">
           <div className="flex justify-between gap-3 py-1">
             <span className="text-[var(--color-muted)]">Artículo</span>
             <span className="font-medium text-right">{itemName}</span>
@@ -506,7 +506,7 @@ function SuccessUI({
           )}
         </div>
 
-        <div className="border border-[var(--color-border)] rounded-xl p-4 mb-6 text-sm text-left">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
           <p className="text-[var(--color-muted)]">
             El vendedor recibirá una notificación y se pondrá en contacto contigo para coordinar la entrega.
           </p>
@@ -514,12 +514,12 @@ function SuccessUI({
 
         <div className="flex flex-col gap-3">
           <Link href="/account/orders"
-            className="bg-[var(--color-foreground)] text-[var(--color-background)] px-5 py-2.5 rounded-lg text-sm font-semibold no-underline hover:opacity-90 transition-opacity">
+            className="bg-[var(--color-foreground)] text-[var(--color-background)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-semibold no-underline hover:opacity-90 transition-opacity">
             Ver mis pedidos
           </Link>
           {listingId && (
             <Link href={`/l/${listingId}`}
-              className="border border-[var(--color-border)] px-5 py-2.5 rounded-lg text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
+              className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}

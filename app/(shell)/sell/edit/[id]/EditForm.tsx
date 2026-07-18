@@ -306,13 +306,13 @@ export default function EditForm({
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3 text-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-[var(--r-sm)] px-4 py-3 text-sm flex items-start gap-2">
           <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-4 py-3 text-sm flex items-center gap-2">
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-[var(--r-sm)] px-4 py-3 text-sm flex items-center gap-2">
           <i className="iconoir-check" aria-hidden />
           <p>Cambios guardados correctamente.</p>
         </div>
@@ -328,7 +328,7 @@ export default function EditForm({
                 key={i}
                 src={img.url}
                 alt={img.alt ?? ''}
-                className="w-20 h-20 object-cover rounded-md border border-[var(--color-border)]"
+                className="w-20 h-20 object-cover rounded-[var(--r-sm)] border border-[var(--color-border)]"
               />
             ))}
           </div>
@@ -348,7 +348,7 @@ export default function EditForm({
           value={title}
           onChange={e => setTitle(e.target.value)}
           maxLength={100}
-          className={`w-full border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+          className={`w-full border rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
             fieldErrors.title ? 'border-red-400' : 'border-[var(--color-border)]'
           }`}
         />
@@ -363,7 +363,7 @@ export default function EditForm({
           value={description}
           onChange={e => setDescription(e.target.value)}
           rows={5}
-          className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-y"
+          className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-y"
           placeholder="Describe tu anuncio..."
         />
       </div>
@@ -380,7 +380,7 @@ export default function EditForm({
             onChange={e => setExcerpt(e.target.value)}
             rows={8}
             maxLength={EXCERPT_MAX_CHARS}
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-y"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-y"
             placeholder="Pega aquí un fragmento gratuito (por ejemplo, el primer capítulo). Los lectores podrán leerlo en la página del producto antes de comprar."
           />
           <p className="text-xs text-[var(--color-muted)] mt-1">
@@ -418,16 +418,16 @@ export default function EditForm({
 
       {/* Short link (mschz.org) — copy + optional custom slug (US-3b / US-4) */}
       {shortlink && (
-        <div className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-surface-alt)]">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 bg-[var(--color-surface-alt)]">
           <h3 className="text-sm font-medium mb-1">Enlace corto del producto</h3>
           <div className="flex items-center gap-2 mt-2">
-            <code className="flex-1 min-w-0 truncate text-sm font-mono bg-white border border-[var(--color-border)] rounded px-3 py-2">
+            <code className="flex-1 min-w-0 truncate text-sm font-mono bg-[var(--fg-inverse)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
               {shortUrl}
             </code>
             <button
               type="button"
               onClick={() => { navigator.clipboard.writeText(`https://${shortUrl}`); setShortCopied(true); setTimeout(() => setShortCopied(false), 2000) }}
-              className={`text-xs px-3 py-2 rounded transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-white'}`}
+              className={`text-xs px-3 py-2 rounded-[var(--r-sm)] transition-colors whitespace-nowrap ${shortCopied ? 'bg-green-100 text-green-700' : 'bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--fg-inverse)]'}`}
             >
               {shortCopied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
             </button>
@@ -466,7 +466,7 @@ export default function EditForm({
               value={priceRaw}
               onChange={e => setPriceRaw(e.target.value)}
               placeholder="0.00"
-              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+              className={`w-full border rounded-[var(--r-sm)] pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
                 fieldErrors.price ? 'border-red-400' : 'border-[var(--color-border)]'
               }`}
             />
@@ -476,7 +476,7 @@ export default function EditForm({
         </div>
       )}
       {isSubscription && (
-        <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-muted)]">
+        <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-3 text-sm text-[var(--color-muted)]">
           <i className="iconoir-light-bulb" aria-hidden /> Los precios de suscripción se gestionan en los planes del anuncio.
         </div>
       )}
@@ -496,7 +496,7 @@ export default function EditForm({
               value={costRaw}
               onChange={e => setCostRaw(e.target.value)}
               placeholder="0.00"
-              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+              className={`w-full border rounded-[var(--r-sm)] pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
                 fieldErrors.unit_cost ? 'border-red-400' : 'border-[var(--color-border)]'
               }`}
             />
@@ -523,7 +523,7 @@ export default function EditForm({
               value={mlPriceRaw}
               onChange={e => setMlPriceRaw(e.target.value)}
               placeholder="Igual que el precio en Miyagi"
-              className={`w-full border rounded pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+              className={`w-full border rounded-[var(--r-sm)] pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
                 fieldErrors.ml_price ? 'border-red-400' : 'border-[var(--color-border)]'
               }`}
             />
@@ -554,7 +554,7 @@ export default function EditForm({
                     key={opt.value}
                     type="button"
                     onClick={() => setInventoryMode(opt.value)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    className={`text-xs px-3 py-1.5 rounded-[var(--r-pill)] border transition-colors ${
                       inventoryMode === opt.value
                         ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
                         : 'border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]'
@@ -586,7 +586,7 @@ export default function EditForm({
                 value={quantityRaw}
                 onChange={e => setQuantityRaw(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="0"
-                className={`w-32 border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
+                className={`w-32 border rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition ${
                   fieldErrors.quantity ? 'border-red-400' : 'border-[var(--color-border)]'
                 }`}
               />
@@ -611,7 +611,7 @@ export default function EditForm({
               <select
                 value={dispatchEstimate}
                 onChange={e => setDispatchEstimate(e.target.value)}
-                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               >
                 <option value="">Selecciona…</option>
                 {Object.entries(PROCESSING_LABELS).map(([key, label]) => (
@@ -666,7 +666,7 @@ export default function EditForm({
           Ubicación / Location
         </label>
         {hasLegacyLocation && !listingState && (
-          <div className="mb-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-xs">
+          <div className="mb-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-[var(--r-md)] px-3 py-2 text-xs">
             <i className="iconoir-warning-triangle" aria-hidden /> Actualizar ubicación / Update location — tu anuncio tiene una ubicación guardada como texto libre (&quot;{initial.state}&quot;). Selecciona el estado correcto para que aparezca en los filtros de búsqueda.
           </div>
         )}
@@ -674,7 +674,7 @@ export default function EditForm({
           <select
             value={listingState}
             onChange={e => { setListingState(e.target.value); setListingCity('') }}
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
           >
             <option value="">Estado / State (opcional)</option>
             {ESTADOS.map(e => (
@@ -685,7 +685,7 @@ export default function EditForm({
             value={listingCity}
             onChange={e => setListingCity(e.target.value)}
             disabled={!listingState}
-            className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">{listingState ? 'Municipio (opcional)' : 'Primero elige estado'}</option>
             {(CITIES_BY_STATE[listingState] ?? []).map(c => (
@@ -699,7 +699,7 @@ export default function EditForm({
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-[var(--color-accent)] text-white font-semibold py-3 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full bg-[var(--color-accent)] text-white font-semibold py-3 rounded-[var(--r-md)] text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {saving ? 'Guardando…' : <><i className="iconoir-check" aria-hidden /> Guardar cambios</>}
       </button>

@@ -139,7 +139,7 @@ export default function EventsManager({
         <button
           type="button"
           onClick={() => { setForm(emptyForm); setMessage(null); setError(null) }}
-          className="px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm font-semibold"
+          className="px-4 py-2 rounded-[var(--r-md)] bg-[var(--color-accent)] text-white text-sm font-semibold"
         >
           {ui.newEvent}
         </button>
@@ -149,50 +149,50 @@ export default function EventsManager({
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.95fr] gap-6">
-        <form onSubmit={save} className="border border-[var(--color-border)] rounded-lg p-5">
+        <form onSubmit={save} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5">
           <h2 className="font-semibold mb-4">{editing ? ui.edit : ui.newEvent}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.titleLabel}
-              <input value={form.title} onChange={e => set('title', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.title} onChange={e => set('title', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium sm:col-span-2">
               {ui.description}
-              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.startsAt}
-              <input type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.capacity}
-              <input type="number" min="1" value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="120" className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input type="number" min="1" value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="120" className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
               <span className="block text-xs text-[var(--color-muted)] mt-1">{ui.capacityHint}</span>
             </label>
             <label className="block text-sm font-medium">
               {ui.venueName}
-              <input value={form.venue_name} onChange={e => set('venue_name', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.venue_name} onChange={e => set('venue_name', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             <label className="block text-sm font-medium">
               {ui.venueAddress}
-              <input value={form.venue_address} onChange={e => set('venue_address', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
+              <input value={form.venue_address} onChange={e => set('venue_address', e.target.value)} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]" />
             </label>
             {editing && (
               <label className="block text-sm font-medium">
                 {ui.statusLabel}
-                <select value={form.status} onChange={e => set('status', e.target.value as FormState['status'])} className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]">
+                <select value={form.status} onChange={e => set('status', e.target.value as FormState['status'])} className="mt-1 w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 bg-[var(--color-background)]">
                   <option value="active">{ui.statusActive}</option>
                   <option value="cancelled">{ui.statusCancelled}</option>
                 </select>
               </label>
             )}
           </div>
-          <button disabled={saving} className="mt-5 bg-[var(--color-accent)] text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50">
+          <button disabled={saving} className="mt-5 bg-[var(--color-accent)] text-white rounded-[var(--r-md)] px-4 py-2 text-sm font-semibold disabled:opacity-50">
             {saving ? ui.saving : ui.save}
           </button>
         </form>
 
-        <section className="border border-[var(--color-border)] rounded-lg p-5">
+        <section className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5">
           <h2 className="font-semibold mb-4">{ui.events}</h2>
           {events.length === 0 ? (
             <p className="text-sm text-[var(--color-muted)]">{ui.empty}</p>
@@ -201,13 +201,13 @@ export default function EventsManager({
               {events.map(event => {
                 const selected = selectedEvent?.id === event.id
                 return (
-                  <div key={event.id} className={`border border-[var(--color-border)] rounded-lg p-4 ${selected ? 'bg-[var(--color-surface-alt)]' : ''}`}>
+                  <div key={event.id} className={`border border-[var(--color-border)] rounded-[var(--r-md)] p-4 ${selected ? 'bg-[var(--color-surface-alt)]' : ''}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{event.title}</h3>
                         <p className="text-sm text-[var(--color-muted)] mt-1">{formatDate(event.starts_at)} · {event.venue_name}</p>
                       </div>
-                      <span className="text-xs rounded-full px-2 py-1 bg-[var(--color-surface-alt)] text-[var(--color-muted)]">
+                      <span className="text-xs rounded-[var(--r-pill)] px-2 py-1 bg-[var(--color-surface-alt)] text-[var(--color-muted)]">
                         {event.status === 'active' ? ui.statusActive : ui.statusCancelled}
                       </span>
                     </div>
@@ -222,11 +222,11 @@ export default function EventsManager({
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={`/e/${event.slug}`} target="_blank" className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.viewPublic}</Link>
-                      <Link href={`/shop/manage/eventos/${event.id}`} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.roster}</Link>
-                      <button type="button" onClick={() => copyPublic(event.public_url)} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)]">{ui.copyLink}</button>
-                      <a href={`/api/sell/events/${event.id}/qr`} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)] no-underline">{ui.downloadQr}</a>
-                      <button type="button" onClick={() => { setForm(formFromEvent(event)); setMessage(null); setError(null) }} className="text-xs px-3 py-2 rounded-lg border border-[var(--color-border)]">{ui.edit}</button>
+                      <Link href={`/e/${event.slug}`} target="_blank" className="text-xs px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] no-underline">{ui.viewPublic}</Link>
+                      <Link href={`/shop/manage/eventos/${event.id}`} className="text-xs px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] no-underline">{ui.roster}</Link>
+                      <button type="button" onClick={() => copyPublic(event.public_url)} className="text-xs px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)]">{ui.copyLink}</button>
+                      <a href={`/api/sell/events/${event.id}/qr`} className="text-xs px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)] no-underline">{ui.downloadQr}</a>
+                      <button type="button" onClick={() => { setForm(formFromEvent(event)); setMessage(null); setError(null) }} className="text-xs px-3 py-2 rounded-[var(--r-md)] border border-[var(--color-border)]">{ui.edit}</button>
                     </div>
                   </div>
                 )

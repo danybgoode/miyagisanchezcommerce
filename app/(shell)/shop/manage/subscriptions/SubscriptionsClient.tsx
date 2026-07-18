@@ -73,13 +73,13 @@ export default function SubscriptionsClient({
     const listing = getListing(sub)
     const st = STATUS_LABEL[sub.status] ?? { label: sub.status, color: 'bg-gray-100 text-gray-600' }
     return (
-      <div key={sub.id} className="border border-[var(--color-border)] rounded-lg p-4 space-y-2">
+      <div key={sub.id} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-medium text-sm truncate">{sub.buyer_name ?? 'Comprador'}</p>
             <p className="text-xs text-[var(--color-muted)] truncate">Suscripción {sub.id.slice(0, 8)}</p>
           </div>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${st.color}`}>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-[var(--r-pill)] shrink-0 ${st.color}`}>
             {st.label}
           </span>
         </div>
@@ -96,7 +96,7 @@ export default function SubscriptionsClient({
             type="button"
             onClick={() => confirmSpei(sub.id)}
             disabled={confirming === sub.id}
-            className="w-full bg-[var(--color-accent)] text-white text-sm font-semibold py-2 rounded transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
+            className="w-full bg-[var(--color-accent)] text-white text-sm font-semibold py-2 rounded-[var(--r-sm)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60"
           >
             {confirming === sub.id ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar pago SPEI recibido</>}
           </button>
@@ -116,7 +116,7 @@ export default function SubscriptionsClient({
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3 flex items-center gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-[var(--r-sm)] px-4 py-3 flex items-center gap-2">
           <i className="iconoir-warning-triangle" aria-hidden /> {error}
         </div>
       )}

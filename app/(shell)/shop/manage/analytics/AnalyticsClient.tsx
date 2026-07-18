@@ -56,22 +56,22 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">MRR</p>
           <p className="text-xl font-bold text-[var(--color-accent)] mt-1">{fmt(data.mrr, data.currency)}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">ingresos / mes</p>
         </div>
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">ARR</p>
           <p className="text-xl font-bold text-[var(--color-text)] mt-1">{fmt(data.arr, data.currency)}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">ingresos / año</p>
         </div>
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">Suscriptores</p>
           <p className="text-xl font-bold text-[var(--color-text)] mt-1">{data.activeCount}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">activos ahora</p>
         </div>
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">Churn (30d)</p>
           <p className={`text-xl font-bold mt-1 ${data.churnedThisMonth > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {churnRate}%
@@ -82,14 +82,14 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="border border-[var(--color-border)] rounded-xl p-4 flex items-center gap-3">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 flex items-center gap-3">
           <span className="text-2xl">🆕</span>
           <div>
             <p className="text-lg font-bold text-[var(--color-text)]">+{data.newThisMonth}</p>
             <p className="text-xs text-[var(--color-muted)]">nuevos este mes</p>
           </div>
         </div>
-        <div className="border border-[var(--color-border)] rounded-xl p-4 flex items-center gap-3">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 flex items-center gap-3">
           <span className="text-2xl">⏳</span>
           <div>
             <p className="text-lg font-bold text-[var(--color-text)]">{data.pendingCount}</p>
@@ -102,7 +102,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
       {data.planBreakdown.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Desglose por plan</h2>
-          <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-[var(--color-background)]">
                 <tr>
@@ -134,7 +134,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
             <p className="text-sm">Aún no hay suscriptores.</p>
           </div>
         ) : (
-          <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-[var(--color-background)]">
                 <tr>
@@ -157,7 +157,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
                         <span className="text-xs uppercase font-medium text-[var(--color-muted)]">{sub.payment_method}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusCls}`}>{sub.status}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-[var(--r-pill)] ${statusCls}`}>{sub.status}</span>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-[var(--color-muted)]">{fmtDate(sub.created_at)}</td>
                     </tr>

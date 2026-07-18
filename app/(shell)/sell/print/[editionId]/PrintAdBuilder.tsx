@@ -240,7 +240,7 @@ export default function PrintAdBuilder({
           Aparta tu lugar en <strong>{edition.title}</strong>. Realiza el pago para confirmar tu anuncio.
         </p>
         {(manualInfo.spei?.clabe || manualInfo.dimo?.phone || manualInfo.cash?.note) ? (
-          <div className="border border-[var(--color-border)] rounded-xl p-4 text-left text-sm space-y-3">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-left text-sm space-y-3">
             {tier && <div className="pb-2 border-b border-[var(--color-border)]">Monto: <strong>{formatMXN(tier.price_cents)}</strong></div>}
             {manualInfo.spei?.clabe && (
               <div className="space-y-0.5">
@@ -291,7 +291,7 @@ export default function PrintAdBuilder({
               type="button"
               disabled={t.sold_out}
               onClick={() => setTierKey(t.key)}
-              className={`text-left rounded-xl border p-3 transition-colors ${
+              className={`text-left rounded-[var(--r-md)] border p-3 transition-colors ${
                 t.sold_out ? 'opacity-40 cursor-not-allowed border-[var(--color-border)]'
                   : tierKey === t.key ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-accent)]'
@@ -309,22 +309,22 @@ export default function PrintAdBuilder({
       <Section title="2 · Texto del anuncio">
         <Field label="Titular" hint="El gancho principal (ej. tu nombre o promoción)">
           <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={60}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
+            className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
         </Field>
         <Field label="Subtítulo" hint="Opcional">
           <input value={subhead} onChange={(e) => setSubhead(e.target.value)} maxLength={90}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
+            className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
         </Field>
         <Field label="Descripción" hint="Qué ofreces, en pocas palabras">
           <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={280} rows={3}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
+            className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
         </Field>
       </Section>
 
       {/* Images */}
       <Section title="3 · Logo y fotos">
         <div className="flex items-center gap-3">
-          {logoUrl && <img src={logoUrl} alt="logo" className="h-14 w-14 rounded-lg object-cover border border-[var(--color-border)]" />}
+          {logoUrl && <img src={logoUrl} alt="logo" className="h-14 w-14 rounded-[var(--r-md)] object-cover border border-[var(--color-border)]" />}
           <label className="text-sm text-[var(--color-accent)] cursor-pointer">
             {logoUrl ? 'Cambiar logo' : 'Subir logo'}
             <input type="file" accept="image/*" className="hidden"
@@ -335,14 +335,14 @@ export default function PrintAdBuilder({
           <div className="flex flex-wrap gap-2">
             {photos.map((url) => (
               <div key={url} className="relative">
-                <img src={url} alt="" className="h-20 w-20 rounded-lg object-cover border border-[var(--color-border)]" />
+                <img src={url} alt="" className="h-20 w-20 rounded-[var(--r-md)] object-cover border border-[var(--color-border)]" />
                 <button type="button" onClick={() => setPhotos((p) => p.filter((u) => u !== url))}
-                  className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full h-5 w-5 text-xs">×</button>
+                  className="absolute -top-2 -right-2 bg-black/70 text-white rounded-[var(--r-pill)] h-5 w-5 text-xs">×</button>
               </div>
             ))}
             {photos.length < 4 && (
               <button type="button" onClick={() => photoInput.current?.click()}
-                className="h-20 w-20 rounded-lg border-2 border-dashed border-[var(--color-border)] text-[var(--color-muted)] text-2xl">+</button>
+                className="h-20 w-20 rounded-[var(--r-md)] border-2 border-dashed border-[var(--color-border)] text-[var(--color-muted)] text-2xl">+</button>
             )}
           </div>
           <input ref={photoInput} type="file" accept="image/*" multiple className="hidden"
@@ -355,26 +355,26 @@ export default function PrintAdBuilder({
       <Section title="4 · Contacto y enlace">
         <Field label="WhatsApp" hint="Aparece como botón directo en el anuncio">
           <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
+            className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
         </Field>
         <Field label="Teléfono" hint="Opcional">
           <input value={phone} onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
+            className="w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent" />
         </Field>
         <Field label="¿A dónde lleva el código QR?" hint="">
           <div className="flex gap-2">
             <button type="button" onClick={() => setCtaType('shop')}
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm ${ctaType === 'shop' ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}>
+              className={`flex-1 rounded-[var(--r-md)] border px-3 py-2 text-sm ${ctaType === 'shop' ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}>
               Mi tienda
             </button>
             <button type="button" disabled={listings.length === 0} onClick={() => setCtaType('listing')}
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm disabled:opacity-40 ${ctaType === 'listing' ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}>
+              className={`flex-1 rounded-[var(--r-md)] border px-3 py-2 text-sm disabled:opacity-40 ${ctaType === 'listing' ? 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]' : 'border-[var(--color-border)]'}`}>
               Un anuncio
             </button>
           </div>
           {ctaType === 'listing' && listings.length > 0 && (
             <select value={ctaListingId} onChange={(e) => setCtaListingId(e.target.value)}
-              className="mt-2 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent">
+              className="mt-2 w-full rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-2 text-sm bg-transparent">
               {listings.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
             </select>
           )}
@@ -402,9 +402,9 @@ export default function PrintAdBuilder({
                   <input value={couponInput} onChange={e => { setCouponInput(e.target.value.toUpperCase()); if (couponError) setCouponError(null) }}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
                     placeholder="¿Tienes un cupón?" maxLength={24}
-                    className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-mono bg-[var(--color-background)]" />
+                    className="flex-1 border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm font-mono bg-[var(--color-background)]" />
                   <button type="button" onClick={applyCoupon} disabled={couponValidating || !couponInput.trim()}
-                    className="px-3 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] disabled:opacity-50">
+                    className="px-3 py-2 text-sm font-medium rounded-[var(--r-md)] border border-[var(--color-border)] disabled:opacity-50">
                     {couponValidating ? '…' : 'Aplicar'}
                   </button>
                 </div>
@@ -422,7 +422,7 @@ export default function PrintAdBuilder({
         {isResubmit ? (
           // Rejected ad (already paid): edit + resubmit, no re-payment.
           <button type="button" onClick={onResubmit} disabled={!tier || busy !== null}
-            className="w-full bg-[var(--color-accent)] text-white rounded-lg py-3 font-semibold disabled:opacity-50">
+            className="w-full bg-[var(--color-accent)] text-white rounded-[var(--r-md)] py-3 font-semibold disabled:opacity-50">
             {busy === 'saving' ? 'Reenviando…' : 'Reenviar para revisión'}
           </button>
         ) : isLockedEdit ? (
@@ -433,16 +433,16 @@ export default function PrintAdBuilder({
         ) : (
           <div className="flex flex-col gap-2">
             <button type="button" onClick={() => onPay('stripe')} disabled={!tier || busy !== null}
-              className="w-full bg-[var(--color-accent)] text-white rounded-lg py-3 font-semibold disabled:opacity-50">
+              className="w-full bg-[var(--color-accent)] text-white rounded-[var(--r-md)] py-3 font-semibold disabled:opacity-50">
               {busy === 'paying' ? 'Procesando…' : 'Pagar con tarjeta'}
             </button>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => onPay('mercadopago')} disabled={!tier || busy !== null}
-                className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
+                className="rounded-[var(--r-md)] border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
                 MercadoPago
               </button>
               <button type="button" onClick={() => onPay('manual')} disabled={!tier || busy !== null}
-                className="rounded-lg border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
+                className="rounded-[var(--r-md)] border border-[var(--color-border)] py-2.5 text-sm font-medium disabled:opacity-50">
                 Pago directo
               </button>
             </div>

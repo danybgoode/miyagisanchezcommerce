@@ -49,26 +49,26 @@ export default function CatalogFilterBar({
           name="q"
           defaultValue={params.q ?? ''}
           placeholder="Buscar por título o SKU…"
-          className="flex-1 min-w-[180px] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
+          className="flex-1 min-w-[180px] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm"
         />
-        <select name="category" defaultValue={params.category ?? ''} className="border border-[var(--color-border)] rounded-lg px-2 py-2 text-sm">
+        <select name="category" defaultValue={params.category ?? ''} className="border border-[var(--color-border)] rounded-[var(--r-md)] px-2 py-2 text-sm">
           <option value="">Toda categoría</option>
           {categories.map((c) => (
             <option key={c.key} value={c.key}>{c.label}</option>
           ))}
         </select>
-        <select name="channel" defaultValue={params.channel ?? ''} className="border border-[var(--color-border)] rounded-lg px-2 py-2 text-sm">
+        <select name="channel" defaultValue={params.channel ?? ''} className="border border-[var(--color-border)] rounded-[var(--r-md)] px-2 py-2 text-sm">
           <option value="">Todo canal</option>
           <option value="miyagi">Solo Miyagi</option>
           <option value="ml">+ Mercado Libre</option>
         </select>
-        <select name="stock" defaultValue={params.stock ?? ''} className="border border-[var(--color-border)] rounded-lg px-2 py-2 text-sm">
+        <select name="stock" defaultValue={params.stock ?? ''} className="border border-[var(--color-border)] rounded-[var(--r-md)] px-2 py-2 text-sm">
           <option value="">Todo inventario</option>
           <option value="in_stock">Con stock</option>
           <option value="agotado">Agotado</option>
           <option value="unlimited">Sin límite</option>
         </select>
-        <select name="sort" defaultValue={params.sort ?? 'recent'} className="border border-[var(--color-border)] rounded-lg px-2 py-2 text-sm">
+        <select name="sort" defaultValue={params.sort ?? 'recent'} className="border border-[var(--color-border)] rounded-[var(--r-md)] px-2 py-2 text-sm">
           <option value="recent">Más reciente</option>
           <option value="title">Título A-Z</option>
           <option value="price_asc">Precio: menor a mayor</option>

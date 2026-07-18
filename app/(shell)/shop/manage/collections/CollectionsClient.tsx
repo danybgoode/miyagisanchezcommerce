@@ -111,7 +111,7 @@ export default function CollectionsClient({ shopName, initialCollections }: { sh
         Agrupa los anuncios de {shopName} en secciones propias (Die-cut, Zines…) — aparecen como una barra de navegación en tu tienda.
       </p>
 
-      <form onSubmit={handleCreate} className="border border-[var(--color-border)] rounded-xl p-5 mb-8">
+      <form onSubmit={handleCreate} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-8">
         <h2 className="font-semibold mb-4">Nueva colección</h2>
         <div className="flex gap-2">
           <input
@@ -119,12 +119,12 @@ export default function CollectionsClient({ shopName, initialCollections }: { sh
             onChange={e => setName(e.target.value)}
             placeholder="Die-cut"
             maxLength={60}
-            className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-background)]"
+            className="flex-1 border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2 text-sm bg-[var(--color-background)]"
           />
           <button
             type="submit"
             disabled={creating}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            className="px-4 py-2 text-sm font-medium rounded-[var(--r-md)] bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
           >
             {creating ? 'Creando…' : 'Crear'}
           </button>
@@ -144,7 +144,7 @@ export default function CollectionsClient({ shopName, initialCollections }: { sh
           {collections.map((c, i) => (
             <li
               key={c.id}
-              className="flex items-center justify-between gap-4 border border-[var(--color-border)] rounded-xl px-4 py-3"
+              className="flex items-center justify-between gap-4 border border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-3"
             >
               <div className="min-w-0 flex-1">
                 {renamingId === c.id ? (
@@ -155,7 +155,7 @@ export default function CollectionsClient({ shopName, initialCollections }: { sh
                     onBlur={() => commitRename(c)}
                     onKeyDown={e => { if (e.key === 'Enter') commitRename(c); if (e.key === 'Escape') setRenamingId(null) }}
                     maxLength={60}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-2 py-1 text-sm bg-[var(--color-background)]"
+                    className="w-full border border-[var(--color-border)] rounded-[var(--r-md)] px-2 py-1 text-sm bg-[var(--color-background)]"
                   />
                 ) : (
                   <button onClick={() => startRename(c)} className="font-semibold text-left hover:underline">

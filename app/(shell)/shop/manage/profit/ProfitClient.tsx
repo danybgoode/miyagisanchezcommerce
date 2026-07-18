@@ -85,31 +85,31 @@ export default function ProfitClient({
       </div>
 
       {loadFailed && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-[var(--r-md)] px-4 py-3 text-sm">
           No se pudieron cargar tus datos de ganancias. Recarga la página para intentarlo de nuevo.
         </div>
       )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">Ingresos</p>
           <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.revenue)}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">{orderRows.length} ventas</p>
         </div>
         {showMlFees && (
-          <div className="border border-[var(--color-border)] rounded-xl p-4">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
             <p className="text-xs text-[var(--color-muted)] font-medium">Comisiones ML</p>
             <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.fees)}</p>
             <p className="text-xs text-[var(--color-muted)] mt-0.5">cobradas por Mercado Libre</p>
           </div>
         )}
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">Costos + envío</p>
           <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.cogs + totals.shipping)}</p>
           <p className="text-xs text-[var(--color-muted)] mt-0.5">tu costo {formatCents(totals.cogs)} · envío {formatCents(totals.shipping)}</p>
         </div>
-        <div className="border border-[var(--color-border)] rounded-xl p-4">
+        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
           <p className="text-xs text-[var(--color-muted)] font-medium">Ganancia</p>
           <p className={`text-xl font-bold mt-1 ${totals.margin < 0 ? 'text-red-600' : 'text-[var(--color-accent)]'}`}>
             {formatCents(totals.margin)}
@@ -122,14 +122,14 @@ export default function ProfitClient({
       <div>
         <h2 className="text-lg font-semibold text-[var(--color-text)] mb-2">Por pedido</h2>
         {orderRows.length === 0 ? (
-          <div className="border border-dashed border-[var(--color-border)] rounded-lg px-4 py-8 text-center">
+          <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-8 text-center">
             <p className="text-sm text-[var(--color-muted)]">
               Aún no hay ventas registradas en el libro de ganancias. Registra el costo unitario de
               tus anuncios — cada venta nueva quedará aquí con su margen real.
             </p>
           </div>
         ) : (
-          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -180,7 +180,7 @@ export default function ProfitClient({
           <p className="text-xs text-[var(--color-muted)] mb-2">
             Sin envío (el envío es un costo por pedido, no por producto).
           </p>
-          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -215,7 +215,7 @@ export default function ProfitClient({
       {(marginKillers.length > 0 || underpriced.length > 0) && (
         <div className="space-y-3">
           {marginKillers.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <div className="bg-red-50 border border-red-200 rounded-[var(--r-md)] px-4 py-3">
               <p className="text-sm font-semibold text-red-800">Perdiendo margen</p>
               <p className="text-xs text-red-700 mt-0.5">
                 {marginKillers.map((r) => r.title).join(' · ')} — el margen real está por debajo del 5%.
@@ -224,7 +224,7 @@ export default function ProfitClient({
             </div>
           )}
           {underpriced.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-[var(--r-md)] px-4 py-3">
               <p className="text-sm font-semibold text-amber-800">Con espacio para subir precio</p>
               <p className="text-xs text-amber-700 mt-0.5">
                 {underpriced.map((r) => r.title).join(' · ')} — ya tienen buen margen y podrían venderse

@@ -444,7 +444,7 @@ export default function CheckoutExperience({
       {/* ── Delivery section ───────────────────────────────────────────────── */}
       {deliveryMethods.length > 0 && (
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
+          <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
           <div style={{ display: 'grid', gap: 8 }}>
             {deliveryMethods.map(option => (
               <button key={option.id} type="button" onClick={() => setSelectedDeliveryId(option.id)} style={optionButtonStyle(selectedDelivery?.id === option.id)}>
@@ -655,7 +655,7 @@ export default function CheckoutExperience({
 
       {/* ── Payment section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
+        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
 
         {paymentMethods.length === 0 ? (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -744,7 +744,7 @@ export default function CheckoutExperience({
 
       {/* ── Summary section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
+        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
             <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? `Artículos (${items.length})` : quantity > 1 ? `Boletos (${quantity})` : 'Producto'}</span>

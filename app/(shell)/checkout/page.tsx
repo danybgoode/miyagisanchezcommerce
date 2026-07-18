@@ -227,7 +227,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
               {image ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>{listing.title}</p>
+              <p style={{ fontSize: 'var(--t-base)', fontWeight: 700, lineHeight: 1.3 }}>{listing.title}</p>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 3 }}>{listing.shop?.name}</p>
               {isRentalCheckout && rentalBreakdown ? (
                 <div style={{ marginTop: 8 }}>

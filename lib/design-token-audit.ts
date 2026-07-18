@@ -314,6 +314,26 @@ export const enforcedSweptPaths = new Set<string>([
   // ui-refresh-launch S2 · Story 2.2 — marketing polish pass (/agent, /acerca).
   'app/(shell)/agent/page.tsx',
   'app/(shell)/acerca/_components/AboutSections.tsx',
+  // ui-refresh-launch S3 · Story 3.1 — seller portal polish pass. Same
+  // straggler sweep as S2 (bare rounded-* -> --r-*, literal 15/17px ->
+  // --t-*), scoped to /shop/manage/* + /sell/*. 5 files only had literal-
+  // radius debt, 4 only had the literal-fontSize stray — both groups are
+  // fully clean (radius + raw-palette + bg-white) with no pre-existing
+  // color-value debt, so they're added here. The other 24 touched files in
+  // this scope (radius + bg-white fixed too) still carry pre-existing raw
+  // Tailwind palette classes (status pills, success/error banners, terminal
+  // previews) — a color-*value* redesign out of this token-re-skin sprint's
+  // scope, same rationale as SubscriptionSection.tsx in S2.1 — so they are
+  // deliberately NOT added here.
+  'app/(shell)/sell/page.tsx',
+  'app/(shell)/shop/manage/catalogo/page.tsx',
+  'app/(shell)/shop/manage/catalogo/CatalogFilterBar.tsx',
+  'app/(shell)/shop/manage/convocatoria/ConvocatoriaSettingsClient.tsx',
+  'app/(shell)/shop/manage/settings/NotificationPreferences.tsx',
+  'app/(shell)/sell/edit/[id]/PublishToMl.tsx',
+  'app/(shell)/shop/manage/convocatoria/campanas/CampaignsManager.tsx',
+  'app/(shell)/shop/manage/convocatoria/page.tsx',
+  'app/(shell)/shop/manage/mercadolibre/MercadoLibreStatus.tsx',
 ])
 
 export const documentedContrastPairs: ContrastPair[] = [

@@ -38,13 +38,13 @@ export function InspectionReportField({ value, onChange }: {
   }
 
   return (
-    <div className="space-y-2 border border-cyan-200 bg-cyan-50/60 rounded-xl p-4">
+    <div className="space-y-2 border border-cyan-200 bg-cyan-50/60 rounded-[var(--r-md)] p-4">
       <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">
         Reporte de inspección (opcional)
       </p>
 
       {value ? (
-        <div className="flex items-center gap-3 p-3 border border-green-300 bg-green-50 rounded-lg">
+        <div className="flex items-center gap-3 p-3 border border-green-300 bg-green-50 rounded-[var(--r-md)]">
           <i className="iconoir-page text-2xl" aria-hidden />
           <div className="flex-1 min-w-0">
             <a href={value} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline truncate block">
@@ -60,7 +60,7 @@ export function InspectionReportField({ value, onChange }: {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className={`w-full border-2 border-dashed border-[var(--color-border)] rounded-lg py-6 flex flex-col items-center gap-2 transition-colors ${
+          className={`w-full border-2 border-dashed border-[var(--color-border)] rounded-[var(--r-md)] py-6 flex flex-col items-center gap-2 transition-colors ${
             uploading ? 'opacity-60 cursor-not-allowed' : 'hover:border-[var(--color-accent)] cursor-pointer'
           }`}
         >
@@ -90,7 +90,7 @@ export function InspectionReportField({ value, onChange }: {
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder="https://…"
-          className="flex-1 min-w-0 border border-[var(--color-border)] rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+          className="flex-1 min-w-0 border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1 text-xs bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
         />
       </div>
 

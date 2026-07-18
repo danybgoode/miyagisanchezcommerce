@@ -104,13 +104,13 @@ export default function OpcionesSection({
       </p>
 
       {!isActive ? (
-        <div className="border border-dashed border-[var(--color-border)] rounded-lg px-4 py-5 text-center">
+        <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-5 text-center">
           <p className="text-sm text-[var(--color-muted)]">
             Activa el anuncio primero para configurar o ver sus opciones.
           </p>
         </div>
       ) : !grid ? (
-        <div className="border border-dashed border-[var(--color-border)] rounded-lg px-4 py-5 text-center">
+        <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-5 text-center">
           <p className="text-sm text-[var(--color-muted)]">
             No se pudieron cargar las opciones. Recarga la página para intentarlo de nuevo.
           </p>
@@ -203,7 +203,7 @@ function VariantCard({
   const comboLabel = dimensionTitles.map(t => variant.options[t]).filter(Boolean).join(' / ')
 
   return (
-    <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-background)]">
+    <div className="border border-[var(--color-border)] rounded-[var(--r-md)] bg-[var(--color-background)]">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -309,13 +309,13 @@ function TierLadderEditor({
         aplica desde esa cantidad hasta donde empieza el siguiente.
       </p>
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2 flex items-start gap-2">
           <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2">
           <i className="iconoir-check" aria-hidden /> Niveles guardados.
         </div>
       )}
@@ -332,7 +332,7 @@ function TierLadderEditor({
                 value={row.minRaw}
                 disabled={i === 0}
                 onChange={e => update(i, { minRaw: e.target.value.replace(/[^0-9]/g, '') })}
-                className="w-16 border border-[var(--color-border)] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-60"
+                className="w-16 border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:opacity-60"
               />
               pzas
             </label>
@@ -347,7 +347,7 @@ function TierLadderEditor({
                 value={row.priceRaw}
                 onChange={e => update(i, { priceRaw: e.target.value })}
                 placeholder="0.00"
-                className="w-full border border-[var(--color-border)] rounded pl-5 pr-2 py-1.5 text-sm text-right bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] pl-5 pr-2 py-1.5 text-sm text-right bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
               />
             </div>
             <span className="text-xs text-[var(--color-muted)]">c/u</span>
@@ -373,7 +373,7 @@ function TierLadderEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-[var(--r-md)] text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {saving ? 'Guardando…' : 'Guardar niveles'}
         </button>
@@ -438,13 +438,13 @@ function CostEditor({
         Costo unitario ({currency}) <span className="text-xs text-[var(--color-muted)] font-normal">— privado</span>
       </p>
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2 flex items-start gap-2">
           <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2">
           <i className="iconoir-check" aria-hidden /> Costo guardado.
         </div>
       )}
@@ -457,14 +457,14 @@ function CostEditor({
             value={raw}
             onChange={e => setRaw(e.target.value)}
             placeholder="0.00"
-            className="w-28 border border-[var(--color-border)] rounded pl-5 pr-2 py-1.5 text-sm text-right bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+            className="w-28 border border-[var(--color-border)] rounded-[var(--r-sm)] pl-5 pr-2 py-1.5 text-sm text-right bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
           />
         </div>
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-[var(--r-md)] text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {saving ? 'Guardando…' : 'Guardar costo'}
         </button>
@@ -526,13 +526,13 @@ function StockEditor({
     <div>
       <p className="text-sm font-medium text-[var(--color-text)] mb-1">Stock de esta combinación</p>
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm mb-2 flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2 flex items-start gap-2">
           <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
       )}
       {saved && !error && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm mb-2">
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2">
           <i className="iconoir-check" aria-hidden /> Stock actualizado.
         </div>
       )}
@@ -545,13 +545,13 @@ function StockEditor({
           value={raw}
           onChange={e => setRaw(e.target.value.replace(/[^0-9]/g, ''))}
           placeholder="p. ej. 100"
-          className="w-28 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+          className="w-28 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm bg-[var(--fg-inverse)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
         />
         <button
           type="button"
           onClick={handleSave}
           disabled={saving || raw.trim() === ''}
-          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-lg text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="bg-[var(--color-accent)] text-white font-semibold px-4 py-1.5 rounded-[var(--r-md)] text-xs hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {saving ? 'Guardando…' : 'Guardar stock'}
         </button>
@@ -663,7 +663,7 @@ function DimensionsEditor({
 
   if (!open) {
     return (
-      <div className="border border-dashed border-[var(--color-border)] rounded-lg px-4 py-5 text-center">
+      <div className="border border-dashed border-[var(--color-border)] rounded-[var(--r-md)] px-4 py-5 text-center">
         <p className="text-sm text-[var(--color-muted)] mb-2">Sin opciones configuradas.</p>
         <button
           type="button"
@@ -677,9 +677,9 @@ function DimensionsEditor({
   }
 
   return (
-    <div className="border border-[var(--color-border)] rounded-lg p-3 bg-[var(--color-background)] space-y-3">
+    <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 bg-[var(--color-background)] space-y-3">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-[var(--r-sm)] px-3 py-2 text-sm flex items-start gap-2">
           <i className="iconoir-warning-triangle mt-0.5 shrink-0" aria-hidden />
           <p>{error}</p>
         </div>
@@ -688,7 +688,7 @@ function DimensionsEditor({
       {/* Dimension rows */}
       <div className="space-y-3">
         {dims.map((dim, idx) => (
-          <div key={dim.key} className="border border-[var(--color-border)] rounded-lg p-3 bg-white">
+          <div key={dim.key} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-3 bg-[var(--fg-inverse)]">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-medium text-[var(--color-muted)]">Dimensión {idx + 1}</span>
               <button
@@ -704,7 +704,7 @@ function DimensionsEditor({
               onChange={e => updateDim(dim.key, { title: e.target.value })}
               maxLength={MAX_DIMENSION_TEXT_LEN}
               placeholder="Nombre (p. ej. Tamaño)"
-              className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+              className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
             />
             <p className="text-xs text-[var(--color-muted)] mb-1">Valores</p>
             <div className="space-y-1.5">
@@ -720,7 +720,7 @@ function DimensionsEditor({
                     }}
                     maxLength={MAX_DIMENSION_TEXT_LEN}
                     placeholder={`Valor ${i + 1} (p. ej. ${idx === 0 ? '5cm' : 'vinil'})`}
-                    className="flex-1 border border-[var(--color-border)] rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                    className="flex-1 border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                   />
                   <button
                     type="button"
@@ -763,7 +763,7 @@ function DimensionsEditor({
           <p className="text-sm font-medium text-[var(--color-text)] mb-1">
             Precio por combinación ({currency})
           </p>
-          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden bg-white">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden bg-[var(--fg-inverse)]">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -791,7 +791,7 @@ function DimensionsEditor({
                               value={prices[key] ?? ''}
                               onChange={e => setPrices(prev => ({ ...prev, [key]: e.target.value }))}
                               placeholder="0.00"
-                              className="w-24 border border-[var(--color-border)] rounded pl-5 pr-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
+                              className="w-24 border border-[var(--color-border)] rounded-[var(--r-sm)] pl-5 pr-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent"
                             />
                           </div>
                         </td>
@@ -811,12 +811,12 @@ function DimensionsEditor({
           type="button"
           onClick={() => { setError(null); if (validation.ok && allPriced) setConfirming(true); else setError(!validation.ok ? validation.message : 'Ponle precio a cada combinación antes de continuar.') }}
           disabled={saving}
-          className="w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           Crear {comboCount > 0 ? `${comboCount} combinaciones` : 'combinaciones'}
         </button>
       ) : (
-        <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
+        <div className="border border-amber-200 bg-amber-50 rounded-[var(--r-md)] p-3">
           <p className="text-sm text-amber-800 mb-1 font-medium">¿Convertir este anuncio a producto con opciones?</p>
           <ul className="text-xs text-amber-800 list-disc pl-4 space-y-0.5 mb-3">
             <li>Las dimensiones no se podrán editar después (para cambiarlas tendrás que crear un anuncio nuevo).</li>
@@ -830,7 +830,7 @@ function DimensionsEditor({
               type="button"
               onClick={handleConvert}
               disabled={saving}
-              className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-lg text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm hover:bg-[var(--color-accent-hover)] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? 'Creando…' : <><i className="iconoir-check" aria-hidden /> Confirmar y crear</>}
             </button>
@@ -838,7 +838,7 @@ function DimensionsEditor({
               type="button"
               onClick={() => setConfirming(false)}
               disabled={saving}
-              className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-lg text-sm hover:bg-[var(--color-background)] transition"
+              className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-[var(--r-md)] text-sm hover:bg-[var(--color-background)] transition"
             >
               Cancelar
             </button>

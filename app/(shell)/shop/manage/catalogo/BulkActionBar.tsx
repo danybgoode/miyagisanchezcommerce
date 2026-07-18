@@ -295,7 +295,7 @@ export default function BulkActionBar({
   }
 
   return (
-    <div className="sticky top-0 z-10 mb-3 rounded-xl border border-[var(--color-accent)] bg-[var(--color-surface)] p-4 shadow-sm">
+    <div className="sticky top-0 z-10 mb-3 rounded-[var(--r-md)] border border-[var(--color-accent)] bg-[var(--color-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div className="text-sm">
           <strong>{effectiveCount}</strong> anuncio{effectiveCount === 1 ? '' : 's'} seleccionado{effectiveCount === 1 ? '' : 's'}
@@ -327,7 +327,7 @@ export default function BulkActionBar({
           <select
             value={actionType}
             onChange={(e) => setActionType(e.target.value as BulkActionType)}
-            className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+            className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
           >
             <option value="price_pct">Cambiar precio (%)</option>
             <option value="price_set">Fijar precio</option>
@@ -351,7 +351,7 @@ export default function BulkActionBar({
               value={percent}
               onChange={(e) => setPercent(e.target.value)}
               placeholder="10"
-              className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm w-28"
+              className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm w-28"
             />
           </div>
         )}
@@ -364,7 +364,7 @@ export default function BulkActionBar({
               value={priceCents}
               onChange={(e) => setPriceCents(e.target.value)}
               placeholder="199.00"
-              className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm w-28"
+              className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm w-28"
             />
           </div>
         )}
@@ -375,7 +375,7 @@ export default function BulkActionBar({
             <select
               value={pauseTarget}
               onChange={(e) => setPauseTarget(e.target.value as 'active' | 'paused')}
-              className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+              className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
             >
               <option value="paused">Pausar</option>
               <option value="active">Activar</option>
@@ -390,7 +390,7 @@ export default function BulkActionBar({
               <select
                 value={channel}
                 onChange={(e) => setChannel(e.target.value as 'miyagi' | 'ml')}
-                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+                className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
               >
                 <option value="miyagi">Miyagi (marketplace)</option>
                 <option value="ml">Mercado Libre</option>
@@ -401,7 +401,7 @@ export default function BulkActionBar({
               <select
                 value={channelEnabled ? 'on' : 'off'}
                 onChange={(e) => setChannelEnabled(e.target.value === 'on')}
-                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+                className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
               >
                 <option value="on">Publicar</option>
                 <option value="off">Ocultar</option>
@@ -416,7 +416,7 @@ export default function BulkActionBar({
             <select
               value={categoryKey}
               onChange={(e) => setCategoryKey(e.target.value)}
-              className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+              className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
             >
               {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
@@ -431,7 +431,7 @@ export default function BulkActionBar({
             ) : (
               <div className="flex gap-2 flex-wrap max-w-md">
                 {collections.map((c) => (
-                  <label key={c.id} className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded px-2 py-1 cursor-pointer">
+                  <label key={c.id} className="flex items-center gap-1 text-xs border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1 cursor-pointer">
                     <input type="checkbox" checked={selectedCollectionIds.has(c.id)} onChange={() => toggleCollection(c.id)} />
                     {c.name}
                   </label>
@@ -448,7 +448,7 @@ export default function BulkActionBar({
               <select
                 value={inventoryMode}
                 onChange={(e) => setInventoryMode(e.target.value as 'tracked' | 'unlimited' | 'backorder')}
-                className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+                className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
               >
                 <option value="tracked">Rastreado</option>
                 <option value="unlimited">Sin límite</option>
@@ -461,7 +461,7 @@ export default function BulkActionBar({
                 <select
                   value={dispatchEstimate}
                   onChange={(e) => setDispatchEstimate(e.target.value)}
-                  className="border border-[var(--color-border)] rounded px-2 py-1.5 text-sm"
+                  className="border border-[var(--color-border)] rounded-[var(--r-sm)] px-2 py-1.5 text-sm"
                 >
                   {DISPATCH_ESTIMATES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>

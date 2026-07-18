@@ -154,7 +154,7 @@ export default function NotificationPreferences() {
   }
 
   return (
-    <section id="notif-prefs" className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+    <section id="notif-prefs" className="border border-[var(--color-border)] rounded-[var(--r-md)] p-5 mb-5">
       <div className="mb-1 text-base font-semibold">¿Qué te avisamos y por dónde?</div>
       <p className="mb-4 text-xs text-[var(--color-muted)]">
         Elige los canales por tipo de evento. Lo que apagues deja de llegarte.
@@ -190,7 +190,7 @@ export default function NotificationPreferences() {
               type="button"
               onClick={sendTest}
               disabled={tgBusy}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
+              className="rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
             >
               Enviar prueba
             </button>
@@ -198,7 +198,7 @@ export default function NotificationPreferences() {
               type="button"
               onClick={disconnectTelegram}
               disabled={tgBusy}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-danger)] hover:bg-black/5 disabled:opacity-50"
+              className="rounded-[var(--r-md)] border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-danger)] hover:bg-black/5 disabled:opacity-50"
             >
               Desconectar
             </button>
@@ -212,7 +212,7 @@ export default function NotificationPreferences() {
               type="button"
               onClick={connectTelegram}
               disabled={tgBusy}
-              className="self-start rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="self-start rounded-[var(--r-md)] bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               Conecta Telegram
             </button>

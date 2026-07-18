@@ -113,7 +113,7 @@ export default function BulkDiffPreview({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-full overflow-y-auto p-6">
+      <div className="bg-[var(--fg-inverse)] rounded-[var(--r-md)] shadow-xl w-full max-w-3xl max-h-full overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg">Previsualizar cambios en bloque</h2>
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-foreground)]" aria-label="Cerrar">×</button>
@@ -139,14 +139,14 @@ export default function BulkDiffPreview({
             )}
 
             {result && (
-              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm">
+              <div className="mb-4 rounded-[var(--r-md)] bg-green-50 border border-green-200 p-3 text-sm">
                 <strong>{result.applied}</strong> aplicado{result.applied === 1 ? '' : 's'}
                 {result.failed > 0 && <span className="text-red-600"> · {result.failed} falló/fallaron</span>}
                 {result.skipped > 0 && <span> · {result.skipped} ya aplicado(s)</span>}
               </div>
             )}
 
-            <div className="overflow-x-auto border border-[var(--color-border)] rounded-lg mb-4">
+            <div className="overflow-x-auto border border-[var(--color-border)] rounded-[var(--r-md)] mb-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--color-border)] text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
@@ -163,11 +163,11 @@ export default function BulkDiffPreview({
                       <td className="p-2 text-[var(--color-muted)]">{formatValue(item.before)}</td>
                       <td className="p-2 font-medium">{item.valid ? formatValue(item.after) : '—'}</td>
                       <td className="p-2">
-                        {item.status === 'applying' && <span className="inline-block rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-semibold">Aplicando…</span>}
-                        {item.status === 'applied' && <span className="inline-block rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs font-semibold">Aplicado</span>}
-                        {item.status === 'failed' && <span className="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold" title={item.error_message ?? undefined}>Falló</span>}
-                        {item.status === 'pending' && item.valid && <span className="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-semibold">Pendiente</span>}
-                        {item.status === 'pending' && !item.valid && <span className="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold" title={item.error_message ?? undefined}>Corregir</span>}
+                        {item.status === 'applying' && <span className="inline-block rounded-[var(--r-pill)] bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-semibold">Aplicando…</span>}
+                        {item.status === 'applied' && <span className="inline-block rounded-[var(--r-pill)] bg-green-100 text-green-700 px-2 py-0.5 text-xs font-semibold">Aplicado</span>}
+                        {item.status === 'failed' && <span className="inline-block rounded-[var(--r-pill)] bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold" title={item.error_message ?? undefined}>Falló</span>}
+                        {item.status === 'pending' && item.valid && <span className="inline-block rounded-[var(--r-pill)] bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-semibold">Pendiente</span>}
+                        {item.status === 'pending' && !item.valid && <span className="inline-block rounded-[var(--r-pill)] bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold" title={item.error_message ?? undefined}>Corregir</span>}
                       </td>
                     </tr>
                   ))}
@@ -176,7 +176,7 @@ export default function BulkDiffPreview({
             </div>
 
             <div className="flex gap-3 justify-end">
-              <button onClick={onClose} className="px-4 py-2 rounded border border-[var(--color-border)] text-sm hover:bg-gray-50">
+              <button onClick={onClose} className="px-4 py-2 rounded-[var(--r-sm)] border border-[var(--color-border)] text-sm hover:bg-gray-50">
                 Cerrar
               </button>
               <button
