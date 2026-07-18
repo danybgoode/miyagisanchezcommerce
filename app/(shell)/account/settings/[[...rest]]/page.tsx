@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
-import { UserProfile } from '@clerk/nextjs'
+import LazyUserProfile from '@/app/components/clerk-lazy/LazyUserProfile'
 
 export const metadata = { title: 'Configuración de cuenta — Miyagi Sánchez' }
 
@@ -17,7 +17,7 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <UserProfile
+      <LazyUserProfile
         routing="path"
         path="/account/settings"
         appearance={{

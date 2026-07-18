@@ -1,4 +1,4 @@
-import { SignIn } from '@clerk/nextjs'
+import LazySignIn from '@/app/components/clerk-lazy/LazySignIn'
 
 export const metadata = { title: 'Iniciar sesión' }
 
@@ -8,7 +8,7 @@ export default function SignInPage() {
       <p className="text-sm text-[var(--color-muted)] mb-6 text-center">
         Entra a tu cuenta para publicar y gestionar tus anuncios.
       </p>
-      <SignIn routing="hash" />
+      <LazySignIn routing="hash" />
     </div>
   )
 }

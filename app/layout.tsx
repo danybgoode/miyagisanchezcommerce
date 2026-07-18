@@ -5,6 +5,11 @@ import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import SiteAnalytics from '@/app/components/SiteAnalytics'
 import './globals.css'
+// hyper-performant-website S2 · Story 2.1 — replaces the old render-blocking
+// `<link>` to cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main (204 KiB,
+// unpinned @main — see lib/iconoir-subset.ts's header comment). GENERATED —
+// regenerate with `npm run build:iconoir`, never hand-edit.
+import './iconoir-subset.css'
 
 const BASE_URL = 'https://miyagisanchez.com'
 
@@ -101,12 +106,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             rel="stylesheet"
             href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
           />
-          {/* Iconoir — v2 icon library */}
-          <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css"
-          />
-
           {/* iOS PWA: explicit apple-touch-icon for Safari (stable URL beats Next.js hashed path) */}
           <link rel="apple-touch-icon" href="/apple-icon.png" />
 
