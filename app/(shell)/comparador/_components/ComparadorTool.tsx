@@ -35,6 +35,7 @@ import {
   type CompetitorPlatform,
   type ComparadorMiyagiSkus,
 } from '@/lib/cost-comparator-url'
+import type { ShopAnalyzerResult } from '@/lib/shop-url-analyzer'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
 
 export type { CompetitorPlatform }
@@ -208,6 +209,16 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // link instead of a silent no-op (second-opinion review, PR 278).
   const [exportFallbackUrl, setExportFallbackUrl] = useState<string | null>(null)
 
+  // US-3.1 — shop-URL analyzer state. Entirely additive/optional: failure at
+  // any point just leaves `analyzerStatus` at 'error' and every manual control
+  // above/below keeps working untouched (the "degrades gracefully to manual
+  // entry" acceptance — there's no separate "manual mode," manual entry is
+  // simply always available).
+  const [analyzerUrl, setAnalyzerUrl] = useState('')
+  const [analyzerStatus, setAnalyzerStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [analyzerError, setAnalyzerError] = useState<string | null>(null)
+  const [analyzerResult, setAnalyzerResult] = useState<ShopAnalyzerResult | null>(null)
+
   // `nextPlatform` lets the platform-change handler pass the value it's ABOUT to
   // set — `setPlatform` is async (queued), so reading the `platform` closure
   // variable at call time would still read the PREVIOUS value for that one
@@ -306,6 +317,42 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
       window.setTimeout(() => setShareStatus('idle'), 2500)
     } catch {
       setShareStatus('error')
+    }
+  }
+
+  // US-3.1 — paste a shop URL, detect the platform, prefill the calculator.
+  // Never throws: any non-2xx response or network error just surfaces
+  // `analyzerError` and leaves the rest of the tool exactly as it was.
+  const handleAnalyze = async () => {
+    const target = analyzerUrl.trim()
+    if (!target) return
+    setAnalyzerStatus('loading')
+    setAnalyzerError(null)
+    try {
+      const res = await fetch('/api/comparador/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: target }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) {
+        setAnalyzerStatus('error')
+        setAnalyzerError(
+          typeof data?.error === 'string' ? data.error : 'No pudimos analizar esa tienda. Llena los datos a mano abajo.',
+        )
+        return
+      }
+      const result = data as ShopAnalyzerResult
+      setAnalyzerResult(result)
+      setAnalyzerStatus('success')
+      if (result.platform) {
+        setPlatform(result.platform)
+        markInteracted(result.platform)
+      }
+      pushAnalyticsEvent('comparador_url_analyzed', { platform: result.platform ?? 'unknown' })
+    } catch {
+      setAnalyzerStatus('error')
+      setAnalyzerError('No pudimos analizar esa tienda. Llena los datos a mano abajo.')
     }
   }
 
@@ -415,6 +462,81 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
 
   return (
     <div style={{ display: 'grid', gap: 'var(--s-6)' }}>
+      {/* US-3.1 — shop-URL analyzer: paste a URL, detect platform + rough
+          catalog, prefill the calculator below. Optional — manual entry always
+          works regardless of what happens here. */}
+      <div className="card-panel" style={{ padding: 'var(--s-5)', display: 'grid', gap: 'var(--s-3)' }}>
+        <p className="t-small" style={{ fontWeight: 600 }}>Analiza tu tienda</p>
+        <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+          Pega la URL de tu tienda actual y detectamos la plataforma y un estimado de tu catálogo — es opcional,
+          siempre puedes llenar los datos a mano abajo.
+        </p>
+        <div style={{ display: 'flex', gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://mitienda.com"
+            className="input"
+            data-testid="comparador-analyzer-url-input"
+            value={analyzerUrl}
+            onChange={(e) => setAnalyzerUrl(e.target.value)}
+            style={{ flex: '1 1 220px' }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="comparador-analyzer-submit"
+            disabled={analyzerStatus === 'loading' || !analyzerUrl.trim()}
+            onClick={handleAnalyze}
+          >
+            <i className="iconoir-search" aria-hidden style={{ fontSize: 14 }} />
+            {analyzerStatus === 'loading' ? 'Analizando…' : 'Analizar'}
+          </button>
+        </div>
+        {analyzerStatus === 'error' && analyzerError && (
+          <p className="t-caption" data-testid="comparador-analyzer-error" style={{ color: 'var(--danger)' }}>
+            {analyzerError}
+          </p>
+        )}
+        {analyzerStatus === 'success' && analyzerResult && (
+          <div data-testid="comparador-analyzer-result" style={{ display: 'grid', gap: 'var(--s-2)' }}>
+            <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+              {analyzerResult.platform
+                ? `Detectamos ${PLATFORM_LABELS[analyzerResult.platform]} — prellenamos la plataforma abajo.`
+                : 'No pudimos identificar la plataforma automáticamente — elige la tuya abajo.'}{' '}
+              Catálogo aproximado: {analyzerResult.inventory.catalogCount} producto(s),{' '}
+              {analyzerResult.inventory.sectionCount} sección(es).
+              {analyzerResult.truncated ? ' (solo pudimos leer una parte de la página)' : ''}
+            </p>
+            {analyzerResult.parity ? (
+              <div style={{ display: 'grid', gap: 4 }}>
+                {analyzerResult.parity.veryCustom && analyzerResult.parity.veryCustomReason && (
+                  <p className="t-caption" style={{ color: 'var(--warning)' }}>{analyzerResult.parity.veryCustomReason}</p>
+                )}
+                {analyzerResult.parity.sections.map((s) => (
+                  <p
+                    key={s.key}
+                    className="t-caption"
+                    data-testid={`comparador-analyzer-parity-${s.key}`}
+                    style={{ color: 'var(--fg-muted)' }}
+                  >
+                    <strong>{s.label}:</strong>{' '}
+                    {s.verdict === 'mapped' ? 'Igual' : s.verdict === 'partial' ? 'Parcial' : 'Sin equivalente'} — {s.note}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              analyzerResult.platform && (
+                <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+                  Aún no tenemos un reporte de esfuerzo de migración detallado para esta plataforma — sigue ajustando
+                  la comparación abajo.
+                </p>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Platform + tier pickers */}
       <div className="card-panel" style={{ padding: 'var(--s-5)', display: 'grid', gap: 'var(--s-4)' }}>
         <label style={{ display: 'grid', gap: 'var(--s-1)' }}>

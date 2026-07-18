@@ -140,9 +140,21 @@ const launchpadVoteLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: 'rl:launchpad_vote' })
 }
 
+// Comparador shop-URL analyzer: max 8 analyses per IP per 10 min — a fully
+// public, unauthenticated, anonymous surface that triggers a server-side
+// external fetch of a caller-supplied URL (cost-comparator-homepage S3 ·
+// US-3.1). Tight enough to blunt someone using it as a free URL-fetch proxy,
+// generous enough for a merchant/consultant retrying a slow shop or trying a
+// couple of competitors back to back.
+const comparatorAnalyzeLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(8, '10 m'), prefix: 'rl:comparator_analyze' })
+}
+
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -166,6 +178,7 @@ export async function checkRateLimit(
     : key === 'artwork_upload'  ? artworkUploadLimiter
     : key === 'launchpad'       ? launchpadLimiter
     : key === 'launchpad_vote'  ? launchpadVoteLimiter
+    : key === 'comparator_analyze' ? comparatorAnalyzeLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()
