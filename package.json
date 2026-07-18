@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test:e2e": "playwright test --project=api",
     "test:e2e:browser": "playwright test --project=browser",
+    "build:iconoir": "node --experimental-strip-types scripts/build-iconoir-subset.ts",
     "smoke": "node scripts/live-smoke.mjs",
     "seed": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts",
     "seed:clear": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts --clear"
@@ -51,6 +52,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "iconoir": "7.11.1",
     "js-yaml": "^4.3.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.1",
