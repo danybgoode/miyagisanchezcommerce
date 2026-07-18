@@ -127,3 +127,75 @@ _Generado con el [Comparador de costos — Miyagi Sánchez](https://miyagisanche
     expect(chart.format).toBe('currency')
   })
 })
+
+// BLOCKING codex finding, PR #278 — a hand-edited (US-1.3 inline override) figure
+// must NEVER read as if the original dataset citation still verifies it. The
+// caller (ComparadorTool.tsx) is responsible for EXCLUDING an overridden line's
+// figure key from `sources` — this spec proves the pure generator itself does its
+// half: annotates the edited line honestly, with or without a known source.
+test.describe('cost-comparator-report · overridden lines never inherit the original source silently', () => {
+  const shopifyRates: ShopifyRates = {
+    planMonthlyUsd: { basico: 20, crecimiento: 50, avanzado: 400 },
+    paymentPct: { basico: 3, crecimiento: 2, avanzado: 1 },
+    paymentFixedMxn: 2,
+    fxUsdToMxn: 20,
+  }
+  const miyagiRates: MiyagiRates = {
+    subdomainMonthlyMxn: 25, customDomainMonthlyMxn: 42, mlSyncMonthlyMxn: 30, paymentPct: 3.6, paymentFixedMxn: 3,
+  }
+  const inputs = { volumeMonthly: 10, aovMxn: 100 }
+  const competitorStack = computeShopifyCost(inputs, 'basico', shopifyRates)
+  const miyagiStack = computeMiyagiCost(inputs, { subdomain: false, customDomain: false, mlSync: false }, miyagiRates)
+
+  test('an overridden competitor line is annotated "editado por el usuario" with its ORIGINAL value + source — not cited as if it verifies the new number', () => {
+    // Simulate the visitor having hand-edited the "plan" line to $999.99 — the
+    // caller passes the ORIGINAL $400 + its source as the override annotation,
+    // and (per the caller's own contract) would NOT put shopify.plan's key in
+    // `sources` anymore.
+    const editedCompetitorStack = { ...competitorStack, lines: competitorStack.lines.map((l) => (l.key === 'plan' ? { ...l, monthlyMxn: 999.99 } : l)) }
+    const md = buildComparatorReportMarkdown({
+      platformLabel: 'Shopify (Plan Basic)',
+      volumeMonthly: inputs.volumeMonthly,
+      aovMxn: inputs.aovMxn,
+      competitorStack: editedCompetitorStack,
+      miyagiStack,
+      datasetVerifiedAt: '2026-07-01',
+      sources: [], // the "plan" figure's source is deliberately NOT here anymore
+      competitorOverrides: { plan: { originalMxn: 400, source: 'shopify.com/pricing', verifiedAt: '2026-07-01' } },
+    })
+    expect(md).toContain('- Plan mensual: $999.99/mes (editado por el usuario — original: $400.00/mes, fuente: shopify.com/pricing, verificado: 2026-07-01)')
+    // The Fuentes section has nothing to cite for this run (caller passed no sources).
+    expect(md).toContain('_Sin cifras de terceros en esta comparación')
+  })
+
+  test('an overridden line with NO known dataset source still gets the honest "editado" annotation, without inventing a citation', () => {
+    const editedMiyagiStack = { ...miyagiStack, lines: miyagiStack.lines.map((l) => (l.key === 'commission' ? { ...l, monthlyMxn: 50 } : l)) }
+    const md = buildComparatorReportMarkdown({
+      platformLabel: 'Shopify (Plan Basic)',
+      volumeMonthly: inputs.volumeMonthly,
+      aovMxn: inputs.aovMxn,
+      competitorStack,
+      miyagiStack: editedMiyagiStack,
+      datasetVerifiedAt: '2026-07-01',
+      sources: [],
+      miyagiOverrides: { commission: { originalMxn: 0 } }, // no source/verifiedAt — Miyagi's 0% has none
+    })
+    expect(md).toContain('- Comisión de plataforma (0%): $50.00/mes (editado por el usuario — original: $0.00/mes)')
+    expect(md).not.toContain('fuente:') // no fabricated citation
+  })
+
+  test('a NON-overridden line is unaffected — no annotation, plain figure', () => {
+    const md = buildComparatorReportMarkdown({
+      platformLabel: 'Shopify (Plan Basic)',
+      volumeMonthly: inputs.volumeMonthly,
+      aovMxn: inputs.aovMxn,
+      competitorStack,
+      miyagiStack,
+      datasetVerifiedAt: '2026-07-01',
+      sources: [],
+      competitorOverrides: {},
+    })
+    expect(md).toContain('- Plan mensual: $400.00/mes\n')
+    expect(md).not.toContain('editado por el usuario')
+  })
+})

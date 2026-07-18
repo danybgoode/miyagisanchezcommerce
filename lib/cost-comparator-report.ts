@@ -40,6 +40,18 @@ export interface ComparatorReportSource {
   verifiedAt: string
 }
 
+/**
+ * A rendered line whose figure was hand-edited by the visitor (US-1.3's inline
+ * per-figure override) BEFORE this report was exported. `source`/`verifiedAt` are
+ * optional — some lines (an aggregate like "apps", or Miyagi's definitionally-$0
+ * commission line) have no single dataset figure backing them even before an edit.
+ */
+export interface ComparatorReportLineOverride {
+  originalMxn: number
+  source?: string
+  verifiedAt?: string
+}
+
 export interface ComparatorReportInput {
   /** Human label for the competitor side, e.g. "Shopify (Plan Basic)". */
   platformLabel: string
@@ -51,16 +63,33 @@ export interface ComparatorReportInput {
   datasetVerifiedAt: string
   /** Every sourced figure that fed the two stacks above, deduped by figure —
    * caller-supplied (see `lib/cost-comparator-dataset.ts`'s `lineSourceFigureKey` +
-   * `dataset.figures`) so this file stays a pure function of plain data. */
+   * `dataset.figures`) so this file stays a pure function of plain data. An
+   * OVERRIDDEN line's figure key must NOT be in this list — see
+   * `competitorOverrides`/`miyagiOverrides` below for why. */
   sources: ComparatorReportSource[]
+  /** Lines in `competitorStack`/`miyagiStack`, keyed by `StackedCostLine.key`,
+   * whose value was hand-edited by the visitor. HONESTY GUARANTEE: a hand-edited
+   * figure is annotated inline as "editado por el usuario" instead of silently
+   * inheriting the dataset's original source citation — an edited number was
+   * never verified by that source, only the ORIGINAL number was. Omit or pass `{}`
+   * when nothing was overridden. */
+  competitorOverrides?: Record<string, ComparatorReportLineOverride>
+  miyagiOverrides?: Record<string, ComparatorReportLineOverride>
 }
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-function lineList(stack: StackedCost): string {
-  return stack.lines.map((l) => `- ${l.label}: ${formatMxn(l.monthlyMxn)}/mes`).join('\n')
+function lineList(stack: StackedCost, overrides: Record<string, ComparatorReportLineOverride> = {}): string {
+  return stack.lines
+    .map((l) => {
+      const o = overrides[l.key]
+      if (!o) return `- ${l.label}: ${formatMxn(l.monthlyMxn)}/mes`
+      const citation = o.source ? `, fuente: ${o.source}, verificado: ${o.verifiedAt}` : ''
+      return `- ${l.label}: ${formatMxn(l.monthlyMxn)}/mes (editado por el usuario — original: ${formatMxn(o.originalMxn)}/mes${citation})`
+    })
+    .join('\n')
 }
 
 function sourcesList(sources: ComparatorReportSource[]): string {
@@ -72,7 +101,10 @@ function sourcesList(sources: ComparatorReportSource[]): string {
 
 /** Deterministic: same input → byte-identical output, always. No wall-clock read. */
 export function buildComparatorReportMarkdown(input: ComparatorReportInput): string {
-  const { platformLabel, volumeMonthly, aovMxn, competitorStack, miyagiStack, datasetVerifiedAt, sources } = input
+  const {
+    platformLabel, volumeMonthly, aovMxn, competitorStack, miyagiStack, datasetVerifiedAt, sources,
+    competitorOverrides = {}, miyagiOverrides = {},
+  } = input
 
   const savingMonthlyMxn = round2(competitorStack.monthlyTotalMxn - miyagiStack.monthlyTotalMxn)
   const savingAnnualMxn = round2(competitorStack.annualTotalMxn - miyagiStack.annualTotalMxn)
@@ -98,13 +130,13 @@ Comparación generada en miyagisanchez.com/comparador — ${volumeMonthly} venta
 
 ## Lo que pagas hoy (${platformLabel})
 
-${lineList(competitorStack)}
+${lineList(competitorStack, competitorOverrides)}
 
 **Total mensual:** ${formatMxn(competitorStack.monthlyTotalMxn)} · **Total anual:** ${formatMxn(competitorStack.annualTotalMxn)}
 
 ## Equivalente en Miyagi Sánchez (0% comisión)
 
-${lineList(miyagiStack)}
+${lineList(miyagiStack, miyagiOverrides)}
 
 **Total mensual:** ${formatMxn(miyagiStack.monthlyTotalMxn)} · **Total anual:** ${formatMxn(miyagiStack.annualTotalMxn)}
 

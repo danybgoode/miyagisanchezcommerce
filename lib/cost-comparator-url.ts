@@ -3,10 +3,10 @@
  *
  * Comparador de costos (epic 08 · cost-comparator-homepage, Sprint 2 · US-2.2) — the
  * PURE URL ⇄ state codec for the comparator's full input surface: platform, its
- * tier/band/type/hosting/gateway selection, volume, AOV, selected premium apps, and
- * the three Miyagi SKU toggles. Next-free (mirrors `lib/cost-comparator.ts`) so a
- * unit spec can build → parse and assert an exact round trip with zero framework in
- * the require graph.
+ * tier/band/type/hosting/gateway selection, volume, AOV, selected premium apps, the
+ * three Miyagi SKU toggles, and any hand-edited line overrides (US-1.3). Next-free
+ * (mirrors `lib/cost-comparator.ts`) so a unit spec can build → parse and assert an
+ * exact round trip with zero framework in the require graph.
  *
  * `app/(shell)/comparador/page.tsx` (SSR prefill, US-1.3) and `ComparadorTool`'s
  * "Copiar enlace" share button (US-2.2, client-side) both go through this ONE codec
@@ -15,12 +15,26 @@
  * generically (no per-visit data to prefill from a static printable page), but a
  * live session's "Copiar enlace" always round-trips through here.
  *
- * SCOPE NOTE — line overrides are NOT part of the URL. US-1.3's inline per-figure
- * edits are a power-user, in-session action; the consultant prefill use case (epic
- * README §"What already exists", sprint-2.md US-2.2) is about handing over
- * platform/volume/AOV/apps for a live visit, not a pre-edited line item. Carrying
- * overrides would also make share URLs unboundedly long. Documented gap, not a
- * silent omission — noted in the epic PR.
+ * LINE OVERRIDES ARE INCLUDED (revised from the original Sprint-2 draft — see PR
+ * #278 review): the "Copiar enlace" copy claims "comparación exacta", and a
+ * consultant who hand-tuned a competitor's figure before sharing expects that edit
+ * to survive the link too. Serialized as a single `ov` param (URI-encoded JSON,
+ * `{ [lineKey]: monthlyMxn }`); an unparseable blob or a non-finite value is
+ * silently dropped (fail-open, never fabricates — same discipline as
+ * `applyDatasetOverrides`). Kept as one param (not one per line) since the key
+ * space is dynamic (platform:tier:lineKey / miyagi:lineKey) and unbounded in
+ * principle, but realistically tiny (a handful of edited figures at most).
+ *
+ * PLATFORM-GATED PARSING (fixed in this revision — see PR #278 review): `tier` is
+ * shared between Shopify and Tiendanube (both have tier names like "basico"/
+ * "avanzado"). Earlier this file parsed BOTH `shopifyTier` and `tnTier` from
+ * `sp.tier` unconditionally, so a Shopify link (`?platform=shopify&tier=avanzado`)
+ * would silently seed Tiendanube's tier to "avanzado" too — invisible until the
+ * visitor switched the platform dropdown client-side. Every platform-specific field
+ * now only reads its own query param when `platform` actually matches that
+ * platform; otherwise it takes its own default. This mirrors `build`, which already
+ * only ever writes the ACTIVE platform's own params — parse and build are now
+ * symmetric on this point.
  */
 
 import type {
@@ -58,6 +72,9 @@ export interface ComparadorState {
   aov: number
   selectedAppIds: string[]
   miyagiSkus: ComparadorMiyagiSkus
+  /** Hand-edited figures (US-1.3), keyed exactly like `ComparadorTool`'s
+   * `lineOverrides` state (`${platform}:${tierKey}:${lineKey}` / `miyagi:${lineKey}`). */
+  lineOverrides: Record<string, number>
 }
 
 /** The shape Next.js hands a Server Component's `searchParams`, and what
@@ -84,6 +101,28 @@ function boolParam(v: string | string[] | undefined): boolean {
   return first(v) === '1'
 }
 
+/** Parses the `ov` param into a validated override map. Never throws: malformed
+ * JSON, a non-object payload, or a non-finite value all just drop that entry (or
+ * the whole param) rather than fabricating a number — mirrors
+ * `applyDatasetOverrides`'s fail-open contract. */
+function parseLineOverrides(v: string | string[] | undefined): Record<string, number> {
+  const raw = first(v)
+  if (!raw) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return {}
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    const n = Number(value)
+    if (Number.isFinite(n)) out[key] = n
+  }
+  return out
+}
+
 /** `URLSearchParams` → the plain record shape `parseComparadorState` reads. */
 export function searchParamsToRecord(params: URLSearchParams): SearchParamsLike {
   const rec: SearchParamsLike = {}
@@ -98,19 +137,24 @@ export function searchParamsToRecord(params: URLSearchParams): SearchParamsLike 
  * as `applyDatasetOverrides`.
  */
 export function parseComparadorState(sp: SearchParamsLike, validAppIds: readonly string[]): ComparadorState {
+  const platform = pick(sp.platform, COMPARADOR_PLATFORMS, 'shopify')
+
   const appsRaw = first(sp.apps)
   const selectedAppIds = appsRaw
     ? appsRaw.split(',').map((s) => s.trim()).filter((id) => id.length > 0 && validAppIds.includes(id))
     : []
 
   return {
-    platform: pick(sp.platform, COMPARADOR_PLATFORMS, 'shopify'),
-    shopifyTier: pick(sp.tier, COMPARADOR_SHOPIFY_TIERS, 'basico'),
-    mlBand: pick(sp.band, COMPARADOR_ML_BANDS, 'media'),
-    mlPublicationType: pick(sp.type, COMPARADOR_ML_TYPES, 'clasica'),
-    wooTier: pick(sp.hosting, COMPARADOR_WOO_TIERS, 'entrada'),
-    tnTier: pick(sp.tier, COMPARADOR_TN_TIERS, 'basico'),
-    tnOwnGateway: first(sp.gateway) !== 'external',
+    platform,
+    // Platform-gated: `tier` is shared by Shopify/Tiendanube, so only the ACTIVE
+    // platform reads it — the other falls back to its own default, never bleeds
+    // the other's value in (see this file's header for the bug this fixes).
+    shopifyTier: platform === 'shopify' ? pick(sp.tier, COMPARADOR_SHOPIFY_TIERS, 'basico') : 'basico',
+    mlBand: platform === 'mercadolibre' ? pick(sp.band, COMPARADOR_ML_BANDS, 'media') : 'media',
+    mlPublicationType: platform === 'mercadolibre' ? pick(sp.type, COMPARADOR_ML_TYPES, 'clasica') : 'clasica',
+    wooTier: platform === 'woocommerce' ? pick(sp.hosting, COMPARADOR_WOO_TIERS, 'entrada') : 'entrada',
+    tnTier: platform === 'tiendanube' ? pick(sp.tier, COMPARADOR_TN_TIERS, 'basico') : 'basico',
+    tnOwnGateway: platform === 'tiendanube' ? first(sp.gateway) !== 'external' : true,
     volume: toNumber(sp.volume, 100),
     aov: toNumber(sp.aov, 500),
     selectedAppIds,
@@ -119,6 +163,7 @@ export function parseComparadorState(sp: SearchParamsLike, validAppIds: readonly
       customDomain: boolParam(sp.dom),
       mlSync: boolParam(sp.mlsync),
     },
+    lineOverrides: parseLineOverrides(sp.ov),
   }
 }
 
@@ -147,6 +192,7 @@ export function buildComparadorShareParams(state: ComparadorState): URLSearchPar
   if (state.miyagiSkus.subdomain) params.set('sub', '1')
   if (state.miyagiSkus.customDomain) params.set('dom', '1')
   if (state.miyagiSkus.mlSync) params.set('mlsync', '1')
+  if (Object.keys(state.lineOverrides).length > 0) params.set('ov', JSON.stringify(state.lineOverrides))
 
   return params
 }

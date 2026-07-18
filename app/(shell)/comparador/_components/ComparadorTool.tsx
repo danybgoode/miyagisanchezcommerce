@@ -24,7 +24,11 @@ import {
   type StackedCost,
 } from '@/lib/cost-comparator'
 import { lineSourceHint, lineSourceFigureKey, type ComparatorDataset } from '@/lib/cost-comparator-dataset'
-import { buildComparatorReportMarkdown, type ComparatorReportSource } from '@/lib/cost-comparator-report'
+import {
+  buildComparatorReportMarkdown,
+  type ComparatorReportSource,
+  type ComparatorReportLineOverride,
+} from '@/lib/cost-comparator-report'
 import { buildSmalldocsUrl } from '@/lib/smalldocs'
 import {
   buildComparadorShareParams,
@@ -85,6 +89,7 @@ export interface ComparadorInitial {
   aov: number
   selectedAppIds: string[]
   miyagiSkus: ComparadorMiyagiSkus
+  lineOverrides: Record<string, number>
 }
 
 export interface ComparadorRates {
@@ -195,10 +200,13 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   const [aov, setAov] = useState(initial.aov)
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>(initial.selectedAppIds)
   const [miyagiSkus, setMiyagiSkus] = useState<ComparadorMiyagiSkus>(initial.miyagiSkus)
-  const [lineOverrides, setLineOverrides] = useState<Record<string, number>>({})
+  const [lineOverrides, setLineOverrides] = useState<Record<string, number>>(initial.lineOverrides)
   const [interacted, setInteracted] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [exportStatus, setExportStatus] = useState<'idle' | 'building' | 'error'>('idle')
+  // Set only when the synchronous popup got blocked anyway — an inline fallback
+  // link instead of a silent no-op (second-opinion review, PR #278).
+  const [exportFallbackUrl, setExportFallbackUrl] = useState<string | null>(null)
 
   // `nextPlatform` lets the platform-change handler pass the value it's ABOUT to
   // set — `setPlatform` is async (queued), so reading the `platform` closure
@@ -281,14 +289,14 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   const sourceCtx = { shopifyTier, mlBand, mlPublicationType, wooTier, tnTier, tnOwnGateway }
 
   // US-2.2 — "Copiar enlace": serializes the FULL current state (platform, its
-  // own tier/band/type/hosting/gateway, volume, AOV, selected apps, Miyagi SKUs)
-  // through the same codec page.tsx's SSR prefill parses, so the copied link
-  // restores exactly what's on screen right now (line overrides excepted — see
-  // lib/cost-comparator-url.ts's header for why).
+  // own tier/band/type/hosting/gateway, volume, AOV, selected apps, Miyagi SKUs,
+  // AND any hand-edited line overrides) through the same codec page.tsx's SSR
+  // prefill parses, so the copied link restores EXACTLY what's on screen right
+  // now — matching the "comparación exacta" claim in the caption below.
   const handleCopyLink = async () => {
     const params = buildComparadorShareParams({
       platform, shopifyTier, mlBand, mlPublicationType, wooTier, tnTier, tnOwnGateway,
-      volume, aov, selectedAppIds, miyagiSkus,
+      volume, aov, selectedAppIds, miyagiSkus, lineOverrides,
     })
     const url = `${window.location.origin}/comparador?${params.toString()}`
     try {
@@ -304,22 +312,49 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // Every sourced figure currently backing either stack, deduped by dataset key —
   // feeds the report's "Fuentes" section (US-2.1) exactly like the per-line hover
   // tooltip does, just collected instead of shown one at a time.
-  const reportSources = useMemo<ComparatorReportSource[]>(() => {
-    const keys = new Set<string>()
+  //
+  // HONESTY GUARANTEE (codex blocking finding, PR #278) — a line the visitor
+  // hand-edited (US-1.3 inline override) is EXCLUDED from `reportSources`: the
+  // dataset's citation verified the ORIGINAL figure, not the edited one, so citing
+  // it here would misattribute a user-typed number as sourced/verified. Instead it
+  // goes into `competitorOverrides`/`miyagiOverrides`, which the report annotates
+  // inline as "editado por el usuario" (see lib/cost-comparator-report.ts).
+  const isLineOverridden = (current: number, original: number) => Math.round(current * 100) !== Math.round(original * 100)
+
+  const { reportSources, competitorOverrides, miyagiOverrides } = useMemo(() => {
+    const sourceKeys = new Set<string>()
+    const compOverrides: Record<string, ComparatorReportLineOverride> = {}
+    const miyagiOv: Record<string, ComparatorReportLineOverride> = {}
+
     for (const line of competitorStack.lines) {
+      const baseLine = baseCompetitorStack.lines.find((l) => l.key === line.key)
       const k = lineSourceFigureKey(platform, line.key, sourceCtx)
-      if (k) keys.add(k)
+      if (baseLine && isLineOverridden(line.monthlyMxn, baseLine.monthlyMxn)) {
+        const figure = k ? dataset.figures[k] : undefined
+        compOverrides[line.key] = { originalMxn: baseLine.monthlyMxn, source: figure?.source, verifiedAt: figure?.verifiedAt }
+      } else if (k) {
+        sourceKeys.add(k)
+      }
     }
     for (const line of miyagiStack.lines) {
+      const baseLine = baseMiyagiStack.lines.find((l) => l.key === line.key)
       const k = lineSourceFigureKey('miyagi', line.key, {})
-      if (k) keys.add(k)
+      if (baseLine && isLineOverridden(line.monthlyMxn, baseLine.monthlyMxn)) {
+        const figure = k ? dataset.figures[k] : undefined
+        miyagiOv[line.key] = { originalMxn: baseLine.monthlyMxn, source: figure?.source, verifiedAt: figure?.verifiedAt }
+      } else if (k) {
+        sourceKeys.add(k)
+      }
     }
-    return Array.from(keys)
+
+    const sources = Array.from(sourceKeys)
       .map((k) => dataset.figures[k])
       .filter((f): f is NonNullable<typeof f> => Boolean(f))
       .map((f) => ({ label: f.label, source: f.source, verifiedAt: f.verifiedAt }))
+
+    return { reportSources: sources as ComparatorReportSource[], competitorOverrides: compOverrides, miyagiOverrides: miyagiOv }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitorStack, miyagiStack, platform, dataset])
+  }, [competitorStack, miyagiStack, baseCompetitorStack, baseMiyagiStack, platform, dataset])
 
   const platformDisplayLabel = (() => {
     switch (platform) {
@@ -334,8 +369,21 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
   // screen right now, then hands it to lib/smalldocs.ts (client-only compress +
   // base64url into the URL hash) and opens smalldocs.org in a new tab. Nothing
   // here ever leaves the browser except the smalldocs.org navigation itself.
+  //
+  // POPUP HARDENING (second-opinion review, PR #278) — `window.open` after an
+  // `await` loses the click's transient user-activation in Safari/strict popup
+  // blockers, so a naive `await ...; window.open(url)` can silently no-op. Instead
+  // we open a BLANK tab synchronously (inside the click handler, before any
+  // `await` — still within the activation window) and only set its `location`
+  // once the URL is ready. Deliberately no `noopener` here: we need to keep the
+  // handle to navigate it later; we sever `opener` ourselves right after — best
+  // of both (no lingering back-reference from smalldocs.org, still navigable).
+  // If even the synchronous open comes back null (an aggressive blocker), we
+  // fall back to an inline "Ábrelo aquí" link instead of a silent failure.
   const handleExportReport = async () => {
     setExportStatus('building')
+    setExportFallbackUrl(null)
+    const popup = window.open('', '_blank')
     try {
       const markdown = buildComparatorReportMarkdown({
         platformLabel: platformDisplayLabel,
@@ -345,12 +393,22 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
         miyagiStack,
         datasetVerifiedAt: dataset.generatedAt,
         sources: reportSources,
+        competitorOverrides,
+        miyagiOverrides,
       })
       const url = await buildSmalldocsUrl(markdown)
       pushAnalyticsEvent('comparador_export', { platform })
-      window.open(url, '_blank', 'noopener,noreferrer')
-      setExportStatus('idle')
+      if (popup) {
+        popup.location.href = url
+        try { popup.opener = null } catch { /* not all browsers allow this; harmless if blocked */ }
+        setExportStatus('idle')
+      } else {
+        // Popup was blocked even with the synchronous open — never fail silently.
+        setExportFallbackUrl(url)
+        setExportStatus('idle')
+      }
     } catch {
+      popup?.close()
       setExportStatus('error')
     }
   }
@@ -605,6 +663,14 @@ export default function ComparadorTool({ rates, apps, fx, initial, dataset }: Co
             {shareStatus === 'copied' ? '¡Enlace copiado!' : 'Copiar enlace'}
           </button>
         </div>
+        {exportFallbackUrl && (
+          <p className="t-caption" style={{ color: 'var(--fg-muted)' }}>
+            Tu navegador bloqueó la ventana emergente —{' '}
+            <a href={exportFallbackUrl} target="_blank" rel="noopener noreferrer" data-testid="comparador-export-fallback-link">
+              ábrelo aquí
+            </a>.
+          </p>
+        )}
         {exportStatus === 'error' && (
           <p className="t-caption" style={{ color: 'var(--danger, #b91c1c)' }}>
             No se pudo generar el reporte. Intenta de nuevo.
