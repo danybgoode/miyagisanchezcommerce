@@ -87,6 +87,26 @@ import { aboutMcpResource, RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupSpec } from '@/lib/setup-spec'
 import type { Listing } from '@/lib/types'
+import {
+  computeShopifyCost, computeMercadoLibreCost, computeWooCommerceCost, computeTiendanubeCost, computeMiyagiCost,
+  computeSelectedAppsMonthlyMxn, formatMxn,
+  type ShopifyTier, type MlBand, type MlPublicationType, type WooCommerceHostingTier, type TiendanubeTier,
+} from '@/lib/cost-comparator'
+import { getComparatorDataset } from '@/lib/cost-comparator-data'
+import {
+  shopifyRatesFromDataset, mercadoLibreRatesFromDataset, wooCommerceRatesFromDataset, tiendanubeRatesFromDataset,
+  miyagiRatesFromDataset, premiumAppsFromDataset, fxUsdToMxnFromDataset, lineSourceFigureKey,
+  type ComparatorPlatform as CostComparatorPlatform, type LineSourceContext, type ComparatorDataset,
+} from '@/lib/cost-comparator-dataset'
+// Baseline dataset import ONLY to derive the compare_costs tool schema's `apps`
+// enum at module init (second-opinion review, PR 278 — "don't hardcode the apps
+// enum, derive it from premiumAppsFromDataset"). Runtime computation still reads
+// the LIVE dataset via getComparatorDataset() inside the handler; this baseline
+// read is schema-time only, so an admin content-override can never add a NEW app
+// id anyway (applyDatasetOverrides only replaces existing figures' VALUES, never
+// adds new ones — see that file's header), making the baseline's id set always
+// correct for the schema too.
+import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -121,6 +141,10 @@ function ok(id: string | number | null, result: unknown): JsonRpcResponse {
 function err(id: string | number | null, code: number, message: string): JsonRpcResponse {
   return { jsonrpc: '2.0', id, error: { code, message } }
 }
+
+// compare_costs' `apps` enum, derived from the baseline dataset once at module
+// init rather than hand-duplicated (second-opinion review, PR 278).
+const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDataset as ComparatorDataset).map((a) => a.id)
 
 // ── Tool definitions ───────────────────────────────────────────────────────────
 
@@ -899,6 +923,29 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'compare_costs',
+    description: "Comparador de costos — compare a merchant's current platform cost (Shopify, Mercado Libre, WooCommerce, or Tiendanube) against the equivalent Miyagi Sánchez (0% commission) cost, using their own sales volume and average order value. Read-only, no auth. Computed by the EXACT SAME pure model that powers miyagisanchez.com/comparador — never drifts from what the page shows. Every competitor figure is sourced and dated; the response's `sources` array cites each one plus the dataset's overall `verified_at` date. Use this when a seller (or their agent) asks what they'd pay elsewhere, or what switching to Miyagi would save them.",
+    inputSchema: {
+      type: 'object',
+      required: ['platform', 'volume_monthly', 'aov_mxn'],
+      properties: {
+        platform: { type: 'string', enum: ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube'], description: 'Competitor platform to compare against' },
+        volume_monthly: { type: 'number', description: 'Sales per month' },
+        aov_mxn: { type: 'number', description: 'Average order value, MXN' },
+        shopify_tier: { type: 'string', enum: ['basico', 'crecimiento', 'avanzado'], default: 'basico', description: 'Shopify plan tier — only used when platform=shopify' },
+        ml_band: { type: 'string', enum: ['baja', 'media', 'alta'], default: 'media', description: 'Mercado Libre commission band (category-driven) — only used when platform=mercadolibre' },
+        ml_publication_type: { type: 'string', enum: ['clasica', 'premium'], default: 'clasica', description: 'Mercado Libre listing type — only used when platform=mercadolibre' },
+        woo_hosting_tier: { type: 'string', enum: ['entrada', 'crecimiento'], default: 'entrada', description: 'WooCommerce hosting tier — only used when platform=woocommerce' },
+        tiendanube_tier: { type: 'string', enum: ['gratis', 'basico', 'tiendanube', 'avanzado'], default: 'basico', description: 'Tiendanube plan tier — only used when platform=tiendanube' },
+        tiendanube_own_gateway: { type: 'boolean', default: true, description: 'true = Pago Nube (their own gateway); false = external gateway — only used when platform=tiendanube' },
+        apps: { type: 'array', items: { type: 'string', enum: COMPARE_COSTS_APP_IDS }, description: 'Premium competitor apps the merchant already pays for; each is natively included in Miyagi at $0. An unknown id is dropped from the calculation and reported in the response — never silently echoed as accepted.' },
+        miyagi_subdomain: { type: 'boolean', default: false, description: "Include Miyagi's optional subdomain SKU in the Miyagi total" },
+        miyagi_custom_domain: { type: 'boolean', default: false, description: "Include Miyagi's optional custom-domain SKU in the Miyagi total" },
+        miyagi_ml_sync: { type: 'boolean', default: false, description: "Include Miyagi's optional Mercado Libre sync SKU in the Miyagi total" },
+      },
     },
   },
 ]
@@ -3517,6 +3564,175 @@ function handleGetSetupSpec() {
   return { content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }] }
 }
 
+const COMPARE_COSTS_PLATFORMS = ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube'] as const
+const COMPARE_COSTS_SHOPIFY_TIERS = ['basico', 'crecimiento', 'avanzado'] as const
+const COMPARE_COSTS_ML_BANDS = ['baja', 'media', 'alta'] as const
+const COMPARE_COSTS_ML_TYPES = ['clasica', 'premium'] as const
+const COMPARE_COSTS_WOO_TIERS = ['entrada', 'crecimiento'] as const
+const COMPARE_COSTS_TN_TIERS = ['gratis', 'basico', 'tiendanube', 'avanzado'] as const
+
+// es-MX labels for the tool's `platform_label`/summary text (nit, PR 278 —
+// raw dataset slugs like "Shopify (basico)" read as unpolished next to the
+// page's own es-MX tier names). Deliberately a SEPARATE, shorter label set from
+// ComparadorTool.tsx's UI labels (those carry full pricing detail meant for a
+// dropdown, e.g. "Plan Basic (~$19 USD/mes)" — redundant here since the actual
+// computed MXN total is already in the summary).
+const SHOPIFY_TIER_ES: Record<ShopifyTier, string> = { basico: 'Plan Basic', crecimiento: 'Plan Grow', avanzado: 'Plan Advanced' }
+const ML_BAND_ES: Record<MlBand, string> = { baja: 'comisión baja', media: 'comisión media', alta: 'comisión alta' }
+const ML_TYPE_ES: Record<MlPublicationType, string> = { clasica: 'Clásica', premium: 'Premium' }
+const WOO_TIER_ES: Record<WooCommerceHostingTier, string> = { entrada: 'alojamiento de entrada', crecimiento: 'alojamiento de crecimiento' }
+const TN_TIER_ES: Record<TiendanubeTier, string> = { gratis: 'Gratis', basico: 'Básico', tiendanube: 'Tiendanube', avanzado: 'Avanzado' }
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/** Validates an OPTIONAL enum arg: absent/undefined → the default (matches the
+ * schema's own `default`); present but not in `allowed` → a clear error instead
+ * of a silent fallback (second-opinion + codex review, PR 278 — an agent that
+ * typo'd a tier name deserves to know, not get a silently-wrong comparison). */
+function validateEnumArg<T extends string>(
+  args: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): { ok: true; value: T } | { ok: false; error: string } {
+  if (args[key] === undefined || args[key] === null) return { ok: true, value: fallback }
+  const raw = String(args[key])
+  if (!(allowed as readonly string[]).includes(raw)) {
+    return { ok: false, error: `${key} must be one of: ${allowed.join(', ')} (got "${raw}")` }
+  }
+  return { ok: true, value: raw as T }
+}
+
+/**
+ * Comparador de costos (epic 08 · cost-comparator-homepage, Sprint 2 · US-2.3) —
+ * the MCP `compare_costs` tool. Computes via the EXACT SAME pure functions
+ * `app/(shell)/comparador/page.tsx` renders from (lib/cost-comparator.ts +
+ * lib/cost-comparator-dataset.ts's *RatesFromDataset adapters + the same
+ * getComparatorDataset() fail-open dataset reader) — the rental_quote no-drift
+ * precedent (epic README). No auth, no flag: same read-only/no-side-effect shape
+ * as about_miyagi/get_checkout_options/search_listings (see
+ * lib/ucp/capabilities.ts MCP_BUYER_TOOLS) — the mcp.*.enabled flags only gate
+ * the newer SELLER write tools (configure_listing_options, delete_listing,
+ * apply_price, the support/checkout config blocks), never a stateless calculator.
+ */
+async function handleCompareCosts(args: Record<string, unknown>) {
+  const platform = String(args.platform ?? '')
+  if (!(COMPARE_COSTS_PLATFORMS as readonly string[]).includes(platform)) {
+    return { isError: true, content: [{ type: 'text', text: 'platform must be one of: shopify, mercadolibre, woocommerce, tiendanube' }] }
+  }
+  const volumeMonthly = Number(args.volume_monthly)
+  const aovMxn = Number(args.aov_mxn)
+  if (!Number.isFinite(volumeMonthly) || volumeMonthly < 0 || !Number.isFinite(aovMxn) || aovMxn < 0) {
+    return { isError: true, content: [{ type: 'text', text: 'volume_monthly and aov_mxn must both be non-negative numbers' }] }
+  }
+
+  const dataset = await getComparatorDataset('es')
+  const inputs = { volumeMonthly, aovMxn }
+  const apps = premiumAppsFromDataset(dataset)
+
+  // Validate `apps` against the LIVE dataset's actual app ids (never the schema's
+  // static enum alone) — an unknown id is dropped from the calculation AND
+  // reported back, never silently echoed as if it were accepted (should-fix,
+  // codex review PR 278).
+  const validAppIds = apps.map((a) => a.id)
+  const requestedAppIdsRaw = Array.isArray(args.apps) ? args.apps.map((a) => String(a)) : []
+  const acceptedAppIds = requestedAppIdsRaw.filter((id) => validAppIds.includes(id))
+  const unknownAppIds = requestedAppIdsRaw.filter((id) => !validAppIds.includes(id))
+  const fx = fxUsdToMxnFromDataset(dataset)
+  const appsMonthlyMxn = computeSelectedAppsMonthlyMxn(apps, acceptedAppIds, fx)
+
+  let competitorStack: ReturnType<typeof computeShopifyCost>
+  let platformLabel: string
+  let ctx: LineSourceContext = {}
+
+  if (platform === 'shopify') {
+    const tierResult = validateEnumArg(args, 'shopify_tier', COMPARE_COSTS_SHOPIFY_TIERS, 'basico')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
+    competitorStack = computeShopifyCost(inputs, tier, shopifyRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Shopify (${SHOPIFY_TIER_ES[tier]})`
+    ctx = { shopifyTier: tier }
+  } else if (platform === 'mercadolibre') {
+    const bandResult = validateEnumArg(args, 'ml_band', COMPARE_COSTS_ML_BANDS, 'media')
+    if (!bandResult.ok) return { isError: true, content: [{ type: 'text', text: bandResult.error }] }
+    const typeResult = validateEnumArg(args, 'ml_publication_type', COMPARE_COSTS_ML_TYPES, 'clasica')
+    if (!typeResult.ok) return { isError: true, content: [{ type: 'text', text: typeResult.error }] }
+    const band = bandResult.value
+    const type = typeResult.value
+    competitorStack = computeMercadoLibreCost(inputs, band, type, mercadoLibreRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Mercado Libre (${ML_BAND_ES[band]}, ${ML_TYPE_ES[type]})`
+    ctx = { mlBand: band, mlPublicationType: type }
+  } else if (platform === 'woocommerce') {
+    const tierResult = validateEnumArg(args, 'woo_hosting_tier', COMPARE_COSTS_WOO_TIERS, 'entrada')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
+    competitorStack = computeWooCommerceCost(inputs, tier, wooCommerceRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `WooCommerce (${WOO_TIER_ES[tier]})`
+    ctx = { wooTier: tier }
+  } else {
+    const tierResult = validateEnumArg(args, 'tiendanube_tier', COMPARE_COSTS_TN_TIERS, 'basico')
+    if (!tierResult.ok) return { isError: true, content: [{ type: 'text', text: tierResult.error }] }
+    const tier = tierResult.value
+    const ownGateway = args.tiendanube_own_gateway !== false
+    competitorStack = computeTiendanubeCost(inputs, tier, ownGateway, tiendanubeRatesFromDataset(dataset), appsMonthlyMxn)
+    platformLabel = `Tiendanube (${TN_TIER_ES[tier]}${ownGateway ? '' : ', pasarela externa'})`
+    ctx = { tnTier: tier, tnOwnGateway: ownGateway }
+  }
+
+  const miyagiSkus = {
+    subdomain: args.miyagi_subdomain === true,
+    customDomain: args.miyagi_custom_domain === true,
+    mlSync: args.miyagi_ml_sync === true,
+  }
+  const miyagiStack = computeMiyagiCost(inputs, miyagiSkus, miyagiRatesFromDataset(dataset))
+
+  // Every sourced figure backing either stack, deduped by dataset key.
+  const sourceKeys = new Set<string>()
+  for (const line of competitorStack.lines) {
+    const k = lineSourceFigureKey(platform as CostComparatorPlatform, line.key, ctx)
+    if (k) sourceKeys.add(k)
+  }
+  for (const line of miyagiStack.lines) {
+    const k = lineSourceFigureKey('miyagi', line.key, {})
+    if (k) sourceKeys.add(k)
+  }
+  const sources = Array.from(sourceKeys)
+    .map((k) => dataset.figures[k])
+    .filter((f): f is NonNullable<typeof f> => Boolean(f))
+    .map((f) => ({ label: f.label, source: f.source, verified_at: f.verifiedAt }))
+
+  const result = {
+    platform,
+    platform_label: platformLabel,
+    inputs: { volume_monthly: volumeMonthly, aov_mxn: aovMxn, apps: acceptedAppIds },
+    // Present ONLY when the caller sent an id this dataset doesn't recognize —
+    // never silently dropped, never silently echoed as accepted either.
+    ...(unknownAppIds.length > 0 ? { warnings: [`Unknown app id(s) ignored: ${unknownAppIds.join(', ')}. Valid ids: ${validAppIds.join(', ')}.`] } : {}),
+    competitor: {
+      monthly_total_mxn: competitorStack.monthlyTotalMxn,
+      annual_total_mxn: competitorStack.annualTotalMxn,
+      lines: competitorStack.lines,
+    },
+    miyagi: {
+      monthly_total_mxn: miyagiStack.monthlyTotalMxn,
+      annual_total_mxn: miyagiStack.annualTotalMxn,
+      lines: miyagiStack.lines,
+    },
+    savings: {
+      monthly_mxn: round2(competitorStack.monthlyTotalMxn - miyagiStack.monthlyTotalMxn),
+      annual_mxn: round2(competitorStack.annualTotalMxn - miyagiStack.annualTotalMxn),
+    },
+    verified_at: dataset.generatedAt,
+    sources,
+  }
+
+  const summary = `${platformLabel}: ${formatMxn(competitorStack.monthlyTotalMxn)}/mes vs. Miyagi Sánchez: ${formatMxn(miyagiStack.monthlyTotalMxn)}/mes (0% comisión). Datos verificados: ${dataset.generatedAt}.`
+
+  return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(result, null, 2) }] }
+}
+
 async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
@@ -3570,6 +3786,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       case 'get_buyer_trust':      { const r = await handleGetBuyerTrust(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'about_miyagi':         return { content: (await handleAboutMiyagi(baseUrl)).content }
       case 'get_setup_spec':       return { content: handleGetSetupSpec().content }
+      case 'compare_costs':        { const r = await handleCompareCosts(args); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'get_store_configuration':   { const r = await handleGetStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'patch_store_configuration': { const r = await handlePatchStoreConfiguration(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_offers':               { const r = await handleListOffers(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
