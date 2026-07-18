@@ -32,7 +32,7 @@ export function AboutPage({
       data-locale={locale}
       style={{ paddingTop: 'var(--s-8)', paddingBottom: 'var(--s-10)' }}
     >
-      <header style={{ maxWidth: 760, marginBottom: 'var(--s-9)' }}>
+      <header style={{ maxWidth: 'var(--measure-prose)', marginBottom: 'var(--s-9)' }}>
         <div
           style={{
             display: 'flex',
@@ -113,7 +113,7 @@ function AboutSectionBlock({
 
   return (
     <section aria-labelledby={titleId}>
-      <div style={{ maxWidth: 760, marginBottom: copy.points?.length ? 'var(--s-5)' : 0 }}>
+      <div style={{ maxWidth: 'var(--measure-prose)', marginBottom: copy.points?.length ? 'var(--s-5)' : 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--s-3)', marginBottom: 'var(--s-2)' }}>
           <h2 id={titleId} className="t-h2" style={{ letterSpacing: 0, margin: 0 }}>
             {copy.heading}

@@ -65,7 +65,7 @@ export default async function AgentPage() {
   return (
     <div
       className="app-shell"
-      style={{ paddingTop: 28, paddingBottom: 64, maxWidth: 760 }}
+      style={{ paddingTop: 28, paddingBottom: 64, maxWidth: 'var(--measure-prose)' }}
     >
       {/* Machine-readable JSON-LD for AI crawlers */}
       <script
@@ -148,7 +148,7 @@ export default async function AgentPage() {
             marginBottom: 16,
           }}
         >
-          <i className="iconoir-translate" style={{ fontSize: 15, flexShrink: 0, marginTop: 2 }} />
+          <i className="iconoir-translate" style={{ fontSize: 'var(--t-base)', flexShrink: 0, marginTop: 2 }} />
           <span><strong>Instrucción de relevo:</strong> {RELAY_LANGUAGE_DIRECTIVE}</span>
         </div>
 
@@ -251,7 +251,7 @@ export default async function AgentPage() {
             marginBottom: 14,
           }}
         >
-          <i className="iconoir-translate" style={{ fontSize: 15, flexShrink: 0, marginTop: 2 }} />
+          <i className="iconoir-translate" style={{ fontSize: 'var(--t-base)', flexShrink: 0, marginTop: 2 }} />
           <span><strong>Idioma:</strong> {SETUP_LANGUAGE_DIRECTIVE}</span>
         </div>
 

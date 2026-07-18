@@ -311,6 +311,9 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/l/[id]/ExcerptPanel.tsx',
   'app/(shell)/l/[id]/SpecsTable.tsx',
   'app/(shell)/l/[id]/CollapsibleDescription.tsx',
+  // ui-refresh-launch S2 · Story 2.2 — marketing polish pass (/agent, /acerca).
+  'app/(shell)/agent/page.tsx',
+  'app/(shell)/acerca/_components/AboutSections.tsx',
 ])
 
 export const documentedContrastPairs: ContrastPair[] = [
