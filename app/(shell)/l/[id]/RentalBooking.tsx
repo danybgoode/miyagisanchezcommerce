@@ -159,7 +159,7 @@ export default function RentalBooking({
         <div
           role="button"
           aria-disabled="true"
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm"
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm"
           style={{ background: 'var(--bg-sunk)', color: 'var(--fg-subtle)', cursor: 'not-allowed' }}
         >
           Elige fechas para reservar

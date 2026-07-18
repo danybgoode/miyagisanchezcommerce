@@ -289,6 +289,31 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/admin/contenido/ContenidoAdminClient.tsx',
   'app/(shell)/admin/contenido/ContenidoImportExportPanel.tsx',
   'app/(shell)/admin/contenido/ContenidoPageNav.tsx',
+  // ui-refresh-launch S2 · Story 2.1/2.2 — buyer-core + marketing polish pass,
+  // converting stray bare Tailwind radius utilities (and 2 bare `bg-white`
+  // instances on SearchBar's colored filter card) to the S1 `--r-*` token
+  // scale. `SubscriptionSection.tsx` was polished for radius too but is
+  // deliberately NOT added here — it also carries pre-existing raw
+  // green/red Tailwind palette classes (a success/error state) that are out
+  // of this sprint's token-re-skin scope (color *values*, not radius/type);
+  // adding it would fail the guard on debt this sprint didn't touch.
+  'app/(site)/page.tsx',
+  'app/(shell)/l/page.tsx',
+  'app/(shell)/l/SearchBar.tsx',
+  'app/(shell)/l/[id]/page.tsx',
+  'app/(shell)/l/[id]/AutoHero.tsx',
+  'app/(shell)/l/[id]/ServiceHero.tsx',
+  'app/(shell)/l/[id]/RentalBooking.tsx',
+  'app/(shell)/l/[id]/InmuebleHero.tsx',
+  'app/(shell)/l/[id]/Gallery.tsx',
+  'app/(shell)/l/[id]/EventBuyBox.tsx',
+  'app/(shell)/l/[id]/ConfiguratorBuyBox.tsx',
+  'app/(shell)/l/[id]/ExcerptPanel.tsx',
+  'app/(shell)/l/[id]/SpecsTable.tsx',
+  'app/(shell)/l/[id]/CollapsibleDescription.tsx',
+  // ui-refresh-launch S2 · Story 2.2 — marketing polish pass (/agent, /acerca).
+  'app/(shell)/agent/page.tsx',
+  'app/(shell)/acerca/_components/AboutSections.tsx',
 ])
 
 export const documentedContrastPairs: ContrastPair[] = [

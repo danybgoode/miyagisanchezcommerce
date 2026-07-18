@@ -123,9 +123,9 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
     scheduleRecount()
   }
 
-  const inputClass = 'border border-white/30 bg-white/20 text-white placeholder-white/70 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white focus:bg-white/30 w-full'
+  const inputClass = 'border border-white/30 bg-white/20 text-white placeholder-white/70 rounded-[var(--r-sm)] px-2 py-1.5 text-sm focus:outline-none focus:border-white focus:bg-white/30 w-full'
   const labelClass = 'text-white/80 text-xs mb-0.5 block'
-  const selectClass = 'border border-white/30 bg-white/20 text-white rounded px-2 py-1.5 text-sm focus:outline-none focus:border-white w-full [&>option]:text-[var(--color-text)] [&>option]:bg-white'
+  const selectClass = 'border border-white/30 bg-white/20 text-white rounded-[var(--r-sm)] px-2 py-1.5 text-sm focus:outline-none focus:border-white w-full [&>option]:text-[var(--color-text)] [&>option]:bg-[var(--fg-inverse)]'
 
   return (
     <>
@@ -133,7 +133,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="sm:hidden sticky top-2 z-30 w-full flex items-center justify-center gap-2 bg-[var(--claim-accent)] text-white font-semibold text-sm rounded-xl px-4 py-2.5 mb-4 shadow-sm"
+        className="sm:hidden sticky top-2 z-30 w-full flex items-center justify-center gap-2 bg-[var(--claim-accent)] text-white font-semibold text-sm rounded-[var(--r-md)] px-4 py-2.5 mb-4 shadow-sm"
       >
         <i className="iconoir-filter-list" /> Filtrar y ordenar
       </button>
@@ -155,11 +155,11 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         className={[
           'bg-[var(--claim-accent)]',
           // Mobile: bottom-sheet, slides up when open.
-          'fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 shadow-2xl',
+          'fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-[var(--r-xl)] p-4 shadow-2xl',
           'transition-transform duration-300',
           open ? 'translate-y-0' : 'translate-y-full',
           // sm+: revert to the inline card (unchanged from S1).
-          'sm:static sm:translate-y-0 sm:max-h-none sm:overflow-visible sm:rounded-xl sm:shadow-none sm:z-auto sm:transition-none sm:mb-6',
+          'sm:static sm:translate-y-0 sm:max-h-none sm:overflow-visible sm:rounded-[var(--r-lg)] sm:shadow-none sm:z-auto sm:transition-none sm:mb-6',
         ].join(' ')}
       >
         {/* Sheet header (mobile only). */}
@@ -249,7 +249,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
 
         <button
           type="submit"
-          className="hidden sm:block bg-white text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded text-sm hover:bg-white/90 transition-colors shrink-0"
+          className="hidden sm:block bg-[var(--fg-inverse)] text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded-[var(--r-md)] text-sm hover:bg-white/90 transition-colors shrink-0"
         >
           Buscar
         </button>
@@ -393,7 +393,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
                     type="checkbox"
                     checked={selectedPropertyTypes.includes(pt.value)}
                     onChange={() => togglePropertyType(pt.value)}
-                    className="rounded"
+                    className="rounded-[var(--r-xs)]"
                   />
                   {pt.label}
                 </label>
@@ -476,7 +476,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         </button>
         <button
           type="submit"
-          className="flex-1 bg-white text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-lg text-sm hover:bg-white/90 transition-colors"
+          className="flex-1 bg-[var(--fg-inverse)] text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-[var(--r-md)] text-sm hover:bg-white/90 transition-colors"
         >
           {resultCountLabel(count)}
         </button>

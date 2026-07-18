@@ -211,7 +211,7 @@ export default function ConfiguratorBuyBox({
           onClick={proceed}
           disabled={loading}
           data-testid="configurator-buy-cta"
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm disabled:opacity-60 transition-colors"
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm disabled:opacity-60 transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
           {loading ? (

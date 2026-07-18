@@ -198,7 +198,7 @@ export default function Gallery({
           fetchPriority={active === 0 ? 'high' : undefined}
           decoding={active === 0 ? undefined : 'async'}
           data-testid="gallery-main-desktop"
-          className="hidden md:block md:rounded-xl"
+          className="hidden md:block md:rounded-[var(--r-lg)]"
           style={{ ...MAIN_IMG, cursor: 'zoom-in' }}
         />
 
@@ -279,7 +279,7 @@ export default function Gallery({
 
       {/* DESKTOP — clickable thumbnail rail (nothing to switch between with 1 image) */}
       {count > 1 && (
-        <div className="hidden md:flex hide-scrollbar md:rounded-b-xl" style={{ gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }}>
+        <div className="hidden md:flex hide-scrollbar md:rounded-b-[var(--r-lg)]" style={{ gap: 4, padding: '4px 4px 0', overflowX: 'auto', background: 'var(--bg-sunk)' }}>
           {images.map((img, i) => (
             <button
               key={i}

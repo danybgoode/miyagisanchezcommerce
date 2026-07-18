@@ -458,10 +458,10 @@ export default async function HomePage() {
                   borderTop: i === 0 ? 'none' : '1px solid var(--border)',
                 }}
               >
-                <i className={`iconoir-${cat.icon}`} style={{ fontSize: 17, color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
+                <i className={`iconoir-${cat.icon}`} style={{ fontSize: 'var(--t-md)', color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
                 <span style={{ flex: 1, fontSize: 13.5, color: 'var(--fg)' }}>{cat.label}</span>
                 <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{cat.count}</span>
-                <i className="iconoir-arrow-right" style={{ fontSize: 15, color: 'var(--fg-subtle)', flexShrink: 0 }} aria-hidden />
+                <i className="iconoir-arrow-right" style={{ fontSize: 'var(--t-base)', color: 'var(--fg-subtle)', flexShrink: 0 }} aria-hidden />
               </Link>
             ))}
           </div>

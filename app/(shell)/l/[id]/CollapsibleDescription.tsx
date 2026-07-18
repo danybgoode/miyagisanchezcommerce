@@ -26,7 +26,7 @@ export default function CollapsibleDescription({ text }: { text: string }) {
     <div>
       <p
         style={{
-          fontSize: 14,
+          fontSize: 'var(--t-sm)',
           color: 'var(--fg)',
           lineHeight: 1.6,
           whiteSpace: 'pre-line',

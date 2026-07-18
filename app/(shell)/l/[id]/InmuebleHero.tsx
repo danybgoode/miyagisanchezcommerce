@@ -78,7 +78,7 @@ export default function InmuebleHero({
           target="_blank"
           rel="noopener noreferrer"
           data-testid="pdp-inmueble-agendar"
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
           <i className="iconoir-calendar" style={{ fontSize: 16 }} />

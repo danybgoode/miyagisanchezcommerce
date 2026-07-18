@@ -58,7 +58,7 @@ export default function ExcerptPanel({ text }: { text: string }) {
             borderRadius: 'var(--r-lg)',
             padding: 16,
             marginTop: 8,
-            fontSize: 15,
+            fontSize: 'var(--t-base)',
             lineHeight: 1.7,
             color: 'var(--fg)',
             whiteSpace: 'pre-wrap',

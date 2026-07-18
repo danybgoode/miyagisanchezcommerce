@@ -54,7 +54,7 @@ export default function AutoHero({
           always underneath when it renders. ────────────────────────────────── */}
       {financing && (
         <div data-testid="pdp-auto-financing" style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 15, fontWeight: 700 }}>{financing.monthlyLabel}</p>
+          <p style={{ fontSize: 'var(--t-base)', fontWeight: 700 }}>{financing.monthlyLabel}</p>
           <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{financing.disclaimer}</p>
         </div>
       )}
@@ -125,7 +125,7 @@ export default function AutoHero({
           target="_blank"
           rel="noopener noreferrer"
           data-testid="pdp-auto-agendar"
-          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-xl text-sm no-underline transition-colors"
+          className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
           <i className="iconoir-car" style={{ fontSize: 16 }} />
