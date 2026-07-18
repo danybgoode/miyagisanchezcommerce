@@ -9,14 +9,8 @@ import {
   premiumAppsFromDataset,
   fxUsdToMxnFromDataset,
 } from '@/lib/cost-comparator-dataset'
-import type {
-  ShopifyTier,
-  MlBand,
-  MlPublicationType,
-  WooCommerceHostingTier,
-  TiendanubeTier,
-} from '@/lib/cost-comparator'
-import ComparadorTool, { type CompetitorPlatform, type ComparadorInitial } from './_components/ComparadorTool'
+import { parseComparadorState } from '@/lib/cost-comparator-url'
+import ComparadorTool, { type ComparadorInitial } from './_components/ComparadorTool'
 import ComparadorAnalytics from './_components/ComparadorAnalytics'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -47,29 +41,6 @@ export const metadata: Metadata = {
 
 type ComparadorPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
-}
-
-function first(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v
-}
-
-function toNumber(v: string | string[] | undefined, fallback: number): number {
-  const raw = first(v)
-  if (raw === undefined) return fallback
-  const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : fallback
-}
-
-const PLATFORMS: CompetitorPlatform[] = ['shopify', 'mercadolibre', 'woocommerce', 'tiendanube']
-const SHOPIFY_TIERS: ShopifyTier[] = ['basico', 'crecimiento', 'avanzado']
-const ML_BANDS: MlBand[] = ['baja', 'media', 'alta']
-const ML_TYPES: MlPublicationType[] = ['clasica', 'premium']
-const WOO_TIERS: WooCommerceHostingTier[] = ['entrada', 'crecimiento']
-const TN_TIERS: TiendanubeTier[] = ['gratis', 'basico', 'tiendanube', 'avanzado']
-
-function pick<T extends string>(v: string | string[] | undefined, allowed: T[], fallback: T): T {
-  const raw = first(v)
-  return (allowed as string[]).includes(raw ?? '') ? (raw as T) : fallback
 }
 
 function formatVerifiedDate(iso: string): string {
@@ -106,17 +77,13 @@ export default async function ComparadorPage({ searchParams }: ComparadorPagePro
   const apps = premiumAppsFromDataset(dataset)
   const fx = fxUsdToMxnFromDataset(dataset)
 
-  const initial: ComparadorInitial = {
-    platform: pick(sp.platform, PLATFORMS, 'shopify'),
-    shopifyTier: pick(sp.tier, SHOPIFY_TIERS, 'basico'),
-    mlBand: pick(sp.band, ML_BANDS, 'media'),
-    mlPublicationType: pick(sp.type, ML_TYPES, 'clasica'),
-    wooTier: pick(sp.hosting, WOO_TIERS, 'entrada'),
-    tnTier: pick(sp.tier, TN_TIERS, 'basico'),
-    tnOwnGateway: first(sp.gateway) !== 'external',
-    volume: toNumber(sp.volume, 100),
-    aov: toNumber(sp.aov, 500),
-  }
+  // US-2.2 — the same codec a "Copiar enlace" share button builds from, so a
+  // consultant's prefilled link restores EXACTLY what they set (platform, tier/
+  // band/type/hosting/gateway, volume, AOV, selected apps, Miyagi SKU toggles).
+  const initial: ComparadorInitial = parseComparadorState(
+    sp,
+    apps.map((a) => a.id),
+  )
 
   return (
     <div className="app-shell" style={{ paddingTop: 'var(--s-8)', paddingBottom: 'var(--s-10)', maxWidth: 720, margin: '0 auto', paddingLeft: 'var(--s-4)', paddingRight: 'var(--s-4)' }}>

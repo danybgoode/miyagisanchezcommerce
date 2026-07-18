@@ -196,6 +196,16 @@ export async function GET(req: NextRequest) {
           mcp_tools: ['list_manuscript_submissions', 'review_submission', 'publish_submission', 'list_launchpad_campaigns', 'create_campaign', 'update_campaign', 'activate_campaign', 'cancel_campaign'],
         },
 
+        cost_comparator: {
+          method: 'POST',
+          url: `${base}/api/ucp/mcp`,
+          description: "Compare a merchant's current platform cost (Shopify, Mercado Libre, WooCommerce, or Tiendanube) against the equivalent Miyagi Sánchez (0% commission) cost, given their own sales volume and average order value, via the MCP tool compare_costs. Computed by the exact same pure model as the public /comparador page — never drifts from what that page shows. Every competitor figure is sourced and dated; the response carries the dataset's verified_at date plus each figure's source. Read-only, no auth.",
+          auth: 'none',
+          docs_url: `${base}/agent`,
+          human_url: `${base}/comparador`,
+          mcp_tools: ['compare_costs'],
+        },
+
         seller_onboarding: {
           method: 'GET',
           url: `${base}/api/ucp/setup-spec`,
