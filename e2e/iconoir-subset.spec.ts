@@ -100,6 +100,52 @@ test.describe('iconoir subset · mechanism fixtures (negative cases — prove th
     expect(usage.map((u) => u.className)).toEqual(['iconoir-totally-new-prefix-'])
   })
 
+  // codex (PR #279 review round) flagged stripComments() (lib/iconoir-subset.ts)
+  // as a potential string-truncation risk: its line-comment stripper treats any
+  // `//` not immediately preceded by `:` as a comment start, which is safe for
+  // the `https://...` case it was built for but isn't a full tokenizer — a
+  // non-URL string containing a bare `//` would still get chopped. These two
+  // fixtures prove the patterns THIS codebase actually has survive correctly;
+  // the third documents the accepted narrow gap rather than silently leaving
+  // it unproven either way.
+  test('regression fixture: a real className usage survives on the same line as an https:// URL (the actual pattern in this codebase)', () => {
+    const usage = findIconoirClassUsageInSourceFiles([
+      {
+        filePath: 'app/components/Fake.tsx',
+        content: '<a href="https://example.com/docs" className="iconoir-arrow-up-right" aria-hidden>Ver más</a>',
+      },
+    ])
+    expect(usage.map((u) => u.className)).toEqual(['iconoir-arrow-up-right'])
+  })
+
+  test('regression fixture: a real className usage survives inside a JSX block comment ({/* ... */}) on an adjacent, non-commented line', () => {
+    const usage = findIconoirClassUsageInSourceFiles([
+      {
+        filePath: 'app/components/Fake.tsx',
+        content: '{/* legacy iconoir-old-glyph removed */}\n<i className="iconoir-heart" aria-hidden />',
+      },
+    ])
+    expect(usage.map((u) => u.className)).toEqual(['iconoir-heart'])
+  })
+
+  test('KNOWN GAP, documented not fixed: a real className usage on the SAME line as a non-URL string containing a bare "//" can be mis-truncated', () => {
+    // stripComments() only special-cases the `://` shape (protocol-relative
+    // URLs); a bare "//" elsewhere in a string — e.g. a doubled path
+    // separator with no protocol prefix — still reads as a line-comment
+    // start. Not observed anywhere in the current app/+components/+lib/+
+    // locales/ tree (verified by grep before writing this fixture), and a
+    // false NEGATIVE here (missing a real usage) fails LOUD via the
+    // coverage-gate test above whenever it would actually matter — build-
+    // iconoir-subset.ts's missing-class check has no visibility into
+    // classes it never saw, so this is a real edge, just not one this
+    // codebase currently hits. A full tokenizer is the permanent fix; out
+    // of scope for this sprint's "cheap fix" bar.
+    const usage = findIconoirClassUsageInSourceFiles([
+      { filePath: 'app/components/Fake.tsx', content: 'const path = "/api//legacy"; const cls = "iconoir-heart"' },
+    ])
+    expect(usage.map((u) => u.className)).toEqual([]) // documents the gap — NOT the desired behavior
+  })
+
   test('documented fixture: the CATEGORIES-derived dynamic composition resolves to real, non-empty class names', () => {
     const usage = findIconoirClassUsageInSourceFiles([
       { filePath: 'app/components/CategoryChips.tsx', content: '<i className={`iconoir-${cat.icon}`} aria-hidden />' },

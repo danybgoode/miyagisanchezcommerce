@@ -213,6 +213,24 @@ test.describe('perf-budget · S2.2 source-code checks — Clerk UI lazy-mount + 
   })
 })
 
+// Order/quote-independent HTML tag+attribute extraction — a fresh reviewer on
+// this PR correctly flagged the first version of these checks as only
+// matching double-quoted, FIXED-attribute-order tags (`rel="stylesheet"`
+// always assumed to precede `href="..."`), which real HTML (attribute order
+// varies by renderer, and both quote styles are valid) isn't guaranteed to
+// produce. `extractTags` grabs whole `<tagName ...>` matches; `hasAttr`/
+// `attrValue` then look inside ONE tag string, independent of where in the
+// tag the attribute sits or which quote character it uses.
+function extractTags(html: string, tagName: string): string[] {
+  return [...html.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, 'g'))].map((m) => m[0])
+}
+function hasAttr(tag: string, attrName: string): boolean {
+  return new RegExp(`\\b${attrName}\\b`).test(tag)
+}
+function attrValue(tag: string, attrName: string): string | undefined {
+  return tag.match(new RegExp(`\\b${attrName}\\s*=\\s*["']([^"']*)["']`))?.[1]
+}
+
 test.describe('perf-budget · S2.3 source-code checks — the render-blocking-CDN regression guard', () => {
   test("app/layout.tsx's <head> has no external stylesheet <link> besides the accepted Google Fonts one", () => {
     // Deterministic, no-network guard against the EXACT regression class this
@@ -222,7 +240,10 @@ test.describe('perf-budget · S2.3 source-code checks — the render-blocking-CD
     // trade-off, not the class of asset this guard is watching for).
     const layout = read('app/layout.tsx')
     const headBlock = layout.slice(layout.indexOf('<head>'), layout.indexOf('</head>'))
-    const stylesheetHrefs = [...headBlock.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"/g)].map((m) => m[1])
+    const stylesheetHrefs = extractTags(headBlock, 'link')
+      .filter((tag) => attrValue(tag, 'rel') === 'stylesheet')
+      .map((tag) => attrValue(tag, 'href'))
+      .filter((href): href is string => !!href)
     const externalStylesheets = stylesheetHrefs.filter((href) => /^https?:\/\//.test(href))
     for (const href of externalStylesheets) {
       expect(href, `unexpected external stylesheet in the shared root layout: ${href}`).toMatch(/^https:\/\/fonts\.googleapis\.com\//)
@@ -335,11 +356,37 @@ test.describe('perf-budget · live check (skips gracefully pre-deploy / empty ca
     }
   })
 
-  // S2.3 — the actual budget: fetch every render-blocking asset discoverable
-  // in the homepage's <head> and fail if any exceeds RENDER_BLOCKING_BUDGET_BYTES.
-  // Hard assertion ONLY on the prod host (S1's established skip semantics —
-  // see the sibling live tests' comments for why preview isn't a fair target).
-  test('no render-blocking <head> asset on the homepage exceeds the 150 KiB budget', async ({ request, baseURL }) => {
+  // S2.3 — the actual budget: fetch every render-blocking EXTERNAL/third-party
+  // asset discoverable in the homepage's <head> and fail if any exceeds
+  // RENDER_BLOCKING_BUDGET_BYTES. Hard assertion ONLY on the prod host (S1's
+  // established skip semantics — see the sibling live tests' comments for
+  // why preview isn't a fair target).
+  //
+  // Scoped to EXTERNAL assets on purpose (a fresh reviewer caught the first
+  // version of this test measuring same-origin assets too, and getting the
+  // measurement itself wrong in the process — see below). This matches the
+  // guard's actual stated intent throughout this sprint ("zero render-
+  // blocking requests from external CDNs", 2.1's acceptance) and the real
+  // regression class it exists to catch: the jsDelivr iconoir.css link. A
+  // same-origin CSS/JS budget is a DIFFERENT, harder problem this test
+  // doesn't attempt: Next.js legitimately bundles ALL of an app's critical
+  // CSS (globals.css + the iconoir subset + everything else) into ONE
+  // same-origin chunk, so a raw per-file byte count on same-origin output
+  // says nothing meaningful about render-blocking cost on its own — and
+  // `body().length` specifically (what this test used to check) reads the
+  // DECOMPRESSED size after Playwright's request client auto-decodes
+  // gzip/brotli, not the actual over-the-wire transfer size Lighthouse's own
+  // "render-blocking" and "unused CSS" audits measure. Concretely: this PR's
+  // own bundled CSS chunk was measured at 211,974 raw bytes post-deploy in
+  // review — over budget by that (wrong) measure despite being ~15 KiB over
+  // the wire. External-only scoping sidesteps the whole compressed-vs-
+  // uncompressed question: a third-party CDN response's raw byte count IS
+  // what forced the browser to fetch that many bytes from THAT origin
+  // regardless of Playwright's own decoding, so `body().length` is the right
+  // measure there (verified against the exact jsDelivr regression case below
+  // — its 2,888,008-byte body is genuinely that large, not a compression
+  // artifact).
+  test('no render-blocking EXTERNAL <head> asset on the homepage exceeds the 150 KiB budget', async ({ request, baseURL }) => {
     const isProd = baseURL === PROD_URL
     test.skip(!isProd, 'hard budget assertion only runs against the prod host — see S1 comments on why preview is excluded')
 
@@ -350,20 +397,24 @@ test.describe('perf-budget · live check (skips gracefully pre-deploy / empty ca
 
     // Render-blocking stylesheets: any <link rel="stylesheet"> without a
     // media="print"/preload+onload async-CSS trick (this app uses neither).
-    const stylesheetUrls = [...headHtml.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"/g)].map((m) => m[1])
+    const stylesheetUrls = extractTags(headHtml, 'link')
+      .filter((tag) => attrValue(tag, 'rel') === 'stylesheet')
+      .map((tag) => attrValue(tag, 'href'))
+      .filter((href): href is string => !!href)
     // Render-blocking scripts: a <script src=...> with none of async/defer/
     // type="module" (Next's own framework scripts are always deferred/
     // module — this only catches something that regresses that).
-    const scriptTags = [...headHtml.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*>/g)]
-    const blockingScriptUrls = scriptTags
-      .filter((m) => !/\basync\b|\bdefer\b|type="module"/.test(m[0]))
-      .map((m) => m[1])
+    const blockingScriptUrls = extractTags(headHtml, 'script')
+      .filter((tag) => attrValue(tag, 'src') && !hasAttr(tag, 'async') && !hasAttr(tag, 'defer') && attrValue(tag, 'type') !== 'module')
+      .map((tag) => attrValue(tag, 'src'))
+      .filter((src): src is string => !!src)
 
-    const assetUrls = [...stylesheetUrls, ...blockingScriptUrls].map((href) =>
-      href.startsWith('http') ? href : new URL(href, PROD_URL).toString(),
-    )
+    const pageOrigin = new URL(PROD_URL).origin
+    const externalAssetUrls = [...stylesheetUrls, ...blockingScriptUrls]
+      .filter((href) => /^https?:\/\//.test(href))
+      .filter((href) => new URL(href).origin !== pageOrigin)
 
-    for (const assetUrl of assetUrls) {
+    for (const assetUrl of externalAssetUrls) {
       const assetRes = await request.get(assetUrl)
       expect(assetRes.ok(), `${assetUrl} did not respond OK`).toBeTruthy()
       const body = await assetRes.body()
