@@ -1,4 +1,49 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type APIRequestContext } from '@playwright/test'
+
+const CATALOG_PAGE_SIZE = 50
+
+type CatalogItem = {
+  id?: string
+  shop?: { slug?: unknown }
+}
+
+/**
+ * Read the complete public catalog rather than trusting the first result. The
+ * Store endpoint paginates on `page`, which the UCP route forwards unchanged.
+ * A seller-less listing can otherwise hide on a later page while this embed
+ * gate stays green.
+ */
+async function readCatalog(request: APIRequestContext): Promise<CatalogItem[]> {
+  const items: CatalogItem[] = []
+  let pageNumber = 1
+  let total = 0
+
+  do {
+    const res = await request.get(`/api/ucp/catalog?limit=${CATALOG_PAGE_SIZE}&page=${pageNumber}`)
+    expect(res.ok(), `catalog page ${pageNumber}`).toBeTruthy()
+
+    const page = await res.json() as { items?: unknown; total?: unknown }
+    expect(Array.isArray(page.items), `catalog page ${pageNumber} returns items`).toBeTruthy()
+    expect(typeof page.total, `catalog page ${pageNumber} returns total`).toBe('number')
+
+    const pageItems = page.items as CatalogItem[]
+    items.push(...pageItems)
+    total = page.total as number
+
+    // The final page must complete the advertised total. Before then, a full
+    // page is required; otherwise we would silently leave later listings
+    // unchecked if pagination returned a short page prematurely.
+    if (items.length >= total) {
+      expect(items.length, 'catalog pagination returned every item').toBe(total)
+      break
+    }
+
+    expect(pageItems, `catalog page ${pageNumber} is complete`).toHaveLength(CATALOG_PAGE_SIZE)
+    pageNumber += 1
+  } while (items.length < total)
+
+  return items
+}
 
 /**
  * Embeddable Widget · Sprint 2 (US-5) — full-shop iframe surface.
@@ -22,13 +67,17 @@ test.describe('Embed full-shop — framable surface', () => {
   })
 
   test('renders a real shop storefront when one exists', async ({ request }) => {
-    // Derive a real shop slug from the public catalog (shares the live Medusa
-    // backend). If the environment has no active listings, there is nothing to
-    // assert — skip rather than fail.
-    const cat = await request.get('/api/ucp/catalog?limit=1')
-    expect(cat.ok()).toBeTruthy()
-    const slug = (await cat.json())?.items?.[0]?.shop?.slug
-    test.skip(!slug, 'no active listings in this environment')
+    // A catalog with no listings has no storefront to render. Any populated
+    // catalog must expose a real shop slug for EVERY returned listing — do this
+    // before the skip so an orphan on any page fails loudly, not silently.
+    const catalog = await readCatalog(request)
+    test.skip(catalog.length === 0, 'no active listings in this environment')
+
+    for (const [index, item] of catalog.entries()) {
+      expect(item.shop?.slug, `catalog item ${item.id ?? index} at index ${index} has a shop slug`).toBeTruthy()
+    }
+
+    const slug = catalog[0].shop?.slug as string
 
     const res = await request.get(`/embed/s/${slug}`, { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
