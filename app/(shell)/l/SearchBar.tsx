@@ -74,6 +74,18 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
   const formRef = useRef<HTMLFormElement>(null)
   const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // A mobile-open form is portalled to <body>. If the viewport crosses into
+  // desktop, close first so it returns to its inline layout position and the
+  // open-state effect below restores body scrolling.
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 640px)')
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setOpen(false)
+    }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
+
   // Debounced recount: read the form's current values (controlled + uncontrolled),
   // merge the applied listing_type from the instant rail (not part of this form),
   // and ask the count endpoint how many results the staged filters would yield.
