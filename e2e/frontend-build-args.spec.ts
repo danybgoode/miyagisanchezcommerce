@@ -88,10 +88,29 @@ test.describe('Dockerfile — NEXT_PUBLIC_* builder-stage ARG/ENV', () => {
     }
   })
 
+  test('the server-side catalog fetch receives the public Medusa URL while prerendering', () => {
+    // `lib/listings.ts` reads MEDUSA_STORE_URL, not NEXT_PUBLIC_MEDUSA_STORE_URL.
+    // Without this bridge the builder hits localhost, catches the failure, and
+    // ships the first Cloud Run revision with a cached empty marketplace.
+    expect(dockerfileBuilderStage).toMatch(
+      /MEDUSA_STORE_URL=\$NEXT_PUBLIC_MEDUSA_STORE_URL/,
+    )
+  })
+
   test('no NEXT_PUBLIC_* var leaks into the runner stage', () => {
     for (const name of NEXT_PUBLIC_VARS) {
       expect(dockerfileRunnerStage, `${name} must not appear in the runner stage — it gets a real value at Cloud Run runtime`).not.toContain(name)
     }
+  })
+})
+
+test.describe('GitHub deployment notification workflow', () => {
+  test('keeps the immediate push alert but does not poll retired Vercel production', () => {
+    const workflow = readFileSync(join(ROOT, '.github/workflows/notify-telegram.yml'), 'utf8')
+
+    expect(workflow).toContain('name: Push notification')
+    expect(workflow).toContain('📦')
+    expect(workflow).not.toMatch(/vercel-production-deploy|Vercel production|api\.vercel\.com|target=production/)
   })
 })
 
