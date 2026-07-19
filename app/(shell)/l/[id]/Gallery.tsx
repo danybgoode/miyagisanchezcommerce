@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { wrapIndex, indexFromScroll } from '@/lib/gallery'
 
 type GalleryImage = { url: string; alt?: string | null }
@@ -72,6 +73,7 @@ export default function Gallery({
   const [active, setActive] = useState(0)
   const [lightbox, setLightbox] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const trackRef = useRef<HTMLDivElement>(null)
 
   const go = useCallback((i: number) => setActive(wrapIndex(i, count)), [count])
@@ -80,6 +82,7 @@ export default function Gallery({
   // away immediately) so we never setState on an unmounted island.
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+  useEffect(() => { setMounted(true) }, [])
 
   const copyLink = useCallback(async (url: string) => {
     try {
@@ -311,7 +314,7 @@ export default function Gallery({
       )}
 
       {/* Lightbox — lazy-mounted only when opened (zero cost until used). */}
-      {lightbox && (
+      {lightbox && mounted && createPortal(
         <Lightbox
           images={images}
           title={title}
@@ -321,7 +324,8 @@ export default function Gallery({
             setLightbox(false)
             scrollToSlide(active)
           }}
-        />
+        />,
+        document.body,
       )}
     </div>
   )
@@ -398,7 +402,7 @@ function Lightbox({
         if (Math.abs(dx) > 40) setIndex(dx < 0 ? index + 1 : index - 1)
         touchX.current = null
       }}
-      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-overlay)', background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <button type="button" aria-label="Cerrar" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--fg-inverse)', cursor: 'pointer', zIndex: 2 }}>
         <i className="iconoir-xmark" style={{ fontSize: 24 }} />

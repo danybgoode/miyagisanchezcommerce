@@ -33,6 +33,21 @@ test.describe('mobile-filter · bottom-sheet (browser)', () => {
     await expect(apply).toBeInViewport()
   })
 
+  test('resizing an open sheet to desktop restores the inline form and body scroll', async ({ page }) => {
+    await page.goto('/l')
+    await page.getByRole('button', { name: 'Filtrar y ordenar' }).click()
+
+    const form = page.locator('form:has(button[aria-label="Cerrar filtros"])')
+    await expect(form).toBeInViewport()
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+
+    await page.setViewportSize({ width: 800, height: 844 })
+
+    await expect(form).toBeInViewport()
+    await expect(page.getByRole('button', { name: 'Buscar' })).toBeVisible()
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
+  })
+
   test('staging a filter updates the count, then apply commits + closes (S2.2)', async ({ page }) => {
     await page.goto('/l')
     await page.getByRole('button', { name: 'Filtrar y ordenar' }).click()

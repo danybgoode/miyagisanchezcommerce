@@ -72,7 +72,7 @@ test.describe('pdp · interactive gallery (browser)', () => {
     await expect(page.getByTestId('gallery-share')).toBeVisible()
   })
 
-  test('tap main image opens the lightbox; Esc closes it (S1.2)', async ({ page }) => {
+  test('tap main image opens the lightbox; its close X is hit-testable (S1.2)', async ({ page }) => {
     await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0) // not mounted until opened
 
     await mainImg(page).click()
@@ -80,7 +80,10 @@ test.describe('pdp · interactive gallery (browser)', () => {
     await expect(lb).toBeVisible()
     await expect(lb).toHaveAttribute('role', 'dialog')
 
-    await page.keyboard.press('Escape')
+    // A visibility assertion alone is insufficient: the sticky platform header can
+    // paint over the X while the button remains technically visible. A real click
+    // fails if that header intercepts the pointer, which is the reported regression.
+    await lb.getByRole('button', { name: 'Cerrar' }).click()
     await expect(page.getByTestId('gallery-lightbox')).toHaveCount(0)
   })
 })

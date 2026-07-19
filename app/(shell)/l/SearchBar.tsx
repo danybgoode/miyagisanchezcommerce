@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
 import { buildQuery, resultCountLabel } from '@/lib/listing-query'
@@ -50,6 +51,15 @@ const PROPERTY_TYPES = [
   { value: 'otro', label: 'Otros' },
 ]
 
+function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  // The trigger only exists below `sm`; retaining the normal in-flow form until it
+  // opens preserves the desktop card while escaping PlatformShell's isolation on mobile.
+  return open && mounted ? createPortal(children, document.body) : children
+}
+
 export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
@@ -63,6 +73,18 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
   const [count, setCount] = useState<number | null>(initialTotal ?? null)
   const formRef = useRef<HTMLFormElement>(null)
   const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // A mobile-open form is portalled to <body>. If the viewport crosses into
+  // desktop, close first so it returns to its inline layout position and the
+  // open-state effect below restores body scrolling.
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 640px)')
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setOpen(false)
+    }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
 
   // Debounced recount: read the form's current values (controlled + uncontrolled),
   // merge the applied listing_type from the instant rail (not part of this form),
@@ -147,6 +169,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         />
       )}
 
+      <BuyerShellPortal open={open}>
       <form
         ref={formRef}
         method="GET"
@@ -481,7 +504,8 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           {resultCountLabel(count)}
         </button>
       </div>
-    </form>
+      </form>
+      </BuyerShellPortal>
     </>
   )
 }
