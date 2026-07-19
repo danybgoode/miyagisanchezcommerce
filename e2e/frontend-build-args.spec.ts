@@ -93,7 +93,7 @@ test.describe('Dockerfile — NEXT_PUBLIC_* builder-stage ARG/ENV', () => {
     // Without this bridge the builder hits localhost, catches the failure, and
     // ships the first Cloud Run revision with a cached empty marketplace.
     expect(dockerfileBuilderStage).toMatch(
-      /MEDUSA_STORE_URL=\$NEXT_PUBLIC_MEDUSA_STORE_URL/,
+      /^\s*MEDUSA_STORE_URL=\$NEXT_PUBLIC_MEDUSA_STORE_URL/m,
     )
   })
 
