@@ -51,6 +51,9 @@
 /* ── DESIGN SYSTEM TOKENS ───────────────────────────────────────────────── */
 
 :root {
+  /* Root-context overlays portalled to <body>; above the header (50) and PWA tab bar (100). */
+  --z-overlay: 200;
+
   /* ─── Color scales ─── */
 
   /* Selva (forest green) — primary brand */
@@ -1089,6 +1092,8 @@ html[data-platform-theme] .platform-brand-seasonal {
 .platform-main-shell {
   position: relative;
   min-height: calc(100vh - 76px);
+  /* This creates a root stacking-context boundary for the theme pattern. Fixed
+     overlays rendered here cannot out-rank the header/tab bar; portal them to body. */
   isolation: isolate;
 }
 

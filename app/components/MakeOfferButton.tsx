@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   OFFER_ANCHORS,
@@ -344,10 +345,10 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
         Hacer oferta
       </button>
 
-      {step !== 'idle' && (
+      {step !== 'idle' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 flex items-end sm:items-center justify-center p-4"
+          style={{ zIndex: 'var(--z-overlay)', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
           onClick={e => { if (e.target === e.currentTarget) setStep('idle') }}
         >
           <div
@@ -500,7 +501,8 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

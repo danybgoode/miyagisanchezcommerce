@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
 import { ESTADOS } from '@/lib/mx-locations'
 import { buildQuery, resultCountLabel } from '@/lib/listing-query'
@@ -49,6 +50,15 @@ const PROPERTY_TYPES = [
   { value: 'bodega', label: 'Bodegas' },
   { value: 'otro', label: 'Otros' },
 ]
+
+function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  // The trigger only exists below `sm`; retaining the normal in-flow form until it
+  // opens preserves the desktop card while escaping PlatformShell's isolation on mobile.
+  return open && mounted ? createPortal(children, document.body) : children
+}
 
 export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
@@ -147,6 +157,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         />
       )}
 
+      <BuyerShellPortal open={open}>
       <form
         ref={formRef}
         method="GET"
@@ -481,7 +492,8 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           {resultCountLabel(count)}
         </button>
       </div>
-    </form>
+      </form>
+      </BuyerShellPortal>
     </>
   )
 }
