@@ -1,3 +1,10 @@
+---
+name: catalog-relations-and-overlays
+description: Durable Medusa seller-product relation and platform-shell overlay constraints established by the July 2026 incident batch
+metadata:
+  type: project
+---
+
 # Catalog relations and body-level overlays
 
 _Recorded 2026-07-19 after backend PR #104 and frontend PRs #285/#286._
@@ -12,8 +19,9 @@ _Recorded 2026-07-19 after backend PR #104 and frontend PRs #285/#286._
 - Historical authorization (orders, tickets, or any durable product reference) must include
   deleted products. In the installed Medusa query layer that requires the nested relation's own
   `QueryContext({})`; a top-level deleted-inclusive option does not widen the nested relation.
-- Ownership checks fail closed: empty, unresolved, mixed-seller, and relation-query-error cases are
-  unauthorized. For orders, the seller must own every resolvable item.
+- Ownership checks never authorize empty, unresolved, or mixed-seller inputs. Relation-query errors
+  propagate as errors rather than producing authorization. For orders, every item must resolve and
+  belong to the seller.
 - Public catalog checks must inspect every advertised item across every page. Skip only when the
   catalog is genuinely empty; never skip because an invariant value such as `shop.slug` is empty.
 
