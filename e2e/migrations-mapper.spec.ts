@@ -414,3 +414,46 @@ test.describe('ssrf-fetch · pinnedFetch TOCTOU-closure + hostname preservation'
     }
   })
 })
+
+// `redirect: 'error'` (ssrf-artwork-url-mcp seed, AC3 — added alongside the
+// third pinnedFetch call site, lib/artwork-url-fetch.ts) — a public,
+// already-validated host must not be able to pivot the fetch to an
+// unvalidated one via a 3xx. This is generic `pinnedFetch` + undici
+// behavior, not specific to any one caller, so it lives here with
+// `pinnedFetch`'s other mechanics rather than duplicated per call site.
+test.describe('ssrf-fetch · pinnedFetch + redirect: "error" (a 3xx is refused, never followed)', () => {
+  test('a 302 throws on the FIRST response and the server is only ever hit once — the redirect target is never dialed', async () => {
+    // The pinned Agent's `connect.lookup` answers ANY hostname with the SAME
+    // validated address set, so even a "followed" redirect to a different
+    // hostname would still physically dial the ORIGINAL pinned address — it
+    // can't be used to pivot to a genuinely different IP. That means the
+    // observable difference `redirect: 'error'` makes isn't "which address
+    // gets dialed" but WHETHER a second request happens at all: this handler
+    // 302s once then 200s, so counting hits distinguishes "rejected
+    // immediately" (1 hit) from "the redirect was followed" (2 hits) —
+    // a same-target-count assertion wouldn't, since both land on this same
+    // test server either way.
+    let hitCount = 0
+    const { server, port } = await makeServer((_req, res) => {
+      hitCount += 1
+      if (hitCount === 1) {
+        res.writeHead(302, { location: `http://redirect-test.invalid:${port}/after` })
+        res.end()
+      } else {
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        res.end('should never be reached')
+      }
+    })
+    try {
+      await expect(
+        pinnedFetch(new URL(`http://redirect-test.invalid:${port}/`), { redirect: 'error' }, {
+          resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+          unsafeSkipPrivateCheckForTest: true, // see file-header note — loopback is the only dialable local target
+        }),
+      ).rejects.toBeTruthy() // undici throws on a 3xx when redirect: 'error' — never issues the second request
+      expect(hitCount).toBe(1)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+})
