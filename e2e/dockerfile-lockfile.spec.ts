@@ -28,7 +28,11 @@ test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self
     for (const file of ['ci.yml', 'browser-smoke.yml']) {
       const workflow = readFileSync(join(ROOT, '.github/workflows', file), 'utf8')
       expect(workflow).not.toMatch(/node-version:\s*20/)
-      for (const setup of workflow.matchAll(/uses:\s*actions\/setup-node@v4[\s\S]*?node-version:\s*(\d+)/g)) {
+      const setups = [
+        ...workflow.matchAll(/uses:\s*actions\/setup-node@v\d+[\s\S]*?node-version:\s*(\d+)/g),
+      ]
+      expect(setups.length, `${file} must configure setup-node`).toBeGreaterThan(0)
+      for (const setup of setups) {
         expect(setup[1], `${file} setup-node runtime`).toBe('22')
       }
     }
