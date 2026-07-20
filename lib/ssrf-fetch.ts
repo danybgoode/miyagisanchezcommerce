@@ -15,13 +15,14 @@
  * address that got validated is not the address that gets dialed.
  *
  * `pinnedFetch` closes that window structurally: resolve ONCE, validate
- * every returned address, then physically dial the exact validated IP via a
- * per-request undici `Agent` whose `connect.lookup` is stubbed to always
- * return that one pinned address — no second, independent resolve is ever
- * possible. The original hostname is passed to `fetch()` unchanged (only the
- * dial target is pinned), so undici derives TLS SNI/`servername` from it as
- * usual — that is what preserves certificate validation against the
- * hostname the caller actually asked for, not the IP we dialed.
+ * every returned address, then physically dial one of the exact validated
+ * IPs via a per-request undici `Agent` whose `connect.lookup` is stubbed to
+ * always answer with that SAME validated set — no second, independent
+ * resolve is ever possible. The original hostname is passed to `fetch()`
+ * unchanged (only the dial target is pinned), so undici derives TLS
+ * SNI/`servername` from it as usual — that is what preserves certificate
+ * validation against the hostname the caller actually asked for, not the IP
+ * we dialed.
  *
  * Why `undici` is imported directly (both `fetch` AND `Agent`), not Node's
  * global `fetch` with a duck-typed dispatcher: `undici` was, until this
@@ -50,14 +51,33 @@
  * cover this file. This was an open question in sprint-1.md ("`server-only`
  * enforcement on the new helper — raise it as a question in plan mode,
  * decide, move on"); the decision is: no, for the reason above.
+ *
+ * CORRECTION (cross-agent review + independent `pr-reviewer` pass,
+ * 2026-07-20 — both confirmed live against real undici 8.8.0, one via a real
+ * `https://www.shopify.com/` fetch through this exact shape): the first
+ * version of this function called `await agent.destroy()` in a `finally`
+ * immediately after `undiciFetch()` resolved. `undiciFetch()` resolves as
+ * soon as HTTP HEADERS arrive — the body is still streaming — so that
+ * `finally` forcibly killed the live socket while the caller was still
+ * reading the body. Small payloads that fit in the same TCP flush as the
+ * headers could pass by accident; anything larger (the `pr-reviewer` pass's
+ * threshold ladder: 1 KB/16 KB OK, 64 KB/256 KB/1 MB failed) hit a real race
+ * and threw `TypeError: terminated` on every read. `destroy()` is the
+ * FORCEFUL teardown; it is still correct, and still used, on the throw path
+ * below (no `Response` was ever handed to a caller there, so nothing else
+ * will ever drain that connection). On the success path, the fix is to stop
+ * destroying at all and instead let the per-request socket close itself the
+ * moment it goes idle — see the comment inside `pinnedFetch`.
  */
 import {
   fetch as undiciFetch,
   Agent,
+  Headers,
   type RequestInit as UndiciRequestInit,
   type Response as UndiciResponse,
 } from 'undici'
 import { lookup as dnsLookup } from 'node:dns/promises'
+import { ADDRCONFIG } from 'node:dns'
 import { isPrivateIpv4, isPrivateIpv6 } from './ssrf-guard'
 
 /** Thrown when a host resolves to a private/reserved address, or DNS resolution fails. */
@@ -74,38 +94,56 @@ export type ResolvedAddress = { address: string; family: number }
 export type PinnedFetchResolver = (hostname: string) => Promise<ResolvedAddress[]>
 
 const defaultResolve: PinnedFetchResolver = async (hostname) => {
-  const results = await dnsLookup(hostname, { all: true, verbatim: true })
+  // `hints: ADDRCONFIG` matches what undici's OWN default connector passes
+  // to Node's lookup (confirmed live by cross-agent review instrumentation
+  // of the lookup callback) — it suppresses address families the running
+  // host has no actual route for. Without it, a dual-stack target whose
+  // AAAA record happens to sort first would get pinned to IPv6 with no
+  // fallback on a runtime with IPv4-only egress (Cloud Run) — the old
+  // plain-`fetch()` path never hit this because Node's own default lookup
+  // (and undici's `autoSelectFamily`) already filtered/failed-over across
+  // whatever the OS could actually route.
+  const results = await dnsLookup(hostname, { all: true, verbatim: true, hints: ADDRCONFIG })
   return results
 }
 
 /**
- * PURE — no network. Given `node:dns` lookup results, return the address to
- * pin (always the FIRST resolved address — this is what makes the
- * TOCTOU-closure guarantee meaningful: a later, independent resolve
- * returning something else can no longer substitute a different address),
- * or `null` if ANY resolved address is private/reserved. Fails closed on an
+ * PURE — no network. Given `node:dns` lookup results, validate EVERY
+ * returned address and return the full set to pin (order preserved), or
+ * `null` if ANY resolved address is private/reserved. Fails closed on an
  * empty result set.
+ *
+ * Returns the whole validated set, not just the first address: the old
+ * resolve-then-`fetch()` path let the runtime retry across every A/AAAA
+ * record Node resolved (Happy-Eyeballs / dual-stack failover) — pinning only
+ * `results[0]` would silently drop that resilience the moment a multi-homed
+ * host's first record was momentarily down. Every address here has passed
+ * the identical private/reserved check, so handing `pinnedFetch` the whole
+ * set preserves failover without reopening the TOCTOU: nothing outside this
+ * already-validated list is ever added later.
  */
-export function selectPinnedAddress(
+export function selectPinnedAddresses(
   results: ResolvedAddress[],
-): { address: string; family: 4 | 6 } | null {
+): Array<{ address: string; family: 4 | 6 }> | null {
   if (results.length === 0) return null
+  const addresses: Array<{ address: string; family: 4 | 6 }> = []
   for (const r of results) {
     const isPrivate = r.family === 6 ? isPrivateIpv6(r.address) : isPrivateIpv4(r.address)
     if (isPrivate) return null
+    addresses.push({ address: r.address, family: r.family === 6 ? 6 : 4 })
   }
-  const [first] = results
-  return { address: first.address, family: first.family === 6 ? 6 : 4 }
+  return addresses
 }
 
 /**
  * Resolves `url.hostname` ONCE, validates every returned address with the
- * shared `lib/ssrf-guard.ts` classifiers, then dials that exact pinned IP —
- * via a per-request undici `Agent` whose `connect.lookup` always answers
- * with the one validated address — while leaving `url.hostname` itself
- * untouched, so TLS SNI/cert validation still runs against the original
- * hostname. Throws `SsrfBlockedError` if the host is not public (including
- * on DNS failure — fails closed).
+ * shared `lib/ssrf-guard.ts` classifiers, then dials one of the exact pinned
+ * IPs — via a per-request undici `Agent` whose `connect.lookup` always
+ * answers with that SAME validated set (`autoSelectFamily: true` lets Node
+ * retry across it, same as the old plain-hostname path could) — while
+ * leaving `url.hostname` itself untouched, so TLS SNI/cert validation still
+ * runs against the original hostname. Throws `SsrfBlockedError` if the host
+ * is not public (including on DNS failure — fails closed).
  *
  * Provides pinned DISPATCH only, not policy: callers keep their own
  * timeout/redirect/byte-cap/content-type rules layered on top.
@@ -116,14 +154,17 @@ export async function pinnedFetch(
   opts?: {
     resolve?: PinnedFetchResolver
     /**
-     * TEST-ONLY escape hatch. When `true`, skip `selectPinnedAddress`'s
+     * TEST-ONLY escape hatch. When `true`, skip `selectPinnedAddresses`'s
      * private/reserved-address rejection (still fails closed on an empty
-     * result set, still pins the first resolved address). Production call
-     * sites never pass this — its default (`selectPinnedAddress`'s real,
+     * result set, still pins the resolved set as-is). Production call sites
+     * never pass this — its default (`selectPinnedAddresses`'s real,
      * unmodified rejection) is exactly current production behaviour.
+     * Structurally guarded, not just documented: `pinnedFetch` throws if
+     * this is ever passed with `NODE_ENV === 'production'`, so a future
+     * caller can't quietly reach for it on a shared security seam.
      *
-     * Why it exists: every address a sandboxed dev/CI machine can dial to
-     * itself (loopback, its own LAN/CGNAT address) is, correctly,
+     * Why it exists at all: every address a sandboxed dev/CI machine can
+     * dial to itself (loopback, its own LAN/CGNAT address) is, correctly,
      * `isPrivateIpv4`/`isPrivateIpv6`-private — that's the whole point of
      * the guard. That makes it impossible to drive `pinnedFetch` through a
      * real, successful connection to a local `http.createServer()` (the
@@ -136,6 +177,10 @@ export async function pinnedFetch(
     unsafeSkipPrivateCheckForTest?: boolean
   },
 ): Promise<UndiciResponse> {
+  if (opts?.unsafeSkipPrivateCheckForTest && process.env.NODE_ENV === 'production') {
+    throw new Error('pinnedFetch: unsafeSkipPrivateCheckForTest must never be used in production')
+  }
+
   const resolve = opts?.resolve ?? defaultResolve
 
   let results: ResolvedAddress[]
@@ -145,26 +190,52 @@ export async function pinnedFetch(
     throw new SsrfBlockedError(`DNS resolution failed for host: ${url.hostname}`)
   }
 
-  const pinned = opts?.unsafeSkipPrivateCheckForTest
-    ? (results[0] ? { address: results[0].address, family: (results[0].family === 6 ? 6 : 4) as 4 | 6 } : null)
-    : selectPinnedAddress(results)
-  if (!pinned) {
+  const pinnedAddresses = opts?.unsafeSkipPrivateCheckForTest
+    ? (results.length > 0
+        ? results.map((r) => ({ address: r.address, family: (r.family === 6 ? 6 : 4) as 4 | 6 }))
+        : null)
+    : selectPinnedAddresses(results)
+  if (!pinnedAddresses) {
     throw new SsrfBlockedError(`Host does not resolve to a public address: ${url.hostname}`)
   }
 
-  // A fresh Agent per request (not a shared/global one) so the pinned
-  // address can never leak into a connection reused for a different host —
-  // destroyed in `finally` below so its socket(s) never leak.
+  // A fresh Agent per request (never reused/shared across requests, never
+  // holds more than one request's worth of connections) so the pinned
+  // address set can never leak into a connection reused for a different
+  // host.
   const agent = new Agent({
     connect: {
       lookup: (_lookupHostname, _lookupOptions, callback) => {
-        callback(null, [{ address: pinned.address, family: pinned.family }])
+        callback(null, pinnedAddresses.map((a) => ({ address: a.address, family: a.family })))
       },
     },
+    // Every candidate above already passed the private/reserved check, so
+    // letting Node retry across them (Happy-Eyeballs / v4↔v6 failover)
+    // preserves the resilience the old resolve-then-`fetch()` path got for
+    // free from a plain hostname dial, without reopening any TOCTOU.
+    autoSelectFamily: true,
+    // Let this per-request socket close itself the instant it goes idle
+    // (right after this one response finishes) instead of lingering in
+    // undici's keep-alive pool for reuse that will never come (a fresh
+    // Agent is never reused). This — not an explicit destroy — is what
+    // cleans up the success path; see the file-header CORRECTION for why an
+    // earlier version's `finally { agent.destroy() }` was wrong.
+    keepAliveTimeout: 1,
+    keepAliveMaxTimeout: 1,
   })
   try {
-    return await undiciFetch(url, { ...init, dispatcher: agent })
-  } finally {
+    // Reinforces the same self-closing behaviour at the protocol level (most
+    // servers close rather than keep-alive on request), independent of the
+    // client-side keepAliveTimeout above. Only set if the caller didn't
+    // already specify one.
+    const headers = new Headers(init?.headers)
+    if (!headers.has('connection')) headers.set('connection', 'close')
+    return await undiciFetch(url, { ...init, headers, dispatcher: agent })
+  } catch (err) {
+    // The one path where the socket really could otherwise leak: no
+    // Response was ever handed back for a caller to read/drain, so nothing
+    // will ever put this Agent's connection through its normal close.
     await agent.destroy()
+    throw err
   }
 }

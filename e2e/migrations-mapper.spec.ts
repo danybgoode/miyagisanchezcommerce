@@ -8,7 +8,7 @@ import {
   type ShopifyUcpProduct,
 } from '../lib/shopify-import'
 import { isPublicDomainShape, isPrivateIpv4, isPrivateIpv6 } from '../lib/ssrf-guard'
-import { pinnedFetch, selectPinnedAddress, SsrfBlockedError, type ResolvedAddress } from '../lib/ssrf-fetch'
+import { pinnedFetch, selectPinnedAddresses, SsrfBlockedError, type ResolvedAddress } from '../lib/ssrf-fetch'
 
 /**
  * Shopify connector · Sprint 1 (epic 03 · platform-migrations).
@@ -216,22 +216,46 @@ test.describe('shopify-mcp-client · isPrivateIpv6', () => {
 
 // ── SSRF DNS-pinning (epic 09 · ssrf-dns-pinning, Sprint 1) ─────────────────
 // `lib/ssrf-fetch.ts` closes the TOCTOU window `assertPublicHost` alone
-// leaves open: resolve ONCE, validate every returned address, then dial the
-// exact validated IP (never a second, independent resolve). See that file's
-// header for the full rationale, including why `pinnedFetch` accepts an
-// `unsafeSkipPrivateCheckForTest` escape hatch used ONLY in the local-server
-// specs below (never by production call sites) — every address a sandboxed
-// dev/CI machine can dial to itself is, correctly, private/reserved, so a
-// real successful connection to a local `http.createServer()` is only
-// reachable through that narrow, documented bypass; the rejection itself is
-// separately proven below with ZERO bypass, against the real classifiers.
+// leaves open: resolve ONCE, validate every returned address, then dial one
+// of the exact validated IPs (never a second, independent resolve). See that
+// file's header for the full rationale, including why `pinnedFetch` accepts
+// an `unsafeSkipPrivateCheckForTest` escape hatch used ONLY in the
+// local-server specs below (never by production call sites, and structurally
+// refused outside test — `pinnedFetch` throws if it's passed with
+// `NODE_ENV === 'production'`) — every address a sandboxed dev/CI machine can
+// dial to itself is, correctly, private/reserved, so a real successful
+// connection to a local `http.createServer()` is only reachable through that
+// narrow, documented bypass; the rejection itself is separately proven below
+// with ZERO bypass, against the real classifiers.
+//
+// NOT covered here: sprint-1.md's QA item 3 asks for a TLS spec proving "a
+// cert valid for the rebound IP's host does not satisfy the connection"
+// against the ORIGINAL hostname. That needs a real HTTPS server presenting a
+// certificate for a specific (wrong) hostname, which needs a self-signed
+// cert/key pair — this repo has no cert-generation tooling (openssl shell-out
+// or a userland lib like `node-forge`/`selfsigned`) as a dependency, and
+// adding one for a single LOW-risk spec was judged disproportionate for this
+// sprint. The specs below substitute a plain-HTTP `Host`-header check, which
+// proves hostname preservation end-to-end but NOT TLS/SNI/cert enforcement
+// specifically — that gap is real and stated plainly rather than implied
+// covered (cross-agent review + `pr-reviewer` both flagged this; the
+// `pr-reviewer` pass separately proved the underlying behaviour correct by
+// hand — pinning `www.google.com`'s IP under hostname `example.com` and
+// getting `ERR_TLS_CERT_ALTNAME_INVALID` — so the CODE is right, only the
+// automated coverage of that specific criterion is missing).
 
-function makeServer(): Promise<{ server: http.Server; port: number; hits: Array<{ host: string | undefined }> }> {
+function makeServer(
+  handler?: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+): Promise<{ server: http.Server; port: number; hits: Array<{ host: string | undefined }> }> {
   const hits: Array<{ host: string | undefined }> = []
   const server = http.createServer((req, res) => {
     hits.push({ host: req.headers.host })
-    res.writeHead(200, { 'content-type': 'text/plain' })
-    res.end('ok')
+    if (handler) {
+      handler(req, res)
+    } else {
+      res.writeHead(200, { 'content-type': 'text/plain' })
+      res.end('ok')
+    }
   })
   return new Promise((resolve, reject) => {
     server.once('error', reject)
@@ -242,30 +266,33 @@ function makeServer(): Promise<{ server: http.Server; port: number; hits: Array<
   })
 }
 
-test.describe('ssrf-fetch · selectPinnedAddress (pure, no network)', () => {
-  test('picks the first resolved address, tagging its family, when none are private', () => {
+test.describe('ssrf-fetch · selectPinnedAddresses (pure, no network)', () => {
+  test('returns every validated address, tagging family, when none are private — not just the first (preserves Happy-Eyeballs/v4↔v6 failover)', () => {
     const results: ResolvedAddress[] = [
       { address: '93.184.216.34', family: 4 },
       { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
     ]
-    expect(selectPinnedAddress(results)).toEqual({ address: '93.184.216.34', family: 4 })
+    expect(selectPinnedAddresses(results)).toEqual([
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+    ])
   })
   test('rejects when ANY resolved address is private/reserved (loopback, link-local, RFC1918)', () => {
-    expect(selectPinnedAddress([{ address: '127.0.0.1', family: 4 }])).toBeNull()
-    expect(selectPinnedAddress([{ address: '169.254.169.254', family: 4 }])).toBeNull() // cloud metadata
-    expect(selectPinnedAddress([{ address: '10.0.0.5', family: 4 }])).toBeNull()
-    expect(selectPinnedAddress([{ address: '::1', family: 6 }])).toBeNull()
-    expect(selectPinnedAddress([{ address: 'fd00::1', family: 6 }])).toBeNull()
+    expect(selectPinnedAddresses([{ address: '127.0.0.1', family: 4 }])).toBeNull()
+    expect(selectPinnedAddresses([{ address: '169.254.169.254', family: 4 }])).toBeNull() // cloud metadata
+    expect(selectPinnedAddresses([{ address: '10.0.0.5', family: 4 }])).toBeNull()
+    expect(selectPinnedAddresses([{ address: '::1', family: 6 }])).toBeNull()
+    expect(selectPinnedAddresses([{ address: 'fd00::1', family: 6 }])).toBeNull()
     // Public first, private second in the SAME resolve — still rejected (fails closed on ANY).
     expect(
-      selectPinnedAddress([
+      selectPinnedAddresses([
         { address: '93.184.216.34', family: 4 },
         { address: '127.0.0.1', family: 4 },
       ]),
     ).toBeNull()
   })
   test('fails closed on an empty result set', () => {
-    expect(selectPinnedAddress([])).toBeNull()
+    expect(selectPinnedAddresses([])).toBeNull()
   })
 })
 
@@ -286,10 +313,28 @@ test.describe('ssrf-fetch · pinnedFetch rejection (real classifiers, no bypass)
       }),
     ).rejects.toBeInstanceOf(SsrfBlockedError)
   })
+  test('unsafeSkipPrivateCheckForTest is structurally refused outside test (NODE_ENV=production)', async () => {
+    // `process.env.NODE_ENV` is typed read-only in this repo's tsconfig, so
+    // mutate it through a widened view rather than assigning the literal
+    // property (which fails `tsc`). Restore it in `finally` either way.
+    const env = process.env as Record<string, string | undefined>
+    const original = env.NODE_ENV
+    env.NODE_ENV = 'production'
+    try {
+      await expect(
+        pinnedFetch(new URL('http://internal-target.invalid/'), undefined, {
+          resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+          unsafeSkipPrivateCheckForTest: true,
+        }),
+      ).rejects.toThrow('unsafeSkipPrivateCheckForTest must never be used in production')
+    } finally {
+      env.NODE_ENV = original
+    }
+  })
 })
 
 test.describe('ssrf-fetch · pinnedFetch TOCTOU-closure + hostname preservation', () => {
-  test('dials the FIRST resolved address only — a hypothetical second (rebound) resolve never happens; the original hostname is what the server sees', async () => {
+  test('dials the pinned resolve — a hypothetical second (rebound) resolve never happens; the original hostname is what the server sees; the body is read intact', async () => {
     const { server, port, hits } = await makeServer()
     try {
       let resolveCallCount = 0
@@ -319,8 +364,51 @@ test.describe('ssrf-fetch · pinnedFetch TOCTOU-closure + hostname preservation'
       // hostname is preserved end-to-end (this is what preserves TLS
       // SNI/cert validation against the real hostname in the https case;
       // for a plain-HTTP local test the observable proxy for that is the
-      // `Host` header, per sprint-1.md's own acceptance note).
+      // `Host` header — see the describe-block header above for what this
+      // does and doesn't prove about TLS specifically).
       expect(hits[0].host).toBe(`${hostname}:${port}`)
+      // Fully drain the body (also required so `server.close()` below
+      // doesn't hang waiting for an active connection) and assert on its
+      // actual content — a status-only assertion would pass even against
+      // the premature-`agent.destroy()` bug this regressed on once (see
+      // lib/ssrf-fetch.ts's file-header CORRECTION).
+      await expect(res.text()).resolves.toBe('ok')
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  test('reads a large (>256KB), multi-chunk, delayed body completely — regression spec for the premature agent.destroy() bug', async () => {
+    // Cross-agent review's threshold ladder against real undici 8.8.0 found
+    // the premature-destroy bug was a RACE, not a clean cutoff: 1 KB/16 KB
+    // bodies passed "by accident" (small enough to arrive in the same flush
+    // as the headers), 64 KB/256 KB/1 MB reliably failed. This body is
+    // comfortably over that line (384 KB) AND split so the first chunk
+    // flushes with the headers while the rest arrives on a later, delayed
+    // write — the exact shape that made small-body specs a false negative.
+    const CHUNK_SIZE = 64 * 1024
+    const CHUNK_COUNT = 6 // 384 KB total
+    const chunks = Array.from({ length: CHUNK_COUNT }, (_, i) => Buffer.alloc(CHUNK_SIZE, 65 + (i % 26)))
+    const expectedBody = Buffer.concat(chunks)
+
+    const { server, port, hits } = await makeServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/octet-stream' })
+      res.write(chunks[0]) // flushes with the headers
+      setTimeout(() => {
+        for (const c of chunks.slice(1)) res.write(c)
+        res.end()
+      }, 120) // the rest arrives well after pinnedFetch() has already returned
+    })
+    try {
+      const res = await pinnedFetch(new URL(`http://big-body-test.invalid:${port}/`), undefined, {
+        resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+        unsafeSkipPrivateCheckForTest: true,
+      })
+      expect(res.status).toBe(200)
+      const body = Buffer.from(await res.arrayBuffer())
+      expect(body.length).toBe(expectedBody.length) // not truncated by a socket destroyed mid-stream
+      expect(body.equals(expectedBody)).toBe(true)
+      expect(hits).toHaveLength(1)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
