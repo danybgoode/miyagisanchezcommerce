@@ -124,7 +124,13 @@ async function callTool(
       signal: controller.signal,
       cache: 'no-store',
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      // Drain the unconsumed body so the pinned per-request socket closes now
+      // rather than lingering until the abort timeout — pinnedFetch's Agent no
+      // longer self-destructs on the success path (cross-review, 2026-07-20).
+      await res.body?.cancel().catch(() => {})
+      return null
+    }
     const body = (await res.json().catch(() => null)) as {
       result?: { content?: Array<{ type?: string; text?: string }>; isError?: boolean }
       error?: unknown

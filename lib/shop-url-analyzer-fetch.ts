@@ -94,10 +94,17 @@ export async function analyzeShopUrl(rawUrl: string): Promise<AnalyzeShopUrlResu
     }
   }
   if (!upstream.ok || !upstream.body) {
+    // Free the pinned per-request socket now instead of letting an
+    // unconsumed body hold it open until the abort timeout (cross-review,
+    // 2026-07-20) — `pinnedFetch`'s Agent no longer self-destructs on the
+    // success path, so an early return that never drains the body is what
+    // would keep the connection alive.
+    await upstream.body?.cancel().catch(() => {})
     return { ok: false, status: 502, error: 'Esa tienda no respondió correctamente. Llena los datos a mano abajo.' }
   }
   const contentType = upstream.headers.get('content-type') ?? ''
   if (!contentType.toLowerCase().includes('text/html')) {
+    await upstream.body.cancel().catch(() => {})
     return { ok: false, status: 415, error: 'Esa dirección no parece ser la página de una tienda.' }
   }
 
