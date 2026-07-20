@@ -37,6 +37,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # design. Values arrive as --build-args from cloudbuild.yaml (Secret Manager
 # for the real keys, substitutions for the literal-default routing vars).
 # Builder stage only — the runner stage already gets real values at runtime.
+# `lib/listings.ts` is server-rendered during `next build`; give that server
+# read the same public store URL so the initial Cloud Run revision pre-renders
+# the catalog instead of falling back to localhost and caching an empty home.
 # Keep this list in parity with deploy-frontend.sh's NEXT_PUBLIC_*
 # --set-env-vars: guarded by infra/gcp/test/frontend-build-args.test.js.
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -64,6 +67,7 @@ ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY \
     NEXT_PUBLIC_MEDUSA_STORE_URL=$NEXT_PUBLIC_MEDUSA_STORE_URL \
+    MEDUSA_STORE_URL=$NEXT_PUBLIC_MEDUSA_STORE_URL \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL \
     NEXT_PUBLIC_CLERK_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_URL \
