@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import * as http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import {
   shopifyProductToIncomingSupplyItem,
   shopifyCategoryToMiyagi,
@@ -6,6 +8,7 @@ import {
   type ShopifyUcpProduct,
 } from '../lib/shopify-import'
 import { isPublicDomainShape, isPrivateIpv4, isPrivateIpv6 } from '../lib/ssrf-guard'
+import { pinnedFetch, selectPinnedAddress, SsrfBlockedError, type ResolvedAddress } from '../lib/ssrf-fetch'
 
 /**
  * Shopify connector · Sprint 1 (epic 03 · platform-migrations).
@@ -208,5 +211,118 @@ test.describe('shopify-mcp-client · isPrivateIpv6', () => {
   })
   test('a genuinely public IPv6 address is not flagged', () => {
     expect(isPrivateIpv6('2606:2800:220:1:248:1893:25c8:1946')).toBe(false) // example.com
+  })
+})
+
+// ── SSRF DNS-pinning (epic 09 · ssrf-dns-pinning, Sprint 1) ─────────────────
+// `lib/ssrf-fetch.ts` closes the TOCTOU window `assertPublicHost` alone
+// leaves open: resolve ONCE, validate every returned address, then dial the
+// exact validated IP (never a second, independent resolve). See that file's
+// header for the full rationale, including why `pinnedFetch` accepts an
+// `unsafeSkipPrivateCheckForTest` escape hatch used ONLY in the local-server
+// specs below (never by production call sites) — every address a sandboxed
+// dev/CI machine can dial to itself is, correctly, private/reserved, so a
+// real successful connection to a local `http.createServer()` is only
+// reachable through that narrow, documented bypass; the rejection itself is
+// separately proven below with ZERO bypass, against the real classifiers.
+
+function makeServer(): Promise<{ server: http.Server; port: number; hits: Array<{ host: string | undefined }> }> {
+  const hits: Array<{ host: string | undefined }> = []
+  const server = http.createServer((req, res) => {
+    hits.push({ host: req.headers.host })
+    res.writeHead(200, { 'content-type': 'text/plain' })
+    res.end('ok')
+  })
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo
+      resolve({ server, port, hits })
+    })
+  })
+}
+
+test.describe('ssrf-fetch · selectPinnedAddress (pure, no network)', () => {
+  test('picks the first resolved address, tagging its family, when none are private', () => {
+    const results: ResolvedAddress[] = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+    ]
+    expect(selectPinnedAddress(results)).toEqual({ address: '93.184.216.34', family: 4 })
+  })
+  test('rejects when ANY resolved address is private/reserved (loopback, link-local, RFC1918)', () => {
+    expect(selectPinnedAddress([{ address: '127.0.0.1', family: 4 }])).toBeNull()
+    expect(selectPinnedAddress([{ address: '169.254.169.254', family: 4 }])).toBeNull() // cloud metadata
+    expect(selectPinnedAddress([{ address: '10.0.0.5', family: 4 }])).toBeNull()
+    expect(selectPinnedAddress([{ address: '::1', family: 6 }])).toBeNull()
+    expect(selectPinnedAddress([{ address: 'fd00::1', family: 6 }])).toBeNull()
+    // Public first, private second in the SAME resolve — still rejected (fails closed on ANY).
+    expect(
+      selectPinnedAddress([
+        { address: '93.184.216.34', family: 4 },
+        { address: '127.0.0.1', family: 4 },
+      ]),
+    ).toBeNull()
+  })
+  test('fails closed on an empty result set', () => {
+    expect(selectPinnedAddress([])).toBeNull()
+  })
+})
+
+test.describe('ssrf-fetch · pinnedFetch rejection (real classifiers, no bypass)', () => {
+  test('throws SsrfBlockedError when the resolved address is private', async () => {
+    await expect(
+      pinnedFetch(new URL('http://internal-target.invalid/'), undefined, {
+        resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+      }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError)
+  })
+  test('throws SsrfBlockedError when DNS resolution fails (fails closed)', async () => {
+    await expect(
+      pinnedFetch(new URL('http://does-not-resolve.invalid/'), undefined, {
+        resolve: async () => {
+          throw new Error('ENOTFOUND')
+        },
+      }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError)
+  })
+})
+
+test.describe('ssrf-fetch · pinnedFetch TOCTOU-closure + hostname preservation', () => {
+  test('dials the FIRST resolved address only — a hypothetical second (rebound) resolve never happens; the original hostname is what the server sees', async () => {
+    const { server, port, hits } = await makeServer()
+    try {
+      let resolveCallCount = 0
+      // Simulates the classic DNS-rebinding shape: a first answer that would
+      // pass validation, then a DIFFERENT address on any later, independent
+      // resolve. The OLD resolve-then-fetch pattern (assertPublicHost +
+      // plain fetch()) re-resolves inside fetch() itself and could dial
+      // whatever THIS second answer is. pinnedFetch must never reach it.
+      const resolve = async (): Promise<ResolvedAddress[]> => {
+        resolveCallCount += 1
+        if (resolveCallCount === 1) return [{ address: '127.0.0.1', family: 4 }]
+        // Never legitimately reachable from this test — proves the point if it ever were used.
+        return [{ address: '10.6.6.6', family: 4 }]
+      }
+
+      const hostname = 'rebind-test.invalid' // RFC 2606 reserved — never really resolvable
+      const res = await pinnedFetch(new URL(`http://${hostname}:${port}/`), undefined, {
+        resolve,
+        unsafeSkipPrivateCheckForTest: true, // see lib/ssrf-fetch.ts header — loopback is the only dialable local target
+      })
+
+      expect(res.status).toBe(200)
+      expect(resolveCallCount).toBe(1) // the resolver's "second call" branch was never exercised
+      expect(hits).toHaveLength(1)
+      // The dial went to 127.0.0.1, but the request the server actually
+      // received still carries the ORIGINAL hostname (+port) — proving the
+      // hostname is preserved end-to-end (this is what preserves TLS
+      // SNI/cert validation against the real hostname in the https case;
+      // for a plain-HTTP local test the observable proxy for that is the
+      // `Host` header, per sprint-1.md's own acceptance note).
+      expect(hits[0].host).toBe(`${hostname}:${port}`)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })
