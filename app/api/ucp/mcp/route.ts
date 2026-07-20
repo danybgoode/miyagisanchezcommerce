@@ -53,6 +53,7 @@ import { resolveDomainEntitlement } from '@/lib/domain-entitlement-server'
 import { startCustomDomainCheckout } from '@/lib/domain-subscription-checkout'
 import { stageShopifyBatch } from '@/lib/shopify-import-bridge'
 import { isPublicDomainShape } from '@/lib/ssrf-guard'
+import { downloadArtworkBytes } from '@/lib/artwork-url-fetch'
 import { CUSTOM_DOMAIN_PRICE_LABEL } from '@/lib/domain-pricing'
 import { asDomainCadence } from '@/lib/domain-cadence'
 import { CAMPAIGN_COUPON_CODE } from '@/lib/domain-coupon'
@@ -1262,6 +1263,14 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
  * IDENTICAL `ingestArtworkBytes` the human upload route uses — never a
  * second, looser copy of that check.
  */
+// ONE generic, non-oracular es-MX message for every artwork_url download or
+// validation failure (Roadmap/00-ideas/seeds/ssrf-artwork-url-mcp.md). This
+// endpoint has no auth, so three distinguishable strings (an HTTP status, a
+// content-length-derived size, a raw network-error string) would let an
+// anonymous caller use it to port-scan internal hosts. Never split this back
+// into per-cause strings.
+const ARTWORK_DOWNLOAD_ERROR = 'No pudimos descargar o validar el archivo de artwork_url. Usa una URL pública https:// que apunte directo a la imagen.'
+
 async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
   const listingId = String(args.listing_id ?? '')
   const variantId = String(args.variant_id ?? '')
@@ -1298,19 +1307,16 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
     if (!fileField) {
       return { isError: true, content: [{ type: 'text', text: 'This listing has no artwork field — remove artwork_url.' }] }
     }
-    let bytes: Uint8Array
-    try {
-      const artworkRes = await fetch(String(args.artwork_url), { signal: AbortSignal.timeout(15000) })
-      if (!artworkRes.ok) return { isError: true, content: [{ type: 'text', text: `Could not download artwork_url: HTTP ${artworkRes.status}` }] }
-      const contentLength = Number(artworkRes.headers.get('content-length') ?? '0')
-      if (contentLength > MAX_ARTWORK_SIZE_MB * 1024 * 1024) {
-        return { isError: true, content: [{ type: 'text', text: `Artwork exceeds the ${MAX_ARTWORK_SIZE_MB}MB limit.` }] }
-      }
-      bytes = new Uint8Array(await artworkRes.arrayBuffer())
-    } catch (e) {
-      return { isError: true, content: [{ type: 'text', text: `Network error downloading artwork_url: ${String(e)}` }] }
+    // SSRF-hardened per Roadmap/00-ideas/seeds/ssrf-artwork-url-mcp.md — this
+    // is an UNAUTHENTICATED call site (create_checkout is in MCP_BUYER_TOOLS),
+    // so every download/validation failure below collapses to the SAME
+    // generic message. Do not reintroduce a status/size/network-error string
+    // here — that reopens the internal-host oracle the seed found.
+    const download = await downloadArtworkBytes(String(args.artwork_url), MAX_ARTWORK_SIZE_MB * 1024 * 1024)
+    if (!download.ok) {
+      return { isError: true, content: [{ type: 'text', text: ARTWORK_DOWNLOAD_ERROR }] }
     }
-    const ingest = await ingestArtworkBytes(bytes, listingId, fileField.id)
+    const ingest = await ingestArtworkBytes(download.bytes, listingId, fileField.id)
     if (!ingest.ok) {
       return { isError: true, content: [{ type: 'text', text: `Artwork rejected: ${ingest.error}` }] }
     }
