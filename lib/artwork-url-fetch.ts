@@ -41,6 +41,7 @@
  * module is only ever called from the MCP route (already a server-only
  * context) — nothing client-side imports it.
  */
+import { Buffer } from 'node:buffer'
 import { pinnedFetch, SsrfBlockedError, type PinnedFetchResolver } from './ssrf-fetch'
 
 export type DownloadArtworkResult = { ok: true; bytes: Uint8Array } | { ok: false }
@@ -81,6 +82,14 @@ export async function readCappedBody(
   } catch {
     return null
   }
+  // Explicit import, not the ambient Node global: unlike
+  // lib/shop-url-analyzer-fetch.ts (which relies on the implicit `Buffer`
+  // global safely, because it's `server-only`), this module is deliberately
+  // NOT server-only (see file header) — an exported, non-server-only lib
+  // could in principle be pulled into an Edge/web-standard context where
+  // `Buffer` isn't ambient, so this imports it explicitly rather than
+  // relying on ambient Node typings that only hold in this repo's actual
+  // (Node) runtime.
   return Buffer.concat(chunks)
 }
 
@@ -117,9 +126,14 @@ export async function downloadArtworkBytes(
       opts,
     )
   } catch (e) {
-    // SsrfBlockedError (private/reserved/unresolvable host) and every other
-    // network failure (timeout, connection refused, a rejected redirect)
-    // collapse to the SAME { ok: false } here — see file header for why.
+    // Deliberately branched, not merged into a single `catch { return { ok:
+    // false } }`: this documents that SsrfBlockedError (private/reserved/
+    // unresolvable host) is EXPLICITLY collapsed into the same outcome as
+    // every other network failure (timeout, connection refused, a rejected
+    // redirect) — a reviewer should read this as "the SSRF rejection is
+    // intentionally indistinguishable from any other failure," not as an
+    // accidentally-swallowed error. See file header for why that collapse
+    // matters (the oracle this closes).
     if (e instanceof SsrfBlockedError) {
       return { ok: false }
     }
