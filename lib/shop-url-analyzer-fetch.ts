@@ -14,23 +14,15 @@
  *
  *  1. `isPublicDomainShape` (lib/ssrf-guard.ts) — friendly early-reject for a
  *     bad shape / bare IP literal / localhost, before any DNS or network call.
- *  2. `assertPublicHost` — resolves DNS and rejects if ANY resolved address is
- *     loopback/private/link-local/reserved before the real fetch goes out.
- *     CORRECTION (2026-07-18 review round — an earlier draft of this comment
- *     and the PR body overclaimed this as "closing" the DNS-rebinding gap):
- *     this SUBSTANTIALLY MITIGATES rebinding, it does not fully close it —
- *     there is an inherent TOCTOU between this resolve and the `fetch()` call
- *     a few lines later (same resolve-then-fetch pattern as the pre-existing
- *     `assertPublicHost` in lib/shopify-mcp-client.ts, and the same residual
- *     gap). Narrowed further by: https-only (TLS certificate validation
- *     against the original SNI/hostname — a rebound IP presenting the wrong
- *     cert can't silently succeed), `redirect: 'error'`, an 8s timeout, a 2 MB
- *     cap, and — specific to this analyzer — the raw fetched body is never
- *     returned to the caller (only derived counts/booleans), so even a
- *     successful rebind can't exfiltrate arbitrary bytes through this
- *     endpoint. A real fix (DNS-pin the resolved IP so the later `fetch()`
- *     can't re-resolve at all) is tracked as a follow-up, not done here — see
- *     Roadmap/00-ideas/seeds/ssrf-dns-pinning.md.
+ *  2. `pinnedFetch` (epic 09 · ssrf-dns-pinning, Sprint 1 — lib/ssrf-fetch.ts)
+ *     — resolves the hostname ONCE, rejects if ANY resolved address is
+ *     loopback/private/link-local/reserved, then physically dials that exact
+ *     validated IP with the original hostname preserved for TLS SNI/cert
+ *     validation. This CLOSES the DNS-rebinding TOCTOU that the previous
+ *     resolve-then-`fetch()` pattern only mitigated (an earlier version of
+ *     this comment, corrected 2026-07-18, called that mitigation a "closure"
+ *     prematurely — it wasn't; this is). See lib/ssrf-fetch.ts's header for
+ *     the full mechanism and why it bypasses Next's patched global `fetch`.
  *  3. https-only, `redirect: 'error'` (mirrors app/api/img/route.ts — a 3xx
  *     from an already-validated host could otherwise pivot the fetch to an
  *     unvalidated one; Node would silently follow up to 20 redirects without
@@ -53,8 +45,8 @@
  * contract from sprint-3.md's acceptance criteria.
  */
 import 'server-only'
-import { lookup as dnsLookup } from 'node:dns/promises'
-import { isPublicDomainShape, isPrivateIpv4, isPrivateIpv6 } from './ssrf-guard'
+import { isPublicDomainShape } from './ssrf-guard'
+import { pinnedFetch, SsrfBlockedError } from './ssrf-fetch'
 import { buildAnalyzerResult, type ShopAnalyzerResult } from './shop-url-analyzer'
 
 const FETCH_TIMEOUT_MS = 8_000
@@ -64,26 +56,6 @@ const FETCH_TIMEOUT_MS = 8_000
 // inflate this request's memory, same reasoning as app/api/img/route.ts's
 // MAX_SOURCE_BYTES.
 const MAX_HTML_BYTES = 2 * 1024 * 1024
-
-/**
- * A substantial SSRF mitigation, not a hard boundary — see file header for
- * the full residual-TOCTOU caveat and the DNS-pinning follow-up. Identical
- * contract (and identical residual gap) to `assertPublicHost` in
- * lib/shopify-mcp-client.ts (not imported from there: that file is scoped to
- * the Shopify UCP-MCP connector's own retry/pagination concerns, and
- * duplicating this ~10-line DNS wrapper here keeps this file's only coupling
- * to the migrations epic the classifiers it re-uses from lib/ssrf-guard.ts,
- * not an unrelated connector module).
- */
-async function assertPublicHost(host: string): Promise<boolean> {
-  try {
-    const results = await dnsLookup(host, { all: true, verbatim: true })
-    if (results.length === 0) return false
-    return results.every((r) => (r.family === 6 ? !isPrivateIpv6(r.address) : !isPrivateIpv4(r.address)))
-  } catch {
-    return false
-  }
-}
 
 export type AnalyzeShopUrlResult =
   | { ok: true; result: ShopAnalyzerResult }
@@ -103,18 +75,18 @@ export async function analyzeShopUrl(rawUrl: string): Promise<AnalyzeShopUrlResu
   if (!isPublicDomainShape(parsed.hostname)) {
     return { ok: false, status: 422, error: 'Esa dirección no parece ser una tienda pública válida.' }
   }
-  if (!(await assertPublicHost(parsed.hostname))) {
-    return { ok: false, status: 422, error: 'No pudimos verificar esa dirección como una tienda pública.' }
-  }
 
-  let upstream: Response
+  let upstream: Awaited<ReturnType<typeof pinnedFetch>>
   try {
-    upstream = await fetch(parsed.toString(), {
+    upstream = await pinnedFetch(parsed, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       redirect: 'error',
       headers: { 'User-Agent': 'Miyagi-Comparador/1.0 (+https://miyagisanchez.com/comparador)' },
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      return { ok: false, status: 422, error: 'No pudimos verificar esa dirección como una tienda pública.' }
+    }
     return {
       ok: false,
       status: 504,
@@ -122,10 +94,17 @@ export async function analyzeShopUrl(rawUrl: string): Promise<AnalyzeShopUrlResu
     }
   }
   if (!upstream.ok || !upstream.body) {
+    // Free the pinned per-request socket now instead of letting an
+    // unconsumed body hold it open until the abort timeout (cross-review,
+    // 2026-07-20) — `pinnedFetch`'s Agent no longer self-destructs on the
+    // success path, so an early return that never drains the body is what
+    // would keep the connection alive.
+    await upstream.body?.cancel().catch(() => {})
     return { ok: false, status: 502, error: 'Esa tienda no respondió correctamente. Llena los datos a mano abajo.' }
   }
   const contentType = upstream.headers.get('content-type') ?? ''
   if (!contentType.toLowerCase().includes('text/html')) {
+    await upstream.body.cancel().catch(() => {})
     return { ok: false, status: 415, error: 'Esa dirección no parece ser la página de una tienda.' }
   }
 

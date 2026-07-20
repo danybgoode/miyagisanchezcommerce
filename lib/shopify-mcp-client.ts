@@ -40,17 +40,23 @@
  *
  * SSRF hardening: `shop_domain` is untrusted, server-fetched input. A hostname-
  * shape check alone (`isPublicDomainShape`) doesn't stop a domain that RESOLVES
- * to a private/internal address (DNS rebinding) — so every call resolves DNS
- * first (`assertPublicHost`) and rejects if any resolved address is
- * loopback/private/link-local/reserved, before the real request goes out.
- * The classifiers themselves live in `lib/ssrf-guard.ts` (server-only-free,
- * so the Playwright `api` runner can unit-test them directly — importing
- * `server-only` outside Next's build throws immediately, same trap
- * `next/cache` has per LEARNINGS).
+ * to a private/internal address (DNS rebinding). `pinnedFetch` (epic 09 ·
+ * ssrf-dns-pinning, Sprint 1 — lib/ssrf-fetch.ts) closes that gap: it resolves
+ * the hostname ONCE, rejects if any resolved address is loopback/private/
+ * link-local/reserved, then physically dials that exact validated IP with the
+ * original hostname preserved for TLS SNI/cert validation — no second,
+ * independent resolve is ever possible. (An earlier version of this comment
+ * described the previous resolve-then-`fetch()` pattern as closing this gap;
+ * it only mitigated it — see lib/ssrf-fetch.ts's header for why, and
+ * lib/shop-url-analyzer-fetch.ts's header for the same correction made there
+ * 2026-07-18.) The classifiers `pinnedFetch` validates against live in
+ * `lib/ssrf-guard.ts` (server-only-free, so the Playwright `api` runner can
+ * unit-test them directly — importing `server-only` outside Next's build
+ * throws immediately, same trap `next/cache` has per LEARNINGS).
  */
 import 'server-only'
-import { lookup as dnsLookup } from 'node:dns/promises'
-import { isPublicDomainShape, isPrivateIpv4, isPrivateIpv6 } from './ssrf-guard'
+import { isPublicDomainShape } from './ssrf-guard'
+import { pinnedFetch } from './ssrf-fetch'
 
 const AGENT_PROFILE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com').replace(/\/+$/, '') +
@@ -58,22 +64,6 @@ const AGENT_PROFILE_URL =
 
 const FETCH_TIMEOUT_MS = 10_000
 const MAX_PAGES = 20 // hard cap — a runaway paginator can't hang a fetch/import request
-
-/**
- * The real SSRF boundary. Resolves the hostname and rejects if ANY resolved
- * address is loopback/private/link-local/reserved — closes the gap a plain
- * string check leaves open (a public-looking hostname that resolves, or
- * rebinds, to an internal address). Fails closed on any DNS error.
- */
-async function assertPublicHost(host: string): Promise<boolean> {
-  try {
-    const results = await dnsLookup(host, { all: true, verbatim: true })
-    if (results.length === 0) return false
-    return results.every((r) => (r.family === 6 ? !isPrivateIpv6(r.address) : !isPrivateIpv4(r.address)))
-  } catch {
-    return false
-  }
-}
 
 export type ShopifyUcpMoney = { amount: number | string; currency?: string | null }
 
@@ -116,11 +106,13 @@ async function callTool(
 ): Promise<unknown | null> {
   const host = normalizeDomain(domain)
   if (!host || !isPublicDomainShape(host)) return null
-  if (!(await assertPublicHost(host))) return null
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
-    const res = await fetch(`https://${host}${path}`, {
+    // pinnedFetch throws SsrfBlockedError for a private/unresolvable host —
+    // caught below along with every other failure mode, preserving this
+    // function's fail-closed-null contract (it never throws).
+    const res = await pinnedFetch(new URL(`https://${host}${path}`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -132,7 +124,13 @@ async function callTool(
       signal: controller.signal,
       cache: 'no-store',
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      // Drain the unconsumed body so the pinned per-request socket closes now
+      // rather than lingering until the abort timeout — pinnedFetch's Agent no
+      // longer self-destructs on the success path (cross-review, 2026-07-20).
+      await res.body?.cancel().catch(() => {})
+      return null
+    }
     const body = (await res.json().catch(() => null)) as {
       result?: { content?: Array<{ type?: string; text?: string }>; isError?: boolean }
       error?: unknown
