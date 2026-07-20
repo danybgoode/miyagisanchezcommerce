@@ -20,6 +20,24 @@ const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
 test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self-check', () => {
+  test('all image stages use the supported Node.js 22 runtime required by Supabase', () => {
+    expect(dockerfile.match(/^FROM node:22-slim AS (deps|builder|runner)$/gm)).toHaveLength(3)
+    expect(dockerfile).not.toContain('node:20')
+    expect(pkg.engines?.node).toBe('>=22 <25')
+
+    for (const file of ['ci.yml', 'browser-smoke.yml']) {
+      const workflow = readFileSync(join(ROOT, '.github/workflows', file), 'utf8')
+      expect(workflow).not.toMatch(/node-version:\s*20/)
+      const setups = [
+        ...workflow.matchAll(/uses:\s*actions\/setup-node@v\d+[\s\S]*?node-version:\s*(\d+)/g),
+      ]
+      expect(setups.length, `${file} must configure setup-node`).toBeGreaterThan(0)
+      for (const setup of setups) {
+        expect(setup[1], `${file} setup-node runtime`).toBe('22')
+      }
+    }
+  })
+
   test('package-lock.json is committed', () => {
     expect(existsSync(join(ROOT, 'package-lock.json'))).toBe(true)
   })

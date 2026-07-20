@@ -17,7 +17,7 @@
 # self-hosting docs.
 
 # ---- deps -------------------------------------------------------------------
-FROM node:20-slim AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 # package-lock.json makes this a deterministic, reproducible install (deps are
 # caret-pinned in package.json, but npm ci pins to exactly what's in the
@@ -26,7 +26,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- builder ------------------------------------------------------------------
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -81,7 +81,7 @@ COPY . .
 RUN npm run build
 
 # ---- runner -------------------------------------------------------------------
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
