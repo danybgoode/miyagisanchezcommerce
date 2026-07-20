@@ -20,6 +20,11 @@ const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
 test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self-check', () => {
+  test('all image stages use the supported Node.js 22 runtime required by Supabase', () => {
+    expect(dockerfile.match(/^FROM node:22-slim AS (deps|builder|runner)$/gm)).toHaveLength(3)
+    expect(dockerfile).not.toContain('node:20')
+  })
+
   test('package-lock.json is committed', () => {
     expect(existsSync(join(ROOT, 'package-lock.json'))).toBe(true)
   })
