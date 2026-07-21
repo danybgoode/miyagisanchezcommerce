@@ -201,3 +201,31 @@ test.describe('preview routes — anonymous guards', () => {
     }
   })
 })
+
+test.describe('S2 decision route — a garbage/absent token never records consent', () => {
+  test('decision on an unknown token returns not-found, never 200', async ({ request }) => {
+    // Flag OFF ⇒ 404 (dark). Flag ON ⇒ the token resolves to nothing ⇒ 404. Either
+    // way, an anonymous caller with a made-up token can never record a decision.
+    for (const token of [`${PREVIEW_TOKEN_PREFIX}${'0'.repeat(64)}`, `${PREVIEW_TOKEN_PREFIX}deadbeef`]) {
+      const res = await request.post(`/api/preview/${token}/decision`, {
+        data: { decision: 'approved', expectedHash: '0'.repeat(64) },
+      })
+      // Never 200 (no consent recorded), never 500 (no unhandled throw).
+      expect([400, 404, 429]).toContain(res.status())
+      expect(res.status()).not.toBe(200)
+    }
+  })
+})
+
+test.describe('S2 activation route — anonymous callers are refused', () => {
+  test('activate never serves an anonymous caller', async ({ request }) => {
+    const res = await request.post('/api/promoter/preview/activate', { data: { slug: 'nonexistent-disposable-shop' } })
+    // Flag OFF ⇒ 404 (dark); flag ON ⇒ 401 (anonymous). Never 200.
+    expect([401, 404]).toContain(res.status())
+  })
+
+  test('preview state (GET) never serves an anonymous caller', async ({ request }) => {
+    const res = await request.get('/api/promoter/preview?slug=nonexistent-disposable-shop')
+    expect([401, 404]).toContain(res.status())
+  })
+})

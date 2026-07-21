@@ -1,17 +1,20 @@
 /**
  * /preview/[token] — the opaque, revocable private preview of a proposed merchant
- * shop (founding-merchant-consent-previews S1.2). Renders the proposed shop + its
- * draft products from the Supabase mirror (never the published-only /store/* API),
- * behind a clear "not public yet" banner. Grants no ownership, no admin controls,
- * no checkout. An unknown / revoked / expired token returns the ordinary not-found
- * experience (never revealing which). Dark while the flag is OFF.
+ * shop (founding-merchant-consent-previews S1.2 + S2.1). Renders the proposed shop +
+ * its draft products (Medusa-authoritative, via getPreviewPresentation), behind a
+ * clear "not public yet" banner, and lets the MERCHANT approve or request changes
+ * (S2.1) — the one place explicit consent is recorded. Grants no ownership, no admin
+ * controls, no checkout. An unknown / revoked / expired token returns the ordinary
+ * not-found experience (never revealing which). Dark while the flag is OFF.
  */
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import Image from 'next/image'
 import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
-import { resolvePreviewByToken, getPreviewPresentation } from '@/lib/preview-access'
+import { resolvePreviewByToken, markPreviewDelivered } from '@/lib/preview-access'
+import { readApprovalState } from '@/lib/preview-consent'
+import PreviewDecision from './PreviewDecision'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -41,8 +44,18 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
   const preview = await resolvePreviewByToken(token)
   if (!preview) notFound()
 
-  const presentation = await getPreviewPresentation(preview)
-  if (!presentation) notFound()
+  // The full consent state (snapshot + current hash + approval status) — the same
+  // read the decision route and the promoter workspace use, so all three agree.
+  const state = await readApprovalState(preview)
+  if (!state) notFound()
+
+  // Opening the private link is "delivered". Advances a still-draft anchor only —
+  // never rewinds a more-advanced status. Best-effort; render regardless.
+  await markPreviewDelivered(preview.id).catch(() => undefined)
+
+  const products = state.snapshot.products
+  const approved = state.approvedHash !== null && !state.stale
+  const changesRequested = preview.status === 'changes_requested'
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -54,14 +67,14 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
         </p>
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-900">{presentation.shopName}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{state.snapshot.shopName}</h1>
       <p className="mt-1 text-sm text-gray-500">
-        {presentation.products.length}{' '}
-        {presentation.products.length === 1 ? 'producto propuesto' : 'productos propuestos'}
+        {products.length}{' '}
+        {products.length === 1 ? 'producto propuesto' : 'productos propuestos'}
       </p>
 
       <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {presentation.products.map((p) => (
+        {products.map((p) => (
           <li key={p.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             {p.imageUrl ? (
               <div className="relative aspect-square w-full bg-gray-100">
@@ -77,6 +90,13 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
           </li>
         ))}
       </ul>
+
+      <PreviewDecision
+        token={token}
+        expectedHash={state.currentHash}
+        approved={approved}
+        changesRequested={changesRequested}
+      />
     </main>
   )
 }

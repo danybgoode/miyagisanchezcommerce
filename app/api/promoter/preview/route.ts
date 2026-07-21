@@ -24,6 +24,7 @@ import {
   mintPreviewGrant,
   revokePreviewGrants,
 } from '@/lib/preview-access'
+import { readApprovalState, checkActivation } from '@/lib/preview-consent'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,14 @@ async function authorize(req: NextRequest) {
 async function resolveOwnedShop(req: NextRequest, promoterCode: string) {
   let body: { shopId?: string; slug?: string } = {}
   try { body = await req.json() } catch { /* empty ok */ }
-  const shop = await resolveTargetShop({ shopId: body.shopId, slug: body.slug })
+  return resolveOwnedShopBySelector({ shopId: body.shopId, slug: body.slug }, promoterCode)
+}
+
+async function resolveOwnedShopBySelector(
+  selector: { shopId?: string | null; slug?: string | null },
+  promoterCode: string,
+) {
+  const shop = await resolveTargetShop(selector)
   if (!shop) return null
   if (!canAnchorPreview(shop, promoterCode)) return null
   return shop
@@ -89,6 +97,51 @@ function previewUrl(req: NextRequest, token: string): string {
     host: req.headers.get('host'),
   })
   return `${origin}/preview/${token}`
+}
+
+/**
+ * GET → the promoter workspace reads the current consent state for a shop it owns:
+ * whether a preview exists, its lifecycle status, whether an approval has gone
+ * stale (with plain-language reasons), and whether the shop can be activated right
+ * now. Every field is derived server-side from the single `readApprovalState`
+ * read + the pure `canActivate` rule, so the workspace, the merchant page and the
+ * activation route can never disagree about consent.
+ */
+export async function GET(req: NextRequest) {
+  const auth = await authorize(req)
+  if (auth.error) return auth.error
+
+  const { searchParams } = new URL(req.url)
+  const shop = await resolveOwnedShopBySelector(
+    { shopId: searchParams.get('shopId'), slug: searchParams.get('slug') },
+    auth.promoter.code,
+  )
+  if (!shop) return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
+
+  const preview = await getPreviewByShop(shop.id)
+  if (!preview) {
+    return NextResponse.json({ ok: true, exists: false })
+  }
+
+  const state = await readApprovalState(preview)
+  if (!state) {
+    return NextResponse.json({ ok: true, exists: true, status: preview.status, readable: false })
+  }
+
+  const gate = await checkActivation(preview)
+
+  return NextResponse.json({
+    ok: true,
+    exists: true,
+    readable: true,
+    status: preview.status,
+    productCount: state.snapshot.products.length,
+    stale: state.stale,
+    staleReasons: state.staleReasons,
+    approved: state.approvedHash !== null,
+    canActivate: gate.ok,
+    activateReason: gate.ok ? null : gate.reason,
+  })
 }
 
 export async function POST(req: NextRequest) {

@@ -42,10 +42,12 @@ import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
 import {
   ensureShopPreview,
+  getPreviewByShop,
   canAnchorPreview,
   shopMustStayPrivate,
   shopHasPublicListings,
 } from '@/lib/preview-access'
+import { invalidateIfMaterialChange } from '@/lib/preview-consent'
 
 export const dynamic = 'force-dynamic'
 
@@ -190,6 +192,18 @@ export async function POST(req: NextRequest) {
     images,
     status: mirrorStatus,
   })
+
+  // Consent-safe previews (S2.2) — adding a product is a MATERIAL change: the set
+  // the merchant reviewed is no longer what would be published. If this shop had a
+  // current approval, it is now stale, so invalidate it and return the preview to
+  // review. Idempotent + safe: only touches an anchor whose approved snapshot no
+  // longer matches (a shop with no approval, or one that didn't materially change,
+  // is left completely alone). Best-effort — a telemetry-grade step that must never
+  // fail the listing write that already succeeded.
+  if (privatePreview) {
+    const pv = await getPreviewByShop(shop.id)
+    if (pv) await invalidateIfMaterialChange(pv).catch(() => undefined)
+  }
 
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')

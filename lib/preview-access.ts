@@ -443,6 +443,56 @@ export async function resolvePreviewByToken(token: string): Promise<MerchantPrev
 }
 
 /**
+ * Resolve a plaintext preview token to BOTH its anchor and the specific grant it
+ * came through (S2 — the merchant-decision route records `grant_id` so a consent
+ * decision is tied to the exact link it arrived on). Same revocation/expiry/
+ * activated rules as `resolvePreviewByToken`; returns null when any of them reject.
+ */
+export async function resolvePreviewWithGrantByToken(
+  token: string,
+): Promise<{ preview: MerchantPreview; grantId: string } | null> {
+  if (!isWellFormedPreviewToken(token)) return null
+  const hash = hashPreviewToken(token)
+  const { data, error } = await db
+    .from('merchant_preview_grants')
+    .select('id, preview_id, revoked_at, expires_at')
+    .eq('token_hash', hash)
+    .maybeSingle()
+  if (error || !data) return null
+  if (data.revoked_at) return null
+  if (data.expires_at && new Date(data.expires_at as string).getTime() <= Date.now()) return null
+
+  const { data: preview } = await db
+    .from('merchant_previews')
+    .select('id, shop_id, status, current_version, created_by')
+    .eq('id', data.preview_id as string)
+    .maybeSingle()
+  if (!preview) return null
+  const resolved = rowToPreview(preview)
+  if (resolved.status === 'activated') return null
+  return { preview: resolved, grantId: data.id as string }
+}
+
+/**
+ * Mark a preview DELIVERED — the merchant has opened the private link (S2/S3
+ * lifecycle). Deliberately only advances a still-`draft` anchor: a shop that is
+ * already delivered/approved/changes_requested/invalidated/activated keeps its
+ * more-advanced state, so re-opening the link never rewinds consent. Returns true
+ * only when it actually transitioned draft → delivered (so the caller can emit the
+ * `preview_delivered` event exactly once).
+ */
+export async function markPreviewDelivered(previewId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from('merchant_previews')
+    .update({ status: 'delivered', updated_at: new Date().toISOString() })
+    .eq('id', previewId)
+    .eq('status', 'draft')
+    .select('id')
+  if (error || !data) return false
+  return data.length > 0
+}
+
+/**
  * Revoke every active grant for a preview (the "revoke the link" action). Idempotent.
  *
  * Returns `null` on a database failure — deliberately DISTINCT from `0` ("there was
