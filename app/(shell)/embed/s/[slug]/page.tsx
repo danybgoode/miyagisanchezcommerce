@@ -19,7 +19,7 @@
 
 import { notFound } from 'next/navigation'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
-import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
+import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
@@ -31,6 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Tienda no encontrada' }
   return {
     title: shop.name,
     // An embed should never compete with the host page in search results.

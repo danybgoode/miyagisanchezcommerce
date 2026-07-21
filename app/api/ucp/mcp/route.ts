@@ -31,6 +31,7 @@ import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { isShopClaimed } from '@/lib/claim'
+import { shopMustStayPrivate } from '@/lib/preview-access'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
@@ -1949,7 +1950,15 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
   // (no delivery AND/OR no payment) is created as a draft, never a live listing
   // no buyer could check out.
   const block = isStockable ? listingActivationBlock(shop.metadata, 'product') : null
-  const status: 'published' | 'draft' = block ? 'draft' : 'published'
+  // Consent-safe previews: a shop still awaiting its merchant's approval must
+  // never receive a PUBLISHED listing, from any writer. This seam matters
+  // specifically because `autoGrantPartnerOnClose` hands a partner MCP credential
+  // to the promoter on the very shops this epic anchors — and
+  // `listingActivationBlock` returns null for every non-`product` listing type,
+  // so a service/rental/digital listing would otherwise publish straight into a
+  // private proposal.
+  const previewPrivate = await shopMustStayPrivate(shop.id)
+  const status: 'published' | 'draft' = block || previewPrivate ? 'draft' : 'published'
 
   const priceCents = row.price != null ? Math.round(row.price * 100) : null
   const location = [row.city?.trim(), row.state?.trim()].filter(Boolean).join(', ') || null
@@ -1990,7 +1999,10 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
     municipio: row.city || null,
     location,
     images: ingest.images,
-    status: status === 'published' ? 'active' : 'paused',
+    // A consent-private listing mirrors as 'draft' (the state the preview
+    // presentation reads), not 'paused' — pausing is a seller action on a live
+    // listing and would hide it from the merchant's own proposal.
+    status: status === 'published' ? 'active' : previewPrivate ? 'draft' : 'paused',
   })
 
   await recordAgentListingCreate(shop, { productId, title: row.title, status })
@@ -1998,7 +2010,13 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
   revalidateTag('shops', 'default')
 
   const imgNote = ingest.failed > 0 ? ` (${ingest.failed} imagen(es) no se pudieron importar)` : ''
-  const draftNote = status === 'draft' ? `\n⚠️ Guardado como borrador (pausado). ${block}` : ''
+  const draftNote = status !== 'draft'
+    ? ''
+    : previewPrivate
+      // The shop is awaiting its merchant's approval — say so plainly rather than
+      // reporting the unrelated delivery/payment guardrail (`block` is null here).
+      ? '\n⚠️ Guardado como borrador privado: esta tienda espera la aprobación del comerciante antes de publicarse.'
+      : `\n⚠️ Guardado como borrador (pausado). ${block}`
   return {
     content: [
       { type: 'text', text: `✅ Anuncio creado${status === 'published' ? ' y publicado' : ''}: «${row.title}».${imgNote}${draftNote}\n\nproduct_id: \`${productId}\`` },

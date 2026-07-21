@@ -21,6 +21,7 @@
  * Runtime: Node only (Supabase service-role client). Never import from Edge.
  */
 import 'server-only'
+import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
@@ -117,10 +118,36 @@ export async function assertShopNotPreviewPrivate(slug: string): Promise<void> {
   if (await isShopPreviewPrivateBySlug(slug)) notFound()
 }
 
-/** True when this single shop is preview-private (has a non-activated anchor). */
+/**
+ * True when this single shop is preview-private: it has a non-activated anchor
+ * AND it is still unclaimed.
+ *
+ * The CLAIMED escape is load-bearing, not a convenience. `canAnchorPreview` only
+ * checks `clerk_user_id` at anchor time, and `/api/claim/complete` flips that
+ * field without touching this table — so the epic's own happy path (promoter
+ * anchors an unclaimed shop → merchant claims it via the WhatsApp link) would
+ * otherwise leave a claimed shop permanently hidden, with no recovery: there is
+ * no UPDATE or DELETE of `merchant_previews` anywhere in the app, and the
+ * promoter loses `canAnchorPreview` the moment the shop is claimed, so they
+ * couldn't undo it either. The merchant's storefront would 404 forever.
+ *
+ * This does NOT treat a claim as publication approval (locked decision #3):
+ * clearing the anchor publishes NOTHING — the products stay Medusa drafts and
+ * only the merchant can publish them, through the ordinary seller portal. It
+ * stops hiding the SHELL from someone who now owns and controls the shop. Consent
+ * to publish is still explicit, still versioned, and still lives in Sprint 2.
+ */
 export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
   const preview = await getPreviewByShop(shopId)
-  return preview !== null && preview.status !== 'activated'
+  if (preview === null || preview.status === 'activated') return false
+
+  const { data: shop } = await db
+    .from('marketplace_shops')
+    .select('clerk_user_id')
+    .eq('id', shopId)
+    .maybeSingle()
+  // A claimed shop belongs to its merchant — never hide it.
+  return !shop?.clerk_user_id
 }
 
 /**
@@ -149,6 +176,29 @@ export async function shopMustStayPrivate(shopId: string): Promise<boolean> {
 }
 
 /**
+ * Is this shop ALREADY publicly trading? A shop with live (`active`) listings has
+ * a public presence people may already be linking to and buying from — anchoring
+ * it would hide a working storefront, which is precisely what locked decision #4
+ * forbids ("existing public/unclaimed shops are audited, not bulk-mutated;
+ * historical disposition remains manual"). The entire pre-epic promoter-close
+ * install base has this shape, so without the check, adding one listing to any of
+ * those shops would take it down.
+ *
+ * Fails SAFE (true ⇒ "don't anchor") on a read error: refusing to make a new
+ * preview is recoverable; hiding a live shop is not.
+ */
+export async function shopHasPublicListings(shopId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from('marketplace_listings')
+    .select('id')
+    .eq('shop_id', shopId)
+    .eq('status', 'active')
+    .limit(1)
+  if (error) return true
+  return (data ?? []).length > 0
+}
+
+/**
  * True when the shop at this slug is preview-private — the public shop-shell leak
  * guard (`/s/[slug]`, and via rewrite its custom-domain + subdomain channels).
  * Resolves the marketplace_shops UUID from the slug (the public shop object carries
@@ -163,16 +213,28 @@ export async function shopMustStayPrivate(shopId: string): Promise<boolean> {
  * publish existing unapproved ones.
  *
  * That gate was only ever a mitigation for the storefront-takedown vector, and
- * `canAnchorPreview` now makes takedown impossible by construction (a claimed shop
- * can never be anchored), so removing it costs nothing. Un-hiding a shop is a
- * deliberate act: activate the approved snapshot (S2.3), or delete the anchor row.
+ * `canAnchorPreview` blocks anchoring a claimed shop, and `isShopPreviewPrivate`
+ * additionally stops honoring an anchor once a shop BECOMES claimed — the two
+ * together, not the anchor-time check alone, are what keep a live merchant's
+ * storefront reachable. (An earlier revision of this comment claimed the
+ * anchor-time check made takedown "impossible by construction"; that was an
+ * overclaim — it checks `clerk_user_id` only at anchor time, and claiming happens
+ * afterwards on this epic's own happy path.) Un-hiding a shop that is still
+ * unclaimed remains a deliberate act: activate the approved snapshot (S2.3), or
+ * delete the anchor row.
  *
  * Fails OPEN to `false` (shop stays visible) on a read ERROR — a Supabase hiccup
  * must never 404 a live public shop, and the products themselves remain
  * draft-private regardless, so the failure mode is a bare shell, not a leaked
  * catalog.
+ *
+ * Wrapped in React `cache()` for per-REQUEST memoization: a channel-host request
+ * hits this twice (the `(shell)` layout chrome and the page inside), and that
+ * layout runs on every white-label request from a paying tenant's domain. Request
+ * scope only — no cross-request staleness, so a revocation or activation still
+ * takes effect on the very next request.
  */
-export async function isShopPreviewPrivateBySlug(slug: string): Promise<boolean> {
+export const isShopPreviewPrivateBySlug = cache(async (slug: string): Promise<boolean> => {
   const clean = (slug ?? '').trim()
   if (!clean) return false
   const { data: shop } = await db
@@ -182,7 +244,7 @@ export async function isShopPreviewPrivateBySlug(slug: string): Promise<boolean>
     .maybeSingle()
   if (!shop?.id) return false
   return isShopPreviewPrivate(shop.id as string)
-}
+})
 
 export interface PreviewProduct {
   id: string

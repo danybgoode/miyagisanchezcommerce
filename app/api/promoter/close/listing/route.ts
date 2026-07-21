@@ -21,8 +21,14 @@
  * native Medusa `status:'draft'` product — structurally excluded from every public
  * /store/* read seam (search, PDP, seller products, sitemap, agent, embed) — and
  * ensures a per-shop preview anchor. Nothing is public until the merchant approves
- * and the promoter activates (Sprint 2). Flag OFF preserves the force-publish path
- * exactly, for rollback.
+ * and the promoter activates (Sprint 2).
+ *
+ * Flag OFF preserves the force-publish path exactly for any shop that was NEVER
+ * anchored — which is the rollback for the feature as a whole. It is NOT a
+ * per-shop undo: a shop that already carries a non-activated anchor stays private
+ * regardless of the flag, because a flag flip is not merchant consent. Un-hiding
+ * one shop is a deliberate act (activate the approved snapshot in Sprint 2, or
+ * delete its `merchant_previews` row).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
@@ -34,7 +40,12 @@ import { resolveTargetShop } from '@/lib/promoter-server'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
-import { ensureShopPreview, canAnchorPreview, shopMustStayPrivate } from '@/lib/preview-access'
+import {
+  ensureShopPreview,
+  canAnchorPreview,
+  shopMustStayPrivate,
+  shopHasPublicListings,
+} from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,8 +96,10 @@ export async function POST(req: NextRequest) {
   if (!shop) return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
 
   // Consent-safe preview: when ON *and this promoter may anchor this shop*, create
-  // the listing PRIVATE (Medusa draft + mirror 'draft'); otherwise keep the
-  // historical force-publish behavior byte-for-byte.
+  // the listing PRIVATE (Medusa draft + mirror 'draft'). Otherwise publish as
+  // before — EXCEPT for a shop that already carries a non-activated anchor, which
+  // stays private regardless of the flag or the caller (see below). So flag-OFF is
+  // today's behavior for every shop that was never anchored, not for all shops.
   //
   // `canAnchorPreview` is load-bearing here, not just on the preview route: an
   // anchor hides the storefront, so anchoring a shop this promoter didn't create —
@@ -107,8 +120,14 @@ export async function POST(req: NextRequest) {
     ((await isEnabled('promoter.private_preview_enabled')) && canAnchorPreview(shop, promoter.code))
 
   // Only the shop's own promoter may CREATE the anchor; an existing one is
-  // honored no matter who is calling.
-  if (privatePreview && !alreadyPrivate) {
+  // honored no matter who is calling. Creating one also requires that the shop
+  // isn't ALREADY publicly trading — anchoring a shop with live listings would
+  // hide a working storefront (locked decision #4: existing public/unclaimed
+  // shops are audited, not mutated). The whole pre-epic promoter-close install
+  // base has that shape.
+  if (privatePreview && !alreadyPrivate && (await shopHasPublicListings(shop.id))) {
+    privatePreview = false
+  } else if (privatePreview && !alreadyPrivate) {
     // Anchor BEFORE creating the product, so a failed anchor costs nothing. (The
     // shop-setup path already anchored at shop creation, so this is normally a
     // no-op read.) Anchoring first is safe precisely because this shop is

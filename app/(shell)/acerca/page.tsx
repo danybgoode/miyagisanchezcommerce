@@ -4,7 +4,7 @@ import { ABOUT_PAGE, aboutCopy } from '@/lib/about-content'
 import { getOverriddenAboutPage, getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { AboutPage } from './_components/AboutSections'
 import { getShop } from '@/lib/listings'
-import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
+import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import AcercaBody from '../_shop-content/AcercaBody'
 import type { Metadata } from 'next'
 
@@ -29,7 +29,10 @@ async function resolveChannelShop() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const shop = await resolveChannelShop()
-  if (shop) return { title: `Acerca — ${shop.name}` }
+  // Don't leak a preview-private shop's name in the <title>.
+  if (shop && !(await isShopPreviewPrivateBySlug(shop.slug))) {
+    return { title: `Acerca — ${shop.name}` }
+  }
   return {
     title: meta.metaTitle,
     description: meta.metaDescription,

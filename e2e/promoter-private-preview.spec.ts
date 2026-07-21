@@ -130,6 +130,39 @@ test.describe('canAnchorPreview — a preview can never take a live storefront d
   })
 })
 
+test.describe('the happy path must not brick a merchant’s storefront', () => {
+  // These assert the SHAPE of the claimed-escape rule, which lives in
+  // lib/preview-access.ts (server-only, so not importable here). The rule:
+  // a non-activated anchor hides a shop ONLY while it is still unclaimed.
+  //
+  // Why this exists: canAnchorPreview checks clerk_user_id at ANCHOR time only,
+  // and /api/claim/complete flips it without touching merchant_previews. Without
+  // the claimed-escape, the epic's own happy path — promoter anchors an unclaimed
+  // shop, merchant claims it via the WhatsApp link — leaves the merchant's
+  // storefront 404'd permanently (there is no UPDATE/DELETE of that table
+  // anywhere, and the promoter loses canAnchorPreview the moment it is claimed).
+  const decide = (anchored: boolean, activated: boolean, claimed: boolean) =>
+    anchored && !activated && !claimed
+
+  test('unclaimed + anchored + not activated => hidden', () => {
+    expect(decide(true, false, false)).toBe(true)
+  })
+
+  test('CLAIMED + anchored => visible (the storefront-brick this prevents)', () => {
+    expect(decide(true, false, true)).toBe(false)
+  })
+
+  test('activated => visible regardless of claim state', () => {
+    expect(decide(true, true, false)).toBe(false)
+    expect(decide(true, true, true)).toBe(false)
+  })
+
+  test('never anchored => always visible', () => {
+    expect(decide(false, false, false)).toBe(false)
+    expect(decide(false, false, true)).toBe(false)
+  })
+})
+
 test.describe('preview routes — anonymous guards', () => {
   test('mint route never serves an anonymous caller', async ({ request }) => {
     const res = await request.post('/api/promoter/preview', { data: { slug: 'nonexistent-disposable-shop' } })
