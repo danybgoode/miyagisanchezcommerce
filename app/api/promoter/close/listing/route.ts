@@ -96,9 +96,30 @@ export async function POST(req: NextRequest) {
   //
   // The anchor itself is written AFTER the product succeeds (see below) — creating
   // it first would leave an anchor hiding the shop even when listing creation fails.
-  const privatePreview =
+  let privatePreview =
     (await isEnabled('promoter.private_preview_enabled')) &&
     canAnchorPreview(shop, promoter.code)
+
+  if (privatePreview) {
+    // Anchor BEFORE creating the product, so a failed anchor costs nothing. (The
+    // shop-setup path already anchored at shop creation, so this is normally a
+    // no-op read.) Anchoring first is safe precisely because this shop is
+    // promoter-created and unclaimed: an anchor on a product-less shop of that
+    // kind is the correct state, not a stranded one — whereas creating the
+    // product first would leave an untracked draft that a retry duplicates.
+    const preview = await ensureShopPreview(shop.id, user.id)
+    if (!preview) {
+      return NextResponse.json(
+        { ok: false, error: 'No se pudo preparar la vista previa privada. Inténtalo de nuevo.' },
+        { status: 500 },
+      )
+    }
+    // An ALREADY-ACTIVATED shop is public and out of the consent flow — creating a
+    // hidden draft against it would strand a product nobody can see and mint a
+    // preview link that always 404s. Fall back to the ordinary publish path.
+    if (preview.status === 'activated') privatePreview = false
+  }
+
   const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
   const mirrorStatus = privatePreview ? 'draft' : 'active'
 
@@ -127,21 +148,6 @@ export async function POST(req: NextRequest) {
   })
   if (!result.ok || !result.product_id) {
     return NextResponse.json({ ok: false, error: result.error ?? 'No se pudo crear el anuncio.' }, { status: 502 })
-  }
-
-  // The product exists and is private (draft) — NOW anchor the preview. If the
-  // anchor can't be written we fail loudly rather than leaving a draft product
-  // stranded with no consent record: without an anchor the shop isn't marked
-  // preview-private, so the promoter would believe a proposal exists when the
-  // consent lifecycle has no row to track it.
-  if (privatePreview) {
-    const preview = await ensureShopPreview(shop.id, user.id)
-    if (!preview) {
-      return NextResponse.json(
-        { ok: false, error: 'No se pudo preparar la vista previa privada. Inténtalo de nuevo.' },
-        { status: 500 },
-      )
-    }
   }
 
   await syncSupabaseListingMirror(shop.id, {

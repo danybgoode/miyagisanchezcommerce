@@ -115,6 +115,37 @@ test.describe('material-change resolver', () => {
     expect(isMaterialChange(base, reslugged)).toBe(true)
   })
 
+  test('a currency change is material AND explained', () => {
+    const after = clone(base)
+    after.products[0].currency = 'USD'
+    expect(isMaterialChange(base, after)).toBe(true)
+    // Regression: currency is hashed as material, so a currency-only edit must
+    // never invalidate approval while reporting an empty reason list.
+    const reasons = describeMaterialChanges(base, after)
+    expect(reasons.length).toBeGreaterThan(0)
+    expect(reasons.join(' ')).toContain('moneda')
+  })
+
+  test('every material change produces at least one reason', () => {
+    // Guards the resolver against drifting out of sync with the hash: anything
+    // that invalidates approval must be explainable to the promoter.
+    const mutations: Array<(s: PreviewSnapshot) => void> = [
+      (s) => { s.products[0].title = 'otro' },
+      (s) => { s.products[0].priceCents = 99 },
+      (s) => { s.products[0].imageUrl = 'https://img/z.jpg' },
+      (s) => { s.products[0].currency = 'USD' },
+      (s) => { s.shopName = 'Otra' },
+      (s) => { s.shopSlug = 'otra' },
+      (s) => { s.products.pop() },
+    ]
+    for (const mutate of mutations) {
+      const after = clone(base)
+      mutate(after)
+      expect(isMaterialChange(base, after)).toBe(true)
+      expect(describeMaterialChanges(base, after).length).toBeGreaterThan(0)
+    }
+  })
+
   test('no changes yields no reasons', () => {
     expect(describeMaterialChanges(base, clone(base))).toEqual([])
   })

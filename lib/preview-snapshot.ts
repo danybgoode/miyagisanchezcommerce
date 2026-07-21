@@ -114,6 +114,11 @@ export function describeMaterialChanges(before: PreviewSnapshot, after: PreviewS
     if ((beforeProduct.imageUrl ?? null) !== (afterProduct.imageUrl ?? null)) {
       reasons.push(`Cambió la imagen de "${afterProduct.title}".`)
     }
+    // `currency` is hashed as material, so it must be explainable too — otherwise
+    // a currency-only edit invalidates approval while reporting no reason at all.
+    if ((beforeProduct.currency ?? 'MXN').toUpperCase() !== (afterProduct.currency ?? 'MXN').toUpperCase()) {
+      reasons.push(`Cambió la moneda de "${afterProduct.title}".`)
+    }
   }
   return reasons
 }

@@ -101,6 +101,15 @@ export async function POST(req: NextRequest) {
   const preview = await ensureShopPreview(shop.id, auth.user.id)
   if (!preview) return NextResponse.json({ ok: false, error: 'No se pudo preparar la vista previa.' }, { status: 500 })
 
+  // An activated shop is already public — token resolution rejects activated
+  // previews, so minting here would hand back a link that always 404s.
+  if (preview.status === 'activated') {
+    return NextResponse.json(
+      { ok: false, error: 'Esta tienda ya es pública; no necesita un enlace privado.' },
+      { status: 409 },
+    )
+  }
+
   const minted = await mintPreviewGrant(preview.id, auth.user.id, PREVIEW_LINK_TTL_DAYS)
   if (!minted) return NextResponse.json({ ok: false, error: 'No se pudo generar el enlace.' }, { status: 500 })
 

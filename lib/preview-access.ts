@@ -129,16 +129,27 @@ export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
  * Resolves the marketplace_shops UUID from the slug (the public shop object carries
  * the Medusa seller id, not the mirror id previews key off).
  *
- * Gated on the SAME flag as preview creation, so flipping the flag OFF is a true
- * rollback: existing anchors stop hiding their shops instead of stranding them
- * 404 with no way back. Fails OPEN to `false` (shop stays visible) on any read
- * error — a Supabase hiccup must never 404 a live public shop; the products
- * themselves remain draft-private regardless.
+ * Deliberately NOT gated on `promoter.private_preview_enabled`. An earlier round
+ * gated it so that flipping the flag OFF would un-hide anchored shops — but that
+ * makes privacy fail-OPEN: a flag flip (or an unreadable flag store) would publish
+ * a shop whose merchant never approved being presented, and the epic's locked
+ * decision #3 is that nothing short of explicit approval is consent. A flag flip
+ * is not consent. The flag's job is to stop NEW previews being created, not to
+ * publish existing unapproved ones.
+ *
+ * That gate was only ever a mitigation for the storefront-takedown vector, and
+ * `canAnchorPreview` now makes takedown impossible by construction (a claimed shop
+ * can never be anchored), so removing it costs nothing. Un-hiding a shop is a
+ * deliberate act: activate the approved snapshot (S2.3), or delete the anchor row.
+ *
+ * Fails OPEN to `false` (shop stays visible) on a read ERROR — a Supabase hiccup
+ * must never 404 a live public shop, and the products themselves remain
+ * draft-private regardless, so the failure mode is a bare shell, not a leaked
+ * catalog.
  */
 export async function isShopPreviewPrivateBySlug(slug: string): Promise<boolean> {
   const clean = (slug ?? '').trim()
   if (!clean) return false
-  if (!(await isEnabled('promoter.private_preview_enabled'))) return false
   const { data: shop } = await db
     .from('marketplace_shops')
     .select('id')
@@ -194,12 +205,17 @@ export async function getPreviewPresentation(
   // listings — e.g. a preview prepared for a shop that already sells — and those
   // are not part of the proposal the merchant is being asked to approve. Scoping
   // here keeps the reviewed snapshot equal to what activation would publish.
-  const { data: rows } = await db
+  const { data: rows, error } = await db
     .from('marketplace_listings')
     .select('medusa_product_id, title, price_cents, currency, images, status')
     .eq('shop_id', preview.shopId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
+
+  // A failed query is NOT an empty proposal. Rendering "0 productos propuestos"
+  // would show the merchant an empty shop and invite them to approve it — the
+  // caller 404s instead, so a read failure can never become a consent artifact.
+  if (error) return null
 
   const products: PreviewProduct[] = (rows ?? []).map((r) => {
     const images = Array.isArray(r.images) ? (r.images as Array<{ url?: string }>) : []

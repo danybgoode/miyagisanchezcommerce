@@ -50,6 +50,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS merchant_preview_grants_token_hash_uniq
 CREATE INDEX IF NOT EXISTS merchant_preview_grants_preview_idx
   ON merchant_preview_grants (preview_id);
 
+-- RLS: ON with NO policies, on BOTH tables. These rows are the consent record —
+-- a client that could flip a preview to 'activated' would publish a merchant's
+-- shop without approval, and a client that could read the grants table would see
+-- which merchants are being pitched. The app reaches Supabase exclusively through
+-- the SERVICE-ROLE key, which bypasses RLS, so enabling it costs the app nothing
+-- while removing anon/authenticated access entirely under standard public-schema
+-- grants. (Deliberately stricter than the newest sibling `partner_grants`, which
+-- shipped without it — that is a gap to close there, not a precedent to copy.)
+ALTER TABLE merchant_previews       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE merchant_preview_grants ENABLE ROW LEVEL SECURITY;
+
 -- Dark-launch flag (enablement polarity, default OFF in every env). Gates the
 -- promoter setup/listing orchestration seam: ON creates private draft products +
 -- signed preview access; OFF preserves the current force-publish route for

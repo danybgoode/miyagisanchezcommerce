@@ -137,14 +137,24 @@ export async function POST(req: NextRequest) {
   // anchoring later would leave a window in which a freshly-minted shop is fully
   // public at /s/<slug> under the merchant's REAL NAME before anyone consented to
   // it being presented at all. The shop is unclaimed and promoter-created by
-  // construction on this path, so `canAnchorPreview` is satisfied; a failure here
-  // is best-effort — the listing route anchors too, and a shop with no listings
-  // exposes a name but no proposal.
+  // construction on this path, so `canAnchorPreview` is satisfied by definition.
+  //
+  // A failure here FAILS THE CALL. Reporting success would hand the promoter a
+  // shop they believe is private while it is in fact publicly visible under the
+  // merchant's real name — the exact outcome this epic exists to prevent. The
+  // shop itself survives (it is already minted + mirrored) and the promoter can
+  // retry; `ensureShopPreview` is idempotent.
   if (await isEnabled('promoter.private_preview_enabled')) {
-    await ensureShopPreview(mirrorId, user.id).catch((e) => {
+    const preview = await ensureShopPreview(mirrorId, user.id).catch((e) => {
       console.error('[promoter/shop/setup] preview anchor failed:', e)
       return null
     })
+    if (!preview) {
+      return NextResponse.json(
+        { ok: false, error: 'La tienda se creó pero no se pudo marcar como privada. Inténtalo de nuevo antes de compartirla.' },
+        { status: 500 },
+      )
+    }
   }
 
   revalidateTag('shops', 'default')
