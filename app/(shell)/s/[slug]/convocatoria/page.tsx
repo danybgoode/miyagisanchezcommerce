@@ -48,7 +48,10 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
   // Consent-safe previews: this is the ONE shop sub-page middleware rewrites onto
   // the subdomain + custom-domain channels, so a preview-private shop would
   // otherwise leak its name on all three. Same copy as an unknown shop.
-  if (await isShopPreviewPrivateBySlug(slug)) {
+  // clerk_user_id: null — LaunchpadShop doesn't carry it, and a launchpad portal
+  // is only enabled on a claimed, set-up shop, so a preview-private (unclaimed)
+  // shop can't reach this; the by-id path still re-reads clerk_user_id.
+  if (await isShopPreviewPrivateBySlug(slug, null)) {
     return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
   }
   if (!shop.acceptsManuscripts) {

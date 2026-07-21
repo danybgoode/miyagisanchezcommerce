@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
   // Don't leak a preview-private shop's name/description in metadata (S1.2 guard).
-  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Tienda no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
   const t = (theme?.theme ?? {}) as Record<string, unknown>
   // Canonical points at the shop's own domain when live, so search engines
@@ -105,7 +105,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // and subdomain channels, so one 404 here covers all three. Products are already
   // draft-private structurally; this additionally hides the empty shop shell +
   // merchant name until the promoter activates the approved snapshot (Sprint 2).
-  if (await isShopPreviewPrivateBySlug(shop.slug)) notFound()
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) notFound()
 
   // SEO continuity: if this shop has a LIVE custom domain and we're being viewed
   // on the marketplace host (not already on that domain), 308-redirect legacy

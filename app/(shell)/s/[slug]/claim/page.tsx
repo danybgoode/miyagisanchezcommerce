@@ -10,7 +10,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
   if (!shop) notFound()
   // Consent-safe previews: a preview-private shop must not expose its name — nor a
   // live claim form — before the merchant has approved being presented at all.
-  await assertShopNotPreviewPrivate(shop.slug)
+  await assertShopNotPreviewPrivate(shop)
 
   if (shop.clerk_user_id) {
     return (

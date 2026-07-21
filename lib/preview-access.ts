@@ -25,6 +25,8 @@ import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
+import { listShopDraftsViaInternal } from '@/lib/seller-products'
+import { decidePreviewPrivacy, type AnchorState, type ClaimState } from '@/lib/preview-privacy-decision'
 export { canAnchorPreview } from '@/lib/promoter-close'
 import {
   generatePreviewToken,
@@ -94,60 +96,135 @@ export async function ensureShopPreview(
   return rowToPreview(data)
 }
 
-/** Read a shop's preview anchor, or null if the shop has none. */
-export async function getPreviewByShop(shopId: string): Promise<MerchantPreview | null> {
-  const { data } = await db
+/**
+ * Read a shop's preview anchor. Returns `{ preview: null }` when the shop has no
+ * anchor, and `{ error: true }` when the READ ITSELF failed — the two are
+ * DISTINCT so callers can fail closed on an error rather than treating a DB blip
+ * as "no anchor" (the whole point of the fail-closed posture, Daniel 2026-07-21).
+ */
+export async function readPreviewByShop(
+  shopId: string,
+): Promise<{ preview: MerchantPreview | null; error: boolean }> {
+  const { data, error } = await db
     .from('merchant_previews')
     .select('id, shop_id, status, current_version, created_by')
     .eq('shop_id', shopId)
     .maybeSingle()
-  return data ? rowToPreview(data) : null
+  if (error) return { preview: null, error: true }
+  return { preview: data ? rowToPreview(data) : null, error: false }
+}
+
+/** Back-compat convenience: the anchor or null (an error also reads as null here). */
+export async function getPreviewByShop(shopId: string): Promise<MerchantPreview | null> {
+  const { preview } = await readPreviewByShop(shopId)
+  return preview
 }
 
 /**
- * The public shop-shell leak guard, as one call: 404 if this slug's shop is
+ * The public shop-shell leak guard, as one call: 404 if this shop is
  * preview-private. Applied at EVERY public shop-shell entry point — the shop home,
  * its content pages (`/acerca`, `/faq`, `/politicas`), collections, the claim page,
  * `/convocatoria`, and the embed widget.
  *
+ * Takes the SHOP OBJECT (which every call site already loaded via `getShop`), not
+ * just a slug, so a CLAIMED shop is decided from data in hand with ZERO Supabase
+ * reads — see `isShopPreviewPrivateForShop` for why that matters to the
+ * fail-closed posture.
+ *
  * Deliberately NOT folded into `getShop()`: that helper is `unstable_cache`d with
- * the `shops` tag, so the privacy decision (and the flag state it depends on) would
- * be memoized and outlive a revocation or activation.
+ * the `shops` tag, so the privacy decision would be memoized and outlive a
+ * revocation or activation.
  */
-export async function assertShopNotPreviewPrivate(slug: string): Promise<void> {
-  if (await isShopPreviewPrivateBySlug(slug)) notFound()
+export async function assertShopNotPreviewPrivate(
+  shop: { slug: string; clerk_user_id: string | null },
+): Promise<void> {
+  if (await isShopPreviewPrivateForShop(shop)) notFound()
 }
 
 /**
  * True when this single shop is preview-private: it has a non-activated anchor
- * AND it is still unclaimed.
+ * AND it is still unclaimed. Read path — used by the public render guards.
  *
- * The CLAIMED escape is load-bearing, not a convenience. `canAnchorPreview` only
- * checks `clerk_user_id` at anchor time, and `/api/claim/complete` flips that
- * field without touching this table — so the epic's own happy path (promoter
- * anchors an unclaimed shop → merchant claims it via the WhatsApp link) would
- * otherwise leave a claimed shop permanently hidden, with no recovery: there is
- * no UPDATE or DELETE of `merchant_previews` anywhere in the app, and the
- * promoter loses `canAnchorPreview` the moment the shop is claimed, so they
- * couldn't undo it either. The merchant's storefront would 404 forever.
+ * FAIL-CLOSED, scoped to the draft/unclaimed population (Daniel 2026-07-21):
+ * privacy and tenant-boundary protection take priority over availability for the
+ * states that can actually be private. The scoping is what keeps that from 404-ing
+ * the whole marketplace on a Supabase blip:
  *
- * This does NOT treat a claim as publication approval (locked decision #3):
- * clearing the anchor publishes NOTHING — the products stay Medusa drafts and
- * only the merchant can publish them, through the ordinary seller portal. It
- * stops hiding the SHELL from someone who now owns and controls the shop. Consent
- * to publish is still explicit, still versioned, and still lives in Sprint 2.
+ *  - A CLAIMED shop is never private. That is decided from `clerk_user_id`, which
+ *    the caller already holds on the Medusa shop object — so a claimed/live shop
+ *    reaches ZERO Supabase reads here and a Supabase outage cannot hide it.
+ *  - An UNCLAIMED shop consults the anchor. If that read ERRORS we cannot prove
+ *    the shop is safe to show, so we fail CLOSED (treat as private). This only
+ *    ever hides unclaimed shops — a small population where a brief blip-hide is
+ *    acceptable and a leak is not.
+ *
+ * The CLAIMED escape is also load-bearing for correctness, not just the blip
+ * case: `canAnchorPreview` checks `clerk_user_id` only at anchor time, and
+ * `/api/claim/complete` flips it without touching this table (there is no UPDATE
+ * or DELETE of `merchant_previews` anywhere). Without this, the epic's own happy
+ * path — promoter anchors an unclaimed shop → merchant claims it — would 404 the
+ * merchant's storefront forever. Clearing the anchor on claim publishes NOTHING
+ * (products stay Medusa drafts; only the merchant can publish them), so this does
+ * not treat a claim as publication approval (locked decision #3).
+ */
+export async function isShopPreviewPrivateForShop(
+  shop: { id?: string | null; slug: string; clerk_user_id: string | null },
+): Promise<boolean> {
+  // Claimed → never private, and NO Supabase read, so a live shop is immune to a
+  // Supabase blip.
+  if (shop.clerk_user_id) return false
+
+  // Unclaimed → resolve the mirror id if we weren't given it.
+  let shopId = shop.id ?? null
+  if (!shopId) {
+    const clean = (shop.slug ?? '').trim()
+    if (!clean) return false // no way to identify → nothing to hide
+    const { data, error } = await db
+      .from('marketplace_shops')
+      .select('id')
+      .eq('slug', clean)
+      .maybeSingle()
+    // Fail CLOSED: an unclaimed shop we can't resolve is treated as private.
+    if (error) return true
+    if (!data?.id) return false // genuinely absent → not in the preview population
+    shopId = data.id as string
+  }
+
+  return isShopPreviewPrivate(shopId)
+}
+
+/**
+ * By-id privacy decision — the WRITE-path entry point (`shopMustStayPrivate`) and
+ * the resolved tail of the read path. FAIL-CLOSED on the anchor read error: a
+ * shop we can't verify is treated as private, so a write can't publish into a
+ * maybe-private shop and a render can't reveal one.
+ *
+ * Still honors the CLAIMED escape by id (the write paths pass only a shop id):
+ * an already-claimed shop is never private. That read failing is itself failed
+ * closed — an unclaimed-or-unknown shop is treated as private.
  */
 export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
-  const preview = await getPreviewByShop(shopId)
-  if (preview === null || preview.status === 'activated') return false
+  const { preview, error } = await readPreviewByShop(shopId)
+  const anchor: AnchorState = error
+    ? 'error'
+    : preview === null
+      ? 'none'
+      : preview.status === 'activated'
+        ? 'activated'
+        : 'held'
 
-  const { data: shop } = await db
+  // Short-circuit: only a 'held' anchor can make a shop private, so skip the
+  // claim read entirely otherwise (and never fail-closed a shop that has no
+  // anchor just because its claim read would have blipped).
+  if (anchor !== 'held') return decidePreviewPrivacy({ claim: 'unclaimed', anchor })
+
+  const { data: shop, error: shopError } = await db
     .from('marketplace_shops')
     .select('clerk_user_id')
     .eq('id', shopId)
     .maybeSingle()
-  // A claimed shop belongs to its merchant — never hide it.
-  return !shop?.clerk_user_id
+  const claim: ClaimState = shopError ? 'unknown' : shop?.clerk_user_id ? 'claimed' : 'unclaimed'
+  return decidePreviewPrivacy({ claim, anchor })
 }
 
 /**
@@ -223,28 +300,25 @@ export async function shopHasPublicListings(shopId: string): Promise<boolean> {
  * unclaimed remains a deliberate act: activate the approved snapshot (S2.3), or
  * delete the anchor row.
  *
- * Fails OPEN to `false` (shop stays visible) on a read ERROR — a Supabase hiccup
- * must never 404 a live public shop, and the products themselves remain
- * draft-private regardless, so the failure mode is a bare shell, not a leaked
- * catalog.
+ * FAIL-CLOSED, scoped to the unclaimed population (Daniel 2026-07-21): a claimed
+ * shop short-circuits to visible with no Supabase read, so a blip can't 404 a
+ * live shop; an unclaimed shop whose anchor read errors is treated as private.
+ * See `isShopPreviewPrivateForShop` for the full rationale — this is a thin
+ * cached wrapper over it for the call sites that hold a `Shop`-shaped object.
  *
  * Wrapped in React `cache()` for per-REQUEST memoization: a channel-host request
  * hits this twice (the `(shell)` layout chrome and the page inside), and that
  * layout runs on every white-label request from a paying tenant's domain. Request
  * scope only — no cross-request staleness, so a revocation or activation still
- * takes effect on the very next request.
+ * takes effect on the very next request. Keyed on the slug (the memo cache needs a
+ * primitive key), so all callers for one shop in a request must pass a consistent
+ * `clerk_user_id` — which they do, all reading the same `getShop` result.
  */
-export const isShopPreviewPrivateBySlug = cache(async (slug: string): Promise<boolean> => {
-  const clean = (slug ?? '').trim()
-  if (!clean) return false
-  const { data: shop } = await db
-    .from('marketplace_shops')
-    .select('id')
-    .eq('slug', clean)
-    .maybeSingle()
-  if (!shop?.id) return false
-  return isShopPreviewPrivate(shop.id as string)
-})
+export const isShopPreviewPrivateBySlug = cache(
+  async (slug: string, clerkUserId: string | null): Promise<boolean> => {
+    return isShopPreviewPrivateForShop({ slug, clerk_user_id: clerkUserId })
+  },
+)
 
 export interface PreviewProduct {
   id: string
@@ -262,59 +336,46 @@ export interface PreviewPresentation {
 }
 
 /**
- * The proposed shop presentation a preview link renders — read from the Supabase
- * mirror (`marketplace_shops` + `marketplace_listings`), scoped to DRAFT rows.
+ * The proposed shop presentation a preview link renders.
  *
- * Why the mirror and not Medusa (AGENTS rule #1): the public /store/* API is
- * published-only and returns nothing for a draft, and the backend exposes no
- * internal GET for seller products — so the mirror is the only frontend-reachable
- * read for draft data, and it is the ESTABLISHED one for exactly this case (see
- * `listShopListings` in lib/seller-products.ts, and the seller catalog's own
- * mirror read at app/(shell)/shop/manage/catalogo/page.tsx). Medusa stays
- * authoritative: the mirror is written from the Medusa create, and activation
- * (S2.3) writes product status to Medusa and re-hashes the snapshot at that
- * moment — so the mirror is a display projection of the proposal, never the basis
- * of the publication decision.
+ * PRODUCTS are read from MEDUSA (authoritative), via the backend internal route
+ * `GET /internal/seller-products/drafts` — the Sprint-1 review decision (Daniel,
+ * 2026-07-21): the consent surface must show exactly what activation will publish,
+ * so it reads the commerce source of truth, not the Supabase mirror that can drift
+ * from it. The route returns the same `toListingShape` the published catalog uses.
  *
- * Exposes no admin/promoter controls, ownership, or checkout. Returns null if the
- * shop mirror row is gone.
+ * SHOP IDENTITY (name, slug) is non-commerce and stays on `marketplace_shops` —
+ * Medusa's seller carries the name too, but the mirror is this epic's own
+ * identity/consent home and the id we key on is the mirror id.
+ *
+ * FAIL-CLOSED: returns null if the shop row is gone OR the Medusa draft read fails
+ * for any reason. A consent surface must never render a partial/empty proposal a
+ * merchant might approve, so the caller 404s rather than showing an empty shop.
+ *
+ * Exposes no admin/promoter controls, ownership, or checkout.
  */
 export async function getPreviewPresentation(
   preview: MerchantPreview,
 ): Promise<PreviewPresentation | null> {
-  const { data: shop } = await db
+  const { data: shop, error: shopError } = await db
     .from('marketplace_shops')
     .select('name, slug')
     .eq('id', preview.shopId)
     .maybeSingle()
-  if (!shop) return null
+  if (shopError || !shop) return null
 
-  // ONLY the proposed drafts. A shop can also hold already-public ('active')
-  // listings — e.g. a preview prepared for a shop that already sells — and those
-  // are not part of the proposal the merchant is being asked to approve. Scoping
-  // here keeps the reviewed snapshot equal to what activation would publish.
-  const { data: rows, error } = await db
-    .from('marketplace_listings')
-    .select('medusa_product_id, title, price_cents, currency, images, status')
-    .eq('shop_id', preview.shopId)
-    .eq('status', 'draft')
-    .order('updated_at', { ascending: false })
+  // Medusa-authoritative draft read. null ⇒ the read failed (secret/network/non-
+  // 200) — fail closed, never a silently-empty proposal.
+  const drafts = await listShopDraftsViaInternal(String(shop.slug ?? ''))
+  if (drafts === null) return null
 
-  // A failed query is NOT an empty proposal. Rendering "0 productos propuestos"
-  // would show the merchant an empty shop and invite them to approve it — the
-  // caller 404s instead, so a read failure can never become a consent artifact.
-  if (error) return null
-
-  const products: PreviewProduct[] = (rows ?? []).map((r) => {
-    const images = Array.isArray(r.images) ? (r.images as Array<{ url?: string }>) : []
-    return {
-      id: String(r.medusa_product_id),
-      title: String(r.title ?? ''),
-      priceCents: typeof r.price_cents === 'number' ? r.price_cents : null,
-      currency: String(r.currency ?? 'MXN'),
-      imageUrl: images[0]?.url ?? null,
-    }
-  })
+  const products: PreviewProduct[] = drafts.map((d) => ({
+    id: d.id,
+    title: d.title,
+    priceCents: d.price_cents,
+    currency: d.currency,
+    imageUrl: d.image_url,
+  }))
 
   return {
     shopName: String(shop.name ?? ''),
