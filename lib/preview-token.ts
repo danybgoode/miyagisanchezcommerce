@@ -22,10 +22,16 @@ export function hashPreviewToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/** 32 random bytes → exactly 64 lowercase hex chars after the prefix. */
+const TOKEN_BODY_RE = /^[0-9a-f]{64}$/
+
 /**
- * A token is well-formed only if it is a non-empty string carrying the prefix. The
- * resolver rejects anything else BEFORE any DB read (cheap enumeration defense).
+ * A token is well-formed only if it carries the prefix AND the exact 64-hex-char
+ * body a real token has. The resolver rejects anything else BEFORE any DB read, so
+ * a malformed probe (`mp_x`) never reaches the database — matching the documented
+ * 256-bit format rather than merely checking the prefix.
  */
 export function isWellFormedPreviewToken(token: unknown): token is string {
-  return typeof token === 'string' && token.startsWith(PREVIEW_TOKEN_PREFIX) && token.length > PREVIEW_TOKEN_PREFIX.length
+  if (typeof token !== 'string' || !token.startsWith(PREVIEW_TOKEN_PREFIX)) return false
+  return TOKEN_BODY_RE.test(token.slice(PREVIEW_TOKEN_PREFIX.length))
 }

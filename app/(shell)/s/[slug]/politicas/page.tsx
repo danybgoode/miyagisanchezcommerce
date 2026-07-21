@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getSlugRedirect } from '@/lib/slug-redirect'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -36,6 +37,8 @@ export default async function ShopPoliticasPage({
     if (current) permanentRedirect(`/s/${current}/politicas`)
     notFound()
   }
+  // Consent-safe previews: never render a preview-private shop's shell.
+  await assertShopNotPreviewPrivate(shop.slug)
 
   const domain = await getActiveCustomDomain(shop.slug)
   if (domain) permanentRedirect(`https://${domain}/politicas`)

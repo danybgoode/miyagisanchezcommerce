@@ -19,6 +19,7 @@
 
 import { notFound } from 'next/navigation'
 import { getShop, getShopListings, formatPrice } from '@/lib/listings'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
@@ -48,6 +49,9 @@ export default async function EmbedShopPage({
   const { key } = await searchParams
   const shop = await getShop(slug)
   if (!shop) notFound()
+  // Consent-safe previews: the embed is public and framable on any third-party
+  // origin, so it must refuse a preview-private shop like every other channel.
+  await assertShopNotPreviewPrivate(shop.slug)
   const listings = await getShopListings(shop.slug)
 
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>

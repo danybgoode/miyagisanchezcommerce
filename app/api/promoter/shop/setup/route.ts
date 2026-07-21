@@ -16,6 +16,7 @@ import { getPromoterByClerkId, recordAttribution } from '@/lib/promoter'
 import { promoterSourceUrl } from '@/lib/promoter-close'
 import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
+import { ensureShopPreview } from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,6 +131,21 @@ export async function POST(req: NextRequest) {
   // a partner MCP credential, auto-grant them manager access to the shop they
   // just stood up. Best-effort; NEVER fails the close — see lib/partner-grant-server.ts.
   await autoGrantPartnerOnClose({ promoterId: promoter.id, shopId: mirrorId })
+
+  // Consent-safe previews (S1.1) — anchor the preview HERE, at shop creation, not
+  // at the first listing. This is the seam every close variant converges on, so
+  // anchoring later would leave a window in which a freshly-minted shop is fully
+  // public at /s/<slug> under the merchant's REAL NAME before anyone consented to
+  // it being presented at all. The shop is unclaimed and promoter-created by
+  // construction on this path, so `canAnchorPreview` is satisfied; a failure here
+  // is best-effort — the listing route anchors too, and a shop with no listings
+  // exposes a name but no proposal.
+  if (await isEnabled('promoter.private_preview_enabled')) {
+    await ensureShopPreview(mirrorId, user.id).catch((e) => {
+      console.error('[promoter/shop/setup] preview anchor failed:', e)
+      return null
+    })
+  }
 
   revalidateTag('shops', 'default')
   return NextResponse.json({

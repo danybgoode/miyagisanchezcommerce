@@ -34,7 +34,7 @@ import { resolveTargetShop } from '@/lib/promoter-server'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
-import { ensureShopPreview } from '@/lib/preview-access'
+import { ensureShopPreview, canAnchorPreview } from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,13 +84,21 @@ export async function POST(req: NextRequest) {
   const shop = await resolveTargetShop({ shopId: body.shopId, slug: body.slug })
   if (!shop) return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
 
-  // Consent-safe preview: when ON, create the listing PRIVATE (Medusa draft +
-  // mirror 'draft') and ensure the shop's preview anchor exists; when OFF, keep
-  // the historical force-publish behavior byte-for-byte.
-  const privatePreview = await isEnabled('promoter.private_preview_enabled')
-  if (privatePreview) {
-    await ensureShopPreview(shop.id, user.id)
-  }
+  // Consent-safe preview: when ON *and this promoter may anchor this shop*, create
+  // the listing PRIVATE (Medusa draft + mirror 'draft'); otherwise keep the
+  // historical force-publish behavior byte-for-byte.
+  //
+  // `canAnchorPreview` is load-bearing here, not just on the preview route: an
+  // anchor hides the storefront, so anchoring a shop this promoter didn't create —
+  // or a CLAIMED shop that's already trading — would take a live merchant down.
+  // A promoter adding a listing to someone else's live shop therefore keeps the
+  // old publish behavior rather than silently going private.
+  //
+  // The anchor itself is written AFTER the product succeeds (see below) — creating
+  // it first would leave an anchor hiding the shop even when listing creation fails.
+  const privatePreview =
+    (await isEnabled('promoter.private_preview_enabled')) &&
+    canAnchorPreview(shop, promoter.code)
   const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
   const mirrorStatus = privatePreview ? 'draft' : 'active'
 
@@ -119,6 +127,21 @@ export async function POST(req: NextRequest) {
   })
   if (!result.ok || !result.product_id) {
     return NextResponse.json({ ok: false, error: result.error ?? 'No se pudo crear el anuncio.' }, { status: 502 })
+  }
+
+  // The product exists and is private (draft) — NOW anchor the preview. If the
+  // anchor can't be written we fail loudly rather than leaving a draft product
+  // stranded with no consent record: without an anchor the shop isn't marked
+  // preview-private, so the promoter would believe a proposal exists when the
+  // consent lifecycle has no row to track it.
+  if (privatePreview) {
+    const preview = await ensureShopPreview(shop.id, user.id)
+    if (!preview) {
+      return NextResponse.json(
+        { ok: false, error: 'No se pudo preparar la vista previa privada. Inténtalo de nuevo.' },
+        { status: 500 },
+      )
+    }
   }
 
   await syncSupabaseListingMirror(shop.id, {

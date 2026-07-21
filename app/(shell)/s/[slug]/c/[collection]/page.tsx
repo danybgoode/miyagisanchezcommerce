@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getSlugRedirect } from '@/lib/slug-redirect'
 import CollectionPage from '../../../../_shop-collection/CollectionPage'
@@ -35,6 +36,8 @@ export default async function ShopCollectionPage({
     if (current) permanentRedirect(`/s/${current}/c/${collection}`)
     notFound()
   }
+  // Consent-safe previews: never render a preview-private shop's shell.
+  await assertShopNotPreviewPrivate(shop.slug)
 
   return (
     <CollectionPage

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { isEnabled } from '@/lib/flags'
 import { getLaunchpadShopBySlug } from '@/lib/launchpad'
+import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { MAX_MANUSCRIPT_SIZE_MB } from '@/lib/launchpad-types'
 import ConvocatoriaClient from './ConvocatoriaClient'
 
@@ -42,6 +43,12 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
     return <StateMessage title="Convocatoria no disponible" body="Esta función no está disponible en este momento." />
   }
   if (!shop) {
+    return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
+  }
+  // Consent-safe previews: this is the ONE shop sub-page middleware rewrites onto
+  // the subdomain + custom-domain channels, so a preview-private shop would
+  // otherwise leak its name on all three. Same copy as an unknown shop.
+  if (await isShopPreviewPrivateBySlug(slug)) {
     return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
   }
   if (!shop.acceptsManuscripts) {

@@ -21,7 +21,10 @@
  * Runtime: Node only (Supabase service-role client). Never import from Edge.
  */
 import 'server-only'
+import { notFound } from 'next/navigation'
 import { db } from '@/lib/supabase'
+import { isEnabled } from '@/lib/flags'
+export { canAnchorPreview } from '@/lib/promoter-close'
 import {
   generatePreviewToken,
   hashPreviewToken,
@@ -63,10 +66,14 @@ function rowToPreview(row: {
   }
 }
 
+
 /**
  * Ensure a shop has a preview anchor, returning it. Idempotent: one row per shop
  * (unique index). Never resurrects an already-activated preview back to draft —
  * an activated shop is public and out of the consent flow.
+ *
+ * AUTHORIZATION IS THE CALLER'S JOB — every caller must pass `canAnchorPreview`
+ * first (see its doc for why both conditions matter).
  */
 export async function ensureShopPreview(
   shopId: string,
@@ -97,19 +104,17 @@ export async function getPreviewByShop(shopId: string): Promise<MerchantPreview 
 }
 
 /**
- * A shop is "preview-private" (must be hidden from every public shop-shell read)
- * when it has a preview anchor that has not yet been activated. Returns the set of
- * such shop ids among the given ids — the S1.2 cross-channel leak guard uses this
- * to filter shop listings/sitemap/search without a per-shop round trip.
+ * The public shop-shell leak guard, as one call: 404 if this slug's shop is
+ * preview-private. Applied at EVERY public shop-shell entry point — the shop home,
+ * its content pages (`/acerca`, `/faq`, `/politicas`), collections, the claim page,
+ * `/convocatoria`, and the embed widget.
+ *
+ * Deliberately NOT folded into `getShop()`: that helper is `unstable_cache`d with
+ * the `shops` tag, so the privacy decision (and the flag state it depends on) would
+ * be memoized and outlive a revocation or activation.
  */
-export async function filterPreviewPrivateShopIds(shopIds: string[]): Promise<Set<string>> {
-  if (shopIds.length === 0) return new Set()
-  const { data } = await db
-    .from('merchant_previews')
-    .select('shop_id')
-    .in('shop_id', shopIds)
-    .neq('status', 'activated')
-  return new Set((data ?? []).map((r) => r.shop_id as string))
+export async function assertShopNotPreviewPrivate(slug: string): Promise<void> {
+  if (await isShopPreviewPrivateBySlug(slug)) notFound()
 }
 
 /** True when this single shop is preview-private (has a non-activated anchor). */
@@ -122,13 +127,18 @@ export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
  * True when the shop at this slug is preview-private — the public shop-shell leak
  * guard (`/s/[slug]`, and via rewrite its custom-domain + subdomain channels).
  * Resolves the marketplace_shops UUID from the slug (the public shop object carries
- * the Medusa seller id, not the mirror id previews key off). Fails OPEN to `false`
- * (shop stays visible) on any read error — a Supabase hiccup must never 404 a live
- * public shop; the products themselves are already draft-private regardless.
+ * the Medusa seller id, not the mirror id previews key off).
+ *
+ * Gated on the SAME flag as preview creation, so flipping the flag OFF is a true
+ * rollback: existing anchors stop hiding their shops instead of stranding them
+ * 404 with no way back. Fails OPEN to `false` (shop stays visible) on any read
+ * error — a Supabase hiccup must never 404 a live public shop; the products
+ * themselves remain draft-private regardless.
  */
 export async function isShopPreviewPrivateBySlug(slug: string): Promise<boolean> {
   const clean = (slug ?? '').trim()
   if (!clean) return false
+  if (!(await isEnabled('promoter.private_preview_enabled'))) return false
   const { data: shop } = await db
     .from('marketplace_shops')
     .select('id')
@@ -155,10 +165,20 @@ export interface PreviewPresentation {
 
 /**
  * The proposed shop presentation a preview link renders — read from the Supabase
- * mirror (`marketplace_shops` + `marketplace_listings`), NEVER the public /store/*
- * API (which is published-only and would return nothing for a draft preview). This
- * is the ONE read path that sees the private proposal; it exposes no admin/promoter
- * controls, ownership, or checkout. Returns null if the shop mirror row is gone.
+ * mirror (`marketplace_shops` + `marketplace_listings`), scoped to DRAFT rows.
+ *
+ * Why the mirror and not Medusa (AGENTS rule #1): the public /store/* API is
+ * published-only and returns nothing for a draft, and the backend exposes no
+ * internal GET for seller products — so the mirror is the only frontend-reachable
+ * read for draft data, and it is the ESTABLISHED one for exactly this case (see
+ * `listSellerListingsFromMirror`, used by the seller catalog). Medusa stays
+ * authoritative: the mirror is written from the Medusa create, and activation
+ * (S2.3) writes product status to Medusa and re-hashes the snapshot at that
+ * moment — so the mirror is a display projection of the proposal, never the basis
+ * of the publication decision.
+ *
+ * Exposes no admin/promoter controls, ownership, or checkout. Returns null if the
+ * shop mirror row is gone.
  */
 export async function getPreviewPresentation(
   preview: MerchantPreview,
@@ -170,11 +190,15 @@ export async function getPreviewPresentation(
     .maybeSingle()
   if (!shop) return null
 
+  // ONLY the proposed drafts. A shop can also hold already-public ('active')
+  // listings — e.g. a preview prepared for a shop that already sells — and those
+  // are not part of the proposal the merchant is being asked to approve. Scoping
+  // here keeps the reviewed snapshot equal to what activation would publish.
   const { data: rows } = await db
     .from('marketplace_listings')
     .select('medusa_product_id, title, price_cents, currency, images, status')
     .eq('shop_id', preview.shopId)
-    .neq('status', 'deleted')
+    .eq('status', 'draft')
     .order('updated_at', { ascending: false })
 
   const products: PreviewProduct[] = (rows ?? []).map((r) => {
@@ -243,20 +267,31 @@ export async function resolvePreviewByToken(token: string): Promise<MerchantPrev
     .select('id, shop_id, status, current_version, created_by')
     .eq('id', data.preview_id as string)
     .maybeSingle()
-  return preview ? rowToPreview(preview) : null
+  if (!preview) return null
+  const resolved = rowToPreview(preview)
+  // An ACTIVATED preview is public — the private link has served its purpose and
+  // must stop resolving, independently of whether activation managed to revoke
+  // every outstanding grant. Callers 404, and the merchant simply visits the now
+  // public shop instead.
+  if (resolved.status === 'activated') return null
+  return resolved
 }
 
 /**
  * Revoke every active grant for a preview (the "revoke the link" action). Idempotent.
- * Returns the number of grants revoked. A revoked grant resolves as absent thereafter.
+ *
+ * Returns `null` on a database failure — deliberately DISTINCT from `0` ("there was
+ * nothing left to revoke"). Collapsing the two would let the route report a
+ * successful revocation while the supposedly-dead URL still resolves, which on a
+ * consent surface is the worst possible lie. The caller surfaces the failure.
  */
-export async function revokePreviewGrants(previewId: string): Promise<number> {
+export async function revokePreviewGrants(previewId: string): Promise<number | null> {
   const { data, error } = await db
     .from('merchant_preview_grants')
     .update({ revoked_at: new Date().toISOString() })
     .eq('preview_id', previewId)
     .is('revoked_at', null)
     .select('id')
-  if (error || !data) return 0
+  if (error || !data) return null
   return data.length
 }
