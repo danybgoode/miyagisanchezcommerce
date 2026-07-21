@@ -118,6 +118,16 @@ test.describe('canAnchorPreview — a preview can never take a live storefront d
   test('a shop with no promoter provenance may not be anchored', () => {
     expect(canAnchorPreview(shop(null, null), 'PRM-ABC')).toBe(false)
   })
+
+  test('REGRESSION: a re-run of shop setup on a SINCE-CLAIMED shop cannot anchor', () => {
+    // `/internal/sellers` is idempotent on source_url and
+    // `ensureUnclaimedShopMirror` resolves an existing mirror row WITHOUT
+    // filtering clerk_user_id — so re-running setup with the same business name
+    // after the merchant claimed the shop hands back a live, claimed shop. The
+    // setup route must therefore run the same gate as every other call site;
+    // "unclaimed by construction" is false on that path.
+    expect(canAnchorPreview(shop('promoter://PRM-ABC/lupita', 'user_claimed'), 'PRM-ABC')).toBe(false)
+  })
 })
 
 test.describe('preview routes — anonymous guards', () => {

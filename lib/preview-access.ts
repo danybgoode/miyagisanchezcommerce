@@ -182,7 +182,8 @@ export interface PreviewPresentation {
  * published-only and returns nothing for a draft, and the backend exposes no
  * internal GET for seller products — so the mirror is the only frontend-reachable
  * read for draft data, and it is the ESTABLISHED one for exactly this case (see
- * `listSellerListingsFromMirror`, used by the seller catalog). Medusa stays
+ * `listShopListings` in lib/seller-products.ts, and the seller catalog's own
+ * mirror read at app/(shell)/shop/manage/catalogo/page.tsx). Medusa stays
  * authoritative: the mirror is written from the Medusa create, and activation
  * (S2.3) writes product status to Medusa and re-hashes the snapshot at that
  * moment — so the mirror is a display projection of the proposal, never the basis

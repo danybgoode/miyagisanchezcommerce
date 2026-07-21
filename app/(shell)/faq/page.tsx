@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import FaqBody from '../_shop-content/FaqBody'
 import type { Metadata } from 'next'
 
@@ -27,6 +28,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ChannelFaqPage() {
   const shop = await resolveChannelShop()
   if (!shop) notFound()
+  // Consent-safe previews: this is the CHANNEL-native page (subdomain / custom
+  // domain serve it directly; middleware rewrites only `/` and `/convocatoria`),
+  // so it needs the guard independently of the /s/[slug] variant.
+  await assertShopNotPreviewPrivate(shop.slug)
 
   return <FaqBody shop={shop} basePath="" />
 }

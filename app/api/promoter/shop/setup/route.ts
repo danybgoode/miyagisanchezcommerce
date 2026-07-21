@@ -16,7 +16,8 @@ import { getPromoterByClerkId, recordAttribution } from '@/lib/promoter'
 import { promoterSourceUrl } from '@/lib/promoter-close'
 import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
-import { ensureShopPreview } from '@/lib/preview-access'
+import { ensureShopPreview, canAnchorPreview } from '@/lib/preview-access'
+import { db } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,24 +137,47 @@ export async function POST(req: NextRequest) {
   // at the first listing. This is the seam every close variant converges on, so
   // anchoring later would leave a window in which a freshly-minted shop is fully
   // public at /s/<slug> under the merchant's REAL NAME before anyone consented to
-  // it being presented at all. The shop is unclaimed and promoter-created by
-  // construction on this path, so `canAnchorPreview` is satisfied by definition.
+  // it being presented at all.
   //
-  // A failure here FAILS THE CALL. Reporting success would hand the promoter a
-  // shop they believe is private while it is in fact publicly visible under the
-  // merchant's real name — the exact outcome this epic exists to prevent. The
-  // shop itself survives (it is already minted + mirrored) and the promoter can
-  // retry; `ensureShopPreview` is idempotent.
+  // This route is NOT "unclaimed by construction", despite appearances: the
+  // backend `/internal/sellers` is idempotent on `source_url`, so re-running
+  // setup with the same business name returns the EXISTING seller, and
+  // `ensureUnclaimedShopMirror` resolves that to the existing mirror row without
+  // filtering `clerk_user_id`. If the merchant has since CLAIMED the shop, this
+  // path hands back a live claimed shop — anchoring which would 404 a real
+  // merchant's storefront. So the anchor goes through the same `canAnchorPreview`
+  // gate as every other call site, on freshly-read mirror state.
+  //
+  // A failure FAILS THE CALL: reporting success would hand the promoter a shop
+  // they believe is private while it is in fact publicly visible under the
+  // merchant's real name. The shop itself survives (already minted + mirrored)
+  // and the promoter can retry; `ensureShopPreview` is idempotent.
   if (await isEnabled('promoter.private_preview_enabled')) {
-    const preview = await ensureShopPreview(mirrorId, user.id).catch((e) => {
-      console.error('[promoter/shop/setup] preview anchor failed:', e)
-      return null
-    })
-    if (!preview) {
-      return NextResponse.json(
-        { ok: false, error: 'La tienda se creó pero no se pudo marcar como privada. Inténtalo de nuevo antes de compartirla.' },
-        { status: 500 },
-      )
+    const { data: mirrorRow } = await db
+      .from('marketplace_shops')
+      .select('clerk_user_id, source_url')
+      .eq('id', mirrorId)
+      .maybeSingle()
+
+    const anchorable = canAnchorPreview(
+      {
+        clerkUserId: (mirrorRow?.clerk_user_id as string | null) ?? null,
+        sourceUrl: (mirrorRow?.source_url as string | null) ?? null,
+      },
+      promoter.code,
+    )
+
+    if (anchorable) {
+      const preview = await ensureShopPreview(mirrorId, user.id).catch((e) => {
+        console.error('[promoter/shop/setup] preview anchor failed:', e)
+        return null
+      })
+      if (!preview) {
+        return NextResponse.json(
+          { ok: false, error: 'La tienda se creó pero no se pudo marcar como privada. Inténtalo de nuevo antes de compartirla.' },
+          { status: 500 },
+        )
+      }
     }
   }
 

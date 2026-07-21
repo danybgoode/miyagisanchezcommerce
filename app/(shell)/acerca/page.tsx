@@ -4,6 +4,7 @@ import { ABOUT_PAGE, aboutCopy } from '@/lib/about-content'
 import { getOverriddenAboutPage, getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { AboutPage } from './_components/AboutSections'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import AcercaBody from '../_shop-content/AcercaBody'
 import type { Metadata } from 'next'
 
@@ -46,7 +47,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AcercaPage({ searchParams }: AcercaPageProps) {
   const shop = await resolveChannelShop()
-  if (shop) return <AcercaBody shop={shop} basePath="" />
+  if (shop) {
+    // Consent-safe previews: the CHANNEL-native page (subdomain / custom domain
+    // serve it directly — middleware rewrites only `/` and `/convocatoria`), so
+    // it needs the guard independently of the /s/[slug]/acerca variant.
+    await assertShopNotPreviewPrivate(shop.slug)
+    return <AcercaBody shop={shop} basePath="" />
+  }
 
   const { lang } = await searchParams
   const locale = normalizeLocale(lang)
