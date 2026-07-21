@@ -34,7 +34,7 @@ import { resolveTargetShop } from '@/lib/promoter-server'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
-import { ensureShopPreview, canAnchorPreview } from '@/lib/preview-access'
+import { ensureShopPreview, canAnchorPreview, shopMustStayPrivate } from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,13 +94,21 @@ export async function POST(req: NextRequest) {
   // A promoter adding a listing to someone else's live shop therefore keeps the
   // old publish behavior rather than silently going private.
   //
-  // The anchor itself is written AFTER the product succeeds (see below) — creating
-  // it first would leave an anchor hiding the shop even when listing creation fails.
-  let privatePreview =
-    (await isEnabled('promoter.private_preview_enabled')) &&
-    canAnchorPreview(shop, promoter.code)
+  // The ANCHOR is authoritative, ahead of the flag and ahead of who is calling: a
+  // shop already awaiting its merchant's consent must never receive a published
+  // product — not during a flag-store outage (the enablement flag falls open to
+  // `false`, which would force-publish), and not because a DIFFERENT promoter is
+  // the one adding the listing (`canAnchorPreview` is false for them, which must
+  // mean "you may not anchor", never "publish freely into it").
+  const alreadyPrivate = await shopMustStayPrivate(shop.id)
 
-  if (privatePreview) {
+  let privatePreview =
+    alreadyPrivate ||
+    ((await isEnabled('promoter.private_preview_enabled')) && canAnchorPreview(shop, promoter.code))
+
+  // Only the shop's own promoter may CREATE the anchor; an existing one is
+  // honored no matter who is calling.
+  if (privatePreview && !alreadyPrivate) {
     // Anchor BEFORE creating the product, so a failed anchor costs nothing. (The
     // shop-setup path already anchored at shop creation, so this is normally a
     // no-op read.) Anchoring first is safe precisely because this shop is

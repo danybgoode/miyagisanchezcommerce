@@ -124,6 +124,31 @@ export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
 }
 
 /**
+ * Must anything written into this shop stay PRIVATE? The anchor — not the feature
+ * flag, and not who is calling — is authoritative for that question.
+ *
+ * Two holes this closes, both found by the round-3 cross-agent pass:
+ *  1. **Flag-store outage.** `promoter.private_preview_enabled` is an enablement
+ *     flag, so an unreadable flag store falls open to `false`. For creating NEW
+ *     previews that is right (it is exactly today's pre-epic behavior). But for a
+ *     shop that ALREADY has an unapproved anchor, falling back to force-publish
+ *     would publish a merchant's products during a transient flag outage —
+ *     consent the merchant never gave. The anchor is durable state; the flag is
+ *     not. Once the anchor exists, it wins.
+ *  2. **A different promoter.** `canAnchorPreview` is false for a promoter acting
+ *     on someone else's shop — correct for ANCHORING, but it must not mean
+ *     "publish freely into it". A shop awaiting its merchant's consent must
+ *     refuse publication from anyone.
+ *
+ * Fails OPEN (false) only when there is genuinely no anchor to find; a read error
+ * is indistinguishable from that here, which is why callers that can afford to
+ * fail closed (the write paths) should prefer this over inferring from the flag.
+ */
+export async function shopMustStayPrivate(shopId: string): Promise<boolean> {
+  return isShopPreviewPrivate(shopId)
+}
+
+/**
  * True when the shop at this slug is preview-private — the public shop-shell leak
  * guard (`/s/[slug]`, and via rewrite its custom-domain + subdomain channels).
  * Resolves the marketplace_shops UUID from the slug (the public shop object carries

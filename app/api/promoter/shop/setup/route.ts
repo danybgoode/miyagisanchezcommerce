@@ -122,17 +122,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'La tienda se creó pero no se pudo registrar. Avísale al equipo.' }, { status: 502 })
   }
 
-  // Enroll the attribution now (survives the claim) so the promoter's link is
-  // credited even before the close. Idempotent on (promoter, seller, sku).
-  await recordAttribution({ promoterId: promoter.id, sellerId: mirrorId, sku: 'custom_domain' })
-
-  // Miyagi Partners · Sprint 2 (US-2.1) — this is the ONE seam every close
-  // variant converges on (the shop is created HERE; every /api/promoter/close/*
-  // route only operates on a shop that already exists). If this promoter holds
-  // a partner MCP credential, auto-grant them manager access to the shop they
-  // just stood up. Best-effort; NEVER fails the close — see lib/partner-grant-server.ts.
-  await autoGrantPartnerOnClose({ promoterId: promoter.id, shopId: mirrorId })
-
   // Consent-safe previews (S1.1) — anchor the preview HERE, at shop creation, not
   // at the first listing. This is the seam every close variant converges on, so
   // anchoring later would leave a window in which a freshly-minted shop is fully
@@ -152,17 +141,37 @@ export async function POST(req: NextRequest) {
   // they believe is private while it is in fact publicly visible under the
   // merchant's real name. The shop itself survives (already minted + mirrored)
   // and the promoter can retry; `ensureShopPreview` is idempotent.
+  //
+  // RESIDUAL RACE (accepted, documented): the mirror row exists before the anchor
+  // is written, so a concurrent `/s/<slug>` request in that window renders the
+  // shop shell. It runs immediately after the mirror — ahead of the attribution
+  // and partner-grant writes — to keep the window as small as possible, but
+  // closing it fully needs one transaction across the mirror insert and the
+  // anchor, which the Supabase JS client cannot express across these calls.
+  // Exposure is a bare shell for a few milliseconds, to someone who already knows
+  // an unpublished slug; the products are draft-private structurally regardless.
   if (await isEnabled('promoter.private_preview_enabled')) {
-    const { data: mirrorRow } = await db
+    const { data: mirrorRow, error: mirrorError } = await db
       .from('marketplace_shops')
       .select('clerk_user_id, source_url')
       .eq('id', mirrorId)
       .maybeSingle()
 
+    // A FAILED read is not "not anchorable". Treating it as such would return 200
+    // for a shop that is publicly visible under the merchant's real name with no
+    // consent record — the precise failure this epic exists to prevent — so an
+    // unreadable or missing mirror row fails the call instead.
+    if (mirrorError || !mirrorRow) {
+      return NextResponse.json(
+        { ok: false, error: 'La tienda se creó pero no se pudo verificar su estado. Avísale al equipo antes de compartirla.' },
+        { status: 500 },
+      )
+    }
+
     const anchorable = canAnchorPreview(
       {
-        clerkUserId: (mirrorRow?.clerk_user_id as string | null) ?? null,
-        sourceUrl: (mirrorRow?.source_url as string | null) ?? null,
+        clerkUserId: (mirrorRow.clerk_user_id as string | null) ?? null,
+        sourceUrl: (mirrorRow.source_url as string | null) ?? null,
       },
       promoter.code,
     )
@@ -180,6 +189,17 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  // Enroll the attribution now (survives the claim) so the promoter's link is
+  // credited even before the close. Idempotent on (promoter, seller, sku).
+  await recordAttribution({ promoterId: promoter.id, sellerId: mirrorId, sku: 'custom_domain' })
+
+  // Miyagi Partners · Sprint 2 (US-2.1) — this is the ONE seam every close
+  // variant converges on (the shop is created HERE; every /api/promoter/close/*
+  // route only operates on a shop that already exists). If this promoter holds
+  // a partner MCP credential, auto-grant them manager access to the shop they
+  // just stood up. Best-effort; NEVER fails the close — see lib/partner-grant-server.ts.
+  await autoGrantPartnerOnClose({ promoterId: promoter.id, shopId: mirrorId })
 
   revalidateTag('shops', 'default')
   return NextResponse.json({
