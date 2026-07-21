@@ -30,7 +30,7 @@ async function resolveChannelShop() {
 export async function generateMetadata(): Promise<Metadata> {
   const shop = await resolveChannelShop()
   // Don't leak a preview-private shop's name in the <title>.
-  if (shop && !(await isShopPreviewPrivateBySlug(shop.slug))) {
+  if (shop && !(await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id))) {
     return { title: `Acerca — ${shop.name}` }
   }
   return {
@@ -54,7 +54,7 @@ export default async function AcercaPage({ searchParams }: AcercaPageProps) {
     // Consent-safe previews: the CHANNEL-native page (subdomain / custom domain
     // serve it directly — middleware rewrites only `/` and `/convocatoria`), so
     // it needs the guard independently of the /s/[slug]/acerca variant.
-    await assertShopNotPreviewPrivate(shop.slug)
+    await assertShopNotPreviewPrivate(shop)
     return <AcercaBody shop={shop} basePath="" />
   }
 

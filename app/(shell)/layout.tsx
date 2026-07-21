@@ -47,7 +47,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   // identity in the meantime.
   const resolvedChannelShop = isChannel && channelSlug ? await getShop(channelSlug) : null
   const channelShop =
-    resolvedChannelShop && (await isShopPreviewPrivateBySlug(resolvedChannelShop.slug))
+    resolvedChannelShop && (await isShopPreviewPrivateBySlug(resolvedChannelShop.slug, resolvedChannelShop.clerk_user_id))
       ? null
       : resolvedChannelShop
   const channelSettings = ((channelShop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>

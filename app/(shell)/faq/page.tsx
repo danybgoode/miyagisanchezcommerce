@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
   // rather than relying on Next discarding metadata when the body notFound()s —
   // that behavior was asserted in review but never actually verified.
-  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Página no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Página no encontrada' }
   return { title: `Preguntas frecuentes — ${shop.name}` }
 }
 
@@ -35,7 +35,7 @@ export default async function ChannelFaqPage() {
   // Consent-safe previews: this is the CHANNEL-native page (subdomain / custom
   // domain serve it directly; middleware rewrites only `/` and `/convocatoria`),
   // so it needs the guard independently of the /s/[slug] variant.
-  await assertShopNotPreviewPrivate(shop.slug)
+  await assertShopNotPreviewPrivate(shop)
 
   return <FaqBody shop={shop} basePath="" />
 }

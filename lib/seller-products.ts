@@ -23,6 +23,57 @@ export interface AgentListingView {
   listing_type: string
 }
 
+/** A draft product as the consent-preview surface needs it — Medusa-authoritative. */
+export interface DraftListingView {
+  id: string
+  title: string
+  price_cents: number | null
+  currency: string
+  image_url: string | null
+}
+
+/**
+ * Read a seller's DRAFT products from Medusa (authoritative), via the backend
+ * internal route `GET /internal/seller-products/drafts`. Founding merchant
+ * consent-safe previews reads the proposal from here rather than the Supabase
+ * mirror, per Daniel's Sprint-1 decision (2026-07-21) — Medusa owns commerce, and
+ * a mirror can drift from what activation will actually publish.
+ *
+ * Returns null on ANY failure (secret unset, network, non-200) so the caller can
+ * fail closed — a consent surface must never render a partial/empty proposal that
+ * a merchant might approve.
+ */
+export async function listShopDraftsViaInternal(
+  sellerSlug: string,
+): Promise<DraftListingView[] | null> {
+  if (!INTERNAL_SECRET) return null
+  try {
+    const res = await fetch(
+      `${MEDUSA_BASE}/internal/seller-products/drafts?seller_slug=${encodeURIComponent(sellerSlug)}`,
+      { headers: { 'x-internal-secret': INTERNAL_SECRET }, cache: 'no-store' },
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      products?: Array<{
+        id?: string
+        title?: string
+        price_cents?: number | null
+        currency?: string | null
+        images?: Array<{ url?: string | null }> | null
+      }>
+    }
+    return (data.products ?? []).map((p) => ({
+      id: String(p.id ?? ''),
+      title: String(p.title ?? ''),
+      price_cents: typeof p.price_cents === 'number' ? p.price_cents : null,
+      currency: String(p.currency ?? 'MXN'),
+      image_url: (Array.isArray(p.images) ? p.images[0]?.url : null) ?? null,
+    }))
+  } catch {
+    return null
+  }
+}
+
 /** List a shop's listings (all non-deleted statuses) from the mirror. */
 export async function listShopListings(shopId: string): Promise<AgentListingView[]> {
   const { data } = await db

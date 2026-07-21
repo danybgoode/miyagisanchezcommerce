@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
-  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Tienda no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Tienda no encontrada' }
   return {
     title: shop.name,
     // An embed should never compete with the host page in search results.
@@ -52,7 +52,7 @@ export default async function EmbedShopPage({
   if (!shop) notFound()
   // Consent-safe previews: the embed is public and framable on any third-party
   // origin, so it must refuse a preview-private shop like every other channel.
-  await assertShopNotPreviewPrivate(shop.slug)
+  await assertShopNotPreviewPrivate(shop)
   const listings = await getShopListings(shop.slug)
 
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>

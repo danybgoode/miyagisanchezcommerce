@@ -141,25 +141,48 @@ test.describe('the happy path must not brick a merchant’s storefront', () => {
   // shop, merchant claims it via the WhatsApp link — leaves the merchant's
   // storefront 404'd permanently (there is no UPDATE/DELETE of that table
   // anywhere, and the promoter loses canAnchorPreview the moment it is claimed).
-  const decide = (anchored: boolean, activated: boolean, claimed: boolean) =>
-    anchored && !activated && !claimed
+  // Models the documented decision in lib/preview-access.ts. `readError` is the
+  // fail-closed dimension (Daniel 2026-07-21): an UNCLAIMED shop we can't verify is
+  // treated as private; a CLAIMED shop short-circuits to visible with no read, so a
+  // DB blip can never hide it.
+  const decide = (
+    claimed: boolean,
+    anchored: boolean,
+    activated: boolean,
+    readError = false,
+  ): boolean => {
+    if (claimed) return false // claimed short-circuits BEFORE any read
+    if (readError) return true // unclaimed + unverifiable → fail closed
+    return anchored && !activated
+  }
 
   test('unclaimed + anchored + not activated => hidden', () => {
-    expect(decide(true, false, false)).toBe(true)
+    expect(decide(false, true, false)).toBe(true)
   })
 
   test('CLAIMED + anchored => visible (the storefront-brick this prevents)', () => {
-    expect(decide(true, false, true)).toBe(false)
+    expect(decide(true, true, false)).toBe(false)
   })
 
   test('activated => visible regardless of claim state', () => {
-    expect(decide(true, true, false)).toBe(false)
+    expect(decide(false, true, true)).toBe(false)
     expect(decide(true, true, true)).toBe(false)
   })
 
   test('never anchored => always visible', () => {
     expect(decide(false, false, false)).toBe(false)
-    expect(decide(false, false, true)).toBe(false)
+    expect(decide(true, false, false)).toBe(false)
+  })
+
+  test('FAIL-CLOSED: an unclaimed shop we cannot verify is hidden', () => {
+    expect(decide(false, false, false, true)).toBe(true)
+    expect(decide(false, true, false, true)).toBe(true)
+  })
+
+  test('FAIL-CLOSED does NOT hide a claimed shop on a read error (marketplace stays up)', () => {
+    // The scoping that keeps a Supabase blip from 404-ing the live marketplace.
+    expect(decide(true, false, false, true)).toBe(false)
+    expect(decide(true, true, false, true)).toBe(false)
   })
 })
 

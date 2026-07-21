@@ -52,7 +52,13 @@ export async function GET(req: NextRequest) {
   // public — and this resolver is the most exposed surface of all (CORS `*`,
   // callable from any third-party origin). Same "not recognized" shape as an
   // unknown key, so it never confirms the shop exists.
-  if (await isShopPreviewPrivateBySlug(shop.slug ?? '')) {
+  // clerk_user_id: null — EmbedShop doesn't carry it, but this route is only
+  // reachable with a valid embed key, which only a CLAIMED owner mints, so a
+  // preview-private (unclaimed) shop 404s at the key lookup above before ever
+  // reaching here. The by-id path still re-reads clerk_user_id, so a claimed shop
+  // is honored; a Supabase-blip fail-closed hide is moot because this surface
+  // depends on Supabase anyway.
+  if (await isShopPreviewPrivateBySlug(shop.slug ?? '', null)) {
     return NextResponse.json({ valid: false }, { status: 404, headers: CORS })
   }
 
