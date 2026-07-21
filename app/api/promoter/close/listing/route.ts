@@ -9,12 +9,20 @@
  * shop (clerk_user_id: null). Instead calls createSellerProductViaInternal
  * directly, the same primitive the MCP create_listing tool already uses.
  *
- * Publish status: unlike a self-serve listing, this ALWAYS force-publishes
- * (never runs listingActivationBlock's delivery/payment gate). That gate exists
- * to stop a live listing no buyer could check out on — but an unclaimed shop's
- * checkout is already fully blocked by isShopClaimed() regardless of publish
- * status, so the gate would be redundant here and would only hide the listing
- * from /s/[slug], defeating the story's point.
+ * Publish status: by default (flag OFF) this ALWAYS force-publishes — unlike a
+ * self-serve listing it never runs listingActivationBlock's delivery/payment gate.
+ * That gate exists to stop a live listing no buyer could check out on, but an
+ * unclaimed shop's checkout is already fully blocked by isShopClaimed() regardless
+ * of publish status, so the gate would be redundant here and would only hide the
+ * listing from /s/[slug], defeating the story's point.
+ *
+ * Consent-safe preview (founding-merchant-consent-previews S1.1): when
+ * `promoter.private_preview_enabled` is ON, this instead creates the product as a
+ * native Medusa `status:'draft'` product — structurally excluded from every public
+ * /store/* read seam (search, PDP, seller products, sitemap, agent, embed) — and
+ * ensures a per-shop preview anchor. Nothing is public until the merchant approves
+ * and the promoter activates (Sprint 2). Flag OFF preserves the force-publish path
+ * exactly, for rollback.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
@@ -26,6 +34,7 @@ import { resolveTargetShop } from '@/lib/promoter-server'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
+import { ensureShopPreview } from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +84,16 @@ export async function POST(req: NextRequest) {
   const shop = await resolveTargetShop({ shopId: body.shopId, slug: body.slug })
   if (!shop) return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
 
+  // Consent-safe preview: when ON, create the listing PRIVATE (Medusa draft +
+  // mirror 'draft') and ensure the shop's preview anchor exists; when OFF, keep
+  // the historical force-publish behavior byte-for-byte.
+  const privatePreview = await isEnabled('promoter.private_preview_enabled')
+  if (privatePreview) {
+    await ensureShopPreview(shop.id, user.id)
+  }
+  const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
+  const mirrorStatus = privatePreview ? 'draft' : 'active'
+
   const priceCents = typeof body.price_mxn === 'number' && body.price_mxn > 0
     ? Math.round(body.price_mxn * 100)
     : null
@@ -93,8 +112,9 @@ export async function POST(req: NextRequest) {
     state: locationDetail?.estado ?? null,
     municipio: locationDetail?.municipio ?? null,
     quantity: 1,
-    // Force-published — see file header. Never gated by listingActivationBlock.
-    status: 'published',
+    // Force-published (flag OFF) or private draft (flag ON) — see file header.
+    // Never gated by listingActivationBlock either way.
+    status: listingStatus,
     images,
   })
   if (!result.ok || !result.product_id) {
@@ -112,11 +132,11 @@ export async function POST(req: NextRequest) {
     state: locationDetail?.estado ?? null,
     municipio: locationDetail?.municipio ?? null,
     images,
-    status: 'active',
+    status: mirrorStatus,
   })
 
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
 
-  return NextResponse.json({ ok: true, productId: result.product_id })
+  return NextResponse.json({ ok: true, productId: result.product_id, private: privatePreview })
 }

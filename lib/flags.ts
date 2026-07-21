@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled' | 'promoter.private_preview_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -296,7 +296,21 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    connector route, and (S2) the /partner dashboard + auto-grant. Default
  *    OFF ⇒ a partner token resolves as unknown-credential (401), byte-
  *    identical to a garbage token, so the whole epic merges dark. Flip ON
- *    only in a controlled window after Daniel's Sprint-1 smoke walkthrough. */
+ *    only in a controlled window after Daniel's Sprint-1 smoke walkthrough.
+ *  - ENABLEMENT (`promoter.private_preview_enabled`): default `false`
+ *    (founding-merchant-consent-previews S1.1). Gates the promoter
+ *    setup/listing orchestration seam: ON ⇒ a promoter-created listing is
+ *    created as a native Medusa `status:'draft'` product (structurally
+ *    excluded from every public /store/* read — search, PDP, seller products,
+ *    sitemap, agent, embed) and a revocable opaque preview link is minted;
+ *    OFF ⇒ today's force-publish behavior at
+ *    `app/api/promoter/close/listing/route.ts` (the deliberate rollback path).
+ *    Default OFF ⇒ a flag-read outage can never silently switch the promoter
+ *    close between publish and draft. Enforcement of consent BEFORE public
+ *    activation lives in Sprint 2 (versioned approval + idempotent activate);
+ *    this S1 key only decides create-private-vs-publish. Flip ON only after a
+ *    disposable shop passes the full cross-channel privacy sweep
+ *    (sprint-1.md walkthrough). */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'checkout.rental_pricing_enabled': false,
@@ -333,6 +347,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'mcp.support_config.enabled': false,
   'mcp.checkout_config.enabled': false,
   'partners.mcp_enabled': false,
+  'promoter.private_preview_enabled': false,
 }
 
 const TABLE = 'platform_flags'
