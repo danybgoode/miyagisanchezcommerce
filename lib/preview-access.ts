@@ -26,6 +26,7 @@ import { notFound } from 'next/navigation'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { listShopDraftsViaInternal } from '@/lib/seller-products'
+import { decidePreviewPrivacy, type AnchorState, type ClaimState } from '@/lib/preview-privacy-decision'
 export { canAnchorPreview } from '@/lib/promoter-close'
 import {
   generatePreviewToken,
@@ -204,17 +205,26 @@ export async function isShopPreviewPrivateForShop(
  */
 export async function isShopPreviewPrivate(shopId: string): Promise<boolean> {
   const { preview, error } = await readPreviewByShop(shopId)
-  if (error) return true // fail closed — can't confirm it's safe to show/publish
-  if (preview === null || preview.status === 'activated') return false
+  const anchor: AnchorState = error
+    ? 'error'
+    : preview === null
+      ? 'none'
+      : preview.status === 'activated'
+        ? 'activated'
+        : 'held'
+
+  // Short-circuit: only a 'held' anchor can make a shop private, so skip the
+  // claim read entirely otherwise (and never fail-closed a shop that has no
+  // anchor just because its claim read would have blipped).
+  if (anchor !== 'held') return decidePreviewPrivacy({ claim: 'unclaimed', anchor })
 
   const { data: shop, error: shopError } = await db
     .from('marketplace_shops')
     .select('clerk_user_id')
     .eq('id', shopId)
     .maybeSingle()
-  if (shopError) return true // fail closed — can't confirm the shop is claimed
-  // A claimed shop belongs to its merchant — never hide it.
-  return !shop?.clerk_user_id
+  const claim: ClaimState = shopError ? 'unknown' : shop?.clerk_user_id ? 'claimed' : 'unclaimed'
+  return decidePreviewPrivacy({ claim, anchor })
 }
 
 /**

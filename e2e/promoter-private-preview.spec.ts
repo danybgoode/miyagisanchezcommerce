@@ -6,6 +6,7 @@ import {
   isWellFormedPreviewToken,
 } from '../lib/preview-token'
 import { isPromoterShopOwner, canAnchorPreview } from '../lib/promoter-close'
+import { decidePreviewPrivacy } from '../lib/preview-privacy-decision'
 
 /**
  * Founding merchant consent-safe previews · Sprint 1 (api project: pure token
@@ -141,48 +142,41 @@ test.describe('the happy path must not brick a merchant’s storefront', () => {
   // shop, merchant claims it via the WhatsApp link — leaves the merchant's
   // storefront 404'd permanently (there is no UPDATE/DELETE of that table
   // anywhere, and the promoter loses canAnchorPreview the moment it is claimed).
-  // Models the documented decision in lib/preview-access.ts. `readError` is the
-  // fail-closed dimension (Daniel 2026-07-21): an UNCLAIMED shop we can't verify is
-  // treated as private; a CLAIMED shop short-circuits to visible with no read, so a
-  // DB blip can never hide it.
-  const decide = (
-    claimed: boolean,
-    anchored: boolean,
-    activated: boolean,
-    readError = false,
-  ): boolean => {
-    if (claimed) return false // claimed short-circuits BEFORE any read
-    if (readError) return true // unclaimed + unverifiable → fail closed
-    return anchored && !activated
-  }
+  // Exercises the REAL production decision (lib/preview-privacy-decision.ts), which
+  // `isShopPreviewPrivate` feeds its DB-read facts into — not a re-declared shim.
 
-  test('unclaimed + anchored + not activated => hidden', () => {
-    expect(decide(false, true, false)).toBe(true)
+  test('unclaimed + a held (non-activated) anchor => hidden', () => {
+    expect(decidePreviewPrivacy({ claim: 'unclaimed', anchor: 'held' })).toBe(true)
   })
 
-  test('CLAIMED + anchored => visible (the storefront-brick this prevents)', () => {
-    expect(decide(true, true, false)).toBe(false)
+  test('CLAIMED => visible for ANY anchor (the storefront-brick this prevents)', () => {
+    for (const anchor of ['none', 'held', 'activated', 'error'] as const) {
+      expect(decidePreviewPrivacy({ claim: 'claimed', anchor })).toBe(false)
+    }
   })
 
-  test('activated => visible regardless of claim state', () => {
-    expect(decide(false, true, true)).toBe(false)
-    expect(decide(true, true, true)).toBe(false)
+  test('activated anchor => visible regardless of claim', () => {
+    expect(decidePreviewPrivacy({ claim: 'unclaimed', anchor: 'activated' })).toBe(false)
   })
 
-  test('never anchored => always visible', () => {
-    expect(decide(false, false, false)).toBe(false)
-    expect(decide(true, false, false)).toBe(false)
+  test('no anchor => visible', () => {
+    expect(decidePreviewPrivacy({ claim: 'unclaimed', anchor: 'none' })).toBe(false)
   })
 
-  test('FAIL-CLOSED: an unclaimed shop we cannot verify is hidden', () => {
-    expect(decide(false, false, false, true)).toBe(true)
-    expect(decide(false, true, false, true)).toBe(true)
+  test('FAIL-CLOSED: an anchor READ ERROR is treated as private', () => {
+    expect(decidePreviewPrivacy({ claim: 'unclaimed', anchor: 'error' })).toBe(true)
+    // ...even before the claim is known — an unresolved read never leaks.
+    expect(decidePreviewPrivacy({ claim: 'unknown', anchor: 'error' })).toBe(true)
   })
 
-  test('FAIL-CLOSED does NOT hide a claimed shop on a read error (marketplace stays up)', () => {
-    // The scoping that keeps a Supabase blip from 404-ing the live marketplace.
-    expect(decide(true, false, false, true)).toBe(false)
-    expect(decide(true, true, false, true)).toBe(false)
+  test('FAIL-CLOSED: an unclaimed shop whose CLAIM read failed, with a held anchor, is hidden', () => {
+    expect(decidePreviewPrivacy({ claim: 'unknown', anchor: 'held' })).toBe(true)
+  })
+
+  test('FAIL-CLOSED never fires for a claimed shop (marketplace stays up on a blip)', () => {
+    // 'claimed' is decided from data in hand before any read, so a Supabase blip
+    // (anchor: 'error') can never hide a live shop.
+    expect(decidePreviewPrivacy({ claim: 'claimed', anchor: 'error' })).toBe(false)
   })
 })
 
