@@ -16,6 +16,8 @@ import { getPromoterByClerkId, recordAttribution } from '@/lib/promoter'
 import { promoterSourceUrl } from '@/lib/promoter-close'
 import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
+import { ensureShopPreview, canAnchorPreview } from '@/lib/preview-access'
+import { db } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,6 +120,74 @@ export async function POST(req: NextRequest) {
   })
   if (!mirrorId) {
     return NextResponse.json({ ok: false, error: 'La tienda se creó pero no se pudo registrar. Avísale al equipo.' }, { status: 502 })
+  }
+
+  // Consent-safe previews (S1.1) — anchor the preview HERE, at shop creation, not
+  // at the first listing. This is the seam every close variant converges on, so
+  // anchoring later would leave a window in which a freshly-minted shop is fully
+  // public at /s/<slug> under the merchant's REAL NAME before anyone consented to
+  // it being presented at all.
+  //
+  // This route is NOT "unclaimed by construction", despite appearances: the
+  // backend `/internal/sellers` is idempotent on `source_url`, so re-running
+  // setup with the same business name returns the EXISTING seller, and
+  // `ensureUnclaimedShopMirror` resolves that to the existing mirror row without
+  // filtering `clerk_user_id`. If the merchant has since CLAIMED the shop, this
+  // path hands back a live claimed shop — anchoring which would 404 a real
+  // merchant's storefront. So the anchor goes through the same `canAnchorPreview`
+  // gate as every other call site, on freshly-read mirror state.
+  //
+  // A failure FAILS THE CALL: reporting success would hand the promoter a shop
+  // they believe is private while it is in fact publicly visible under the
+  // merchant's real name. The shop itself survives (already minted + mirrored)
+  // and the promoter can retry; `ensureShopPreview` is idempotent.
+  //
+  // RESIDUAL RACE (accepted, documented): the mirror row exists before the anchor
+  // is written, so a concurrent `/s/<slug>` request in that window renders the
+  // shop shell. It runs immediately after the mirror — ahead of the attribution
+  // and partner-grant writes — to keep the window as small as possible, but
+  // closing it fully needs one transaction across the mirror insert and the
+  // anchor, which the Supabase JS client cannot express across these calls.
+  // Exposure is a bare shell for a few milliseconds, to someone who already knows
+  // an unpublished slug; the products are draft-private structurally regardless.
+  if (await isEnabled('promoter.private_preview_enabled')) {
+    const { data: mirrorRow, error: mirrorError } = await db
+      .from('marketplace_shops')
+      .select('clerk_user_id, source_url')
+      .eq('id', mirrorId)
+      .maybeSingle()
+
+    // A FAILED read is not "not anchorable". Treating it as such would return 200
+    // for a shop that is publicly visible under the merchant's real name with no
+    // consent record — the precise failure this epic exists to prevent — so an
+    // unreadable or missing mirror row fails the call instead.
+    if (mirrorError || !mirrorRow) {
+      return NextResponse.json(
+        { ok: false, error: 'La tienda se creó pero no se pudo verificar su estado. Avísale al equipo antes de compartirla.' },
+        { status: 500 },
+      )
+    }
+
+    const anchorable = canAnchorPreview(
+      {
+        clerkUserId: (mirrorRow.clerk_user_id as string | null) ?? null,
+        sourceUrl: (mirrorRow.source_url as string | null) ?? null,
+      },
+      promoter.code,
+    )
+
+    if (anchorable) {
+      const preview = await ensureShopPreview(mirrorId, user.id).catch((e) => {
+        console.error('[promoter/shop/setup] preview anchor failed:', e)
+        return null
+      })
+      if (!preview) {
+        return NextResponse.json(
+          { ok: false, error: 'La tienda se creó pero no se pudo marcar como privada. Inténtalo de nuevo antes de compartirla.' },
+          { status: 500 },
+        )
+      }
+    }
   }
 
   // Enroll the attribution now (survives the claim) so the promoter's link is

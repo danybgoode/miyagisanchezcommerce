@@ -6,6 +6,7 @@ import PlatformThemeScript from '@/app/components/PlatformThemeScript'
 import ReferralAttribution from '@/app/components/ReferralAttribution'
 import { AgentContextProvider } from '@/app/components/AgentContext'
 import { getShop } from '@/lib/listings'
+import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import { isSellerModePath } from '@/lib/seller-mode'
@@ -38,7 +39,17 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const isChannel = channel === 'custom' || channel === 'subdomain'
   const channelSlug = hdrs.get('x-miyagi-shop-slug') ?? ''
   const channelDomain = hdrs.get('x-miyagi-domain') ?? ''
-  const channelShop = isChannel && channelSlug ? await getShop(channelSlug) : null
+  // Consent-safe previews: the channel shell renders the shop's NAME and logo on
+  // every 200 served from a subdomain/custom domain, so a preview-private shop
+  // must not resolve here either. Dropping to null degrades to the platform
+  // chrome rather than throwing — the page inside is separately guarded and will
+  // 404 on its own; this only ensures the wrapper never carries the merchant's
+  // identity in the meantime.
+  const resolvedChannelShop = isChannel && channelSlug ? await getShop(channelSlug) : null
+  const channelShop =
+    resolvedChannelShop && (await isShopPreviewPrivateBySlug(resolvedChannelShop.slug))
+      ? null
+      : resolvedChannelShop
   const channelSettings = ((channelShop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const channelTheme = (channelSettings.theme ?? {}) as { accent_color?: string | null }
   const channelAccent = channelTheme.accent_color ?? '#1d6f42'

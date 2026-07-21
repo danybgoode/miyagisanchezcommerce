@@ -54,3 +54,54 @@ export function buildWhatsAppClaimLink(input: { claimUrl: string; shopName: stri
     `Toca este enlace para reclamarla y administrarla tú (vence en 24 h):\n${claimUrl}`
   return `https://wa.me/?text=${encodeURIComponent(message)}`
 }
+
+/**
+ * Is a shop the calling promoter's own? `POST /api/promoter/shop/setup` stamps
+ * every promoter-created shop with `source_url: promoter://<CODE>/<name>` (see
+ * `promoterSourceUrl` above), so the promoter's own code in that provenance IS the
+ * binding — this is the parser for the URL that builder writes.
+ *
+ * Consent-safe previews (S1.2) needs it because `resolveTargetShop` deliberately
+ * does not filter by promoter (a promoter acts on shops they hold no Clerk session
+ * for), which would otherwise let a bound promoter mint or revoke a preview link
+ * for a DIFFERENT promoter's merchant.
+ *
+ * NOTE: the pre-existing `close/*` routes share that unscoped shape and do not
+ * call this — tightening them is a separate change with its own blast radius,
+ * flagged on the epic's PR rather than silently folded in here.
+ */
+export function isPromoterShopOwner(
+  shop: { sourceUrl: string | null },
+  promoterCode: string,
+): boolean {
+  const code = normalizePromoterCode(promoterCode ?? '')
+  if (!code || !shop.sourceUrl) return false
+  // The trailing slash makes the boundary exact, so `PRM-AB` can't match a
+  // `promoter://PRM-ABC/…` shop.
+  return shop.sourceUrl.toUpperCase().startsWith(`promoter://${code}/`.toUpperCase())
+}
+
+/**
+ * May this promoter anchor a preview on this shop? TWO independent conditions,
+ * both required — this is the guard that makes a storefront takedown impossible
+ * rather than merely undoable:
+ *
+ *  1. **Promoter binding.** `resolveTargetShop` deliberately doesn't filter by
+ *     promoter, so without this any bound promoter could anchor a preview on any
+ *     shop they can name — and an anchor hides the storefront.
+ *  2. **The shop must be UNCLAIMED.** A claimed shop belongs to a real merchant
+ *     who is already trading; it is never a "proposal" awaiting consent. Refusing
+ *     to anchor one means no promoter — bound, malicious, or merely mistaken —
+ *     can 404 a live merchant's storefront by construction, independently of
+ *     whether the binding check above is ever bypassed.
+ *
+ * Callers map `false` to the same 404 as a missing shop, never confirming that
+ * someone else's shop exists.
+ */
+export function canAnchorPreview(
+  shop: { sourceUrl: string | null; clerkUserId: string | null },
+  promoterCode: string,
+): boolean {
+  if (shop.clerkUserId !== null) return false // claimed → never a preview subject
+  return isPromoterShopOwner(shop, promoterCode)
+}

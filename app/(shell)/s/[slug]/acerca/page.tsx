@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getSlugRedirect } from '@/lib/slug-redirect'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -17,6 +18,10 @@ export async function generateMetadata({
   if (!isLikelyShopSlug(slug)) return { title: 'Página no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Página no encontrada' }
+  // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
+  // rather than relying on Next discarding metadata when the body notFound()s —
+  // that behavior was asserted in review but never actually verified.
+  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Página no encontrada' }
   return { title: `Acerca — ${shop.name}` }
 }
 
@@ -36,6 +41,8 @@ export default async function ShopAcercaPage({
     if (current) permanentRedirect(`/s/${current}/acerca`)
     notFound()
   }
+  // Consent-safe previews: never render a preview-private shop's shell.
+  await assertShopNotPreviewPrivate(shop.slug)
 
   // SEO continuity: a shop with a LIVE custom domain moves its canonical URL
   // there — same convention as the shop home page and collection pages.

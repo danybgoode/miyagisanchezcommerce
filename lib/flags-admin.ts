@@ -169,7 +169,13 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // Miyagi Partners multi-shop MCP credential (miyagi-partners-mcp S1) — every
   // ms_partner_ code path. Enablement: default OFF ⇒ a partner token is rejected
   // like a garbage token; flip ON after Daniel's Sprint-1 smoke walkthrough.
-  'partners.mcp_enabled': { polarity: 'enablement', default: false },}
+  'partners.mcp_enabled': { polarity: 'enablement', default: false },
+  // Founding merchant consent-safe previews (consent-previews S1.1) — gates the
+  // promoter setup/listing seam (create private draft + opaque link vs. force
+  // publish). Enablement: default OFF ⇒ today's force-publish; flip ON after a
+  // disposable shop passes the full cross-channel privacy sweep.
+  'promoter.private_preview_enabled': { polarity: 'enablement', default: false },
+}
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
 export const FLAG_KEYS = Object.keys(FLAG_META) as FlagKey[]

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getShop } from '@/lib/listings'
+import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import CollectionPage from '../../_shop-collection/CollectionPage'
 import type { Metadata } from 'next'
 
@@ -20,6 +21,10 @@ async function resolveChannelShop() {
 export async function generateMetadata(): Promise<Metadata> {
   const shop = await resolveChannelShop()
   if (!shop) return { title: 'Colección no encontrada' }
+  // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
+  // rather than relying on Next discarding metadata when the body notFound()s —
+  // that behavior was asserted in review but never actually verified.
+  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Página no encontrada' }
   return { title: `Colección — ${shop.name}` }
 }
 
@@ -33,6 +38,10 @@ export default async function ChannelCollectionPage({
   const { collection } = await params
   const shop = await resolveChannelShop()
   if (!shop) notFound()
+  // Consent-safe previews: this is the CHANNEL-native page (subdomain / custom
+  // domain serve it directly; middleware rewrites only `/` and `/convocatoria`),
+  // so it needs the guard independently of the /s/[slug] variant.
+  await assertShopNotPreviewPrivate(shop.slug)
 
   return (
     <CollectionPage

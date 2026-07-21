@@ -9,12 +9,26 @@
  * shop (clerk_user_id: null). Instead calls createSellerProductViaInternal
  * directly, the same primitive the MCP create_listing tool already uses.
  *
- * Publish status: unlike a self-serve listing, this ALWAYS force-publishes
- * (never runs listingActivationBlock's delivery/payment gate). That gate exists
- * to stop a live listing no buyer could check out on — but an unclaimed shop's
- * checkout is already fully blocked by isShopClaimed() regardless of publish
- * status, so the gate would be redundant here and would only hide the listing
- * from /s/[slug], defeating the story's point.
+ * Publish status: by default (flag OFF) this ALWAYS force-publishes — unlike a
+ * self-serve listing it never runs listingActivationBlock's delivery/payment gate.
+ * That gate exists to stop a live listing no buyer could check out on, but an
+ * unclaimed shop's checkout is already fully blocked by isShopClaimed() regardless
+ * of publish status, so the gate would be redundant here and would only hide the
+ * listing from /s/[slug], defeating the story's point.
+ *
+ * Consent-safe preview (founding-merchant-consent-previews S1.1): when
+ * `promoter.private_preview_enabled` is ON, this instead creates the product as a
+ * native Medusa `status:'draft'` product — structurally excluded from every public
+ * /store/* read seam (search, PDP, seller products, sitemap, agent, embed) — and
+ * ensures a per-shop preview anchor. Nothing is public until the merchant approves
+ * and the promoter activates (Sprint 2).
+ *
+ * Flag OFF preserves the force-publish path exactly for any shop that was NEVER
+ * anchored — which is the rollback for the feature as a whole. It is NOT a
+ * per-shop undo: a shop that already carries a non-activated anchor stays private
+ * regardless of the flag, because a flag flip is not merchant consent. Un-hiding
+ * one shop is a deliberate act (activate the approved snapshot in Sprint 2, or
+ * delete its `merchant_previews` row).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
@@ -26,6 +40,12 @@ import { resolveTargetShop } from '@/lib/promoter-server'
 import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
+import {
+  ensureShopPreview,
+  canAnchorPreview,
+  shopMustStayPrivate,
+  shopHasPublicListings,
+} from '@/lib/preview-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +95,61 @@ export async function POST(req: NextRequest) {
   const shop = await resolveTargetShop({ shopId: body.shopId, slug: body.slug })
   if (!shop) return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
 
+  // Consent-safe preview: when ON *and this promoter may anchor this shop*, create
+  // the listing PRIVATE (Medusa draft + mirror 'draft'). Otherwise publish as
+  // before — EXCEPT for a shop that already carries a non-activated anchor, which
+  // stays private regardless of the flag or the caller (see below). So flag-OFF is
+  // today's behavior for every shop that was never anchored, not for all shops.
+  //
+  // `canAnchorPreview` is load-bearing here, not just on the preview route: an
+  // anchor hides the storefront, so anchoring a shop this promoter didn't create —
+  // or a CLAIMED shop that's already trading — would take a live merchant down.
+  // A promoter adding a listing to someone else's live shop therefore keeps the
+  // old publish behavior rather than silently going private.
+  //
+  // The ANCHOR is authoritative, ahead of the flag and ahead of who is calling: a
+  // shop already awaiting its merchant's consent must never receive a published
+  // product — not during a flag-store outage (the enablement flag falls open to
+  // `false`, which would force-publish), and not because a DIFFERENT promoter is
+  // the one adding the listing (`canAnchorPreview` is false for them, which must
+  // mean "you may not anchor", never "publish freely into it").
+  const alreadyPrivate = await shopMustStayPrivate(shop.id)
+
+  let privatePreview =
+    alreadyPrivate ||
+    ((await isEnabled('promoter.private_preview_enabled')) && canAnchorPreview(shop, promoter.code))
+
+  // Only the shop's own promoter may CREATE the anchor; an existing one is
+  // honored no matter who is calling. Creating one also requires that the shop
+  // isn't ALREADY publicly trading — anchoring a shop with live listings would
+  // hide a working storefront (locked decision #4: existing public/unclaimed
+  // shops are audited, not mutated). The whole pre-epic promoter-close install
+  // base has that shape.
+  if (privatePreview && !alreadyPrivate && (await shopHasPublicListings(shop.id))) {
+    privatePreview = false
+  } else if (privatePreview && !alreadyPrivate) {
+    // Anchor BEFORE creating the product, so a failed anchor costs nothing. (The
+    // shop-setup path already anchored at shop creation, so this is normally a
+    // no-op read.) Anchoring first is safe precisely because this shop is
+    // promoter-created and unclaimed: an anchor on a product-less shop of that
+    // kind is the correct state, not a stranded one — whereas creating the
+    // product first would leave an untracked draft that a retry duplicates.
+    const preview = await ensureShopPreview(shop.id, user.id)
+    if (!preview) {
+      return NextResponse.json(
+        { ok: false, error: 'No se pudo preparar la vista previa privada. Inténtalo de nuevo.' },
+        { status: 500 },
+      )
+    }
+    // An ALREADY-ACTIVATED shop is public and out of the consent flow — creating a
+    // hidden draft against it would strand a product nobody can see and mint a
+    // preview link that always 404s. Fall back to the ordinary publish path.
+    if (preview.status === 'activated') privatePreview = false
+  }
+
+  const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
+  const mirrorStatus = privatePreview ? 'draft' : 'active'
+
   const priceCents = typeof body.price_mxn === 'number' && body.price_mxn > 0
     ? Math.round(body.price_mxn * 100)
     : null
@@ -93,8 +168,9 @@ export async function POST(req: NextRequest) {
     state: locationDetail?.estado ?? null,
     municipio: locationDetail?.municipio ?? null,
     quantity: 1,
-    // Force-published — see file header. Never gated by listingActivationBlock.
-    status: 'published',
+    // Force-published (flag OFF) or private draft (flag ON) — see file header.
+    // Never gated by listingActivationBlock either way.
+    status: listingStatus,
     images,
   })
   if (!result.ok || !result.product_id) {
@@ -112,11 +188,11 @@ export async function POST(req: NextRequest) {
     state: locationDetail?.estado ?? null,
     municipio: locationDetail?.municipio ?? null,
     images,
-    status: 'active',
+    status: mirrorStatus,
   })
 
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
 
-  return NextResponse.json({ ok: true, productId: result.product_id })
+  return NextResponse.json({ ok: true, productId: result.product_id, private: privatePreview })
 }

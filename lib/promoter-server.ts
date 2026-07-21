@@ -15,6 +15,9 @@ export interface TargetShop {
   clerkUserId: string | null
   /** The Medusa seller id (sel_…) from metadata — the claim token addresses this. */
   medusaSellerId: string | null
+  /** `promoter://<CODE>/<name>` provenance for a promoter-created shop — the
+   *  promoter↔shop binding `isPromoterShopOwner` checks. Null for other origins. */
+  sourceUrl: string | null
   /** Raw shop metadata JSONB — lets a caller read an existing entitlement grant
    *  (e.g. `subdomain_grant`/`custom_domain_grant`) before writing a new one. */
   metadata: Record<string, unknown>
@@ -31,7 +34,7 @@ export async function resolveTargetShop(selector: { shopId?: string | null; slug
   const slug = (selector.slug ?? '').trim()
   if (!shopId && !slug) return null
 
-  const query = db.from('marketplace_shops').select('id, slug, name, clerk_user_id, metadata')
+  const query = db.from('marketplace_shops').select('id, slug, name, clerk_user_id, source_url, metadata')
   const { data } = shopId
     ? await query.eq('id', shopId).maybeSingle()
     : await query.eq('slug', slug).maybeSingle()
@@ -44,6 +47,7 @@ export async function resolveTargetShop(selector: { shopId?: string | null; slug
     name: (data.name as string) ?? '',
     clerkUserId: (data.clerk_user_id as string | null) ?? null,
     medusaSellerId: typeof meta.medusa_seller_id === 'string' ? meta.medusa_seller_id : null,
+    sourceUrl: (data.source_url as string | null) ?? null,
     metadata: meta,
   }
 }

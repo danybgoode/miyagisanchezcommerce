@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveEmbedShop, embedKeyFromRequest } from '@/lib/embed-auth'
+import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 
@@ -44,6 +45,14 @@ export async function GET(req: NextRequest) {
   const shop = await resolveEmbedShop(key)
 
   if (!shop) {
+    return NextResponse.json({ valid: false }, { status: 404, headers: CORS })
+  }
+
+  // Consent-safe previews: a preview-private shop is not presentable anywhere
+  // public — and this resolver is the most exposed surface of all (CORS `*`,
+  // callable from any third-party origin). Same "not recognized" shape as an
+  // unknown key, so it never confirms the shop exists.
+  if (await isShopPreviewPrivateBySlug(shop.slug ?? '')) {
     return NextResponse.json({ valid: false }, { status: 404, headers: CORS })
   }
 

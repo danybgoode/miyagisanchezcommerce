@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -26,6 +27,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!isLikelyShopSlug(slug)) return { title: 'Tienda no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
+  // Don't leak a preview-private shop's name/description in metadata (S1.2 guard).
+  if (await isShopPreviewPrivateBySlug(shop.slug)) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
   const t = (theme?.theme ?? {}) as Record<string, unknown>
   // Canonical points at the shop's own domain when live, so search engines
@@ -95,6 +98,14 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     if (current) permanentRedirect(`/s/${current}`)
     notFound()
   }
+
+  // Consent-safe preview leak guard (founding-merchant-consent-previews S1.2): a
+  // shop with a non-activated preview anchor is private across every public
+  // channel — this /s/[slug] path is also the rewrite target for the custom-domain
+  // and subdomain channels, so one 404 here covers all three. Products are already
+  // draft-private structurally; this additionally hides the empty shop shell +
+  // merchant name until the promoter activates the approved snapshot (Sprint 2).
+  if (await isShopPreviewPrivateBySlug(shop.slug)) notFound()
 
   // SEO continuity: if this shop has a LIVE custom domain and we're being viewed
   // on the marketplace host (not already on that domain), 308-redirect legacy
