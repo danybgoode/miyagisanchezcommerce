@@ -84,19 +84,28 @@ async function readPaged(
   columns: string,
 ): Promise<{ rows: Array<Record<string, unknown>>; truncated: boolean; errors: number }> {
   const rows: Array<Record<string, unknown>> = []
-  let errors = 0
+  const errors = 0
   for (let offset = 0; offset < CANDIDATE_CAP; offset += PAGE_SIZE) {
-    const { data, error } = await db.from(table).select(columns).range(offset, offset + PAGE_SIZE - 1)
+    // One row past the page: the probe that distinguishes "this page filled the cap"
+    // from "there is more". Without it, a table holding EXACTLY CANDIDATE_CAP rows
+    // reported truncated forever and the cron returned 503 for eternity on a population
+    // it had in fact read completely (cross-review round 6).
+    const size = Math.min(PAGE_SIZE, CANDIDATE_CAP - offset)
+    const { data, error } = await db.from(table).select(columns).range(offset, offset + size)
     if (error) {
       // Report and stop: continuing past a failed page would produce a result that
       // looks complete while missing an arbitrary slice of the population.
       console.error(`[merchant-lifecycle] paged read of ${table} failed at ${offset}:`, error.message)
-      return { rows, truncated: true, errors: errors + 1 }
+      return { rows, truncated: true, errors: 1 }
     }
     const page = (data ?? []) as unknown as Array<Record<string, unknown>>
-    rows.push(...page)
-    if (page.length < PAGE_SIZE) return { rows, truncated: false, errors }
+    const more = page.length > size
+    rows.push(...(more ? page.slice(0, size) : page))
+    if (!more) return { rows, truncated: false, errors }
   }
+  // Genuinely more rows than one run may read. Reported, so the 503 is an honest alarm
+  // rather than a silent ceiling — at CANDIDATE_CAP founding merchants something is
+  // wrong with the population query, not with the cron.
   return { rows, truncated: true, errors }
 }
 
@@ -107,6 +116,18 @@ const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
  *  merchant goes unchecked and the 503 this route exists to return is never returned,
  *  because the platform kills the request first (cross-review round 5). */
 const MEDUSA_TIMEOUT_MS = 10_000
+
+/**
+ * Wall-clock budget for one run. The sweep is sequential — 200 drained deliveries at
+ * 5s each plus two 10s Medusa reads per candidate can far exceed any platform request
+ * limit — and being KILLED mid-run is strictly worse than stopping: the next run
+ * restarts on the same oldest work and never reaches the rest (cross-review round 6).
+ *
+ * Stopping deliberately lets the run report `truncated` (→ 503 → retry) with its
+ * partial progress durably committed, and every unit of work it did complete is
+ * permanent, so the following run resumes rather than repeats.
+ */
+const SWEEP_BUDGET_MS = 240_000
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export interface SweepResult {
@@ -342,10 +363,17 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
   // ── 1. Drain anything claimed but not confirmed delivered ──────────────────
   // Re-sending is safe: the payload is replayed verbatim under a stable
   // idempotencyKey, and golden-beans returns the existing event for a repeat.
+  const deadline = Date.now() + SWEEP_BUDGET_MS
+  const outOfTime = () => Date.now() > deadline
+
   const drain = await listPendingEmissions()
   if (drain.failed) result.errors += 1
   if (drain.truncated) result.truncated = true
   for (const pending of drain.pending) {
+    if (outOfTime()) {
+      result.truncated = true
+      break
+    }
     try {
       const outcome = await deliverClaimedEmission(
         pending.merchantId,
@@ -381,6 +409,10 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
   if (claimed.errors > 0) return result
 
   for (const { merchantId, sellerSlug, previewApprovedAt, claimedByClerkId } of loaded.candidates) {
+    if (outOfTime()) {
+      result.truncated = true
+      break
+    }
     const done = claimed.byMerchant.get(merchantId) ?? new Set<string>()
 
     // ── 2. BACKFILL the event-driven milestones from state ────────────────────

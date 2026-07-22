@@ -278,6 +278,12 @@ export async function listPendingEmissions(
     .select('merchant_id, event_type, payload, attempts')
     .is('delivered_at', null)
     .not('payload', 'is', null)
+    // ATTEMPTS FIRST, then age. Ordering by age alone let the oldest N rows starve
+    // everything behind them: if those N keep failing, every run selects the same batch
+    // and a newer milestone is never attempted at all (cross-review round 6). Sorting by
+    // attempt count puts repeatedly-failing rows behind fresh ones, so the queue always
+    // makes forward progress while still retrying the stuck ones eventually.
+    .order('attempts', { ascending: true })
     .order('emitted_at', { ascending: true })
     // limit + 1: `rows.length >= limit` cannot tell "exactly `limit` rows exist" from
     // "more than `limit` exist", so a full-but-final page reported truncation and cost a
