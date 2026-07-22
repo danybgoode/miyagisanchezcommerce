@@ -15,9 +15,23 @@
  * is half-public, and re-running republishes (Medusa publish is idempotent) and
  * flips the anchor. Repeat activation on an already-activated preview is a no-op.
  *
- * Checkout stays claim-gated regardless: an unclaimed shop's checkout is blocked by
- * isShopClaimed(), so activation publishes the storefront without opening a purchase
- * an unclaimed merchant couldn't fulfill.
+ * Checkout — what actually protects it, traced 2026-07-22 (the earlier claim here,
+ * "an unclaimed shop's checkout is blocked by isShopClaimed()", was imprecise: that
+ * helper gates the PDP/checkout PAGES and the UCP surfaces, not the charge path).
+ * The real protections are two, and neither is the claim flag:
+ *   - BEFORE activation it is structural. `startCheckout` resolves every line item
+ *     via `/store/products/:id`, a Store API endpoint that serves PUBLISHED products
+ *     only, so a preview's draft products 404 and checkout cannot begin at all.
+ *     This is stronger than a claim check and cannot be configured away.
+ *   - AFTER activation the products are public but the shop is typically still
+ *     unclaimed, and an unclaimed shop has no connected payment provider — Stripe
+ *     Connect onboarding needs an authenticated owner — so the charge fails with
+ *     SELLER_NOT_CONNECTED. Manual rails can't be smuggled in either: the MCP
+ *     checkout-config tool refuses `bank_transfer`/CLABE outright (server-derived
+ *     only), so no agent path can give an ownerless shop a payout destination.
+ * Net: activation publishes the storefront without opening a purchase an unclaimed
+ * merchant couldn't fulfill — but say WHY precisely, because "claim-gated" implies
+ * a check on the money path that does not exist there.
  *
  * Gated by `promoter.enabled` + `promoter.private_preview_enabled` (404 when OFF).
  */
