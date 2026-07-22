@@ -54,6 +54,10 @@
 import 'server-only'
 import { db } from '@/lib/supabase'
 import {
+  isCapturedOrder,
+  type CapturedOrderLike,
+} from '@/lib/merchant-lifecycle'
+import {
   emitMerchantLifecycle,
   deliverClaimedEmission,
   listPendingEmissions,
@@ -187,44 +191,6 @@ interface Candidate {
   claimedByClerkId: string | null
 }
 
-/**
- * The order statuses that mean money was captured, as an ALLOW-LIST.
- *
- * This started as a deny-list of `refunded | pending_payment | canceled`, on the theory
- * that seller-set `fulfillment_state` values are all paid orders. That was wrong in the
- * direction that costs the most (cross-review round 3): a deny-list treats EVERY other
- * string — `draft`, `failed`, a typo, a status added next quarter — as revenue, and
- * these milestones are permanent and unwithdrawable.
- *
- * So: unknown status ⇒ NOT captured. The asymmetry is deliberate. A milestone deferred
- * by an unrecognised status is recovered by the next sweep once this list is widened;
- * a milestone granted by one can never be taken back.
- *
- * KNOWN LIMITATION (fresh-reviewer pass, PR 298 — deliberately not fixed here). `'paid'`
- * is a FALL-THROUGH DEFAULT in `normalizeMedusaOrder`, not an assertion that money was
- * captured: that function initialises `status = 'paid'` and only demotes it for
- * cancel/refund/return, or for a MANUAL payment method that is not yet captured. A
- * card/MercadoPago order sitting at `payment_status: 'authorized'` therefore normalises
- * to `'paid'` and would grant `merchant.first_sale`. This allow-list closed the "unknown
- * string ⇒ revenue" half of the problem; it cannot close this half, because
- * `normalizeMedusaOrder` does not return `payment_status` at all. Closing it properly
- * means surfacing `payment_status` (or a boolean `captured`) from
- * `/internal/sellers/orders` — a backend change, tracked as owed before the
- * `DESTINATION_DELIVERY_ENABLED` flip. Bounded meanwhile: this is a CRM milestone, not
- * money, and nothing emits until that flip.
- */
-const CAPTURED_ORDER_STATUSES = new Set([
-  'paid',
-  'processing',
-  'shipped',
-  'delivered',
-  'fulfilled',
-  'completed',
-])
-
-function isCapturedOrder(status: unknown): boolean {
-  return typeof status === 'string' && CAPTURED_ORDER_STATUSES.has(status)
-}
 
 /**
  * The population this epic tracks: FOUNDING merchants, not every shop on the
@@ -381,10 +347,12 @@ async function listCapturedOrders(
       },
     )
     if (!res.ok) return null
-    const data = (await res.json()) as { orders?: Array<{ created_at?: string; status?: string }> }
+    const data = (await res.json()) as {
+      orders?: Array<{ created_at?: string; status?: string; payment_captured?: boolean }>
+    }
     if (!Array.isArray(data.orders)) return null
     return data.orders
-      .filter((o) => o?.created_at && isCapturedOrder(o.status))
+      .filter((o) => o?.created_at && isCapturedOrder(o))
       .map((o) => ({ created_at: String(o.created_at) }))
   } catch {
     return null
@@ -568,8 +536,9 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
         // the 30-day mark. The earlier rule ("any later order") was wrong in a way that
         // permanently over-counted: a first sale on July 1 plus one order on July 2 and
         // silence thereafter would have emitted `retained_30d` on July 31, describing a
-        // merchant who churned on day 3 as retained (cross-review round 2). Pending and
-        // refunded orders are already excluded by `isCapturedOrder`, upstream.
+        // merchant who churned on day 3 as retained (cross-review round 2). Uncaptured,
+        // pending and refunded orders are already excluded by `isCapturedOrder` upstream,
+        // which requires the backend's `payment_captured` AND a stuck status.
         // The EARLIEST order at or after the mark is when retention actually happened.
         // `now` would permanently stamp the sweep's own run time — and because the
         // outbox allows one emission per milestone, a sweep recovering an August

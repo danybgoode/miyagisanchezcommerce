@@ -4,6 +4,7 @@ import {
   buildLifecycleTrackPayload,
   MERCHANT_LIFECYCLE_EVENTS,
   MAX_SUBJECT_ID_LENGTH,
+  isCapturedOrder,
 } from '../lib/merchant-lifecycle'
 import {
   lifecycleFixtures,
@@ -256,3 +257,54 @@ test.describe('merchant lifecycle · the loop closes', () => {
  * "identical fixtures in both repos" a checked fact rather than a claim in a doc.
  */
 const FIXTURES_SHA256 = 'a4db537e51e5554d919d3064d271fce2b48104c0a0fb18744f891d76a45950e5'
+
+test.describe('merchant lifecycle · isCapturedOrder (the first_sale gate)', () => {
+  const captured = { status: 'paid', payment_captured: true }
+
+  test('requires BOTH signals — a captured order with a stuck status counts', () => {
+    expect(isCapturedOrder(captured)).toBe(true)
+  })
+
+  test('AUTHORIZED-but-not-captured is refused, even though status says "paid"', () => {
+    // The gap this gate exists to close. `status` initialises to 'paid' in
+    // normalizeMedusaOrder and is only demoted for cancel/refund/return or an uncaptured
+    // MANUAL method — so a card order at payment_status 'authorized' arrives as 'paid'.
+    // Reading status alone would grant the write-once first_sale milestone off a
+    // fall-through default. This is the assertion that fails if the gate is removed.
+    expect(isCapturedOrder({ status: 'paid', payment_captured: false })).toBe(false)
+  })
+
+  test('a MISSING payment_captured fails closed — an older backend must not grant it', () => {
+    // Deploy ordering: until medusa-bonsai-backend#109 rolled, the field was absent.
+    // Deferring the milestone is recoverable; granting it wrongly is not.
+    expect(isCapturedOrder({ status: 'paid' })).toBe(false)
+  })
+
+  test('only literal true counts — truthy strings and 1 do not', () => {
+    expect(isCapturedOrder({ status: 'paid', payment_captured: 'yes' })).toBe(false)
+    expect(isCapturedOrder({ status: 'paid', payment_captured: 1 })).toBe(false)
+  })
+
+  test('a captured order whose sale did NOT stick is refused', () => {
+    // payment_captured deliberately ignores returns/cancellations (a return is not a
+    // refund), so those arrive captured:true with status 'refunded'. The allow-list is
+    // what excludes them — which is why both signals are required.
+    expect(isCapturedOrder({ status: 'refunded', payment_captured: true })).toBe(false)
+    expect(isCapturedOrder({ status: 'pending_payment', payment_captured: true })).toBe(false)
+  })
+
+  test('an unknown status is refused even when captured', () => {
+    expect(isCapturedOrder({ status: 'some_new_state', payment_captured: true })).toBe(false)
+  })
+
+  test('every allow-listed status counts when captured', () => {
+    for (const status of ['paid', 'processing', 'shipped', 'delivered', 'fulfilled', 'completed']) {
+      expect(isCapturedOrder({ status, payment_captured: true }), status).toBe(true)
+    }
+  })
+
+  test('a garbage order object is refused rather than throwing', () => {
+    expect(isCapturedOrder({})).toBe(false)
+    expect(isCapturedOrder({ status: null, payment_captured: null })).toBe(false)
+  })
+})
