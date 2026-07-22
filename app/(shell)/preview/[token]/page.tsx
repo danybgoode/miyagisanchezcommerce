@@ -67,6 +67,9 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
   const products = state.snapshot.products
   const approved = state.approvedHash !== null && !state.stale
   const changesRequested = preview.status === 'changes_requested'
+  // S4: when verified approval is enforced, the approve control becomes a two-step
+  // get-code → enter-code flow.
+  const verifiedApprovalEnabled = await isEnabled('promoter.preview_verified_approval_enabled')
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -107,6 +110,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
         expectedHash={state.currentHash}
         approved={approved}
         changesRequested={changesRequested}
+        verifiedApprovalEnabled={verifiedApprovalEnabled}
       />
     </main>
   )

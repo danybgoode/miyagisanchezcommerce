@@ -469,6 +469,27 @@ export async function sendLaunchpadCampaignVoteCode(ctx: {
   await send(ctx.to, `Tu código para votar — ${ctx.campaignTitle}`, body)
 }
 
+/**
+ * Merchant: the one-time code to APPROVE a private shop preview
+ * (founding-merchant-consent-previews S4). Same shape as the vote-code mail — a
+ * 6-char code, 15-min expiry — but the copy makes clear what approving does
+ * (publishes the shop as shown) and what the code proves (that this contact is
+ * theirs), not a legal signature.
+ */
+export async function sendPreviewApprovalCode(ctx: {
+  to: string
+  code: string
+  shopName: string
+}): Promise<void> {
+  const body = [
+    h1('Confirma que apruebas tu tienda'),
+    p(`Estás por aprobar la publicación de «${esc(ctx.shopName)}» tal como la revisaste. Ingresa este código para confirmar que este correo es tuyo:`),
+    amount(ctx.code, 'Tu código', true),
+    notice('El código vence en 15 minutos. Al aprobar, la tienda se publica tal como la viste. Si no pediste aprobar nada, ignora este mensaje.'),
+  ].join('')
+  await send(ctx.to, `Tu código para aprobar — ${ctx.shopName}`, body)
+}
+
 /** Voter: threshold reached → the product-scoped coupon they unlocked (Story 3.3). */
 export async function sendLaunchpadCampaignCouponEmail(ctx: {
   to: string

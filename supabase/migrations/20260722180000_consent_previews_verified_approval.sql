@@ -59,3 +59,15 @@ ALTER TABLE merchant_preview_decisions
 -- the code hashes, could forge or replay merchant consent. The app reaches Supabase
 -- only via the service-role key, which bypasses RLS.
 ALTER TABLE merchant_preview_approval_codes ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- 3. The dark-launch flag (enablement polarity, default OFF everywhere).
+-- ---------------------------------------------------------------------------
+-- Independent of `promoter.private_preview_enabled`: verified approval TIGHTENS an
+-- already-live feature, so the epic's own flag flip does not wait on this, and this
+-- can turn on later after a real merchant round-trip smoke. ON → approval requires
+-- a verified code; OFF → approval behaves exactly as it does today.
+INSERT INTO platform_flags (key, enabled, polarity, description) VALUES
+  ('promoter.preview_verified_approval_enabled', false, 'enablement',
+    'Aprobación verificada del comerciante para vistas previas privadas: con la flag encendida, aprobar una propuesta exige un código de un solo uso enviado al correo (o WhatsApp) del comerciante, de modo que la aprobación quede ligada a quien controla ese contacto. Actívala solo tras probar el recorrido con un comerciante real.')
+ON CONFLICT (key) DO NOTHING;

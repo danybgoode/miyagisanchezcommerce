@@ -23,6 +23,7 @@ import { resolvePreviewWithGrantByToken } from '@/lib/preview-access'
 import { recordDecision } from '@/lib/preview-consent'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import { emitMerchantLifecycle } from '@/lib/merchant-lifecycle-server'
+import { consumeApprovalCode } from '@/lib/preview-verification-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const resolved = await resolvePreviewWithGrantByToken(token)
   if (!resolved) return NextResponse.json({ ok: false }, { status: 404 })
 
-  let body: { decision?: string; expectedHash?: string; note?: string } = {}
+  let body: { decision?: string; expectedHash?: string; note?: string; code?: string } = {}
   try { body = await req.json() } catch { /* validated below */ }
 
   const decision = body.decision
@@ -73,6 +74,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   }
   const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) || null : null
 
+  // S4 — merchant-verified approval. When enforced, an APPROVAL must present a
+  // one-time code delivered to the merchant's own contact (a changes-requested
+  // needs none). This is what makes a promoter self-approving distinguishable in
+  // the record from real merchant consent. The code is bound to the current
+  // snapshot, so it also can't approve a proposal that changed after the code was
+  // sent. Consumed on success; the provenance is stamped on the decision below.
+  let verifiedVia: 'email' | 'whatsapp' | null = null
+  let verifiedContactHash: string | null = null
+  if (decision === 'approved' && (await isEnabled('promoter.preview_verified_approval_enabled'))) {
+    const code = typeof body.code === 'string' ? body.code.trim() : ''
+    if (!code) {
+      return NextResponse.json(
+        { ok: false, error: 'Ingresa el código que enviamos a tu contacto para aprobar.', needsCode: true },
+        { status: 401 },
+      )
+    }
+    const consumed = await consumeApprovalCode({
+      preview: resolved.preview,
+      currentSnapshotHash: expectedHash,
+      presentedCode: code,
+    })
+    if (!consumed.ok) {
+      const message =
+        consumed.reason === 'stale_snapshot'
+          ? 'La propuesta cambió. Vuelve a cargarla y pide un código nuevo.'
+          : consumed.reason === 'expired' || consumed.reason === 'no_code'
+            ? 'El código venció o no existe. Pide uno nuevo.'
+            : consumed.reason === 'too_many_attempts'
+              ? 'Demasiados intentos con ese código. Pide uno nuevo.'
+              : 'El código no es correcto. Revísalo e inténtalo de nuevo.'
+      return NextResponse.json({ ok: false, error: message, needsCode: true }, { status: 401 })
+    }
+    verifiedVia = consumed.channel
+    verifiedContactHash = consumed.contactHash
+  }
+
   const result = await recordDecision({
     preview: resolved.preview,
     decision,
@@ -80,6 +117,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     grantId: resolved.grantId,
     note,
     ipHash: hashIp(ip),
+    verifiedVia,
+    verifiedContactHash,
   })
   if (!result.ok) {
     // A hash mismatch (proposal changed under the merchant) is the expected
