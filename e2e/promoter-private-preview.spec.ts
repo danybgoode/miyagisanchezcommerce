@@ -217,6 +217,76 @@ test.describe('S2 decision route — a garbage/absent token never records consen
   })
 })
 
+test.describe('MCP listing writes must never reach a preview-private shop', () => {
+  /**
+   * REGRESSION (post-merge review, 2026-07-22). `autoGrantPartnerOnClose` mints the
+   * promoter a `manager` partner grant on the very shop `shop/setup` anchors
+   * private, and `resolveToolShop`'s partner branch resolves shops straight from
+   * `partner_grants` with no anchor check. Only `create_listing` was guarded — so
+   * `set_listing_status` could publish a merchant's products with no approval, no
+   * checklist and no consent record, while the anchor still 404'd the storefront.
+   *
+   * The real assertion is structural and lives in the source: EVERY listing-write
+   * tool must consult the anchor. A live end-to-end test would need a partner
+   * credential plus `partners.mcp_enabled` ON, which the anonymous api project
+   * cannot arrange — so this guards the property that actually regressed (a new
+   * write tool added without the guard), which is the failure mode that produced
+   * the gap in the first place.
+   */
+  test('every MCP handler with a listing-write primitive consults the preview anchor', async () => {
+    const fs = await import('fs')
+    const src = fs.readFileSync(new URL('../app/api/ucp/mcp/route.ts', import.meta.url), 'utf8')
+
+    const WRITE_PRIMITIVES = [
+      'createSellerProductViaInternal',
+      'patchSellerProductViaInternal',
+      'deleteSellerProductViaInternal',
+      'applySellerPriceViaInternal',
+    ]
+    // Every handler body, sliced at `async function handleX`.
+    const handlers = [...src.matchAll(/async function (handle[A-Za-z]+)\s*\(/g)]
+    const offenders: string[] = []
+
+    for (let i = 0; i < handlers.length; i++) {
+      const name = handlers[i][1]
+      const start = handlers[i].index ?? 0
+      const end = i + 1 < handlers.length ? (handlers[i + 1].index ?? src.length) : src.length
+      const body = src.slice(start, end)
+
+      const writes = WRITE_PRIMITIVES.some((p) => body.includes(p))
+      if (!writes) continue
+      // `cancelCampaign` only un-publishes — the safe direction.
+      if (name === 'handleCancelCampaign') continue
+
+      const guarded =
+        body.includes('refusePreviewPrivateWrite') ||
+        body.includes('invalidatePreviewApprovalAfterEdit') ||
+        body.includes('shopMustStayPrivate')
+      if (!guarded) offenders.push(name)
+    }
+
+    expect(
+      offenders,
+      `These MCP handlers write listings without consulting the consent anchor: ${offenders.join(', ')}. ` +
+        'Add refusePreviewPrivateWrite (publication/destruction) or ' +
+        'invalidatePreviewApprovalAfterEdit (content edits).',
+    ).toEqual([])
+  })
+
+  test('the publication and destruction tools REFUSE rather than degrade', async () => {
+    const fs = await import('fs')
+    const src = fs.readFileSync(new URL('../app/api/ucp/mcp/route.ts', import.meta.url), 'utf8')
+    // Publishing and deleting are activation's exclusive territory — these two
+    // must hard-refuse, not merely invalidate an approval after the fact.
+    for (const handler of ['handleSetListingStatus', 'handleDeleteListing', 'handleActivateCampaign']) {
+      const start = src.indexOf(`async function ${handler}`)
+      expect(start, `${handler} not found`).toBeGreaterThan(-1)
+      const body = src.slice(start, start + 3000)
+      expect(body, `${handler} must call refusePreviewPrivateWrite`).toContain('refusePreviewPrivateWrite')
+    }
+  })
+})
+
 test.describe('S2 activation route — anonymous callers are refused', () => {
   test('activate never serves an anonymous caller', async ({ request }) => {
     const res = await request.post('/api/promoter/preview/activate', { data: { slug: 'nonexistent-disposable-shop' } })

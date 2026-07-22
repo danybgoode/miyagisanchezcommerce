@@ -31,7 +31,9 @@ import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
 import { isShopClaimed } from '@/lib/claim'
-import { shopMustStayPrivate } from '@/lib/preview-access'
+import { shopMustStayPrivate, getPreviewByShop } from '@/lib/preview-access'
+import { invalidateIfMaterialChange } from '@/lib/preview-consent'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
@@ -1895,6 +1897,74 @@ async function handleRespondToOffer(args: Record<string, unknown>, baseUrl: stri
   }
 }
 
+/**
+ * ── Consent-safe previews: the MCP listing-write boundary ──────────────────────
+ *
+ * A shop awaiting its merchant's approval (founding-merchant-consent-previews)
+ * must not be published or reshaped through the agent surface. This matters
+ * concretely, not theoretically: `autoGrantPartnerOnClose` mints the promoter a
+ * `manager` partner grant on the very shop `shop/setup` just anchored private, and
+ * `resolveToolShop`'s partner branch resolves shops straight from `partner_grants`
+ * with no anchor or claim check. So the promoter who created the proposal can reach
+ * every tool below with a partner credential.
+ *
+ * An earlier revision guarded only `create_listing` — a comment there even named
+ * this vector — which left `set_listing_status` able to publish a merchant's
+ * products with no approval, no checklist and no consent record at all. Guarding
+ * one known door per vector is what produced that gap, so these two helpers exist
+ * to be applied to EVERY listing-write tool, and the rule is chosen per what the
+ * write actually does:
+ *
+ *   REFUSE   — writes that publish or destroy. Publication is activation's
+ *              exclusive job (it is the only path that checks approval + the
+ *              readiness checklist), and a delete removes content the merchant
+ *              approved, which also strands activation's replay path.
+ *   INVALIDATE — content edits. The edit is allowed (the promoter still needs to
+ *              fix a title or price before sending the preview), but any current
+ *              approval no longer describes what would be published, so it is
+ *              invalidated exactly as `close/listing` does.
+ *
+ * Both fail CLOSED via `shopMustStayPrivate`, which treats an unreadable anchor as
+ * private.
+ */
+async function refusePreviewPrivateWrite(
+  shopId: string,
+  action: string,
+): Promise<{ isError: true; content: Array<{ type: string; text: string }> } | null> {
+  if (!(await shopMustStayPrivate(shopId))) return null
+  return {
+    isError: true,
+    content: [{
+      type: 'text',
+      text: `Esta tienda está en vista previa privada, esperando la aprobación del comerciante. `
+        + `No se puede ${action} hasta que el comerciante apruebe y se active la tienda.`,
+    }],
+  }
+}
+
+/**
+ * A content edit landed on a previewed shop — any current approval is now stale.
+ * Idempotent and best-effort: a shop with no anchor, or one whose snapshot didn't
+ * materially change, is left completely alone, and a failure here never fails the
+ * edit that already succeeded (same posture as `close/listing`).
+ */
+async function invalidatePreviewApprovalAfterEdit(shopId: string): Promise<void> {
+  try {
+    const preview = await getPreviewByShop(shopId)
+    if (!preview) return
+    const outcome = await invalidateIfMaterialChange(preview)
+    if (outcome.invalidated) {
+      await emitPreviewEvent('preview_invalidated', {
+        shopId,
+        previewId: preview.id,
+        version: preview.currentVersion,
+      })
+    }
+  } catch {
+    // Observability-grade step; never break the write that already landed.
+  }
+}
+
 async function handleCreateListing(args: Record<string, unknown>, authHeader?: string | null) {
   const agentAuth = await resolveToolShop(authHeader, args, 'create_listing')
   if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
@@ -2005,6 +2075,9 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
     status: status === 'published' ? 'active' : previewPrivate ? 'draft' : 'paused',
   })
 
+  // Adding a product changes the set the merchant reviewed — parity with
+  // close/listing, which invalidates on the same event.
+  if (previewPrivate) await invalidatePreviewApprovalAfterEdit(shop.id)
   await recordAgentListingCreate(shop, { productId, title: row.title, status })
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
@@ -2830,6 +2903,11 @@ async function handleActivateCampaign(args: Record<string, unknown>, authHeader?
   const context = toCampaignSellerContext(agentShop)
   if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
 
+  // Activating a campaign publishes its product — same publication boundary as
+  // set_listing_status, so a shop awaiting consent must refuse it too.
+  const refused = await refusePreviewPrivateWrite(agentShop.id, 'activar una campaña')
+  if (refused) return refused
+
   const campaignId = String(args.campaign_id ?? '')
   if (!campaignId) return { isError: true, content: [{ type: 'text', text: 'campaign_id es obligatorio.' }] }
 
@@ -2918,6 +2996,8 @@ async function handleUpdateListing(args: Record<string, unknown>, authHeader?: s
     await db.from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
   }
 
+  // A title/price/image edit changes what would be published — stale any approval.
+  await invalidatePreviewApprovalAfterEdit(shop.id)
   await recordAgentListingAction(shop, { productId, fields, title: patch.title })
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
@@ -2938,6 +3018,12 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   }
   const owned = await shopOwnsProduct(shop.id, productId)
   if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  // Publication is activation's exclusive job — it is the only path that verifies
+  // a current merchant approval and a complete readiness checklist. Without this,
+  // a partner credential could publish a merchant's products with no consent at all.
+  const refused = await refusePreviewPrivateWrite(shop.id, 'cambiar el estado de un anuncio')
+  if (refused) return refused
 
   if (status === 'active') {
     const block = listingActivationBlock(shop.metadata, owned.listing_type)
@@ -3071,6 +3157,9 @@ async function handleConfigureListingOptions(args: Record<string, unknown>, auth
     .from('marketplace_listings').update(mirror).eq('medusa_product_id', productId)
   if (mirrorError) console.error('[configure_listing_options] mirror update failed (non-fatal):', mirrorError)
 
+  // Option dimensions and variant prices change the published price surface —
+  // stale any approval that covered the previous shape.
+  await invalidatePreviewApprovalAfterEdit(shop.id)
   await recordAgentListingAction(shop, { productId, fields })
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
@@ -3105,6 +3194,12 @@ async function handleDeleteListing(args: Record<string, unknown>, authHeader?: s
   if (!productId) return { isError: true, content: [{ type: 'text', text: 'product_id es obligatorio.' }] }
   const owned = await shopOwnsProduct(shop.id, productId)
   if (!owned) return { isError: true, content: [{ type: 'text', text: 'Ese anuncio no pertenece a tu tienda.' }] }
+
+  // Deleting a product the merchant approved both destroys reviewed content and
+  // strands activation: the approved snapshot still lists it, so every retry would
+  // try to publish a product that no longer exists and fail permanently.
+  const refused = await refusePreviewPrivateWrite(shop.id, 'eliminar un anuncio')
+  if (refused) return refused
 
   const result = await deleteSellerProductViaInternal(shop.slug, productId)
   if (!result.ok) return { isError: true, content: [{ type: 'text', text: `No se pudo eliminar el anuncio: ${result.error}` }] }
@@ -3194,6 +3289,8 @@ async function handleApplyPrice(args: Record<string, unknown>, authHeader?: stri
     .eq('medusa_product_id', productId)
   if (mirrorError) console.error('[apply_price] mirror update failed (non-fatal):', mirrorError)
 
+  // A price change is material — stale any approval that covered the old price.
+  await invalidatePreviewApprovalAfterEdit(shop.id)
   await recordAgentListingAction(shop, { productId, fields: ['price'] })
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')

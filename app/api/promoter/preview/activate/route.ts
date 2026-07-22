@@ -107,9 +107,19 @@ export async function POST(req: NextRequest) {
     if (!res.ok) failures.push(productId)
   }
   if (failures.length > 0) {
-    // Anchor stays `approved` → the public shell is still hidden → nothing is
-    // half-public. The promoter can retry; republishing what already published is
-    // a no-op, so the retry is safe.
+    // Anchor stays `approved` → the public SHELL stays hidden, and the retry is
+    // safe (republishing what already published is a no-op, and the publish set
+    // comes from the approved snapshot so it stays complete).
+    //
+    // NOT "nothing is half-public" — an earlier version of this comment claimed
+    // that and it is wrong. The shop-shell guard covers /s/[slug], its sub-pages,
+    // collections, claim, convocatoria and the embed, but the PDP
+    // (app/(shell)/l/[id]) has no preview guard: it relies on Medusa draft
+    // filtering alone. So a product that DID publish before the failure has a
+    // publicly reachable, indexable PDP while the shop page 404s. That content is
+    // content the merchant approved, so it is not a consent violation — but it is
+    // an orphan public page, and the promoter should retry promptly rather than
+    // treat a 502 here as harmless.
     return NextResponse.json(
       { ok: false, error: 'No se pudieron publicar todos los productos. Inténtalo de nuevo.', published: productIds.length - failures.length, failed: failures.length },
       { status: 502 },
@@ -126,14 +136,26 @@ export async function POST(req: NextRequest) {
       .in('medusa_product_id', productIds)
   }
 
-  // Flip the anchor LAST — this is what un-hides the public shell. A failure here
-  // leaves everything published but the shell still private; the promoter retries
-  // and this idempotent flip completes.
-  const flipped = await markActivated(preview.id)
+  // Flip the anchor LAST — this is what un-hides the public shell. Predicated
+  // (compare-and-set) on the very approval this activation was authorized by, so a
+  // merchant who withdraws consent DURING the publish loop is not overwritten. A
+  // failure here leaves everything published but the shell still private, which is
+  // the safe side: nothing is public that the merchant did not approve.
+  if (!gate.approvedHash) {
+    return NextResponse.json(
+      { ok: false, error: 'Falta la aprobación del comerciante.' },
+      { status: 409 },
+    )
+  }
+  const flipped = await markActivated(preview.id, gate.approvedHash)
   if (!flipped) {
     return NextResponse.json(
-      { ok: false, error: 'Los productos se publicaron pero no se pudo activar la tienda. Inténtalo de nuevo.' },
-      { status: 500 },
+      {
+        ok: false,
+        error: 'La aprobación cambió mientras se publicaba (el comerciante pudo pedir cambios). '
+          + 'La tienda sigue privada. Revisa el estado antes de reintentar.',
+      },
+      { status: 409 },
     )
   }
 

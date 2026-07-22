@@ -163,7 +163,15 @@ export async function recordDecision(input: {
   // The anchor mirrors the decision so every reader sees one consistent state.
   // An approval records the hash it covers; changes-requested clears any prior
   // approval, because the merchant has explicitly withdrawn consent to publish.
-  const { error: updateError } = await db
+  //
+  // COMPARE-AND-SET on `current_version`. Two decisions racing (a double-tap, or an
+  // approve immediately followed by a request-changes on a slow connection) both
+  // read the same `currentVersion` and both write `nextVersion`; without this
+  // predicate the LAST write wins, which can leave the anchor `approved` with a
+  // live hash even though the merchant's final action was to withdraw. The
+  // append-only log would hold the truth while the field activation reads does not.
+  // The loser gets a clear retry message rather than a silently discarded decision.
+  const { data: updated, error: updateError } = await db
     .from('merchant_previews')
     .update(
       input.decision === 'approved'
@@ -183,7 +191,15 @@ export async function recordDecision(input: {
           },
     )
     .eq('id', input.preview.id)
+    .eq('current_version', input.preview.currentVersion)
+    .select('id')
   if (updateError) return { ok: false, reason: 'No se pudo guardar tu decisión. Inténtalo de nuevo.' }
+  if (!updated || updated.length === 0) {
+    return {
+      ok: false,
+      reason: 'Se registró otra decisión al mismo tiempo. Vuelve a cargar la página para ver el estado actual.',
+    }
+  }
 
   return { ok: true }
 }
@@ -282,7 +298,7 @@ function effectiveSnapshot(state: ApprovalState): PreviewSnapshot {
 export async function checkActivation(
   preview: MerchantPreview,
 ): Promise<
-  | { ok: true; snapshot: PreviewSnapshot; checklist: ChecklistItem[] }
+  | { ok: true; snapshot: PreviewSnapshot; checklist: ChecklistItem[]; approvedHash: string | null }
   | { ok: false; reason: string; checklist?: ChecklistItem[] }
 > {
   const state = await readApprovalState(preview)
@@ -310,7 +326,7 @@ export async function checkActivation(
   // because a later checklist item was added.
   if (preview.status === 'activated') {
     return decision.ok
-      ? { ok: true, snapshot: publishSet, checklist }
+      ? { ok: true, snapshot: publishSet, checklist, approvedHash: state.approvedHash }
       : { ok: false, reason: decision.reason, checklist }
   }
 
@@ -324,12 +340,29 @@ export async function checkActivation(
     }
   }
 
-  return { ok: true, snapshot: publishSet, checklist }
+  return { ok: true, snapshot: publishSet, checklist, approvedHash: state.approvedHash }
 }
 
-/** Mark a preview activated after the Medusa publish writes have all succeeded. */
-export async function markActivated(previewId: string): Promise<boolean> {
-  const { error } = await db
+/**
+ * Mark a preview activated after the Medusa publish writes have all succeeded.
+ *
+ * COMPARE-AND-SET on the approval this activation was authorized by. Activation is
+ * not atomic — `checkActivation` runs, then N sequential Medusa publishes, then
+ * this. In that window the merchant can open their link and click "Solicitar
+ * cambios", which sets `status='changes_requested'` and clears
+ * `approved_snapshot_hash`. An unconditional update would overwrite that and take
+ * the shop public seconds after the merchant explicitly withdrew consent — with the
+ * consent log and the anchor then disagreeing about what happened.
+ *
+ * Predicating on the exact approved hash also makes a re-approval at a DIFFERENT
+ * version fail closed rather than being silently activated under the old decision.
+ *
+ * Returns false when the row no longer matches, which the caller surfaces as a
+ * refusal (the publishes already landed, but the shop shell stays private, so
+ * nothing is public that the merchant did not approve).
+ */
+export async function markActivated(previewId: string, approvedHash: string): Promise<boolean> {
+  const { data, error } = await db
     .from('merchant_previews')
     .update({
       status: 'activated',
@@ -337,5 +370,9 @@ export async function markActivated(previewId: string): Promise<boolean> {
       updated_at: new Date().toISOString(),
     })
     .eq('id', previewId)
-  return !error
+    .eq('status', 'approved')
+    .eq('approved_snapshot_hash', approvedHash)
+    .select('id')
+  if (error || !data) return false
+  return data.length > 0
 }
