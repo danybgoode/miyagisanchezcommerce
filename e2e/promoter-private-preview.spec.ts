@@ -327,3 +327,43 @@ test.describe('S2 activation route — anonymous callers are refused', () => {
     expect([401, 404]).toContain(res.status())
   })
 })
+
+test.describe('every public shop-shell + PDP surface consults the preview anchor', () => {
+  /**
+   * The privacy guarantee is only as strong as its weakest public read seam. The
+   * shop shell was guarded in S1; the PDP (`app/(shell)/l/[id]`) was NOT — it
+   * relied on Medusa draft filtering alone, which fails during a partially-failed
+   * activation (products published, anchor not yet flipped ⇒ a public, indexable
+   * PDP while `/s/<slug>` 404s). This structural spec asserts every public surface
+   * that renders shop-or-product identity calls the guard, so a NEW surface can't
+   * silently reopen the hole — the same failure mode the MCP gap came from.
+   */
+  test('each public render surface calls a preview-privacy guard', async () => {
+    const fs = await import('fs')
+    // Require an actual CALL (`fn(`), not merely the imported symbol — an import
+    // left dangling after the call was deleted must still fail.
+    const GUARD = /(assertShopNotPreviewPrivate|isShopPreviewPrivateBySlug|isShopPreviewPrivateForShop)\s*\(/
+    // (file, why it's public). Every one of these renders a merchant's shop or
+    // product identity to an anonymous visitor.
+    const surfaces: Array<[string, string]> = [
+      ['app/(shell)/l/[id]/page.tsx', 'the PDP — the last public product surface'],
+      ['app/(shell)/s/[slug]/page.tsx', 'the shop home'],
+      ['app/(shell)/s/[slug]/acerca/page.tsx', 'shop about'],
+      ['app/(shell)/s/[slug]/faq/page.tsx', 'shop faq'],
+      ['app/(shell)/s/[slug]/politicas/page.tsx', 'shop policies'],
+      ['app/(shell)/s/[slug]/c/[collection]/page.tsx', 'a shop collection'],
+      ['app/(shell)/s/[slug]/claim/page.tsx', 'the claim page'],
+      ['app/(shell)/s/[slug]/convocatoria/page.tsx', 'the convocatoria page'],
+      ['app/(shell)/embed/s/[slug]/page.tsx', 'the embed widget'],
+    ]
+    const offenders: string[] = []
+    for (const [rel, why] of surfaces) {
+      const src = fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8')
+      if (!GUARD.test(src)) offenders.push(`${rel} (${why})`)
+    }
+    expect(
+      offenders,
+      `These public surfaces render shop/product identity without a preview-privacy guard: ${offenders.join(', ')}.`,
+    ).toEqual([])
+  })
+})
