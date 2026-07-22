@@ -19,6 +19,7 @@ import {
   hashSnapshot,
   canActivate,
   describeMaterialChanges,
+  isResumableActivation,
 } from '@/lib/preview-snapshot'
 import {
   type MerchantPreview,
@@ -54,6 +55,12 @@ export interface ApprovalState {
   currentHash: string
   /** The hash the merchant approved, if any. Cleared when a material edit lands. */
   approvedHash: string | null
+  /**
+   * The exact proposal the merchant approved, as it was shown to them. This — not
+   * the live draft list — is what activation publishes, because activation CONSUMES
+   * the draft list (see `isResumableActivation`).
+   */
+  approvedSnapshot: PreviewSnapshot | null
   /** True when an approval exists but no longer matches what would be published. */
   stale: boolean
   /** Plain-language es-MX reasons the approval went stale (empty when not stale). */
@@ -78,12 +85,11 @@ export async function readApprovalState(preview: MerchantPreview): Promise<Appro
 
   const approvedHash = (row?.approved_snapshot_hash as string | null) ?? null
   const currentHash = hashSnapshot(snapshot)
-  const stale = approvedHash !== null && approvedHash !== currentHash
 
-  // Explain staleness against the snapshot the merchant actually approved — the
-  // hash alone proves a change happened but not what it was.
-  let staleReasons: string[] = []
-  if (stale) {
+  // Load the proposal the merchant actually approved whenever one exists — it is
+  // both the explanation of any staleness AND the authoritative publish set.
+  let approvedSnapshot: PreviewSnapshot | null = null
+  if (approvedHash !== null) {
     const { data: decision } = await db
       .from('merchant_preview_decisions')
       .select('snapshot')
@@ -93,12 +99,24 @@ export async function readApprovalState(preview: MerchantPreview): Promise<Appro
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (decision?.snapshot) {
-      staleReasons = describeMaterialChanges(decision.snapshot as PreviewSnapshot, snapshot)
-    }
+    if (decision?.snapshot) approvedSnapshot = decision.snapshot as PreviewSnapshot
   }
 
-  return { preview, snapshot, currentHash, approvedHash, stale, staleReasons }
+  // A hash difference is only STALE if it reflects a real promoter edit. A live
+  // snapshot that is the approved one minus already-published products is a
+  // resumable partial activation, not a change of proposal — treating it as stale
+  // would strand the preview permanently (see `isResumableActivation`).
+  const hashDiffers = approvedHash !== null && approvedHash !== currentHash
+  const resumable =
+    hashDiffers && approvedSnapshot !== null && isResumableActivation(approvedSnapshot, snapshot)
+  const stale = hashDiffers && !resumable
+
+  // Explain staleness against the snapshot the merchant approved — the hash alone
+  // proves a change happened but not what it was.
+  const staleReasons =
+    stale && approvedSnapshot ? describeMaterialChanges(approvedSnapshot, snapshot) : []
+
+  return { preview, snapshot, currentHash, approvedHash, approvedSnapshot, stale, staleReasons }
 }
 
 /**
@@ -219,11 +237,17 @@ export async function readChecklist(
   const locationDetail = (metadata.location_detail ?? null) as Record<string, unknown> | null
   const merchantEmail = typeof metadata.merchant_email === 'string' ? metadata.merchant_email.trim() : ''
 
+  // Evaluate the checklist against WHAT WILL BE PUBLISHED — the approved snapshot
+  // once one exists, otherwise the live proposal. Using the live draft list after a
+  // partial activation would make the product/price/photo items fail (or an emptied
+  // draft list fail everything) on a preview that is mid-publish.
+  const effective = effectiveSnapshot(state)
+
   return buildChecklist({
-    shopName: state.snapshot.shopName,
+    shopName: effective.shopName,
     hasLocation: !!(locationDetail && (locationDetail.estado || locationDetail.municipio || locationDetail.cp)),
     hasMerchantContact: merchantEmail.length > 0,
-    products: state.snapshot.products.map((p) => ({
+    products: effective.products.map((p) => ({
       title: p.title,
       priceCents: p.priceCents,
       imageUrl: p.imageUrl,
@@ -232,6 +256,16 @@ export async function readChecklist(
     currentApproval: state.approvedHash !== null && !state.stale,
     hasSteward: (preview.createdBy ?? '').length > 0,
   })
+}
+
+/**
+ * The proposal that activation would actually publish: the approved snapshot when
+ * the merchant has approved one, otherwise the live proposal. Activation consumes
+ * the live draft list, so only the approved snapshot stays complete across a
+ * partial/retried activation.
+ */
+function effectiveSnapshot(state: ApprovalState): PreviewSnapshot {
+  return state.approvedSnapshot ?? state.snapshot
 }
 
 /**
@@ -254,11 +288,19 @@ export async function checkActivation(
   const state = await readApprovalState(preview)
   if (!state) return { ok: false, reason: 'No se pudo leer la propuesta.' }
 
+  // The set activation would publish. After a partial activation the live draft
+  // list has shrunk (or emptied), so `hasProducts` and the published set must both
+  // come from the approved snapshot — otherwise a half-finished activation can
+  // never be resumed.
+  const publishSet = effectiveSnapshot(state)
+
   const decision = canActivate({
     status: preview.status,
     approvedSnapshotHash: state.approvedHash,
-    currentSnapshotHash: state.currentHash,
-    hasProducts: state.snapshot.products.length > 0,
+    // `stale` already accounts for a resumable partial activation, so feed the
+    // comparison a matching hash when the difference is only "we published some".
+    currentSnapshotHash: state.stale ? state.currentHash : (state.approvedHash ?? state.currentHash),
+    hasProducts: publishSet.products.length > 0,
   })
 
   const checklist = await readChecklist(preview, state)
@@ -268,7 +310,7 @@ export async function checkActivation(
   // because a later checklist item was added.
   if (preview.status === 'activated') {
     return decision.ok
-      ? { ok: true, snapshot: state.snapshot, checklist }
+      ? { ok: true, snapshot: publishSet, checklist }
       : { ok: false, reason: decision.reason, checklist }
   }
 
@@ -282,7 +324,7 @@ export async function checkActivation(
     }
   }
 
-  return { ok: true, snapshot: state.snapshot, checklist }
+  return { ok: true, snapshot: publishSet, checklist }
 }
 
 /** Mark a preview activated after the Medusa publish writes have all succeeded. */

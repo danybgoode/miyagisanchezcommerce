@@ -5,6 +5,7 @@ import {
   isMaterialChange,
   describeMaterialChanges,
   canActivate,
+  isResumableActivation,
   type PreviewSnapshot,
 } from '../lib/preview-snapshot'
 
@@ -189,5 +190,62 @@ test.describe('activation decision — server-side enforcement', () => {
   test('re-activating an already-activated preview is idempotent', () => {
     const r = canActivate({ status: 'activated', approvedSnapshotHash: hash, currentSnapshotHash: hash, hasProducts: true })
     expect(r.ok).toBe(true)
+  })
+})
+
+test.describe('resumable partial activation — a half-published preview is never stranded', () => {
+  // REGRESSION: activation publishes draft products, which REMOVES them from the
+  // live snapshot. Without this rule, any activation that failed partway — or whose
+  // final anchor flip failed, leaving the live set EMPTY — would compare a shrunken
+  // live snapshot against the approved hash, decide "la propuesta cambió", and
+  // refuse forever. That contradicts S2.3's "failed partial writes can replay
+  // safely" and leaves the promoter with no recovery path at all.
+
+  test('the approved set minus already-published products is resumable', () => {
+    const live = clone(base)
+    live.products.pop() // prod_2 published; only prod_1 still a draft
+    expect(isMaterialChange(base, live)).toBe(true) // hashes differ...
+    expect(isResumableActivation(base, live)).toBe(true) // ...but it is a resume
+  })
+
+  test('an EMPTY live set is resumable (every product published, anchor flip failed)', () => {
+    const live = clone(base)
+    live.products = []
+    expect(isResumableActivation(base, live)).toBe(true)
+  })
+
+  test('an unchanged live set is trivially resumable', () => {
+    expect(isResumableActivation(base, clone(base))).toBe(true)
+  })
+
+  test('a real EDIT is never mistaken for a resume', () => {
+    const mutations: Array<(s: PreviewSnapshot) => void> = [
+      (s) => { s.products[0].title = 'otro' },
+      (s) => { s.products[0].priceCents = 99 },
+      (s) => { s.products[0].imageUrl = 'https://img/z.jpg' },
+      (s) => { s.products[0].currency = 'USD' },
+      (s) => { s.shopName = 'Otra' },
+      (s) => { s.shopSlug = 'otra' },
+    ]
+    for (const mutate of mutations) {
+      const live = clone(base)
+      mutate(live)
+      expect(isResumableActivation(base, live)).toBe(false)
+    }
+  })
+
+  test('an ADDED product is never mistaken for a resume', () => {
+    const live = clone(base)
+    live.products.push({ id: 'prod_9', title: 'Nuevo', priceCents: 100, currency: 'MXN', imageUrl: null })
+    expect(isResumableActivation(base, live)).toBe(false)
+  })
+
+  test('an edit COMBINED with a partial publish is still not a resume', () => {
+    // The dangerous shape: a promoter edits one product while another is already
+    // published. The subset alone must not excuse the edit.
+    const live = clone(base)
+    live.products.pop()
+    live.products[0].priceCents = 9999
+    expect(isResumableActivation(base, live)).toBe(false)
   })
 })
