@@ -53,10 +53,7 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
-import {
-  isCapturedOrder,
-  type CapturedOrderLike,
-} from '@/lib/merchant-lifecycle'
+import { isCapturedOrder } from '@/lib/merchant-lifecycle'
 import {
   emitMerchantLifecycle,
   deliverClaimedEmission,
