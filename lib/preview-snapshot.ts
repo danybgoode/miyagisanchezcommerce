@@ -98,12 +98,20 @@ export function canonicalizeSnapshot(snapshot: PreviewSnapshot): string {
  * shop identity must be unchanged. So a real edit — a changed title/price/image, a
  * currency change, or an ADDED product — is still material and still invalidates.
  *
- * KNOWN, ACCEPTED LIMIT: a product REMOVED by a promoter is indistinguishable from
- * one we published, so it would not invalidate approval on this path. That is safe
- * today because no promoter-facing delete path exists for a previewed shop (the
- * only writer is close/listing, which adds), and publishing a strict subset of what
- * the merchant approved never publishes anything they did not approve. If a delete
- * path is ever added, it must invalidate the approval explicitly at the call site.
+ * KNOWN, ACCEPTED LIMIT: a product REMOVED from the draft set is indistinguishable
+ * from one we published, so a removal does not invalidate approval on this path.
+ *
+ * An earlier version of this comment claimed that was safe because "no promoter
+ * delete path exists for a previewed shop". That was FALSE — the MCP
+ * `delete_listing` tool reaches a previewed shop through the partner grant that
+ * `autoGrantPartnerOnClose` mints on it. That door is now closed by an explicit
+ * refusal in the MCP route rather than by this assumption.
+ *
+ * The limit itself remains, and its consequence is LIVENESS, not consent: because
+ * activation publishes `approvedSnapshot` (never the live set), a removal can only
+ * ever cause activation to try to publish a product that no longer exists and fail
+ * — a stuck preview, not an unapproved publication. Any future path that can remove
+ * a previewed product must invalidate the approval explicitly at its own call site.
  */
 export function isResumableActivation(approved: PreviewSnapshot, live: PreviewSnapshot): boolean {
   if ((approved.shopName ?? '') !== (live.shopName ?? '')) return false
