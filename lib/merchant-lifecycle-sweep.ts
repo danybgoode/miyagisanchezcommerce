@@ -68,9 +68,24 @@ export const RETENTION_WINDOW_DAYS = 30
 
 const RETENTION_WINDOW_MS = RETENTION_WINDOW_DAYS * 24 * 60 * 60 * 1000
 
-/** Rows per page. Supabase/PostgREST caps a single response anyway; this makes the
- *  paging explicit rather than relying on that default. */
-const PAGE_SIZE = 1000
+/**
+ * Rows per page.
+ *
+ * MUST stay well under PostgREST's `db-max-rows` (default 1000), and the walk must not
+ * depend on that: an earlier version used PAGE_SIZE = 1000 with a `limit + 1` probe, so
+ * a request for 1001 rows was silently capped at 1000, the probe read "no more", and the
+ * sweep stopped early while reporting `truncated: false` — a partial run announcing
+ * itself as complete, which is the exact failure class six review rounds kept catching
+ * (fresh-reviewer pass, PR 298). Two independent defences now: a page size with real
+ * headroom, AND truncation decided by the server's own `count` rather than inferred from
+ * page length, which is correct whatever `db-max-rows` turns out to be.
+ */
+const PAGE_SIZE = 500
+
+/** UUIDs per `.in()` batch. These serialise into a GET query string, so a large batch
+ *  is a 414 rather than a slow query — 200 uuids is roughly 7.6 KB, comfortably inside
+ *  any proxy's header limit. */
+const IN_BATCH_SIZE = 200
 
 /** Hard ceiling on one run, so a runaway table cannot make the cron unbounded. The
  *  founding-merchant population is small by definition; reaching this means something
@@ -84,14 +99,15 @@ async function readPaged(
   columns: string,
 ): Promise<{ rows: Array<Record<string, unknown>>; truncated: boolean; errors: number }> {
   const rows: Array<Record<string, unknown>> = []
-  const errors = 0
   for (let offset = 0; offset < CANDIDATE_CAP; offset += PAGE_SIZE) {
-    // One row past the page: the probe that distinguishes "this page filled the cap"
-    // from "there is more". Without it, a table holding EXACTLY CANDIDATE_CAP rows
-    // reported truncated forever and the cron returned 503 for eternity on a population
-    // it had in fact read completely (cross-review round 6).
-    const size = Math.min(PAGE_SIZE, CANDIDATE_CAP - offset)
-    const { data, error } = await db.from(table).select(columns).range(offset, offset + size)
+    // `count: 'exact'` makes the SERVER tell us the true total. Inferring "is there
+    // more?" from how many rows came back cannot be trusted, because PostgREST may cap
+    // the response below what we asked for — and then a short page is indistinguishable
+    // from the end of the table.
+    const { data, error, count } = await db
+      .from(table)
+      .select(columns, { count: 'exact' })
+      .range(offset, offset + PAGE_SIZE - 1)
     if (error) {
       // Report and stop: continuing past a failed page would produce a result that
       // looks complete while missing an arbitrary slice of the population.
@@ -99,14 +115,23 @@ async function readPaged(
       return { rows, truncated: true, errors: 1 }
     }
     const page = (data ?? []) as unknown as Array<Record<string, unknown>>
-    const more = page.length > size
-    rows.push(...(more ? page.slice(0, size) : page))
-    if (!more) return { rows, truncated: false, errors }
+    rows.push(...page)
+
+    // An empty page always ends the walk (guards against a zero-progress loop if the
+    // server ever returns nothing while claiming a larger count).
+    if (page.length === 0) return { rows, truncated: false, errors: 0 }
+    if (typeof count === 'number') {
+      if (rows.length >= count) return { rows, truncated: false, errors: 0 }
+    } else if (page.length < PAGE_SIZE) {
+      // No count header — fall back to page-length inference, which is sound HERE only
+      // because PAGE_SIZE is below db-max-rows.
+      return { rows, truncated: false, errors: 0 }
+    }
   }
   // Genuinely more rows than one run may read. Reported, so the 503 is an honest alarm
   // rather than a silent ceiling — at CANDIDATE_CAP founding merchants something is
   // wrong with the population query, not with the cron.
-  return { rows, truncated: true, errors }
+  return { rows, truncated: true, errors: 0 }
 }
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -173,9 +198,20 @@ interface Candidate {
  *
  * So: unknown status ⇒ NOT captured. The asymmetry is deliberate. A milestone deferred
  * by an unrecognised status is recovered by the next sweep once this list is widened;
- * a milestone granted by one can never be taken back. These are exactly the states
- * `normalizeMedusaOrder` (apps/backend `store/sellers/me/orders`) emits for an order
- * whose payment was captured.
+ * a milestone granted by one can never be taken back.
+ *
+ * KNOWN LIMITATION (fresh-reviewer pass, PR 298 — deliberately not fixed here). `'paid'`
+ * is a FALL-THROUGH DEFAULT in `normalizeMedusaOrder`, not an assertion that money was
+ * captured: that function initialises `status = 'paid'` and only demotes it for
+ * cancel/refund/return, or for a MANUAL payment method that is not yet captured. A
+ * card/MercadoPago order sitting at `payment_status: 'authorized'` therefore normalises
+ * to `'paid'` and would grant `merchant.first_sale`. This allow-list closed the "unknown
+ * string ⇒ revenue" half of the problem; it cannot close this half, because
+ * `normalizeMedusaOrder` does not return `payment_status` at all. Closing it properly
+ * means surfacing `payment_status` (or a boolean `captured`) from
+ * `/internal/sellers/orders` — a backend change, tracked as owed before the
+ * `DESTINATION_DELIVERY_ENABLED` flip. Bounded meanwhile: this is a CRM milestone, not
+ * money, and nothing emits until that flip.
  */
 const CAPTURED_ORDER_STATUSES = new Set([
   'paid',
@@ -232,11 +268,11 @@ async function loadCandidates(): Promise<{ candidates: Candidate[]; truncated: b
   // Resolve slug + claim state in batches rather than one read per merchant.
   const merchantIds = [...ids]
   const shopById = new Map<string, { slug: string | null; clerkUserId: string | null }>()
-  for (let i = 0; i < merchantIds.length; i += PAGE_SIZE) {
+  for (let i = 0; i < merchantIds.length; i += IN_BATCH_SIZE) {
     const shops = await db
       .from('marketplace_shops')
       .select('id, slug, clerk_user_id')
-      .in('id', merchantIds.slice(i, i + PAGE_SIZE))
+      .in('id', merchantIds.slice(i, i + IN_BATCH_SIZE))
     if (shops.error) {
       errors += 1
       continue
@@ -265,17 +301,24 @@ async function loadCandidates(): Promise<{ candidates: Candidate[]; truncated: b
 /** Milestones already delivered or claimed, so the sweep skips the work rather than
  *  relying on the unique-violation path for every merchant on every run. The constraint
  *  is still what GUARANTEES once-only — this is an optimisation, not the guard. */
-async function loadClaimed(): Promise<{ byMerchant: Map<string, Set<string>>; errors: number }> {
+async function loadClaimed(): Promise<{
+  byMerchant: Map<string, Set<string>>
+  errors: number
+  truncated: boolean
+}> {
   const byMerchant = new Map<string, Set<string>>()
   const paged = await readPaged('merchant_lifecycle_emissions', 'merchant_id, event_type')
-  if (paged.errors > 0) return { byMerchant, errors: paged.errors }
+  if (paged.errors > 0) return { byMerchant, errors: paged.errors, truncated: paged.truncated }
   for (const row of paged.rows) {
     const id = String(row?.merchant_id ?? '')
     if (!id) continue
     if (!byMerchant.has(id)) byMerchant.set(id, new Set())
     byMerchant.get(id)!.add(String(row?.event_type ?? ''))
   }
-  return { byMerchant, errors: 0 }
+  // A truncated claim map means some milestones look unclaimed and get re-attempted.
+  // The PK still guarantees once-only, so this is wasted Medusa calls rather than a
+  // correctness bug — but the run is partial and must say so (fresh-reviewer pass).
+  return { byMerchant, errors: 0, truncated: paged.truncated }
 }
 
 /**
@@ -294,10 +337,19 @@ async function countLiveProductsFromMedusa(sellerSlug: string): Promise<number |
       signal: AbortSignal.timeout(MEDUSA_TIMEOUT_MS),
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { products?: unknown[]; listings?: unknown[] }
+    const data = (await res.json()) as {
+      products?: unknown[]
+      listings?: unknown[]
+      count?: number
+    }
     const items = data.products ?? data.listings
     if (!Array.isArray(items)) return null
-    return items.length
+    // The route paginates (default limit 20) and returns the TRUE total alongside the
+    // page. `items.length` would cap the reported count at 20 — harmless for the >= 3
+    // threshold, but the number is shipped to Golden Beans as `product_count` and
+    // forwarded verbatim to every destination, so it has to be right (fresh-reviewer
+    // pass). Falls back to the page length only if the route stops sending `count`.
+    return typeof data.count === 'number' ? data.count : items.length
   } catch {
     return null
   }
@@ -404,6 +456,7 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
 
   const claimed = await loadClaimed()
   result.errors += claimed.errors
+  result.truncated ||= claimed.truncated
   // Without the claim map we cannot skip safely; the constraint would still prevent a
   // duplicate, but we would hammer Medusa for every merchant on every run.
   if (claimed.errors > 0) return result

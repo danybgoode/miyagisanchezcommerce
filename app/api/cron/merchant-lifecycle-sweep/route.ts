@@ -31,7 +31,20 @@ export async function GET(req: NextRequest) {
   if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const result = await sweepMerchantLifecycle()
+  // `sweepMerchantLifecycle` documents itself as never throwing, but that holds only
+  // when Supabase is configured: `lib/supabase.ts` returns a STUB client when the env
+  // vars are absent, and the stub implements neither `.range()` nor `.not()`, so the
+  // sweep dies with a TypeError instead (fresh-reviewer pass, PR 298). Without this
+  // wrapper a misconfigured deploy answers a raw 500 rather than the deliberate,
+  // retryable 503 — and the whole point of the status codes here is that they mean
+  // something to whatever is scheduling this.
+  let result: Awaited<ReturnType<typeof sweepMerchantLifecycle>>
+  try {
+    result = await sweepMerchantLifecycle()
+  } catch (err) {
+    console.error('[merchant-lifecycle] sweep threw:', err)
+    return NextResponse.json({ ok: false, error: 'Sweep unavailable' }, { status: 503 })
+  }
 
   // `ok` reflects whether the run was COMPLETE, not merely whether it returned. A run
   // that hit read failures or stopped at the hard cap did partial work, and reporting
