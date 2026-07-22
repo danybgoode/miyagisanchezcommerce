@@ -101,6 +101,12 @@ async function readPaged(
 }
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+
+/** Per-request budget for a Medusa read. Without it, a backend that accepts the
+ *  connection and never answers stalls the WHOLE cron on one merchant: every later
+ *  merchant goes unchecked and the 503 this route exists to return is never returned,
+ *  because the platform kills the request first (cross-review round 5). */
+const MEDUSA_TIMEOUT_MS = 10_000
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export interface SweepResult {
@@ -264,6 +270,7 @@ async function countLiveProductsFromMedusa(sellerSlug: string): Promise<number |
     const res = await fetch(`${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerSlug)}/products`, {
       headers: medusaHeaders(),
       cache: 'no-store',
+      signal: AbortSignal.timeout(MEDUSA_TIMEOUT_MS),
     })
     if (!res.ok) return null
     const data = (await res.json()) as { products?: unknown[]; listings?: unknown[] }
@@ -294,7 +301,11 @@ async function listCapturedOrders(
   try {
     const res = await fetch(
       `${MEDUSA_BASE}/internal/sellers/orders?seller_slug=${encodeURIComponent(sellerSlug)}`,
-      { headers: { 'x-internal-secret': INTERNAL_SECRET }, cache: 'no-store' },
+      {
+        headers: { 'x-internal-secret': INTERNAL_SECRET },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(MEDUSA_TIMEOUT_MS),
+      },
     )
     if (!res.ok) return null
     const data = (await res.json()) as { orders?: Array<{ created_at?: string; status?: string }> }
@@ -344,7 +355,12 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
       )
       if (outcome === 'delivered') result.drained += 1
       else if (outcome === 'flag_off') result.telemetryOff = true
-      else result.errors += 1
+      else {
+        // Includes 'delivered_unrecorded': golden-beans has it, we could not record
+        // that. Harmless to re-send (the idempotency key dedupes), but the run is not
+        // clean and must not be reported as such.
+        result.errors += 1
+      }
     } catch {
       result.errors += 1
     }
@@ -469,9 +485,18 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
         // silence thereafter would have emitted `retained_30d` on July 31, describing a
         // merchant who churned on day 3 as retained (cross-review round 2). Pending and
         // refunded orders are already excluded by `isCapturedOrder`, upstream.
-        if (!times.some((t) => t >= thirtyDayMark)) continue
+        // The EARLIEST order at or after the mark is when retention actually happened.
+        // `now` would permanently stamp the sweep's own run time — and because the
+        // outbox allows one emission per milestone, a sweep recovering an August
+        // retention in October would have recorded October, forever (cross-review
+        // round 5). The timestamp is right here; there is no excuse for guessing.
+        const qualifying = times.find((t) => t >= thirtyDayMark)
+        if (qualifying === undefined) continue
 
-        if (record(await emitMerchantLifecycle('merchant.retained_30d', { merchantId, occurredAt: now }), result)) {
+        if (record(await emitMerchantLifecycle('merchant.retained_30d', {
+          merchantId,
+          occurredAt: new Date(qualifying),
+        }), result)) {
           result.retained30d += 1
         }
       } catch {
