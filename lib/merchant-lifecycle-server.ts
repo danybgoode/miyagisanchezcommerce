@@ -223,11 +223,15 @@ export async function deliverClaimedEmission(
   attempts = 0,
 ): Promise<DeliveryOutcome> {
   // The flag is checked HERE, not before the claim. A claim skipped because telemetry
-  // was off would lose the milestone forever — `growth.telemetry_enabled` is OFF in
-  // production today, so a pre-claim check would have discarded every approval, claim
-  // and first sale until the day someone flipped it (cross-review round 2). Claiming
-  // always and sending conditionally means the outbox simply fills while the flag is
-  // off, and the sweep drains it the moment it is turned on.
+  // was off would lose the milestone forever: nothing revisits a moment that already
+  // passed. Claiming always and sending conditionally means the outbox simply fills
+  // while the flag is off and the sweep drains it once it is on (cross-review round 2).
+  //
+  // `growth.telemetry_enabled` defaults to FALSE in code (lib/flags.ts DEFAULT_FLAGS)
+  // and is currently TRUE in production — flipped 2026-07-14, verified live against
+  // platform_flags. An earlier version of this comment claimed it was off in prod; it
+  // was not, and the distinction matters: emission is LIVE, so anything claimed here is
+  // actually sent to Golden Beans rather than merely queued.
   if (!(await isEnabled('growth.telemetry_enabled'))) return 'flag_off'
 
   let sent = false
