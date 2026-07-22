@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ESTADO_NAMES } from '@/lib/mx-locations'
 import ListingStep from './ListingStep'
 import PrintAdStep from './PrintAdStep'
+import PreviewStep from './PreviewStep'
 
 type Bound = { code: string; name: string | null } | null
 type Shop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null }
@@ -26,12 +27,17 @@ type Transfer = {
  * Sprint 4 · US-4.1), (4) hand off the WhatsApp claim link.
  * Thin screens over /api/promoter/{me/bind,shop/setup,close/<sku>,close/transfer/*,claim/link}.
  */
-export default function PromoterCloseClient({ bound: initialBound, transferEnabled }: { bound: Bound; transferEnabled: boolean }) {
+export default function PromoterCloseClient({ bound: initialBound, transferEnabled, previewEnabled }: { bound: Bound; transferEnabled: boolean; previewEnabled: boolean }) {
   const [bound, setBound] = useState<Bound>(initialBound)
   const [shop, setShop] = useState<Shop | null>(null)
 
   if (!bound) return <BindStep onBound={setBound} />
 
+  // When private previews are ON, the shop is prepared privately: the promoter
+  // shares a preview link, the merchant approves, then the promoter activates.
+  // The activation step slots in right after the listing step (where the products
+  // are added) and before the paid-SKU / hand-off steps.
+  let n = 1
   return (
     <div className="max-w-xl mx-auto px-4 py-8 space-y-8">
       <header>
@@ -43,10 +49,11 @@ export default function PromoterCloseClient({ bound: initialBound, transferEnabl
       </header>
 
       <SetupStep shop={shop} onShop={setShop} />
-      {shop && <ListingStep shop={shop} n={2} />}
-      {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} n={3} />}
-      {shop && <PrintAdStep shop={shop} n={4} />}
-      {shop && <HandoffStep shop={shop} n={5} />}
+      {shop && <ListingStep shop={shop} n={(n += 1)} />}
+      {shop && previewEnabled && <PreviewStep shop={shop} n={(n += 1)} />}
+      {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} n={(n += 1)} />}
+      {shop && <PrintAdStep shop={shop} n={(n += 1)} />}
+      {shop && <HandoffStep shop={shop} n={(n += 1)} />}
     </div>
   )
 }
