@@ -26,7 +26,7 @@ import { notFound } from 'next/navigation'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { listShopDraftsViaInternal } from '@/lib/seller-products'
-import { decidePreviewPrivacy, type AnchorState, type ClaimState } from '@/lib/preview-privacy-decision'
+import { decidePreviewPrivacy, isMirrorShopId, type AnchorState, type ClaimState } from '@/lib/preview-privacy-decision'
 export { canAnchorPreview } from '@/lib/promoter-close'
 import {
   generatePreviewToken,
@@ -127,6 +127,12 @@ export async function ensureShopPreviewReportingCreation(
 export async function readPreviewByShop(
   shopId: string,
 ): Promise<{ preview: MerchantPreview | null; error: boolean }> {
+  // Defense in depth: `merchant_previews.shop_id` is a UUID column, so a non-UUID
+  // shopId (a stray Medusa `sel_…` seller id) would throw `22P02` on the query.
+  // Report that as a READ ERROR (fail-closed for the guards that consume this)
+  // rather than letting the throw surface — the callers now pass mirror UUIDs, so
+  // this only ever catches a mis-shaped id, and does so safely without log spam.
+  if (!isMirrorShopId(shopId)) return { preview: null, error: true }
   const { data, error } = await db
     .from('merchant_previews')
     .select('id, shop_id, status, current_version, created_by')
@@ -196,8 +202,17 @@ export async function isShopPreviewPrivateForShop(
   // Supabase blip.
   if (shop.clerk_user_id) return false
 
-  // Unclaimed → resolve the mirror id if we weren't given it.
-  let shopId = shop.id ?? null
+  // Unclaimed → resolve the mirror id if we weren't given a usable one.
+  //
+  // Only a UUID-shaped `shop.id` is trusted as the mirror id. Every public read
+  // surface (embed, shop sub-pages, collections) passes a `getShop` object whose
+  // `.id` is the Medusa SELLER id (`sel_…`), NOT the mirror UUID that
+  // `merchant_previews.shop_id` keys on. Feeding `sel_…` into that UUID column
+  // throws `22P02 invalid input syntax for type uuid`, so the anchor read errored,
+  // fell CLOSED, and 404'd every unclaimed shop's embed + sub-pages (live
+  // regression since S1). A non-UUID id is therefore treated as absent and the
+  // mirror id is resolved from the slug — the same path a slug-only caller takes.
+  let shopId = isMirrorShopId(shop.id) ? (shop.id as string) : null
   if (!shopId) {
     const clean = (shop.slug ?? '').trim()
     if (!clean) return false // no way to identify → nothing to hide

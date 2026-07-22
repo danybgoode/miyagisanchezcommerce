@@ -6,7 +6,7 @@ import {
   isWellFormedPreviewToken,
 } from '../lib/preview-token'
 import { isPromoterShopOwner, canAnchorPreview } from '../lib/promoter-close'
-import { decidePreviewPrivacy } from '../lib/preview-privacy-decision'
+import { decidePreviewPrivacy, isMirrorShopId } from '../lib/preview-privacy-decision'
 
 /**
  * Founding merchant consent-safe previews · Sprint 1 (api project: pure token
@@ -180,6 +180,34 @@ test.describe('the happy path must not brick a merchant’s storefront', () => {
   })
 })
 
+test.describe('mirror-id gate — a Medusa seller id must never reach the UUID anchor query', () => {
+  // REGRESSION (found live 2026-07-22, flag ON): every public read surface passes a
+  // `getShop` object whose `.id` is the Medusa SELLER id (`sel_…`), not the mirror
+  // UUID. `merchant_previews.shop_id` is a UUID column, so a `sel_…` id threw 22P02,
+  // the anchor read failed closed, and EVERY unclaimed shop's embed + sub-pages
+  // 404'd. `isMirrorShopId` is the gate that stops a non-UUID id from being trusted
+  // as a mirror id (it resolves from the slug instead).
+
+  test('a canonical mirror UUID is accepted', () => {
+    expect(isMirrorShopId('a1b2c3d4-0000-4000-8000-000000000000')).toBe(true)
+    expect(isMirrorShopId('A1B2C3D4-0000-4000-8000-000000000000')).toBe(true) // case-insensitive
+  })
+
+  test('a Medusa seller id is REJECTED (the exact id that caused the 404)', () => {
+    expect(isMirrorShopId('sel_01KTRSSE1T6M9MNDBS430FPH5E')).toBe(false)
+  })
+
+  test('other non-UUID shapes are rejected', () => {
+    for (const bad of [null, undefined, '', 'not-a-uuid', 'prod_01ABC', '12345',
+      'a1b2c3d4-0000-4000-8000-00000000000',   // too short
+      'a1b2c3d4-0000-4000-8000-0000000000000', // too long
+      'g1b2c3d4-0000-4000-8000-000000000000',  // non-hex
+    ]) {
+      expect(isMirrorShopId(bad as unknown as string), String(bad)).toBe(false)
+    }
+  })
+})
+
 test.describe('preview routes — anonymous guards', () => {
   test('mint route never serves an anonymous caller', async ({ request }) => {
     const res = await request.post('/api/promoter/preview', { data: { slug: 'nonexistent-disposable-shop' } })
@@ -323,6 +351,9 @@ test.describe('every public shop-shell + PDP surface consults the preview anchor
       ['app/(shell)/s/[slug]/acerca/page.tsx', 'shop about'],
       ['app/(shell)/s/[slug]/faq/page.tsx', 'shop faq'],
       ['app/(shell)/s/[slug]/politicas/page.tsx', 'shop policies'],
+      ['app/(shell)/s/[slug]/c/[collection]/page.tsx', 'a shop collection'],
+      ['app/(shell)/s/[slug]/claim/page.tsx', 'the claim page'],
+      ['app/(shell)/s/[slug]/convocatoria/page.tsx', 'the convocatoria page'],
       ['app/(shell)/embed/s/[slug]/page.tsx', 'the embed widget'],
     ]
     const offenders: string[] = []
