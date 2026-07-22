@@ -35,6 +35,7 @@ import {
   getPreviewByShop,
 } from '@/lib/preview-access'
 import { checkActivation, markActivated } from '@/lib/preview-consent'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,9 +91,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, alreadyActivated: true })
   }
 
+  // Requires BOTH a current approval (S2.3) and a complete readiness checklist
+  // (S3.1) — an incomplete required item blocks activation, and the reason names
+  // the single next action.
   const gate = await checkActivation(preview)
   if (!gate.ok) {
-    return NextResponse.json({ ok: false, error: gate.reason }, { status: 409 })
+    return NextResponse.json({ ok: false, error: gate.reason, checklist: gate.checklist ?? [] }, { status: 409 })
   }
 
   // Canonical Medusa write FIRST. Publish the exact approved product set.
@@ -135,6 +139,16 @@ export async function POST(req: NextRequest) {
 
   revalidateTag('listings', 'default')
   revalidateTag('shops', 'default')
+
+  // Lifecycle telemetry (S3.1) — emitted ONLY here, after every canonical write
+  // (publish + anchor flip) succeeded. A failed/partial activation returns above
+  // and never emits, so `preview_activated` always means the shop really is public.
+  await emitPreviewEvent('preview_activated', {
+    shopId: shop.id,
+    previewId: preview.id,
+    version: preview.currentVersion,
+    productCount: productIds.length,
+  })
 
   return NextResponse.json({ ok: true, activated: true, published: productIds.length })
 }

@@ -16,7 +16,8 @@ import { getPromoterByClerkId, recordAttribution } from '@/lib/promoter'
 import { promoterSourceUrl } from '@/lib/promoter-close'
 import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
-import { ensureShopPreview, canAnchorPreview } from '@/lib/preview-access'
+import { ensureShopPreviewReportingCreation, canAnchorPreview } from '@/lib/preview-access'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import { db } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -177,15 +178,24 @@ export async function POST(req: NextRequest) {
     )
 
     if (anchorable) {
-      const preview = await ensureShopPreview(mirrorId, user.id).catch((e) => {
+      const anchored = await ensureShopPreviewReportingCreation(mirrorId, user.id).catch((e) => {
         console.error('[promoter/shop/setup] preview anchor failed:', e)
-        return null
+        return { preview: null, created: false }
       })
-      if (!preview) {
+      if (!anchored.preview) {
         return NextResponse.json(
           { ok: false, error: 'La tienda se creó pero no se pudo marcar como privada. Inténtalo de nuevo antes de compartirla.' },
           { status: 500 },
         )
+      }
+      // Lifecycle telemetry (S3.1) — AFTER the canonical anchor write succeeded,
+      // and only for a genuinely new anchor. Never fails the close.
+      if (anchored.created) {
+        await emitPreviewEvent('preview_created', {
+          shopId: mirrorId,
+          previewId: anchored.preview.id,
+          version: anchored.preview.currentVersion,
+        })
       }
     }
   }

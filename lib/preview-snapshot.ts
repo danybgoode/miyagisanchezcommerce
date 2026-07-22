@@ -48,25 +48,76 @@ export const MATERIAL_SHOP_FIELDS = ['shopName', 'shopSlug'] as const
  * price/image normalize to JSON `null` so `null` and `undefined` can't produce two
  * different hashes for the same proposal.
  */
+/**
+ * The canonical encoding of ONE product's material fields. Extracted so the
+ * snapshot hash and the resumability check below can never drift apart about what
+ * "the same product, unchanged" means.
+ *
+ * Encoded STRUCTURALLY via JSON, not string-concatenated: concatenation makes field
+ * boundaries ambiguous (title "AB" + price "1" would canonicalize identically to
+ * title "A" + price "B1"), which would let a real material edit hash the same as the
+ * approved snapshot and slip past invalidation. JSON.stringify escapes the
+ * separators, so every boundary is unambiguous.
+ */
+function encodeProduct(p: SnapshotProduct): string {
+  return JSON.stringify([
+    p.id ?? '',
+    p.title ?? '',
+    p.priceCents === null || p.priceCents === undefined ? null : p.priceCents,
+    (p.currency ?? 'MXN').toUpperCase(),
+    p.imageUrl ?? null,
+  ])
+}
+
 export function canonicalizeSnapshot(snapshot: PreviewSnapshot): string {
-  // Encoded STRUCTURALLY via JSON, not string-concatenated: concatenation makes
-  // field boundaries ambiguous (title "AB" + price "1" would canonicalize
-  // identically to title "A" + price "B1"), which would let a real material edit
-  // hash the same as the approved snapshot and slip past invalidation.
-  // JSON.stringify escapes the separators, so every boundary is unambiguous.
   const products = [...(snapshot.products ?? [])]
-    .map((p) => JSON.stringify([
-      p.id ?? '',
-      p.title ?? '',
-      p.priceCents === null || p.priceCents === undefined ? null : p.priceCents,
-      (p.currency ?? 'MXN').toUpperCase(),
-      p.imageUrl ?? null,
-    ]))
+    .map(encodeProduct)
     // Sort on the encoded form so ordering is total + deterministic: a pure
     // reordering of the same set is cosmetic (same merchant-reviewed proposal),
     // while an added/removed/edited product changes the encoding.
     .sort()
   return JSON.stringify([snapshot.shopName ?? '', snapshot.shopSlug ?? '', products])
+}
+
+/**
+ * Is the LIVE proposal explainable as the APPROVED one minus products that were
+ * already published — i.e. is this a resumable partial activation rather than a
+ * promoter edit?
+ *
+ * Why this exists: the live snapshot is built from the shop's DRAFT products, so
+ * activation consumes it — every product we publish disappears from it. Without
+ * this rule, any activation that fails partway (or whose final anchor flip fails)
+ * leaves the live hash permanently different from the approved hash, and
+ * `canActivate` refuses forever with "la propuesta cambió". That is precisely the
+ * stuck state Sprint 2.3's "failed partial writes can replay safely" forbids: after
+ * all products publish but the anchor flip fails, the live set is EMPTY and the
+ * preview can never be activated again.
+ *
+ * The rule is deliberately one-directional and strict: every product still in the
+ * live set must exist in the approved set with byte-identical material fields, and
+ * shop identity must be unchanged. So a real edit — a changed title/price/image, a
+ * currency change, or an ADDED product — is still material and still invalidates.
+ *
+ * KNOWN, ACCEPTED LIMIT: a product REMOVED by a promoter is indistinguishable from
+ * one we published, so it would not invalidate approval on this path. That is safe
+ * today because no promoter-facing delete path exists for a previewed shop (the
+ * only writer is close/listing, which adds), and publishing a strict subset of what
+ * the merchant approved never publishes anything they did not approve. If a delete
+ * path is ever added, it must invalidate the approval explicitly at the call site.
+ */
+export function isResumableActivation(approved: PreviewSnapshot, live: PreviewSnapshot): boolean {
+  if ((approved.shopName ?? '') !== (live.shopName ?? '')) return false
+  if ((approved.shopSlug ?? '') !== (live.shopSlug ?? '')) return false
+
+  const approvedById = new Map((approved.products ?? []).map((p) => [p.id, p]))
+  for (const liveProduct of live.products ?? []) {
+    const approvedProduct = approvedById.get(liveProduct.id)
+    // A product the merchant never approved ⇒ a real addition, not a resume.
+    if (!approvedProduct) return false
+    // A product whose material fields changed ⇒ a real edit, not a resume.
+    if (encodeProduct(approvedProduct) !== encodeProduct(liveProduct)) return false
+  }
+  return true
 }
 
 /**

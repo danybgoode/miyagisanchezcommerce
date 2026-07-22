@@ -14,6 +14,7 @@ import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { resolvePreviewByToken, markPreviewDelivered } from '@/lib/preview-access'
 import { readApprovalState } from '@/lib/preview-consent'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import PreviewDecision from './PreviewDecision'
 import type { Metadata } from 'next'
 
@@ -51,7 +52,17 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
 
   // Opening the private link is "delivered". Advances a still-draft anchor only —
   // never rewinds a more-advanced status. Best-effort; render regardless.
-  await markPreviewDelivered(preview.id).catch(() => undefined)
+  const justDelivered = await markPreviewDelivered(preview.id).catch(() => false)
+  // Lifecycle telemetry (S3.1) — after the canonical status write, and only on the
+  // real draft → delivered transition, so a re-open never re-emits.
+  if (justDelivered) {
+    await emitPreviewEvent('preview_delivered', {
+      shopId: preview.shopId,
+      previewId: preview.id,
+      version: preview.currentVersion,
+      productCount: state.snapshot.products.length,
+    })
+  }
 
   const products = state.snapshot.products
   const approved = state.approvedHash !== null && !state.stale

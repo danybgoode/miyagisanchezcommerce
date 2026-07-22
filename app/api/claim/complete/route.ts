@@ -22,6 +22,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { verifyClaimToken } from '@/lib/claimJwt'
 import { tg } from '@/lib/telegram'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
@@ -132,6 +133,14 @@ export async function POST(req: NextRequest) {
   // (not found) and 409 (already claimed) branches return earlier, so a re-claim
   // never re-pings. Location isn't in the claim token → pass null.
   tg.newShop(payload.shopName, null, slug)
+
+  // Consent-previews lifecycle telemetry (S3.1) — the claim is the last canonical
+  // transition in the founding-merchant funnel. Emitted after ownership actually
+  // transferred, keyed on the mirror id only (no name, email or token). Skipped
+  // when the mirror row couldn't be resolved — there is no non-PII subject then.
+  if (mirrorRow) {
+    await emitPreviewEvent('shop_claimed', { shopId: mirrorRow.id as string })
+  }
 
   return NextResponse.json({
     ok: true,

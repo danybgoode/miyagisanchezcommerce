@@ -97,6 +97,28 @@ export async function ensureShopPreview(
 }
 
 /**
+ * `ensureShopPreview`, but reporting whether the anchor was CREATED by this call —
+ * so a caller can emit the `preview_created` lifecycle event exactly once instead of
+ * on every idempotent re-ensure (Sprint 3.1).
+ *
+ * The pre-read makes this best-effort, not exact: two concurrent creators can both
+ * see "absent" and both report `created: true`. That costs at most a duplicate
+ * telemetry event — never a duplicate anchor (the unique index still holds) — which
+ * is the right trade for an observability signal that must not add a write.
+ *
+ * AUTHORIZATION IS STILL THE CALLER'S JOB (see `ensureShopPreview`).
+ */
+export async function ensureShopPreviewReportingCreation(
+  shopId: string,
+  createdBy: string,
+): Promise<{ preview: MerchantPreview | null; created: boolean }> {
+  const existing = await getPreviewByShop(shopId)
+  if (existing) return { preview: existing, created: false }
+  const preview = await ensureShopPreview(shopId, createdBy)
+  return { preview, created: preview !== null }
+}
+
+/**
  * Read a shop's preview anchor. Returns `{ preview: null }` when the shop has no
  * anchor, and `{ error: true }` when the READ ITSELF failed — the two are
  * DISTINCT so callers can fail closed on an error rather than treating a DB blip

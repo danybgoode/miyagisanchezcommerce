@@ -41,13 +41,14 @@ import { createSellerProductViaInternal } from '@/lib/seller-products'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { CATALOG_CATEGORY_KEYS } from '@/lib/catalog-import'
 import {
-  ensureShopPreview,
+  ensureShopPreviewReportingCreation,
   getPreviewByShop,
   canAnchorPreview,
   shopMustStayPrivate,
   shopHasPublicListings,
 } from '@/lib/preview-access'
 import { invalidateIfMaterialChange } from '@/lib/preview-consent'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,17 +137,26 @@ export async function POST(req: NextRequest) {
     // promoter-created and unclaimed: an anchor on a product-less shop of that
     // kind is the correct state, not a stranded one — whereas creating the
     // product first would leave an untracked draft that a retry duplicates.
-    const preview = await ensureShopPreview(shop.id, user.id)
-    if (!preview) {
+    const anchored = await ensureShopPreviewReportingCreation(shop.id, user.id)
+    if (!anchored.preview) {
       return NextResponse.json(
         { ok: false, error: 'No se pudo preparar la vista previa privada. Inténtalo de nuevo.' },
         { status: 500 },
       )
     }
+    // Lifecycle telemetry (S3.1) — only for a genuinely new anchor, after the
+    // canonical write. Never fails the listing.
+    if (anchored.created) {
+      await emitPreviewEvent('preview_created', {
+        shopId: shop.id,
+        previewId: anchored.preview.id,
+        version: anchored.preview.currentVersion,
+      })
+    }
     // An ALREADY-ACTIVATED shop is public and out of the consent flow — creating a
     // hidden draft against it would strand a product nobody can see and mint a
     // preview link that always 404s. Fall back to the ordinary publish path.
-    if (preview.status === 'activated') privatePreview = false
+    if (anchored.preview.status === 'activated') privatePreview = false
   }
 
   const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
@@ -202,7 +212,17 @@ export async function POST(req: NextRequest) {
   // fail the listing write that already succeeded.
   if (privatePreview) {
     const pv = await getPreviewByShop(shop.id)
-    if (pv) await invalidateIfMaterialChange(pv).catch(() => undefined)
+    if (pv) {
+      const outcome = await invalidateIfMaterialChange(pv).catch(() => ({ invalidated: false, reasons: [] }))
+      // Lifecycle telemetry (S3.1) — only when consent actually went stale.
+      if (outcome.invalidated) {
+        await emitPreviewEvent('preview_invalidated', {
+          shopId: shop.id,
+          previewId: pv.id,
+          version: pv.currentVersion,
+        })
+      }
+    }
   }
 
   revalidateTag('listings', 'default')
