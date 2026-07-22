@@ -24,10 +24,29 @@ const GROWTH_ENGINE_URL = process.env.GROWTH_ENGINE_URL
 const GROWTH_ENGINE_API_KEY = process.env.GROWTH_ENGINE_API_KEY
 
 export async function sendGrowthEvent(input: GrowthTrackInput): Promise<void> {
-  if (!GROWTH_ENGINE_URL || !GROWTH_ENGINE_API_KEY) return // silently skip if not configured
+  await sendGrowthEventWithResult(input)
+}
+
+/**
+ * Same call, but REPORTS whether golden-beans accepted it.
+ *
+ * `sendGrowthEvent` above is deliberately blind: setup-guide funnel telemetry is
+ * observability, and there is nothing a caller could usefully do about a failure.
+ * The merchant-lifecycle emitter (lib/merchant-lifecycle-server.ts) is different —
+ * it claims a once-only emission slot BEFORE sending, so it has to know whether to
+ * release that slot again. A silently-swallowed failure there would burn the
+ * milestone permanently: the claim row would say "already emitted" forever while
+ * golden-beans never received anything.
+ *
+ * Returns false when unconfigured, when the request throws, and on any non-2xx —
+ * a 401 from a rotated key or a 400 from a rejected context is exactly the case
+ * that must not be mistaken for a delivered event.
+ */
+export async function sendGrowthEventWithResult(input: GrowthTrackInput): Promise<boolean> {
+  if (!GROWTH_ENGINE_URL || !GROWTH_ENGINE_API_KEY) return false // silently skip if not configured
 
   try {
-    await fetch(`${GROWTH_ENGINE_URL}/api/v1/track`, {
+    const res = await fetch(`${GROWTH_ENGINE_URL}/api/v1/track`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -36,7 +55,9 @@ export async function sendGrowthEvent(input: GrowthTrackInput): Promise<void> {
       body: JSON.stringify(input),
       signal: AbortSignal.timeout(5000), // 5s timeout — never block the request path
     })
+    return res.ok
   } catch {
     // Intentionally swallowed — growth telemetry is observability, not critical path
+    return false
   }
 }

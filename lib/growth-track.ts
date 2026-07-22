@@ -14,6 +14,16 @@ export interface GrowthTrackInput {
   featureId?: string
   tags?: Record<string, unknown>
   metadata?: Record<string, unknown>
+  /**
+   * The versioned actor/subject context (golden-beans event-destination-router
+   * Story 1.1). Additive and optional — every existing caller stays valid, and
+   * `userId` above stays required. Callers that set it MUST include
+   * `version: 1`: golden-beans rejects a context with an absent or unknown
+   * version rather than guessing, and REFUSES unknown top-level keys rather
+   * than dropping them (a silently-dropped subject is an honest-looking zero
+   * in every downstream projection).
+   */
+  context?: Record<string, unknown>
 }
 
 export type GrowthTrackDecision =

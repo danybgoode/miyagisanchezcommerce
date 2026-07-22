@@ -23,6 +23,7 @@ import { db } from '@/lib/supabase'
 import { verifyClaimToken } from '@/lib/claimJwt'
 import { tg } from '@/lib/telegram'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
+import { emitMerchantLifecycle } from '@/lib/merchant-lifecycle-server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
@@ -140,6 +141,11 @@ export async function POST(req: NextRequest) {
   // when the mirror row couldn't be resolved — there is no non-PII subject then.
   if (mirrorRow) {
     await emitPreviewEvent('shop_claimed', { shopId: mirrorRow.id as string })
+    // The same moment as a merchant lifecycle fact (event-destination-router S3.1),
+    // carrying the merchant subject Golden Beans routes the delivery back on. Once
+    // per merchant — the earlier 404/409 branches already prevent a re-claim, and the
+    // emission claim covers the rest.
+    await emitMerchantLifecycle('merchant.claimed', { merchantId: mirrorRow.id as string })
   }
 
   return NextResponse.json({

@@ -22,6 +22,7 @@ import { isEnabled } from '@/lib/flags'
 import { resolvePreviewWithGrantByToken } from '@/lib/preview-access'
 import { recordDecision } from '@/lib/preview-consent'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
+import { emitMerchantLifecycle } from '@/lib/merchant-lifecycle-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,6 +95,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       shopId: resolved.preview.shopId,
       previewId: resolved.preview.id,
       version: resolved.preview.currentVersion + 1,
+    })
+    // …and the same moment as a MERCHANT LIFECYCLE fact (event-destination-router
+    // S3.1). Distinct from the line above on purpose: `preview_approved` is this
+    // epic's own funnel telemetry, while `merchant.preview_approved` carries
+    // `subject: {type:'merchant'}` and is what Golden Beans delivers back into the
+    // Miyagi projection. Emitted once per merchant, guarded by a unique constraint.
+    await emitMerchantLifecycle('merchant.preview_approved', {
+      merchantId: resolved.preview.shopId,
+      correlationId: resolved.preview.id,
     })
   }
 
