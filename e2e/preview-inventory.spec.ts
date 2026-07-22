@@ -22,6 +22,7 @@ const shop = (over: Partial<InventoryShop> = {}): InventoryShop => ({
   name: 'Panadería Lupita',
   sourceUrl: 'promoter://PRM-ABC/panaderia-lupita',
   clerkUserId: null,
+  hasMedusaSeller: true,
   publicListingCount: 3,
   hasAnchor: false,
   anchorStatus: null,
@@ -78,6 +79,30 @@ test.describe('review categories', () => {
   test('public + unclaimed but NOT promoter-made is its own bucket', () => {
     expect(categorizeShop(shop({ sourceUrl: 'https://example.com/x' })).category).toBe('public_unclaimed_other')
     expect(categorizeShop(shop({ sourceUrl: null })).category).toBe('public_unclaimed_other')
+  })
+
+  test('a shop with NO Medusa seller is orphan_no_seller — structurally invisible', () => {
+    expect(categorizeShop(shop({ hasMedusaSeller: false })).category).toBe('orphan_no_seller')
+  })
+
+  test('REGRESSION: mirror "active" listings do NOT make a seller-less row look public', () => {
+    // The exact 2026-07-22 incident: 154 orphan rows carried publicListingCount>0
+    // in the drifted mirror yet 404'd everywhere because they had no Medusa seller.
+    // The seller check must win over the mirror count.
+    const orphan = categorizeShop(shop({ hasMedusaSeller: false, publicListingCount: 9, sourceUrl: 'https://maps.google.com/x' }))
+    expect(orphan.category).toBe('orphan_no_seller')
+    // A real seller with the same mirror count IS public — the count isn't ignored,
+    // it's just gated behind the structural precondition.
+    expect(categorizeShop(shop({ hasMedusaSeller: true, publicListingCount: 9, sourceUrl: 'https://maps.google.com/x' })).category)
+      .toBe('public_unclaimed_other')
+  })
+
+  test('the seller check never overrides claim or anchor state', () => {
+    // A claimed or in-flow shop is decided before the seller check, so a transient
+    // missing-seller reading can't misclassify a real merchant's shop.
+    expect(categorizeShop(shop({ hasMedusaSeller: false, clerkUserId: 'user_1' })).category).toBe('merchant_owned')
+    expect(categorizeShop(shop({ hasMedusaSeller: false, hasAnchor: true, anchorStatus: 'approved' })).category).toBe('in_consent_flow')
+    expect(categorizeShop(shop({ hasMedusaSeller: false, hasAnchor: true, anchorStatus: 'activated' })).category).toBe('activated_via_consent')
   })
 })
 

@@ -57,6 +57,7 @@ type ShopRow = {
   name: string | null
   source_url: string | null
   clerk_user_id: string | null
+  metadata: Record<string, unknown> | null
   updated_at: string | null
   created_at: string | null
 }
@@ -65,7 +66,7 @@ type AnchorRow = { shop_id: string | null; status: string | null }
 
 async function main() {
   const [shops, listings, anchors] = await Promise.all([
-    selectAll<ShopRow>('marketplace_shops', 'id,slug,name,source_url,clerk_user_id,updated_at,created_at'),
+    selectAll<ShopRow>('marketplace_shops', 'id,slug,name,source_url,clerk_user_id,metadata,updated_at,created_at'),
     selectAll<ListingRow>('marketplace_listings', 'shop_id,status,updated_at'),
     selectAll<AnchorRow>('merchant_previews', 'shop_id,status').catch(() => {
       // The S1/S2 tables may not exist yet in an environment where the migration
@@ -96,6 +97,10 @@ async function main() {
     name: s.name ?? '',
     sourceUrl: s.source_url,
     clerkUserId: s.clerk_user_id,
+    // Medusa owns publication, so a shop with no Medusa seller is structurally
+    // invisible regardless of what the mirror's listing rows say.
+    hasMedusaSeller: typeof (s.metadata as Record<string, unknown> | null)?.medusa_seller_id === 'string'
+      && String((s.metadata as Record<string, unknown>).medusa_seller_id).length > 0,
     publicListingCount: publicCount.get(s.id) ?? 0,
     hasAnchor: anchorByShop.has(s.id),
     anchorStatus: anchorByShop.get(s.id) ?? null,
