@@ -23,7 +23,7 @@ import {
   cleanEmail,
   isValidEmail,
   safeCompare,
-} from '@/lib/sweepstakes'
+} from '@/lib/verification-crypto'
 
 /** How an approval code may be delivered. Never SMS (see sprint-4.md). */
 export type VerificationChannel = 'email' | 'whatsapp'

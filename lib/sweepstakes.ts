@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto'
+import { createHash, randomBytes, randomInt } from 'crypto'
 import { db } from '@/lib/supabase'
 import { normalizeLocale, type Locale } from '@/lib/dictionary'
 import { SHORTLINK_ORIGIN } from '@/lib/shortlink'
@@ -18,42 +18,18 @@ import type {
 } from '@/lib/sweepstakes-types'
 
 const CODE_TTL_MS = 15 * 60 * 1000
-const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
-function secret(): string {
-  return process.env.SWEEPSTAKES_HASH_SECRET
-    ?? process.env.CLERK_SECRET_KEY
-    ?? process.env.MEDUSA_INTERNAL_SECRET
-    ?? 'dev-sweepstakes-secret'
-}
-
-export function cleanEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
-
-export function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail(email))
-}
-
-export function hashSweepstakesEmail(email: string): string {
-  return createHmac('sha256', secret()).update(cleanEmail(email)).digest('hex')
-}
-
-export function hashVerificationCode(scopeId: string, emailHash: string, code: string): string {
-  return createHmac('sha256', secret()).update(`${scopeId}:${emailHash}:${code.trim().toUpperCase()}`).digest('hex')
-}
-
-export function safeCompare(a: string, b: string): boolean {
-  const ab = Buffer.from(a)
-  const bb = Buffer.from(b)
-  return ab.length === bb.length && timingSafeEqual(ab, bb)
-}
-
-export function makeCode(): string {
-  let out = ''
-  for (let i = 0; i < 6; i++) out += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]
-  return out
-}
+// The email/code crypto moved to the leaf module lib/verification-crypto.ts (no
+// server-only / db / dictionary), so a Playwright `api` spec can import it directly.
+// Re-exported here so every existing sweepstakes/launchpad caller is unchanged.
+export {
+  cleanEmail,
+  isValidEmail,
+  hashSweepstakesEmail,
+  hashVerificationCode,
+  safeCompare,
+  makeCode,
+} from '@/lib/verification-crypto'
 
 export function verificationCodeMatches(scopeId: string, emailHash: string, code: string, expectedHash: string): boolean {
   return safeCompare(hashVerificationCode(scopeId, emailHash, code), expectedHash)
