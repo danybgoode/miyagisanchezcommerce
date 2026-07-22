@@ -96,12 +96,18 @@ export async function readApprovalState(preview: MerchantPreview): Promise<Appro
   let approvedSnapshot: PreviewSnapshot | null = null
   let approvedVerifiedVia: 'email' | 'whatsapp' | null = null
   if (approvedHash !== null) {
+    // Multiple approved decisions can share the same snapshot hash (e.g. a merchant
+    // re-approves the same proposal after a verified re-approval). Prefer the most
+    // recent, and among those, a VERIFIED one — so a stale unverified row can't be
+    // selected and wrongly block activation (cross-agent review, 2026-07-22). NULLS
+    // LAST on verified_via puts a verified row ahead of an unverified one.
     const { data: decision } = await db
       .from('merchant_preview_decisions')
       .select('snapshot, verified_via')
       .eq('preview_id', preview.id)
       .eq('decision', 'approved')
       .eq('snapshot_hash', approvedHash)
+      .order('verified_via', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()

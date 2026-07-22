@@ -95,6 +95,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       currentSnapshotHash: expectedHash,
       presentedCode: code,
     })
+    // ACCEPTED degradation (cross-agent review, 2026-07-22): the code is consumed
+    // atomically HERE, before recordDecision below. If recordDecision then fails (a
+    // rare DB error), the code is spent with no approval recorded and the merchant
+    // must request a fresh code. Consume-first is deliberate: it is what makes the
+    // consume a single-winner under concurrency (the atomic RPC). Recording first
+    // would let a racing request consume the same code against a different decision.
     if (!consumed.ok) {
       const message =
         consumed.reason === 'stale_snapshot'

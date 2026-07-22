@@ -65,11 +65,19 @@ export default async function PreviewPage({ params }: { params: Promise<{ token:
   }
 
   const products = state.snapshot.products
-  const approved = state.approvedHash !== null && !state.stale
   const changesRequested = preview.status === 'changes_requested'
   // S4: when verified approval is enforced, the approve control becomes a two-step
   // get-code → enter-code flow.
   const verifiedApprovalEnabled = await isEnabled('promoter.preview_verified_approval_enabled')
+  // An approval only counts as "done" (hiding the approve controls) if it is
+  // current AND — under enforcement — actually merchant-verified. Without this, a
+  // legacy/unverified approval made before the flag turned ON would show the "done"
+  // state and hide the controls, while `checkActivation` refuses to activate it —
+  // an un-resolvable deadlock. Showing the controls lets the merchant re-approve
+  // with a code (cross-agent review, 2026-07-22).
+  const approved =
+    state.approvedHash !== null && !state.stale &&
+    (!verifiedApprovalEnabled || state.approvedVerifiedVia !== null)
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">

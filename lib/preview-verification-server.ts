@@ -27,10 +27,10 @@ import type { MerchantPreview } from '@/lib/preview-access'
 import { readApprovalState } from '@/lib/preview-consent'
 import {
   issueApprovalCode,
-  verifyApprovalCode,
+  approvalCodeScope,
+  hashPresentedCode,
   resolveDeliveryTarget,
   APPROVAL_CODE_MAX_ATTEMPTS,
-  type StoredApprovalCode,
   type VerificationChannel,
 } from '@/lib/preview-verification'
 
@@ -124,52 +124,37 @@ export async function consumeApprovalCode(input: {
   currentSnapshotHash: string
   presentedCode: string
 }): Promise<ConsumeResult> {
-  const { data } = await db
-    .from('merchant_preview_approval_codes')
-    .select('id, snapshot_hash, code_hash, contact_hash, channel, attempts, expires_at, consumed_at')
-    .eq('preview_id', input.preview.id)
-    .is('consumed_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const stored: StoredApprovalCode | null = data
-    ? {
-        snapshot_hash: data.snapshot_hash as string,
-        code_hash: data.code_hash as string,
-        contact_hash: data.contact_hash as string,
-        attempts: (data.attempts as number) ?? 0,
-        expires_at: data.expires_at as string,
-        consumed_at: (data.consumed_at as string | null) ?? null,
-      }
-    : null
-
-  const outcome = verifyApprovalCode({
-    stored,
+  // ATOMIC verify-and-consume via the DB function. The app computes the expected
+  // code hash (it holds the HMAC secret) and hands it to the RPC, which does the
+  // compare + the state transition in ONE locked statement. This closes the
+  // read-then-update races a JS-side check has (cross-agent review, 2026-07-22):
+  //   * two requests can't both consume the same code,
+  //   * parallel wrong guesses each burn an attempt (no lost increments),
+  //   * an expired / stale / exhausted / already-consumed code can't be consumed.
+  const expectedHash = hashPresentedCode({
     previewId: input.preview.id,
-    currentSnapshotHash: input.currentSnapshotHash,
-    presentedCode: input.presentedCode,
+    snapshotHash: input.currentSnapshotHash,
+    code: input.presentedCode,
   })
 
-  if (!outcome.ok) {
-    // A real code that simply didn't match burns one attempt (brute-force ceiling).
-    // A structural rejection (expired / stale / absent) does not touch the counter.
-    if (data && outcome.reason === 'mismatch') {
-      await db
-        .from('merchant_preview_approval_codes')
-        .update({ attempts: ((data.attempts as number) ?? 0) + 1 })
-        .eq('id', data.id as string)
-    }
-    return outcome
+  const { data, error } = await db.rpc('consume_preview_approval_code', {
+    p_preview_id: input.preview.id,
+    p_snapshot_hash: input.currentSnapshotHash,
+    p_expected_hash: expectedHash,
+  })
+  if (error) return { ok: false, reason: 'no_code' } // fail closed — no approval
+
+  // The RPC returns a single row: { outcome, channel, contact_hash }.
+  const row = Array.isArray(data) ? data[0] : data
+  const outcome = (row?.outcome ?? 'no_code') as string
+  if (outcome === 'ok') {
+    return { ok: true, channel: row.channel as VerificationChannel, contactHash: row.contact_hash as string }
   }
-
-  // Consume on success — a code approves exactly once.
-  await db
-    .from('merchant_preview_approval_codes')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('id', (data as { id: string }).id)
-
-  return { ok: true, channel: (data as { channel: VerificationChannel }).channel, contactHash: (data as { contact_hash: string }).contact_hash }
+  const known = ['no_code', 'expired', 'too_many_attempts', 'stale_snapshot', 'mismatch'] as const
+  const reason = (known as readonly string[]).includes(outcome)
+    ? (outcome as (typeof known)[number])
+    : 'no_code'
+  return { ok: false, reason }
 }
 
 export { APPROVAL_CODE_MAX_ATTEMPTS }

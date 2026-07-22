@@ -36,13 +36,24 @@ export const APPROVAL_CODE_MAX_ATTEMPTS = 5
 
 /**
  * The scope a code is bound to. Encoding preview id + snapshot hash into the scope
- * means `hashVerificationCode` produces a DIFFERENT hash for the same code+contact
- * if the proposal changed — so a code issued for snapshot A cannot verify an
- * approval whose live snapshot is B. The whole point of versioned, verified consent.
+ * means the code hash is DIFFERENT if the proposal changed — so a code issued for
+ * snapshot A cannot verify an approval whose live snapshot is B, and a code for
+ * preview X cannot verify preview Y. The whole point of versioned, verified consent.
+ *
+ * Deliberately does NOT fold the contact into the hash: the code is delivered to a
+ * specific contact (recorded in the `contact_hash` COLUMN for provenance), and
+ * possession of the delivered code is the proof. Keeping contact out of the HASH is
+ * what lets the server compute the expected hash from request context alone
+ * (preview id + snapshot + code) and hand it to the atomic verify-and-consume RPC —
+ * no read-then-compute-then-update race.
  */
 export function approvalCodeScope(previewId: string, snapshotHash: string): string {
   return `preview-approval:${previewId}:${snapshotHash}`
 }
+
+/** Fixed placeholder for the shared `hashVerificationCode` contact slot — contact
+ *  is intentionally not part of the code hash (see `approvalCodeScope`). */
+const NO_CONTACT_IN_HASH = ''
 
 /** Hash a contact (email or E.164 phone) for provable-but-not-stored linkage. */
 export function hashContact(contact: string): string {
@@ -85,11 +96,25 @@ export function issueApprovalCode(input: {
   const code = makeCode()
   return {
     code,
-    codeHash: hashVerificationCode(scope, contactHash, code),
+    codeHash: hashVerificationCode(scope, NO_CONTACT_IN_HASH, code),
     contactHash,
     channel: input.channel,
     expiresAt: new Date(Date.now() + APPROVAL_CODE_TTL_MS).toISOString(),
   }
+}
+
+/**
+ * Compute the hash a PRESENTED code would have, for the (preview, snapshot,
+ * contact) it must match. The server passes this into the atomic
+ * `consume_preview_approval_code` RPC so the compare + state transition happen in
+ * one locked statement (no read-then-update race). Same HMAC as `issueApprovalCode`.
+ */
+export function hashPresentedCode(input: {
+  previewId: string
+  snapshotHash: string
+  code: string
+}): string {
+  return hashVerificationCode(approvalCodeScope(input.previewId, input.snapshotHash), NO_CONTACT_IN_HASH, input.code)
 }
 
 /** The stored code row, as the verify path reads it. */
@@ -132,8 +157,11 @@ export function verifyApprovalCode(input: {
   // code can't authorize approving the new one.
   if (s.snapshot_hash !== input.currentSnapshotHash) return { ok: false, reason: 'stale_snapshot' }
 
-  const scope = approvalCodeScope(input.previewId, input.currentSnapshotHash)
-  const expected = hashVerificationCode(scope, s.contact_hash, input.presentedCode)
+  const expected = hashPresentedCode({
+    previewId: input.previewId,
+    snapshotHash: input.currentSnapshotHash,
+    code: input.presentedCode,
+  })
   if (!safeCompare(expected, s.code_hash)) return { ok: false, reason: 'mismatch' }
   return { ok: true }
 }

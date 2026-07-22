@@ -175,6 +175,7 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // publish). Enablement: default OFF ⇒ today's force-publish; flip ON after a
   // disposable shop passes the full cross-channel privacy sweep.
   'promoter.private_preview_enabled': { polarity: 'enablement', default: false },
+  'promoter.preview_verified_approval_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

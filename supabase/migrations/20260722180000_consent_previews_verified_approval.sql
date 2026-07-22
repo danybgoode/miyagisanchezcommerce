@@ -61,6 +61,61 @@ ALTER TABLE merchant_preview_decisions
 ALTER TABLE merchant_preview_approval_codes ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
+-- 2b. ATOMIC verify-and-consume. The whole one-time-code guarantee lives here.
+-- ---------------------------------------------------------------------------
+-- The app computes the expected code hash (it holds the HMAC secret) and passes it
+-- in; this function does the compare + the state transition in ONE statement under
+-- row locks, so it is immune to the read-then-update races a JS-side check has:
+--   * two requests can't both consume the same code (the UPDATE flips consumed_at
+--     from NULL exactly once),
+--   * parallel wrong guesses each increment attempts (no lost updates),
+--   * an exhausted / expired / stale / already-consumed code can't be consumed.
+-- Returns exactly one row describing the outcome. `p_now` is passed by the caller
+-- for deterministic tests; defaults to now().
+CREATE OR REPLACE FUNCTION consume_preview_approval_code(
+  p_preview_id      UUID,
+  p_snapshot_hash   TEXT,
+  p_expected_hash   TEXT,
+  p_now             TIMESTAMPTZ DEFAULT now()
+) RETURNS TABLE (outcome TEXT, channel TEXT, contact_hash TEXT)
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_row merchant_preview_approval_codes%ROWTYPE;
+BEGIN
+  -- Lock the newest unconsumed code for this preview so concurrent callers serialize.
+  SELECT * INTO v_row
+  FROM merchant_preview_approval_codes
+  WHERE preview_id = p_preview_id AND consumed_at IS NULL
+  ORDER BY created_at DESC
+  LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 'no_code'::TEXT, NULL::TEXT, NULL::TEXT; RETURN;
+  END IF;
+  IF v_row.expires_at < p_now THEN
+    RETURN QUERY SELECT 'expired'::TEXT, NULL::TEXT, NULL::TEXT; RETURN;
+  END IF;
+  IF v_row.attempts >= 5 THEN
+    RETURN QUERY SELECT 'too_many_attempts'::TEXT, NULL::TEXT, NULL::TEXT; RETURN;
+  END IF;
+  IF v_row.snapshot_hash <> p_snapshot_hash THEN
+    RETURN QUERY SELECT 'stale_snapshot'::TEXT, NULL::TEXT, NULL::TEXT; RETURN;
+  END IF;
+
+  IF v_row.code_hash <> p_expected_hash THEN
+    -- Wrong code → burn one attempt atomically (row is locked).
+    UPDATE merchant_preview_approval_codes SET attempts = attempts + 1 WHERE id = v_row.id;
+    RETURN QUERY SELECT 'mismatch'::TEXT, NULL::TEXT, NULL::TEXT; RETURN;
+  END IF;
+
+  -- Correct code → consume exactly once.
+  UPDATE merchant_preview_approval_codes SET consumed_at = p_now WHERE id = v_row.id;
+  RETURN QUERY SELECT 'ok'::TEXT, v_row.channel, v_row.contact_hash; RETURN;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 3. The dark-launch flag (enablement polarity, default OFF everywhere).
 -- ---------------------------------------------------------------------------
 -- Independent of `promoter.private_preview_enabled`: verified approval TIGHTENS an
