@@ -37,3 +37,18 @@ export function decidePreviewPrivacy(input: { claim: ClaimState; anchor: AnchorS
   if (input.claim === 'unknown') return true
   return input.anchor === 'held'
 }
+
+/**
+ * Is `id` a mirror-shop UUID (`marketplace_shops.id`, which `merchant_previews.
+ * shop_id` keys on) — as opposed to a Medusa seller id (`sel_…`) or anything else?
+ *
+ * The consent tables key exclusively on the mirror UUID. Feeding a non-UUID (a
+ * `getShop` object's `.id` is the SELLER id) into that UUID column throws Postgres
+ * `22P02`, which the fail-closed guards turn into a 404. This predicate is the gate
+ * that keeps a non-mirror id from ever reaching the query: only a canonical v4-shape
+ * UUID string is trusted as a mirror id; everything else resolves from the slug.
+ */
+export function isMirrorShopId(id: string | null | undefined): id is string {
+  return typeof id === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+}
