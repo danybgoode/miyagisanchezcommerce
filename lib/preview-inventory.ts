@@ -29,6 +29,7 @@ export type ReviewCategory =
   | 'public_unclaimed_promoter'
   | 'public_unclaimed_other'
   | 'no_public_presence'
+  | 'orphan_no_seller'
 
 export interface InventoryShop {
   id: string
@@ -38,7 +39,20 @@ export interface InventoryShop {
   sourceUrl: string | null
   /** null ⇒ unclaimed. */
   clerkUserId: string | null
-  /** Count of listings currently public (mirror status 'active'). */
+  /**
+   * Does the shop have a Medusa seller behind it (`metadata.medusa_seller_id`)?
+   * This is the STRUCTURAL visibility precondition: Medusa owns publication, so a
+   * mirror row with no Medusa seller can never surface a product no matter what its
+   * mirror listing rows say. It is also the reliable signal `publicListingCount`
+   * is NOT — the mirror's `status` drifts from Medusa (that drift made the
+   * 2026-07-21 inventory over-report 168 "public" shops when only 18 rendered).
+   */
+  hasMedusaSeller: boolean
+  /**
+   * Count of listings the MIRROR marks 'active'. Retained for context, but treated
+   * as advisory only — see `hasMedusaSeller`. A positive count on a shop with no
+   * Medusa seller is mirror drift, not a visible product.
+   */
   publicListingCount: number
   /** Does the shop carry a consent-preview anchor at all? */
   hasAnchor: boolean
@@ -90,6 +104,8 @@ const RECOMMENDATION: Record<ReviewCategory, string> = {
     'Pública y sin reclamar, de origen distinto al de promotores. Revisar la procedencia antes de decidir.',
   no_public_presence:
     'Sin productos públicos. Prioridad baja: no hay nada expuesto hoy.',
+  orphan_no_seller:
+    'Fila huérfana en Supabase sin vendedor en Medusa: no puede mostrar productos (invisible por construcción). Casi siempre datos de prueba/scrape iniciales. Candidata a eliminar tras confirmar que no tiene conversaciones/ofertas/órdenes.',
 }
 
 /**
@@ -111,6 +127,13 @@ export function categorizeShop(shop: InventoryShop): InventoryRow {
     category = 'activated_via_consent'
   } else if (shop.hasAnchor) {
     category = 'in_consent_flow'
+  } else if (!shop.hasMedusaSeller) {
+    // No Medusa seller ⇒ structurally invisible, whatever the mirror claims. This
+    // check comes BEFORE the mirror-listing count precisely because the mirror
+    // drifts: the 154 orphans deleted 2026-07-22 all had `publicListingCount > 0`
+    // in the mirror yet 404'd everywhere. An unclaimed, unanchored row with no
+    // seller is the historical test/scrape population, not a public shop.
+    category = 'orphan_no_seller'
   } else if ((shop.publicListingCount ?? 0) <= 0) {
     category = 'no_public_presence'
   } else if (provenance === 'promoter') {
@@ -126,6 +149,7 @@ export function categorizeShop(shop: InventoryShop): InventoryRow {
 const CATEGORY_ORDER: ReviewCategory[] = [
   'public_unclaimed_promoter',
   'public_unclaimed_other',
+  'orphan_no_seller',
   'no_public_presence',
   'in_consent_flow',
   'activated_via_consent',

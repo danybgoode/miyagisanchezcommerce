@@ -81,17 +81,24 @@ test.describe('static-shell split · channels unbroken', () => {
     const framable = await request.get('/embed/s/__smoke__', { headers: { Accept: 'text/html' } })
     expect((framable.headers()['content-security-policy'] ?? '')).toContain('frame-ancestors')
 
-    // Prove suppression on a REAL embed storefront (not a 404): derive a live slug from
-    // the public catalog and assert the platform header's search box is absent — i.e. the
-    // route-group split did not regress the `(shell)` white-label branch. Skip if the env
-    // has no active listings (mirrors embed-shop.spec.ts).
-    const cat = await request.get('/api/ucp/catalog?limit=1')
+    // Prove suppression on a REAL embed storefront (not a 404): derive an
+    // EMBED-CAPABLE shop and assert the platform header's search box is absent — i.e.
+    // the route-group split did not regress the `(shell)` white-label branch. Probe
+    // for the first shop whose embed actually renders rather than trusting catalog
+    // ordering: `/embed/s/[slug]` 404s for shops whose Medusa seller slug doesn't
+    // resolve via `/store/sellers`, so a blind catalog[0] made this hostage to which
+    // shop happens to be newest. Skip only if the env has no embed-capable shop.
+    const cat = await request.get('/api/ucp/catalog?limit=50')
     expect(cat.ok()).toBeTruthy()
-    const slug = (await cat.json())?.items?.[0]?.shop?.slug
-    test.skip(!slug, 'no active listings in this environment')
-
-    const shop = await request.get(`/embed/s/${slug}`, { headers: { Accept: 'text/html' } })
-    expect(shop.ok()).toBeTruthy()
-    expect(await shop.text()).not.toContain(SEARCH_MARKER)
+    const items = ((await cat.json())?.items ?? []) as Array<{ shop?: { slug?: unknown } }>
+    let shop: Awaited<ReturnType<typeof request.get>> | null = null
+    for (const item of items) {
+      const s = item.shop?.slug
+      if (typeof s !== 'string' || !s) continue
+      const probe = await request.get(`/embed/s/${s}`, { headers: { Accept: 'text/html' } })
+      if (probe.ok()) { shop = probe; break }
+    }
+    test.skip(!shop, 'no embed-capable shop in this environment')
+    expect(await shop!.text()).not.toContain(SEARCH_MARKER)
   })
 })

@@ -77,16 +77,30 @@ test.describe('Embed full-shop — framable surface', () => {
       expect(item.shop?.slug, `catalog item ${item.id ?? index} at index ${index} has a shop slug`).toBeTruthy()
     }
 
-    const slug = catalog[0].shop?.slug as string
+    // Derive an EMBED-CAPABLE shop, not blindly catalog[0]. Not every catalog shop
+    // resolves an embed storefront: `/embed/s/[slug]` renders via `getShop` →
+    // `/store/sellers/<slug>`, which 404s for shops whose Medusa seller slug doesn't
+    // resolve that way (some unclaimed/gem shops). Trusting catalog[0] made this gate
+    // hostage to catalog ordering — it broke the moment an ordering change surfaced
+    // such a shop first. Probe for the first shop whose embed actually renders; skip
+    // only if the environment has none (the honest "can't test the invariant" case).
+    let res: Awaited<ReturnType<typeof request.get>> | null = null
+    let embedSlug: string | null = null
+    for (const item of catalog) {
+      const s = item.shop?.slug
+      if (typeof s !== 'string' || !s) continue
+      const probe = await request.get(`/embed/s/${s}`, { headers: { Accept: 'text/html' } })
+      if (probe.ok()) { res = probe; embedSlug = s; break }
+    }
+    test.skip(!res, 'no embed-capable shop in this environment')
+    expect(embedSlug, 'found an embed-capable shop').toBeTruthy()
 
-    const res = await request.get(`/embed/s/${slug}`, { headers: { Accept: 'text/html' } })
-    expect(res.ok()).toBeTruthy()
-    expect(res.headers()['content-security-policy'] ?? '').toContain('frame-ancestors')
+    expect(res!.headers()['content-security-policy'] ?? '').toContain('frame-ancestors')
 
     // White-label: the platform chrome (root-layout header) must be suppressed
     // for embed-tagged requests. The header's search placeholder is a unique
     // marker that only the platform chrome renders — it must be absent.
-    const html = await res.text()
+    const html = await res!.text()
     expect(html).not.toContain('¿Qué estás buscando?')
   })
 })

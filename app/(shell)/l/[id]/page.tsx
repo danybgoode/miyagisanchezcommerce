@@ -11,6 +11,7 @@ import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isShopClaimed } from '@/lib/claim'
+import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import BuyButton from '@/app/components/BuyButton'
 import PersonalizationBuyBox from '@/app/components/PersonalizationBuyBox'
 import { getCustomFields } from '@/lib/personalization'
@@ -109,6 +110,31 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     getListing(id), currentUser(), getPriceGrid(id), isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
+
+  // Consent-safe previews: the PDP is the LAST public surface that could reveal a
+  // product belonging to a shop still awaiting its merchant's approval.
+  //
+  // Until now this page relied entirely on Medusa draft filtering — a preview's
+  // products are `status:'draft'`, so `getListing` doesn't resolve them and the
+  // page 404s. That covers the normal case, but it is not the same guarantee the
+  // shop shell has, and it fails in exactly one real scenario: a partially-failed
+  // activation. Activation publishes the approved products FIRST and flips the
+  // anchor LAST, so between a partial publish and a successful retry, some products
+  // are `published` while the shop is still preview-private. Those products were
+  // resolvable here — publicly reachable and indexable — while `/s/<slug>` 404'd,
+  // leaving orphan public pages the promoter had no way to pull back.
+  //
+  // The guard uses the SHOP OBJECT already in hand (no extra Supabase read for a
+  // claimed shop) and fails closed for unclaimed shops, matching every other
+  // channel. Deliberately NOT flag-gated — same reasoning as the shell guard: a
+  // flag flip is not merchant consent.
+  if (listing.shop) {
+    await assertShopNotPreviewPrivate({
+      slug: listing.shop.slug,
+      clerk_user_id: listing.shop.clerk_user_id ?? null,
+    })
+  }
+
   // Show the configurator buy box whenever there's real multi-variant choice
   // OR real quantity tiers to expose — either alone needs the live price
   // grid + qty stepper, since the plain buy box has no quantity control at
