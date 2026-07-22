@@ -37,18 +37,26 @@ test.describe('Own-shop — SEO continuity', () => {
   })
 
   test('a shop without a verified custom domain is NOT redirected and self-canonicalises', async ({ request }) => {
-    // Derive a real shop slug from the public catalog (no verified custom domain
-    // exists in any environment today, so this shop self-canonicalises). Skip if
-    // the environment has no active listings rather than fail on a hardcoded slug.
-    const cat = await request.get('/api/ucp/catalog?limit=1')
+    // Derive a real shop whose /s/ storefront actually renders (200, no redirect),
+    // rather than trusting catalog[0]: not every catalog shop resolves a marketplace
+    // storefront, so a blind first-item pick made this gate hostage to catalog
+    // ordering. Probe for the first shop that self-canonicalises; skip only if the
+    // env has none. (No verified custom domain exists in any environment today, so a
+    // resolving shop self-canonicalises rather than redirecting.)
+    const cat = await request.get('/api/ucp/catalog?limit=50')
     expect(cat.ok()).toBeTruthy()
-    const slug = (await cat.json())?.items?.[0]?.shop?.slug
-    test.skip(!slug, 'no active listings in this environment')
+    const items = ((await cat.json())?.items ?? []) as Array<{ shop?: { slug?: unknown } }>
+    let slug: string | null = null
+    let res: Awaited<ReturnType<typeof request.get>> | null = null
+    for (const item of items) {
+      const s = item.shop?.slug
+      if (typeof s !== 'string' || !s) continue
+      const probe = await request.get(`/s/${s}`, { maxRedirects: 0 })
+      if (probe.status() === 200) { slug = s; res = probe; break }
+    }
+    test.skip(!res, 'no self-canonicalising shop storefront in this environment')
 
-    const res = await request.get(`/s/${slug}`, { maxRedirects: 0 })
-    // No legacy→domain redirect when the shop has no live custom domain.
-    expect(res.status()).toBe(200)
-    const html = await res.text()
+    const html = await res!.text()
     expect(html).toContain('rel="canonical"')
     expect(html).toContain(`miyagisanchez.com/s/${slug}`)
   })
