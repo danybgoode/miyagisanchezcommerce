@@ -1,0 +1,479 @@
+/**
+ * lib/merchant-lifecycle-sweep.ts
+ *
+ * Golden Beans event-destination-router · Story 3.1 — the periodic half of the emit
+ * side, and the safety net for the whole of it. Four jobs, in order:
+ *
+ *   1. DRAIN pending emissions (claimed, not yet confirmed delivered).
+ *   2. BACKFILL `preview_approved` / `claimed` / `first_sale` from state.
+ *   3. Derive `merchant.three_products_live` from **Medusa**.
+ *   4. Derive `merchant.retained_30d` from **Medusa**.
+ *
+ * WHY BACKFILL WHAT THE HOOKS ALREADY EMIT (2).
+ * The hooks in the approval and claim paths give TIMELINESS. This gives COMPLETENESS.
+ * A hook that never ran — a transient DB error at claim time, a milestone reached before
+ * this feature shipped, a new door someone adds later — would otherwise lose that
+ * milestone permanently, because nothing ever revisits it. Deriving from state is
+ * self-healing, and the once-only constraint means the two paths cannot collide.
+ *
+ * `first_sale` has NO hook at all and is derived here only. It briefly had one in
+ * `upsertOrderMirror`, which was removed (cross-review round 3): the reconcile-cron path
+ * reaches that writer long after the order, so it stamped the milestone with the
+ * RECONCILIATION time, and the permanent outbox claim then blocked this sweep from ever
+ * correcting it. Deriving it here uses Medusa's actual earliest captured order, and it
+ * takes the money path out of this PR entirely — a worthwhile trade for at most a day of
+ * latency on a CRM milestone.
+ *
+ * WHY A SWEEP AND NOT A HOOK AT ALL (3).
+ * `three_products_live` is a THRESHOLD on accumulated state, not a moment, and it has
+ * no single door: a product reaches `published` through the seller portal, the MCP
+ * `create_listing` tool, the bulk catalog importer, supply activation, a preview
+ * activation and the listing-status seam. Hooking the door you happen to find and
+ * calling it done is exactly the failure this repo has already paid for (LEARNINGS:
+ * "guard the population, not the door you found"). Deriving from the resulting STATE is
+ * mechanically complete by construction — it does not care how the third product got
+ * there, and a door added next month is covered without anyone remembering to.
+ * `retained_30d` needs a sweep regardless: nothing happens at the 30-day mark to hook.
+ *
+ * MEDUSA IS COMMERCE TRUTH, INCLUDING HERE (AGENTS rule #1; cross-agent review, Codex,
+ * PR #298). The first version counted `marketplace_listings` / `marketplace_orders` —
+ * the Supabase mirrors. That was wrong in a way that matters: these milestones are
+ * PERMANENT and once-only, so a mirror row that has drifted from Medusa emits a false
+ * milestone that can never be withdrawn. Both counts now come from Medusa:
+ *   - products via the public `GET /store/sellers/{slug}/products` (the same
+ *     visibility-filtered read the public storefront uses — published means published),
+ *   - orders via the backend internal `GET /internal/sellers/orders` (cron-usable; the
+ *     Clerk-gated `/store/sellers/me/*` routes are not).
+ * The mirrors are still read for *funnel bookkeeping* — who is a founding merchant, and
+ * which shop maps to which seller slug. That is not commerce state.
+ *
+ * FAIL CLOSED. Every read that cannot be completed skips the merchant rather than
+ * assuming zero, and the failure is COUNTED in the result so a cron that did nothing
+ * cannot report success. An unreachable Medusa must never be read as "no products".
+ */
+import 'server-only'
+import { db } from '@/lib/supabase'
+import {
+  emitMerchantLifecycle,
+  deliverClaimedEmission,
+  listPendingEmissions,
+  type EmitOutcome,
+} from '@/lib/merchant-lifecycle-server'
+
+/** The activation threshold the contract names: the THIRD product going live. */
+export const THREE_PRODUCTS_THRESHOLD = 3
+
+/** "Still active 30 days after first sale." */
+export const RETENTION_WINDOW_DAYS = 30
+
+const RETENTION_WINDOW_MS = RETENTION_WINDOW_DAYS * 24 * 60 * 60 * 1000
+
+/** Rows per page. Supabase/PostgREST caps a single response anyway; this makes the
+ *  paging explicit rather than relying on that default. */
+const PAGE_SIZE = 1000
+
+/** Hard ceiling on one run, so a runaway table cannot make the cron unbounded. The
+ *  founding-merchant population is small by definition; reaching this means something
+ *  is wrong, which is why it is REPORTED (`truncated`) rather than silently absorbed. */
+const CANDIDATE_CAP = 20_000
+
+/** Read every row of a table, page by page. Returns `truncated` only when the hard cap
+ *  stopped the walk — never merely because one page was full. */
+async function readPaged(
+  table: string,
+  columns: string,
+): Promise<{ rows: Array<Record<string, unknown>>; truncated: boolean; errors: number }> {
+  const rows: Array<Record<string, unknown>> = []
+  let errors = 0
+  for (let offset = 0; offset < CANDIDATE_CAP; offset += PAGE_SIZE) {
+    const { data, error } = await db.from(table).select(columns).range(offset, offset + PAGE_SIZE - 1)
+    if (error) {
+      // Report and stop: continuing past a failed page would produce a result that
+      // looks complete while missing an arbitrary slice of the population.
+      console.error(`[merchant-lifecycle] paged read of ${table} failed at ${offset}:`, error.message)
+      return { rows, truncated: true, errors: errors + 1 }
+    }
+    const page = (data ?? []) as unknown as Array<Record<string, unknown>>
+    rows.push(...page)
+    if (page.length < PAGE_SIZE) return { rows, truncated: false, errors }
+  }
+  return { rows, truncated: true, errors }
+}
+
+const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
+
+export interface SweepResult {
+  candidates: number
+  /** True when the candidate query hit CANDIDATE_CAP — some merchants were NOT looked
+   *  at. A caller that ignores this is reporting a partial sweep as a complete one. */
+  truncated: boolean
+  drained: number
+  /** Milestones recovered from state because a hook never ran (or ran before this
+   *  feature existed). Reported separately so a healthy run is distinguishable from a
+   *  run that is quietly repairing missed events. */
+  backfilled: number
+  threeProductsLive: number
+  retained30d: number
+  /** Reads that failed. Non-zero means this run was incomplete, whatever else it did. */
+  errors: number
+}
+
+interface Candidate {
+  merchantId: string
+  sellerSlug: string | null
+  /** `merchant_previews.approved_at` — the consent record, non-commerce, and the
+   *  authoritative answer to "did this merchant approve their preview?". */
+  previewApprovedAt: string | null
+  /** `marketplace_shops.clerk_user_id` — set the moment ownership transfers. Claiming
+   *  is a marketplace concept, not a commerce one, so the mirror IS the record here. */
+  claimedByClerkId: string | null
+}
+
+/**
+ * The order statuses that mean money was captured, as an ALLOW-LIST.
+ *
+ * This started as a deny-list of `refunded | pending_payment | canceled`, on the theory
+ * that seller-set `fulfillment_state` values are all paid orders. That was wrong in the
+ * direction that costs the most (cross-review round 3): a deny-list treats EVERY other
+ * string — `draft`, `failed`, a typo, a status added next quarter — as revenue, and
+ * these milestones are permanent and unwithdrawable.
+ *
+ * So: unknown status ⇒ NOT captured. The asymmetry is deliberate. A milestone deferred
+ * by an unrecognised status is recovered by the next sweep once this list is widened;
+ * a milestone granted by one can never be taken back. These are exactly the states
+ * `normalizeMedusaOrder` (apps/backend `store/sellers/me/orders`) emits for an order
+ * whose payment was captured.
+ */
+const CAPTURED_ORDER_STATUSES = new Set([
+  'paid',
+  'processing',
+  'shipped',
+  'delivered',
+  'fulfilled',
+  'completed',
+])
+
+function isCapturedOrder(status: unknown): boolean {
+  return typeof status === 'string' && CAPTURED_ORDER_STATUSES.has(status)
+}
+
+/**
+ * The population this epic tracks: FOUNDING merchants, not every shop on the
+ * marketplace. A shop qualifies once it has entered the funnel at all — it has a
+ * preview anchor (it was pitched) or it has already emitted some milestone.
+ *
+ * Deliberately NOT "every shop": the epic is a founding-merchant CRM proof, and
+ * sweeping the whole marketplace would emit activation milestones for hundreds of
+ * scraped imports nobody is running a relationship with.
+ *
+ * These are Supabase reads by design — "is this merchant in our funnel?" and "which
+ * seller slug is this shop?" are marketplace bookkeeping, not commerce facts.
+ */
+async function loadCandidates(): Promise<{ candidates: Candidate[]; truncated: boolean; errors: number }> {
+  const ids = new Set<string>()
+  const approvedAt = new Map<string, string>()
+  let errors = 0
+  let truncated = false
+
+  // PAGED, not `.limit(CAP)`. A single capped read always returns the SAME first N rows,
+  // so any merchant past the cap would be permanently unswept no matter how many daily
+  // runs happen — the cap would silently become a hard ceiling on the funnel rather than
+  // a per-run budget (cross-review round 3). Paging walks the whole set; `truncated`
+  // now means only "this run stopped at the hard cap", and the next run resumes from the
+  // page after the last one it completed is not needed because the work itself is
+  // idempotent — the emission constraint makes a re-scan of earlier pages free.
+  const previews = await readPaged('merchant_previews', 'shop_id, approved_at')
+  errors += previews.errors
+  truncated ||= previews.truncated
+  for (const row of previews.rows) {
+    if (!row?.shop_id) continue
+    ids.add(String(row.shop_id))
+    if (row.approved_at) approvedAt.set(String(row.shop_id), String(row.approved_at))
+  }
+
+  const emitted = await readPaged('merchant_lifecycle_emissions', 'merchant_id')
+  errors += emitted.errors
+  truncated ||= emitted.truncated
+  for (const row of emitted.rows) if (row?.merchant_id) ids.add(String(row.merchant_id))
+
+  // Resolve slug + claim state in batches rather than one read per merchant.
+  const merchantIds = [...ids]
+  const shopById = new Map<string, { slug: string | null; clerkUserId: string | null }>()
+  for (let i = 0; i < merchantIds.length; i += PAGE_SIZE) {
+    const shops = await db
+      .from('marketplace_shops')
+      .select('id, slug, clerk_user_id')
+      .in('id', merchantIds.slice(i, i + PAGE_SIZE))
+    if (shops.error) {
+      errors += 1
+      continue
+    }
+    for (const row of shops.data ?? []) {
+      if (!row?.id) continue
+      shopById.set(String(row.id), {
+        slug: row.slug ? String(row.slug) : null,
+        clerkUserId: row.clerk_user_id ? String(row.clerk_user_id) : null,
+      })
+    }
+  }
+
+  return {
+    candidates: merchantIds.map((merchantId) => ({
+      merchantId,
+      sellerSlug: shopById.get(merchantId)?.slug ?? null,
+      previewApprovedAt: approvedAt.get(merchantId) ?? null,
+      claimedByClerkId: shopById.get(merchantId)?.clerkUserId ?? null,
+    })),
+    truncated,
+    errors,
+  }
+}
+
+/** Milestones already delivered or claimed, so the sweep skips the work rather than
+ *  relying on the unique-violation path for every merchant on every run. The constraint
+ *  is still what GUARANTEES once-only — this is an optimisation, not the guard. */
+async function loadClaimed(): Promise<{ byMerchant: Map<string, Set<string>>; errors: number }> {
+  const byMerchant = new Map<string, Set<string>>()
+  const paged = await readPaged('merchant_lifecycle_emissions', 'merchant_id, event_type')
+  if (paged.errors > 0) return { byMerchant, errors: paged.errors }
+  for (const row of paged.rows) {
+    const id = String(row?.merchant_id ?? '')
+    if (!id) continue
+    if (!byMerchant.has(id)) byMerchant.set(id, new Set())
+    byMerchant.get(id)!.add(String(row?.event_type ?? ''))
+  }
+  return { byMerchant, errors: 0 }
+}
+
+/**
+ * LIVE product count, from Medusa. `GET /store/sellers/{slug}/products` is the public,
+ * visibility-filtered storefront read — what it returns is what is actually published.
+ *
+ * Returns null on ANY failure so the caller SKIPS rather than reads zero. An
+ * unreachable Medusa must never be able to withhold a milestone forever, and — worse in
+ * the other direction — a partial response must never be able to grant one.
+ */
+async function countLiveProductsFromMedusa(sellerSlug: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerSlug)}/products`, {
+      headers: medusaHeaders(),
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { products?: unknown[]; listings?: unknown[] }
+    const items = data.products ?? data.listings
+    if (!Array.isArray(items)) return null
+    return items.length
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Has this merchant transacted again SINCE their first sale? Read from Medusa, the
+ * order system of record, via the backend's internal route (a cron has no Clerk JWT).
+ *
+ * The contract says "still active 30 days after first sale" without defining active, so
+ * this pins a concrete, checkable definition: at least one further captured order after
+ * the one that produced the first-sale milestone. A merchant with exactly one order 40
+ * days ago is not retained — they are a one-off, and counting them would make the
+ * retention number mean "survived 30 days on the calendar", which nobody wants to read.
+ *
+ * Returns null when the answer cannot be determined, so the caller skips.
+ */
+async function listCapturedOrders(
+  sellerSlug: string,
+): Promise<Array<{ created_at: string }> | null> {
+  if (!INTERNAL_SECRET) return null
+  try {
+    const res = await fetch(
+      `${MEDUSA_BASE}/internal/sellers/orders?seller_slug=${encodeURIComponent(sellerSlug)}`,
+      { headers: { 'x-internal-secret': INTERNAL_SECRET }, cache: 'no-store' },
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as { orders?: Array<{ created_at?: string; status?: string }> }
+    if (!Array.isArray(data.orders)) return null
+    return data.orders
+      .filter((o) => o?.created_at && isCapturedOrder(o.status))
+      .map((o) => ({ created_at: String(o.created_at) }))
+  } catch {
+    return null
+  }
+}
+
+function medusaHeaders(): Record<string, string> {
+  const key = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
+  return key ? { 'x-publishable-api-key': key } : {}
+}
+
+/**
+ * Run one sweep. Never throws — a failure on one merchant must not abort the rest, and
+ * a failed run is simply retried by the next one (every emission is idempotent).
+ */
+export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<SweepResult> {
+  const result: SweepResult = {
+    candidates: 0,
+    truncated: false,
+    drained: 0,
+    backfilled: 0,
+    threeProductsLive: 0,
+    retained30d: 0,
+    errors: 0,
+  }
+
+  // ── 1. Drain anything claimed but not confirmed delivered ──────────────────
+  // Re-sending is safe: the payload is replayed verbatim under a stable
+  // idempotencyKey, and golden-beans returns the existing event for a repeat.
+  const drain = await listPendingEmissions()
+  if (drain.failed) result.errors += 1
+  if (drain.truncated) result.truncated = true
+  for (const pending of drain.pending) {
+    try {
+      if (
+        await deliverClaimedEmission(
+          pending.merchantId,
+          pending.eventType,
+          pending.payload,
+          pending.attempts,
+        )
+      ) {
+        result.drained += 1
+      } else {
+        // Includes "telemetry flag is off", which is not an error condition — but it IS
+        // an incomplete run, and the row stays pending for the next one either way.
+        result.errors += 1
+      }
+    } catch {
+      result.errors += 1
+    }
+  }
+
+  const loaded = await loadCandidates()
+  result.candidates = loaded.candidates.length
+  // OR, never assign: the drain may already have set it (cross-review round 3 — a
+  // straight assignment here erased a truncated drain whenever the candidate walk
+  // completed, so >200 pending emissions reported a clean run).
+  result.truncated ||= loaded.truncated
+  result.errors += loaded.errors
+
+  const claimed = await loadClaimed()
+  result.errors += claimed.errors
+  // Without the claim map we cannot skip safely; the constraint would still prevent a
+  // duplicate, but we would hammer Medusa for every merchant on every run.
+  if (claimed.errors > 0) return result
+
+  for (const { merchantId, sellerSlug, previewApprovedAt, claimedByClerkId } of loaded.candidates) {
+    const done = claimed.byMerchant.get(merchantId) ?? new Set<string>()
+
+    // ── 2. BACKFILL the event-driven milestones from state ────────────────────
+    // The hooks in the approval / claim / order-mirror paths give timeliness; this
+    // gives COMPLETENESS. A hook that never ran — a transient DB error at claim time,
+    // a milestone reached before this feature shipped, a door added later — would
+    // otherwise lose the milestone permanently, because nothing revisits it
+    // (cross-review round 2). Deriving from state is self-healing.
+    if (!done.has('merchant.preview_approved') && previewApprovedAt) {
+      // The real approval timestamp, not now — this one we actually know.
+      if (counted(await emitMerchantLifecycle('merchant.preview_approved', {
+        merchantId,
+        occurredAt: new Date(previewApprovedAt),
+      }))) {
+        result.backfilled += 1
+      }
+    }
+
+    if (!done.has('merchant.claimed') && claimedByClerkId) {
+      if (counted(await emitMerchantLifecycle('merchant.claimed', { merchantId, occurredAt: now }))) {
+        result.backfilled += 1
+      }
+    }
+
+    // Every remaining check needs the Medusa seller slug. No slug → no authoritative
+    // read → skip. Deliberately not falling back to the Supabase mirror.
+    if (!sellerSlug) {
+      if (!done.has('merchant.three_products_live') || !done.has('merchant.first_sale')) {
+        result.errors += 1
+      }
+      continue
+    }
+
+    // Orders are needed for both first_sale and retention; fetch once.
+    const needsOrders = !done.has('merchant.first_sale') || !done.has('merchant.retained_30d')
+    const orders = needsOrders ? await listCapturedOrders(sellerSlug) : []
+    if (needsOrders && orders === null) result.errors += 1
+
+    if (!done.has('merchant.first_sale') && orders && orders.length > 0) {
+      const earliest = orders
+        .map((o) => Date.parse(o.created_at))
+        .filter((t) => !Number.isNaN(t))
+        .sort((a, b) => a - b)[0]
+      if (earliest !== undefined) {
+        if (counted(await emitMerchantLifecycle('merchant.first_sale', {
+          merchantId,
+          occurredAt: new Date(earliest),
+        }))) {
+          result.backfilled += 1
+        }
+      }
+    }
+
+    // ── 3. merchant.three_products_live ───────────────────────────────────────
+    if (!done.has('merchant.three_products_live')) {
+      try {
+        const live = await countLiveProductsFromMedusa(sellerSlug)
+        if (live === null) {
+          result.errors += 1
+        } else if (live >= THREE_PRODUCTS_THRESHOLD) {
+          // `occurredAt` is NOW, not the third product's publish time: nothing records
+          // when the count crossed the threshold, and inventing a timestamp we cannot
+          // derive would be worse than an honest one. Read this column as "when we
+          // first observed three live", never as "when the third went live".
+          if (counted(await emitMerchantLifecycle('merchant.three_products_live', {
+            merchantId,
+            occurredAt: now,
+            productCount: live,
+          }))) {
+            result.threeProductsLive += 1
+          }
+        }
+      } catch {
+        result.errors += 1
+      }
+    }
+
+    // ── 4. merchant.retained_30d ──────────────────────────────────────────────
+    if (!done.has('merchant.retained_30d') && orders && orders.length > 0) {
+      try {
+        const times = orders
+          .map((o) => Date.parse(o.created_at))
+          .filter((t) => !Number.isNaN(t))
+          .sort((a, b) => a - b)
+        const firstSaleMs = times[0]
+        if (firstSaleMs === undefined) continue
+
+        const thirtyDayMark = firstSaleMs + RETENTION_WINDOW_MS
+        if (now.getTime() < thirtyDayMark) continue
+
+        // "STILL ACTIVE 30 DAYS AFTER first sale" — a captured order dated ON OR AFTER
+        // the 30-day mark. The earlier rule ("any later order") was wrong in a way that
+        // permanently over-counted: a first sale on July 1 plus one order on July 2 and
+        // silence thereafter would have emitted `retained_30d` on July 31, describing a
+        // merchant who churned on day 3 as retained (cross-review round 2). Pending and
+        // refunded orders are already excluded by `isCapturedOrder`, upstream.
+        if (!times.some((t) => t >= thirtyDayMark)) continue
+
+        if (counted(await emitMerchantLifecycle('merchant.retained_30d', { merchantId, occurredAt: now }))) {
+          result.retained30d += 1
+        }
+      } catch {
+        result.errors += 1
+      }
+    }
+  }
+
+  return result
+}
+
+function counted(outcome: EmitOutcome): boolean {
+  return outcome === 'emitted'
+}
