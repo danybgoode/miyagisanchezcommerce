@@ -268,3 +268,67 @@ export function lifecycleIdempotencyKey(merchantId: string, event: MerchantLifec
   const budget = 128 - event.length - 1
   return `${merchantId.slice(0, Math.max(1, budget))}:${event}`
 }
+
+// ---------------------------------------------------------------------------
+// Order capture — shared by the sweep, kept here so every branch is spec-reachable.
+// ---------------------------------------------------------------------------
+
+/** The subset of a normalized Medusa order this decision reads. Everything optional:
+ *  a backend older than medusa-bonsai-backend PR 109 sends no `payment_captured` at all. */
+export interface CapturedOrderLike {
+  status?: unknown
+  payment_captured?: unknown
+}
+
+/**
+ * The order statuses that mean the sale STUCK, as an ALLOW-LIST.
+ *
+ * This is only half the test — see `isCapturedOrder` below, which pairs it with the
+ * backend's `payment_captured`. The two answer different questions and both must hold.
+ *
+ * This started as a deny-list of `refunded | pending_payment | canceled`, on the theory
+ * that seller-set `fulfillment_state` values are all paid orders. That was wrong in the
+ * direction that costs the most (cross-review round 3): a deny-list treats EVERY other
+ * string — `draft`, `failed`, a typo, a status added next quarter — as revenue, and
+ * these milestones are permanent and unwithdrawable.
+ *
+ * So: unknown status ⇒ NOT counted. The asymmetry is deliberate. A milestone deferred by
+ * an unrecognised status is recovered by the next sweep once this list is widened; a
+ * milestone granted by one can never be taken back.
+ */
+const CAPTURED_ORDER_STATUSES = new Set([
+  'paid',
+  'processing',
+  'shipped',
+  'delivered',
+  'fulfilled',
+  'completed',
+])
+
+/**
+ * Did this order actually earn the merchant money that stayed earned?
+ *
+ * TWO independent signals, both required — they answer different questions and neither
+ * is sufficient:
+ *
+ *   `payment_captured` — did the money LAND? A payment fact. Necessary because `status`
+ *     is not one: `normalizeMedusaOrder` initialises it to 'paid' and only demotes for
+ *     cancel/refund/return or an uncaptured MANUAL method, so a card order sitting at
+ *     `payment_status: 'authorized'` normalises to 'paid'. Reading `status` alone would
+ *     grant the write-once `first_sale` milestone off a fall-through default — the gap a
+ *     fresh-reviewer pass found on PR 298 and medusa-bonsai-backend PR 109 closed.
+ *
+ *   `status` in the allow-list — did the sale STICK? A lifecycle fact. Necessary because
+ *     `payment_captured` deliberately ignores returns and cancellations (a return is not
+ *     a refund; only payment state proves funds went back). Those orders arrive here as
+ *     `status: 'refunded'`, which the allow-list excludes.
+ *
+ * FAILS CLOSED on absence. An order without `payment_captured` — a backend older than
+ * medusa-bonsai-backend PR 109, or a response we could not parse — does NOT count. The
+ * milestone simply defers to a later sweep, which is recoverable; granting one wrongly
+ * is not.
+ */
+export function isCapturedOrder(order: CapturedOrderLike): boolean {
+  if (order.payment_captured !== true) return false
+  return typeof order.status === 'string' && CAPTURED_ORDER_STATUSES.has(order.status)
+}
