@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 36 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(36)
+  test('covers all 37 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(37)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -70,6 +70,10 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // (growth-engine-v1 S1.3) — enablement, fail-open OFF (zero outbound calls
     // until golden-beans is deployed and Daniel flips it on).
     expect(FLAG_META['growth.telemetry_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // Merchant-verified approval for private previews (consent-previews S4) —
+    // enablement, fail-open OFF (approval behaves as today until Daniel flips it on
+    // after a real-merchant code round-trip smoke).
+    expect(FLAG_META['promoter.preview_verified_approval_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 
