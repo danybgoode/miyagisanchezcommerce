@@ -21,7 +21,18 @@ const CODE_TTL_MS = 15 * 60 * 1000
 
 // The email/code crypto moved to the leaf module lib/verification-crypto.ts (no
 // server-only / db / dictionary), so a Playwright `api` spec can import it directly.
-// Re-exported here so every existing sweepstakes/launchpad caller is unchanged.
+// Imported here for this module's OWN internal use AND re-exported so every existing
+// sweepstakes/launchpad caller (which imports these from '@/lib/sweepstakes') is
+// unchanged. (A bare `export { … } from` would satisfy importers but NOT this
+// module's own body — hence the explicit import.)
+import {
+  cleanEmail,
+  isValidEmail,
+  hashSweepstakesEmail,
+  hashVerificationCode,
+  safeCompare,
+  makeCode,
+} from '@/lib/verification-crypto'
 export {
   cleanEmail,
   isValidEmail,
