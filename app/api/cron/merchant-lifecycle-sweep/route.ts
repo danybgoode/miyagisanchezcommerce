@@ -32,9 +32,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const result = await sweepMerchantLifecycle()
+
   // `ok` reflects whether the run was COMPLETE, not merely whether it returned. A run
-  // that swallowed read failures or stopped at the candidate cap did partial work, and
-  // reporting 200 {ok:true} for it is how a silently-broken cron survives for months.
+  // that hit read failures or stopped at the hard cap did partial work, and reporting
+  // 200 {ok:true} for it is how a silently-broken cron survives for months.
+  //
+  // The status is 503, not the 207 this first returned: 207 is still 2xx, so Cloud
+  // Scheduler and generic uptime monitoring both read it as success and neither retries
+  // nor alerts (cross-review round 4). 503 is retryable, and retrying is FREE here —
+  // every emission is claimed under a unique constraint and every delivery is deduped
+  // by golden-beans on the idempotency key, so a re-run repeats no work.
+  //
+  // `telemetryOff` is deliberately NOT a failure: `growth.telemetry_enabled` being off
+  // is an operator decision, milestones are still claimed, and the drain ships them
+  // when it is turned back on. Treating it as an error would make the cron alarm daily
+  // for a condition nobody needs to act on.
   const complete = result.errors === 0 && !result.truncated
-  return NextResponse.json({ ok: complete, ...result }, { status: complete ? 200 : 207 })
+  return NextResponse.json({ ok: complete, ...result }, { status: complete ? 200 : 503 })
 }

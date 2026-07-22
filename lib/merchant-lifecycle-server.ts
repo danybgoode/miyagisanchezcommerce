@@ -103,6 +103,14 @@ export type EmitOutcome =
   | 'send_failed'
   | 'claim_failed'
 
+/**
+ * Why this is three-valued and not a boolean: `flag_off` is a deliberate operator state,
+ * not a failure. Collapsing it into `false` made the sweep count every claimed milestone
+ * as an error while telemetry was intentionally disabled, which would have had the cron
+ * alarm continuously for a condition nobody needs to act on (cross-review round 4).
+ */
+export type DeliveryOutcome = 'delivered' | 'failed' | 'flag_off'
+
 /** One pending emission, as the sweep's drain reads it. */
 export interface PendingEmission {
   merchantId: string
@@ -176,15 +184,16 @@ export async function emitMerchantLifecycle(
     }
     if (row.delivered_at) return 'already_emitted'
 
-    const delivered = await deliverClaimedEmission(
+    const outcome = await deliverClaimedEmission(
       merchantId,
       event,
       (row.payload ?? payload) as LifecycleTrackPayload,
       typeof row.attempts === 'number' ? row.attempts : 0,
     )
-    // The claim survives either way — the sweep drains it. `send_failed` is a status,
-    // not a loss, which is why no caller needs to handle it.
-    return delivered ? 'emitted' : 'send_failed'
+    // The claim survives every outcome — the sweep drains it. `send_failed` and
+    // `flag_off` are statuses, not losses, which is why no caller needs to handle them.
+    if (outcome === 'delivered') return 'emitted'
+    return outcome === 'flag_off' ? 'flag_off' : 'send_failed'
   } catch {
     // Intentionally swallowed — observability must never break the caller's path.
     return 'send_failed'
@@ -203,14 +212,14 @@ export async function deliverClaimedEmission(
   eventType: string,
   payload: LifecycleTrackPayload,
   attempts = 0,
-): Promise<boolean> {
+): Promise<DeliveryOutcome> {
   // The flag is checked HERE, not before the claim. A claim skipped because telemetry
   // was off would lose the milestone forever — `growth.telemetry_enabled` is OFF in
   // production today, so a pre-claim check would have discarded every approval, claim
   // and first sale until the day someone flipped it (cross-review round 2). Claiming
   // always and sending conditionally means the outbox simply fills while the flag is
   // off, and the sweep drains it the moment it is turned on.
-  if (!(await isEnabled('growth.telemetry_enabled'))) return false
+  if (!(await isEnabled('growth.telemetry_enabled'))) return 'flag_off'
 
   let sent = false
   let error: string | null = null
@@ -244,7 +253,7 @@ export async function deliverClaimedEmission(
       writeError.message,
     )
   }
-  return sent
+  return sent ? 'delivered' : 'failed'
 }
 
 /**

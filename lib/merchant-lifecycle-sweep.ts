@@ -115,6 +115,11 @@ export interface SweepResult {
   backfilled: number
   threeProductsLive: number
   retained30d: number
+  /** True when `growth.telemetry_enabled` is OFF. NOT an error — a deliberate operator
+   *  state. Milestones are still claimed and stay pending, so nothing is lost; the drain
+   *  ships them the moment the flag is on. Surfaced so a run reporting zero deliveries
+   *  explains itself. */
+  telemetryOff: boolean
   /** Reads that failed. Non-zero means this run was incomplete, whatever else it did. */
   errors: number
 }
@@ -317,6 +322,7 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     truncated: false,
     drained: 0,
     backfilled: 0,
+    telemetryOff: false,
     threeProductsLive: 0,
     retained30d: 0,
     errors: 0,
@@ -330,20 +336,15 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
   if (drain.truncated) result.truncated = true
   for (const pending of drain.pending) {
     try {
-      if (
-        await deliverClaimedEmission(
-          pending.merchantId,
-          pending.eventType,
-          pending.payload,
-          pending.attempts,
-        )
-      ) {
-        result.drained += 1
-      } else {
-        // Includes "telemetry flag is off", which is not an error condition — but it IS
-        // an incomplete run, and the row stays pending for the next one either way.
-        result.errors += 1
-      }
+      const outcome = await deliverClaimedEmission(
+        pending.merchantId,
+        pending.eventType,
+        pending.payload,
+        pending.attempts,
+      )
+      if (outcome === 'delivered') result.drained += 1
+      else if (outcome === 'flag_off') result.telemetryOff = true
+      else result.errors += 1
     } catch {
       result.errors += 1
     }
@@ -374,16 +375,16 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     // (cross-review round 2). Deriving from state is self-healing.
     if (!done.has('merchant.preview_approved') && previewApprovedAt) {
       // The real approval timestamp, not now — this one we actually know.
-      if (counted(await emitMerchantLifecycle('merchant.preview_approved', {
+      if (record(await emitMerchantLifecycle('merchant.preview_approved', {
         merchantId,
         occurredAt: new Date(previewApprovedAt),
-      }))) {
+      }), result)) {
         result.backfilled += 1
       }
     }
 
     if (!done.has('merchant.claimed') && claimedByClerkId) {
-      if (counted(await emitMerchantLifecycle('merchant.claimed', { merchantId, occurredAt: now }))) {
+      if (record(await emitMerchantLifecycle('merchant.claimed', { merchantId, occurredAt: now }), result)) {
         result.backfilled += 1
       }
     }
@@ -391,7 +392,15 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     // Every remaining check needs the Medusa seller slug. No slug → no authoritative
     // read → skip. Deliberately not falling back to the Supabase mirror.
     if (!sellerSlug) {
-      if (!done.has('merchant.three_products_live') || !done.has('merchant.first_sale')) {
+      // Every Medusa-derived milestone is unreachable without it. `retained_30d` was
+      // missing from this list, so a merchant whose first_sale and three_products_live
+      // were already claimed had its retention check skipped SILENTLY, forever
+      // (cross-review round 4).
+      const unreachable = (
+        ['merchant.three_products_live', 'merchant.first_sale', 'merchant.retained_30d'] as const
+      ).some((e) => !done.has(e))
+      if (unreachable) {
+        console.error(`[merchant-lifecycle] no seller slug for merchant ${merchantId} — skipped`)
         result.errors += 1
       }
       continue
@@ -408,10 +417,10 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
         .filter((t) => !Number.isNaN(t))
         .sort((a, b) => a - b)[0]
       if (earliest !== undefined) {
-        if (counted(await emitMerchantLifecycle('merchant.first_sale', {
+        if (record(await emitMerchantLifecycle('merchant.first_sale', {
           merchantId,
           occurredAt: new Date(earliest),
-        }))) {
+        }), result)) {
           result.backfilled += 1
         }
       }
@@ -428,11 +437,11 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
           // when the count crossed the threshold, and inventing a timestamp we cannot
           // derive would be worse than an honest one. Read this column as "when we
           // first observed three live", never as "when the third went live".
-          if (counted(await emitMerchantLifecycle('merchant.three_products_live', {
+          if (record(await emitMerchantLifecycle('merchant.three_products_live', {
             merchantId,
             occurredAt: now,
             productCount: live,
-          }))) {
+          }), result)) {
             result.threeProductsLive += 1
           }
         }
@@ -462,7 +471,7 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
         // refunded orders are already excluded by `isCapturedOrder`, upstream.
         if (!times.some((t) => t >= thirtyDayMark)) continue
 
-        if (counted(await emitMerchantLifecycle('merchant.retained_30d', { merchantId, occurredAt: now }))) {
+        if (record(await emitMerchantLifecycle('merchant.retained_30d', { merchantId, occurredAt: now }), result)) {
           result.retained30d += 1
         }
       } catch {
@@ -474,6 +483,22 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
   return result
 }
 
-function counted(outcome: EmitOutcome): boolean {
-  return outcome === 'emitted'
+/**
+ * Did this emission actually go out, and if not, was that a FAILURE?
+ *
+ * `counted()` used to return a bare boolean, so a `send_failed` / `claim_failed` on a
+ * newly-discovered milestone left `errors` at zero and the cron reported a clean run
+ * while a milestone it had just found never left the building (cross-review round 4).
+ * `flag_off` is deliberately NOT an error — telemetry being switched off is an operator
+ * decision, and the claim is safely pending until it is switched back on.
+ */
+function record(outcome: EmitOutcome, result: SweepResult): boolean {
+  if (outcome === 'emitted') return true
+  if (outcome === 'already_emitted') return false
+  if (outcome === 'flag_off') {
+    result.telemetryOff = true
+    return false
+  }
+  result.errors += 1
+  return false
 }

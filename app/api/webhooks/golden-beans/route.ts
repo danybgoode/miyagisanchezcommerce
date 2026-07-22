@@ -58,6 +58,16 @@ const PROJECTION_BUDGET_MS = 8_000
 const MAX_BODY_BYTES = 256 * 1024
 
 export async function POST(request: NextRequest) {
+  // 0. Reject an oversized body BEFORE reading it. `request.text()` buffers the whole
+  //    thing, so a check after it does not bound anything (cross-review round 4).
+  //    Content-Length covers the ordinary case at zero cost; a chunked request without
+  //    one still gets the post-read check below, which is a real gap this cannot close
+  //    from a route handler — the platform's own body limit is what bounds that.
+  const declaredLength = Number(request.headers.get('content-length') ?? '')
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+  }
+
   // 1. RAW BODY FIRST. Nothing may parse, normalize or re-serialize before this.
   let rawBody: string
   try {
