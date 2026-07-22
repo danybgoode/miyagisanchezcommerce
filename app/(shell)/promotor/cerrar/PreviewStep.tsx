@@ -16,6 +16,8 @@ import { useCallback, useEffect, useState } from 'react'
  */
 type Shop = { shopId: string; slug: string; name: string }
 
+type ChecklistItem = { key: string; label: string; required: boolean; done: boolean; action: string }
+
 type State = {
   exists: boolean
   status?: string
@@ -25,6 +27,8 @@ type State = {
   canActivate?: boolean
   activateReason?: string | null
   productCount?: number
+  checklist?: ChecklistItem[]
+  nextAction?: string | null
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -165,6 +169,21 @@ export default function PreviewStep({ shop, n }: { shop: Shop; n: number }) {
           )}
 
           {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
+
+          {(state?.checklist?.length ?? 0) > 0 && (
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <p className="text-sm font-medium">Lista de verificación</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {state!.checklist!.map((item) => (
+                  <li key={item.key} className={item.done ? 'text-[color:var(--success)]' : 'text-[var(--color-muted)]'}>
+                    <i className={item.done ? 'iconoir-check-circle' : 'iconoir-circle'} aria-hidden />{' '}
+                    <span className={item.done ? '' : 'font-medium'}>{item.label}</span>
+                    {!item.done && <span className="block pl-5 text-xs">{item.action}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 border-t border-[var(--color-border)] pt-3">
             <button onClick={activate} disabled={busy !== null || !state?.canActivate}

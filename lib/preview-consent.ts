@@ -24,6 +24,12 @@ import {
   type MerchantPreview,
   getPreviewPresentation,
 } from '@/lib/preview-access'
+import {
+  type ChecklistItem,
+  buildChecklist,
+  checklistComplete,
+  nextAction,
+} from '@/lib/preview-checklist'
 
 /** Build the snapshot for a preview from its current live presentation. */
 export async function currentSnapshot(preview: MerchantPreview): Promise<PreviewSnapshot | null> {
@@ -189,12 +195,62 @@ export async function invalidateIfMaterialChange(
 }
 
 /**
- * The server-side activation gate. Returns the decision from the PURE resolver so
- * the route, the UI and the spec all read the same rule.
+ * Build the preview-readiness checklist (Sprint 3.1) for a preview whose approval
+ * state has already been read. Reads the shop's non-commerce identity/contact facts
+ * from the mirror and feeds them, plus the live snapshot, into the PURE
+ * `buildChecklist`. Only booleans cross the boundary — the merchant's actual email
+ * never leaves this function.
+ *
+ * A failed shop read is reported as "no contact / no location" rather than throwing:
+ * that makes the checklist INCOMPLETE, which fails activation CLOSED — consistent
+ * with the epic's posture that an unverifiable state never authorizes publication.
+ */
+export async function readChecklist(
+  preview: MerchantPreview,
+  state: ApprovalState,
+): Promise<ChecklistItem[]> {
+  const { data: shop } = await db
+    .from('marketplace_shops')
+    .select('metadata')
+    .eq('id', preview.shopId)
+    .maybeSingle()
+
+  const metadata = (shop?.metadata ?? {}) as Record<string, unknown>
+  const locationDetail = (metadata.location_detail ?? null) as Record<string, unknown> | null
+  const merchantEmail = typeof metadata.merchant_email === 'string' ? metadata.merchant_email.trim() : ''
+
+  return buildChecklist({
+    shopName: state.snapshot.shopName,
+    hasLocation: !!(locationDetail && (locationDetail.estado || locationDetail.municipio || locationDetail.cp)),
+    hasMerchantContact: merchantEmail.length > 0,
+    products: state.snapshot.products.map((p) => ({
+      title: p.title,
+      priceCents: p.priceCents,
+      imageUrl: p.imageUrl,
+    })),
+    status: preview.status,
+    currentApproval: state.approvedHash !== null && !state.stale,
+    hasSteward: (preview.createdBy ?? '').length > 0,
+  })
+}
+
+/**
+ * The server-side activation gate. Composes the two rules that must BOTH hold, from
+ * their pure resolvers, so the route, the UI and the specs read the same logic:
+ *
+ *  1. `canActivate` — there is a CURRENT approval (Sprint 2.3).
+ *  2. `checklistComplete` — every required readiness item is done (Sprint 3.1:
+ *     "incomplete required items block activation").
+ *
+ * Approval is checked first so the more fundamental consent failure is the one
+ * reported; the checklist reason names the single next action.
  */
 export async function checkActivation(
   preview: MerchantPreview,
-): Promise<{ ok: true; snapshot: PreviewSnapshot } | { ok: false; reason: string }> {
+): Promise<
+  | { ok: true; snapshot: PreviewSnapshot; checklist: ChecklistItem[] }
+  | { ok: false; reason: string; checklist?: ChecklistItem[] }
+> {
   const state = await readApprovalState(preview)
   if (!state) return { ok: false, reason: 'No se pudo leer la propuesta.' }
 
@@ -204,8 +260,29 @@ export async function checkActivation(
     currentSnapshotHash: state.currentHash,
     hasProducts: state.snapshot.products.length > 0,
   })
-  if (!decision.ok) return decision
-  return { ok: true, snapshot: state.snapshot }
+
+  const checklist = await readChecklist(preview, state)
+
+  // An already-activated preview stays idempotently activatable regardless of the
+  // checklist — re-running activation on a public shop must never start failing
+  // because a later checklist item was added.
+  if (preview.status === 'activated') {
+    return decision.ok
+      ? { ok: true, snapshot: state.snapshot, checklist }
+      : { ok: false, reason: decision.reason, checklist }
+  }
+
+  if (!decision.ok) return { ok: false, reason: decision.reason, checklist }
+
+  if (!checklistComplete(checklist)) {
+    return {
+      ok: false,
+      reason: nextAction(checklist) ?? 'Faltan requisitos de la lista de verificación.',
+      checklist,
+    }
+  }
+
+  return { ok: true, snapshot: state.snapshot, checklist }
 }
 
 /** Mark a preview activated after the Medusa publish writes have all succeeded. */

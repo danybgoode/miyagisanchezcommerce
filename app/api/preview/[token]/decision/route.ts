@@ -21,6 +21,7 @@ import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { isEnabled } from '@/lib/flags'
 import { resolvePreviewWithGrantByToken } from '@/lib/preview-access'
 import { recordDecision } from '@/lib/preview-consent'
+import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     // A hash mismatch (proposal changed under the merchant) is the expected
     // conflict — surface it as 409 so the client can prompt a reload.
     return NextResponse.json({ ok: false, error: result.reason }, { status: 409 })
+  }
+
+  // Lifecycle telemetry (S3.1) — AFTER the consent record is durably written.
+  // Only approval is a canonical lifecycle transition; a changes-requested keeps
+  // the preview private and is covered by the promoter workspace, not the funnel.
+  if (decision === 'approved') {
+    await emitPreviewEvent('preview_approved', {
+      shopId: resolved.preview.shopId,
+      previewId: resolved.preview.id,
+      version: resolved.preview.currentVersion + 1,
+    })
   }
 
   return NextResponse.json({ ok: true, decision })

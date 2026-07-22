@@ -25,6 +25,7 @@ import {
   revokePreviewGrants,
 } from '@/lib/preview-access'
 import { readApprovalState, checkActivation } from '@/lib/preview-consent'
+import { nextAction } from '@/lib/preview-checklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +129,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, exists: true, status: preview.status, readable: false })
   }
 
+  // One gate call carries BOTH the activation decision and the readiness checklist
+  // (S3.1), so the workspace can never show a checklist that disagrees with the
+  // server's activation answer.
   const gate = await checkActivation(preview)
+  const checklist = gate.checklist ?? []
 
   return NextResponse.json({
     ok: true,
@@ -141,6 +146,8 @@ export async function GET(req: NextRequest) {
     approved: state.approvedHash !== null,
     canActivate: gate.ok,
     activateReason: gate.ok ? null : gate.reason,
+    checklist,
+    nextAction: nextAction(checklist),
   })
 }
 
