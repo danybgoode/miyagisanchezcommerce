@@ -1,7 +1,7 @@
 -- Golden Beans event-destination-router · Story 3.1 — turn the emit-side claim table
 -- into a real OUTBOX. Additive; apply BY HAND before merging.
 --
--- WHY (cross-agent review, Codex, PR #298 — two findings, one root cause):
+-- WHY (cross-agent review, Codex, PR 298 — two findings, one root cause):
 --
 -- The first design claimed a (merchant_id, event_type) slot, sent, and DELETED the
 -- claim if the send failed. Two holes:

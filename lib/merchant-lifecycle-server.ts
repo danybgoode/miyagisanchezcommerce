@@ -133,7 +133,7 @@ export interface PendingEmission {
  * `upsertOrderMirror` runs from the Stripe webhook, the MercadoPago webhook and the
  * reconcile cron, and the sweep runs daily.
  *
- * THE SHAPE (rewritten after cross-agent review, PR #298):
+ * THE SHAPE (rewritten after cross-agent review on PR 298):
  *
  *   1. CLAIM the (merchant, event) slot under a PRIMARY KEY, storing the payload we
  *      intend to send. Two concurrent callers race the insert; exactly one wins.

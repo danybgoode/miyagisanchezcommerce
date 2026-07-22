@@ -36,7 +36,7 @@
  * `retained_30d` needs a sweep regardless: nothing happens at the 30-day mark to hook.
  *
  * MEDUSA IS COMMERCE TRUTH, INCLUDING HERE (AGENTS rule #1; cross-agent review, Codex,
- * PR #298). The first version counted `marketplace_listings` / `marketplace_orders` —
+ * PR 298). The first version counted `marketplace_listings` / `marketplace_orders` —
  * the Supabase mirrors. That was wrong in a way that matters: these milestones are
  * PERMANENT and once-only, so a mirror row that has drifted from Medusa emits a false
  * milestone that can never be withdrawn. Both counts now come from Medusa:
