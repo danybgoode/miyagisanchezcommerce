@@ -27,7 +27,22 @@
  *
  * Malformed phone/email/whatsapp input is REJECTED (400), never silently
  * normalized to null and written over a good stored value (S1 cross-review
- * A8) — an explicit empty string is still a deliberate clear.
+ * A8) — an explicit empty string is still a deliberate clear. Every field's
+ * TYPE is validated too (S1 review B8) — `{phone: 123}` or
+ * `{confirmNew: "false"}` (truthy as a string!) or `{intakeComplete: "false"}`
+ * (also truthy) now 400 instead of throwing a 500 or silently coercing to
+ * the WRONG value.
+ *
+ * Relinking `shop_id` clears `preview_id` when the shop actually changes (S1
+ * review B5) — a `preview_id` left pointing at the OLD shop after a mis-link
+ * correction would misread as consent for the NEW one. `shop_id` is itself
+ * audited (B6): it is the field binding a relationship to a real merchant.
+ *
+ * `forceAudit: true` on the UPDATE arm re-emits the field-audit rows even
+ * when the diff against the stored row is empty (S1 review B4) — the retry
+ * path for a save whose FIRST attempt reported `auditRecorded: false`; a
+ * plain retry can't reconstruct that failure by re-diffing, because the
+ * primary write already committed and now equals what's being "changed".
  *
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF).
  */
@@ -78,6 +93,34 @@ interface RelationshipBody {
   source?: string
   shopId?: string
   intakeComplete?: boolean
+  forceAudit?: boolean
+}
+
+// B8: the TYPE of every field, not just its presence, must be validated —
+// JSON.parse hands back `any`, so the `RelationshipBody` interface above is
+// a compile-time hint only. Every field a bare-string check or a truthy
+// coercion would mishandle gets an explicit runtime guard below.
+const STRING_FIELDS = [
+  'relationshipId', 'businessName', 'contactName', 'phone', 'email', 'whatsapp',
+  'instagramHandle', 'estado', 'municipio', 'locationNote', 'category',
+  'preferredChannel', 'qualification', 'fitNote', 'objections', 'cohort',
+  'source', 'shopId',
+] as const satisfies ReadonlyArray<keyof RelationshipBody>
+const BOOLEAN_FIELDS = ['confirmNew', 'intakeComplete', 'forceAudit'] as const satisfies ReadonlyArray<keyof RelationshipBody>
+
+function validateBodyTypes(body: RelationshipBody): string | null {
+  for (const field of STRING_FIELDS) {
+    const v = body[field]
+    if (v !== undefined && typeof v !== 'string') return `Campo inválido: ${field}.`
+  }
+  for (const field of BOOLEAN_FIELDS) {
+    const v = body[field]
+    if (v !== undefined && typeof v !== 'boolean') return `Campo inválido: ${field}.`
+  }
+  if (body.currentChannels !== undefined && !Array.isArray(body.currentChannels)) {
+    return 'Campo inválido: currentChannels.'
+  }
+  return null
 }
 
 function clean(v: string | undefined): string | null {
@@ -147,6 +190,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: 'Cuerpo inválido.' }, { status: 400 })
   }
+
+  const typeError = validateBodyTypes(body)
+  if (typeError) return NextResponse.json({ ok: false, error: typeError }, { status: 400 })
 
   if (body.preferredChannel && !PREFERRED_CHANNELS.includes(body.preferredChannel as (typeof PREFERRED_CHANNELS)[number])) {
     return NextResponse.json({ ok: false, error: 'Canal preferido inválido.' }, { status: 400 })
@@ -241,7 +287,21 @@ export async function POST(req: NextRequest) {
     if (body.source !== undefined) patch.source = clean(body.source)
     if (body.intakeComplete !== undefined) patch.intake_complete = !!body.intakeComplete
     // A3: actually apply the shop link the caller validated above.
-    if (linkedShopId !== undefined) patch.shop_id = linkedShopId
+    if (linkedShopId !== undefined) {
+      patch.shop_id = linkedShopId
+      // B5: a stored `preview_id` belongs to whatever shop it was captured
+      // against. If the link is actually CHANGING (a mis-link correction, or
+      // an unlink) — not just re-sent as the same value on every save (A3's
+      // "always resend shopId" behavior) — any existing preview_id refers to
+      // the OLD shop and must not silently keep pointing at it: a later S2+
+      // reader treating a non-null preview_id as "permission granted" would
+      // be wrong. The consent route itself re-verifies on every call
+      // (`previewBelongsToRelationship`) and is safe regardless; this is
+      // about not leaving the STORED field lying.
+      if (linkedShopId !== before.shop_id) {
+        patch.preview_id = null
+      }
+    }
 
     const { data, error } = await db
       .from('merchant_relationships')
@@ -263,7 +323,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'No se pudo guardar el registro.' }, { status: 500 })
     }
 
-    const auditRecorded = await auditFieldChanges(body.relationshipId, auth.user.id, before, patch)
+    const auditRecorded = await auditFieldChanges(body.relationshipId, auth.user.id, before, patch, {
+      force: body.forceAudit === true,
+    })
 
     return NextResponse.json({ ok: true, relationship: toRelationshipDTO(data as unknown as RelationshipRow), auditRecorded })
   }
@@ -358,7 +420,16 @@ export async function POST(req: NextRequest) {
     row.id,
     auth.user.id,
     {},
-    { promoter_id: row.promoter_id, cohort: row.cohort, source: row.source, preferred_channel: row.preferred_channel },
+    {
+      promoter_id: row.promoter_id,
+      cohort: row.cohort,
+      source: row.source,
+      preferred_channel: row.preferred_channel,
+      // B6: shop_id is audited too — a create that already carries a shopId
+      // (B3a's "shop created before the relationship was ever saved" order)
+      // is the FIRST attribution event for that binding.
+      shop_id: row.shop_id,
+    },
   )
 
   const suggestions = await fuzzySuggestions(businessName, row.id, auth.actor)
