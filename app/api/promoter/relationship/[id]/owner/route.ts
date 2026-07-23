@@ -17,6 +17,15 @@
  * a `viewer` partner-grant may READ but not WRITE (`canWriteRelationship`).
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF, via
  * `authorizeRelationshipRequest`).
+ *
+ * C9 fix (PR 304 review): `toSteward` is now runtime type-checked BEFORE
+ * `.trim()` touches it — `{toSteward: 123}` used to 500.
+ *
+ * C1 follow-up (PR 304 review, "answer, don't fix" list): since
+ * `resolveRelationshipAccess` now grants `manager` access to whoever's Clerk
+ * id matches `steward_clerk_user_id` (C1), this field is load-bearing for
+ * ACCESS, not just a display label — a basic format/length sanity check is
+ * added below (no Clerk existence lookup, per the review's explicit scope).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
@@ -33,6 +42,12 @@ export const dynamic = 'force-dynamic'
 interface OwnerBody {
   toSteward?: string | null
 }
+
+// A Clerk user id's own shape (`user_<base62ish>`) is narrower than this, but
+// this repo doesn't parse Clerk ids anywhere else either — a generous
+// safe-charset + length cap is enough to stop garbage from becoming a
+// load-bearing access value without hardcoding Clerk's own format.
+const STEWARD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRelationshipRequest(req)
@@ -58,8 +73,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'Cuerpo inválido.' }, { status: 400 })
   }
 
+  if (body.toSteward !== undefined && body.toSteward !== null && typeof body.toSteward !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Dueño inválido.' }, { status: 400 })
+  }
+
   const fromSteward = access.relationship.steward_clerk_user_id
   const toSteward = (body.toSteward ?? '').trim() || null
+
+  if (toSteward !== null && !STEWARD_ID_RE.test(toSteward)) {
+    return NextResponse.json({ ok: false, error: 'Dueño inválido.' }, { status: 400 })
+  }
 
   const { data, error } = await db
     .from('merchant_relationships')

@@ -10,10 +10,22 @@
  * a `viewer` partner-grant may READ but not WRITE (`canWriteRelationship`).
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF, via
  * `authorizeRelationshipRequest`).
+ *
+ * C8 fix (PR 304 review): a date-only `dueAt` (what `<input type="date">`
+ * sends) is interpreted as end-of-day AMÉRICA/MEXICO_CITY, not UTC midnight
+ * — see `lib/relationship-pipeline.ts#dueAtIsoFromDateOnly`'s header for why
+ * `new Date("2026-07-23")` was wrong (renders a day early in es-MX, goes
+ * overdue hours before the day even starts).
+ *
+ * C9 fix (PR 304 review): `title`/`dueAt`/`assignedTo` are now runtime
+ * type-checked BEFORE any string method touches them — a non-string value
+ * (`{title: 123}`) used to reach `.trim()`/`.filter()`-shaped code and 500;
+ * it now 400s like any other malformed field.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, canWriteRelationship } from '@/lib/relationship-access'
+import { dueAtIsoFromDateOnly } from '@/lib/relationship-pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +59,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'Cuerpo inválido.' }, { status: 400 })
   }
 
+  if (body.title !== undefined && typeof body.title !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Título inválido.' }, { status: 400 })
+  }
   const title = (body.title ?? '').trim()
   if (!title) {
     return NextResponse.json({ ok: false, error: 'El título de la acción es obligatorio.' }, { status: 400 })
@@ -54,13 +69,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let dueAt: string | null = null
   if (body.dueAt !== undefined && body.dueAt !== '') {
-    const d = new Date(body.dueAt)
-    if (Number.isNaN(d.getTime())) {
+    if (typeof body.dueAt !== 'string') {
       return NextResponse.json({ ok: false, error: 'Fecha límite inválida.' }, { status: 400 })
     }
-    dueAt = d.toISOString()
+    // Date-only ("YYYY-MM-DD", what <input type="date"> sends) → end of day
+    // in Mexico City (C8); anything else parses as a normal ISO instant.
+    const dateOnly = dueAtIsoFromDateOnly(body.dueAt)
+    if (dateOnly) {
+      dueAt = dateOnly
+    } else {
+      const d = new Date(body.dueAt)
+      if (Number.isNaN(d.getTime())) {
+        return NextResponse.json({ ok: false, error: 'Fecha límite inválida.' }, { status: 400 })
+      }
+      dueAt = d.toISOString()
+    }
   }
 
+  if (body.assignedTo !== undefined && typeof body.assignedTo !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Asignado inválido.' }, { status: 400 })
+  }
   // Defaults to the caller — an action always has SOMEONE assigned, even when
   // the UI doesn't ask (build contract: "every active merchant is either
   // scheduled or visibly missing an action" — an assignee-less open task

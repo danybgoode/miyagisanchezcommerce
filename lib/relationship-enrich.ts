@@ -18,6 +18,17 @@
  * verification detail is what the consent route + Sprint 1's evidence rules
  * already own.
  *
+ * FAIL-CLOSED ON READ ERRORS (C3, PR 304 review): the ORIGINAL version
+ * discarded the two batched-read errors (`const { data } = await db...`),
+ * so a failed OPEN-TASKS query silently produced an empty task map — every
+ * row then read `missingAction: true`, a false operational claim ("this
+ * merchant has no next action") manufactured from a DB hiccup, not from the
+ * data. `enrichRelationships` now returns `{ ok: false }` on either read
+ * failing, and the caller turns that into a 500 rather than a confidently
+ * wrong 200. This is the SAME rule `lib/merchant-stage.ts`'s resolver already
+ * applies (unknown facts decline, never grant) — a `RelationshipRow`'s
+ * derived VIEW fields must fail exactly as closed as its derived STAGE does.
+ *
  * Runtime: Node only (Supabase service-role client).
  */
 import 'server-only'
@@ -53,16 +64,19 @@ function consentStateFor(previewId: string | null, statusById: Map<string, strin
   return 'sin_vista_previa'
 }
 
-export async function enrichRelationships(rows: RelationshipRow[], now: Date): Promise<EnrichedRelationship[]> {
+export type EnrichResult = { ok: true; relationships: EnrichedRelationship[] } | { ok: false }
+
+export async function enrichRelationships(rows: RelationshipRow[], now: Date): Promise<EnrichResult> {
   const ids = rows.map((r) => r.id)
 
   const openTasksByRelationship = new Map<string, OpenTaskFact[]>()
   if (ids.length > 0) {
-    const { data } = await db
+    const { data, error } = await db
       .from('merchant_relationship_tasks')
       .select('id, relationship_id, due_at')
       .is('completed_at', null)
       .in('relationship_id', ids)
+    if (error) return { ok: false }
     for (const t of (data ?? []) as Array<{ id: string; relationship_id: string; due_at: string | null }>) {
       const arr = openTasksByRelationship.get(t.relationship_id) ?? []
       arr.push({ id: t.id, dueAt: t.due_at })
@@ -73,11 +87,12 @@ export async function enrichRelationships(rows: RelationshipRow[], now: Date): P
   const previewIds = Array.from(new Set(rows.map((r) => r.preview_id).filter((x): x is string => !!x)))
   const previewStatusById = new Map<string, string>()
   if (previewIds.length > 0) {
-    const { data } = await db.from('merchant_previews').select('id, status').in('id', previewIds)
+    const { data, error } = await db.from('merchant_previews').select('id, status').in('id', previewIds)
+    if (error) return { ok: false }
     for (const p of (data ?? []) as Array<{ id: string; status: string }>) previewStatusById.set(p.id, p.status)
   }
 
-  return rows.map((row) => {
+  const relationships = rows.map((row) => {
     const openTasks = openTasksByRelationship.get(row.id) ?? []
     const next = nextOpenTask(openTasks)
     return {
@@ -90,4 +105,6 @@ export async function enrichRelationships(rows: RelationshipRow[], now: Date): P
       consentState: consentStateFor(row.preview_id, previewStatusById),
     }
   })
+
+  return { ok: true, relationships }
 }

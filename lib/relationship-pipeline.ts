@@ -15,20 +15,22 @@ export interface OpenTaskFact {
 
 /**
  * "The next action" (sprint-2.md: "next action (or a visible 'sin próxima
- * acción' warning)") is the earliest-due OPEN task. Dated tasks sort by
- * `dueAt` ascending; an undated open task still counts as SOME next action
- * (it just isn't more urgent than a dated one), so dated tasks are preferred
- * and an undated one is only returned when there is no dated alternative.
- * `null` only when there is no open task at all — the caller renders the
- * "sin próxima acción" warning in that case, never for an undated one.
+ * acción' warning)") is the earliest-due OPEN task — a DATED one, always.
+ *
+ * C2 fix (PR 304 review): an undated open task no longer counts as "the next
+ * action" at all. Acceptance 6 says a *dated* next action or a visible
+ * warning — an earlier version fell back to returning an undated task when
+ * no dated one existed, which made `isMissingAction` report `false` for a
+ * merchant with only an undated task, hiding exactly the gap acceptance 6
+ * exists to surface. An undated task a promoter created is NOT lost — it
+ * still shows in the full task list `RelationshipHistoryPanel` renders from
+ * `GET .../history` — it just never satisfies "scheduled".
  */
 export function nextOpenTask(openTasks: OpenTaskFact[]): OpenTaskFact | null {
-  if (openTasks.length === 0) return null
   const dated = openTasks
     .filter((t): t is OpenTaskFact & { dueAt: string } => t.dueAt !== null)
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
-  if (dated.length > 0) return dated[0]
-  return openTasks[0]
+  return dated.length > 0 ? dated[0] : null
 }
 
 /** True only when an open task exists, has a due date, and that date is in
@@ -39,13 +41,17 @@ export function isOverdue(task: OpenTaskFact | null, now: Date): boolean {
   return new Date(task.dueAt).getTime() < now.getTime()
 }
 
-/** True exactly when there is no open task at all — the "sin próxima acción"
- *  warning condition. Kept as its own function (rather than inlined as
- *  `nextOpenTask(...) === null`) so a spec can name the exact acceptance
- *  criterion ("every active merchant is either scheduled or visibly missing
- *  an action") independently of how "next" is picked. */
+/**
+ * True when there is no DATED open task — the "sin próxima acción" warning
+ * condition (C2: an undated-only open task list is ALSO missing, matching
+ * `nextOpenTask`'s "dated, always" rule above; they must never disagree).
+ * Kept as its own function (rather than inlined as `nextOpenTask(...) ===
+ * null`) so a spec can name the exact acceptance criterion ("every active
+ * merchant is either scheduled or visibly missing an action") independently
+ * of how "next" is picked.
+ */
 export function isMissingAction(openTasks: OpenTaskFact[]): boolean {
-  return openTasks.length === 0
+  return nextOpenTask(openTasks) === null
 }
 
 /** Whole days the relationship has sat in its current stage. Floors at 0 —
@@ -68,4 +74,27 @@ export function ageInStageDays(stageEnteredAt: string, now: Date): number {
  */
 export function hasBlocker(objections: string | null): boolean {
   return (objections ?? '').trim().length > 0
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * C8 fix (PR 304 review): a date-only `due_at` (the exact shape an
+ * `<input type="date">` sends, e.g. "2026-07-23") must NOT be parsed as
+ * `new Date("2026-07-23")` — that's midnight **UTC**, which renders as the
+ * PREVIOUS calendar day in es-MX (UTC-6) and goes overdue hours before the
+ * Mexico-City day the promoter picked has even started. Interpreted instead
+ * as the END of that calendar day in Mexico City (23:59:59.999, fixed
+ * UTC-6 — the same "no DST" simplification `lib/rental-checkout-display.ts`'s
+ * `todayMx` already documents and this codebase already relies on) — a task
+ * "due today" stays due until the Mexico-City day actually ends.
+ *
+ * Returns `null` for anything that isn't exactly `YYYY-MM-DD` — the CALLER
+ * decides how to handle a non-date-only value (a full ISO datetime is passed
+ * through unchanged; a malformed one is a 400).
+ */
+export function dueAtIsoFromDateOnly(raw: string): string | null {
+  if (!DATE_ONLY_RE.test(raw)) return null
+  const d = new Date(`${raw}T23:59:59.999-06:00`)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }

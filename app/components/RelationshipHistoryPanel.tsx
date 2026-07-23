@@ -12,10 +12,19 @@ import { useEffect, useState } from 'react'
  * both views).
  *
  * Also hosts the write actions a steward has (add interaction, set/complete
- * a task, reassign owner) and, when `isAdmin` is true, the stage-correction
+ * a task, reassign owner) and, for an admin caller, the stage-correction
  * form — kept in one component so admin can do everything a promoter can on
  * their own relationships plus the correction, without a second near-
  * identical panel.
+ *
+ * C7 fix (PR 304 review): which write controls render is now driven by the
+ * CALLER'S OWN `role` for THIS relationship, returned by the history route
+ * (`resolveRelationshipAccess`'s role, per-relationship — a promoter can be
+ * `owner` on one row and a read-only `viewer` grant on another, so a
+ * page-level `isAdmin` flag was never the right signal). A `viewer` no
+ * longer sees interaction/task/owner controls the API would reject anyway,
+ * and the correction form only shows for an actual `admin` role — replaces
+ * the old `isAdmin` prop entirely.
  */
 
 const INTERACTION_KIND_LABEL: Record<string, string> = {
@@ -45,6 +54,8 @@ const STAGE_LABEL: Record<string, string> = {
 
 const STAGES_FOR_CORRECTION = Object.keys(STAGE_LABEL)
 
+type Role = 'owner' | 'admin' | 'manager' | 'viewer'
+
 type Transition = {
   id: string
   from_stage: string | null
@@ -53,6 +64,10 @@ type Transition = {
   actor_type: string
   actor_id: string | null
   reason: string | null
+  /** C6 fix (PR 304 review): was selected by the route but dropped here and
+   *  never rendered — "each row opens history and EVIDENCE" wasn't actually
+   *  met. Free-form JSONB; rendered as a compact string when present. */
+  evidence_ref: unknown
   occurred_at: string
 }
 type Interaction = { id: string; kind: string; body: string | null; author_clerk_user_id: string; occurred_at: string }
@@ -70,6 +85,7 @@ type OwnerHistoryRow = { id: string; from_steward: string | null; to_steward: st
 
 type HistoryResponse = {
   ok: boolean
+  role: Role
   transitions: Transition[]
   interactions: Interaction[]
   tasks: Task[]
@@ -81,14 +97,21 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+function fmtEvidence(evidence: unknown): string | null {
+  if (evidence === null || evidence === undefined) return null
+  if (typeof evidence === 'string') return evidence
+  try {
+    return JSON.stringify(evidence)
+  } catch {
+    return null
+  }
+}
+
 export default function RelationshipHistoryPanel({
   relationshipId,
-  isAdmin,
   onChanged,
 }: {
   relationshipId: string
-  /** Shows the admin-only stage-correction form when true. */
-  isAdmin: boolean
   /** Called after any successful write, so the parent row can re-fetch its summary. */
   onChanged?: () => void
 }) {
@@ -127,12 +150,24 @@ export default function RelationshipHistoryPanel({
   if (loading) return <p className="text-sm text-[var(--color-muted)] py-4">Cargando historial…</p>
   if (error || !data) return <p className="text-sm text-[color:var(--danger)] py-4">{error ?? 'Error desconocido.'}</p>
 
+  const canWrite = data.role !== 'viewer'
+  const isAdmin = data.role === 'admin'
+
   return (
     <div className="space-y-6">
-      <InteractionForm relationshipId={relationshipId} onSaved={afterWrite} />
-      <TaskForm relationshipId={relationshipId} onSaved={afterWrite} />
-      <OwnerForm relationshipId={relationshipId} onSaved={afterWrite} />
+      {canWrite && (
+        <>
+          <InteractionForm relationshipId={relationshipId} onSaved={afterWrite} />
+          <TaskForm relationshipId={relationshipId} onSaved={afterWrite} />
+          <OwnerForm relationshipId={relationshipId} onSaved={afterWrite} />
+        </>
+      )}
       {isAdmin && <CorrectStageForm relationshipId={relationshipId} onSaved={afterWrite} />}
+      {!canWrite && (
+        <p className="text-xs text-[var(--color-muted)]">
+          <i className="iconoir-lock" aria-hidden /> Tu acceso a este registro es de solo lectura.
+        </p>
+      )}
 
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
@@ -142,18 +177,26 @@ export default function RelationshipHistoryPanel({
           <p className="text-sm text-[var(--color-muted)]">Sin transiciones registradas todavía.</p>
         ) : (
           <ul className="space-y-1.5 text-sm">
-            {data.transitions.map((t) => (
-              <li key={t.id} className="flex flex-wrap items-baseline gap-x-2">
-                <span className="badge badge-info">
-                  {t.from_stage ? `${STAGE_LABEL[t.from_stage] ?? t.from_stage} → ` : ''}
-                  {STAGE_LABEL[t.to_stage] ?? t.to_stage}
-                </span>
-                <span className="text-[var(--color-muted)] text-xs">
-                  {t.actor_type} · {fmt(t.occurred_at)}
-                  {t.reason ? ` · “${t.reason}”` : ''}
-                </span>
-              </li>
-            ))}
+            {data.transitions.map((t) => {
+              const evidence = fmtEvidence(t.evidence_ref)
+              return (
+                <li key={t.id} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="badge badge-info">
+                    {t.from_stage ? `${STAGE_LABEL[t.from_stage] ?? t.from_stage} → ` : ''}
+                    {STAGE_LABEL[t.to_stage] ?? t.to_stage}
+                  </span>
+                  <span className="text-[var(--color-muted)] text-xs">
+                    {t.actor_type} · {fmt(t.occurred_at)}
+                    {t.reason ? ` · “${t.reason}”` : ''}
+                  </span>
+                  {evidence && (
+                    <span className="badge badge-neutral" title={evidence}>
+                      <i className="iconoir-badge-check" aria-hidden /> Evidencia: {evidence}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
@@ -174,7 +217,9 @@ export default function RelationshipHistoryPanel({
                   {t.due_at ? `vence ${fmt(t.due_at)}` : 'sin fecha'}
                   {t.completed_at ? ` · completada ${fmt(t.completed_at)}` : ''}
                 </span>
-                {!t.completed_at && <CompleteTaskButton relationshipId={relationshipId} taskId={t.id} onSaved={afterWrite} />}
+                {!t.completed_at && canWrite && (
+                  <CompleteTaskButton relationshipId={relationshipId} taskId={t.id} onSaved={afterWrite} />
+                )}
               </li>
             ))}
           </ul>
@@ -324,6 +369,11 @@ function TaskForm({ relationshipId, onSaved }: { relationshipId: string; onSaved
           Guardar
         </button>
       </div>
+      {!dueAt && (
+        <p className="text-xs text-[var(--color-muted)] mt-1">
+          Sin fecha, esta acción NO cuenta como "próxima acción programada" en el listado.
+        </p>
+      )}
       {error && <p className="text-xs text-[color:var(--danger)] mt-1">{error}</p>}
     </div>
   )
@@ -331,21 +381,36 @@ function TaskForm({ relationshipId, onSaved }: { relationshipId: string; onSaved
 
 function CompleteTaskButton({ relationshipId, taskId, onSaved }: { relationshipId: string; taskId: string; onSaved: () => void }) {
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  // C5 fix (PR 304 review): a 403/404/500 used to be ignored — `onSaved()`
+  // ran regardless, which re-fetched history and made a REJECTED complete
+  // read as a successful refresh while the task silently stayed open.
   async function submit() {
     setBusy(true)
+    setError(null)
     try {
-      await fetch(`/api/promoter/relationship/${relationshipId}/task/${taskId}/complete`, { method: 'POST' })
+      const res = await fetch(`/api/promoter/relationship/${relationshipId}/task/${taskId}/complete`, { method: 'POST' })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.ok) {
+        setError(json?.error ?? 'No se pudo completar la acción.')
+        return
+      }
       onSaved()
+    } catch {
+      setError('No se pudo completar la acción.')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={submit}>
-      Completar
-    </button>
+    <span className="inline-flex items-center gap-1">
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={submit}>
+        Completar
+      </button>
+      {error && <span className="text-xs text-[color:var(--danger)]">{error}</span>}
+    </span>
   )
 }
 
@@ -353,10 +418,16 @@ function OwnerForm({ relationshipId, onSaved }: { relationshipId: string; onSave
   const [toSteward, setToSteward] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
+  // C4 fix (PR 304 review): a 200 with `ownerHistoryRecorded: false` used to
+  // be treated as a plain success — the reassignment DID happen (the primary
+  // write can't be rolled back), but the audit trail silently didn't, and
+  // nothing told the human that.
   async function submit() {
     setBusy(true)
     setError(null)
+    setWarning(null)
     try {
       const res = await fetch(`/api/promoter/relationship/${relationshipId}/owner`, {
         method: 'POST',
@@ -367,6 +438,9 @@ function OwnerForm({ relationshipId, onSaved }: { relationshipId: string; onSave
       if (!res.ok || !json.ok) {
         setError(json.error ?? 'No se pudo reasignar.')
         return
+      }
+      if (json.ownerHistoryRecorded === false) {
+        setWarning('El dueño se reasignó, pero no se pudo guardar el historial de auditoría. Avisa a un administrador.')
       }
       onSaved()
     } catch {
@@ -391,6 +465,7 @@ function OwnerForm({ relationshipId, onSaved }: { relationshipId: string; onSave
           Reasignar
         </button>
       </div>
+      {warning && <p className="text-xs text-[color:var(--warning)] mt-1">{warning}</p>}
       {error && <p className="text-xs text-[color:var(--danger)] mt-1">{error}</p>}
     </div>
   )
@@ -401,7 +476,13 @@ function CorrectStageForm({ relationshipId, onSaved }: { relationshipId: string;
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
+  // C4 fix (PR 304 review): a 200 with `stageMirrorUpdated: false` used to be
+  // treated as a plain success — the CORRECTION (the audit truth) is already
+  // committed at that point, but the relationship's `stage` mirror the views
+  // read didn't follow, and nothing told the human the displayed stage may
+  // now be stale.
   async function submit() {
     if (!reason.trim()) {
       setError('La corrección requiere una razón.')
@@ -409,6 +490,7 @@ function CorrectStageForm({ relationshipId, onSaved }: { relationshipId: string;
     }
     setBusy(true)
     setError(null)
+    setWarning(null)
     try {
       const res = await fetch(`/api/admin/relationship/${relationshipId}/correct-stage`, {
         method: 'POST',
@@ -419,6 +501,9 @@ function CorrectStageForm({ relationshipId, onSaved }: { relationshipId: string;
       if (!res.ok || !json.ok) {
         setError(json.error ?? 'No se pudo corregir la etapa.')
         return
+      }
+      if (json.stageMirrorUpdated === false) {
+        setWarning('La corrección se registró, pero la etapa mostrada no se pudo actualizar. Recarga en unos minutos.')
       }
       setReason('')
       onSaved()
@@ -451,6 +536,7 @@ function CorrectStageForm({ relationshipId, onSaved }: { relationshipId: string;
           Corregir
         </button>
       </div>
+      {warning && <p className="text-xs text-[color:var(--warning)] mt-1">{warning}</p>}
       {error && <p className="text-xs text-[color:var(--danger)] mt-1">{error}</p>}
     </div>
   )

@@ -19,6 +19,14 @@
  * a `viewer` partner-grant may READ but not WRITE (`canWriteRelationship`).
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF, via
  * `authorizeRelationshipRequest`).
+ *
+ * C11 fix (PR 304 review): a malformed `taskId` (not a valid UUID) makes
+ * Postgres raise `22P02`, which used to fall through to the generic 500
+ * branch below. Not exploitable (the `relationship_id` predicate already
+ * scopes the update to nothing), but the wrong status + needless log noise
+ * — `22P02` now maps to the same 404 a genuinely-missing task gets, mirroring
+ * `resolveRelationshipAccess`'s own "a malformed-UUID read is indistinguishable
+ * from not-found" convention.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
@@ -52,6 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .is('completed_at', null)
 
   if (updateError) {
+    // 22P02 = invalid input syntax for uuid — a malformed taskId reads as
+    // "not found", the same fail-closed shape `resolveRelationshipAccess`
+    // already uses, not a server malfunction.
+    if (updateError.code === '22P02') {
+      return NextResponse.json({ ok: false, error: 'Acción no encontrada.' }, { status: 404 })
+    }
     return NextResponse.json({ ok: false, error: 'No se pudo completar la acción.' }, { status: 500 })
   }
 
