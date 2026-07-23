@@ -5,6 +5,7 @@ import { ESTADO_NAMES } from '@/lib/mx-locations'
 import ListingStep from './ListingStep'
 import PrintAdStep from './PrintAdStep'
 import PreviewStep from './PreviewStep'
+import RelationshipStep from './RelationshipStep'
 
 type Bound = { code: string; name: string | null } | null
 type Shop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null }
@@ -20,14 +21,26 @@ type Transfer = {
 }
 
 /**
- * Promoter "close" workspace client island (epic 08 · S4). Four steps for the
- * in-store motion: (1) bind your PRM- code, (2) set up the merchant's shop,
+ * Promoter "close" workspace client island (epic 08 · S4). Steps for the
+ * in-store motion: (0, activation-crm flag only) capture the merchant
+ * relationship record BEFORE any shop exists — README D1, the relationship
+ * precedes the shop; (1) bind your PRM- code, (2) set up the merchant's shop,
  * (3) charge a SKU on their behalf (a picker over the one-time close routes —
  * domain / ml-sync — with an optional net-remittance transfer alongside Stripe,
  * Sprint 4 · US-4.1), (4) hand off the WhatsApp claim link.
- * Thin screens over /api/promoter/{me/bind,shop/setup,close/<sku>,close/transfer/*,claim/link}.
+ * Thin screens over /api/promoter/{relationship,me/bind,shop/setup,close/<sku>,close/transfer/*,claim/link}.
  */
-export default function PromoterCloseClient({ bound: initialBound, transferEnabled, previewEnabled }: { bound: Bound; transferEnabled: boolean; previewEnabled: boolean }) {
+export default function PromoterCloseClient({
+  bound: initialBound,
+  transferEnabled,
+  previewEnabled,
+  activationCrmEnabled,
+}: {
+  bound: Bound
+  transferEnabled: boolean
+  previewEnabled: boolean
+  activationCrmEnabled: boolean
+}) {
   const [bound, setBound] = useState<Bound>(initialBound)
   const [shop, setShop] = useState<Shop | null>(null)
 
@@ -37,7 +50,15 @@ export default function PromoterCloseClient({ bound: initialBound, transferEnabl
   // shares a preview link, the merchant approves, then the promoter activates.
   // The activation step slots in right after the listing step (where the products
   // are added) and before the paid-SKU / hand-off steps.
-  let n = 1
+  //
+  // Numbering is a running counter, not hardcoded per step — every step that
+  // might not render (flag off, no shop yet) increments it only when it
+  // actually shows, via `&&`'s short-circuit, so the visible steps always
+  // number contiguously from 1 regardless of which optional steps are on.
+  // With `activationCrmEnabled` false this behaves byte-identically to before
+  // this step existed: RelationshipStep never renders, so SetupStep is still
+  // the first counter increment (n=1), exactly as its old hardcoded `n={1}`.
+  let n = 0
   return (
     <div className="max-w-xl mx-auto px-4 py-8 space-y-8">
       <header>
@@ -48,7 +69,8 @@ export default function PromoterCloseClient({ bound: initialBound, transferEnabl
         </p>
       </header>
 
-      <SetupStep shop={shop} onShop={setShop} />
+      {activationCrmEnabled && <RelationshipStep n={(n += 1)} promoterCode={bound.code} />}
+      <SetupStep n={(n += 1)} shop={shop} onShop={setShop} />
       {shop && <ListingStep shop={shop} n={(n += 1)} />}
       {shop && previewEnabled && <PreviewStep shop={shop} n={(n += 1)} />}
       {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} n={(n += 1)} />}
@@ -116,7 +138,7 @@ function BindStep({ onBound }: { onBound: (b: Bound) => void }) {
   )
 }
 
-function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => void }) {
+function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: (s: Shop) => void }) {
   const [name, setName] = useState('')
   const [cp, setCp] = useState('')
   const [cpBusy, setCpBusy] = useState(false)
@@ -173,7 +195,7 @@ function SetupStep({ shop, onShop }: { shop: Shop | null; onShop: (s: Shop) => v
   }
 
   return (
-    <Card n={1} title="Montar la tienda">
+    <Card n={n} title="Montar la tienda">
       {shop ? (
         <p className="text-sm">
           <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>

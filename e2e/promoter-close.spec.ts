@@ -133,6 +133,56 @@ test.describe('promoter close · resources mini-site renders es-MX (US-12)', () 
   })
 })
 
+/**
+ * Founding merchant activation operations · Sprint 1 (Story 1.2/1.3) —
+ * `/api/promoter/relationship*` route guards. Same documented caveat as
+ * `e2e/partner-grants.spec.ts`: while this PR is unmerged these routes don't
+ * exist on the default `baseURL` (production) yet, so an anonymous request
+ * 404s via Next's generic catch-all TODAY — status 404, `content-type:
+ * text/html`. Once merged (flag `promoter.activation_crm_enabled` OFF by
+ * default), the SAME anonymous request still 404s, but from a REAL route
+ * returning JSON (`content-type: application/json`). That content-type flip
+ * is the deterministic red→green signal; documented honestly rather than
+ * claimed as exercised by a status-code-only assertion against prod today.
+ *
+ * NOT covered here (owed to Daniel — sprint-1.md smoke walkthrough, and the
+ * standing gap every promoter/partner api spec in this repo notes): dedupe
+ * precedence against REAL rows, partial-save-then-resume, cross-promoter 403
+ * against a real second promoter's record, and a real invalid-evidence 422 —
+ * all need a live Supabase with the migration applied, a bound promoter Clerk
+ * session, and (for the 403 case) a SECOND bound promoter — no fixture for
+ * any of that exists in this harness. The PRECEDENCE rule and the EVIDENCE
+ * rule themselves are fully covered, network-free, in `e2e/merchant-identity.spec.ts`
+ * and `e2e/relationship-consent.spec.ts` — that is deliberately where the real
+ * business-logic risk gets exercised, since the route layer is a thin,
+ * already-covered-elsewhere composition over them.
+ */
+test.describe('promoter close · relationship routes respect the kill-switch (flag on OR off)', () => {
+  test('POST /api/promoter/relationship (anon) → 404 (hidden) or 401 (live, auth required)', async ({ request }) => {
+    const res = await request.post('/api/promoter/relationship', { data: {} })
+    expect([401, 404]).toContain(res.status())
+  })
+
+  test('GET /api/promoter/relationship/[id] (anon, well-formed but nonexistent id) → 404 or 401, never 500', async ({ request }) => {
+    const res = await request.get('/api/promoter/relationship/00000000-0000-0000-0000-000000000000')
+    expect(res.status()).toBeLessThan(500)
+    expect([401, 403, 404]).toContain(res.status())
+  })
+
+  test('GET /api/promoter/relationship/[id] (anon, garbage id) → never 500', async ({ request }) => {
+    // A malformed id must fail the SAME way a well-formed-but-absent one does
+    // (the shared scope helper fails closed on a read error), not throw.
+    const res = await request.get('/api/promoter/relationship/not-a-uuid')
+    expect(res.status()).toBeLessThan(500)
+  })
+
+  test('POST /api/promoter/relationship/[id]/consent (anon) → 404 or 401, never 500', async ({ request }) => {
+    const res = await request.post('/api/promoter/relationship/00000000-0000-0000-0000-000000000000/consent', { data: {} })
+    expect(res.status()).toBeLessThan(500)
+    expect([401, 403, 404]).toContain(res.status())
+  })
+})
+
 test.describe('promoter close · the public CTA never links to a 404 (promoter-funnel-fixes S1.2)', () => {
   test('GET /promotor/cerrar → redirect (flag on, anon → sign-in) or 404 (flag off)', async ({ request }) => {
     const res = await request.get('/promotor/cerrar', { maxRedirects: 0 })

@@ -20,10 +20,11 @@ export default async function PromoterClosePage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
-  const [promoter, transferEnabled, previewEnabled] = await Promise.all([
+  const [promoter, transferEnabled, previewEnabled, activationCrmEnabled] = await Promise.all([
     getPromoterByClerkId(user.id),
     isEnabled('promoter.transfer_enabled'),
     isEnabled('promoter.private_preview_enabled'),
+    isEnabled('promoter.activation_crm_enabled'),
   ])
 
   return (
@@ -31,6 +32,7 @@ export default async function PromoterClosePage() {
       bound={promoter ? { code: promoter.code, name: promoter.name } : null}
       transferEnabled={transferEnabled}
       previewEnabled={previewEnabled}
+      activationCrmEnabled={activationCrmEnabled}
     />
   )
 }
