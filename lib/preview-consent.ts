@@ -14,6 +14,7 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
+import { isEnabled } from '@/lib/flags'
 import {
   type PreviewSnapshot,
   hashSnapshot,
@@ -65,6 +66,10 @@ export interface ApprovalState {
   stale: boolean
   /** Plain-language es-MX reasons the approval went stale (empty when not stale). */
   staleReasons: string[]
+  /** S4: how the current approval was merchant-verified (`email`/`whatsapp`), or
+   *  null for an unverified (legacy / flag-off) approval. Used by the activation
+   *  gate to refuse an unverified approval when verified-approval is enforced. */
+  approvedVerifiedVia: 'email' | 'whatsapp' | null
 }
 
 /**
@@ -89,17 +94,26 @@ export async function readApprovalState(preview: MerchantPreview): Promise<Appro
   // Load the proposal the merchant actually approved whenever one exists — it is
   // both the explanation of any staleness AND the authoritative publish set.
   let approvedSnapshot: PreviewSnapshot | null = null
+  let approvedVerifiedVia: 'email' | 'whatsapp' | null = null
   if (approvedHash !== null) {
+    // Multiple approved decisions can share the same snapshot hash (e.g. a merchant
+    // re-approves the same proposal after a verified re-approval). Prefer the most
+    // recent, and among those, a VERIFIED one — so a stale unverified row can't be
+    // selected and wrongly block activation (cross-agent review, 2026-07-22). NULLS
+    // LAST on verified_via puts a verified row ahead of an unverified one.
     const { data: decision } = await db
       .from('merchant_preview_decisions')
-      .select('snapshot')
+      .select('snapshot, verified_via')
       .eq('preview_id', preview.id)
       .eq('decision', 'approved')
       .eq('snapshot_hash', approvedHash)
+      .order('verified_via', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (decision?.snapshot) approvedSnapshot = decision.snapshot as PreviewSnapshot
+    const via = (decision as { verified_via?: string | null } | null)?.verified_via
+    approvedVerifiedVia = via === 'email' || via === 'whatsapp' ? via : null
   }
 
   // A hash difference is only STALE if it reflects a real promoter edit. A live
@@ -116,7 +130,7 @@ export async function readApprovalState(preview: MerchantPreview): Promise<Appro
   const staleReasons =
     stale && approvedSnapshot ? describeMaterialChanges(approvedSnapshot, snapshot) : []
 
-  return { preview, snapshot, currentHash, approvedHash, approvedSnapshot, stale, staleReasons }
+  return { preview, snapshot, currentHash, approvedHash, approvedSnapshot, stale, staleReasons, approvedVerifiedVia }
 }
 
 /**
@@ -135,6 +149,11 @@ export async function recordDecision(input: {
   grantId?: string | null
   note?: string | null
   ipHash?: string | null
+  /** S4: how an approval was merchant-verified (email/whatsapp) + the hashed
+   *  contact it was verified against. NULL for a changes-requested or a flag-off
+   *  approval — honestly labeled, never back-filled. */
+  verifiedVia?: 'email' | 'whatsapp' | null
+  verifiedContactHash?: string | null
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const state = await readApprovalState(input.preview)
   if (!state) return { ok: false, reason: 'No se pudo leer la propuesta.' }
@@ -157,6 +176,8 @@ export async function recordDecision(input: {
     grant_id: input.grantId ?? null,
     actor_note: input.note ?? null,
     actor_ip_hash: input.ipHash ?? null,
+    verified_via: input.decision === 'approved' ? (input.verifiedVia ?? null) : null,
+    verified_contact_hash: input.decision === 'approved' ? (input.verifiedContactHash ?? null) : null,
   })
   if (decisionError) return { ok: false, reason: 'No se pudo registrar tu decisión. Inténtalo de nuevo.' }
 
@@ -331,6 +352,22 @@ export async function checkActivation(
   }
 
   if (!decision.ok) return { ok: false, reason: decision.reason, checklist }
+
+  // S4: when verified approval is enforced, an approval with no merchant-verified
+  // provenance does NOT count as a current approval — activation is refused until
+  // the merchant approves with a code. Checked here (not in the pure `canActivate`)
+  // because it depends on the flag + the DB-read provenance. Only for a NON-activated
+  // preview: an already-activated shop stays idempotently activatable (handled above)
+  // and legacy approvals recorded before this shipped stay honestly unverified.
+  if (await isEnabled('promoter.preview_verified_approval_enabled')) {
+    if (state.approvedVerifiedVia === null) {
+      return {
+        ok: false,
+        reason: 'Falta la aprobación verificada del comerciante. Pídele que confirme con el código enviado a su contacto.',
+        checklist,
+      }
+    }
+  }
 
   if (!checklistComplete(checklist)) {
     return {
