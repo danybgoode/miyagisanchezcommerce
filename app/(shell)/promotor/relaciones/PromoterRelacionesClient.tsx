@@ -119,7 +119,7 @@ export default function PromoterRelacionesClient() {
 
               {open && (
                 <div className="border-t border-[var(--color-border)] px-4 py-4 bg-[var(--color-surface-alt)]">
-                  <RelationshipHistoryPanel relationshipId={r.id} isAdmin={false} onChanged={load} />
+                  <RelationshipHistoryPanel relationshipId={r.id} onChanged={load} />
                 </div>
               )}
             </div>

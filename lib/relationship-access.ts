@@ -42,6 +42,7 @@ import { currentUserIsAdmin } from '@/lib/admin/guard'
 import { getPromoterByClerkId } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { canAnchorPreview } from '@/lib/promoter-close'
+import { decideRelationshipRole } from '@/lib/relationship-role'
 
 export interface RelationshipRow {
   id: string
@@ -182,10 +183,45 @@ export async function resolveRelationshipAccess(
 
   const row = data as unknown as RelationshipRow
 
-  if (actor.isAdmin) return { ok: true, relationship: row, role: 'admin' }
-  if (actor.promoterId && row.promoter_id === actor.promoterId) return { ok: true, relationship: row, role: 'owner' }
+  // S2 fix (C1, PR 304 review): the assigned STEWARD now gets `manager`
+  // access — otherwise reassigning `steward_clerk_user_id` (S2.2's
+  // owner-reassign route) changes who a list SHOWS as responsible without
+  // changing who can actually SEE or ACT on the record, directly defeating
+  // S2.2's acceptance ("no active merchant disappears between contacts"):
+  // the OLD promoter keeps write access via `promoter_id`/grants, and the
+  // NEW steward — who may not be the `promoter_id` owner and may hold no
+  // `partner_grants` row at all — is 403'd out of the record they were just
+  // handed.
+  //
+  // Fixed on the READ side, deliberately NOT by auto-inserting a
+  // `partner_grants` row on reassignment. Roadmap/LEARNINGS.md
+  // (miyagi-partners S2.1, 2026-07-17): "when a funnel/automation writes
+  // into an authorization table, enumerate every OTHER writer of that table
+  // and decide whose intent wins" — a promoter-close auto-grant's
+  // duplicate-handling once grew an upgrade path that would have silently
+  // escalated an admin's deliberate `viewer` grant and let a re-close undo a
+  // seller's revoke. A read-side rule adds NO rows to `partner_grants` at
+  // all, so it can never race, escalate, or resurrect a grant an
+  // admin/seller deliberately set or revoked — it only ever widens access
+  // for the CURRENT steward, and only for as long as they stay the steward.
+  // `listScopedRelationships` (`lib/relationship-list.ts`) mirrors this exact
+  // rule so a steward's records also appear in their own pipeline.
+  //
+  // The DECISION itself (precedence: admin > owner > steward > grant role)
+  // is `lib/relationship-role.ts#decideRelationshipRole` — pure, zero-import,
+  // spec-tested directly. This function's job is only to resolve the FACTS
+  // (including the grant lookup, run lazily — only when the row has a
+  // `shop_id` and the caller is a bound promoter, same as before) and hand
+  // them over.
+  const isAdmin = actor.isAdmin
+  const isPromoterOwner = !!actor.promoterId && row.promoter_id === actor.promoterId
+  const isSteward = !!row.steward_clerk_user_id && row.steward_clerk_user_id === actor.clerkUserId
 
-  if (row.shop_id && actor.promoterId) {
+  // The grant lookup is a DB call — keep it LAZY exactly as before (only run
+  // when a higher-precedence fact hasn't already decided the role, and only
+  // when there's a shop to look a grant up against).
+  let grantRole: 'manager' | 'viewer' | null = null
+  if (!isAdmin && !isPromoterOwner && !isSteward && row.shop_id && actor.promoterId) {
     const { data: grant } = await db
       .from('partner_grants')
       .select('role')
@@ -196,11 +232,13 @@ export async function resolveRelationshipAccess(
     // `partner_grants.role` is `manager|viewer` (CHECK'd at the DB) — trust the
     // stored value literally rather than defaulting an unrecognized value to a
     // WRITE role (fail closed, same posture as `lib/partner-auth.ts`).
-    if (grant?.role === 'manager') return { ok: true, relationship: row, role: 'manager' }
-    if (grant?.role === 'viewer') return { ok: true, relationship: row, role: 'viewer' }
+    if (grant?.role === 'manager') grantRole = 'manager'
+    else if (grant?.role === 'viewer') grantRole = 'viewer'
   }
 
-  return FORBIDDEN
+  const role = decideRelationshipRole({ isAdmin, isPromoterOwner, isSteward, grantRole })
+
+  return role ? { ok: true, relationship: row, role } : FORBIDDEN
 }
 
 // ── Shop linking (A3/A4 — a relationship may only bind to a shop the calling

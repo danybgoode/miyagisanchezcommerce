@@ -14,6 +14,10 @@
  * 'correction:%' OR reason IS NOT NULL)`, so no future writer of this table
  * can skip it by going around this route.
  *
+ * C9 fix (PR 304 review): `reason` is now runtime type-checked (400 for a
+ * non-string, distinct from 422 for a missing/blank one) BEFORE `.trim()`
+ * touches it — `{reason: 123}` used to 500.
+ *
  * LIFECYCLE EMISSION (Sprint 3, Story 3.2): a successful correction also
  * calls `emitStageTransition` — the SAME seam the derived-advance evaluator
  * uses — so a correction lands on the shared event rail like any other
@@ -68,6 +72,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'Etapa inválida.' }, { status: 400 })
   }
 
+  if (body.reason !== undefined && typeof body.reason !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Razón inválida.' }, { status: 400 })
+  }
   const reason = (body.reason ?? '').trim()
   if (!reason) {
     return NextResponse.json({ ok: false, error: 'La corrección requiere una razón.' }, { status: 422 })

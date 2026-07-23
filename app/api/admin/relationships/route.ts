@@ -9,6 +9,10 @@
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF, via
  * `authorizeRelationshipRequest`), then narrowed to admin explicitly — this
  * is the FULL cohort across every promoter, never scoped by grant.
+ *
+ * C3 fix (PR 304 review): the list and enrichment reads can now fail closed
+ * — `{ ok: false }` from either becomes a 500, never a silently-empty or
+ * silently-wrong 200 cohort.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeRelationshipRequest } from '@/lib/relationship-access'
@@ -37,8 +41,17 @@ export async function GET(req: NextRequest) {
   const missingAction = parseTriState(searchParams.get('missing_action'))
   const overdue = parseTriState(searchParams.get('overdue'))
 
-  const rows = await listAllRelationships({ stage, steward })
-  let relationships: EnrichedRelationship[] = await enrichRelationships(rows, new Date())
+  const listResult = await listAllRelationships({ stage, steward })
+  if (!listResult.ok) {
+    return NextResponse.json({ ok: false, error: 'No se pudo leer el cohorte.' }, { status: 500 })
+  }
+
+  const enrichResult = await enrichRelationships(listResult.rows, new Date())
+  if (!enrichResult.ok) {
+    return NextResponse.json({ ok: false, error: 'No se pudo calcular el resumen del cohorte.' }, { status: 500 })
+  }
+
+  let relationships: EnrichedRelationship[] = enrichResult.relationships
 
   if (blocker !== null) relationships = relationships.filter((r) => r.blocker === blocker)
   if (missingAction !== null) relationships = relationships.filter((r) => r.missingAction === missingAction)

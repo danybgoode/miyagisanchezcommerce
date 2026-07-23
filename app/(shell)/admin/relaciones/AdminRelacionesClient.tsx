@@ -8,7 +8,9 @@ import RelationshipHistoryPanel, { STAGE_LABEL } from '@/app/components/Relation
  * cohort view. Thin screen over `GET /api/admin/relationships` (filters:
  * stage, steward, blocker, missing_action, overdue) — each row expands into
  * the SAME `RelationshipHistoryPanel` the promoter view uses, with
- * `isAdmin` on so the stage-correction form shows.
+ * `RelationshipHistoryPanel` derives write-control visibility itself from
+ * the caller's own per-relationship `role` (C7, PR 304 review) — no
+ * `isAdmin` prop needed here.
  */
 
 type EnrichedRelationship = {
@@ -154,7 +156,7 @@ export default function AdminRelacionesClient() {
 
               {open && (
                 <div className="border-t border-[var(--color-border)] px-4 py-4 bg-[var(--color-surface-alt)]">
-                  <RelationshipHistoryPanel relationshipId={r.id} isAdmin onChanged={load} />
+                  <RelationshipHistoryPanel relationshipId={r.id} onChanged={load} />
                 </div>
               )}
             </div>

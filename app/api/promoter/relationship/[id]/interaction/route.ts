@@ -11,6 +11,14 @@
  * interaction (`canWriteRelationship`). Gated by
  * `promoter.activation_crm_enabled` FIRST (404 when OFF, via
  * `authorizeRelationshipRequest`).
+ *
+ * C9 fix (PR 304 review): `body`/`occurredAt` are now runtime type-checked
+ * BEFORE `.trim()`/`new Date(...)` touch them — a non-string `body`
+ * (`{body: {}}`) used to reach `.trim()` and 500.
+ *
+ * Caller-controlled `occurredAt` upper bound (PR 304 review, "answer, don't
+ * fix" list): capped at `now + 1 day` — cheap, and `created_at` already
+ * preserves the real write time regardless of what `occurredAt` claims.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
@@ -61,12 +69,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let occurredAt = new Date()
   if (body.occurredAt !== undefined) {
+    if (typeof body.occurredAt !== 'string') {
+      return NextResponse.json({ ok: false, error: 'Fecha inválida.' }, { status: 400 })
+    }
     occurredAt = new Date(body.occurredAt)
     if (Number.isNaN(occurredAt.getTime())) {
       return NextResponse.json({ ok: false, error: 'Fecha inválida.' }, { status: 400 })
     }
+    if (occurredAt.getTime() > Date.now() + 86_400_000) {
+      return NextResponse.json({ ok: false, error: 'La fecha no puede ser más de un día en el futuro.' }, { status: 400 })
+    }
   }
 
+  if (body.body !== undefined && typeof body.body !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Cuerpo de la interacción inválido.' }, { status: 400 })
+  }
   const text = (body.body ?? '').trim()
 
   const { data, error } = await db

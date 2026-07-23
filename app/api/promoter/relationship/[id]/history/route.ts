@@ -17,6 +17,17 @@
  * grant may read history; `canWriteRelationship` is not checked here because
  * nothing is written). Gated by `promoter.activation_crm_enabled` FIRST (404
  * when OFF, via `authorizeRelationshipRequest`).
+ *
+ * C7 fix (PR 304 review): the response now includes `role` (the caller's
+ * OWN `resolveRelationshipAccess` role for this exact relationship) so
+ * `RelationshipHistoryPanel` can hide write controls a `viewer` grant would
+ * only have the API reject — the panel has no other way to learn its role,
+ * since access is resolved per-relationship, not per-page.
+ *
+ * C3 fix (PR 304 review): any one of the four reads failing now 500s the
+ * WHOLE response instead of silently substituting `[]` for that section —
+ * an empty transitions/interactions/tasks/owner-history array must mean
+ * "genuinely nothing happened", never "the read broke".
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
@@ -55,9 +66,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .order('at', { ascending: false }),
   ])
 
+  if (transitionsRes.error || interactionsRes.error || tasksRes.error || ownerHistoryRes.error) {
+    return NextResponse.json({ ok: false, error: 'No se pudo cargar el historial.' }, { status: 500 })
+  }
+
   return NextResponse.json({
     ok: true,
     relationship: toRelationshipDTO(access.relationship),
+    role: access.role,
     transitions: transitionsRes.data ?? [],
     interactions: interactionsRes.data ?? [],
     tasks: tasksRes.data ?? [],
