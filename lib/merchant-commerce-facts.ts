@@ -3,16 +3,29 @@
  *
  * Founding merchant activation operations · Sprint 3, Story 3.1 — the Medusa
  * commerce-fact adapter. `loadCommerceFacts(relationship)` returns the
- * commerce-sourced subset of `lib/merchant-stage.ts`'s `StageFacts` (build
+ * state-derived subset of `lib/merchant-stage.ts`'s `StageFacts` (build
  * contract's table): `claimed`, `paymentsReady`, `threeProductsLive`,
- * `firstSale`, `retained30d`. `sharedExternally` and `firstInquiry` are
- * explicitly NOT this module's job — the contract table marks them "not
- * commerce, CRM-sourced" and no interaction `kind` in the S2 schema
- * (`note|call|whatsapp|visit|email|other`) represents either one yet. Until a
- * future sprint adds that signal, D3's "corrections are the only writes"
- * covers them: an admin records the milestone via
- * `POST /api/admin/relationship/[id]/correct-stage`. FLAGGED for the
- * architect, not silently resolved.
+ * `firstSale`, `retained30d`, plus the two the contract originally called
+ * "CRM-sourced" — `sharedExternally` and `firstInquiry` — which turned out to
+ * have real state signals after all (E1b, architect review of the S3 build):
+ *
+ *   - `firstInquiry` ← a `marketplace_conversations` row for the shop. A buyer
+ *     opening a conversation with the shop IS the first inquiry: state-derived
+ *     and complete-by-construction, exactly like the Medusa reads.
+ *   - `sharedExternally` ← the shipped setup-guide "comparte" signal
+ *     (`shop.metadata.settings.guide.share_done`, the same flag
+ *     `app/(shell)/shop/manage/page.tsx` reads). WEAKER provenance than a
+ *     Medusa read — it is the SELLER'S OWN recorded action, not a fact Medusa
+ *     owns — but that is exactly why it does NOT violate D3: D3 forbids the
+ *     CRM asserting commerce truth it doesn't own, and a merchant recording
+ *     that they shared their own shop is a genuine fact about the merchant.
+ *     Fail-closed on absence (a missing flag reads as `false`, never unknown).
+ *
+ * Why derive them here rather than leave them admin-only: without both, the
+ * resolver's `first_sale`/`retained_30d` were UNREACHABLE (a gap at
+ * `shared_externally` used to break the walk — see `resolveStage`'s header),
+ * so half of Story 3.1's commerce work was inert. Deriving from state is also
+ * the backfill-safety-net the sweep already relies on for the Medusa facts.
  *
  * REUSE, NOT REBUILD (build contract): the paged, fail-closed, timeout-budgeted
  * Medusa reads originated in `lib/merchant-lifecycle-sweep.ts` — six cross-
@@ -62,7 +75,10 @@ import {
 const RETENTION_WINDOW_MS = RETENTION_WINDOW_DAYS * 24 * 60 * 60 * 1000
 
 export type CommerceStageFacts = Partial<
-  Pick<StageFacts, 'claimed' | 'paymentsReady' | 'threeProductsLive' | 'firstSale' | 'retained30d'>
+  Pick<
+    StageFacts,
+    'claimed' | 'paymentsReady' | 'threeProductsLive' | 'firstSale' | 'retained30d' | 'sharedExternally' | 'firstInquiry'
+  >
 >
 
 export interface CommerceFactsResult {
@@ -105,17 +121,40 @@ export async function loadCommerceFacts(relationship: { shopId: string | null })
   const facts: CommerceStageFacts = {
     claimed: !!row.clerk_user_id,
     paymentsReady: computeShopCompletion(row).pagos,
+    // The seller's own "comparte" action (E1b). Read straight off the mirror
+    // row already fetched — no extra round trip. Absent/malformed ⇒ false
+    // (fail-closed: a missing flag is "not shared", never unknown), so it
+    // never affects `ok`.
+    sharedExternally: readShareDone(row.metadata),
+  }
+
+  let ok = true
+
+  // `firstInquiry` (E1b): does a buyer↔shop conversation exist yet? A single
+  // fail-closed existence probe on the shop-indexed column
+  // (`idx_conversations_shop`). A read error is UNREACHABLE, not "no inquiry":
+  // it drops `ok` and leaves the fact unset, exactly like the Medusa reads
+  // below — never silently reads "no inquiry" for a shop we couldn't query.
+  const { data: convo, error: convoError } = await db
+    .from('marketplace_conversations')
+    .select('id')
+    .eq('shop_id', relationship.shopId)
+    .limit(1)
+    .maybeSingle()
+  if (convoError) {
+    ok = false
+  } else {
+    facts.firstInquiry = !!convo
   }
 
   const sellerSlug = row.slug
   if (!sellerSlug) {
     // No Medusa seller slug on the mirror row — the three Medusa-derived facts
-    // are unreachable. `claimed`/`paymentsReady` above are still returned
-    // (they need only the mirror row), but the run as a whole is incomplete.
+    // are unreachable. `claimed`/`paymentsReady`/`sharedExternally`/
+    // `firstInquiry` above are still returned (they need only the mirror row
+    // and the conversations probe), but the run as a whole is incomplete.
     return { facts, ok: false }
   }
-
-  let ok = true
 
   const liveCount = await countLiveProductsFromMedusa(sellerSlug)
   if (liveCount === null) {
@@ -134,4 +173,21 @@ export async function loadCommerceFacts(relationship: { shopId: string | null })
   }
 
   return { facts, ok }
+}
+
+/**
+ * Read `metadata.settings.guide.share_done` defensively (E1b). The mirror's
+ * `metadata` is free-form JSON, so every level may be absent or the wrong
+ * type — anything that is not a literal `true` reads as `false` (fail-closed:
+ * an unset or malformed flag is "not shared", never "unknown"). Mirrors the
+ * exact path `app/(shell)/shop/manage/page.tsx` reads, so the two can never
+ * disagree about what "shared" means.
+ */
+function readShareDone(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object') return false
+  const settings = (metadata as { settings?: unknown }).settings
+  if (!settings || typeof settings !== 'object') return false
+  const guide = (settings as { guide?: unknown }).guide
+  if (!guide || typeof guide !== 'object') return false
+  return (guide as { share_done?: unknown }).share_done === true
 }

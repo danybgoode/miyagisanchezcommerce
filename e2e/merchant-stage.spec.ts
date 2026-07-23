@@ -142,19 +142,84 @@ test.describe('resolveStage — the full monotonic table, every stage in order',
   })
 })
 
-test.describe('resolveStage — fails CLOSED: unknown/absent facts decline, never grant', () => {
-  test('a later-stage fact true while an EARLIER one is absent never skips ahead (no jump)', () => {
-    const facts: StageFacts = { qualified: true, threeProductsLive: true, firstSale: true, retained30d: true }
-    // permission_granted's own fact was never set → the walk stops right after "qualified".
-    expect(resolveStage(facts).stage).toBe('qualified')
+test.describe('resolveStage — independent evaluation (E1a): a soft-fact GAP never holds a hard fact hostage', () => {
+  // THE REGRESSION E1a FIXES. Under the old prefix-`break` semantics, a merchant
+  // with a real Medusa sale but no recorded external share stopped the walk at
+  // `shared_externally` (10) and `first_sale` (12) was UNREACHABLE — silently
+  // defeating epic acceptance 5. Predicates now evaluate independently.
+  test('firstSale true but sharedExternally/firstInquiry false → first_sale IS reached, and the gap stages are NOT', () => {
+    const facts: StageFacts = {
+      ...ALL_TRUE,
+      sharedExternally: false,
+      firstInquiry: false,
+      retained30d: false,
+    }
+    const result = resolveStage(facts)
+    expect(result.reached).toContain('first_sale')
+    expect(result.stage).toBe('first_sale') // highest-ordinal milestone genuinely reached
+    expect(result.reached).not.toContain('shared_externally')
+    expect(result.reached).not.toContain('first_inquiry')
+    expect(result.reached).not.toContain('retained_30d')
   })
 
-  test('a gap ANYWHERE in the middle stops the walk there, regardless of what holds after it', () => {
+  // The common shape for the S1 backfill's 29 shops: claimed + selling, but
+  // never routed through the promoter funnel, so qualified/permission/preview
+  // are all false. The old walk emitted NOTHING (broke at `qualified`, stage 2).
+  test('a claimed-and-sold shop with no funnel stages → every genuinely-true milestone reached, first_sale resolved', () => {
+    const facts: StageFacts = {
+      claimed: true,
+      paymentsReady: true,
+      threeProductsLive: true,
+      firstSale: true,
+    }
+    const result = resolveStage(facts)
+    expect(result.stage).toBe('first_sale')
+    expect(result.reached).toEqual(['scouted', 'claimed', 'payments_ready', 'three_products_live', 'first_sale'])
+    expect(result.reached).not.toContain('qualified')
+    expect(result.reached).not.toContain('permission_granted')
+  })
+
+  test('a single isolated high fact resolves to itself — independence, not contiguity', () => {
+    const result = resolveStage({ firstSale: true })
+    expect(result.reached).toEqual(['scouted', 'first_sale'])
+    expect(result.stage).toBe('first_sale')
+  })
+
+  test('still fails CLOSED under independence: an absent gap fact declines its OWN stage, it just does not veto later ones', () => {
+    // `shared_externally` is absent here (not `=== true`), so it is NOT reached
+    // even though its neighbours are — the decline is local to its own stage.
+    const facts: StageFacts = { ...ALL_TRUE, sharedExternally: undefined }
+    const result = resolveStage(facts)
+    expect(result.reached).not.toContain('shared_externally')
+    expect(result.reached).toContain('first_inquiry')
+    expect(result.stage).toBe('retained_30d')
+  })
+})
+
+test.describe('resolveStage — fails CLOSED per-stage: an absent fact declines its OWN stage (never grants it), and E1a no longer lets it veto later independent ones', () => {
+  test('an absent middle fact is NOT reached, but the independently-true later facts ARE (E1a)', () => {
+    const facts: StageFacts = { qualified: true, threeProductsLive: true, firstSale: true, retained30d: true }
+    const result = resolveStage(facts)
+    // The absent stages decline THEMSELVES — the fail-closed guarantee, per-stage.
+    expect(result.reached).not.toContain('permission_granted')
+    expect(result.reached).not.toContain('preview_delivered')
+    expect(result.reached).not.toContain('shared_externally')
+    // …but the genuinely-true later facts are reached — no hostage (E1a).
+    expect(result.reached).toContain('qualified')
+    expect(result.reached).toContain('three_products_live')
+    expect(result.reached).toContain('first_sale')
+    expect(result.stage).toBe('retained_30d')
+  })
+
+  test('a gap in the middle skips ONLY that stage, not everything after it (E1a)', () => {
     const facts = factsUpTo('claimed')
-    // Knock out an early-chain fact retroactively (simulating a caller bug) —
-    // the walk must stop at the FIRST failing predicate, not just "the last one".
+    // Knock out one mid-chain fact — only preview_in_preparation should drop out.
     delete (facts as Record<string, unknown>).previewInPreparation
-    expect(resolveStage(facts).stage).toBe('permission_granted')
+    const result = resolveStage(facts)
+    expect(result.reached).not.toContain('preview_in_preparation')
+    expect(result.reached).toContain('preview_delivered')
+    expect(result.reached).toContain('claimed')
+    expect(result.stage).toBe('claimed')
   })
 
   test('a non-boolean truthy value (string "true", 1) never satisfies a predicate — only literal `true`', () => {
@@ -166,9 +231,16 @@ test.describe('resolveStage — fails CLOSED: unknown/absent facts decline, neve
 })
 
 test.describe('resolveStage — permission-gated stages require dedicated evidence, never a note (build contract, asserted directly)', () => {
-  test('permission_granted: every OTHER fact true, evidence fact absent → still refused at qualified', () => {
+  test('permission_granted: every OTHER fact true, its evidence fact false → permission_granted is NOT reached (so it can never be emitted), even though higher independent milestones are', () => {
     const facts: StageFacts = { ...ALL_TRUE, permissionGrantedEvidence: false }
-    expect(resolveStage(facts).stage).toBe('qualified')
+    const result = resolveStage(facts)
+    // THE SECURITY PROPERTY, under E1a: the gated MILESTONE is individually
+    // declined. The evaluator only ever emits stages in `reached`, so a
+    // permission_granted absent here can never reach Golden Beans without
+    // consent evidence — which is what this gate exists to guarantee. That the
+    // resolved `stage` is now higher (retained_30d) is irrelevant to the gate:
+    // the milestone set, not the scalar, is what gets emitted.
+    expect(result.reached).not.toContain('permission_granted')
   })
 
   test('preview_delivered: qualified + permission granted + preview-in-prep all true, but its OWN evidence fact is false → stops at preview_in_preparation', () => {
@@ -211,7 +283,7 @@ test.describe('resolveStage — permission-gated stages require dedicated eviden
 })
 
 test.describe('resolveStage — no regression path exists in the pure function itself', () => {
-  test('reached always includes every stage up to and including the resolved stage — never a hole', () => {
+  test('with CONTIGUOUS facts, reached is exactly the prefix through the resolved stage (no hole, no duplicate) — the gapped case is covered by the E1a describe above', () => {
     for (const stage of STAGES.slice(1)) {
       const idx = STAGES.indexOf(stage)
       const result = resolveStage(factsUpTo(stage))

@@ -9,13 +9,24 @@
  *
  * `resolveStage` takes a FLAT bag of already-fetched facts (consent evidence,
  * commerce facts, CRM facts — fetching them is Sprint 3's commerce-fact
- * adapter, not this module) and returns the FURTHEST stage whose chain of
- * predicates holds, walked in canonical order. It is:
+ * adapter, not this module) and returns EVERY stage whose predicate
+ * independently holds, plus the furthest (highest-ordinal) among them as
+ * `stage`. It is:
  *
- *   - MONOTONIC BY CONSTRUCTION: stage N is only reachable by first passing
- *     every predicate for stages 2..N-1 IN ORDER (`scouted` is the free
- *     baseline every relationship starts at). There is no branch that can
- *     skip ahead — the walk stops at the first failing predicate.
+ *   - INDEPENDENT PER STAGE (E1a — architect review of the S3 build): each
+ *     predicate is evaluated on its own; a gap does NOT stop the walk. An
+ *     earlier version walked a contiguous prefix and `break`-ed on the first
+ *     gap, which let a soft CRM fact hold a hard commerce fact HOSTAGE
+ *     (`first_sale` unreachable behind an unsatisfiable `shared_externally`)
+ *     and emitted nothing for a shop claimed-and-sold outside the funnel. See
+ *     the fuller note on `resolveStage` itself.
+ *
+ *   - MONOTONIC AT THE PERSISTENCE LAYER, not by contiguity: the CALLER merges
+ *     `factsAtOrAbove(the persisted stage)` before calling, so a
+ *     genuinely-reached milestone is pinned `true` and never un-reaches on a
+ *     flickering live fact. `scouted` is the free baseline every relationship
+ *     starts at. This module has no history of its own; it only refuses to
+ *     grant a stage its OWN input, this call, didn't earn.
  *
  *   - FAIL-CLOSED: `StageFacts` fields are plain optional booleans; every
  *     predicate below checks `=== true`, so `undefined`, `false`, or any
@@ -55,11 +66,14 @@
  * permission-gated stages share ONE `consentEvidence` fact. This module gives
  * each of the 12 non-`scouted` stages its OWN predicate field instead
  * (`permissionGrantedEvidence` / `previewDeliveredEvidence` rather than one
- * reused boolean) — same guarantee (neither is reachable without dedicated,
- * non-note evidence; the walk-in-order chain still means `preview_delivered`
- * is UNREACHABLE unless `permission_granted` already passed first), but
- * testable and semantically distinct rather than ambiguous about which
- * real-world fact backs which stage.
+ * reused boolean) — same guarantee (neither MILESTONE enters `reached` without
+ * its own dedicated, non-note evidence, so neither can ever be emitted from a
+ * note), but testable and semantically distinct rather than ambiguous about
+ * which real-world fact backs which stage. Note under E1a the two are
+ * evaluated independently: an absent `permissionGrantedEvidence` keeps
+ * `permission_granted` out of `reached` on its own, whether or not
+ * `preview_delivered`'s evidence happens to hold — the per-stage gate is what
+ * guarantees the security property, not a walk-order chain.
  */
 
 /** The 13 canonical stages, in order. Ordinals below are FROZEN 1–13
@@ -146,25 +160,53 @@ const PREDICATES: Readonly<Record<GatedStage, (facts: StageFacts) => boolean>> =
 
 export interface ResolvedStage {
   stage: Stage
-  /** Every stage reached, in order, `scouted` first — always a prefix of
-   *  `STAGES` (the monotonic chain). */
+  /** Every stage whose predicate independently holds, in `STAGES` order,
+   *  `scouted` first. NOT necessarily a contiguous prefix — a merchant can
+   *  reach `first_sale` (a Medusa order) without ever reaching
+   *  `shared_externally` (a `share_done` flag). See `resolveStage`. */
   reached: Stage[]
 }
 
 /**
- * Walk `STAGES` in order starting after `scouted`, stopping at the first
- * predicate that doesn't hold (fail-closed) or that `facts` doesn't say
- * `true` for. Never throws on a null/undefined-ish `facts` — treated as "no
- * facts at all", which resolves to `scouted`.
+ * Evaluate every gated stage's predicate INDEPENDENTLY and return each one
+ * that holds; `stage` is the furthest (highest-ordinal) among them.
+ *
+ * This deliberately does NOT stop at the first failing predicate. An earlier
+ * version walked a contiguous prefix and `break`-ed on the first gap — which
+ * let a soft CRM fact hold a hard commerce fact HOSTAGE: with
+ * `shared_externally` (10) unsatisfiable, `first_sale` (12) and
+ * `retained_30d` (13) became permanently unreachable no matter what Medusa
+ * said, silently defeating epic acceptance 5. It also emitted NOTHING for a
+ * shop claimed-and-sold outside the promoter funnel (the common shape for the
+ * S1 backfill's 29 shops), which broke on the very first gated predicate.
+ *
+ * Each milestone is emitted independently and is write-once, so "every
+ * milestone genuinely satisfied" is the truthful set, not "the unbroken
+ * prefix". Fail-closed is UNCHANGED: an unknown/absent fact still declines
+ * its OWN stage (`=== true` only) — it simply no longer vetoes later ones.
+ * Monotonicity is preserved by the CALLER, which merges `factsAtOrAbove(the
+ * persisted stage)` so a genuinely-reached milestone never un-reaches on a
+ * flickering live fact.
+ *
+ * Because the evaluator only ever writes/emits transitions whose ordinal is
+ * ABOVE the persisted stage, mirroring `stage = max(reached)` can never
+ * retroactively emit a SKIPPED lower milestone: once the mirror jumps past a
+ * gap, the skipped stage sits below `fromOrdinal` forever and is never a
+ * candidate. The projection therefore never receives a false
+ * `shared_externally` it can't withdraw.
+ *
+ * Never throws on a null/undefined-ish `facts` — treated as "no facts at
+ * all", which resolves to `scouted`.
  */
 export function resolveStage(facts: StageFacts): ResolvedStage {
   const safeFacts: StageFacts = facts ?? {}
   const reached: Stage[] = ['scouted']
   for (let i = 1; i < STAGES.length; i++) {
     const stage = STAGES[i] as GatedStage
-    if (!PREDICATES[stage](safeFacts)) break
-    reached.push(stage)
+    if (PREDICATES[stage](safeFacts)) reached.push(stage)
   }
+  // `reached` is built in `STAGES` order, so the last element is the
+  // highest-ordinal milestone reached.
   return { stage: reached[reached.length - 1], reached }
 }
 

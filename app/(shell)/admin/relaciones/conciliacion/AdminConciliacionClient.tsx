@@ -103,8 +103,9 @@ export default function AdminConciliacionClient() {
       <div>
         <h1 className="text-2xl font-bold">Conciliación de hitos</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
-          Hecho de origen, etapa proyectada, última evaluación y estado de entrega a Golden Beans. Repite la
-          evaluación de un registro para reparar un hecho tardío sin duplicar nada.
+          El hecho de origen se relee <strong>en vivo</strong> ahora; la etapa proyectada refleja la última
+          evaluación registrada — cuando difieren, hay un hito por reparar. Repite la evaluación de un registro
+          para reparar un hecho tardío sin duplicar nada.
         </p>
       </div>
 
