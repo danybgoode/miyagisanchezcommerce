@@ -17,14 +17,39 @@
  * Read it before changing anything here.
  */
 
-/** The six lifecycle facts Golden Beans delivers back into the projection. */
+/**
+ * Sprint 3, Story 3.2 (README D2 — "the 13 stages ARE the event types"):
+ * grown from six to fourteen. The first 13 are `merchant.<stage>` for every
+ * slug in `lib/merchant-stage.ts#STAGES`, IN THAT CANONICAL ORDER (five of
+ * them — `permission_granted`, `claimed`, `three_products_live`,
+ * `first_sale`, `retained_30d` — already existed; this adds the other
+ * eight: `scouted`, `qualified`, `preview_in_preparation`,
+ * `preview_delivered`, `activation_scheduled`, `payments_ready`,
+ * `shared_externally`, `first_inquiry`). `merchant.preview_approved` is
+ * appended last on purpose — it is a PREVIEW fact, not one of the 13 stages
+ * (it keeps its own `preview_approved_at` projection column, unchanged by
+ * this sprint), so it stays visually distinct from the stage block above it
+ * rather than interleaved into `STAGES` order where it doesn't belong.
+ *
+ * Order here is NOT significant to any consumer (`LIFECYCLE_SET` is a Set;
+ * every iteration over this array elsewhere is order-independent) — it is
+ * ordered for human readability only.
+ */
 export const MERCHANT_LIFECYCLE_EVENTS = [
+  'merchant.scouted',
+  'merchant.qualified',
   'merchant.permission_granted',
-  'merchant.preview_approved',
+  'merchant.preview_in_preparation',
+  'merchant.preview_delivered',
+  'merchant.activation_scheduled',
   'merchant.claimed',
+  'merchant.payments_ready',
   'merchant.three_products_live',
+  'merchant.shared_externally',
+  'merchant.first_inquiry',
   'merchant.first_sale',
   'merchant.retained_30d',
+  'merchant.preview_approved',
 ] as const
 
 export type MerchantLifecycleEvent = (typeof MERCHANT_LIFECYCLE_EVENTS)[number]
@@ -209,8 +234,14 @@ export const MERCHANT_LIFECYCLE_FEATURE_ID = 'merchant-lifecycle'
 export const CONTEXT_VERSION = 1 as const
 
 export interface LifecycleEmitFacts {
-  /** `marketplace_shops.id` — the shop mirror UUID. The same non-personal subject key
-   *  lib/preview-events.ts already uses; meaningless outside our own database. */
+  /** README D1 (Sprint 3): the opaque merchant subject id is now
+   *  `merchant_relationships.id` — a relationship can exist before any shop
+   *  does, which a shop-keyed subject could never represent. Every call site
+   *  from Sprint 3 onward passes a relationship id here; the two Sprint-1
+   *  call sites that used to pass `marketplace_shops.id` directly now go
+   *  through `emitMerchantLifecycleForShop`, which resolves shop → relationship
+   *  BEFORE calling this. Non-personal either way; meaningless outside our
+   *  own database. */
   merchantId: string
   /** Defaults to now. Injected so a spec asserts an exact payload against a fixed clock. */
   occurredAt?: Date
@@ -331,4 +362,58 @@ const CAPTURED_ORDER_STATUSES = new Set([
 export function isCapturedOrder(order: CapturedOrderLike): boolean {
   if (order.payment_captured !== true) return false
   return typeof order.status === 'string' && CAPTURED_ORDER_STATUSES.has(order.status)
+}
+
+/**
+ * The first-sale / retained-30-days rule, as a PURE function of an already-
+ * filtered captured-order list. Extracted here (Sprint 3, founding-merchant-
+ * activation-ops, Story 3.1) from what was inline arithmetic in
+ * `lib/merchant-lifecycle-sweep.ts`'s steps 2/4, so BOTH that sweep and the
+ * commerce-fact adapter (`lib/merchant-commerce-facts.ts`) share ONE
+ * implementation instead of two that could quietly drift — "reuse it, do not
+ * rebuild it" applied to the RULE, not only the Medusa reads. Zero-import
+ * (like the rest of this file), so a spec walks every boundary with no
+ * network call.
+ *
+ * `retentionWindowMs` is a parameter, not a constant duplicated here:
+ * `RETENTION_WINDOW_DAYS` is owned by `lib/merchant-lifecycle-sweep.ts`
+ * (which cannot be imported FROM here — that file is `server-only` and this
+ * one must stay zero-import), so every caller passes its own computed
+ * window explicitly rather than this file guessing at the number.
+ */
+export interface SaleFacts {
+  /** The EARLIEST captured order's timestamp, or null if there is none. */
+  firstSaleAt: Date | null
+  /**
+   * "STILL ACTIVE 30 days after first sale" — the earliest captured order
+   * dated ON OR AFTER the 30-day mark, or null when that has not (yet)
+   * happened. Never "any later order": a first sale plus one order the next
+   * day and silence thereafter is NOT retained (see the sweep's own header
+   * for the cross-review round that caught the over-counting version of
+   * this rule).
+   */
+  retainedAt: Date | null
+}
+
+export function deriveSaleFacts(
+  orders: Array<{ created_at: string }>,
+  now: Date,
+  retentionWindowMs: number,
+): SaleFacts {
+  const times = orders
+    .map((o) => Date.parse(o.created_at))
+    .filter((t) => !Number.isNaN(t))
+    .sort((a, b) => a - b)
+  if (times.length === 0) return { firstSaleAt: null, retainedAt: null }
+
+  const firstSaleMs = times[0]
+  const thirtyDayMark = firstSaleMs + retentionWindowMs
+
+  let retainedAt: Date | null = null
+  if (now.getTime() >= thirtyDayMark) {
+    const qualifying = times.find((t) => t >= thirtyDayMark)
+    if (qualifying !== undefined) retainedAt = new Date(qualifying)
+  }
+
+  return { firstSaleAt: new Date(firstSaleMs), retainedAt }
 }

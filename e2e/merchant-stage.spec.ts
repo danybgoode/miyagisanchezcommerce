@@ -7,6 +7,10 @@ import {
   advanceDedupeKey,
   correctionDedupeKey,
   isCorrectionDedupeKey,
+  factsAtOrAbove,
+  mergeStageFacts,
+  CONSENT_GATED_STAGES,
+  shouldEmitStageTransition,
   type Stage,
   type StageFacts,
 } from '../lib/merchant-stage'
@@ -243,5 +247,115 @@ test.describe('dedupe keys — the replay-produces-no-second-transition contract
 
   test('isCorrectionDedupeKey is false for a plain stage-advance key (so the DB CHECK requiring a reason only ever fires for corrections)', () => {
     for (const stage of STAGES) expect(isCorrectionDedupeKey(advanceDedupeKey(stage))).toBe(false)
+  })
+})
+
+test.describe('factsAtOrAbove — permanent memory from a current stage (Sprint 3, Story 3.1)', () => {
+  test('scouted (the baseline) grants no fact at all', () => {
+    expect(factsAtOrAbove('scouted')).toEqual({})
+  })
+
+  test('every stage up to and including the given one is granted — resolveStage lands EXACTLY there', () => {
+    for (const stage of STAGES) {
+      const result = resolveStage(factsAtOrAbove(stage))
+      expect(result.stage, stage).toBe(stage)
+    }
+  })
+
+  test('a mid-chain stage does not grant anything PAST it', () => {
+    const facts = factsAtOrAbove('claimed')
+    expect(facts.paymentsReady).toBeUndefined()
+    expect(facts.threeProductsLive).toBeUndefined()
+    expect(facts.firstSale).toBeUndefined()
+  })
+})
+
+test.describe('mergeStageFacts — OR semantics, true always wins (Sprint 3, Story 3.1)', () => {
+  test('a fresh explicit false never erases a permanent true', () => {
+    const permanent: StageFacts = { qualified: true, claimed: true }
+    const fresh: StageFacts = { qualified: false, claimed: false, paymentsReady: true }
+    const merged = mergeStageFacts(permanent, fresh)
+    expect(merged.qualified).toBe(true)
+    expect(merged.claimed).toBe(true)
+    expect(merged.paymentsReady).toBe(true)
+  })
+
+  test('a fresh explicit undefined never erases a permanent true (the naive-spread bug this exists to avoid)', () => {
+    const permanent: StageFacts = { qualified: true }
+    const fresh: StageFacts = { qualified: undefined }
+    expect(mergeStageFacts(permanent, fresh).qualified).toBe(true)
+  })
+
+  test('neither true → merged stays false/absent', () => {
+    expect(mergeStageFacts({}, {}).qualified).toBeUndefined()
+  })
+
+  test('order of arguments does not matter (commutative)', () => {
+    const a: StageFacts = { qualified: true }
+    const b: StageFacts = { claimed: true }
+    expect(mergeStageFacts(a, b)).toEqual(mergeStageFacts(b, a))
+  })
+
+  test('merging permanent memory with a resolveStage-confirmed advance never regresses the walk', () => {
+    // The scenario `evaluateRelationship` relies on: a relationship already at
+    // `three_products_live` (permanent), a fresh commerce read that — because
+    // Medusa hiccupped — comes back with `threeProductsLive: undefined` this
+    // run. The merge must still resolve at least as far as before.
+    const permanent = factsAtOrAbove('three_products_live')
+    const degradedFreshRead: StageFacts = {} // Medusa unreachable this run
+    const merged = mergeStageFacts(permanent, degradedFreshRead)
+    expect(resolveStage(merged).stage).toBe('three_products_live')
+  })
+})
+
+test.describe('shouldEmitStageTransition — the consent gate (Sprint 3, Story 3.2)', () => {
+  test('CONSENT_GATED_STAGES names exactly the two permission-gated stages', () => {
+    expect([...CONSENT_GATED_STAGES].sort()).toEqual(['permission_granted', 'preview_delivered'])
+  })
+
+  test('an admin transition onto a gated stage WITHOUT live evidence does not emit', () => {
+    expect(shouldEmitStageTransition('admin', 'permission_granted', false)).toBe(false)
+    expect(shouldEmitStageTransition('admin', 'preview_delivered', false)).toBe(false)
+  })
+
+  test('an admin transition onto a gated stage WITH live evidence emits', () => {
+    expect(shouldEmitStageTransition('admin', 'permission_granted', true)).toBe(true)
+    expect(shouldEmitStageTransition('admin', 'preview_delivered', true)).toBe(true)
+  })
+
+  test('an admin transition onto a NON-gated stage emits regardless of evidence', () => {
+    for (const stage of STAGES) {
+      if (CONSENT_GATED_STAGES.has(stage)) continue
+      expect(shouldEmitStageTransition('admin', stage, false), stage).toBe(true)
+      expect(shouldEmitStageTransition('admin', stage, true), stage).toBe(true)
+    }
+  })
+
+  test('a commerce_fact (derived-advance) transition onto a gated stage emits WITHOUT needing evidence', () => {
+    // The derived-advance path's own evidence IS the fact that produced it
+    // (the resolver already required `permissionGrantedEvidence`/
+    // `previewDeliveredEvidence` to be true to reach this stage at all) — the
+    // guard exists specifically for the admin correction route's UNCHECKED
+    // write, not for the evaluator's own output.
+    expect(shouldEmitStageTransition('commerce_fact', 'permission_granted', false)).toBe(true)
+    expect(shouldEmitStageTransition('commerce_fact', 'preview_delivered', false)).toBe(true)
+  })
+
+  test('a system/promoter transition onto a gated stage also emits unconditionally', () => {
+    expect(shouldEmitStageTransition('system', 'permission_granted', false)).toBe(true)
+    expect(shouldEmitStageTransition('promoter', 'preview_delivered', false)).toBe(true)
+  })
+
+  test('every actor × every stage × both evidence values — exhaustive table, only "admin + gated + no evidence" refuses', () => {
+    const actors: Array<'promoter' | 'admin' | 'system' | 'commerce_fact'> = ['promoter', 'admin', 'system', 'commerce_fact']
+    for (const actor of actors) {
+      for (const stage of STAGES) {
+        for (const evidenced of [true, false]) {
+          const result = shouldEmitStageTransition(actor, stage, evidenced)
+          const shouldRefuse = actor === 'admin' && CONSENT_GATED_STAGES.has(stage) && !evidenced
+          expect(result, `${actor}/${stage}/${evidenced}`).toBe(!shouldRefuse)
+        }
+      }
+    }
   })
 })

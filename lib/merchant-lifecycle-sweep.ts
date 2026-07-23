@@ -1,13 +1,19 @@
 /**
  * lib/merchant-lifecycle-sweep.ts
  *
- * Golden Beans event-destination-router · Story 3.1 — the periodic half of the emit
- * side, and the safety net for the whole of it. Four jobs, in order:
+ * Golden Beans event-destination-router · Story 3.1 (extended: founding-merchant
+ * activation ops, Sprint 3) — the periodic half of the emit side, and the safety net
+ * for the whole of it. Five jobs, in order:
  *
  *   1. DRAIN pending emissions (claimed, not yet confirmed delivered).
  *   2. BACKFILL `preview_approved` / `claimed` / `first_sale` from state.
  *   3. Derive `merchant.three_products_live` from **Medusa**.
  *   4. Derive `merchant.retained_30d` from **Medusa**.
+ *   5. EVALUATE every `merchant_relationships` row's 13-stage position from
+ *      commerce + CRM facts, writing + emitting whatever newly advanced
+ *      (`lib/merchant-relationship-lifecycle.ts#evaluateRelationship` — the
+ *      "relationship evaluation" the Sprint 3 build contract adds to THIS
+ *      route rather than a second cron).
  *
  * WHY BACKFILL WHAT THE HOOKS ALREADY EMIT (2).
  * The hooks in the approval and claim paths give TIMELINESS. This gives COMPLETENESS.
@@ -53,19 +59,26 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
-import { isCapturedOrder } from '@/lib/merchant-lifecycle'
+import { deriveSaleFacts } from '@/lib/merchant-lifecycle'
 import {
-  emitMerchantLifecycle,
+  emitMerchantLifecycleForShop,
   deliverClaimedEmission,
   listPendingEmissions,
   type EmitOutcome,
 } from '@/lib/merchant-lifecycle-server'
-
-/** The activation threshold the contract names: the THIRD product going live. */
-export const THREE_PRODUCTS_THRESHOLD = 3
-
-/** "Still active 30 days after first sale." */
-export const RETENTION_WINDOW_DAYS = 30
+import { evaluateRelationship } from '@/lib/merchant-relationship-lifecycle'
+// The Medusa GET reads and their constants moved to `lib/merchant-medusa-
+// reads.ts` (Sprint 3) — see that file's header for why (breaking a circular
+// import Story 3.1's relationship evaluation introduced). Re-exported below
+// (not just imported) so `THREE_PRODUCTS_THRESHOLD` stays a stable public name
+// from THIS file too, in case anything still imports it from here.
+import {
+  THREE_PRODUCTS_THRESHOLD,
+  RETENTION_WINDOW_DAYS,
+  countLiveProductsFromMedusa,
+  listCapturedOrders,
+} from '@/lib/merchant-medusa-reads'
+export { THREE_PRODUCTS_THRESHOLD, RETENTION_WINDOW_DAYS, countLiveProductsFromMedusa, listCapturedOrders }
 
 const RETENTION_WINDOW_MS = RETENTION_WINDOW_DAYS * 24 * 60 * 60 * 1000
 
@@ -135,14 +148,6 @@ async function readPaged(
   return { rows, truncated: true, errors: 0 }
 }
 
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-
-/** Per-request budget for a Medusa read. Without it, a backend that accepts the
- *  connection and never answers stalls the WHOLE cron on one merchant: every later
- *  merchant goes unchecked and the 503 this route exists to return is never returned,
- *  because the platform kills the request first (cross-review round 5). */
-const MEDUSA_TIMEOUT_MS = 10_000
-
 /**
  * Wall-clock budget for one run. The sweep is sequential — 200 drained deliveries at
  * 5s each plus two 10s Medusa reads per candidate can far exceed any platform request
@@ -154,7 +159,6 @@ const MEDUSA_TIMEOUT_MS = 10_000
  * permanent, so the following run resumes rather than repeats.
  */
 const SWEEP_BUDGET_MS = 240_000
-const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export interface SweepResult {
   candidates: number
@@ -175,9 +179,20 @@ export interface SweepResult {
   telemetryOff: boolean
   /** Reads that failed. Non-zero means this run was incomplete, whatever else it did. */
   errors: number
+  /** Sprint 3, Story 3.1 — relationships whose stage was (re-)evaluated this run. */
+  relationshipsEvaluated: number
+  /** Relationships whose stage ADVANCED (one or more new transition rows written)
+   *  this run — reported separately so a healthy steady-state run (facts unchanged,
+   *  nothing to write) reads differently from one that's actively repairing. */
+  relationshipsAdvanced: number
 }
 
 interface Candidate {
+  /** The SHOP MIRROR id (`marketplace_shops.id`) — this sweep's population is
+   *  candidated on shop/preview rows, so this field is named for pre-Sprint-3
+   *  history. Every emit call below goes through `emitMerchantLifecycleForShop`
+   *  (README D1), which resolves this onto the actual subject key — the
+   *  relationship id — before calling Golden Beans. */
   merchantId: string
   sellerSlug: string | null
   /** `merchant_previews.approved_at` — the consent record, non-commerce, and the
@@ -285,83 +300,6 @@ async function loadClaimed(): Promise<{
 }
 
 /**
- * LIVE product count, from Medusa. `GET /store/sellers/{slug}/products` is the public,
- * visibility-filtered storefront read — what it returns is what is actually published.
- *
- * Returns null on ANY failure so the caller SKIPS rather than reads zero. An
- * unreachable Medusa must never be able to withhold a milestone forever, and — worse in
- * the other direction — a partial response must never be able to grant one.
- */
-async function countLiveProductsFromMedusa(sellerSlug: string): Promise<number | null> {
-  try {
-    const res = await fetch(`${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerSlug)}/products`, {
-      headers: medusaHeaders(),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(MEDUSA_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      products?: unknown[]
-      listings?: unknown[]
-      count?: number
-    }
-    const items = data.products ?? data.listings
-    if (!Array.isArray(items)) return null
-    // The route paginates (default limit 20) and returns the TRUE total alongside the
-    // page. `items.length` would cap the reported count at 20 — harmless for the >= 3
-    // threshold, but the number is shipped to Golden Beans as `product_count` and
-    // forwarded verbatim to every destination, so it has to be right (fresh-reviewer
-    // pass). Falls back to the page length only if the route stops sending `count`.
-    return typeof data.count === 'number' ? data.count : items.length
-  } catch {
-    return null
-  }
-}
-
-/**
- * Has this merchant transacted again SINCE their first sale? Read from Medusa, the
- * order system of record, via the backend's internal route (a cron has no Clerk JWT).
- *
- * The contract says "still active 30 days after first sale" without defining active, so
- * this pins a concrete, checkable definition: at least one further captured order after
- * the one that produced the first-sale milestone. A merchant with exactly one order 40
- * days ago is not retained — they are a one-off, and counting them would make the
- * retention number mean "survived 30 days on the calendar", which nobody wants to read.
- *
- * Returns null when the answer cannot be determined, so the caller skips.
- */
-async function listCapturedOrders(
-  sellerSlug: string,
-): Promise<Array<{ created_at: string }> | null> {
-  if (!INTERNAL_SECRET) return null
-  try {
-    const res = await fetch(
-      `${MEDUSA_BASE}/internal/sellers/orders?seller_slug=${encodeURIComponent(sellerSlug)}`,
-      {
-        headers: { 'x-internal-secret': INTERNAL_SECRET },
-        cache: 'no-store',
-        signal: AbortSignal.timeout(MEDUSA_TIMEOUT_MS),
-      },
-    )
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      orders?: Array<{ created_at?: string; status?: string; payment_captured?: boolean }>
-    }
-    if (!Array.isArray(data.orders)) return null
-    return data.orders
-      .filter((o) => o?.created_at && isCapturedOrder(o))
-      .map((o) => ({ created_at: String(o.created_at) }))
-  } catch {
-    return null
-  }
-}
-
-function medusaHeaders(): Record<string, string> {
-  const key = process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-  return key ? { 'x-publishable-api-key': key } : {}
-}
-
-/**
  * Run one sweep. Never throws — a failure on one merchant must not abort the rest, and
  * a failed run is simply retried by the next one (every emission is idempotent).
  */
@@ -375,6 +313,8 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     threeProductsLive: 0,
     retained30d: 0,
     errors: 0,
+    relationshipsEvaluated: 0,
+    relationshipsAdvanced: 0,
   }
 
   // ── 1. Drain anything claimed but not confirmed delivered ──────────────────
@@ -441,8 +381,11 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     // (cross-review round 2). Deriving from state is self-healing.
     if (!done.has('merchant.preview_approved') && previewApprovedAt) {
       // The real approval timestamp, not now — this one we actually know.
-      if (record(await emitMerchantLifecycle('merchant.preview_approved', {
-        merchantId,
+      // `...ForShop` (Sprint 3, README D1): `merchantId` here is the SHOP MIRROR id
+      // (the population this sweep candidates on) — the seam resolves it onto its
+      // relationship id before emitting, which is the actual subject key now.
+      if (record(await emitMerchantLifecycleForShop('merchant.preview_approved', {
+        shopId: merchantId,
         occurredAt: new Date(previewApprovedAt),
       }), result)) {
         result.backfilled += 1
@@ -450,7 +393,7 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     }
 
     if (!done.has('merchant.claimed') && claimedByClerkId) {
-      if (record(await emitMerchantLifecycle('merchant.claimed', { merchantId, occurredAt: now }), result)) {
+      if (record(await emitMerchantLifecycleForShop('merchant.claimed', { shopId: merchantId, occurredAt: now }), result)) {
         result.backfilled += 1
       }
     }
@@ -472,23 +415,22 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
       continue
     }
 
-    // Orders are needed for both first_sale and retention; fetch once.
+    // Orders are needed for both first_sale and retention; fetch once, and
+    // derive both facts through the ONE shared rule (`deriveSaleFacts`,
+    // lib/merchant-lifecycle.ts — Sprint 3, Story 3.1) rather than two
+    // separate inline computations that could drift from each other or from
+    // the commerce-fact adapter's own use of the same function.
     const needsOrders = !done.has('merchant.first_sale') || !done.has('merchant.retained_30d')
     const orders = needsOrders ? await listCapturedOrders(sellerSlug) : []
     if (needsOrders && orders === null) result.errors += 1
+    const sale = orders && orders.length > 0 ? deriveSaleFacts(orders, now, RETENTION_WINDOW_MS) : null
 
-    if (!done.has('merchant.first_sale') && orders && orders.length > 0) {
-      const earliest = orders
-        .map((o) => Date.parse(o.created_at))
-        .filter((t) => !Number.isNaN(t))
-        .sort((a, b) => a - b)[0]
-      if (earliest !== undefined) {
-        if (record(await emitMerchantLifecycle('merchant.first_sale', {
-          merchantId,
-          occurredAt: new Date(earliest),
-        }), result)) {
-          result.backfilled += 1
-        }
+    if (!done.has('merchant.first_sale') && sale?.firstSaleAt) {
+      if (record(await emitMerchantLifecycleForShop('merchant.first_sale', {
+        shopId: merchantId,
+        occurredAt: sale.firstSaleAt,
+      }), result)) {
+        result.backfilled += 1
       }
     }
 
@@ -503,8 +445,8 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
           // when the count crossed the threshold, and inventing a timestamp we cannot
           // derive would be worse than an honest one. Read this column as "when we
           // first observed three live", never as "when the third went live".
-          if (record(await emitMerchantLifecycle('merchant.three_products_live', {
-            merchantId,
+          if (record(await emitMerchantLifecycleForShop('merchant.three_products_live', {
+            shopId: merchantId,
             occurredAt: now,
             productCount: live,
           }), result)) {
@@ -517,36 +459,22 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     }
 
     // ── 4. merchant.retained_30d ──────────────────────────────────────────────
-    if (!done.has('merchant.retained_30d') && orders && orders.length > 0) {
+    // "STILL ACTIVE 30 DAYS AFTER first sale" — `sale.retainedAt` (from the SAME
+    // `deriveSaleFacts` call above) is the EARLIEST captured order dated ON OR
+    // AFTER the 30-day mark, or null otherwise. Never "any later order": a first
+    // sale on July 1 plus one order on July 2 and silence thereafter is NOT
+    // retained — describing a merchant who churned on day 3 as retained is
+    // exactly the over-counting bug an earlier version of this rule had
+    // (cross-review round 2). `sale.retainedAt` is the REAL timestamp retention
+    // happened at, never `now` — `now` would permanently stamp the sweep's own
+    // run time, and because the outbox allows one emission per milestone, a
+    // sweep recovering an August retention in October would have recorded
+    // October, forever (cross-review round 5).
+    if (!done.has('merchant.retained_30d') && sale?.retainedAt) {
       try {
-        const times = orders
-          .map((o) => Date.parse(o.created_at))
-          .filter((t) => !Number.isNaN(t))
-          .sort((a, b) => a - b)
-        const firstSaleMs = times[0]
-        if (firstSaleMs === undefined) continue
-
-        const thirtyDayMark = firstSaleMs + RETENTION_WINDOW_MS
-        if (now.getTime() < thirtyDayMark) continue
-
-        // "STILL ACTIVE 30 DAYS AFTER first sale" — a captured order dated ON OR AFTER
-        // the 30-day mark. The earlier rule ("any later order") was wrong in a way that
-        // permanently over-counted: a first sale on July 1 plus one order on July 2 and
-        // silence thereafter would have emitted `retained_30d` on July 31, describing a
-        // merchant who churned on day 3 as retained (cross-review round 2). Uncaptured,
-        // pending and refunded orders are already excluded by `isCapturedOrder` upstream,
-        // which requires the backend's `payment_captured` AND a stuck status.
-        // The EARLIEST order at or after the mark is when retention actually happened.
-        // `now` would permanently stamp the sweep's own run time — and because the
-        // outbox allows one emission per milestone, a sweep recovering an August
-        // retention in October would have recorded October, forever (cross-review
-        // round 5). The timestamp is right here; there is no excuse for guessing.
-        const qualifying = times.find((t) => t >= thirtyDayMark)
-        if (qualifying === undefined) continue
-
-        if (record(await emitMerchantLifecycle('merchant.retained_30d', {
-          merchantId,
-          occurredAt: new Date(qualifying),
+        if (record(await emitMerchantLifecycleForShop('merchant.retained_30d', {
+          shopId: merchantId,
+          occurredAt: sale.retainedAt,
         }), result)) {
           result.retained30d += 1
         }
@@ -556,7 +484,61 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     }
   }
 
+  // ── 5. RELATIONSHIP STAGE EVALUATION (Sprint 3, Story 3.1) ─────────────────
+  // "Extend it; do not write a second sweep" (build contract) — this is why the
+  // relationship walk lives in THIS function rather than a second cron/route. Every
+  // `merchant_relationships` row not already at the terminal stage is re-evaluated;
+  // `evaluateRelationship` itself is what makes re-running on unchanged facts a
+  // no-op (the UNIQUE constraint on the transition insert, not a check here).
+  const relLoaded = await loadRelationshipCandidates()
+  result.errors += relLoaded.errors
+  result.truncated ||= relLoaded.truncated
+
+  for (const relationshipId of relLoaded.ids) {
+    if (outOfTime()) {
+      result.truncated = true
+      break
+    }
+    try {
+      const outcome = await evaluateRelationship(relationshipId, now)
+      if (!outcome) {
+        // The relationship itself couldn't be read — report and move on; the
+        // whole run is not clean, but one bad id must not abort the rest.
+        result.errors += 1
+        continue
+      }
+      result.relationshipsEvaluated += 1
+      if (outcome.advanced.length > 0) result.relationshipsAdvanced += 1
+      // `ok: false` covers BOTH an incomplete commerce-fact read (Medusa
+      // unreachable — this relationship simply didn't advance as far as it
+      // might have, recoverable next run) AND an emission that genuinely
+      // failed to send (the transition row is still durably written; the
+      // sweep's own drain, step 1, will redeliver it next run). Either way
+      // the run as a whole is not clean.
+      if (!outcome.ok) result.errors += 1
+    } catch {
+      result.errors += 1
+    }
+  }
+
   return result
+}
+
+/**
+ * The relationships still worth re-evaluating: everything NOT already at the
+ * terminal stage. A relationship at `retained_30d` has nowhere further to
+ * advance (`resolveStage` cannot walk past the last element of `STAGES`), so
+ * re-reading its commerce facts every run forever would be pure waste at
+ * marketplace scale. Paged with the same `readPaged` discipline as
+ * `loadCandidates` above (server `count`, never inferred from page length).
+ */
+async function loadRelationshipCandidates(): Promise<{ ids: string[]; truncated: boolean; errors: number }> {
+  const paged = await readPaged('merchant_relationships', 'id, stage')
+  const ids = paged.rows
+    .filter((r) => r?.stage !== 'retained_30d')
+    .map((r) => (r?.id ? String(r.id) : null))
+    .filter((id): id is string => !!id)
+  return { ids, truncated: paged.truncated, errors: paged.errors }
 }
 
 /**
