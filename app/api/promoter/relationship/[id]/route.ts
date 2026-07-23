@@ -3,11 +3,14 @@
  * record (founding-merchant-activation-ops S1.2). Powers the "resume by id
  * from localStorage" requirement in `RelationshipStep`.
  *
- * Scope: the caller's own `promoter_id`, an active `partner_grants` row for
- * the linked `shop_id`, or admin (`resolveRelationshipAccess` — the ONE shared
- * helper every relationship route calls). Anything else is 403 with NO record
- * fields — not a 404 (which would distinguish "doesn't exist" from "not
- * yours" differently than an absent id) and not a partial record.
+ * Scope: the caller's own `promoter_id`, the assigned steward (S2 C1, floored
+ * to `viewer` by an explicit `partner_grants` `viewer` grant — S2 D1), an
+ * active `partner_grants` row for the linked `shop_id`, or admin
+ * (`resolveRelationshipAccess` — the ONE shared helper every relationship
+ * route calls, whose own doc comment has the full precedence). Anything else
+ * is 403 with NO record fields — not a 404 (which would distinguish "doesn't
+ * exist" from "not yours" differently than an absent id) and not a partial
+ * record.
  *
  * Also returns a lightweight `shop` summary when the relationship already has
  * one linked (S1 cross-review B2) — `RelationshipStep` hands this up to

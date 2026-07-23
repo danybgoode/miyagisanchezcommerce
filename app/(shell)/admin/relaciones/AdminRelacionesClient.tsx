@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import RelationshipHistoryPanel, { STAGE_LABEL } from '@/app/components/RelationshipHistoryPanel'
 
 /**
@@ -11,6 +11,15 @@ import RelationshipHistoryPanel, { STAGE_LABEL } from '@/app/components/Relation
  * `RelationshipHistoryPanel` derives write-control visibility itself from
  * the caller's own per-relationship `role` (C7, PR 304 review) — no
  * `isAdmin` prop needed here.
+ *
+ * D3h fix (PR 304 review, round 3): `load()` is now guarded by a monotonic
+ * request id. Changing a filter mid-flight (or a write elsewhere triggering
+ * `onChanged={load}`) fires a NEW request while the OLD one is still in
+ * flight; without the guard, whichever response arrives LAST wins — which is
+ * not necessarily the one that was issued last — and can silently overwrite
+ * the current filter's rows with a stale, differently-filtered set. Every
+ * response now checks it's still the most recent request before touching
+ * state; a superseded response is discarded outright.
  */
 
 type EnrichedRelationship = {
@@ -52,6 +61,10 @@ export default function AdminRelacionesClient() {
   const [missingAction, setMissingAction] = useState<TriFilter>('')
   const [overdue, setOverdue] = useState<TriFilter>('')
 
+  // D3h: bumped at the START of every `load()` call; a response only ever
+  // touches state when it's still the CURRENT (most recently issued) request.
+  const requestIdRef = useRef(0)
+
   const query = useMemo(() => {
     const params = new URLSearchParams()
     if (stage) params.set('stage', stage)
@@ -63,20 +76,23 @@ export default function AdminRelacionesClient() {
   }, [stage, steward, blocker, missingAction, overdue])
 
   async function load() {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/admin/relationships${query ? `?${query}` : ''}`)
       const json = await res.json()
+      if (requestId !== requestIdRef.current) return // superseded by a newer load
       if (!res.ok || !json.ok) {
         setError('No se pudo cargar el cohorte.')
         return
       }
       setRows(json.relationships ?? [])
     } catch {
+      if (requestId !== requestIdRef.current) return
       setError('No se pudo cargar el cohorte.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }
 

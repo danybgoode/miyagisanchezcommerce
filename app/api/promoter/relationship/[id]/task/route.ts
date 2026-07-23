@@ -21,11 +21,21 @@
  * type-checked BEFORE any string method touches them — a non-string value
  * (`{title: 123}`) used to reach `.trim()`/`.filter()`-shaped code and 500;
  * it now 400s like any other malformed field.
+ *
+ * D3e fix (PR 304 review, round 3): a `dueAt` shaped like `YYYY-MM-DD` but
+ * NOT a real calendar date (`2026-02-31`) now 400s instead of silently
+ * falling through to `new Date(...)`'s own roll-over behavior (which is
+ * JUST as lenient as the date-only helper's — bare `new Date("2026-02-31")`
+ * also rolls to March, it isn't a safety net). `isDateOnlyShape` is what
+ * lets this route tell "date-only but invalid" (reject) apart from "not
+ * date-only at all, e.g. a full ISO datetime" (fall back to generic
+ * parsing) — `dueAtIsoFromDateOnly` alone returns `null` for both, on
+ * purpose, since only the CALLER knows which fallback is appropriate.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, canWriteRelationship } from '@/lib/relationship-access'
-import { dueAtIsoFromDateOnly } from '@/lib/relationship-pipeline'
+import { dueAtIsoFromDateOnly, isDateOnlyShape } from '@/lib/relationship-pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,9 +83,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ ok: false, error: 'Fecha límite inválida.' }, { status: 400 })
     }
     // Date-only ("YYYY-MM-DD", what <input type="date"> sends) → end of day
-    // in Mexico City (C8); anything else parses as a normal ISO instant.
-    const dateOnly = dueAtIsoFromDateOnly(body.dueAt)
-    if (dateOnly) {
+    // in Mexico City (C8), REJECTING a shape-valid but calendar-invalid date
+    // (D3e) rather than falling through; anything else parses as a normal
+    // ISO instant.
+    if (isDateOnlyShape(body.dueAt)) {
+      const dateOnly = dueAtIsoFromDateOnly(body.dueAt)
+      if (!dateOnly) {
+        return NextResponse.json({ ok: false, error: 'Fecha límite inválida.' }, { status: 400 })
+      }
       dueAt = dateOnly
     } else {
       const d = new Date(body.dueAt)

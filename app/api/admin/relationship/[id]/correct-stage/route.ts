@@ -18,6 +18,20 @@
  * non-string, distinct from 422 for a missing/blank one) BEFORE `.trim()`
  * touches it — `{reason: 123}` used to 500.
  *
+ * D3d fix (PR 304 review, round 3): the mirror UPDATE is now a
+ * COMPARE-AND-SET on `stage = fromStage` (the stage THIS request read).
+ * Without it, two admins reading the same `scouted` row and racing
+ * corrections to `qualified` and `claimed` could land the UPDATEs in the
+ * OPPOSITE order from the TRANSITION inserts (which have no such ordering
+ * guarantee against each other either) — the mirror would then show
+ * `qualified` while the LATEST transition row says `claimed`, disagreeing
+ * with its own audit trail. The CAS predicate means a losing writer's
+ * UPDATE matches zero rows (Supabase's `.maybeSingle()` returns `{data:
+ * null, error: null}` for that, not an error) rather than clobbering a
+ * newer stage — reported as `stageMirrorUpdated: false`, which the client
+ * already surfaces (C4). The TRANSITION row is unconditionally committed
+ * either way — it stays the audit truth regardless of who wins the mirror.
+ *
  * Scope-checked through the ONE shared helper (`resolveRelationshipAccess`),
  * then narrowed to `role === 'admin'` explicitly — an owner/manager grant
  * passes the shared check but must NOT be able to correct a stage (that's an
@@ -98,6 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .from('merchant_relationships')
       .update({ stage: toStage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('stage', fromStage) // D3d: compare-and-set — see file header.
       .select(
         'id, business_name, contact_name, phone_e164, email_normalized, whatsapp_e164, instagram_handle, ' +
           'estado, municipio, location_note, category, current_channels, preferred_channel, qualification, ' +
