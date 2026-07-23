@@ -14,6 +14,11 @@ import { ESTADO_NAMES } from '@/lib/mx-locations'
  *
  * Thin screen over POST/GET /api/promoter/relationship[/id] and
  * POST /api/promoter/relationship/[id]/consent.
+ *
+ * `onRelationshipChange` reports the current relationship id up to
+ * `PromoterCloseClient`, which links it to the shop the moment `SetupStep`
+ * creates one (S1 cross-review A3 — a relationship must not stay orphaned
+ * from the shop it precedes).
  */
 
 type Relationship = {
@@ -33,10 +38,10 @@ type Relationship = {
   objections: string | null
   cohort: string | null
   source: string | null
-  previewId: string | null
 }
 
 type Suggestion = { id: string; businessName: string }
+type HistoryEntry = { id: string; businessName: string }
 
 const PREFERRED_CHANNEL_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp',
@@ -54,13 +59,46 @@ const QUALIFICATION_LABEL: Record<string, string> = {
   disqualified: 'Descartado',
 }
 
-function storageKey(promoterCode: string): string {
-  return `fm_relationship_id:${promoterCode}`
+// A6: one promoter can capture MANY merchants in a session — a single
+// "last id" key would let the second merchant silently overwrite the first
+// on the next resume. History is a small per-promoter list; the active
+// pointer is which one the form currently shows.
+const HISTORY_CAP = 20
+function historyKey(promoterCode: string): string {
+  return `fm_relationships:${promoterCode}`
+}
+function activeKey(promoterCode: string): string {
+  return `fm_relationship_active:${promoterCode}`
+}
+function readHistory(promoterCode: string): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(historyKey(promoterCode))
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+function upsertHistory(promoterCode: string, entry: HistoryEntry): HistoryEntry[] {
+  const next = [entry, ...readHistory(promoterCode).filter((r) => r.id !== entry.id)].slice(0, HISTORY_CAP)
+  try { localStorage.setItem(historyKey(promoterCode), JSON.stringify(next)) } catch { /* best-effort cache only */ }
+  return next
 }
 
-export default function RelationshipStep({ n, promoterCode }: { n: number; promoterCode: string }) {
+export default function RelationshipStep({
+  n,
+  promoterCode,
+  onRelationshipChange,
+}: {
+  n: number
+  promoterCode: string
+  /** Reports the current relationship id (or null) up to the parent — see
+   *  file header. Called on every id change (load, save, new, switch). */
+  onRelationshipChange?: (id: string | null) => void
+}) {
   const [relationshipId, setRelationshipId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
 
   const [businessName, setBusinessName] = useState('')
   const [contactName, setContactName] = useState('')
@@ -79,14 +117,22 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [dedupe, setDedupe] = useState<{ relationshipId: string; matchReason: string } | null>(null)
-  const [previewId, setPreviewId] = useState<string | null>(null)
   const [consentMessage, setConsentMessage] = useState<string | null>(null)
   const [consentBusy, setConsentBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  function setActive(id: string | null) {
+    setRelationshipId(id)
+    onRelationshipChange?.(id)
+    try {
+      if (id) localStorage.setItem(activeKey(promoterCode), id)
+      else localStorage.removeItem(activeKey(promoterCode))
+    } catch { /* best-effort cache only — the server record is the source of truth */ }
+  }
+
   function populate(rel: Relationship) {
-    setRelationshipId(rel.id)
+    setActive(rel.id)
     setBusinessName(rel.businessName)
     setContactName(rel.contactName ?? '')
     setPhone(rel.phone ?? '')
@@ -100,29 +146,40 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
     setQualification(rel.qualification ?? 'unknown')
     setFitNote(rel.fitNote ?? '')
     setObjections(rel.objections ?? '')
-    setPreviewId(rel.previewId)
-    localStorage.setItem(storageKey(promoterCode), rel.id)
+    setHistory(upsertHistory(promoterCode, { id: rel.id, businessName: rel.businessName }))
   }
 
-  // Resume a saved draft on mount. A 403 means the id is stale (a different
-  // promoter's device, or the record no longer exists) — clear it silently
-  // and start fresh rather than surfacing an error for something the field
-  // promoter didn't do wrong.
+  /** A6 — blank the form for a NEW merchant. The previous record stays saved
+   *  server-side and in the recent-records list; only the active pointer moves. */
+  function startNew() {
+    setActive(null)
+    setBusinessName(''); setContactName(''); setPhone(''); setEmail(''); setWhatsapp('')
+    setInstagramHandle(''); setEstado(''); setMunicipio(''); setCategory('')
+    setPreferredChannel(''); setQualification('unknown'); setFitNote(''); setObjections('')
+    setSavedAt(null); setSuggestions([]); setDedupe(null); setError(null); setConsentMessage(null)
+  }
+
+  // Resume the ACTIVE saved draft on mount. A 403 means the pointer is stale
+  // (a different promoter's device, or the record no longer exists) — clear
+  // it silently and start fresh rather than surfacing an error for something
+  // the field promoter didn't do wrong.
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey(promoterCode))
-    if (!saved) {
+    setHistory(readHistory(promoterCode))
+    let active: string | null = null
+    try { active = localStorage.getItem(activeKey(promoterCode)) } catch { /* no cache available */ }
+    if (!active) {
       setLoaded(true)
       return
     }
     let cancelled = false
-    fetch(`/api/promoter/relationship/${encodeURIComponent(saved)}`)
+    fetch(`/api/promoter/relationship/${encodeURIComponent(active)}`)
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (cancelled) return
         if (ok && data.ok && data.relationship) {
           populate(data.relationship)
         } else {
-          localStorage.removeItem(storageKey(promoterCode))
+          try { localStorage.removeItem(activeKey(promoterCode)) } catch { /* best-effort */ }
         }
       })
       .catch(() => { /* best-effort resume — a fresh capture is still possible */ })
@@ -136,6 +193,13 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
     try {
       const res = await fetch(`/api/promoter/relationship/${encodeURIComponent(id)}`)
       const data = await res.json().catch(() => ({}))
+      if (res.status === 403) {
+        // A9 — the dead-end the 409 "Usar registro existente" action can walk
+        // into: the matched record belongs to a DIFFERENT promoter (or an
+        // expired grant). Say so plainly instead of a generic failure message.
+        setError('Ese registro pertenece a otro promotor — no puedes cargarlo aquí. Puedes seguir con tu propio registro nuevo.')
+        return
+      }
       if (!res.ok || !data.ok) { setError('No se pudo cargar el registro existente.'); return }
       populate(data.relationship)
       setDedupe(null)
@@ -158,18 +222,22 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
           relationshipId: relationshipId ?? undefined,
           confirmNew: confirmNew || undefined,
           businessName,
-          contactName: contactName || undefined,
-          phone: phone || undefined,
-          email: email || undefined,
-          whatsapp: whatsapp || undefined,
-          instagramHandle: instagramHandle || undefined,
-          estado: estado || undefined,
-          municipio: municipio || undefined,
-          category: category || undefined,
-          preferredChannel: preferredChannel || undefined,
+          // A14: send every optional field's CURRENT value explicitly (even
+          // blank) rather than `value || undefined` — omitting a field the
+          // promoter just cleared would make the server treat it as "not
+          // touched" and silently keep the OLD stored value on reload.
+          contactName,
+          phone,
+          email,
+          whatsapp,
+          instagramHandle,
+          estado,
+          municipio,
+          category,
+          preferredChannel,
           qualification,
-          fitNote: fitNote || undefined,
-          objections: objections || undefined,
+          fitNote,
+          objections,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -177,10 +245,10 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
         setDedupe({ relationshipId: data.relationshipId, matchReason: data.matchReason ?? 'desconocido' })
         return
       }
+      if (res.status === 400 && data.error) { setError(data.error); return }
       if (!res.ok || !data.ok) { setError(data.error ?? 'No se pudo guardar el registro.'); return }
-      setRelationshipId(data.relationship.id)
-      setPreviewId(data.relationship.previewId)
-      localStorage.setItem(storageKey(promoterCode), data.relationship.id)
+      setActive(data.relationship.id)
+      setHistory(upsertHistory(promoterCode, { id: data.relationship.id, businessName: data.relationship.businessName }))
       setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : [])
       setSavedAt(new Date())
     } catch { setError('Error de red. Intenta de nuevo.') }
@@ -191,10 +259,14 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
     if (!relationshipId) return
     setConsentBusy(true); setConsentMessage(null)
     try {
+      // A7: no previewId is sent — the server resolves it from THIS
+      // relationship's own linked shop (`getPreviewByShop`), so the button
+      // works the instant a preview exists, without the UI needing to learn
+      // a raw preview id from a sibling step.
       const res = await fetch(`/api/promoter/relationship/${encodeURIComponent(relationshipId)}/consent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(previewId ? { previewId } : {}),
+        body: JSON.stringify({}),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
@@ -210,13 +282,32 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
 
   return (
     <section className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
-      <h2 className="font-semibold">
-        <span className="text-[var(--color-muted)] mr-2">{n}.</span>Datos del comercio
-      </h2>
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="font-semibold">
+          <span className="text-[var(--color-muted)] mr-2">{n}.</span>Datos del comercio
+        </h2>
+        {(relationshipId || history.length > 0) && (
+          <button type="button" onClick={startNew} disabled={busy}
+            className="text-xs underline text-[var(--color-muted)] disabled:opacity-50 whitespace-nowrap">
+            + Nuevo registro
+          </button>
+        )}
+      </div>
       <p className="text-sm text-[var(--color-muted)]">
         Captura lo que sepas del comercio ahora mismo — solo el nombre es obligatorio. Puedes guardar y
         continuar más tarde, incluso sin conexión estable.
       </p>
+
+      {history.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          {history.map((h) => (
+            <button key={h.id} type="button" onClick={() => loadExisting(h.id)} disabled={busy}
+              className={`rounded-full border px-2.5 py-1 disabled:opacity-50 ${h.id === relationshipId ? 'border-[var(--color-accent)] font-medium' : 'border-[var(--color-border)] text-[var(--color-muted)]'}`}>
+              {h.businessName}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!loaded ? (
         <p className="text-sm text-[var(--color-muted)]">Cargando…</p>
@@ -329,15 +420,10 @@ export default function RelationshipStep({ n, promoterCode }: { n: number; promo
 
           {relationshipId && (
             <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
-              <button type="button" onClick={registerConsent} disabled={consentBusy || !previewId}
+              <button type="button" onClick={registerConsent} disabled={consentBusy}
                 className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium disabled:opacity-50">
                 {consentBusy ? 'Verificando…' : 'Registrar permiso del comerciante'}
               </button>
-              {!previewId && (
-                <p className="text-xs text-[var(--color-muted)]">
-                  Aún no hay una vista previa vinculada — genera una en el paso de vista previa antes de registrar el permiso.
-                </p>
-              )}
               {consentMessage && <p className="text-sm">{consentMessage}</p>}
             </div>
           )}

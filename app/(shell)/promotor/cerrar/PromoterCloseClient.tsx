@@ -43,8 +43,35 @@ export default function PromoterCloseClient({
 }) {
   const [bound, setBound] = useState<Bound>(initialBound)
   const [shop, setShop] = useState<Shop | null>(null)
+  // S1 cross-review A3 — the relationship record (captured in RelationshipStep,
+  // which reports its id up via `onRelationshipChange`) must not stay orphaned
+  // from the shop it precedes (README D1). `handleShopCreated` below links the
+  // two the instant SetupStep creates a shop. Also unblocks A7's "Registrar
+  // permiso" button in practice: the consent route resolves a relationship's
+  // preview by ITS linked shop_id when no explicit previewId is supplied
+  // (lib/relationship-consent.ts / the consent route), so the button only ever
+  // works once this link exists.
+  const [relationshipId, setRelationshipId] = useState<string | null>(null)
 
   if (!bound) return <BindStep onBound={setBound} />
+
+  /** Wraps `setShop` so a newly created shop is also linked to the current
+   *  relationship record, when the activation-crm flag is on and a relationship
+   *  already exists. Best-effort: a failed link never blocks shop creation —
+   *  the relationship record still stands alone and can be linked later via a
+   *  save carrying the same shopId. */
+  async function handleShopCreated(s: Shop) {
+    setShop(s)
+    if (activationCrmEnabled && relationshipId) {
+      try {
+        await fetch('/api/promoter/relationship', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relationshipId, shopId: s.shopId }),
+        })
+      } catch { /* best-effort link — the relationship record still stands alone */ }
+    }
+  }
 
   // When private previews are ON, the shop is prepared privately: the promoter
   // shares a preview link, the merchant approves, then the promoter activates.
@@ -69,8 +96,10 @@ export default function PromoterCloseClient({
         </p>
       </header>
 
-      {activationCrmEnabled && <RelationshipStep n={(n += 1)} promoterCode={bound.code} />}
-      <SetupStep n={(n += 1)} shop={shop} onShop={setShop} />
+      {activationCrmEnabled && (
+        <RelationshipStep n={(n += 1)} promoterCode={bound.code} onRelationshipChange={setRelationshipId} />
+      )}
+      <SetupStep n={(n += 1)} shop={shop} onShop={handleShopCreated} />
       {shop && <ListingStep shop={shop} n={(n += 1)} />}
       {shop && previewEnabled && <PreviewStep shop={shop} n={(n += 1)} />}
       {shop && <CloseStep shop={shop} transferEnabled={transferEnabled} n={(n += 1)} />}

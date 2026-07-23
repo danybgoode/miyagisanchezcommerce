@@ -7,16 +7,28 @@
  * calls"), plus the append-only field-audit writer (Story 1.3).
  *
  * Access to a relationship is granted to exactly three actors:
- *   1. the caller's own `promoter_id` (their own field-captured record),
- *   2. admin (`lib/admin/guard.ts#currentUserIsAdmin`),
+ *   1. the caller's own `promoter_id` (their own field-captured record) — role `owner`,
+ *   2. admin (`lib/admin/guard.ts#currentUserIsAdmin`) — role `admin`,
  *   3. a promoter holding an ACTIVE `partner_grants` row for the relationship's
- *      linked `shop_id` — the same grant model `lib/partner-auth.ts` already
- *      uses, reused rather than re-invented (README "what already exists").
+ *      linked `shop_id` — role mirrors the grant's OWN `manager`/`viewer` role,
+ *      the same grant model `lib/partner-auth.ts` already uses, reused rather
+ *      than re-invented (README "what already exists").
  * Anything else is a 403 carrying NO record fields — not a 404 (which would
  * distinguish "doesn't exist" from "not yours" differently than an absent id)
  * and not a partial record. An unresolvable id (bad UUID, genuinely absent)
  * gets the exact same 403 shape as a real id the caller doesn't own, so the
  * response never confirms which case it was.
+ *
+ * READ access via `resolveRelationshipAccess` is NOT write access — a
+ * `viewer` grant passes the scope check but every write route must also call
+ * `canWriteRelationship(access.role)` (S1 cross-review A5: `lib/partner-auth.ts`
+ * already denies a viewer write at the MCP layer; this closes the same hole
+ * here).
+ *
+ * Also holds `resolveLinkableShop` (may THIS actor bind a relationship to a
+ * given shop — reuses `canAnchorPreview`'s ownership rule, S1 review A3/A4)
+ * and `scopedRelationshipCandidates` (the actor-scoped pool the fuzzy
+ * duplicate-name scan reads from, S1 review A11/A12).
  *
  * Runtime: Node only (Supabase service-role client + Clerk admin check).
  */
@@ -28,6 +40,8 @@ import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { currentUserIsAdmin } from '@/lib/admin/guard'
 import { getPromoterByClerkId } from '@/lib/promoter'
+import { resolveTargetShop } from '@/lib/promoter-server'
+import { canAnchorPreview } from '@/lib/promoter-close'
 
 export interface RelationshipRow {
   id: string
@@ -63,6 +77,10 @@ export interface RelationshipRow {
 export interface RelationshipActor {
   clerkUserId: string
   promoterId: string | null
+  /** The bound promoter's PRM- code — needed to check shop OWNERSHIP
+   *  (`canAnchorPreview`/`isPromoterShopOwner` key off the code embedded in a
+   *  promoter-created shop's `source_url`, not the promoter row id). */
+  promoterCode: string | null
   isAdmin: boolean
 }
 
@@ -72,7 +90,12 @@ export async function resolveActor(clerkUserId: string): Promise<RelationshipAct
     getPromoterByClerkId(clerkUserId),
     currentUserIsAdmin(),
   ])
-  return { clerkUserId, promoterId: promoter?.id ?? null, isAdmin }
+  return {
+    clerkUserId,
+    promoterId: promoter?.id ?? null,
+    promoterCode: promoter?.code ?? null,
+    isAdmin,
+  }
 }
 
 export type RelationshipAuthResult =
@@ -95,7 +118,7 @@ export async function authorizeRelationshipRequest(req: NextRequest): Promise<Re
   const user = await currentUser().catch(() => null)
   if (!user) return { error: NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 }) }
 
-  const rl = await checkRateLimit('checkout', getClientIp(req))
+  const rl = await checkRateLimit('relationship', getClientIp(req))
   if (!rl.allowed) {
     return {
       error: NextResponse.json(
@@ -109,16 +132,32 @@ export async function authorizeRelationshipRequest(req: NextRequest): Promise<Re
   return { user: { id: user.id }, actor }
 }
 
+/** The scope an access grant was resolved through. `owner`/`admin` can always
+ *  write; a `partner_grants` grant carries its OWN role — `viewer` must never
+ *  write (mirrors `lib/partner-auth.ts`'s viewer-write denial exactly). */
+export type RelationshipRole = 'owner' | 'admin' | 'manager' | 'viewer'
+
 export type RelationshipAccess =
-  | { ok: true; relationship: RelationshipRow }
+  | { ok: true; relationship: RelationshipRow; role: RelationshipRole }
   | { ok: false; status: 403 }
 
 const FORBIDDEN: RelationshipAccess = { ok: false, status: 403 }
 
+/** True for every role allowed to WRITE a relationship — everything except a
+ *  read-only `partner_grants` `viewer` grant. Every write route (the update
+ *  arm of `POST /api/promoter/relationship`, and the `consent` route) must
+ *  check this after `resolveRelationshipAccess` — read access alone is NOT
+ *  write access. */
+export function canWriteRelationship(role: RelationshipRole): boolean {
+  return role !== 'viewer'
+}
+
 /**
  * The shared scope check. Reads the row once and decides access from it —
  * every route (`GET`, the update arm of `POST`, and the `consent` route)
- * calls this instead of re-deriving the rule.
+ * calls this instead of re-deriving the rule. Callers that WRITE must
+ * additionally check `canWriteRelationship(access.role)` — this only decides
+ * whether the caller may see the record at all.
  */
 export async function resolveRelationshipAccess(
   relationshipId: string,
@@ -143,21 +182,58 @@ export async function resolveRelationshipAccess(
 
   const row = data as unknown as RelationshipRow
 
-  if (actor.isAdmin) return { ok: true, relationship: row }
-  if (actor.promoterId && row.promoter_id === actor.promoterId) return { ok: true, relationship: row }
+  if (actor.isAdmin) return { ok: true, relationship: row, role: 'admin' }
+  if (actor.promoterId && row.promoter_id === actor.promoterId) return { ok: true, relationship: row, role: 'owner' }
 
   if (row.shop_id && actor.promoterId) {
     const { data: grant } = await db
       .from('partner_grants')
-      .select('id')
+      .select('role')
       .eq('shop_id', row.shop_id)
       .eq('promoter_id', actor.promoterId)
       .is('revoked_at', null)
       .maybeSingle()
-    if (grant) return { ok: true, relationship: row }
+    // `partner_grants.role` is `manager|viewer` (CHECK'd at the DB) — trust the
+    // stored value literally rather than defaulting an unrecognized value to a
+    // WRITE role (fail closed, same posture as `lib/partner-auth.ts`).
+    if (grant?.role === 'manager') return { ok: true, relationship: row, role: 'manager' }
+    if (grant?.role === 'viewer') return { ok: true, relationship: row, role: 'viewer' }
   }
 
   return FORBIDDEN
+}
+
+// ── Shop linking (A3/A4 — a relationship may only bind to a shop the calling
+// promoter is allowed to ANCHOR, the exact rule `canAnchorPreview` already
+// enforces for preview anchoring: unclaimed AND provably created by this
+// promoter's own `promoter://<CODE>/` provenance) ──────────────────────────
+
+export type ShopLinkResult =
+  | { ok: true; shopId: string }
+  | { ok: false; reason: 'not_found' | 'not_owned' }
+
+/**
+ * May this actor link a relationship to `shopId`? Admin bypasses the
+ * ownership check (only existence matters); everyone else must pass the same
+ * `canAnchorPreview` rule the preview-anchoring routes already enforce, so a
+ * bound promoter can never squat a relationship onto a shop they didn't
+ * create (build contract A4) — including the 29 backfilled shops, which have
+ * no `promoter://` provenance and so are never linkable this way, and any
+ * OTHER promoter's shop.
+ */
+export async function resolveLinkableShop(
+  shopId: string,
+  actor: RelationshipActor,
+): Promise<ShopLinkResult> {
+  if (!shopId) return { ok: false, reason: 'not_found' }
+  const shop = await resolveTargetShop({ shopId })
+  if (!shop) return { ok: false, reason: 'not_found' }
+  if (actor.isAdmin) return { ok: true, shopId: shop.id }
+  if (!actor.promoterCode) return { ok: false, reason: 'not_owned' }
+  if (!canAnchorPreview({ sourceUrl: shop.sourceUrl, clerkUserId: shop.clerkUserId }, actor.promoterCode)) {
+    return { ok: false, reason: 'not_owned' }
+  }
+  return { ok: true, shopId: shop.id }
 }
 
 // ── Field audit (Story 1.3 — "attribution and consent fields are audited on
@@ -175,16 +251,21 @@ export type AuditedField = (typeof AUDITED_FIELDS)[number]
 
 /**
  * Diff `before` against `after` over `AUDITED_FIELDS` and write one append-only
- * row per field that actually changed. A no-op diff writes nothing. Best-effort
- * (a logging failure never fails the caller's write) — mirrors the discipline
- * already used for `partner_tool_calls` / `admin_audit_log`.
+ * row per field that actually changed. A no-op diff writes nothing (and
+ * reports `true` — there was nothing to fail at). The PRIMARY write already
+ * committed by the time this runs (it can't be rolled back), so a failure
+ * here can't fail the request — but it must not be swallowed silently either
+ * (review A10: "the API reports success while the promised audit trail
+ * silently didn't record"). Logs loudly AND returns `false` so every caller
+ * can surface `auditRecorded: false` in its response instead of a bare
+ * `{ ok: true }` that quietly lies about what got recorded.
  */
 export async function auditFieldChanges(
   relationshipId: string,
   actorClerkUserId: string,
   before: Partial<Record<AuditedField, unknown>>,
   after: Partial<Record<AuditedField, unknown>>,
-): Promise<void> {
+): Promise<boolean> {
   const rows = AUDITED_FIELDS.filter((field) => field in after && after[field] !== before[field]).map(
     (field) => ({
       relationship_id: relationshipId,
@@ -194,23 +275,27 @@ export async function auditFieldChanges(
       actor_clerk_user_id: actorClerkUserId,
     }),
   )
-  if (rows.length === 0) return
+  if (rows.length === 0) return true
   const { error } = await db.from('merchant_relationship_field_audit').insert(rows)
-  if (error) console.error('[relationship-access] field audit insert failed:', error.message)
+  if (error) {
+    console.error('[relationship-access] field audit insert failed:', error.message)
+    return false
+  }
+  return true
 }
 
 /**
  * Write ONE free-form audit row for an event that isn't a plain column diff —
  * used by the consent route to leave a permanent trail of every successful
  * evidence check, even when it left `preview_id` unchanged (a re-confirmation).
- * Best-effort, same discipline as `auditFieldChanges`.
+ * Same "never swallow the failure" discipline as `auditFieldChanges` (A10).
  */
 export async function auditEvent(
   relationshipId: string,
   actorClerkUserId: string,
   field: string,
   newValue: string,
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await db.from('merchant_relationship_field_audit').insert({
     relationship_id: relationshipId,
     field,
@@ -218,7 +303,79 @@ export async function auditEvent(
     new_value: newValue,
     actor_clerk_user_id: actorClerkUserId,
   })
-  if (error) console.error('[relationship-access] audit event insert failed:', error.message)
+  if (error) {
+    console.error('[relationship-access] audit event insert failed:', error.message)
+    return false
+  }
+  return true
+}
+
+// ── Scoped candidate pool (fuzzy-suggestion scan, A11/A12) ─────────────────
+
+export interface CandidateRow {
+  id: string
+  business_name: string
+}
+
+/**
+ * The relationships this ACTOR is allowed to see suggested as possible
+ * duplicates — the caller's own records plus anything reachable through an
+ * active `partner_grants` shop grant; admin sees everything. (A12: the fuzzy
+ * scan must never leak another promoter's merchant names.)
+ *
+ * Bounded to the most-recent 300 per pool rather than filtered by a SQL
+ * `ILIKE` pre-filter — `unaccent` is not installed on this database, so an
+ * `ILIKE` against the RAW `business_name` column against a diacritic-stripped
+ * search term systematically misses exactly the accented names es-MX is full
+ * of (verified live: `'Café Don Memo' ILIKE '%cafe%'` → false). The caller
+ * does the real (normalized-key) comparison in application code via
+ * `isFuzzyNameMatch` — this is a bounded APPLICATION-side scan, not a
+ * database-side text search (A11: the removed comment overclaimed that
+ * `.limit()` bounded rows SCANNED; it only bounds rows RETURNED, and a
+ * leading-wildcard `ILIKE` can't use the `lower(business_name)` btree index
+ * regardless).
+ */
+export async function scopedRelationshipCandidates(actor: RelationshipActor): Promise<CandidateRow[]> {
+  if (actor.isAdmin) {
+    const { data } = await db
+      .from('merchant_relationships')
+      .select('id, business_name')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    return (data as CandidateRow[] | null) ?? []
+  }
+
+  const own = actor.promoterId
+    ? await db
+        .from('merchant_relationships')
+        .select('id, business_name')
+        .eq('promoter_id', actor.promoterId)
+        .order('created_at', { ascending: false })
+        .limit(300)
+    : { data: [] as CandidateRow[] }
+
+  let granted: CandidateRow[] = []
+  if (actor.promoterId) {
+    const { data: grants } = await db
+      .from('partner_grants')
+      .select('shop_id')
+      .eq('promoter_id', actor.promoterId)
+      .is('revoked_at', null)
+    const shopIds = ((grants ?? []) as Array<{ shop_id: string }>).map((g) => g.shop_id).filter(Boolean)
+    if (shopIds.length > 0) {
+      const { data } = await db.from('merchant_relationships').select('id, business_name').in('shop_id', shopIds)
+      granted = (data as CandidateRow[] | null) ?? []
+    }
+  }
+
+  const seen = new Set<string>()
+  const merged: CandidateRow[] = []
+  for (const row of [...((own.data as CandidateRow[] | null) ?? []), ...granted]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    merged.push(row)
+  }
+  return merged
 }
 
 // ── Client DTO ──────────────────────────────────────────────────────────────

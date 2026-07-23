@@ -8,12 +8,26 @@
  *     Runs the dedupe precedence (shop_id → phone_e164 → email_normalized,
  *     `lib/merchant-identity.ts#decideDedupeMatch`) BEFORE inserting; a hit
  *     returns 409 with the existing id + `matchReason` unless the caller
- *     passes `confirmNew: true`. A fuzzy business-name hit never blocks —
- *     it comes back as a `suggestions` array on the same 200 (epic Decision 3:
- *     never auto-merge on fuzzy name similarity).
+ *     passes `confirmNew: true`. A dedupe LOOKUP that itself fails to read
+ *     (a DB error) refuses the create rather than assuming "no duplicate" —
+ *     these columns are deliberately unindexed-unique, so a fail-open read
+ *     error is the only thing standing between a blip and a silent duplicate
+ *     (S1 cross-review A9). A fuzzy business-name hit never blocks — it comes
+ *     back as a `suggestions` array on the same 200, scoped to records this
+ *     promoter can already see (epic Decision 3: never auto-merge on fuzzy
+ *     name similarity; S1 cross-review A12: never leak another promoter's names).
  *   - UPDATE (`relationshipId` present): scope-checked through the ONE shared
  *     helper (`resolveRelationshipAccess`) — an id the caller doesn't own is a
- *     403 with no record fields, not a 404, not a partial write.
+ *     403 with no record fields, not a 404, not a partial write. A `viewer`
+ *     partner-grant may READ but not WRITE (S1 cross-review A5).
+ *
+ * BOTH arms validate `shopId` the same way `canAnchorPreview` gates preview
+ * anchoring — a bound promoter may only link a shop THEY created (S1
+ * cross-review A3/A4); admin bypasses the ownership check.
+ *
+ * Malformed phone/email/whatsapp input is REJECTED (400), never silently
+ * normalized to null and written over a good stored value (S1 cross-review
+ * A8) — an explicit empty string is still a deliberate clear.
  *
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF).
  */
@@ -22,7 +36,6 @@ import { db } from '@/lib/supabase'
 import {
   normalizePhoneE164,
   normalizeEmail,
-  businessNameKey,
   isFuzzyNameMatch,
   decideDedupeMatch,
   type DedupeCandidateRows,
@@ -30,6 +43,9 @@ import {
 import {
   authorizeRelationshipRequest,
   resolveRelationshipAccess,
+  resolveLinkableShop,
+  canWriteRelationship,
+  scopedRelationshipCandidates,
   auditFieldChanges,
   toRelationshipDTO,
   type RelationshipRow,
@@ -69,27 +85,51 @@ function clean(v: string | undefined): string | null {
   return t.length > 0 ? t : null
 }
 
-/** Best-effort, non-blocking fuzzy business-name scan (epic Decision 3 — a
- *  suggestion, never a block, never a merge). Bounded to a small candidate set
- *  (matching on the first normalized word) so a busy table never turns this
- *  into a full scan; a failure here never fails the create. */
+type FieldResult = { ok: true; value: string | null } | { ok: false; error: string }
+
+/**
+ * Normalize an optional contact field, distinguishing three cases (A8):
+ *  - `undefined` never reaches here (the caller only calls this when the
+ *    field WAS present in the body — "not touched" is handled by the caller).
+ *  - an explicit empty/blank string is a deliberate CLEAR → `{ value: null }`.
+ *  - a non-blank string that fails to normalize is MALFORMED → refused, so a
+ *    typo can never silently erase a good stored value.
+ */
+function normalizeOrReject(
+  raw: string,
+  normalizer: (s: string) => string | null,
+  label: string,
+): FieldResult {
+  const trimmed = raw.trim()
+  if (trimmed === '') return { ok: true, value: null }
+  const normalized = normalizer(trimmed)
+  if (!normalized) return { ok: false, error: `${label} no es válido.` }
+  return { ok: true, value: normalized }
+}
+
+/** A9: a dedupe LOOKUP that fails to read must refuse the create, never
+ *  silently proceed as "no duplicate found" — these columns have no unique
+ *  constraint to catch it at insert time. */
+type DedupeLookup = { ok: true; row: { id: string } | null } | { ok: false }
+
+async function lookupDedupe(column: 'shop_id' | 'phone_e164' | 'email_normalized', value: string): Promise<DedupeLookup> {
+  const { data, error } = await db.from('merchant_relationships').select('id').eq(column, value).limit(1).maybeSingle()
+  if (error) return { ok: false }
+  return { ok: true, row: (data as { id: string } | null) ?? null }
+}
+
+/** A11/A12: bounded, actor-scoped, ACTUALLY-normalized fuzzy business-name
+ *  scan — see `scopedRelationshipCandidates` for why this can't be a SQL
+ *  `ILIKE` pre-filter. Best-effort; a failure here never fails the create. */
 async function fuzzySuggestions(
   businessName: string,
   excludeId: string,
+  actor: Parameters<typeof scopedRelationshipCandidates>[0],
 ): Promise<Array<{ id: string; businessName: string }>> {
-  const key = businessNameKey(businessName)
-  const firstWord = key.split(' ')[0]
-  if (!firstWord) return []
   try {
-    const { data, error } = await db
-      .from('merchant_relationships')
-      .select('id, business_name')
-      .ilike('business_name', `%${firstWord}%`)
-      .neq('id', excludeId)
-      .limit(25)
-    if (error || !data) return []
-    return (data as Array<{ id: string; business_name: string }>)
-      .filter((row) => isFuzzyNameMatch(businessName, row.business_name))
+    const pool = await scopedRelationshipCandidates(actor)
+    return pool
+      .filter((row) => row.id !== excludeId && isFuzzyNameMatch(businessName, row.business_name))
       .slice(0, 5)
       .map((row) => ({ id: row.id, businessName: row.business_name }))
   } catch {
@@ -114,15 +154,64 @@ export async function POST(req: NextRequest) {
   if (body.qualification && !QUALIFICATIONS.includes(body.qualification as (typeof QUALIFICATIONS)[number])) {
     return NextResponse.json({ ok: false, error: 'Calificación inválida.' }, { status: 400 })
   }
+  // A15: a non-array (or non-string-array) currentChannels would otherwise
+  // reach PostgREST unvalidated and 500 instead of a clean 400.
+  if (body.currentChannels !== undefined) {
+    if (!Array.isArray(body.currentChannels) || !body.currentChannels.every((c) => typeof c === 'string')) {
+      return NextResponse.json({ ok: false, error: 'Canales actuales inválidos.' }, { status: 400 })
+    }
+  }
 
-  const phoneE164 = body.phone !== undefined ? normalizePhoneE164(body.phone) : undefined
-  const emailNormalized = body.email !== undefined ? normalizeEmail(body.email) : undefined
-  const whatsappE164 = body.whatsapp !== undefined ? normalizePhoneE164(body.whatsapp) : undefined
+  // A8: reject malformed contact fields instead of silently normalizing to
+  // null and overwriting a good stored value.
+  let phoneE164: string | null | undefined
+  if (body.phone !== undefined) {
+    const r = normalizeOrReject(body.phone, normalizePhoneE164, 'El teléfono')
+    if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 400 })
+    phoneE164 = r.value
+  }
+  let emailNormalized: string | null | undefined
+  if (body.email !== undefined) {
+    const r = normalizeOrReject(body.email, normalizeEmail, 'El correo')
+    if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 400 })
+    emailNormalized = r.value
+  }
+  let whatsappE164: string | null | undefined
+  if (body.whatsapp !== undefined) {
+    const r = normalizeOrReject(body.whatsapp, normalizePhoneE164, 'El WhatsApp')
+    if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 400 })
+    whatsappE164 = r.value
+  }
+
+  // A3/A4: a non-empty shopId must be a shop THIS actor may link — same rule
+  // `canAnchorPreview` enforces for preview anchoring. An empty string clears
+  // the link (never validated — clearing needs no ownership proof).
+  let linkedShopId: string | null | undefined
+  if (body.shopId !== undefined) {
+    const trimmed = (body.shopId ?? '').trim()
+    if (trimmed === '') {
+      linkedShopId = null
+    } else {
+      const link = await resolveLinkableShop(trimmed, auth.actor)
+      if (!link.ok) {
+        // Never confirm a shop's existence to an actor who can't link it —
+        // same posture as the preview-anchoring routes.
+        return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
+      }
+      linkedShopId = link.shopId
+    }
+  }
 
   // ── UPDATE arm ─────────────────────────────────────────────────────────
   if (body.relationshipId) {
     const access = await resolveRelationshipAccess(body.relationshipId, auth.actor)
     if (!access.ok) return NextResponse.json({ ok: false }, { status: 403 })
+    if (!canWriteRelationship(access.role)) {
+      return NextResponse.json(
+        { ok: false, error: 'Tu acceso a este registro es de solo lectura (viewer) — esta acción requiere el rol manager.' },
+        { status: 403 },
+      )
+    }
 
     const before = access.relationship
     const patch: Partial<Record<keyof RelationshipRow, unknown>> = { updated_at: new Date().toISOString() }
@@ -131,6 +220,9 @@ export async function POST(req: NextRequest) {
       if (!name) return NextResponse.json({ ok: false, error: 'El nombre del negocio no puede estar vacío.' }, { status: 400 })
       patch.business_name = name
     }
+    // A14: send the field's CURRENT value explicitly (even blank) rather than
+    // relying on the caller to omit it — `clean()` still turns a blank into a
+    // stored null, but only because the caller EXPLICITLY sent it this time.
     if (body.contactName !== undefined) patch.contact_name = clean(body.contactName)
     if (phoneE164 !== undefined) patch.phone_e164 = phoneE164
     if (emailNormalized !== undefined) patch.email_normalized = emailNormalized
@@ -148,6 +240,8 @@ export async function POST(req: NextRequest) {
     if (body.cohort !== undefined) patch.cohort = clean(body.cohort)
     if (body.source !== undefined) patch.source = clean(body.source)
     if (body.intakeComplete !== undefined) patch.intake_complete = !!body.intakeComplete
+    // A3: actually apply the shop link the caller validated above.
+    if (linkedShopId !== undefined) patch.shop_id = linkedShopId
 
     const { data, error } = await db
       .from('merchant_relationships')
@@ -161,12 +255,17 @@ export async function POST(req: NextRequest) {
       )
       .maybeSingle()
     if (error || !data) {
+      // 23505 on the shop_id unique index = someone else linked this shop
+      // between our validation and this write — a genuine conflict, not a 500.
+      if (error?.code === '23505') {
+        return NextResponse.json({ ok: false, error: 'Ya existe un registro para esta tienda.' }, { status: 409 })
+      }
       return NextResponse.json({ ok: false, error: 'No se pudo guardar el registro.' }, { status: 500 })
     }
 
-    await auditFieldChanges(body.relationshipId, auth.user.id, before, patch)
+    const auditRecorded = await auditFieldChanges(body.relationshipId, auth.user.id, before, patch)
 
-    return NextResponse.json({ ok: true, relationship: toRelationshipDTO(data as unknown as RelationshipRow) })
+    return NextResponse.json({ ok: true, relationship: toRelationshipDTO(data as unknown as RelationshipRow), auditRecorded })
   }
 
   // ── CREATE arm ─────────────────────────────────────────────────────────
@@ -181,22 +280,26 @@ export async function POST(req: NextRequest) {
 
   if (!body.confirmNew) {
     const candidates: DedupeCandidateRows = { byShopId: null, byPhone: null, byEmail: null }
-    if (body.shopId) {
-      const { data } = await db.from('merchant_relationships').select('id').eq('shop_id', body.shopId).maybeSingle()
-      candidates.byShopId = data as { id: string } | null
+    if (linkedShopId) {
+      const r = await lookupDedupe('shop_id', linkedShopId)
+      if (!r.ok) {
+        return NextResponse.json({ ok: false, error: 'No se pudo verificar duplicados. Inténtalo de nuevo.' }, { status: 500 })
+      }
+      candidates.byShopId = r.row
     }
     if (phoneE164) {
-      const { data } = await db.from('merchant_relationships').select('id').eq('phone_e164', phoneE164).limit(1).maybeSingle()
-      candidates.byPhone = data as { id: string } | null
+      const r = await lookupDedupe('phone_e164', phoneE164)
+      if (!r.ok) {
+        return NextResponse.json({ ok: false, error: 'No se pudo verificar duplicados. Inténtalo de nuevo.' }, { status: 500 })
+      }
+      candidates.byPhone = r.row
     }
     if (emailNormalized) {
-      const { data } = await db
-        .from('merchant_relationships')
-        .select('id')
-        .eq('email_normalized', emailNormalized)
-        .limit(1)
-        .maybeSingle()
-      candidates.byEmail = data as { id: string } | null
+      const r = await lookupDedupe('email_normalized', emailNormalized)
+      if (!r.ok) {
+        return NextResponse.json({ ok: false, error: 'No se pudo verificar duplicados. Inténtalo de nuevo.' }, { status: 500 })
+      }
+      candidates.byEmail = r.row
     }
     const decision = decideDedupeMatch(candidates)
     if (decision.matched) {
@@ -228,7 +331,7 @@ export async function POST(req: NextRequest) {
       promoter_id: auth.actor.promoterId,
       cohort: clean(body.cohort),
       source: clean(body.source),
-      shop_id: body.shopId || null,
+      shop_id: linkedShopId ?? null,
       intake_complete: !!body.intakeComplete,
       created_by: auth.user.id,
     })
@@ -251,14 +354,14 @@ export async function POST(req: NextRequest) {
 
   const row = inserted as unknown as RelationshipRow
 
-  await auditFieldChanges(
+  const auditRecorded = await auditFieldChanges(
     row.id,
     auth.user.id,
     {},
     { promoter_id: row.promoter_id, cohort: row.cohort, source: row.source, preferred_channel: row.preferred_channel },
   )
 
-  const suggestions = await fuzzySuggestions(businessName, row.id)
+  const suggestions = await fuzzySuggestions(businessName, row.id, auth.actor)
 
-  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(row), suggestions })
+  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(row), suggestions, auditRecorded })
 }
