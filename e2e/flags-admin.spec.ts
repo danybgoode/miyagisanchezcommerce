@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 37 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(37)
+  test('covers all 38 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(38)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
