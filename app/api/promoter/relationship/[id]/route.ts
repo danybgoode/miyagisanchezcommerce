@@ -9,10 +9,21 @@
  * fields — not a 404 (which would distinguish "doesn't exist" from "not
  * yours" differently than an absent id) and not a partial record.
  *
+ * Also returns a lightweight `shop` summary when the relationship already has
+ * one linked (S1 cross-review B2) — `RelationshipStep` hands this up to
+ * `PromoterCloseClient` so switching to (or resuming) a relationship that
+ * already has a shop REHYDRATES that shop instead of leaving the promoter
+ * looking at a stale/blank one that invites creating a duplicate.
+ *
  * Gated by `promoter.activation_crm_enabled` FIRST (404 when OFF).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { authorizeRelationshipRequest, resolveRelationshipAccess, toRelationshipDTO } from '@/lib/relationship-access'
+import {
+  authorizeRelationshipRequest,
+  resolveRelationshipAccess,
+  resolveLinkedShopSummary,
+  toRelationshipDTO,
+} from '@/lib/relationship-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,5 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const access = await resolveRelationshipAccess(id, auth.actor)
   if (!access.ok) return NextResponse.json({ ok: false }, { status: access.status })
 
-  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(access.relationship) })
+  const shop = access.relationship.shop_id ? await resolveLinkedShopSummary(access.relationship.shop_id) : null
+
+  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(access.relationship), shop })
 }

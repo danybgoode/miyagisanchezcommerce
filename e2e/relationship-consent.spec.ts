@@ -73,6 +73,47 @@ test.describe('consentSatisfiesEvidence — the corrected build contract, litera
 })
 
 /**
+ * S1 cross-review round 2 · B7 — activation is a ONE-WAY door
+ * (`markActivated` flips `status='approved' → 'activated'`; there is no path
+ * back). A status check that only ever accepted `'approved'` would refuse
+ * consent evidence FOREVER the instant a promoter activates the shop before
+ * pressing "Registrar permiso" — stranding a record for a merchant who
+ * demonstrably approved. `checkActivation` already special-cases `activated`
+ * as idempotently valid; this mirrors it.
+ */
+test.describe('consentSatisfiesEvidence — B7: activated is a valid status, not just approved', () => {
+  const notRequired = { verifiedApprovalRequired: false }
+  const required = { verifiedApprovalRequired: true }
+
+  test('a CURRENT (non-stale) activated preview, verification NOT required → satisfied', () => {
+    const facts: ConsentEvidenceFacts = { status: 'activated', stale: false, approvedVerifiedVia: null }
+    expect(consentSatisfiesEvidence(facts, notRequired)).toBe(true)
+  })
+
+  test('a CURRENT, VERIFIED activated preview, verification required → satisfied', () => {
+    const facts: ConsentEvidenceFacts = { status: 'activated', stale: false, approvedVerifiedVia: 'email' }
+    expect(consentSatisfiesEvidence(facts, required)).toBe(true)
+  })
+
+  test('an activated preview with NO verified provenance, verification required → still refused (activation does not bypass verification)', () => {
+    const facts: ConsentEvidenceFacts = { status: 'activated', stale: false, approvedVerifiedVia: null }
+    expect(consentSatisfiesEvidence(facts, required)).toBe(false)
+  })
+
+  test('a STALE activated preview → still refused (activation does not bypass staleness either)', () => {
+    const facts: ConsentEvidenceFacts = { status: 'activated', stale: true, approvedVerifiedVia: 'email' }
+    expect(consentSatisfiesEvidence(facts, notRequired)).toBe(false)
+  })
+
+  test('every OTHER status (draft/delivered/changes_requested/invalidated) still refuses', () => {
+    for (const status of ['draft', 'delivered', 'changes_requested', 'invalidated']) {
+      const facts: ConsentEvidenceFacts = { status, stale: false, approvedVerifiedVia: 'email' }
+      expect(consentSatisfiesEvidence(facts, notRequired)).toBe(false)
+    }
+  })
+})
+
+/**
  * S1 cross-review A2 — the CROSS-RELATIONSHIP hole: a promoter holding two
  * relationships (R_A genuinely approved, R_B never contacted) posts R_A's
  * preview id against R_B. `previewBelongsToRelationship` is the ONE gate that

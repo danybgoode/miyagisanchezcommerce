@@ -18,7 +18,13 @@ import { ESTADO_NAMES } from '@/lib/mx-locations'
  * `onRelationshipChange` reports the current relationship id up to
  * `PromoterCloseClient`, which links it to the shop the moment `SetupStep`
  * creates one (S1 cross-review A3 — a relationship must not stay orphaned
- * from the shop it precedes).
+ * from the shop it precedes). `onRelationshipShopHint` reports the LINKED
+ * shop whenever a fresh, authoritative read tells us one (a mount-resume or
+ * a record switch) — the parent rehydrates its `shop` state from it, so
+ * switching between merchants never leaves a stale shop on screen (S1
+ * cross-review B2). `linkedShopId` is the reverse channel: the parent's
+ * current `shop`, so a save can carry it along and (re-)apply the link even
+ * when the shop was created BEFORE this relationship was ever saved (B3a).
  */
 
 type Relationship = {
@@ -40,6 +46,7 @@ type Relationship = {
   source: string | null
 }
 
+type LinkedShop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null } | null
 type Suggestion = { id: string; businessName: string }
 type HistoryEntry = { id: string; businessName: string }
 
@@ -88,13 +95,24 @@ function upsertHistory(promoterCode: string, entry: HistoryEntry): HistoryEntry[
 export default function RelationshipStep({
   n,
   promoterCode,
+  linkedShopId,
   onRelationshipChange,
+  onRelationshipShopHint,
 }: {
   n: number
   promoterCode: string
+  /** The shop the PARENT currently shows (or null) — threaded into every
+   *  save so the link is re-applied even if the shop was created before this
+   *  relationship existed (B3a). */
+  linkedShopId?: string | null
   /** Reports the current relationship id (or null) up to the parent — see
    *  file header. Called on every id change (load, save, new, switch). */
   onRelationshipChange?: (id: string | null) => void
+  /** Reports a FRESH, authoritative shop reading up to the parent — fired on
+   *  mount-resume, on switching to a different record, and on "Nuevo
+   *  registro" (with `null`). NOT fired on a plain field save, which never
+   *  changes which merchant is active. See file header (B2). */
+  onRelationshipShopHint?: (shop: LinkedShop) => void
 }) {
   const [relationshipId, setRelationshipId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -119,6 +137,8 @@ export default function RelationshipStep({
   const [dedupe, setDedupe] = useState<{ relationshipId: string; matchReason: string } | null>(null)
   const [consentMessage, setConsentMessage] = useState<string | null>(null)
   const [consentBusy, setConsentBusy] = useState(false)
+  const [auditWarning, setAuditWarning] = useState<string | null>(null)
+  const [auditRetryBusy, setAuditRetryBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -131,8 +151,32 @@ export default function RelationshipStep({
     } catch { /* best-effort cache only — the server record is the source of truth */ }
   }
 
-  function populate(rel: Relationship) {
+  /**
+   * B1 — the ONE reset point for every per-record UI signal, called at the
+   * start of BOTH `populate()` and `startNew()` (the only two ways the active
+   * record can change). Before this, `populate()` and `startNew()` each
+   * carried their OWN copy of the reset list, and the copy in `populate()`
+   * was missing `consentMessage`/`auditWarning`/`savedAt` — so registering
+   * consent for merchant A, then switching to merchant B via a history chip
+   * or "usar registro existente", rendered "Permiso registrado" under B's
+   * data with no evidence behind it. A single function makes that class of
+   * drift structurally harder: a THIRD switch path (should one ever get
+   * added) inherits the full reset by construction instead of needing its
+   * author to remember every field.
+   */
+  function resetPerRecordUi() {
+    setConsentMessage(null)
+    setAuditWarning(null)
+    setSavedAt(null)
+    setSuggestions([])
+    setDedupe(null)
+    setError(null)
+  }
+
+  function populate(rel: Relationship, shop: LinkedShop) {
+    resetPerRecordUi()
     setActive(rel.id)
+    onRelationshipShopHint?.(shop)
     setBusinessName(rel.businessName)
     setContactName(rel.contactName ?? '')
     setPhone(rel.phone ?? '')
@@ -152,11 +196,12 @@ export default function RelationshipStep({
   /** A6 — blank the form for a NEW merchant. The previous record stays saved
    *  server-side and in the recent-records list; only the active pointer moves. */
   function startNew() {
+    resetPerRecordUi()
     setActive(null)
+    onRelationshipShopHint?.(null) // B2 — never leave the PREVIOUS merchant's shop on screen
     setBusinessName(''); setContactName(''); setPhone(''); setEmail(''); setWhatsapp('')
     setInstagramHandle(''); setEstado(''); setMunicipio(''); setCategory('')
     setPreferredChannel(''); setQualification('unknown'); setFitNote(''); setObjections('')
-    setSavedAt(null); setSuggestions([]); setDedupe(null); setError(null); setConsentMessage(null)
   }
 
   // Resume the ACTIVE saved draft on mount. A 403 means the pointer is stale
@@ -177,7 +222,7 @@ export default function RelationshipStep({
       .then(({ ok, data }) => {
         if (cancelled) return
         if (ok && data.ok && data.relationship) {
-          populate(data.relationship)
+          populate(data.relationship, data.shop ?? null)
         } else {
           try { localStorage.removeItem(activeKey(promoterCode)) } catch { /* best-effort */ }
         }
@@ -197,18 +242,17 @@ export default function RelationshipStep({
         // A9 — the dead-end the 409 "Usar registro existente" action can walk
         // into: the matched record belongs to a DIFFERENT promoter (or an
         // expired grant). Say so plainly instead of a generic failure message.
+        // The CURRENT record (never switched away from) keeps its own state.
         setError('Ese registro pertenece a otro promotor — no puedes cargarlo aquí. Puedes seguir con tu propio registro nuevo.')
         return
       }
       if (!res.ok || !data.ok) { setError('No se pudo cargar el registro existente.'); return }
-      populate(data.relationship)
-      setDedupe(null)
-      setSuggestions([])
+      populate(data.relationship, data.shop ?? null)
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }
   }
 
-  async function save(confirmNew = false) {
+  async function save(confirmNew = false, forceAudit = false) {
     if (businessName.trim().length < 2) {
       setError('El nombre del negocio es obligatorio.')
       return
@@ -221,6 +265,7 @@ export default function RelationshipStep({
         body: JSON.stringify({
           relationshipId: relationshipId ?? undefined,
           confirmNew: confirmNew || undefined,
+          forceAudit: forceAudit || undefined,
           businessName,
           // A14: send every optional field's CURRENT value explicitly (even
           // blank) rather than `value || undefined` — omitting a field the
@@ -238,6 +283,11 @@ export default function RelationshipStep({
           qualification,
           fitNote,
           objections,
+          // B3a: re-attempt (or re-confirm) the shop link on EVERY save, not
+          // only at shop-creation time — the promoter may fill in this step
+          // AFTER already creating the shop, in which case `relationshipId`
+          // was null at creation time and the link never happened there.
+          shopId: linkedShopId || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -251,8 +301,28 @@ export default function RelationshipStep({
       setHistory(upsertHistory(promoterCode, { id: data.relationship.id, businessName: data.relationship.businessName }))
       setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : [])
       setSavedAt(new Date())
+      // B4: surface an audit-write failure instead of reporting a bare
+      // success that quietly lies about what got recorded.
+      if (data.auditRecorded === false) {
+        setAuditWarning('Se guardó el registro, pero no se pudo registrar la auditoría del cambio.')
+      } else {
+        setAuditWarning(null)
+      }
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }
+  }
+
+  /** B4 retry path — re-emits the audit rows for the CURRENT (already-saved)
+   *  values via `forceAudit`, since a plain retry's diff against the stored
+   *  row would be empty (the primary write already committed) and silently
+   *  write nothing. */
+  async function retryAudit() {
+    setAuditRetryBusy(true)
+    try {
+      await save(false, true)
+    } finally {
+      setAuditRetryBusy(false)
+    }
   }
 
   async function registerConsent() {
@@ -274,6 +344,10 @@ export default function RelationshipStep({
         return
       }
       setConsentMessage('Permiso registrado — el comerciante aprobó la vista previa vigente.')
+      // B4: the consent route always attempts a fresh audit write on every
+      // call (no diff to go stale), so a plain retry of THIS action already
+      // re-emits it — no separate forceAudit plumbing needed here.
+      setAuditWarning(data.auditRecorded === false ? 'El permiso quedó registrado, pero no se pudo guardar su auditoría.' : null)
     } catch { setConsentMessage('Error de red. Intenta de nuevo.') }
     finally { setConsentBusy(false) }
   }
@@ -417,6 +491,16 @@ export default function RelationshipStep({
               </span>
             )}
           </div>
+
+          {auditWarning && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex items-center justify-between gap-2">
+              <span>{auditWarning}</span>
+              <button type="button" onClick={retryAudit} disabled={auditRetryBusy || busy}
+                className="rounded-lg border border-amber-400 px-2.5 py-1 text-xs font-medium disabled:opacity-50 whitespace-nowrap">
+                {auditRetryBusy ? 'Reintentando…' : 'Reintentar'}
+              </button>
+            </div>
+          )}
 
           {relationshipId && (
             <div className="border-t border-[var(--color-border)] pt-3 space-y-2">

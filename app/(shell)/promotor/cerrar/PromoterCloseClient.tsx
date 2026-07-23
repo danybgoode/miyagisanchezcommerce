@@ -52,25 +52,50 @@ export default function PromoterCloseClient({
   // (lib/relationship-consent.ts / the consent route), so the button only ever
   // works once this link exists.
   const [relationshipId, setRelationshipId] = useState<string | null>(null)
+  // S1 cross-review B3(b) — a failed shop↔relationship link (404 "not owned",
+  // 409 "shop already has a relationship") must not fail silently; the
+  // promoter's only symptom otherwise is a confusing refusal much later, at
+  // consent time.
+  const [shopLinkError, setShopLinkError] = useState<string | null>(null)
 
   if (!bound) return <BindStep onBound={setBound} />
 
   /** Wraps `setShop` so a newly created shop is also linked to the current
    *  relationship record, when the activation-crm flag is on and a relationship
-   *  already exists. Best-effort: a failed link never blocks shop creation —
-   *  the relationship record still stands alone and can be linked later via a
-   *  save carrying the same shopId. */
+   *  already exists. Checks the response (B3b) and surfaces a failed link
+   *  instead of discarding it — shop creation itself still never blocks on
+   *  this (the shop is real either way; RelationshipStep's own save also
+   *  re-attempts the link on every save, B3a, so a transient failure here
+   *  isn't the only chance). */
   async function handleShopCreated(s: Shop) {
     setShop(s)
+    setShopLinkError(null)
     if (activationCrmEnabled && relationshipId) {
       try {
-        await fetch('/api/promoter/relationship', {
+        const res = await fetch('/api/promoter/relationship', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ relationshipId, shopId: s.shopId }),
         })
-      } catch { /* best-effort link — the relationship record still stands alone */ }
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.ok) {
+          setShopLinkError(data.error ?? 'No se pudo vincular la tienda al registro del comercio.')
+        }
+      } catch {
+        setShopLinkError('No se pudo vincular la tienda al registro del comercio (error de red).')
+      }
     }
+  }
+
+  /** S1 cross-review B2 — reconciles `shop` with whichever relationship is
+   *  currently active, reported by RelationshipStep from a FRESH read
+   *  (mount-resume, a record switch, or "Nuevo registro"). `null` covers both
+   *  "no shop yet" and "switched away" — either way, the PREVIOUS relationship's
+   *  shop must never keep rendering (listing/preview/paid-close actions) once
+   *  a different (or no) merchant is active. */
+  function handleRelationshipShopHint(hint: Shop | null) {
+    setShop(hint)
+    setShopLinkError(null)
   }
 
   // When private previews are ON, the shop is prepared privately: the promoter
@@ -97,7 +122,16 @@ export default function PromoterCloseClient({
       </header>
 
       {activationCrmEnabled && (
-        <RelationshipStep n={(n += 1)} promoterCode={bound.code} onRelationshipChange={setRelationshipId} />
+        <RelationshipStep
+          n={(n += 1)}
+          promoterCode={bound.code}
+          linkedShopId={shop?.shopId ?? null}
+          onRelationshipChange={setRelationshipId}
+          onRelationshipShopHint={handleRelationshipShopHint}
+        />
+      )}
+      {activationCrmEnabled && shopLinkError && (
+        <p className="text-sm text-[color:var(--danger)]">{shopLinkError}</p>
       )}
       <SetupStep n={(n += 1)} shop={shop} onShop={handleShopCreated} />
       {shop && <ListingStep shop={shop} n={(n += 1)} />}

@@ -274,16 +274,58 @@ export async function resolveLinkableShop(
   return { ok: true, shopId: shop.id }
 }
 
+// ── Shop rehydration (S1 cross-review B2) ───────────────────────────────────
+
+export interface LinkedShopSummary {
+  shopId: string
+  slug: string
+  name: string
+  estado: string | null
+  municipio: string | null
+}
+
+/**
+ * A lightweight shop summary for the UI to REHYDRATE its `shop` state from a
+ * relationship's own `shop_id` on GET/resume. Without this, switching to a
+ * relationship that already has a linked shop leaves the promoter's `shop`
+ * state at whatever it was (null, or a DIFFERENT merchant's shop) — inviting
+ * either a confusing dead "create a shop" prompt or, worse, a duplicate
+ * replacement shop for a merchant who already has one (B2). `estado`/
+ * `municipio` come from the same `metadata.location_detail` shape
+ * `/api/promoter/shop/setup` writes.
+ */
+export async function resolveLinkedShopSummary(shopId: string): Promise<LinkedShopSummary | null> {
+  const { data, error } = await db
+    .from('marketplace_shops')
+    .select('id, slug, name, metadata')
+    .eq('id', shopId)
+    .maybeSingle()
+  if (error || !data) return null
+  const meta = (data.metadata ?? {}) as Record<string, unknown>
+  const loc = (meta.location_detail ?? null) as Record<string, unknown> | null
+  return {
+    shopId: data.id as string,
+    slug: data.slug as string,
+    name: (data.name as string) ?? '',
+    estado: typeof loc?.estado === 'string' ? loc.estado : null,
+    municipio: typeof loc?.municipio === 'string' ? loc.municipio : null,
+  }
+}
+
 // ── Field audit (Story 1.3 — "attribution and consent fields are audited on
 // every edit") ───────────────────────────────────────────────────────────
 
-/** The columns whose edits get an immutable audit row. */
+/** The columns whose edits get an immutable audit row. `shop_id` (S1
+ *  cross-review B6) is the single field binding a relationship to a REAL
+ *  merchant — exactly the attribution class Story 1.3 promises is audited,
+ *  and it became mutable the moment A3 let a save carry a `shopId`. */
 export const AUDITED_FIELDS = [
   'promoter_id',
   'cohort',
   'source',
   'preferred_channel',
   'preview_id',
+  'shop_id',
 ] as const
 export type AuditedField = (typeof AUDITED_FIELDS)[number]
 
@@ -297,14 +339,24 @@ export type AuditedField = (typeof AUDITED_FIELDS)[number]
  * silently didn't record"). Logs loudly AND returns `false` so every caller
  * can surface `auditRecorded: false` in its response instead of a bare
  * `{ ok: true }` that quietly lies about what got recorded.
+ *
+ * `opts.force` (S1 cross-review B4): a RETRY of a save whose audit write
+ * failed can't reconstruct the failure by re-diffing — the primary write
+ * already committed, so `before` now equals `after` and the diff is empty,
+ * meaning a naive retry silently "succeeds" without ever writing the row it
+ * was retrying. `force` writes every field present in `after` regardless of
+ * whether it differs from `before`, so the caller's explicit retry can
+ * actually re-emit the missed audit row.
  */
 export async function auditFieldChanges(
   relationshipId: string,
   actorClerkUserId: string,
   before: Partial<Record<AuditedField, unknown>>,
   after: Partial<Record<AuditedField, unknown>>,
+  opts?: { force?: boolean },
 ): Promise<boolean> {
-  const rows = AUDITED_FIELDS.filter((field) => field in after && after[field] !== before[field]).map(
+  const force = opts?.force ?? false
+  const rows = AUDITED_FIELDS.filter((field) => field in after && (force || after[field] !== before[field])).map(
     (field) => ({
       relationship_id: relationshipId,
       field,
