@@ -14,6 +14,15 @@
  * 'correction:%' OR reason IS NOT NULL)`, so no future writer of this table
  * can skip it by going around this route.
  *
+ * LIFECYCLE EMISSION (Sprint 3, Story 3.2): a successful correction also
+ * calls `emitStageTransition` — the SAME seam the derived-advance evaluator
+ * uses — so a correction lands on the shared event rail like any other
+ * canonical transition. The GATING logic (an admin correction onto
+ * `permission_granted`/`preview_delivered` must not broadcast without LIVE
+ * consent evidence) lives entirely inside that seam, not here: this route
+ * writes its transition row unconditionally either way, and simply reports
+ * whatever the seam decided.
+ *
  * Scope-checked through the ONE shared helper (`resolveRelationshipAccess`),
  * then narrowed to `role === 'admin'` explicitly — an owner/manager grant
  * passes the shared check but must NOT be able to correct a stage (that's an
@@ -28,6 +37,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, toRelationshipDTO, type RelationshipRow } from '@/lib/relationship-access'
 import { isStage, STAGE_ORDINAL, correctionDedupeKey } from '@/lib/merchant-stage'
+import { emitStageTransition } from '@/lib/merchant-relationship-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +91,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'No se pudo registrar la corrección.' }, { status: 500 })
   }
 
+  // Lifecycle emission (Sprint 3, Story 3.2) — AFTER the transition row is
+  // durably written, same ordering discipline as the preview-decision route.
+  // `emitStageTransition` is the seam that decides whether this actually
+  // broadcasts: an admin correction onto `permission_granted`/`preview_delivered`
+  // only emits when LIVE consent evidence backs it right now — see that
+  // function's doc for the full rationale. The correction itself is NEVER
+  // blocked by this outcome; the transition row above is already committed.
+  const emitOutcome = await emitStageTransition({
+    relationshipId: id,
+    toStage,
+    actorType: 'admin',
+    shopId: access.relationship.shop_id,
+    previewId: access.relationship.preview_id,
+    correlationId: dedupeKey,
+  })
+
   // Mirror onto the relationship's own stage columns so the operating views
   // read the corrected truth — but only touch `stage_entered_at` when the
   // stage actually changed, so a reason-only correction of an already-correct
@@ -102,12 +128,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // The transition row is already committed (it's the audit truth); the
       // mirror failing to follow is reported, not silently hidden.
       return NextResponse.json(
-        { ok: true, relationship: toRelationshipDTO(access.relationship), stageMirrorUpdated: false, dedupeKey },
+        { ok: true, relationship: toRelationshipDTO(access.relationship), stageMirrorUpdated: false, dedupeKey, emitOutcome },
         { status: 200 },
       )
     }
     updatedRow = data as unknown as RelationshipRow
   }
 
-  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(updatedRow), stageMirrorUpdated: true, dedupeKey })
+  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(updatedRow), stageMirrorUpdated: true, dedupeKey, emitOutcome })
 }

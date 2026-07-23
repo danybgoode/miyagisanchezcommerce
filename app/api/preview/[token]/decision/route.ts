@@ -22,7 +22,7 @@ import { isEnabled } from '@/lib/flags'
 import { resolvePreviewWithGrantByToken } from '@/lib/preview-access'
 import { recordDecision } from '@/lib/preview-consent'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
-import { emitMerchantLifecycle } from '@/lib/merchant-lifecycle-server'
+import { emitMerchantLifecycleForShop } from '@/lib/merchant-lifecycle-server'
 import { consumeApprovalCode } from '@/lib/preview-verification-server'
 
 export const dynamic = 'force-dynamic'
@@ -146,8 +146,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     // epic's own funnel telemetry, while `merchant.preview_approved` carries
     // `subject: {type:'merchant'}` and is what Golden Beans delivers back into the
     // Miyagi projection. Emitted once per merchant, guarded by a unique constraint.
-    await emitMerchantLifecycle('merchant.preview_approved', {
-      merchantId: resolved.preview.shopId,
+    // `...ForShop` (Sprint 3, README D1) resolves the shop mirror id onto its
+    // relationship id before calling the seam — this route only ever knows the shop.
+    await emitMerchantLifecycleForShop('merchant.preview_approved', {
+      shopId: resolved.preview.shopId,
       correlationId: resolved.preview.id,
     })
   }

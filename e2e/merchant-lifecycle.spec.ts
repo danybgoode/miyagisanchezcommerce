@@ -24,7 +24,9 @@ import {
  */
 
 test.describe('merchant lifecycle · shared fixtures', () => {
-  test('the fixture file covers all six lifecycle events, exactly once each', () => {
+  test('the fixture file covers all fourteen lifecycle events, exactly once each', () => {
+    // Sprint 3 (founding-merchant-activation-ops, README D2) grew the vocabulary
+    // from 6 to 14 — the fixture file grew with it (see its own $comment).
     const covered = lifecycleFixtures.map((f) => f.envelope.type)
     expect([...covered].sort()).toEqual([...MERCHANT_LIFECYCLE_EVENTS].sort())
   })
@@ -32,6 +34,12 @@ test.describe('merchant lifecycle · shared fixtures', () => {
   test('the fixture file is unmodified — golden-beans asserts the same digest', () => {
     // If this fails, the fixtures changed. That is allowed; update BOTH repos and both
     // digests in the same change, or the "identical fixtures" claim is no longer true.
+    // KNOWN DRIFT as of Sprint 3: this repo's fixture file and pinned digest were
+    // updated to add the 8 new stage events; golden-beans' copy needs the SAME
+    // update (owed — see the sprint report, not done in this PR: "do NOT edit that
+    // repo" per the build brief). Until that lands, this specific cross-repo
+    // equality claim is aspirational for the new 8, not yet re-verified against a
+    // live golden-beans copy — only THIS repo's own digest is checked below.
     expect(fixturesDigest()).toMatch(/^[0-9a-f]{64}$/)
     expect(fixturesDigest()).toBe(FIXTURES_SHA256)
   })
@@ -211,7 +219,58 @@ test.describe('merchant lifecycle · track payload (producer half)', () => {
     expect(payload.tags).toEqual({ shop_id: 'shop_abc', product_count: 3 })
   })
 
-  test('every one of the six events builds a routable payload', () => {
+  test('a STAGE event (Sprint 3, all 14 types) carries no PII, from a full relationship fixture', () => {
+    // Sprint 3, Story 3.2's build contract: "extend the contract spec to cover all 14
+    // types and assert a STAGE event's payload carries no business_name, contact_name,
+    // phone, email, Instagram handle, note or objection — asserted against the real
+    // builder, from a relationship fixture that populates every one of those fields."
+    //
+    // `buildLifecycleTrackPayload`'s signature doesn't even ACCEPT a relationship
+    // object — every real call site (`evaluateRelationship`, `emitStageTransition`,
+    // `emitMerchantLifecycleForShop`) passes only the opaque relationship id as
+    // `merchantId`. This fixture stands in for "a relationship row with every PII
+    // field populated" so the assertion is against concrete candidate STRINGS, not a
+    // structural argument alone — the same technique as the six-event PII test above,
+    // widened to source its needles from a realistic full record and to walk every
+    // one of the 14 types (13 stages + preview_approved).
+    const piiRelationshipFixture = {
+      id: 'a1a1a1a1-1a1a-4a1a-8a1a-1a1a1a1a1a1a',
+      business_name: 'Bonsáis del Valle',
+      contact_name: 'María Fernanda López',
+      phone_e164: '+525512345678',
+      email_normalized: 'maria.lopez@example.com',
+      instagram_handle: '@bonsaisdelvalle',
+      fit_note: 'El dueño mencionó que quiere vender en línea antes de diciembre.',
+      objections: 'Le preocupa el tiempo que toma tomar fotos de cada pieza.',
+    }
+    const piiNeedles = [
+      piiRelationshipFixture.business_name,
+      piiRelationshipFixture.contact_name,
+      piiRelationshipFixture.phone_e164,
+      piiRelationshipFixture.email_normalized,
+      piiRelationshipFixture.instagram_handle,
+      piiRelationshipFixture.fit_note,
+      piiRelationshipFixture.objections,
+    ]
+
+    for (const event of MERCHANT_LIFECYCLE_EVENTS) {
+      // The relationship id — the opaque subject, never anything from the fixture
+      // above — is the ONLY thing a real call site ever derives from the relationship.
+      const payload = buildLifecycleTrackPayload(event, {
+        merchantId: piiRelationshipFixture.id,
+        occurredAt: AT,
+        productCount: 3,
+      })
+      const serialized = JSON.stringify(payload)
+      for (const needle of piiNeedles) {
+        expect(serialized, `${event} payload must not contain "${needle}"`).not.toContain(needle)
+      }
+      // The subject IS allowed to carry the opaque id — that's the whole point.
+      expect(serialized).toContain(piiRelationshipFixture.id)
+    }
+  })
+
+  test('every one of the fourteen events builds a routable payload', () => {
     for (const event of MERCHANT_LIFECYCLE_EVENTS) {
       const payload = buildLifecycleTrackPayload(event, { merchantId: 'shop_abc', occurredAt: AT })
       expect(payload.event).toBe(event)
@@ -255,8 +314,11 @@ test.describe('merchant lifecycle · the loop closes', () => {
  * Pinned sha256 of e2e/_fixtures/merchant-lifecycle.fixtures.json.
  * The golden-beans suite pins the SAME value against its own copy — that is what makes
  * "identical fixtures in both repos" a checked fact rather than a claim in a doc.
+ *
+ * Updated Sprint 3 (founding-merchant-activation-ops) for the 8 added lifecycle
+ * fixtures — golden-beans' pinned copy is OWED the same update (see the sprint report).
  */
-const FIXTURES_SHA256 = 'a4db537e51e5554d919d3064d271fce2b48104c0a0fb18744f891d76a45950e5'
+const FIXTURES_SHA256 = 'b53f300bdd967bfe21dadbc7543655ccf36f95d27e643625fbb68df5739f3671'
 
 test.describe('merchant lifecycle · isCapturedOrder (the first_sale gate)', () => {
   const captured = { status: 'paid', payment_captured: true }
