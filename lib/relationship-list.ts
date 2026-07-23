@@ -92,7 +92,15 @@ export async function listScopedRelationships(actor: RelationshipActor): Promise
     }
   }
 
-  return { ok: true, rows: Array.from(rowsById.values()) }
+  // D4 fix (PR 304 review, round 3): sort the MERGED result deterministically
+  // — only the "own" leg above carried an explicit `.order()`; the steward
+  // and granted legs didn't, so the combined array's order depended on
+  // `Map` INSERTION order (own, then steward, then granted) rather than any
+  // meaningful field, and Supabase itself doesn't guarantee a stable row
+  // order without an explicit `.order()`. Newest-first, matching
+  // `listAllRelationships`'s own convention.
+  const rows = Array.from(rowsById.values()).sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return { ok: true, rows }
 }
 
 export interface AdminRelationshipFilters {

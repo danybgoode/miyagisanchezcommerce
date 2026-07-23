@@ -78,6 +78,14 @@ export function hasBlocker(objections: string | null): boolean {
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/** True when `raw` has the exact `YYYY-MM-DD` SHAPE, independent of whether
+ *  it's a real calendar date — lets a caller distinguish "shaped like a
+ *  date-only value but calendar-invalid" (reject, D3e) from "not date-only
+ *  at all" (fall back to parsing it as a full ISO datetime instead). */
+export function isDateOnlyShape(raw: string): boolean {
+  return DATE_ONLY_RE.test(raw)
+}
+
 /**
  * C8 fix (PR 304 review): a date-only `due_at` (the exact shape an
  * `<input type="date">` sends, e.g. "2026-07-23") must NOT be parsed as
@@ -92,9 +100,22 @@ const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
  * Returns `null` for anything that isn't exactly `YYYY-MM-DD` — the CALLER
  * decides how to handle a non-date-only value (a full ISO datetime is passed
  * through unchanged; a malformed one is a 400).
+ *
+ * D3e fix (PR 304 review, round 3): also returns `null` for a shape-valid but
+ * CALENDAR-invalid date (`2026-02-31`, `2026-02-30`). JS's `Date` parser does
+ * NOT validate calendar correctness — it arithmetically ROLLS an out-of-range
+ * day/month over into the next one, silently (`2026-02-31` becomes a March
+ * date), the same way the numeric `Date.UTC(...)` constructor does.
+ * `<input type="date">` can never produce such a value, but a direct API call
+ * can, and normalizing it into a plausible-looking but WRONG due date is
+ * worse than rejecting it outright. Caught by rendering the parsed instant
+ * back to a Mexico-City calendar date and comparing it to the input — a
+ * mismatch proves the input was never a real date.
  */
 export function dueAtIsoFromDateOnly(raw: string): string | null {
   if (!DATE_ONLY_RE.test(raw)) return null
   const d = new Date(`${raw}T23:59:59.999-06:00`)
-  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  if (Number.isNaN(d.getTime())) return null
+  const roundTripped = d.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
+  return roundTripped === raw ? d.toISOString() : null
 }

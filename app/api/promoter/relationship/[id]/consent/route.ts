@@ -77,6 +77,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     /* an empty body is fine — the preview resolves from the relationship's own shop */
   }
+  // B8: JSON.parse hands back `any` — a non-string previewId (e.g. a number)
+  // would otherwise reach `.trim()` below and throw a 500 instead of a clean 400.
+  if (body.previewId !== undefined && typeof body.previewId !== 'string') {
+    return NextResponse.json({ ok: false, error: 'Campo inválido: previewId.' }, { status: 400 })
+  }
 
   const relationship = access.relationship
   const assertedPreviewId = (body.previewId ?? '').trim() || null

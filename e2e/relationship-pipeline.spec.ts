@@ -6,6 +6,7 @@ import {
   ageInStageDays,
   hasBlocker,
   dueAtIsoFromDateOnly,
+  isDateOnlyShape,
 } from '../lib/relationship-pipeline'
 
 /**
@@ -145,5 +146,43 @@ test.describe('dueAtIsoFromDateOnly — C8: a date-only value is end-of-day AMÉ
     expect(dueAtIsoFromDateOnly('not-a-date')).toBeNull()
     expect(dueAtIsoFromDateOnly('2026-13-99')).toBeNull()
     expect(dueAtIsoFromDateOnly('26-07-23')).toBeNull()
+  })
+
+  test('D3e (PR 304 review, round 3): a SHAPE-valid but CALENDAR-invalid date is rejected, not silently rolled over', () => {
+    // JS's Date parser is arithmetic, not calendar-aware — it would otherwise
+    // roll 2026-02-31 into a March date, exactly like Date.UTC(2026, 1, 31)
+    // does. <input type="date"> can never produce these; a direct API call can.
+    expect(dueAtIsoFromDateOnly('2026-02-31')).toBeNull() // February never has 31 days
+    expect(dueAtIsoFromDateOnly('2026-02-30')).toBeNull() // nor 30
+    expect(dueAtIsoFromDateOnly('2026-04-31')).toBeNull() // April has 30
+    expect(dueAtIsoFromDateOnly('2026-00-15')).toBeNull() // month 0 doesn't exist
+    expect(dueAtIsoFromDateOnly('2026-07-00')).toBeNull() // day 0 doesn't exist
+  })
+
+  test('D3e: the boundary cases just past the rejected ones are genuinely valid, so the round-trip check is not over-strict', () => {
+    expect(dueAtIsoFromDateOnly('2026-02-28')).not.toBeNull() // 2026 is not a leap year
+    expect(dueAtIsoFromDateOnly('2026-04-30')).not.toBeNull()
+    expect(dueAtIsoFromDateOnly('2024-02-29')).not.toBeNull() // 2024 IS a leap year
+  })
+
+  test('D3e: a leap-day claim in a NON-leap year is rejected', () => {
+    expect(dueAtIsoFromDateOnly('2026-02-29')).toBeNull() // 2026 is not a leap year
+  })
+})
+
+test.describe('isDateOnlyShape — D3e: distinguishing "date-only but invalid" from "not date-only at all"', () => {
+  test('a well-formed date-only string → true', () => {
+    expect(isDateOnlyShape('2026-07-23')).toBe(true)
+  })
+  test('a SHAPE-valid but calendar-invalid date is STILL shape-true — the caller must reject it explicitly, not silently fall back to generic parsing', () => {
+    expect(isDateOnlyShape('2026-02-31')).toBe(true)
+  })
+  test('a full ISO datetime → false (the caller should parse it generically, not via the date-only path)', () => {
+    expect(isDateOnlyShape('2026-07-23T10:00:00.000Z')).toBe(false)
+  })
+  test('garbage / empty → false', () => {
+    expect(isDateOnlyShape('')).toBe(false)
+    expect(isDateOnlyShape('not-a-date')).toBe(false)
+    expect(isDateOnlyShape('26-07-23')).toBe(false)
   })
 })

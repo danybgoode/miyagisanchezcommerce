@@ -30,6 +30,19 @@
  *       relationship record could show "permission granted" for an approval
  *       activation itself would refuse to trust.
  *
+ * ROUND 2 (S1 cross-review B7): `status==='approved'` alone is too STRICT once
+ * activation exists — `markActivated` (`lib/preview-consent.ts`) flips the
+ * anchor to `status='activated'`, which is a one-way door (activation
+ * revokes outstanding preview links; there is no path back to `approved`).
+ * A version-strict `status !== 'approved'` check would therefore refuse
+ * consent evidence FOREVER the instant a promoter activates the shop before
+ * pressing "Registrar permiso" — stranding a record for a merchant who
+ * demonstrably approved. `checkActivation` already special-cases `activated`
+ * as idempotently valid (its own comment: "An already-activated preview stays
+ * idempotently activatable"); this module mirrors that by accepting BOTH
+ * `approved` and `activated` as the status gate. Fails closed, not a security
+ * hole either way — `stale`/verified-provenance still apply on top.
+ *
  * "A note is never evidence" still holds: nothing here reads `fit_note` /
  * `objections` / any free-text field.
  */
@@ -48,16 +61,19 @@ export interface ConsentEvidenceFacts {
 
 /**
  * True only when the anchor-derived facts describe a CURRENT approval:
- * `status === 'approved'` AND NOT stale, and — only when verified-approval is
- * being enforced — the approval also carries merchant-verified provenance.
- * `null` facts (the caller couldn't even read the proposal) always refuses.
+ * `status` is `approved` OR `activated` (B7 — activation is a one-way door,
+ * so `activated` must count too or the record strands forever the instant a
+ * promoter activates before recording consent) AND NOT stale, and — only when
+ * verified-approval is being enforced — the approval also carries
+ * merchant-verified provenance. `null` facts (the caller couldn't even read
+ * the proposal) always refuses.
  */
 export function consentSatisfiesEvidence(
   facts: ConsentEvidenceFacts | null,
   opts: { verifiedApprovalRequired: boolean },
 ): boolean {
   if (!facts) return false
-  if (facts.status !== 'approved') return false
+  if (facts.status !== 'approved' && facts.status !== 'activated') return false
   if (facts.stale) return false
   if (opts.verifiedApprovalRequired && facts.approvedVerifiedVia === null) return false
   return true

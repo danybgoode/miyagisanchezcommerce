@@ -6,10 +6,16 @@
  * sprint-1.md: "Put the scope check in ONE shared helper that every route
  * calls"), plus the append-only field-audit writer (Story 1.3).
  *
- * Access to a relationship is granted to exactly three actors:
+ * Access to a relationship is granted to FOUR actors (precedence in
+ * `lib/relationship-role.ts#decideRelationshipRole` — read that doc comment
+ * for the full D1 reasoning, this is only the summary):
  *   1. the caller's own `promoter_id` (their own field-captured record) — role `owner`,
  *   2. admin (`lib/admin/guard.ts#currentUserIsAdmin`) — role `admin`,
- *   3. a promoter holding an ACTIVE `partner_grants` row for the relationship's
+ *   3. the assigned STEWARD (`row.steward_clerk_user_id === actor.clerkUserId`,
+ *      S2 C1) — role `manager`, UNLESS an explicit `partner_grants` `viewer`
+ *      grant exists for them, which FLOORS them at `viewer` (S2 D1 — a
+ *      deliberate write-denial outranks an implicit stewardship upgrade),
+ *   4. a promoter holding an ACTIVE `partner_grants` row for the relationship's
  *      linked `shop_id` — role mirrors the grant's OWN `manager`/`viewer` role,
  *      the same grant model `lib/partner-auth.ts` already uses, reused rather
  *      than re-invented (README "what already exists").
@@ -207,21 +213,21 @@ export async function resolveRelationshipAccess(
   // `listScopedRelationships` (`lib/relationship-list.ts`) mirrors this exact
   // rule so a steward's records also appear in their own pipeline.
   //
-  // The DECISION itself (precedence: admin > owner > steward > grant role)
-  // is `lib/relationship-role.ts#decideRelationshipRole` — pure, zero-import,
-  // spec-tested directly. This function's job is only to resolve the FACTS
-  // (including the grant lookup, run lazily — only when the row has a
-  // `shop_id` and the caller is a bound promoter, same as before) and hand
-  // them over.
+  // The DECISION itself (precedence: admin > owner > steward-unless-floored
+  // > grant role, D1) is `lib/relationship-role.ts#decideRelationshipRole` —
+  // pure, zero-import, spec-tested directly. This function's job is only to
+  // resolve the FACTS and hand them over.
   const isAdmin = actor.isAdmin
   const isPromoterOwner = !!actor.promoterId && row.promoter_id === actor.promoterId
   const isSteward = !!row.steward_clerk_user_id && row.steward_clerk_user_id === actor.clerkUserId
 
-  // The grant lookup is a DB call — keep it LAZY exactly as before (only run
-  // when a higher-precedence fact hasn't already decided the role, and only
-  // when there's a shop to look a grant up against).
+  // The grant lookup is a DB call — LAZY, but D1 changed WHEN it can be
+  // skipped: it must still run whenever `isSteward` is true, because
+  // `decideRelationshipRole` needs to know whether an explicit `viewer`
+  // grant FLOORS that stewardship. Only admin/owner (which unconditionally
+  // outrank any grant) skip it.
   let grantRole: 'manager' | 'viewer' | null = null
-  if (!isAdmin && !isPromoterOwner && !isSteward && row.shop_id && actor.promoterId) {
+  if (!isAdmin && !isPromoterOwner && row.shop_id && actor.promoterId) {
     const { data: grant } = await db
       .from('partner_grants')
       .select('role')
@@ -274,16 +280,58 @@ export async function resolveLinkableShop(
   return { ok: true, shopId: shop.id }
 }
 
+// ── Shop rehydration (S1 cross-review B2) ───────────────────────────────────
+
+export interface LinkedShopSummary {
+  shopId: string
+  slug: string
+  name: string
+  estado: string | null
+  municipio: string | null
+}
+
+/**
+ * A lightweight shop summary for the UI to REHYDRATE its `shop` state from a
+ * relationship's own `shop_id` on GET/resume. Without this, switching to a
+ * relationship that already has a linked shop leaves the promoter's `shop`
+ * state at whatever it was (null, or a DIFFERENT merchant's shop) — inviting
+ * either a confusing dead "create a shop" prompt or, worse, a duplicate
+ * replacement shop for a merchant who already has one (B2). `estado`/
+ * `municipio` come from the same `metadata.location_detail` shape
+ * `/api/promoter/shop/setup` writes.
+ */
+export async function resolveLinkedShopSummary(shopId: string): Promise<LinkedShopSummary | null> {
+  const { data, error } = await db
+    .from('marketplace_shops')
+    .select('id, slug, name, metadata')
+    .eq('id', shopId)
+    .maybeSingle()
+  if (error || !data) return null
+  const meta = (data.metadata ?? {}) as Record<string, unknown>
+  const loc = (meta.location_detail ?? null) as Record<string, unknown> | null
+  return {
+    shopId: data.id as string,
+    slug: data.slug as string,
+    name: (data.name as string) ?? '',
+    estado: typeof loc?.estado === 'string' ? loc.estado : null,
+    municipio: typeof loc?.municipio === 'string' ? loc.municipio : null,
+  }
+}
+
 // ── Field audit (Story 1.3 — "attribution and consent fields are audited on
 // every edit") ───────────────────────────────────────────────────────────
 
-/** The columns whose edits get an immutable audit row. */
+/** The columns whose edits get an immutable audit row. `shop_id` (S1
+ *  cross-review B6) is the single field binding a relationship to a REAL
+ *  merchant — exactly the attribution class Story 1.3 promises is audited,
+ *  and it became mutable the moment A3 let a save carry a `shopId`. */
 export const AUDITED_FIELDS = [
   'promoter_id',
   'cohort',
   'source',
   'preferred_channel',
   'preview_id',
+  'shop_id',
 ] as const
 export type AuditedField = (typeof AUDITED_FIELDS)[number]
 
@@ -297,14 +345,24 @@ export type AuditedField = (typeof AUDITED_FIELDS)[number]
  * silently didn't record"). Logs loudly AND returns `false` so every caller
  * can surface `auditRecorded: false` in its response instead of a bare
  * `{ ok: true }` that quietly lies about what got recorded.
+ *
+ * `opts.force` (S1 cross-review B4): a RETRY of a save whose audit write
+ * failed can't reconstruct the failure by re-diffing — the primary write
+ * already committed, so `before` now equals `after` and the diff is empty,
+ * meaning a naive retry silently "succeeds" without ever writing the row it
+ * was retrying. `force` writes every field present in `after` regardless of
+ * whether it differs from `before`, so the caller's explicit retry can
+ * actually re-emit the missed audit row.
  */
 export async function auditFieldChanges(
   relationshipId: string,
   actorClerkUserId: string,
   before: Partial<Record<AuditedField, unknown>>,
   after: Partial<Record<AuditedField, unknown>>,
+  opts?: { force?: boolean },
 ): Promise<boolean> {
-  const rows = AUDITED_FIELDS.filter((field) => field in after && after[field] !== before[field]).map(
+  const force = opts?.force ?? false
+  const rows = AUDITED_FIELDS.filter((field) => field in after && (force || after[field] !== before[field])).map(
     (field) => ({
       relationship_id: relationshipId,
       field,

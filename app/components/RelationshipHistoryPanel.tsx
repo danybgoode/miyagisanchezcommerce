@@ -54,7 +54,18 @@ const STAGE_LABEL: Record<string, string> = {
 
 const STAGES_FOR_CORRECTION = Object.keys(STAGE_LABEL)
 
+/** D3c fix (PR 304 review, round 3): `actor_type` is a raw English DB enum
+ *  (`'promoter'|'admin'|'system'|'commerce_fact'`) — `system`/`commerce_fact`
+ *  were rendering verbatim, violating the es-MX-only rule. */
+const ACTOR_TYPE_LABEL: Record<string, string> = {
+  promoter: 'Promotor',
+  admin: 'Administrador',
+  system: 'Sistema',
+  commerce_fact: 'Hecho comercial',
+}
+
 type Role = 'owner' | 'admin' | 'manager' | 'viewer'
+const WRITE_ROLES: readonly Role[] = ['admin', 'owner', 'manager']
 
 type Transition = {
   id: string
@@ -86,6 +97,7 @@ type OwnerHistoryRow = { id: string; from_steward: string | null; to_steward: st
 type HistoryResponse = {
   ok: boolean
   role: Role
+  relationship: { stage: string }
   transitions: Transition[]
   interactions: Interaction[]
   tasks: Task[]
@@ -150,7 +162,11 @@ export default function RelationshipHistoryPanel({
   if (loading) return <p className="text-sm text-[var(--color-muted)] py-4">Cargando historial…</p>
   if (error || !data) return <p className="text-sm text-[color:var(--danger)] py-4">{error ?? 'Error desconocido.'}</p>
 
-  const canWrite = data.role !== 'viewer'
+  // D4 fix (PR 304 review, round 3): allow-list instead of a deny-list — a
+  // `role` value that's somehow absent/unexpected now fails CLOSED (no write
+  // controls) instead of failing OPEN (the old `!== 'viewer'` check shows
+  // write controls for ANYTHING that isn't literally the string `'viewer'`).
+  const canWrite = WRITE_ROLES.includes(data.role)
   const isAdmin = data.role === 'admin'
 
   return (
@@ -162,7 +178,9 @@ export default function RelationshipHistoryPanel({
           <OwnerForm relationshipId={relationshipId} onSaved={afterWrite} />
         </>
       )}
-      {isAdmin && <CorrectStageForm relationshipId={relationshipId} onSaved={afterWrite} />}
+      {isAdmin && (
+        <CorrectStageForm relationshipId={relationshipId} currentStage={data.relationship.stage} onSaved={afterWrite} />
+      )}
       {!canWrite && (
         <p className="text-xs text-[var(--color-muted)]">
           <i className="iconoir-lock" aria-hidden /> Tu acceso a este registro es de solo lectura.
@@ -186,7 +204,7 @@ export default function RelationshipHistoryPanel({
                     {STAGE_LABEL[t.to_stage] ?? t.to_stage}
                   </span>
                   <span className="text-[var(--color-muted)] text-xs">
-                    {t.actor_type} · {fmt(t.occurred_at)}
+                    {ACTOR_TYPE_LABEL[t.actor_type] ?? t.actor_type} · {fmt(t.occurred_at)}
                     {t.reason ? ` · “${t.reason}”` : ''}
                   </span>
                   {evidence && (
@@ -471,8 +489,22 @@ function OwnerForm({ relationshipId, onSaved }: { relationshipId: string; onSave
   )
 }
 
-function CorrectStageForm({ relationshipId, onSaved }: { relationshipId: string; onSaved: () => void }) {
-  const [toStage, setToStage] = useState('scouted')
+function CorrectStageForm({
+  relationshipId,
+  currentStage,
+  onSaved,
+}: {
+  relationshipId: string
+  /** D3b fix (PR 304 review, round 3): the select now initializes from THIS
+   *  — the record's actual current stage — instead of always defaulting to
+   *  `'scouted'`. The old hardcoded default meant opening the form on a
+   *  later-stage record, typing only the (required) reason, and submitting
+   *  silently REGRESSED the merchant to stage 1 unless the admin happened to
+   *  notice and manually re-select the right one. */
+  currentStage: string
+  onSaved: () => void
+}) {
+  const [toStage, setToStage] = useState(currentStage)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
