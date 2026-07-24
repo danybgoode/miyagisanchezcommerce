@@ -140,6 +140,19 @@ const launchpadVoteLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: 'rl:launchpad_vote' })
 }
 
+// Relationship intake: max 60 writes per IP per 10 min — founding-merchant
+// field capture (activation-crm S1.2/S1.3). Deliberately its OWN bucket, not
+// shared with `checkout` — the intake step alone can burn a save on every
+// field-blur plus a consent check per preview, and `checkout` is shared with
+// all six `/api/promoter/close/*` MONEY routes (20/10min). Sharing the two
+// would let a busy field session for one merchant rate-limit the promoter
+// out of charging a DIFFERENT merchant's card (activation-crm S1 review A13).
+const relationshipLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '10 m'), prefix: 'rl:relationship' })
+}
+
 // Comparador shop-URL analyzer: max 8 analyses per IP per 10 min — a fully
 // public, unauthenticated, anonymous surface that triggers a server-side
 // external fetch of a caller-supplied URL (cost-comparator-homepage S3 ·
@@ -154,7 +167,7 @@ const comparatorAnalyzeLimiter = () => {
 
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -179,6 +192,7 @@ export async function checkRateLimit(
     : key === 'launchpad'       ? launchpadLimiter
     : key === 'launchpad_vote'  ? launchpadVoteLimiter
     : key === 'comparator_analyze' ? comparatorAnalyzeLimiter
+    : key === 'relationship'   ? relationshipLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()

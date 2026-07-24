@@ -133,6 +133,80 @@ test.describe('promoter close · resources mini-site renders es-MX (US-12)', () 
   })
 })
 
+/**
+ * Founding merchant activation operations · Sprint 1 (Story 1.2/1.3) —
+ * `/api/promoter/relationship*` route guards.
+ *
+ * S1 cross-review round 2 · B9: the FIRST version of this block asserted only
+ * a status code drawn from a set that happens to include Next's generic
+ * catch-all 404 — the exact "false-positive-spec trap" `Roadmap/LEARNINGS.md`
+ * calls out by name (a spec that passes IDENTICALLY against a deliberately
+ * broken build). Concretely: before this PR is merged, these routes don't
+ * exist on the default `baseURL` (production) at all, so a plain
+ * `expect([401,404]).toContain(res.status())` passes today for a reason that
+ * has nothing to do with this code — Next's unmatched-route 404 also happens
+ * to be status 404. Every assertion below now also requires the ONE thing
+ * ONLY a real route can produce: a genuine JSON body (`content-type:
+ * application/json`), never Next's `text/html` 404 page — and the two
+ * "never leak a 200" cases assert that explicitly rather than the weaker
+ * "never 500".
+ *
+ * Honest status right now: RED against production (the routes are not
+ * deployed there yet — this PR is unmerged), and independently confirmed
+ * GREEN against a local dev server running this exact code (no secrets
+ * required — `isEnabled` fails open to `false` without Supabase configured,
+ * so the flag gate itself is real even unconfigured). That is the correct,
+ * expected shape for an unmerged PR's route-guard spec: it will flip to
+ * green on `origin/main` the moment this merges and deploys, exactly the
+ * mechanism `e2e/partner-grants.spec.ts` already proved out for its own
+ * (now-merged, now-green) routes.
+ *
+ * NOT covered here (owed to Daniel — sprint-1.md smoke walkthrough, and the
+ * standing gap every promoter/partner api spec in this repo notes): dedupe
+ * precedence against REAL rows, partial-save-then-resume, cross-promoter 403
+ * against a real second promoter's record, and a real invalid-evidence 422 —
+ * all need a live Supabase with the migration applied, a bound promoter Clerk
+ * session, and (for the 403 case) a SECOND bound promoter — no fixture for
+ * any of that exists in this harness. The PRECEDENCE rule and the EVIDENCE
+ * rule themselves are fully covered, network-free, in `e2e/merchant-identity.spec.ts`
+ * and `e2e/relationship-consent.spec.ts` — that is deliberately where the real
+ * business-logic risk gets exercised, since the route layer is a thin,
+ * already-covered-elsewhere composition over them.
+ */
+test.describe('promoter close · relationship routes respect the kill-switch (flag on OR off)', () => {
+  test('POST /api/promoter/relationship (anon) → 404 (hidden) or 401 (live, auth required), genuine JSON', async ({ request }) => {
+    const res = await request.post('/api/promoter/relationship', { data: {} })
+    expect([401, 404]).toContain(res.status())
+    expect(res.headers()['content-type'] ?? '').toContain('application/json')
+  })
+
+  test('GET /api/promoter/relationship/[id] (anon, well-formed but nonexistent id) → never 200/500, genuine JSON', async ({ request }) => {
+    const res = await request.get('/api/promoter/relationship/00000000-0000-0000-0000-000000000000')
+    expect(res.status()).not.toBe(200)
+    expect(res.status()).toBeLessThan(500)
+    expect([401, 403, 404]).toContain(res.status())
+    expect(res.headers()['content-type'] ?? '').toContain('application/json')
+  })
+
+  test('GET /api/promoter/relationship/[id] (anon, garbage id) → never 200/500, genuine JSON', async ({ request }) => {
+    // A malformed id must fail the SAME way a well-formed-but-absent one does
+    // (the shared scope helper fails closed on a read error), not throw —
+    // and, before this fix, this test would have accepted a bare 200.
+    const res = await request.get('/api/promoter/relationship/not-a-uuid')
+    expect(res.status()).not.toBe(200)
+    expect(res.status()).toBeLessThan(500)
+    expect(res.headers()['content-type'] ?? '').toContain('application/json')
+  })
+
+  test('POST /api/promoter/relationship/[id]/consent (anon) → never 200/500, genuine JSON', async ({ request }) => {
+    const res = await request.post('/api/promoter/relationship/00000000-0000-0000-0000-000000000000/consent', { data: {} })
+    expect(res.status()).not.toBe(200)
+    expect(res.status()).toBeLessThan(500)
+    expect([401, 403, 404]).toContain(res.status())
+    expect(res.headers()['content-type'] ?? '').toContain('application/json')
+  })
+})
+
 test.describe('promoter close · the public CTA never links to a 404 (promoter-funnel-fixes S1.2)', () => {
   test('GET /promotor/cerrar → redirect (flag on, anon → sign-in) or 404 (flag off)', async ({ request }) => {
     const res = await request.get('/promotor/cerrar', { maxRedirects: 0 })

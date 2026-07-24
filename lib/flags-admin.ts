@@ -176,6 +176,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // disposable shop passes the full cross-channel privacy sweep.
   'promoter.private_preview_enabled': { polarity: 'enablement', default: false },
   'promoter.preview_verified_approval_enabled': { polarity: 'enablement', default: false },
+  // Founding merchant activation operations S1.1 — gates the new relationship
+  // intake step + /api/promoter/relationship* routes. Default OFF ⇒ those
+  // routes 404 and /promotor/cerrar is unchanged. Flip ON only after the
+  // migration is verified live + the disposable-merchant smoke passes.
+  'promoter.activation_crm_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
