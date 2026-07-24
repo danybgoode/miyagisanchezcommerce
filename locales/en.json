@@ -19,6 +19,130 @@
     "clear": "Clear"
   },
   "sellerAcquisition": {
+    "fundadoras": {
+      "metadata": {
+        "title": "Founding Shops — 25 merchants, personal onboarding | Miyagi Sánchez",
+        "description": "Join the 25-merchant founding cohort: personal help setting up your catalog and a private preview of your shop before it goes public. Limited spots.",
+        "ogAlt": "Founding Shops — a 25-merchant cohort with personal onboarding on Miyagi Sánchez."
+      },
+      "eyebrow": "Founding cohort · limited spots",
+      "heroTitle": "25 founding shops, guided step by step before going live.",
+      "heroLead": "We help you build your catalog and you review a private preview of your shop before anyone else sees it. Only 25 spots in this cohort.",
+      "trustLine": "See for yourself: ask your AI to evaluate miyagisanchez.com/vende/fundadoras and tell you what it includes and what it doesn't.",
+      "primaryCta": "Apply to the founding cohort",
+      "secondaryCta": "See the general Sell page",
+      "heroStats": [
+        {
+          "value": "25",
+          "label": "spots in this cohort"
+        },
+        {
+          "value": "1-on-1",
+          "label": "hands-on setup help"
+        },
+        {
+          "value": "Private",
+          "label": "preview before publishing"
+        }
+      ],
+      "proofTitle": "What the founding cohort includes",
+      "proofLead": "Personal help to get your catalog ready, with a private review before your shop becomes public.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-user-star",
+          "title": "Personal onboarding",
+          "body": "Someone on the team helps you build your catalog — you don't solve it alone from a blank form."
+        },
+        {
+          "icon": "iconoir-eye-closed",
+          "title": "Private preview",
+          "body": "You review your shop before it's public and confirm when you authorize publishing it."
+        },
+        {
+          "icon": "iconoir-group",
+          "title": "Cohort of 25 merchants",
+          "body": "A finite cohort, not an open-ended waitlist: once full, the cohort closes."
+        },
+        {
+          "icon": "iconoir-mail",
+          "title": "Contact only with your permission",
+          "body": "We only contact you if you authorize it when applying. Nothing is published without your confirmation."
+        }
+      ],
+      "stepsTitle": "How the founding cohort works",
+      "steps": [
+        {
+          "title": "You apply with your basic business details",
+          "body": "Business name, your name, and a phone or email to reach you."
+        },
+        {
+          "title": "We help you build your catalog",
+          "body": "We work through your inventory and preview with you, so you don't have to solve it alone."
+        },
+        {
+          "title": "You review your private preview",
+          "body": "You see your shop before it's public and confirm when to publish it."
+        }
+      ],
+      "socialTitle": "A cohort built to guide, not to fill out a form",
+      "socialBody": "All 25 spots in this cohort get direct hands-on help, not a generic self-service flow.",
+      "socialStats": [
+        {
+          "value": "25",
+          "label": "merchants in the cohort"
+        },
+        {
+          "value": "0",
+          "label": "publications without your permission"
+        },
+        {
+          "value": "1-on-1",
+          "label": "onboarding"
+        }
+      ],
+      "closingTitle": "Is your business one of the 25?",
+      "closingBody": "Apply with the basic details. We contact you only if you authorize contact, and nothing is published without your confirmation.",
+      "closingCta": "Apply to the founding cohort",
+      "closed": {
+        "title": "The founding cohort isn't open yet",
+        "body": "We're preparing to open this cohort. There's no form available yet — check back soon or see the general Sell page.",
+        "cta": "See the general Sell page"
+      },
+      "full": {
+        "title": "The founding cohort is already full",
+        "body": "All 25 spots in this cohort are taken. We don't open a waitlist — if there's a new cohort later, we'll announce it on the general Sell page.",
+        "cta": "See the general Sell page"
+      },
+      "apply": {
+        "title": "Apply to the founding cohort",
+        "body": "Fill in these details. We only contact you if you authorize contact, and nothing is published without your confirmation.",
+        "form": {
+          "businessNameLabel": "Business name",
+          "businessNamePlaceholder": "e.g. Panadería Don Memo",
+          "contactNameLabel": "Your name",
+          "contactNamePlaceholder": "e.g. María Sánchez",
+          "phoneLabel": "Phone (optional if you leave an email)",
+          "phonePlaceholder": "10 digits",
+          "emailLabel": "Email (optional if you leave a phone)",
+          "emailPlaceholder": "you@email.com",
+          "estadoLabel": "State (optional)",
+          "estadoPlaceholder": "e.g. Jalisco",
+          "categoryLabel": "Business category (optional)",
+          "categoryPlaceholder": "e.g. clothing, food, crafts",
+          "promoterCodeLabel": "Promoter code (optional)",
+          "promoterCodePlaceholder": "PRM-XXXXXX",
+          "contactConsentLabel": "I authorize being contacted to follow up on this application.",
+          "previewConsentLabel": "I authorize preparing a private preview of my shop to review it (optional).",
+          "marketingConsentLabel": "I authorize the use of this data for promotional purposes (optional).",
+          "submit": "Send application",
+          "submitting": "Sending…",
+          "success": "We received your application. We'll contact you if you authorized contact.",
+          "genericError": "Couldn't send the application. Please try again.",
+          "missingContactError": "Add a contact phone or email.",
+          "consentRequiredError": "We need your permission to contact you before sending the application."
+        }
+      }
+    },
     "shared": {
       "trustPrompt": "what is miyagisanchez.com?",
       "copyPrompt": "Copy prompt",
