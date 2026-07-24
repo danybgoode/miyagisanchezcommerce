@@ -171,6 +171,7 @@ test.describe('buildFundadorasEnrichPatch (pure)', () => {
     cohort: null,
     utm: null,
     applied_at: null,
+    application_idempotency_key: null,
   }
 
   test('fills only missing fields; never overwrites a set value', () => {
@@ -193,6 +194,22 @@ test.describe('buildFundadorasEnrichPatch (pure)', () => {
   test('cohort already fundadoras → not re-written', () => {
     const patch = buildFundadorasEnrichPatch({ ...existing, cohort: FUNDADORAS_COHORT }, cleanFixture(), null, 'now')
     expect(patch.cohort).toBeUndefined()
+  })
+
+  test('idempotency key is filled only when the row has none', () => {
+    // Row has no key → this submission's key is carried in.
+    const filled = buildFundadorasEnrichPatch(existing, cleanFixture({ idempotencyKey: 'new-key' }), null, 'now')
+    expect(filled.application_idempotency_key).toBe('new-key')
+  })
+
+  test('an existing idempotency key is NEVER clobbered (protects the original replay)', () => {
+    const patch = buildFundadorasEnrichPatch(
+      { ...existing, application_idempotency_key: 'original-key' },
+      cleanFixture({ idempotencyKey: 'new-key' }),
+      null,
+      'now',
+    )
+    expect(patch.application_idempotency_key).toBeUndefined()
   })
 })
 

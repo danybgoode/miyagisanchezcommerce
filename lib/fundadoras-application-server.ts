@@ -118,17 +118,15 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
     const { data: existing, error: readErr } = await db
       .from('merchant_relationships')
       .select(
-        'business_name, contact_name, phone_e164, email_normalized, estado, municipio, category, current_channels, preferred_channel, promoter_id, cohort, utm, applied_at',
+        'business_name, contact_name, phone_e164, email_normalized, estado, municipio, category, current_channels, preferred_channel, promoter_id, cohort, utm, applied_at, application_idempotency_key',
       )
       .eq('id', dedupe.relationshipId)
       .maybeSingle()
     if (readErr || !existing) return { ok: false }
 
+    // `buildFundadorasEnrichPatch` handles the idempotency key fill-only (never
+    // clobbers an existing one) alongside every other field.
     const patch = buildFundadorasEnrichPatch(existing as ExistingRelationshipFacts, clean, resolvedPromoterId, nowIso)
-    // Always carry the idempotency key forward if this submission had one and
-    // the row doesn't already hold one — so a later replay of THIS submission
-    // is caught by step 1.
-    if (clean.idempotencyKey) patch.application_idempotency_key = clean.idempotencyKey
     if (Object.keys(patch).length > 0) {
       patch.updated_at = nowIso
       const { error: updErr } = await db.from('merchant_relationships').update(patch).eq('id', dedupe.relationshipId)

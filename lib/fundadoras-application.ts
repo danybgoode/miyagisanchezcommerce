@@ -256,6 +256,7 @@ export interface ExistingRelationshipFacts {
   cohort: string | null
   utm: Record<string, unknown> | null
   applied_at: string | null
+  application_idempotency_key: string | null
 }
 
 /**
@@ -292,6 +293,14 @@ export function buildFundadorasEnrichPatch(
   if (!existing.utm && Object.keys(clean.utm).length > 0) patch.utm = clean.utm
   if (!existing.applied_at) patch.applied_at = nowIso
   if (existing.cohort !== FUNDADORAS_COHORT) patch.cohort = FUNDADORAS_COHORT
+  // Carry this submission's idempotency key forward ONLY when the row doesn't
+  // already hold one — never CLOBBER an existing key (fill-only, like every
+  // other field). Overwriting it would strand the ORIGINAL submission's replay:
+  // its retry would no longer match, fall through to a second enrich, and
+  // re-append consent + re-emit the accepted event.
+  if (clean.idempotencyKey && !existing.application_idempotency_key) {
+    patch.application_idempotency_key = clean.idempotencyKey
+  }
 
   return patch
 }
