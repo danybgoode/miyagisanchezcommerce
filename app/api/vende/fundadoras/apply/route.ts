@@ -75,10 +75,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No se pudo enviar la solicitud. Intenta de nuevo.' }, { status: 502 })
   }
 
-  // 6. PII-free accepted event — ONLY on a fresh accept (not an idempotent
-  //    replay), keyed on the opaque relationship id, built server-side so no
-  //    form value can ride along.
-  if (!outcome.idempotentReplay) {
+  // 6. PII-free accepted event — ONCE per relationship, on its FIRST public
+  //    application only (not an idempotent replay, and not a re-enrich of a row
+  //    that already applied). Keyed on the opaque relationship id, built
+  //    server-side so no form value can ride along.
+  if (!outcome.idempotentReplay && outcome.firstApplication) {
     const telemetryOn = await isEnabled('growth.telemetry_enabled')
     if (telemetryOn) {
       const payload = buildFundadorasEventPayload('fundadoras_application_accepted', outcome.relationshipId, {

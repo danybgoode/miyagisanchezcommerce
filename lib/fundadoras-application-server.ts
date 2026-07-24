@@ -43,11 +43,20 @@ export async function readFundadorasCapacityUsed(): Promise<number | null> {
   return count
 }
 
-/** Outcome of persisting one application. `existed` is deliberately NOT
- *  surfaced to the public caller (non-leak) — it exists only so the route can
- *  decide whether to emit the accepted event (a fresh accept) and for logs. */
+/** Outcome of persisting one application. `created`/`firstApplication` are NOT
+ *  surfaced to the public caller (non-leak) — they exist only so the route can
+ *  decide whether to emit the accepted event + admin ping, and for logs.
+ *
+ *  `firstApplication` is true exactly when THIS call is the first public
+ *  application for the relationship — a brand-new insert, OR an enrich of a row
+ *  that had never applied before (`applied_at` was null, e.g. a promoter-
+ *  captured lead applying publicly for the first time). It is FALSE when a row
+ *  that already applied is enriched again (a returning applicant matched by
+ *  phone/email with a different/absent idempotency key) — re-emitting the
+ *  accepted event there would double-count the funnel and re-ping the admin for
+ *  one merchant. The accepted event thus fires at most once per relationship. */
 export type PersistOutcome =
-  | { ok: true; relationshipId: string; created: boolean; idempotentReplay: boolean }
+  | { ok: true; relationshipId: string; created: boolean; idempotentReplay: boolean; firstApplication: boolean }
   | { ok: false }
 
 /**
@@ -73,7 +82,7 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
       .maybeSingle()
     if (keyErr) return { ok: false }
     if (existingByKey) {
-      return { ok: true, relationshipId: existingByKey.id, created: false, idempotentReplay: true }
+      return { ok: true, relationshipId: existingByKey.id, created: false, idempotentReplay: true, firstApplication: false }
     }
   }
 
@@ -112,6 +121,10 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
 
   let relationshipId: string
   let created: boolean
+  // True when this call is the FIRST public application for the relationship —
+  // a new insert always is; an enrich is only if the row had never applied
+  // (`applied_at` null). Gates the once-per-relationship accepted event.
+  let firstApplication: boolean
 
   if (dedupe.matched) {
     // ENRICH — read the row's current facts, build a fill-only patch, update.
@@ -124,6 +137,8 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
       .maybeSingle()
     if (readErr || !existing) return { ok: false }
 
+    // Never applied before ⇒ this enrich is the row's first public application.
+    firstApplication = !(existing as ExistingRelationshipFacts).applied_at
     // `buildFundadorasEnrichPatch` handles the idempotency key fill-only (never
     // clobbers an existing one) alongside every other field.
     const patch = buildFundadorasEnrichPatch(existing as ExistingRelationshipFacts, clean, resolvedPromoterId, nowIso)
@@ -145,6 +160,7 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
     if (insErr || !inserted) return { ok: false }
     relationshipId = inserted.id
     created = true
+    firstApplication = true
   }
 
   // 4. Append-only consent ledger (contact granted:true; preview/marketing
@@ -153,5 +169,5 @@ export async function persistFundadorasApplication(clean: FundadorasCleanApplica
   const { error: consentErr } = await db.from('merchant_relationship_consents').insert(consentRows)
   if (consentErr) return { ok: false }
 
-  return { ok: true, relationshipId, created, idempotentReplay: false }
+  return { ok: true, relationshipId, created, idempotentReplay: false, firstApplication }
 }

@@ -29,9 +29,10 @@ import { sendGrowthEvent } from '@/lib/growth-engine'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  // A modest IP rate limit — the same public-form bucket is fine; a funnel
-  // ping is cheaper than an application but still worth capping.
-  const rl = await checkRateLimit('fundadoras_apply', getClientIp(req))
+  // A SEPARATE, looser bucket from the application route — funnel pings must
+  // never eat the real application's budget (a page load + a fumbled form fires
+  // several of these before the apply POST).
+  const rl = await checkRateLimit('fundadoras_track', getClientIp(req))
   if (!rl.allowed) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } })
   }
