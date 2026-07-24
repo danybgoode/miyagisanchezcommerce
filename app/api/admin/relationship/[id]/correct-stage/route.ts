@@ -18,19 +18,28 @@
  * non-string, distinct from 422 for a missing/blank one) BEFORE `.trim()`
  * touches it — `{reason: 123}` used to 500.
  *
- * D3d fix (PR 304 review, round 3): the mirror UPDATE is now a
- * COMPARE-AND-SET on `stage = fromStage` (the stage THIS request read).
- * Without it, two admins reading the same `scouted` row and racing
- * corrections to `qualified` and `claimed` could land the UPDATEs in the
- * OPPOSITE order from the TRANSITION inserts (which have no such ordering
- * guarantee against each other either) — the mirror would then show
- * `qualified` while the LATEST transition row says `claimed`, disagreeing
- * with its own audit trail. The CAS predicate means a losing writer's
- * UPDATE matches zero rows (Supabase's `.maybeSingle()` returns `{data:
- * null, error: null}` for that, not an error) rather than clobbering a
- * newer stage — reported as `stageMirrorUpdated: false`, which the client
- * already surfaces (C4). The TRANSITION row is unconditionally committed
- * either way — it stays the audit truth regardless of who wins the mirror.
+ * LIFECYCLE EMISSION (Sprint 3, Story 3.2): a successful correction also
+ * calls `emitStageTransition` — the SAME seam the derived-advance evaluator
+ * uses — so a correction lands on the shared event rail like any other
+ * canonical transition. The GATING logic (an admin correction onto
+ * `permission_granted`/`preview_delivered` must not broadcast without LIVE
+ * consent evidence, epic README D4) lives entirely inside that seam, not
+ * here: this route writes its transition row unconditionally either way, and
+ * simply reports whatever the seam decided.
+ *
+ * D3d fix (PR 304 review, round 3): the mirror UPDATE is a COMPARE-AND-SET on
+ * `stage = fromStage` (the stage THIS request read). Without it, two admins
+ * reading the same `scouted` row and racing corrections to `qualified` and
+ * `claimed` could land the UPDATEs in the OPPOSITE order from the TRANSITION
+ * inserts (which have no such ordering guarantee against each other either) —
+ * the mirror would then show `qualified` while the LATEST transition row says
+ * `claimed`, disagreeing with its own audit trail. The CAS predicate means a
+ * losing writer's UPDATE matches zero rows (Supabase's `.maybeSingle()`
+ * returns `{data: null, error: null}` for that, not an error) rather than
+ * clobbering a newer stage — reported as `stageMirrorUpdated: false`, which
+ * the client already surfaces (C4). The TRANSITION row is unconditionally
+ * committed either way — it stays the audit truth regardless of who wins the
+ * mirror, AND is what reaches the emission seam above.
  *
  * Scope-checked through the ONE shared helper (`resolveRelationshipAccess`),
  * then narrowed to `role === 'admin'` explicitly — an owner/manager grant
@@ -46,6 +55,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, toRelationshipDTO, type RelationshipRow } from '@/lib/relationship-access'
 import { isStage, STAGE_ORDINAL, correctionDedupeKey } from '@/lib/merchant-stage'
+import { emitStageTransition } from '@/lib/merchant-relationship-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +112,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'No se pudo registrar la corrección.' }, { status: 500 })
   }
 
+  // Lifecycle emission (Sprint 3, Story 3.2) — AFTER the transition row is
+  // durably written, same ordering discipline as the preview-decision route.
+  // `emitStageTransition` is the seam that decides whether this actually
+  // broadcasts: an admin correction onto `permission_granted`/`preview_delivered`
+  // only emits when LIVE consent evidence backs it right now — see that
+  // function's doc for the full rationale. The correction itself is NEVER
+  // blocked by this outcome; the transition row above is already committed.
+  const emitOutcome = await emitStageTransition({
+    relationshipId: id,
+    toStage,
+    actorType: 'admin',
+    shopId: access.relationship.shop_id,
+    previewId: access.relationship.preview_id,
+    correlationId: dedupeKey,
+  })
+
   // Mirror onto the relationship's own stage columns so the operating views
   // read the corrected truth — but only touch `stage_entered_at` when the
   // stage actually changed, so a reason-only correction of an already-correct
@@ -124,12 +150,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // The transition row is already committed (it's the audit truth); the
       // mirror failing to follow is reported, not silently hidden.
       return NextResponse.json(
-        { ok: true, relationship: toRelationshipDTO(access.relationship), stageMirrorUpdated: false, dedupeKey },
+        { ok: true, relationship: toRelationshipDTO(access.relationship), stageMirrorUpdated: false, dedupeKey, emitOutcome },
         { status: 200 },
       )
     }
     updatedRow = data as unknown as RelationshipRow
   }
 
-  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(updatedRow), stageMirrorUpdated: true, dedupeKey })
+  return NextResponse.json({ ok: true, relationship: toRelationshipDTO(updatedRow), stageMirrorUpdated: true, dedupeKey, emitOutcome })
 }

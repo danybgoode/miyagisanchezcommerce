@@ -7,6 +7,10 @@ import {
   advanceDedupeKey,
   correctionDedupeKey,
   isCorrectionDedupeKey,
+  factsAtOrAbove,
+  mergeStageFacts,
+  CONSENT_GATED_STAGES,
+  shouldEmitStageTransition,
   type Stage,
   type StageFacts,
 } from '../lib/merchant-stage'
@@ -138,19 +142,84 @@ test.describe('resolveStage — the full monotonic table, every stage in order',
   })
 })
 
-test.describe('resolveStage — fails CLOSED: unknown/absent facts decline, never grant', () => {
-  test('a later-stage fact true while an EARLIER one is absent never skips ahead (no jump)', () => {
-    const facts: StageFacts = { qualified: true, threeProductsLive: true, firstSale: true, retained30d: true }
-    // permission_granted's own fact was never set → the walk stops right after "qualified".
-    expect(resolveStage(facts).stage).toBe('qualified')
+test.describe('resolveStage — independent evaluation (E1a): a soft-fact GAP never holds a hard fact hostage', () => {
+  // THE REGRESSION E1a FIXES. Under the old prefix-`break` semantics, a merchant
+  // with a real Medusa sale but no recorded external share stopped the walk at
+  // `shared_externally` (10) and `first_sale` (12) was UNREACHABLE — silently
+  // defeating epic acceptance 5. Predicates now evaluate independently.
+  test('firstSale true but sharedExternally/firstInquiry false → first_sale IS reached, and the gap stages are NOT', () => {
+    const facts: StageFacts = {
+      ...ALL_TRUE,
+      sharedExternally: false,
+      firstInquiry: false,
+      retained30d: false,
+    }
+    const result = resolveStage(facts)
+    expect(result.reached).toContain('first_sale')
+    expect(result.stage).toBe('first_sale') // highest-ordinal milestone genuinely reached
+    expect(result.reached).not.toContain('shared_externally')
+    expect(result.reached).not.toContain('first_inquiry')
+    expect(result.reached).not.toContain('retained_30d')
   })
 
-  test('a gap ANYWHERE in the middle stops the walk there, regardless of what holds after it', () => {
+  // The common shape for the S1 backfill's 29 shops: claimed + selling, but
+  // never routed through the promoter funnel, so qualified/permission/preview
+  // are all false. The old walk emitted NOTHING (broke at `qualified`, stage 2).
+  test('a claimed-and-sold shop with no funnel stages → every genuinely-true milestone reached, first_sale resolved', () => {
+    const facts: StageFacts = {
+      claimed: true,
+      paymentsReady: true,
+      threeProductsLive: true,
+      firstSale: true,
+    }
+    const result = resolveStage(facts)
+    expect(result.stage).toBe('first_sale')
+    expect(result.reached).toEqual(['scouted', 'claimed', 'payments_ready', 'three_products_live', 'first_sale'])
+    expect(result.reached).not.toContain('qualified')
+    expect(result.reached).not.toContain('permission_granted')
+  })
+
+  test('a single isolated high fact resolves to itself — independence, not contiguity', () => {
+    const result = resolveStage({ firstSale: true })
+    expect(result.reached).toEqual(['scouted', 'first_sale'])
+    expect(result.stage).toBe('first_sale')
+  })
+
+  test('still fails CLOSED under independence: an absent gap fact declines its OWN stage, it just does not veto later ones', () => {
+    // `shared_externally` is absent here (not `=== true`), so it is NOT reached
+    // even though its neighbours are — the decline is local to its own stage.
+    const facts: StageFacts = { ...ALL_TRUE, sharedExternally: undefined }
+    const result = resolveStage(facts)
+    expect(result.reached).not.toContain('shared_externally')
+    expect(result.reached).toContain('first_inquiry')
+    expect(result.stage).toBe('retained_30d')
+  })
+})
+
+test.describe('resolveStage — fails CLOSED per-stage: an absent fact declines its OWN stage (never grants it), and E1a no longer lets it veto later independent ones', () => {
+  test('an absent middle fact is NOT reached, but the independently-true later facts ARE (E1a)', () => {
+    const facts: StageFacts = { qualified: true, threeProductsLive: true, firstSale: true, retained30d: true }
+    const result = resolveStage(facts)
+    // The absent stages decline THEMSELVES — the fail-closed guarantee, per-stage.
+    expect(result.reached).not.toContain('permission_granted')
+    expect(result.reached).not.toContain('preview_delivered')
+    expect(result.reached).not.toContain('shared_externally')
+    // …but the genuinely-true later facts are reached — no hostage (E1a).
+    expect(result.reached).toContain('qualified')
+    expect(result.reached).toContain('three_products_live')
+    expect(result.reached).toContain('first_sale')
+    expect(result.stage).toBe('retained_30d')
+  })
+
+  test('a gap in the middle skips ONLY that stage, not everything after it (E1a)', () => {
     const facts = factsUpTo('claimed')
-    // Knock out an early-chain fact retroactively (simulating a caller bug) —
-    // the walk must stop at the FIRST failing predicate, not just "the last one".
+    // Knock out one mid-chain fact — only preview_in_preparation should drop out.
     delete (facts as Record<string, unknown>).previewInPreparation
-    expect(resolveStage(facts).stage).toBe('permission_granted')
+    const result = resolveStage(facts)
+    expect(result.reached).not.toContain('preview_in_preparation')
+    expect(result.reached).toContain('preview_delivered')
+    expect(result.reached).toContain('claimed')
+    expect(result.stage).toBe('claimed')
   })
 
   test('a non-boolean truthy value (string "true", 1) never satisfies a predicate — only literal `true`', () => {
@@ -162,9 +231,16 @@ test.describe('resolveStage — fails CLOSED: unknown/absent facts decline, neve
 })
 
 test.describe('resolveStage — permission-gated stages require dedicated evidence, never a note (build contract, asserted directly)', () => {
-  test('permission_granted: every OTHER fact true, evidence fact absent → still refused at qualified', () => {
+  test('permission_granted: every OTHER fact true, its evidence fact false → permission_granted is NOT reached (so it can never be emitted), even though higher independent milestones are', () => {
     const facts: StageFacts = { ...ALL_TRUE, permissionGrantedEvidence: false }
-    expect(resolveStage(facts).stage).toBe('qualified')
+    const result = resolveStage(facts)
+    // THE SECURITY PROPERTY, under E1a: the gated MILESTONE is individually
+    // declined. The evaluator only ever emits stages in `reached`, so a
+    // permission_granted absent here can never reach Golden Beans without
+    // consent evidence — which is what this gate exists to guarantee. That the
+    // resolved `stage` is now higher (retained_30d) is irrelevant to the gate:
+    // the milestone set, not the scalar, is what gets emitted.
+    expect(result.reached).not.toContain('permission_granted')
   })
 
   test('preview_delivered: qualified + permission granted + preview-in-prep all true, but its OWN evidence fact is false → stops at preview_in_preparation', () => {
@@ -207,7 +283,7 @@ test.describe('resolveStage — permission-gated stages require dedicated eviden
 })
 
 test.describe('resolveStage — no regression path exists in the pure function itself', () => {
-  test('reached always includes every stage up to and including the resolved stage — never a hole', () => {
+  test('with CONTIGUOUS facts, reached is exactly the prefix through the resolved stage (no hole, no duplicate) — the gapped case is covered by the E1a describe above', () => {
     for (const stage of STAGES.slice(1)) {
       const idx = STAGES.indexOf(stage)
       const result = resolveStage(factsUpTo(stage))
@@ -243,5 +319,115 @@ test.describe('dedupe keys — the replay-produces-no-second-transition contract
 
   test('isCorrectionDedupeKey is false for a plain stage-advance key (so the DB CHECK requiring a reason only ever fires for corrections)', () => {
     for (const stage of STAGES) expect(isCorrectionDedupeKey(advanceDedupeKey(stage))).toBe(false)
+  })
+})
+
+test.describe('factsAtOrAbove — permanent memory from a current stage (Sprint 3, Story 3.1)', () => {
+  test('scouted (the baseline) grants no fact at all', () => {
+    expect(factsAtOrAbove('scouted')).toEqual({})
+  })
+
+  test('every stage up to and including the given one is granted — resolveStage lands EXACTLY there', () => {
+    for (const stage of STAGES) {
+      const result = resolveStage(factsAtOrAbove(stage))
+      expect(result.stage, stage).toBe(stage)
+    }
+  })
+
+  test('a mid-chain stage does not grant anything PAST it', () => {
+    const facts = factsAtOrAbove('claimed')
+    expect(facts.paymentsReady).toBeUndefined()
+    expect(facts.threeProductsLive).toBeUndefined()
+    expect(facts.firstSale).toBeUndefined()
+  })
+})
+
+test.describe('mergeStageFacts — OR semantics, true always wins (Sprint 3, Story 3.1)', () => {
+  test('a fresh explicit false never erases a permanent true', () => {
+    const permanent: StageFacts = { qualified: true, claimed: true }
+    const fresh: StageFacts = { qualified: false, claimed: false, paymentsReady: true }
+    const merged = mergeStageFacts(permanent, fresh)
+    expect(merged.qualified).toBe(true)
+    expect(merged.claimed).toBe(true)
+    expect(merged.paymentsReady).toBe(true)
+  })
+
+  test('a fresh explicit undefined never erases a permanent true (the naive-spread bug this exists to avoid)', () => {
+    const permanent: StageFacts = { qualified: true }
+    const fresh: StageFacts = { qualified: undefined }
+    expect(mergeStageFacts(permanent, fresh).qualified).toBe(true)
+  })
+
+  test('neither true → merged stays false/absent', () => {
+    expect(mergeStageFacts({}, {}).qualified).toBeUndefined()
+  })
+
+  test('order of arguments does not matter (commutative)', () => {
+    const a: StageFacts = { qualified: true }
+    const b: StageFacts = { claimed: true }
+    expect(mergeStageFacts(a, b)).toEqual(mergeStageFacts(b, a))
+  })
+
+  test('merging permanent memory with a resolveStage-confirmed advance never regresses the walk', () => {
+    // The scenario `evaluateRelationship` relies on: a relationship already at
+    // `three_products_live` (permanent), a fresh commerce read that — because
+    // Medusa hiccupped — comes back with `threeProductsLive: undefined` this
+    // run. The merge must still resolve at least as far as before.
+    const permanent = factsAtOrAbove('three_products_live')
+    const degradedFreshRead: StageFacts = {} // Medusa unreachable this run
+    const merged = mergeStageFacts(permanent, degradedFreshRead)
+    expect(resolveStage(merged).stage).toBe('three_products_live')
+  })
+})
+
+test.describe('shouldEmitStageTransition — the consent gate (Sprint 3, Story 3.2)', () => {
+  test('CONSENT_GATED_STAGES names exactly the two permission-gated stages', () => {
+    expect([...CONSENT_GATED_STAGES].sort()).toEqual(['permission_granted', 'preview_delivered'])
+  })
+
+  test('an admin transition onto a gated stage WITHOUT live evidence does not emit', () => {
+    expect(shouldEmitStageTransition('admin', 'permission_granted', false)).toBe(false)
+    expect(shouldEmitStageTransition('admin', 'preview_delivered', false)).toBe(false)
+  })
+
+  test('an admin transition onto a gated stage WITH live evidence emits', () => {
+    expect(shouldEmitStageTransition('admin', 'permission_granted', true)).toBe(true)
+    expect(shouldEmitStageTransition('admin', 'preview_delivered', true)).toBe(true)
+  })
+
+  test('an admin transition onto a NON-gated stage emits regardless of evidence', () => {
+    for (const stage of STAGES) {
+      if (CONSENT_GATED_STAGES.has(stage)) continue
+      expect(shouldEmitStageTransition('admin', stage, false), stage).toBe(true)
+      expect(shouldEmitStageTransition('admin', stage, true), stage).toBe(true)
+    }
+  })
+
+  test('a commerce_fact (derived-advance) transition onto a gated stage emits WITHOUT needing evidence', () => {
+    // The derived-advance path's own evidence IS the fact that produced it
+    // (the resolver already required `permissionGrantedEvidence`/
+    // `previewDeliveredEvidence` to be true to reach this stage at all) — the
+    // guard exists specifically for the admin correction route's UNCHECKED
+    // write, not for the evaluator's own output.
+    expect(shouldEmitStageTransition('commerce_fact', 'permission_granted', false)).toBe(true)
+    expect(shouldEmitStageTransition('commerce_fact', 'preview_delivered', false)).toBe(true)
+  })
+
+  test('a system/promoter transition onto a gated stage also emits unconditionally', () => {
+    expect(shouldEmitStageTransition('system', 'permission_granted', false)).toBe(true)
+    expect(shouldEmitStageTransition('promoter', 'preview_delivered', false)).toBe(true)
+  })
+
+  test('every actor × every stage × both evidence values — exhaustive table, only "admin + gated + no evidence" refuses', () => {
+    const actors: Array<'promoter' | 'admin' | 'system' | 'commerce_fact'> = ['promoter', 'admin', 'system', 'commerce_fact']
+    for (const actor of actors) {
+      for (const stage of STAGES) {
+        for (const evidenced of [true, false]) {
+          const result = shouldEmitStageTransition(actor, stage, evidenced)
+          const shouldRefuse = actor === 'admin' && CONSENT_GATED_STAGES.has(stage) && !evidenced
+          expect(result, `${actor}/${stage}/${evidenced}`).toBe(!shouldRefuse)
+        }
+      }
+    }
   })
 })

@@ -320,16 +320,48 @@ export async function listPendingEmissions(
 }
 
 /**
- * Medusa seller id → `marketplace_shops.id` (the merchant subject key).
+ * `marketplace_shops.id` (the shop mirror UUID) → `merchant_relationships.id`.
  *
- * The money path knows a merchant only by their Medusa seller id, but every lifecycle
- * event is keyed on the mirror UUID — the same non-personal subject
- * lib/preview-events.ts uses. Same lookup `app/api/claim/complete` already does.
- * Returns null when there is no mirror row, and the caller then emits NOTHING: a
- * milestone with a Medusa id in the subject would silently create a second identity
- * for the same merchant in the projection.
+ * README D1 (Sprint 3): the opaque merchant subject id is the RELATIONSHIP
+ * id, never the shop mirror id — a relationship can exist before any shop
+ * does (scouted, qualified, permission granted, preview prepared/delivered
+ * all precede shop creation), so a shop-keyed subject could never represent
+ * those stages. S1's backfill migration inserted one relationship row per
+ * EXISTING `marketplace_shops` row (`shop_id` UNIQUE, `ON CONFLICT (shop_id)
+ * DO NOTHING`), so this resolution is expected to ALWAYS hit for a real shop
+ * id — S1's whole point.
+ *
+ * Returns null on no match or a read error. The caller then emits NOTHING:
+ * a milestone keyed on a shop id that resolved to no relationship would
+ * silently create a second identity for the same merchant in the
+ * projection — exactly what D1 exists to prevent.
  */
-export async function resolveMerchantIdForSeller(sellerId: string): Promise<string | null> {
+export async function resolveRelationshipIdForShop(shopId: string): Promise<string | null> {
+  if (!shopId) return null
+  try {
+    const { data } = await db
+      .from('merchant_relationships')
+      .select('id')
+      .eq('shop_id', shopId)
+      .maybeSingle()
+    return data?.id ? String(data.id) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Medusa seller id → `merchant_relationships.id` (the merchant subject key).
+ *
+ * RENAMED from `resolveMerchantIdForSeller` (Sprint 3, README D1 — "its name
+ * follows"): it used to stop at the shop mirror id, which WAS the subject
+ * key before this sprint. It now takes the extra hop onto the relationship,
+ * via `resolveRelationshipIdForShop` above, because that is the subject key
+ * every lifecycle event carries from Sprint 3 onward. The money path still
+ * only knows a merchant by their Medusa seller id — same lookup
+ * `app/api/claim/complete` already does to find the shop mirror row.
+ */
+export async function resolveRelationshipIdForSeller(sellerId: string): Promise<string | null> {
   if (!sellerId) return null
   try {
     const { data } = await db
@@ -337,9 +369,39 @@ export async function resolveMerchantIdForSeller(sellerId: string): Promise<stri
       .select('id')
       .contains('metadata', { medusa_seller_id: sellerId })
       .maybeSingle()
-    return data?.id ? String(data.id) : null
+    const shopMirrorId = data?.id ? String(data.id) : null
+    if (!shopMirrorId) return null
+    return resolveRelationshipIdForShop(shopMirrorId)
   } catch {
     return null
   }
+}
+
+/**
+ * `emitMerchantLifecycle`, for a call site that only knows the SHOP mirror
+ * id (Sprint 3, Story 3.2 — the new seam). Resolves shop → relationship via
+ * `resolveRelationshipIdForShop` and delegates, so the shop→relationship
+ * swap happens HERE ONCE rather than at every call site (guard the
+ * population, not the door — Roadmap/LEARNINGS.md). Every call site that
+ * only has a shop id in hand (never a bare `merchantId:`) must go through
+ * this, never straight into `emitMerchantLifecycle` — `e2e/merchant-
+ * relationship-lifecycle.spec.ts` asserts no source file does that.
+ *
+ * Emits NOTHING when the relationship cannot be resolved (fail-closed, same
+ * posture as `resolveRelationshipIdForShop`); `'claim_failed'` mirrors what
+ * `emitMerchantLifecycle` itself returns for an empty merchant id, so every
+ * existing caller's outcome handling needs no new branch.
+ */
+export async function emitMerchantLifecycleForShop(
+  event: MerchantLifecycleEvent,
+  facts: Omit<LifecycleEmitFacts, 'merchantId'> & { shopId: string },
+): Promise<EmitOutcome> {
+  const { shopId, ...rest } = facts
+  const relationshipId = await resolveRelationshipIdForShop(shopId)
+  if (!relationshipId) {
+    console.error(`[merchant-lifecycle] no relationship for shop ${shopId} — ${event} not emitted`)
+    return 'claim_failed'
+  }
+  return emitMerchantLifecycle(event, { ...rest, merchantId: relationshipId })
 }
 
