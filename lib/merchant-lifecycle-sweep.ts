@@ -59,6 +59,7 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
+import { isEnabled } from '@/lib/flags'
 import { deriveSaleFacts } from '@/lib/merchant-lifecycle'
 import {
   emitMerchantLifecycleForShop,
@@ -185,6 +186,14 @@ export interface SweepResult {
    *  this run — reported separately so a healthy steady-state run (facts unchanged,
    *  nothing to write) reads differently from one that's actively repairing. */
   relationshipsAdvanced: number
+  /** True when `promoter.activation_crm_enabled` is OFF and the Sprint-3 relationship
+   *  walk (step 5) was therefore SKIPPED. NOT an error — the same operator-state
+   *  posture as `telemetryOff`. The shop-keyed sweep (steps 1–4) still runs; only the
+   *  new relationship-keyed emission is held. This is the epic kill-switch doing its
+   *  job: the walk emits WRITE-ONCE, unwithdrawable milestones under relationship-id
+   *  subjects, and the flag's contract is that nothing in this epic's write paths goes
+   *  live until a disposable-merchant smoke passes and Daniel flips it. */
+  relationshipsSkippedFlagOff: boolean
 }
 
 interface Candidate {
@@ -315,6 +324,7 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     errors: 0,
     relationshipsEvaluated: 0,
     relationshipsAdvanced: 0,
+    relationshipsSkippedFlagOff: false,
   }
 
   // ── 1. Drain anything claimed but not confirmed delivered ──────────────────
@@ -490,6 +500,23 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
   // `merchant_relationships` row not already at the terminal stage is re-evaluated;
   // `evaluateRelationship` itself is what makes re-running on unchanged facts a
   // no-op (the UNIQUE constraint on the transition insert, not a check here).
+  //
+  // KILL-SWITCH (fresh-reviewer pass, PR 305): held behind
+  // `promoter.activation_crm_enabled`. Steps 1–4 above are the pre-existing shop-keyed
+  // sweep and are UNCHANGED by the flag; only this Sprint-3 relationship walk is gated.
+  // The walk emits WRITE-ONCE, unwithdrawable `merchant.<stage>` milestones under
+  // relationship-id subjects across the whole backfilled population — the epic's own
+  // kill-switch contract says nothing in its write paths goes live until a
+  // disposable-merchant smoke passes and Daniel flips the flag. Emitting those
+  // permanent milestones on deploy, before that smoke, is exactly what the flag exists
+  // to prevent. Skipping is an operator state, not an error (same posture as
+  // `telemetryOff`): the admin replay route re-runs the identical `evaluateRelationship`
+  // once the flag is on, so nothing is lost by waiting.
+  if (!(await isEnabled('promoter.activation_crm_enabled'))) {
+    result.relationshipsSkippedFlagOff = true
+    return result
+  }
+
   const relLoaded = await loadRelationshipCandidates()
   result.errors += relLoaded.errors
   result.truncated ||= relLoaded.truncated

@@ -12,7 +12,7 @@
 --
 -- What this adds (README D2 — "the 13 stages ARE the event types"):
 --   - one nullable `<stage>_at` column on `merchant_lifecycle` per NEWLY
---     added stage event (the other five already have a column from the
+--     added stage event (the other six already have a column from the
 --     20260722160000 migration)
 --   - `apply_merchant_lifecycle_event` extended IN STEP: the plpgsql
 --     vocabulary CHECK now accepts all 14 `merchant.*` event types
