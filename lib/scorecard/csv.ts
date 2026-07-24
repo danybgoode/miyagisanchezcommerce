@@ -18,7 +18,9 @@ import type { Scorecard } from '@/lib/scorecard/types'
 import type { MetricValue } from '@/lib/scorecard/dictionary'
 
 function csvCell(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
+  // Quote on any of comma, quote, CR or LF — rows are joined with \r\n, so a
+  // bare \r inside a value must force quoting too (standard CSV escaping).
+  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
   return value
 }
 

@@ -127,19 +127,30 @@ export default function ActivacionScorecardClient() {
     return params.toString()
   }, [cohort, stage, steward, promoter, dateFrom, dateTo])
 
-  // URL-stable filters: every filter change replaces the URL so the exact
-  // view is shareable/reopenable (Sprint 2 smoke walkthrough step 2).
+  // Debounce the derived query so typing into a text filter (cohort/steward/
+  // promoter) doesn't replace the URL and refetch on EVERY keystroke — both
+  // the URL replace and the fetch below key off the debounced value. Seeded
+  // to the initial `query` so the first load fires immediately, not after the
+  // delay. (PR 307 cross-agent review.)
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
   useEffect(() => {
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setDebouncedQuery(query), 300)
+    return () => clearTimeout(t)
   }, [query])
+
+  // URL-stable filters: every (settled) filter change replaces the URL so the
+  // exact view is shareable/reopenable (Sprint 2 smoke walkthrough step 2).
+  useEffect(() => {
+    router.replace(debouncedQuery ? `${pathname}?${debouncedQuery}` : pathname, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery])
 
   const load = useCallback(async () => {
     const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/scorecard${query ? `?${query}` : ''}`)
+      const res = await fetch(`/api/admin/scorecard${debouncedQuery ? `?${debouncedQuery}` : ''}`)
       const json = await res.json()
       if (requestId !== requestIdRef.current) return
       if (!res.ok || !json.ok) {
@@ -155,7 +166,7 @@ export default function ActivacionScorecardClient() {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
-  }, [query])
+  }, [debouncedQuery])
 
   useEffect(() => {
     load()
