@@ -266,7 +266,7 @@ export function FundadorasApplicationForm({ copy }: { copy: FormCopy }) {
       </fieldset>
 
       {error && (
-        <p className="text-sm" role="alert" style={{ color: 'var(--color-danger, #b91c1c)' }}>
+        <p className="t-small" role="alert" style={{ color: 'var(--danger)' }}>
           {error}
         </p>
       )}
