@@ -150,6 +150,13 @@ export const tg = {
     return tgNotify(`📝 <b>Nueva solicitud de promotor</b>\n${esc(name)}${city ? ` · ${esc(city)}` : ''}\n${esc(adminUrl)}`)
   },
 
+  /** New Tiendas Fundadoras application submitted (epic 08 · tiendas-fundadoras-acquisition
+   *  S2). Carries only the business name + a coarse location — the full PII record lives in
+   *  the canonical relationship, this is just the "someone applied, go look" ping. */
+  foundingApplicationSubmitted(businessName: string, location: string | null, adminUrl: string) {
+    return tgNotify(`🌱 <b>Nueva solicitud fundadora</b>\n${esc(businessName)}${location ? ` · ${esc(location)}` : ''}\n${esc(adminUrl)}`)
+  },
+
   /** send_feedback MCP tool filed a report (miyagi-partners-mcp S3). */
   feedbackFiled(authorLabel: string, authorKind: string, category: string, toolName: string | null, message: string) {
     return tgNotify(

@@ -42,6 +42,7 @@ const SELLER_ACQUISITION_SECTIONS: Record<string, RouteInfo | null> = {
   aiChannel: { label: 'Vende (portada)', path: '/vende' },
   creadores: { label: 'Vende — Creadores', path: '/vende/creadores' },
   negocios: { label: 'Vende — Negocios', path: '/vende/negocios' },
+  fundadoras: { label: 'Vende — Fundadoras', path: '/vende/fundadoras' },
   servicios: { label: 'Vende — Servicios', path: '/vende/servicios' },
   autos: { label: 'Vende — Autos', path: '/vende/autos' },
   mundial: { label: 'Vende — Mundial', path: '/vende/mundial' },

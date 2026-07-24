@@ -181,6 +181,11 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // routes 404 and /promotor/cerrar is unchanged. Flip ON only after the
   // migration is verified live + the disposable-merchant smoke passes.
   'promoter.activation_crm_enabled': { polarity: 'enablement', default: false },
+  // Tiendas Fundadoras public acquisition campaign (epic tiendas-fundadoras-acquisition
+  // S1.3). Enablement: default OFF ⇒ /vende/fundadoras shows a truthful closed state and
+  // POST /api/vende/fundadoras/apply refuses every write. Capacity (25) is enforced
+  // independently. Flip ON only after a disposable production application smoke passes.
+  'growth.founding_merchants_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */

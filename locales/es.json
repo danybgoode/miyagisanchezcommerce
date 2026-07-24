@@ -1391,6 +1391,130 @@
           "closingCta": "Publicar experiencia"
         }
       }
+    },
+    "fundadoras": {
+      "metadata": {
+        "title": "Tiendas Fundadoras — 25 comercios, acompañamiento personal | Miyagi Sánchez",
+        "description": "Únete a la cohorte fundadora de 25 comercios: acompañamiento personal para montar tu catálogo y una vista previa privada antes de publicar. Cupo limitado.",
+        "ogAlt": "Tiendas Fundadoras — cohorte de 25 comercios con acompañamiento personal en Miyagi Sánchez."
+      },
+      "eyebrow": "Cohorte fundadora · cupo limitado",
+      "heroTitle": "25 tiendas fundadoras, acompañadas paso a paso antes de publicar.",
+      "heroLead": "Te ayudamos a montar tu catálogo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
+      "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/fundadoras y te diga qué incluye y qué no.",
+      "primaryCta": "Aplicar a la cohorte fundadora",
+      "secondaryCta": "Ver la página general de Vende",
+      "heroStats": [
+        {
+          "value": "25",
+          "label": "lugares en esta cohorte"
+        },
+        {
+          "value": "1 a 1",
+          "label": "acompañamiento en la puesta a punto"
+        },
+        {
+          "value": "Privada",
+          "label": "vista previa antes de publicar"
+        }
+      ],
+      "proofTitle": "Qué incluye la cohorte fundadora",
+      "proofLead": "Un acompañamiento personal para dejar tu catálogo listo, con una revisión privada antes de que tu tienda sea pública.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-user-star",
+          "title": "Acompañamiento personal",
+          "body": "Alguien del equipo te ayuda a montar tu catálogo — no lo resuelves solo desde un formulario en blanco."
+        },
+        {
+          "icon": "iconoir-eye-closed",
+          "title": "Vista previa privada",
+          "body": "Revisas tu tienda antes de que sea pública y confirmas cuándo autorizas su publicación."
+        },
+        {
+          "icon": "iconoir-group",
+          "title": "Cupo de 25 comercios",
+          "body": "Una cohorte finita, no una lista de espera indefinida: al llenarse, la cohorte se cierra."
+        },
+        {
+          "icon": "iconoir-mail",
+          "title": "Contacto solo con tu permiso",
+          "body": "Solo te contactamos si tú lo autorizas al aplicar. Nada se publica sin tu confirmación."
+        }
+      ],
+      "stepsTitle": "Cómo funciona la cohorte fundadora",
+      "steps": [
+        {
+          "title": "Aplicas con los datos básicos de tu negocio",
+          "body": "Nombre del negocio, tu nombre y un teléfono o correo para contactarte."
+        },
+        {
+          "title": "Te acompañamos a montar tu catálogo",
+          "body": "Trabajamos contigo tu inventario y tu vista previa, sin que tengas que resolverlo solo."
+        },
+        {
+          "title": "Revisas tu vista previa privada",
+          "body": "Ves tu tienda antes de que sea pública y confirmas cuándo publicarla."
+        }
+      ],
+      "socialTitle": "Una cohorte pensada para acompañar, no para llenar un formulario",
+      "socialBody": "Los 25 lugares de esta cohorte reciben acompañamiento directo, no un flujo genérico de autoservicio.",
+      "socialStats": [
+        {
+          "value": "25",
+          "label": "comercios en la cohorte"
+        },
+        {
+          "value": "0",
+          "label": "publicaciones sin tu permiso"
+        },
+        {
+          "value": "1 a 1",
+          "label": "acompañamiento"
+        }
+      ],
+      "closingTitle": "¿Tu negocio es uno de los 25?",
+      "closingBody": "Aplica con los datos básicos. Te contactamos solo si autorizas el contacto, y nada se publica sin que tú lo confirmes.",
+      "closingCta": "Aplicar a la cohorte fundadora",
+      "closed": {
+        "title": "La cohorte fundadora todavía no abre",
+        "body": "Estamos preparando la apertura de esta cohorte. Todavía no hay un formulario disponible — vuelve pronto o revisa la página general de Vende.",
+        "cta": "Ver la página general de Vende"
+      },
+      "full": {
+        "title": "La cohorte fundadora ya está completa",
+        "body": "Los 25 lugares de esta cohorte ya se ocuparon. No abrimos una lista de espera — si más adelante hay una nueva cohorte, la anunciaremos en la página general de Vende.",
+        "cta": "Ver la página general de Vende"
+      },
+      "apply": {
+        "title": "Aplica a la cohorte fundadora",
+        "body": "Completa estos datos. Solo te contactamos si autorizas el contacto, y nada se publica sin tu confirmación.",
+        "form": {
+          "businessNameLabel": "Nombre del negocio",
+          "businessNamePlaceholder": "Ej. Panadería Don Memo",
+          "contactNameLabel": "Tu nombre",
+          "contactNamePlaceholder": "Ej. María Sánchez",
+          "phoneLabel": "Teléfono (opcional si dejas un correo)",
+          "phonePlaceholder": "10 dígitos",
+          "emailLabel": "Correo (opcional si dejas un teléfono)",
+          "emailPlaceholder": "tu@correo.com",
+          "estadoLabel": "Estado (opcional)",
+          "estadoPlaceholder": "Ej. Jalisco",
+          "categoryLabel": "Categoría del negocio (opcional)",
+          "categoryPlaceholder": "Ej. ropa, alimentos, artesanías",
+          "promoterCodeLabel": "Código de promotor (opcional)",
+          "promoterCodePlaceholder": "PRM-XXXXXX",
+          "contactConsentLabel": "Autorizo que me contacten para dar seguimiento a esta solicitud.",
+          "previewConsentLabel": "Autorizo que preparen una vista previa privada de mi tienda para revisarla (opcional).",
+          "marketingConsentLabel": "Autorizo el uso de estos datos con fines promocionales (opcional).",
+          "submit": "Enviar solicitud",
+          "submitting": "Enviando…",
+          "success": "Recibimos tu solicitud. Te contactaremos si autorizaste el contacto.",
+          "genericError": "No se pudo enviar la solicitud. Intenta de nuevo.",
+          "missingContactError": "Agrega un teléfono o un correo de contacto.",
+          "consentRequiredError": "Necesitamos tu permiso para contactarte antes de enviar la solicitud."
+        }
+      }
     }
   },
   "terms": {
