@@ -13,21 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeRelationshipRequest } from '@/lib/relationship-access'
 import { loadScorecard } from '@/lib/scorecard/loader'
-import type { ScorecardFilters } from '@/lib/scorecard/types'
+import { parseScorecardFilters } from '@/lib/scorecard/filters'
 
 export const dynamic = 'force-dynamic'
-
-export function parseScorecardFilters(url: URL): ScorecardFilters {
-  const sp = url.searchParams
-  return {
-    cohort: sp.get('cohort') || undefined,
-    stage: sp.get('stage') || undefined,
-    promoter: sp.get('promoter') || undefined,
-    steward: sp.get('steward') || undefined,
-    dateFrom: sp.get('date_from') || undefined,
-    dateTo: sp.get('date_to') || undefined,
-  }
-}
 
 export async function GET(req: NextRequest) {
   const auth = await authorizeRelationshipRequest(req)

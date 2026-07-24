@@ -110,6 +110,7 @@ export default function ActivacionScorecardClient() {
   const [cohort, setCohort] = useState(searchParams.get('cohort') ?? '')
   const [stage, setStage] = useState(searchParams.get('stage') ?? '')
   const [steward, setSteward] = useState(searchParams.get('steward') ?? '')
+  const [promoter, setPromoter] = useState(searchParams.get('promoter') ?? '')
   const [dateFrom, setDateFrom] = useState(searchParams.get('date_from') ?? '')
   const [dateTo, setDateTo] = useState(searchParams.get('date_to') ?? '')
 
@@ -120,10 +121,11 @@ export default function ActivacionScorecardClient() {
     if (cohort.trim()) params.set('cohort', cohort.trim())
     if (stage) params.set('stage', stage)
     if (steward.trim()) params.set('steward', steward.trim())
+    if (promoter.trim()) params.set('promoter', promoter.trim())
     if (dateFrom) params.set('date_from', dateFrom)
     if (dateTo) params.set('date_to', dateTo)
     return params.toString()
-  }, [cohort, stage, steward, dateFrom, dateTo])
+  }, [cohort, stage, steward, promoter, dateFrom, dateTo])
 
   // URL-stable filters: every filter change replaces the URL so the exact
   // view is shareable/reopenable (Sprint 2 smoke walkthrough step 2).
@@ -196,6 +198,7 @@ export default function ActivacionScorecardClient() {
           ))}
         </select>
         <input type="text" value={steward} onChange={(e) => setSteward(e.target.value)} placeholder="ID de Clerk del dueño…" className="input w-auto" />
+        <input type="text" value={promoter} onChange={(e) => setPromoter(e.target.value)} placeholder="ID del promotor…" className="input w-auto" />
         <label className="text-xs text-[var(--color-muted)] flex items-center gap-1">
           Desde
           <input type="date" value={dateFrom.slice(0, 10)} onChange={(e) => setDateFrom(e.target.value ? `${e.target.value}T00:00:00.000Z` : '')} className="input w-auto" />

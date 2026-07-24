@@ -98,8 +98,10 @@ test.describe('schema version and timezone are stable, versioned constants', () 
 })
 
 test.describe('fixture contract — zero, incomplete, corrected, retained, stale journeys', () => {
-  test('ALL_FIXTURES names exactly the five journeys plus the whole-read-failure case', () => {
-    expect(Object.keys(ALL_FIXTURES).sort()).toEqual(['corrected', 'incomplete', 'relationshipsReadFailed', 'retained', 'stale', 'zero'].sort())
+  test('ALL_FIXTURES names exactly the five journeys plus the two independent read-failure cases', () => {
+    expect(Object.keys(ALL_FIXTURES).sort()).toEqual(
+      ['corrected', 'incomplete', 'relationshipsReadFailed', 'retained', 'stale', 'transitionsReadFailed', 'zero'].sort(),
+    )
   })
 
   test('zero journey — every relationship sits at the baseline stage, no transitions, no emissions', () => {

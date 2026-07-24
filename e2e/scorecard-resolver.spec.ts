@@ -8,6 +8,7 @@ import {
   retainedJourneyFixture,
   staleJourneyFixture,
   relationshipsReadFailedFixture,
+  transitionsReadFailedFixture,
 } from '../lib/scorecard/fixtures'
 
 /**
@@ -182,5 +183,51 @@ test.describe('schema version and stage ordinal wiring stay consistent with the 
     input.thresholds = { retentionWindowDays: 45, threeProductsThreshold: 5 }
     const scorecard = resolveScorecard(input)
     expect(scorecard.thresholds).toEqual({ retentionWindowDays: 45, threeProductsThreshold: 5 })
+  })
+})
+
+test.describe('PR 307 review — deterministic activation time + independent transitions read-failure', () => {
+  test('activation time uses the EARLIEST transition to the activation stage, not array order', () => {
+    const base = retainedJourneyFixture()
+    const baseline = resolveScorecard(base).summary.activationTimeMedianDays
+
+    // Inject a SECOND, LATER transition to the activation stage and place it
+    // FIRST in the array. A naive `find(t => t.toStage === ACTIVATION_STAGE)`
+    // would pick this later one (array order) and inflate the activation time;
+    // the resolver must pick the earliest and return the SAME value as base.
+    const withDuplicate = resolveScorecard({
+      ...base,
+      transitions: [
+        { relationshipId: 'r-retained-1', toStage: 'claimed', occurredAt: '2026-07-01T12:00:00.000Z' },
+        ...base.transitions,
+      ],
+    }).summary.activationTimeMedianDays
+
+    expect(withDuplicate).toEqual(baseline)
+    expect(withDuplicate.health).toBe('ok')
+  })
+
+  test('transitions read failure (relationships OK) degrades ONLY the transition-derived metrics to stale — never a false zero, never a whole-scorecard blackout', () => {
+    const scorecard = resolveScorecard(transitionsReadFailedFixture())
+
+    // Relationship-derived metrics stay real and healthy — the cohort loaded fine.
+    expect(scorecard.summary.cohortEntry.health).toBe('ok')
+    expect(scorecard.summary.cohortEntry.value).toBe(2)
+    const claimed = scorecard.funnel.find((f) => f.stage === 'claimed')!
+    expect(claimed.count.health).toBe('ok')
+    expect(claimed.count.value).toBe(1)
+
+    // Transition-derived metrics degrade to STALE (read-failure), never a
+    // misleading `missing`/zero, and never a real number.
+    // Activation time strictly needs a createdAt→claimed transition row, which
+    // the failed read did not return → stale WITH no value.
+    expect(scorecard.summary.activationTimeMedianDays.health).toBe('stale')
+    expect(scorecard.summary.activationTimeMedianDays.value).toBeNull()
+    // Aging still has the OPEN interval from the relationship row's own
+    // stage_entered_at (ageInStageDays: 5), so it carries a best-effort value —
+    // but marked STALE, because the transitions read failed and we can't
+    // confirm the full picture. Stale-with-a-value, never a confident `ok`.
+    expect(claimed.agingMedianDays.health).toBe('stale')
+    expect(claimed.agingMedianDays.value).toBe(5)
   })
 })

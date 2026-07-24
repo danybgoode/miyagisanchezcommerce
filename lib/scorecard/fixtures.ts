@@ -224,9 +224,10 @@ export function retainedJourneyFixture(): ScorecardResolverInput {
  *     relationship without touching its (correct) canonical stage.
  *   - `r-stale-read`: its commerce-facts read FAILED (`ok: false`) — must
  *     exclude it from first-sale/retention rather than reading "no sale".
- * A THIRD relationship (`r-stale-noread`) has `transitionsOk: false` at the
- * whole-input level (SD4: a read failure degrades the WHOLE aging/
- * activation-time computation to `stale`, not just one row).
+ * (The independent whole-input transitions-read failure — relationships load
+ * fine but `merchant_relationship_transitions` could not be read — is its own
+ * fixture, `transitionsReadFailedFixture`, so the two degraded axes stay
+ * testable apart.)
  */
 export function staleJourneyFixture(): ScorecardResolverInput {
   const relationships: ResolverRelationship[] = [
@@ -294,6 +295,50 @@ export function relationshipsReadFailedFixture(): ScorecardResolverInput {
   }
 }
 
+/** Transitions read failed INDEPENDENTLY — the relationships load fine
+ *  (`relationshipsOk: true`, a real cohort), but the
+ *  `merchant_relationship_transitions` read returned `{ ok: false }`
+ *  (`loader.ts` can produce exactly this: the relationship list and the
+ *  transitions query are separate reads). SD4: the transition-DERIVED metrics
+ *  (time-in-stage aging, activation time) must degrade to `stale`/`missing`,
+ *  while the relationship-derived metrics (cohort size, funnel counts) stay a
+ *  real, healthy value — a partial degrade, never a silent zero and never a
+ *  whole-scorecard blackout. This branch had no fixture before PR 307 review. */
+export function transitionsReadFailedFixture(): ScorecardResolverInput {
+  const relationships: ResolverRelationship[] = [
+    relationship({
+      id: 'r-txfail-a',
+      businessName: 'Tienda Transiciones Ilegibles A',
+      stage: 'claimed',
+      createdAt: iso(20),
+      stageEnteredAt: iso(5),
+      ageInStageDays: 5,
+      shopId: 'shop-txfail-a',
+    }),
+    relationship({
+      id: 'r-txfail-b',
+      businessName: 'Tienda Transiciones Ilegibles B',
+      stage: 'qualified',
+      createdAt: iso(12),
+      stageEnteredAt: iso(2),
+      ageInStageDays: 2,
+    }),
+  ]
+  return {
+    now: FIXTURE_NOW,
+    filters: {},
+    thresholds: DEFAULT_THRESHOLDS,
+    relationships,
+    relationshipsOk: true,
+    transitions: [],
+    transitionsOk: false,
+    commerceFacts: [
+      { relationshipId: 'r-txfail-a', ok: true, firstSale: false, retained30d: false },
+    ],
+    reconciliation: [],
+  }
+}
+
 export const ALL_FIXTURES = {
   zero: zeroJourneyFixture,
   incomplete: incompleteJourneyFixture,
@@ -301,4 +346,5 @@ export const ALL_FIXTURES = {
   retained: retainedJourneyFixture,
   stale: staleJourneyFixture,
   relationshipsReadFailed: relationshipsReadFailedFixture,
+  transitionsReadFailed: transitionsReadFailedFixture,
 } as const

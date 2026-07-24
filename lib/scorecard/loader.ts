@@ -86,7 +86,17 @@ export async function loadScorecard(filters: ScorecardFilters, now: Date = new D
   let transitions: ResolverTransition[] = []
   let transitionsOk = true
   if (ids.length > 0) {
-    const { data, error } = await db.from('merchant_relationship_transitions').select(TRANSITION_COLUMNS).in('relationship_id', ids)
+    // Ordered earliest-first: `computeActivationTime` (`lib/scorecard/resolver.ts`)
+    // does `txs.find(t => t.toStage === ACTIVATION_STAGE)` on this array — an
+    // unordered result would let a correction/re-entry's SECOND transition to
+    // the activation stage win arbitrarily (array order, not calendar order),
+    // silently picking the wrong activation date. Fixed here, once, for every
+    // consumer (`buildStageDurations`'s own defensive re-sort is unaffected).
+    const { data, error } = await db
+      .from('merchant_relationship_transitions')
+      .select(TRANSITION_COLUMNS)
+      .in('relationship_id', ids)
+      .order('occurred_at', { ascending: true })
     if (error) {
       transitionsOk = false
     } else {

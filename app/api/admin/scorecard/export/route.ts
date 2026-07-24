@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeRelationshipRequest } from '@/lib/relationship-access'
 import { loadScorecard } from '@/lib/scorecard/loader'
 import { scorecardToCsv } from '@/lib/scorecard/csv'
-import { parseScorecardFilters } from '@/app/api/admin/scorecard/route'
+import { parseScorecardFilters } from '@/lib/scorecard/filters'
 
 export const dynamic = 'force-dynamic'
 

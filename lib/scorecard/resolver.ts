@@ -115,10 +115,19 @@ function agingForStage(
 ): { median: MetricValue<number>; p90: MetricValue<number> } {
   if (!relationshipsOk) return { median: missingMetric(SOURCE_AGING, asOf), p90: missingMetric(SOURCE_AGING, asOf) }
   const values = durationsByStage.get(stage) ?? []
+  // A transitions read-failure must NOT masquerade as `missing` ("genuinely no
+  // data for this stage") — with the transitions read broken we cannot claim
+  // that. Surface `stale` (read-failure) whether or not we salvaged any
+  // duration values, matching `computeActivationTime`'s own `!transitionsOk`
+  // handling so both transition-derived metrics degrade the same way. (PR 307
+  // review — SD4: distinguish zero from missing from stale.)
+  if (!transitionsOk) {
+    if (values.length === 0) return { median: staleMetric<number>(null, SOURCE_AGING, asOf), p90: staleMetric<number>(null, SOURCE_AGING, asOf) }
+    return { median: staleMetric(median(values)!, SOURCE_AGING, asOf), p90: staleMetric(percentile(values, 90)!, SOURCE_AGING, asOf) }
+  }
   if (values.length === 0) return { median: missingMetric(SOURCE_AGING, asOf), p90: missingMetric(SOURCE_AGING, asOf) }
   const medianVal = median(values)!
   const p90Val = percentile(values, 90)!
-  if (!transitionsOk) return { median: staleMetric(medianVal, SOURCE_AGING, asOf), p90: staleMetric(p90Val, SOURCE_AGING, asOf) }
   return { median: okMetric(medianVal, SOURCE_AGING, asOf), p90: okMetric(p90Val, SOURCE_AGING, asOf) }
 }
 
@@ -179,7 +188,17 @@ function computeActivationTime(
   const ids: string[] = []
   for (const r of eligible) {
     const txs = transitionsByRelationship.get(r.id) ?? []
-    const hit = txs.find((t) => t.toStage === ACTIVATION_STAGE)
+    // Pick the EARLIEST transition to the activation stage, not an arbitrary
+    // one. A correction/re-entry can write more than one row to the same
+    // stage, so `find` over the array would depend on row/array order (the
+    // loader now orders ascending, but this stays correct even if a caller
+    // passes unordered transitions — same defensive posture as
+    // `buildStageDurations`'s own sort). Cross-agent + fresh-reviewer catch, PR 307.
+    let hit: ResolverTransition | undefined
+    for (const t of txs) {
+      if (t.toStage !== ACTIVATION_STAGE) continue
+      if (!hit || Date.parse(t.occurredAt) < Date.parse(hit.occurredAt)) hit = t
+    }
     if (!hit) continue
     const days = (Date.parse(hit.occurredAt) - Date.parse(r.createdAt)) / DAY_MS
     if (Number.isFinite(days) && days >= 0) {
