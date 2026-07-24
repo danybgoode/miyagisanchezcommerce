@@ -112,6 +112,15 @@ const promoterApplyLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:promoter_apply' })
 }
 
+// Tiendas Fundadoras public application: max 5 submissions per IP per hour —
+// same shape as promoter_apply (a public, unauthenticated form), the primary
+// anti-spam backstop alongside the honeypot.
+const fundadorasApplyLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:fundadoras_apply' })
+}
+
 // Artwork upload: max 20 per IP per 10 min — a fully public, unauthenticated
 // guest-upload surface (custom-print-products S3), generous enough for a
 // buyer retrying a slow mobile upload without opening the door to abuse.
@@ -167,7 +176,7 @@ const comparatorAnalyzeLimiter = () => {
 
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply'
 
 /**
  * Check rate limit for a given key and identifier (usually IP address).
@@ -193,6 +202,7 @@ export async function checkRateLimit(
     : key === 'launchpad_vote'  ? launchpadVoteLimiter
     : key === 'comparator_analyze' ? comparatorAnalyzeLimiter
     : key === 'relationship'   ? relationshipLimiter
+    : key === 'fundadoras_apply' ? fundadorasApplyLimiter
     : supplyImportLimiter
 
   const limiter = getLimiter()
