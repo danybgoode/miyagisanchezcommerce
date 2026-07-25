@@ -404,7 +404,7 @@ test.describe('parseSlaPolicy — fails CLOSED and WHOLE to the code default', (
   })
 })
 
-// ── SLA policy version monotonicity (fresh-reviewer finding 1, PR #308) ───────
+// ── SLA policy version monotonicity (fresh-reviewer finding 1, PR 308) ───────
 //
 // `lib/portfolio/policy-server.ts` is `server-only`, so no spec can load it and
 // exercise `writeSlaPolicy` directly — which is exactly why this defect shipped

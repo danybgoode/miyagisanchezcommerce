@@ -53,7 +53,7 @@ const DAY_MS = 86_400_000
  * This module originally carried its own copy, which made a FOURTH copy of a
  * vocabulary that already existed in three places and had already drifted
  * (`email: 'Correo'` vs `'Correo electrónico'`) — fresh-reviewer finding 2 on
- * PR #308. The row exposes this LABEL and never the contact value: which channel
+ * PR 308. The row exposes this LABEL and never the contact value: which channel
  * a merchant prefers is safe operational context ("call, don't email"); the
  * number itself is not.
  */

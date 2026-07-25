@@ -14,7 +14,7 @@
  *     stated reason is the audit gap this story exists to close. AUDIT-ONLY: it
  *     is never rendered on the partner-facing portfolio.
  *   · `handoffNote` OPTIONAL — the ONLY partner-visible text. Daniel's call on
- *     fresh-reviewer finding 3 (PR #308): because `reason` is required, an admin
+ *     fresh-reviewer finding 3 (PR 308): because `reason` is required, an admin
  *     writes it candidly ("moved off Juan, no follow-up in three weeks"), and
  *     showing that to every partner scoped to the merchant — possibly including
  *     Juan — is an information flow nobody had decided. Two fields: candid by

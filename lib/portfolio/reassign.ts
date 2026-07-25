@@ -41,7 +41,7 @@ export const STEWARDSHIP_UPDATE_FIELDS = [
   'assignment_reason',
   // The OPTIONAL partner-visible handoff note. Distinct from `assignment_reason`,
   // which is audit-only and never rendered to a partner — Daniel's call on
-  // fresh-reviewer finding 3 (PR #308). See the migration for the full reasoning.
+  // fresh-reviewer finding 3 (PR 308). See the migration for the full reasoning.
   'assignment_handoff_note',
   'assigned_at',
   'escalation_clerk_user_id',
@@ -168,7 +168,7 @@ export function parseReassignBody(body: unknown, now: Date): ReassignParse {
 
   // OPTIONAL — unlike `reason`. An admin who wants to tell the incoming partner
   // something says so deliberately; the candid audit reason is never leaked as a
-  // stand-in (finding 3, PR #308).
+  // stand-in (finding 3, PR 308).
   if (raw.handoffNote !== undefined && raw.handoffNote !== null && typeof raw.handoffNote !== 'string') {
     return { ok: false, status: 400, error: 'Nota de traspaso inválida.' }
   }

@@ -93,7 +93,7 @@ test.describe('the derivation itself is sound (a broken derivation would make ev
    * a decision somebody made on purpose, visible in a diff.
    *
    * Grown from four to FIVE on purpose (Daniel's call on fresh-reviewer finding
-   * 3, PR #308): `assignment_handoff_note` is the OPTIONAL partner-visible
+   * 3, PR 308): `assignment_handoff_note` is the OPTIONAL partner-visible
    * handoff text, split out from the required `assignment_reason` so the audit
    * reason can stay candid and admin-only. It is stewardship state, not
    * attribution — it appears in no `AUDITED_FIELDS` entry, so the forbidden set

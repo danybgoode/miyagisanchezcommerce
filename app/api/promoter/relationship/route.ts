@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
   if (typeError) return NextResponse.json({ ok: false, error: typeError }, { status: 400 })
 
   // The channel vocabulary is imported, never restated — it mirrors the DB
-  // CHECK and lives in lib/preferred-channels.ts (PR #308 finding 2).
+  // CHECK and lives in lib/preferred-channels.ts (PR 308 finding 2).
   if (body.preferredChannel && !isPreferredChannel(body.preferredChannel)) {
     return NextResponse.json({ ok: false, error: 'Canal preferido inválido.' }, { status: 400 })
   }

@@ -45,7 +45,7 @@ export const FUNDADORAS_CREATED_BY = 'fundadoras_public'
 export const FUNDADORAS_DEFAULT_SOURCE = 'public_application'
 
 // The channel vocabulary is imported, never restated — one source mirroring the
-// DB CHECK (`lib/preferred-channels.ts`, PR #308 finding 2). `PreferredChannel`
+// DB CHECK (`lib/preferred-channels.ts`, PR 308 finding 2). `PreferredChannel`
 // is re-exported under this module's existing name so its consumers are
 // untouched by the dedupe.
 export type FundadorasPreferredChannel = PreferredChannel

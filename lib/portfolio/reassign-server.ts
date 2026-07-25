@@ -76,7 +76,7 @@ export interface ReassignStewardInput {
   reason?: string
   /** ADMIN path only, OPTIONAL even there. The partner-VISIBLE handoff note —
    *  `reason` is audit-only and is never rendered to a partner (finding 3,
-   *  PR #308). `undefined` on the promoter path, so the column is not written. */
+   *  PR 308). `undefined` on the promoter path, so the column is not written. */
   handoffNote?: string | null
   effectiveAt?: string
   escalationClerkUserId?: string | null

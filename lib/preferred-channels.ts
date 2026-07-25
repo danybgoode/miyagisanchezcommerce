@@ -4,7 +4,7 @@
  * THE single source for the merchant "preferred contact channel" vocabulary —
  * the values, their es-MX labels, and the type guard.
  *
- * Created in response to fresh-reviewer finding 2 on PR #308
+ * Created in response to fresh-reviewer finding 2 on PR 308
  * (merchant-partner-lifecycle S1). Before this file, the vocabulary existed in
  * FOUR places and had already drifted:
  *
@@ -53,7 +53,7 @@ export const PREFERRED_CHANNEL_LABEL: Readonly<Record<PreferredChannel, string>>
  * PREFERRED_CHANNEL_LABEL` — the `in` form walks the prototype chain, so
  * `'toString'` would test true and resolve to a FUNCTION where a Spanish label
  * belongs. That was a real bug in this epic's first cut of the resolver
- * (PR #308, caught red by `e2e/portfolio-resolver.spec.ts`); keeping the guard
+ * (PR 308, caught red by `e2e/portfolio-resolver.spec.ts`); keeping the guard
  * here means no future call site can reintroduce it.
  */
 export function isPreferredChannel(value: unknown): value is PreferredChannel {

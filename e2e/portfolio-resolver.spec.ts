@@ -152,7 +152,7 @@ test.describe('the list DTO is SAFE-ONLY — no raw contact value can reach it',
 
   /**
    * POPULATION GUARD, re-derived — not hand-listed (fresh-reviewer finding 2,
-   * PR #308). The original version compared `Object.keys(PREFERRED_CHANNEL_LABEL)`
+   * PR 308). The original version compared `Object.keys(PREFERRED_CHANNEL_LABEL)`
    * against five literals typed into the spec, which proved only that the map
    * matched the spec's own copy of the list: adding a sixth channel to the DB
    * CHECK and to `PREFERRED_CHANNELS` would leave those merchants with NO
@@ -468,7 +468,7 @@ test.describe('stage labels — one definition, es-MX complete', () => {
 
 // ── The admin's private reassignment reason never reaches a partner ───────────
 //
-// Daniel's call on fresh-reviewer finding 3 (PR #308). `assignment_reason` is
+// Daniel's call on fresh-reviewer finding 3 (PR 308). `assignment_reason` is
 // REQUIRED on the admin reassign route, so it gets written candidly ("moved off
 // Juan, no follow-up in three weeks"). Rendering that to every partner scoped to
 // the merchant — possibly including Juan — is an information flow nobody had

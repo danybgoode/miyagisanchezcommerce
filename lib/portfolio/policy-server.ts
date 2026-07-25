@@ -38,7 +38,7 @@ const SINGLETON_ID = 1
  *  couldn't read the one that exists". */
 /**
  * `unreadable` was ONE value and had to become TWO (fresh-reviewer finding 1,
- * PR #308). Both meant "fall back to the code default", which is right for the
+ * PR 308). Both meant "fall back to the code default", which is right for the
  * READ path — but the WRITE path has to bump a version, and the two cases carry
  * completely different knowledge:
  *
@@ -131,7 +131,7 @@ export type WriteSlaPolicyResult =
  * documents claiming the same version makes every one of those stamps
  * non-comparable, permanently and silently.
  *
- * FIX (fresh-reviewer finding 1, PR #308). The original rule was `stored ⇒
+ * FIX (fresh-reviewer finding 1, PR 308). The original rule was `stored ⇒
  * its version + 1, anything else ⇒ DEFAULT_SLA_POLICY.version + 1` — and since
  * the default's version is 1, ANY non-`stored` load wrote version **2**. A
  * single transient Supabase error at PUT time was therefore enough to rewind a

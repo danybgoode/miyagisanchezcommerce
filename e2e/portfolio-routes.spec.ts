@@ -97,7 +97,7 @@ test.describe('live · /partner never renders anonymously', () => {
     // Flag OFF or the partners gate OFF ⇒ 404; both ON ⇒ a 3xx to /sign-in.
     // Never a rendered portfolio.
     // NOT wrapped in `.catch(() => null)` + `if (res)` (fresh-reviewer finding
-    // 5a, PR #308): that form made a THROWN request pass the test with zero
+    // 5a, PR 308): that form made a THROWN request pass the test with zero
     // assertions executed — a network failure and a correct 404 were
     // indistinguishable, and the one thing this test exists to prove (an
     // anonymous visitor never sees a rendered portfolio) went unchecked. A
