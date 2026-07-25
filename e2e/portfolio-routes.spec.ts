@@ -286,17 +286,49 @@ test.describe('population guard · nothing in this epic can reach a merchant-fac
     }
   })
 
-  test('no module under lib/portfolio/ imports any discovered transport', () => {
+  /**
+   * Sprint 2, Story 2.2 (README D6) ADDS one deliberate, narrow exception:
+   * `lib/portfolio/reminders-server.ts` is explicitly REQUIRED to import
+   * `lib/notify.ts` (web push) and `lib/telegram.ts` (the admin channel) to
+   * deliver a STEWARD-directed reminder — that is the feature, not a breach
+   * of D5. D5 forbids a path to the MERCHANT specifically; this docstring's
+   * own header already called this test "an early down-payment on D5, whose
+   * full form lands in Sprint 2" — this is that refinement, made as narrow
+   * as possible: ONLY this one file, ONLY these two transports. Every other
+   * module in `lib/portfolio/` (including every `draft*` module) is still
+   * held to the original zero-tolerance rule here, AND — more precisely —
+   * `e2e/portfolio-no-auto-send.spec.ts` (Sprint 2) is now the authoritative,
+   * TRANSITIVE guard over exactly the population D5 actually constrains
+   * (every `lib/portfolio/draft*` module and every route under a `draft`
+   * path segment), re-derived from the filesystem the same way this test is.
+   */
+  const REMINDER_TRANSPORT_EXCEPTION: Readonly<Record<string, readonly string[]>> = {
+    'lib/portfolio/reminders-server.ts': ['lib/notify.ts', 'lib/telegram.ts'],
+  }
+
+  test('no module under lib/portfolio/ imports any discovered transport, except the one D6 steward-reminder exception named above', () => {
     const offenders: string[] = []
     for (const entry of readdirSync(join(ROOT, 'lib', 'portfolio'))) {
       if (extname(entry) !== '.ts') continue
-      const text = read(`lib/portfolio/${entry}`)
+      const relPath = `lib/portfolio/${entry}`
+      const text = read(relPath)
+      const allowed = REMINDER_TRANSPORT_EXCEPTION[relPath] ?? []
       for (const transport of TRANSPORTS) {
         const spec = transport.replace(/^lib\//, '@/lib/').replace(/\.ts$/, '')
-        if (text.includes(`from '${spec}'`)) offenders.push(`lib/portfolio/${entry} → ${transport}`)
+        if (text.includes(`from '${spec}'`) && !allowed.includes(transport)) {
+          offenders.push(`${relPath} → ${transport}`)
+        }
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  test('the D6 exception itself imports NOTHING beyond the two named transports — no draft* module, no dispatch.ts, no email.ts', () => {
+    const text = read('lib/portfolio/reminders-server.ts')
+    for (const forbidden of ['lib/email.ts', 'lib/notifications/dispatch.ts', 'lib/shop-notify.ts', 'lib/promoter-close-notify.ts']) {
+      const spec = forbidden.replace(/^lib\//, '@/lib/').replace(/\.ts$/, '')
+      expect(text, forbidden).not.toContain(`from '${spec}'`)
+    }
   })
 
   test('no new route imports any discovered transport', () => {

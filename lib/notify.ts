@@ -19,8 +19,34 @@ function ensureVapid(): boolean {
   return true
 }
 
+/**
+ * Is web push actually CONFIGURED (VAPID keys present)?
+ *
+ * Additive and deliberately NOT a change to `notify()`'s `Promise<void>`
+ * fire-and-forget contract, which every existing caller relies on.
+ *
+ * It exists because `notify()` returns SILENTLY when VAPID is unset — so a caller
+ * that must record a DELIVERY OUTCOME cannot distinguish "sent" from "there is no
+ * push transport on this deploy". The portfolio reminder rail
+ * (merchant-partner-lifecycle S2.2) needs that difference: a reminder nobody could
+ * receive has to be recorded as failed, not reported as sent (cross-agent review
+ * round 2, PR 310 — my first fix pre-checked the SUBSCRIPTION but not the
+ * TRANSPORT, so "valid subscription + missing VAPID" still recorded a false
+ * success).
+ *
+ * Answers "could we even try?", never "did it arrive".
+ */
+export function pushConfigured(): boolean {
+  return ensureVapid()
+}
+
 export type NotifyEvent = {
-  kind: 'new_message' | 'offer' | 'order'
+  // 'portfolio_reminder' added (Merchant Partner lifecycle · Sprint 2, Story
+  // 2.2) — a STEWARD-directed reminder that a merchant in their portfolio is
+  // overdue. Additive only: `public/sw.js` never switches on `kind` (it only
+  // reads `title`/`body`/`url`/`tag` generically), so this widening is a
+  // zero-blast-radius change to every existing caller.
+  kind: 'new_message' | 'offer' | 'order' | 'portfolio_reminder'
   title: string
   body: string
   url: string

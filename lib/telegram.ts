@@ -37,6 +37,29 @@ export function resolveChatId(
  * `tg.*` admin call (which omits it) is byte-for-byte unchanged. The seller
  * channel passes an explicit linked chat_id.
  */
+/**
+ * Is the Telegram transport actually CONFIGURED to reach a target right now?
+ *
+ * Additive, pure, and deliberately NOT a change to `tgSend`'s signature (it is
+ * `Promise<void>` and fire-and-forget by design — 13 admin call sites depend on
+ * that, and observability must never throw into a request path).
+ *
+ * It exists because "fire-and-forget" and "report whether delivery is possible"
+ * are different questions, and a caller that must record a DELIVERY OUTCOME
+ * cannot answer the second one from `tgSend` alone: an unset `TELEGRAM_BOT_TOKEN`
+ * makes it return silently, indistinguishable from a successful send. The
+ * portfolio reminder rail (merchant-partner-lifecycle S2.2) needs the difference
+ * — a reminder nobody could receive must be recorded as failed, not reported as
+ * sent (fresh-reviewer finding 2, PR 310).
+ *
+ * NOTE what this does and does not tell you: it answers "could we even try?",
+ * never "did it arrive". A configured transport can still fail at the network or
+ * get a non-2xx, and `tgSend` swallows both.
+ */
+export function tgConfigured(chatId?: string | null): boolean {
+  return Boolean(BOT_TOKEN) && Boolean(resolveChatId(chatId))
+}
+
 export async function tgSend(chatId: string | undefined | null, text: string): Promise<void> {
   const target = resolveChatId(chatId)
   if (!BOT_TOKEN || !target) return   // silently skip if not configured / no target
@@ -54,6 +77,38 @@ export async function tgSend(chatId: string | undefined | null, text: string): P
     })
   } catch {
     // Intentionally swallowed — Telegram is observability, not critical path
+  }
+}
+
+/**
+ * `tgSend`, but it REPORTS whether Telegram actually accepted the message.
+ *
+ * `tgSend` is `Promise<void>`: it swallows exceptions AND never inspects the
+ * response, so a non-2xx (bad token, chat not found, rate limit) is
+ * indistinguishable from a successful send. That is correct for the 13 admin
+ * observability call sites — telemetry must never throw into a request path — and
+ * wrong for any caller that has to persist a delivery outcome.
+ *
+ * Added for the portfolio reminder rail (cross-agent review round 2, PR 310):
+ * recording `channels: ['telegram']` when the API returned 401 is a false
+ * operational claim, and the whole point of that rail's `last_error` column is that
+ * a silently-dead reminder is the failure mode it exists to prevent.
+ *
+ * Never throws either — it returns `false` instead. `tgSend` is left byte-identical.
+ */
+export async function tgSendWithResult(chatId: string | undefined | null, text: string): Promise<boolean> {
+  const target = resolveChatId(chatId)
+  if (!BOT_TOKEN || !target) return false
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: target, text, parse_mode: 'HTML' }),
+      signal: AbortSignal.timeout(5000),
+    })
+    return res.ok
+  } catch {
+    return false
   }
 }
 
