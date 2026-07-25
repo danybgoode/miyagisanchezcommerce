@@ -27,9 +27,14 @@ const MODULE_IDS = [
 
 test.describe('home-personalization · islands (browser)', () => {
   test('anonymous: no personalization module renders on the static homepage', async ({ page }) => {
-    await page.goto('/')
+    // Same recurring prod-smoke flake as home-hero-auth.browser.spec.ts's anonymous test
+    // (2026-07-18, 2026-07-25): the `/` navigation itself occasionally exceeds 30s against
+    // prod, unrelated to any code change — other specs hitting `/` around the same run
+    // passed fine. Wider budget only; assertions below are unchanged.
+    test.setTimeout(60_000)
+    await page.goto('/', { timeout: 60_000 })
     // Let client hydration settle — the islands mount client-side, then no-op (no session).
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('networkidle', { timeout: 60_000 })
     for (const id of MODULE_IDS) {
       await expect(page.locator(`[data-testid="${id}"]`)).toHaveCount(0)
     }

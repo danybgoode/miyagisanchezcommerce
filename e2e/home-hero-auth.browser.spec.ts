@@ -16,8 +16,15 @@ import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
 
 test.describe('home-hero · signed-out only (browser)', () => {
   test('anonymous: the hero is present and visible', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    // This spec has twice (2026-07-18, 2026-07-25) failed the scheduled prod smoke on a
+    // bare `page.goto('/')` timeout — never a missing/broken hero, always the navigation
+    // itself exceeding Playwright's 30s default against a momentarily slow prod hit
+    // (other specs hitting `/` moments before/after passed in <1s both times). Give the
+    // network a wider budget before we call it a real failure; every assertion below is
+    // unchanged.
+    test.setTimeout(60_000)
+    await page.goto('/', { timeout: 60_000 })
+    await page.waitForLoadState('networkidle', { timeout: 60_000 })
     const hero = page.locator('[data-testid="home-hero"]')
     await expect(hero).toHaveCount(1)
     await expect(hero).toBeVisible()
