@@ -12,8 +12,30 @@ import { expect, test } from '@playwright/test'
  * application/json is what proves the real route once deployed.
  */
 
+/**
+ * FLAG-STATE DRIFT REPAIR (merchant-partner-lifecycle S1, 2026-07-24) — this
+ * helper asserted `toBe(status)` on a pinned 404, which was correct when this
+ * file was written (`promoter.activation_crm_enabled` was OFF, so the shared
+ * `authorizeRelationshipRequest` gate 404'd before Clerk ever ran) and became
+ * WRONG the moment Daniel flipped that flag ON in production: the anonymous
+ * request now reaches the Clerk check and gets a 401. Verified live 2026-07-24:
+ *
+ *   GET https://miyagisanchez.com/api/admin/scorecard → 401 application/json
+ *
+ * Every test in this file was failing against prod on `main`, for a reason that
+ * is not a bug — the exact same drift, from the exact same flag flip, that hit
+ * the three `e2e/relationship-*.spec.ts` route-guard specs.
+ *
+ * Repaired to the flag-state-AGNOSTIC form `e2e/partner-grants.spec.ts` already
+ * uses: 401 or the gated status, but always a GENUINE JSON response. The
+ * red→green signal this file documents is fully preserved — it was never the
+ * status code, it was the `content-type` flip from Next's generic HTML
+ * not-found page to a real route's JSON body. A pinned status ADDITIONALLY
+ * asserted a flag state, which a spec has no business pinning: the flag is
+ * Daniel's to flip, and flipping it must not turn the suite red.
+ */
 function expectGatedJson(res: { status(): number; headers(): Record<string, string> }, status: number) {
-  expect(res.status()).toBe(status)
+  expect([401, status]).toContain(res.status())
   expect(res.headers()['content-type'] ?? '').toContain('application/json')
 }
 

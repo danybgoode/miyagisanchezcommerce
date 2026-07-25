@@ -33,7 +33,7 @@ import {
 } from '@/lib/flags-cache'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled' | 'promoter.private_preview_enabled' | 'promoter.preview_verified_approval_enabled' | 'promoter.activation_crm_enabled' | 'growth.founding_merchants_enabled'
+export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled' | 'promoter.private_preview_enabled' | 'promoter.preview_verified_approval_enabled' | 'promoter.activation_crm_enabled' | 'growth.founding_merchants_enabled' | 'promoter.partner_portfolio_enabled'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -331,7 +331,23 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    path go live. Capacity (25 founding merchants, read from canonical
  *    `merchant_relationships` rows) is enforced independently of this flag —
  *    ON does not bypass a full cohort. Flip ON only after a disposable
- *    end-to-end application → admin-notify smoke passes in production. */
+ *    end-to-end application → admin-notify smoke passes in production.
+ *  - ENABLEMENT (`promoter.partner_portfolio_enabled`): default `false`
+ *    (merchant-partner-lifecycle epic, Story 1.1). Gates the Merchant Partner
+ *    stewardship portfolio: the new `/partner` portfolio SECTION (today's grant
+ *    list renders byte-identical while OFF — that is the whole promise of this
+ *    kill-switch), `GET /api/partner/portfolio`, `GET/PUT /api/admin/sla-policy`
+ *    and `POST /api/admin/relationship/[id]/reassign`, all of which 404 while
+ *    OFF (indistinguishable from absent, matching
+ *    `promoter.activation_crm_enabled`'s posture). Deliberately does NOT gate
+ *    the SHIPPED promoter-facing `POST /api/promoter/relationship/[id]/owner`
+ *    route — that keeps its own `promoter.activation_crm_enabled` gate and its
+ *    exact shipped behavior (activation-ops S2.2), so this epic can never
+ *    dark-launch its way into breaking a live surface. The additive migration
+ *    (5 nullable columns, the single-row SLA policy table, 3 nullable
+ *    owner-history columns) stays forward-compatible regardless of this flag.
+ *    Flip ON only after the two-partner scope + reassignment-attribution
+ *    smokes pass. */
 const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'checkout.stripe_enabled': true,
   'checkout.rental_pricing_enabled': false,
@@ -372,6 +388,7 @@ const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
   'promoter.preview_verified_approval_enabled': false,
   'promoter.activation_crm_enabled': false,
   'growth.founding_merchants_enabled': false,
+  'promoter.partner_portfolio_enabled': false,
 }
 
 const TABLE = 'platform_flags'

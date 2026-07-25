@@ -33,28 +33,38 @@
  * itself grants access (C1), that window is a genuine "access changed,
  * nobody can prove why or by whom" gap, not just a cosmetic audit-trail
  * miss. Fail closed: no history row, no access change.
+ *
+ * SHARED WRITER (merchant-partner-lifecycle S1.3, build contract: "Two routes,
+ * two audiences, one shared writer"): the history-then-update sequence now
+ * lives in `lib/portfolio/reassign-server.ts#reassignSteward`, which the new
+ * ADMIN route (`POST /api/admin/relationship/[id]/reassign`) also calls — so the
+ * D3a ordering and the attribution guarantee cannot differ between the two
+ * audiences. THIS ROUTE'S BEHAVIOR IS UNCHANGED, deliberately: it passes only
+ * `toSteward`, so the writer's positive-list payload builder emits only
+ * `steward_clerk_user_id` + `updated_at` (never NULLing this sprint's new
+ * `assignment_reason`/`assigned_at` columns), the history row carries no
+ * reason/effective_at/tasks_transferred, a no-op reassignment still skips the
+ * history insert, and no open task is touched. Nothing here was loosened, and it
+ * was deliberately NOT made admin-only — that would break activation-ops S2.2's
+ * shipped behavior. `STEWARD_ID_RE` moved to `lib/portfolio/reassign.ts` and is
+ * imported, so the admin path can never validate this field more laxly than this
+ * one does.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/supabase'
 import {
   authorizeRelationshipRequest,
   resolveRelationshipAccess,
   canWriteRelationship,
   toRelationshipDTO,
-  type RelationshipRow,
 } from '@/lib/relationship-access'
+import { STEWARD_ID_RE } from '@/lib/portfolio/reassign'
+import { reassignSteward } from '@/lib/portfolio/reassign-server'
 
 export const dynamic = 'force-dynamic'
 
 interface OwnerBody {
   toSteward?: string | null
 }
-
-// A Clerk user id's own shape (`user_<base62ish>`) is narrower than this, but
-// this repo doesn't parse Clerk ids anywhere else either — a generous
-// safe-charset + length cap is enough to stop garbage from becoming a
-// load-bearing access value without hardcoding Clerk's own format.
-const STEWARD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRelationshipRequest(req)
@@ -91,50 +101,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'Dueño inválido.' }, { status: 400 })
   }
 
-  // D3a: history FIRST. A no-op reassignment (fromSteward === toSteward)
-  // has nothing to audit, so it skips straight to the (harmless) primary
-  // write below.
-  if (fromSteward !== toSteward) {
-    const { error: historyError } = await db.from('merchant_relationship_owner_history').insert({
-      relationship_id: id,
-      from_steward: fromSteward,
-      to_steward: toSteward,
-      actor_clerk_user_id: auth.user.id,
-    })
-    if (historyError) {
-      console.error('[relationship/owner] owner history insert failed — refusing the reassignment:', historyError.message)
-      return NextResponse.json(
-        { ok: false, error: 'No se pudo registrar el historial de auditoría; la reasignación no se aplicó.' },
-        { status: 500 },
-      )
-    }
-  }
+  // D3a (history FIRST, and a failed history write refuses the whole
+  // reassignment) plus the no-op skip both live in the shared writer now.
+  // `reason` / `effectiveAt` / `transferOpenTasks` are all omitted, which is what
+  // keeps this route's writes byte-identical to its shipped behavior — see the
+  // file header.
+  const result = await reassignSteward({
+    relationshipId: id,
+    fromSteward,
+    toSteward,
+    actorClerkUserId: auth.user.id,
+    now: new Date(),
+  })
 
-  const { data, error } = await db
-    .from('merchant_relationships')
-    .update({ steward_clerk_user_id: toSteward, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select(
-      'id, business_name, contact_name, phone_e164, email_normalized, whatsapp_e164, instagram_handle, ' +
-        'estado, municipio, location_note, category, current_channels, preferred_channel, qualification, ' +
-        'fit_note, objections, promoter_id, cohort, source, steward_clerk_user_id, shop_id, preview_id, ' +
-        'stage, stage_entered_at, intake_complete, created_by, created_at, updated_at',
-    )
-    .maybeSingle()
-
-  if (error || !data) {
-    // The history row (if one was written above) now describes a
-    // reassignment that never actually took effect — an orphaned audit
-    // entry is a strictly smaller problem than an unaudited access change,
-    // and a rare failure at this specific step (after a successful insert
-    // one line above) is not worth a compensating delete that could itself
-    // fail and compound the inconsistency.
-    return NextResponse.json({ ok: false, error: 'No se pudo reasignar el dueño.' }, { status: 500 })
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status })
   }
 
   return NextResponse.json({
     ok: true,
-    relationship: toRelationshipDTO(data as unknown as RelationshipRow),
+    relationship: toRelationshipDTO(result.relationship),
     ownerHistoryRecorded: true,
   })
 }

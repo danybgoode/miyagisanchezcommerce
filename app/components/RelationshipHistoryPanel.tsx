@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { STAGE_LABEL } from '@/lib/merchant-stage-labels'
 
 /**
  * Founding merchant activation operations · Sprint 2 (Story 2.3) — the
@@ -36,22 +37,11 @@ const INTERACTION_KIND_LABEL: Record<string, string> = {
   other: 'Otro',
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  scouted: 'Detectado',
-  qualified: 'Calificado',
-  permission_granted: 'Permiso otorgado',
-  preview_in_preparation: 'Vista previa en preparación',
-  preview_delivered: 'Vista previa entregada',
-  activation_scheduled: 'Activación agendada',
-  claimed: 'Tienda reclamada',
-  payments_ready: 'Pagos listos',
-  three_products_live: '3+ productos publicados',
-  shared_externally: 'Compartido externamente',
-  first_inquiry: 'Primera consulta',
-  first_sale: 'Primera venta',
-  retained_30d: 'Retenido a 30 días',
-}
-
+// Moved to `lib/merchant-stage-labels.ts` (merchant-partner-lifecycle S1.2) so a
+// SERVER component can read it too — a plain-object export cannot be read out of
+// a `'use client'` module from RSC, and copying the map into a second file would
+// fork it. Same values, one definition; still re-exported at the bottom of this
+// file for the consumers that already import it from here.
 const STAGES_FOR_CORRECTION = Object.keys(STAGE_LABEL)
 
 /** D3c fix (PR 304 review, round 3): `actor_type` is a raw English DB enum

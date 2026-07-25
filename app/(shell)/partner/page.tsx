@@ -3,6 +3,8 @@ import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
 import { db } from '@/lib/supabase'
 import { getPromoterByClerkId } from '@/lib/promoter'
+import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
+import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Mis tiendas — Socios', robots: { index: false } }
@@ -38,12 +40,40 @@ function fmtDate(iso: string): string {
  * Behind `partners.mcp_enabled` — flag off → `notFound()`. `force-dynamic` so
  * that 404 doesn't bake into the prerender (LEARNINGS: a flag flip must be
  * visible on the very next request, not held back by a cached static shell).
+ *
+ * STEWARDSHIP PORTFOLIO (merchant-partner-lifecycle S1.2): with
+ * `promoter.partner_portfolio_enabled` ON, the `<PartnerPortfolio>` action queue
+ * renders ABOVE the grant list. With the flag OFF — its born state — the
+ * expression below evaluates to `false`, React renders nothing for it, and this
+ * page's markup is BYTE-IDENTICAL to what it serves today. That is the whole
+ * promise of the kill-switch, and it is why the portfolio is an ADDITIONAL
+ * section rather than a replacement for the grant list (README D1). The two
+ * answer different questions — "which shops may I administer" vs. "which
+ * merchants am I accountable for right now" — and both read from seams that can
+ * never disagree about who is in scope.
  */
-export default async function PartnerDashboardPage() {
+export default async function PartnerDashboardPage({
+  searchParams,
+}: {
+  // Next.js 16: a Promise, always awaited (AGENTS).
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   if (!(await isEnabled('partners.mcp_enabled'))) notFound()
 
   const user = await currentUser()
   if (!user) redirect('/sign-in')
+
+  const portfolioEnabled = await isEnabled(PORTFOLIO_FLAG)
+  const params = new URLSearchParams()
+  if (portfolioEnabled) {
+    for (const [key, value] of Object.entries(await searchParams)) {
+      if (typeof value === 'string') params.set(key, value)
+      // An array-valued param (`?due=a&due=b`) keeps only the FIRST value —
+      // the pure filter parser reads one value per key, and silently honoring
+      // the last one would make two identical-looking URLs filter differently.
+      else if (Array.isArray(value) && value.length > 0) params.set(key, value[0])
+    }
+  }
 
   const promoter = await getPromoterByClerkId(user.id)
 
@@ -72,7 +102,7 @@ export default async function PartnerDashboardPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+    <div className={portfolioEnabled ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
       <header>
         <h1 className="text-2xl font-bold">Mis tiendas</h1>
         {promoter ? (
@@ -86,6 +116,8 @@ export default async function PartnerDashboardPage() {
           </p>
         )}
       </header>
+
+      {portfolioEnabled && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
 
       {!promoter && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">

@@ -40,8 +40,25 @@ import { expect, test } from '@playwright/test'
 
 const FAKE_ID = '00000000-0000-0000-0000-000000000000'
 
+/**
+ * FLAG-STATE DRIFT REPAIR (merchant-partner-lifecycle S1, 2026-07-24) — the
+ * assertion below was `toBe(404)`, which was correct when this file was written
+ * (`promoter.activation_crm_enabled` was OFF, so the shared gate 404'd before
+ * Clerk ever ran) and became WRONG the moment that flag was flipped ON in
+ * production: the anonymous request now reaches the Clerk check and gets a 401.
+ * Every one of these tests was failing against prod on `main`, for a reason that
+ * is not a bug.
+ *
+ * Repaired to the flag-state-AGNOSTIC form `e2e/partner-grants.spec.ts` already
+ * uses for exactly this reason: 401 or 404, but always a GENUINE JSON response.
+ * The red→green signal this file documents is fully preserved — it was never the
+ * status code, it was the `content-type` flip from Next's generic HTML not-found
+ * page to a real route's JSON body. A pinned status code additionally asserted a
+ * FLAG STATE, which a spec has no business pinning: the flag is Daniel's to flip,
+ * and flipping it must not turn the suite red.
+ */
 function expectGatedJson404(res: { status(): number; headers(): Record<string, string> }) {
-  expect(res.status()).toBe(404)
+  expect([401, 404]).toContain(res.status())
   expect(res.headers()['content-type'] ?? '').toContain('application/json')
 }
 

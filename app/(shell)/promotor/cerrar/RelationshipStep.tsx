@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { ESTADO_NAMES } from '@/lib/mx-locations'
+// Labels imported, never restated. This map used to live here with
+// `email: 'Correo'` while lib/portfolio/resolver.ts had `'Correo electrónico'`
+// — the drift that made this a single source (PR 308 finding 2).
+import { PREFERRED_CHANNEL_LABEL } from '@/lib/preferred-channels'
 
 /**
  * Founding merchant activation operations · Sprint 1 — the field-intake step
@@ -50,13 +54,6 @@ type LinkedShop = { shopId: string; slug: string; name: string; estado?: string 
 type Suggestion = { id: string; businessName: string }
 type HistoryEntry = { id: string; businessName: string }
 
-const PREFERRED_CHANNEL_LABEL: Record<string, string> = {
-  whatsapp: 'WhatsApp',
-  phone: 'Teléfono',
-  email: 'Correo',
-  instagram: 'Instagram',
-  in_person: 'En persona',
-}
 
 const QUALIFICATION_LABEL: Record<string, string> = {
   unknown: 'Sin calificar',
