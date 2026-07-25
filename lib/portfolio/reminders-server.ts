@@ -29,11 +29,13 @@
  */
 import 'server-only'
 import { db } from '@/lib/supabase'
-import { notify } from '@/lib/notify'
-import { tgSend, tgConfigured } from '@/lib/telegram'
+import { notify, pushConfigured } from '@/lib/notify'
+import { tgSendWithResult, tgConfigured } from '@/lib/telegram'
 import type { RelationshipActor } from '@/lib/relationship-access'
 import { loadPortfolio } from '@/lib/portfolio/loader'
 import { loadSlaPolicy } from '@/lib/portfolio/policy-server'
+import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
+import { isEnabled } from '@/lib/flags'
 import {
   buildReminderCopy,
   foldLatestReminderFailures,
@@ -110,7 +112,14 @@ async function claimAndDeliver(target: ReminderTarget, now: Date): Promise<Remin
   // transports' contracts (13 admin call sites rely on `tgSend` never throwing).
   // A channel that could not even be ATTEMPTED is recorded as such — distinct
   // from one that was attempted and threw.
-  if (pushTarget) {
+  if (pushTarget && !pushConfigured()) {
+    // ROUND-2 FIX (cross-agent review, PR 310). My first pass pre-checked the
+    // SUBSCRIPTION but not the TRANSPORT, so "valid subscription + missing VAPID"
+    // still recorded a false success: `notify()` returns silently when VAPID is
+    // unset. Checking the subscription alone answered the wrong half of the
+    // question.
+    notAttempted.push('push (VAPID no configurado en este despliegue)')
+  } else if (pushTarget) {
     const { data: subs, error: subsError } = await db
       .from('push_subscriptions')
       .select('id')
@@ -142,12 +151,16 @@ async function claimAndDeliver(target: ReminderTarget, now: Date): Promise<Remin
   if (!tgConfigured()) {
     notAttempted.push('telegram (canal no configurado)')
   } else {
-    try {
-      await tgSend(undefined, copy.telegramHtml)
-      channels.push('telegram')
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err)
-      console.error('[portfolio/reminders] telegram delivery failed:', err)
+    // `tgSendWithResult`, not `tgSend`: the latter is `Promise<void>` and never
+    // inspects the response, so a non-2xx (bad token, chat not found, rate limit)
+    // was indistinguishable from a successful send and got recorded as a delivered
+    // channel (cross-agent review round 2, PR 310). `tgSend` stays byte-identical
+    // for its 13 admin observability call sites.
+    const sent = await tgSendWithResult(undefined, copy.telegramHtml)
+    if (sent) channels.push('telegram')
+    else {
+      lastError = 'telegram no aceptó el mensaje (respuesta no-2xx, timeout o error de red)'
+      console.error('[portfolio/reminders] telegram delivery failed')
     }
   }
 
@@ -191,6 +204,23 @@ export interface RunRemindersResult {
  * not abort the rest, mirroring `sweepMerchantLifecycle`'s own discipline.
  */
 export async function runPortfolioReminders(now: Date = new Date()): Promise<RunRemindersResult> {
+  // THE EPIC KILL-SWITCH GATES THIS RAIL TOO (cross-agent review round 2, PR 310).
+  // Without it, an authorized cron request delivered real push notifications and
+  // real Telegram messages to stewards while `promoter.partner_portfolio_enabled`
+  // was still OFF — a dark feature that notifies humans is not dark. My earlier
+  // rationalization (the S3 migration header's "same posture Sprint 2's reminder
+  // cron already takes") described the behavior instead of justifying it; codex was
+  // right that it defeats the declared boundary.
+  //
+  // Deliberately distinguished from the SWEEP's retention-scheduling and
+  // Golden-Beans emission, which stay ungated: those write internal state and
+  // telemetry, where the flag-off cost is a row nobody reads. THIS path sends a
+  // notification to a person, which is user-visible and cannot be walked back. The
+  // dividing line is "does a human get contacted", not "is it a cron".
+  if (!(await isEnabled(PORTFOLIO_FLAG))) {
+    return { ok: true, candidates: 0, sent: 0, alreadyReminded: 0, failed: 0 }
+  }
+
   // REFUSE on an unreadable policy (fresh-reviewer finding 4, PR 310). For a row
   // overdue by `no_dated_action`, `dueAt = lastTouch + window.responseDays`, so a
   // DIFFERENT `responseDays` yields a DIFFERENT `window_key` — and a different

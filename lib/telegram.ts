@@ -80,6 +80,38 @@ export async function tgSend(chatId: string | undefined | null, text: string): P
   }
 }
 
+/**
+ * `tgSend`, but it REPORTS whether Telegram actually accepted the message.
+ *
+ * `tgSend` is `Promise<void>`: it swallows exceptions AND never inspects the
+ * response, so a non-2xx (bad token, chat not found, rate limit) is
+ * indistinguishable from a successful send. That is correct for the 13 admin
+ * observability call sites — telemetry must never throw into a request path — and
+ * wrong for any caller that has to persist a delivery outcome.
+ *
+ * Added for the portfolio reminder rail (cross-agent review round 2, PR 310):
+ * recording `channels: ['telegram']` when the API returned 401 is a false
+ * operational claim, and the whole point of that rail's `last_error` column is that
+ * a silently-dead reminder is the failure mode it exists to prevent.
+ *
+ * Never throws either — it returns `false` instead. `tgSend` is left byte-identical.
+ */
+export async function tgSendWithResult(chatId: string | undefined | null, text: string): Promise<boolean> {
+  const target = resolveChatId(chatId)
+  if (!BOT_TOKEN || !target) return false
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: target, text, parse_mode: 'HTML' }),
+      signal: AbortSignal.timeout(5000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 /** Admin notification — sends to TELEGRAM_CHAT_ID. Thin wrapper over `tgSend`. */
 export async function tgNotify(text: string): Promise<void> {
   return tgSend(undefined, text)

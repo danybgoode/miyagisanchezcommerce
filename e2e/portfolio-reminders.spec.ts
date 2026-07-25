@@ -235,10 +235,15 @@ test.describe('source · reminders-server.ts claims under the UNIQUE constraint 
     const body = source.slice(fnStart)
     const insertAt = body.indexOf(".from('merchant_followup_reminders')\n    .insert(")
     const notifyAt = body.indexOf('await notify(')
-    const tgAt = body.indexOf('await tgSend(')
+    // Matches EITHER telegram helper. The invariant this test guards is
+    // "claim before delivery", not which function delivers: round 2 of the PR 310
+    // cross-review moved this call from `tgSend` (void, swallows a non-2xx) to
+    // `tgSendWithResult` (reports it), and pinning the name made a correct fix
+    // look like a regression. Guard the invariant, not the spelling.
+    const tgAt = Math.max(body.indexOf('await tgSend('), body.indexOf('await tgSendWithResult('))
     expect(insertAt, 'claim insert not found').toBeGreaterThan(-1)
     expect(notifyAt, 'notify() call not found').toBeGreaterThan(-1)
-    expect(tgAt, 'tgSend() call not found').toBeGreaterThan(-1)
+    expect(tgAt, 'no telegram delivery call found').toBeGreaterThan(-1)
     expect(insertAt).toBeLessThan(notifyAt)
     expect(insertAt).toBeLessThan(tgAt)
   })
@@ -453,5 +458,84 @@ test.describe('the reminder rail can OBSERVE a failure at all (finding 2)', () =
 
   test('the cron REFUSES an unreadable SLA policy rather than risk a duplicate window (finding 4)', () => {
     expect(src).toMatch(/source === 'read_failed'/)
+  })
+})
+
+// ── Round-2 findings: the rail is gated, and both transports report honestly ───
+//
+// Codex re-reviewed the FIXED tip and found two things the first pass couldn't see,
+// one of them created by my own earlier fix:
+//   · the cron had no epic kill-switch, so it delivered real push + Telegram to
+//     stewards while the feature was dark. A dark feature that notifies humans is
+//     not dark.
+//   · my "pre-check reachability" fix checked the SUBSCRIPTION but not the
+//     TRANSPORT (missing VAPID ⇒ `notify()` returns silently), and `tgSend` never
+//     inspects its response, so a non-2xx counted as a delivered channel.
+
+test.describe('the reminder rail is gated by the epic kill-switch', () => {
+  const code = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/reminders-server.ts'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('the run refuses when promoter.partner_portfolio_enabled is OFF', () => {
+    expect(code).toMatch(/isEnabled\(PORTFOLIO_FLAG\)/)
+  })
+
+  test('the flag key is imported by reference, never re-typed', () => {
+    expect(code).toMatch(/import \{ PORTFOLIO_FLAG \}/)
+    expect(code).not.toContain("'promoter.partner_portfolio_enabled'")
+  })
+
+  test('the gate runs BEFORE any claim or delivery', () => {
+    // Sliced to the FUNCTION BODY first. Comparing `indexOf` over the whole file
+    // matched the IMPORT of `selectReminderTargets` at the top — which is of course
+    // before the gate — so the assertion failed on correct code. An ordering guard
+    // has to look at the ordering it actually means.
+    const fnStart = code.indexOf('export async function runPortfolioReminders')
+    expect(fnStart).toBeGreaterThan(-1)
+    const body = code.slice(fnStart)
+    const gate = body.indexOf('isEnabled(PORTFOLIO_FLAG)')
+    const select = body.indexOf('selectReminderTargets(')
+    expect(gate, 'flag gate not found in runPortfolioReminders').toBeGreaterThan(-1)
+    expect(select, 'target selection not found in runPortfolioReminders').toBeGreaterThan(-1)
+    expect(gate).toBeLessThan(select)
+  })
+})
+
+test.describe('a channel is only "delivered" when it actually could be, and was', () => {
+  const code = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/reminders-server.ts'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('push requires the TRANSPORT as well as a subscription', () => {
+    // Checking the subscription alone answered the wrong half of the question.
+    expect(code).toMatch(/pushConfigured\(\)/)
+    expect(code).toContain('push_subscriptions')
+  })
+
+  test('telegram uses the RESULT-returning send, not the fire-and-forget one', () => {
+    expect(code).toMatch(/tgSendWithResult\(/)
+    // The void variant must not be what decides a recorded outcome.
+    expect(code).not.toMatch(/await tgSend\(/)
+  })
+
+  test('a non-2xx Telegram response records an error instead of a delivered channel', () => {
+    expect(code).toMatch(/if \(sent\) channels\.push\('telegram'\)/)
+    expect(code).toMatch(/lastError = 'telegram no aceptó/)
+  })
+
+  test('the shared fire-and-forget contracts were NOT changed for their existing callers', () => {
+    // 13 admin call sites rely on `tgSend` never throwing; `notify` is `Promise<void>`
+    // everywhere else. Both probes are ADDITIVE.
+    const tg = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/telegram.ts'), 'utf8')
+    expect(tg).toMatch(/export async function tgSend\(chatId: string \| undefined \| null, text: string\): Promise<void>/)
+    const nt = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/notify.ts'), 'utf8')
+    expect(nt).toMatch(/export async function notify\(userId: string, event: NotifyEvent\): Promise<void>/)
   })
 })
