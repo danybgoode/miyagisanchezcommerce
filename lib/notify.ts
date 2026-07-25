@@ -20,7 +20,12 @@ function ensureVapid(): boolean {
 }
 
 export type NotifyEvent = {
-  kind: 'new_message' | 'offer' | 'order'
+  // 'portfolio_reminder' added (Merchant Partner lifecycle · Sprint 2, Story
+  // 2.2) — a STEWARD-directed reminder that a merchant in their portfolio is
+  // overdue. Additive only: `public/sw.js` never switches on `kind` (it only
+  // reads `title`/`body`/`url`/`tag` generically), so this widening is a
+  // zero-blast-radius change to every existing caller.
+  kind: 'new_message' | 'offer' | 'order' | 'portfolio_reminder'
   title: string
   body: string
   url: string
