@@ -249,3 +249,35 @@ export const METRIC_DICTIONARY: Readonly<Record<string, MetricDefinition>> = {
 export const DICTIONARY_STAGES: readonly Stage[] = STAGES
 export const DICTIONARY_STAGE_ORDINAL: Readonly<Record<Stage, number>> = STAGE_ORDINAL
 export type { Stage }
+
+/**
+ * Retention task OUTCOME vocabulary (Merchant Partner lifecycle · Sprint 3,
+ * Story 3.1) — the values a partner may record when completing a
+ * `retention_30d` task (`merchant_relationship_tasks.outcome`). Lives HERE,
+ * not in `lib/portfolio/`, because this epic's README D3 already names THIS
+ * file as the home for "retention/outcome and aging vocabulary" — a second
+ * copy in `lib/portfolio/retention.ts` would be exactly the
+ * paraphrased-contract-drift LEARNINGS warns about
+ * (`paraphrased-contract-drifts-permissive`).
+ *
+ * DID NOT EXIST BEFORE THIS SPRINT (flagged deviation, not silently
+ * resolved): the sprint-3 build contract says "the allowed outcome values
+ * are defined in the scorecard dictionary and imported" as though this
+ * vocabulary already shipped; verified 2026-07-25 — it did not (grepped
+ * `lib/scorecard/` for "outcome", zero hits). Added here, versioned like
+ * every other export in this file, so `lib/portfolio/retention.ts#isAllowedOutcome`
+ * imports it BY REFERENCE and the Sprint-3 migration's CHECK constraint is
+ * GENERATED from it in the migration's own comment — this array is the
+ * single, authoritative source; nothing else in the repo restates it.
+ *
+ * Not bumping `SCORECARD_SCHEMA_VERSION`: that version covers the shape/
+ * computation of the scorecard's OWN metrics (the README-D bump discipline
+ * above), and this addition changes none of them — it is an orthogonal
+ * vocabulary the scorecard does not currently render.
+ */
+export const RETENTION_OUTCOMES = ['retained', 'at_risk', 'churned'] as const
+export type RetentionOutcome = (typeof RETENTION_OUTCOMES)[number]
+const RETENTION_OUTCOME_SET: ReadonlySet<string> = new Set(RETENTION_OUTCOMES)
+export function isRetentionOutcome(value: unknown): value is RetentionOutcome {
+  return typeof value === 'string' && RETENTION_OUTCOME_SET.has(value)
+}

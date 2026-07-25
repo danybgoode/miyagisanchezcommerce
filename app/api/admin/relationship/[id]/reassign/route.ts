@@ -49,6 +49,8 @@ import { authorizePortfolioRequest } from '@/lib/portfolio/gate-server'
 import { resolveRelationshipAccess, toRelationshipDTO } from '@/lib/relationship-access'
 import { parseReassignBody } from '@/lib/portfolio/reassign'
 import { reassignSteward } from '@/lib/portfolio/reassign-server'
+import { emitPortfolioLifecycleEvent } from '@/lib/portfolio/events-server'
+import { opaqueActorKey, portfolioEventDedupeKey } from '@/lib/portfolio/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +105,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       { ok: false, error: result.error, ...(result.tasksTransferred !== undefined ? { tasksTransferred: result.tasksTransferred } : {}) },
       { status: result.status },
     )
+  }
+
+  // Merchant Partner lifecycle · Sprint 3, Story 3.3 (README D8/D9) — a
+  // PII-free portfolio event, emitted AFTER the canonical write above,
+  // never instead of it. Only when the steward actually CHANGED (a
+  // re-affirmation with just a new `reason` is an audit event, not a
+  // stewardship-assignment fact worth reusing this vocabulary for).
+  // A genuinely identical replay (same relationship, same new steward, same
+  // `effectiveAt`) collides into the SAME key on purpose — that IS the
+  // idempotent case. The steward is HASHED into the key (`opaqueActorKey`)
+  // rather than embedded raw: the dedupe key is copied verbatim into
+  // `context.idempotencyKey` and shipped to Golden Beans, so a raw Clerk id
+  // would put a PERSON identifier on the wire while D9's own exclusion list
+  // forbids even opaque internal ids like `promoterId`/`shopId`
+  // (fresh-reviewer finding 4, PR 311). Hashing keeps the idempotency
+  // property — same steward, same key, forever — and removes the identifier.
+  //
+  // The key is composed from `effectiveAt`, not `now`; an earlier comment here
+  // said `now` and the code already used `effectiveAt`.
+  if (parsed.value.toSteward !== access.relationship.steward_clerk_user_id) {
+    await emitPortfolioLifecycleEvent({
+      relationshipId: id,
+      event: 'merchant.steward_assigned',
+      dedupeKey: portfolioEventDedupeKey(
+        'merchant.steward_assigned',
+        `${parsed.value.toSteward ? opaqueActorKey(parsed.value.toSteward) : 'none'}:${parsed.value.effectiveAt}`,
+      ),
+      occurredAt: parsed.value.effectiveAt,
+    })
   }
 
   return NextResponse.json({

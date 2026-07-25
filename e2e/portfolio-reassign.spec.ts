@@ -240,11 +240,27 @@ test.describe('population guard · nothing in lib/portfolio/ can reach a commiss
     expect(promoterLib).toContain('marketplace_promoters')
   })
 
+  /**
+   * CODE ONLY, comments stripped (PR 311). The guard's subject is what the code can
+   * REACH, and a doc comment naming a forbidden table to explain why the module
+   * deliberately avoids it is the opposite of a violation — it is the evidence.
+   * Left matching raw text, this guard failed on
+   * `lib/portfolio/partner-portfolio-auth.ts`, whose comment explains that it reads
+   * the promoter row through the shipped `getPromoterById` helper PRECISELY so the
+   * table reference stays out of `lib/portfolio/`. A guard that punishes a module
+   * for documenting its own compliance pressures the next person to delete the
+   * explanation — the third time this exact trap appeared in this epic.
+   */
+  const codeOf = (file: string) =>
+    read(file)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
   for (const forbidden of FORBIDDEN_REFERENCES) {
-    test(`no lib/portfolio module references "${forbidden}"`, () => {
+    test(`no lib/portfolio module references "${forbidden}" in CODE`, () => {
       const offenders: string[] = []
       for (const file of portfolioFiles()) {
-        if (read(file).includes(forbidden)) offenders.push(file)
+        if (codeOf(file).includes(forbidden)) offenders.push(file)
       }
       expect(offenders).toEqual([])
     })

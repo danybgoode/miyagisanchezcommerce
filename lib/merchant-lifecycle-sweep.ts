@@ -68,6 +68,11 @@ import {
   type EmitOutcome,
 } from '@/lib/merchant-lifecycle-server'
 import { evaluateRelationship } from '@/lib/merchant-relationship-lifecycle'
+import { scheduleRetentionTask } from '@/lib/portfolio/retention-server'
+import { retentionDedupeKey } from '@/lib/portfolio/retention'
+import { emitPortfolioLifecycleEvent, PORTFOLIO_EVENT_SWEEP_ACTOR } from '@/lib/portfolio/events-server'
+import { loadPortfolio } from '@/lib/portfolio/loader'
+import { portfolioEventDedupeKey } from '@/lib/portfolio/events'
 // The Medusa GET reads and their constants moved to `lib/merchant-medusa-
 // reads.ts` (Sprint 3) — see that file's header for why (breaking a circular
 // import Story 3.1's relationship evaluation introduced). Re-exported below
@@ -194,6 +199,17 @@ export interface SweepResult {
    *  subjects, and the flag's contract is that nothing in this epic's write paths goes
    *  live until a disposable-merchant smoke passes and Daniel flips it. */
   relationshipsSkippedFlagOff: boolean
+  /** Merchant Partner lifecycle · Sprint 3, Story 3.1 (README D7) — 30-day
+   *  retention check-in tasks newly scheduled this run, off a relationship's
+   *  write-once `first_sale` transition. Does NOT count `already_scheduled`
+   *  or `no_first_sale` — both are expected steady-state outcomes, not
+   *  events worth alarming a healthy-run count with. */
+  retentionTasksScheduled: number
+  /** Merchant Partner lifecycle · Sprint 3, Story 3.3 (README D8/D9) — PII-free
+   *  portfolio SLA/retention events emitted this run (`merchant.steward_assigned`
+   *  is emitted from the admin reassign route instead — see that route's own
+   *  header — so it is never counted here). */
+  portfolioEventsEmitted: number
 }
 
 interface Candidate {
@@ -325,6 +341,8 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
     relationshipsEvaluated: 0,
     relationshipsAdvanced: 0,
     relationshipsSkippedFlagOff: false,
+    retentionTasksScheduled: 0,
+    portfolioEventsEmitted: 0,
   }
 
   // ── 1. Drain anything claimed but not confirmed delivered ──────────────────
@@ -347,6 +365,12 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
         pending.eventType,
         pending.payload,
         pending.attempts,
+        // Sprint 3, Story 3.3 (README D8) — the third PK component.  `''`
+        // for a milestone row (byte-identical to before); a real key for a
+        // pending portfolio event. Without this, a merchant with TWO
+        // pending occurrences of the same event type would have BOTH
+        // marked delivered the moment either one actually sent.
+        pending.dedupeKey,
       )
       if (outcome === 'delivered') result.drained += 1
       else if (outcome === 'flag_off') result.telemetryOff = true
@@ -543,6 +567,109 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
       // sweep's own drain, step 1, will redeliver it next run). Either way
       // the run as a whole is not clean.
       if (!outcome.ok) result.errors += 1
+
+      // Merchant Partner lifecycle · Sprint 3, Story 3.1 (README D7) — the
+      // sweep is what DISCOVERS `first_sale`, so scheduling the retention
+      // task right here costs no new cron and cannot run before the
+      // transition exists. Safe to call unconditionally: it no-ops
+      // (`no_first_sale`) when the transition doesn't exist yet, and
+      // no-ops (`already_scheduled`, under the migration's partial UNIQUE
+      // constraint) when the task was already written on an earlier run —
+      // never a SELECT-then-INSERT.
+      const scheduled = await scheduleRetentionTask(relationshipId, now)
+      if (scheduled === 'scheduled') result.retentionTasksScheduled += 1
+
+      // Story 3.3 — emitted right after the canonical write it describes, never
+      // instead of it. `retentionDedupeKey` is the SAME key the task row was
+      // claimed under, so exactly one scheduling event exists per relationship,
+      // matching the task's own once-only guarantee.
+      //
+      // EMITTED FOR `already_scheduled` TOO (fresh-reviewer finding 9, PR 311).
+      // The emit used to be inside the `=== 'scheduled'` branch, which bound a
+      // DURABLE fact to a TRANSIENT outcome: if the sweep died between the task
+      // insert and the emit, the next run got `already_scheduled` and the emit was
+      // never retried — the event was permanently lost, silently, with the task
+      // sitting right there in the database. Every other event in this rail is
+      // claim-backed and self-healing; this one wasn't.
+      //
+      // Retrying is FREE and cannot duplicate: the emission claim's own
+      // `(merchant_id, event_type, dedupe_key)` primary key makes a repeat a no-op
+      // (`already_emitted`), which is the same argument that lets the milestone
+      // paths derive from state rather than hooking a write. `error` still skips —
+      // we don't know whether a task exists to describe.
+      if (scheduled === 'scheduled' || scheduled === 'already_scheduled') {
+        const outcome2 = await emitPortfolioLifecycleEvent({
+          relationshipId,
+          event: 'merchant.retention_scheduled',
+          dedupeKey: retentionDedupeKey(relationshipId),
+          occurredAt: now.toISOString(),
+        })
+        if (recordPortfolioEvent(outcome2, result)) result.portfolioEventsEmitted += 1
+      }
+
+      if (scheduled === 'error') {
+        result.errors += 1
+      }
+    } catch {
+      result.errors += 1
+    }
+  }
+
+  // ── 6. PORTFOLIO SLA EVENTS (Sprint 3, Story 3.3) ───────────────────────
+  // A STATE-DERIVED scan, the same "derive from state, don't hook every
+  // writer" posture steps 3/4 already use for three_products_live/
+  // retained_30d — chosen here specifically because the two natural
+  // per-write trigger points (`lib/portfolio/reminders-server.ts`'s claim
+  // flow for overdue, `lib/portfolio/reassign-server.ts` for assignment)
+  // are BOTH foundation modules this sprint may import but not reshape
+  // (build brief). Reading the SAME `loadPortfolio` the UI/API route
+  // already calls means this can never disagree with what a partner
+  // actually sees, and the widened `merchant_lifecycle_emissions` PK (D8)
+  // makes a daily re-scan free: a relationship still overdue against the
+  // SAME `slaDueAt` window re-claims the identical dedupe key and is
+  // skipped by the constraint.
+  //
+  // `merchant.steward_assigned` and `merchant.sla_completed` are NOT
+  // emitted here — they are wired at their own canonical write sites (the
+  // admin reassign route, and the extended task-complete route,
+  // respectively), where the ACTUAL write just happened rather than being
+  // re-derived from a periodic scan.
+  if (outOfTime()) {
+    result.truncated = true
+    return result
+  }
+  const slaScan = await loadPortfolio(PORTFOLIO_EVENT_SWEEP_ACTOR, { view: 'all' }, now)
+  if (!slaScan.ok) {
+    result.errors += 1
+    return result
+  }
+  for (const row of slaScan.portfolio.rows) {
+    if (outOfTime()) {
+      result.truncated = true
+      break
+    }
+    try {
+      if (row.slaOverdue) {
+        const outcome = await emitPortfolioLifecycleEvent({
+          relationshipId: row.id,
+          event: 'merchant.sla_overdue',
+          dedupeKey: portfolioEventDedupeKey('merchant.sla_overdue', row.slaDueAt),
+          slaPolicyVersion: row.slaPolicyVersion,
+          occurredAt: now.toISOString(),
+          overdueReason: row.slaOverdueReason ?? undefined,
+        })
+        if (recordPortfolioEvent(outcome, result)) result.portfolioEventsEmitted += 1
+      } else if (row.dueState === 'due_soon') {
+        const window = row.nextActionDueAt ?? row.slaDueAt
+        const outcome = await emitPortfolioLifecycleEvent({
+          relationshipId: row.id,
+          event: 'merchant.sla_due',
+          dedupeKey: portfolioEventDedupeKey('merchant.sla_due', window),
+          slaPolicyVersion: row.slaPolicyVersion,
+          occurredAt: now.toISOString(),
+        })
+        if (recordPortfolioEvent(outcome, result)) result.portfolioEventsEmitted += 1
+      }
     } catch {
       result.errors += 1
     }
@@ -586,4 +713,13 @@ function record(outcome: EmitOutcome, result: SweepResult): boolean {
   }
   result.errors += 1
   return false
+}
+
+/** Sprint 3, Story 3.3 — the SAME decision as `record` above, kept as a
+ *  separate function only so a portfolio-event failure/flag-off never gets
+ *  folded into `result.threeProductsLive`-shaped milestone counters by
+ *  accident; it shares `result.telemetryOff`/`result.errors` with `record`
+ *  on purpose — both draw from the SAME outbox and the SAME flag. */
+function recordPortfolioEvent(outcome: EmitOutcome, result: SweepResult): boolean {
+  return record(outcome, result)
 }

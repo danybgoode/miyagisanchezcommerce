@@ -52,7 +52,10 @@ export type ToolShopResult =
 import { PARTNER_READ_TOOLS } from './partner-tools'
 export { PARTNER_READ_TOOLS }
 
-interface PartnerRow {
+/** Exported (Merchant Partner lifecycle · Sprint 3, Story 3.2) so
+ *  `lib/portfolio/partner-portfolio-auth.ts` can reuse the SAME credential
+ *  row shape rather than a parallel copy. */
+export interface PartnerRow {
   id: string
   code: string
   name: string | null
@@ -69,8 +72,15 @@ function constantTimeEq(a: string, b: string): boolean {
   return ba.length === bb.length && timingSafeEqual(ba, bb)
 }
 
-/** Resolve an ms_partner_ credential to its promoter row, or null. Pure lookup — no flag/grant logic. */
-async function resolvePartnerRow(token: string): Promise<PartnerRow | null> {
+/**
+ * Resolve an ms_partner_ credential to its promoter row, or null. Pure
+ * lookup — no flag/grant logic. Exported (Sprint 3, Story 3.2, README D2)
+ * so `lib/portfolio/partner-portfolio-auth.ts#resolvePartnerPortfolioActor`
+ * reuses this SAME resolution — hash first, then the plaintext connector
+ * slug, both constant-time compared — rather than forking a second copy of
+ * security-sensitive credential-matching logic.
+ */
+export async function resolvePartnerRow(token: string): Promise<PartnerRow | null> {
   const suffix = token.slice(PARTNER_PREFIX.length)
   if (!suffix) return null
 

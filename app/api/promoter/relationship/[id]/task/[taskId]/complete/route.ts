@@ -27,12 +27,52 @@
  * — `22P02` now maps to the same 404 a genuinely-missing task gets, mirroring
  * `resolveRelationshipAccess`'s own "a malformed-UUID read is indistinguishable
  * from not-found" convention.
+ *
+ * EXTENDED — Merchant Partner lifecycle · Sprint 3, Story 3.1 (README D7).
+ * Two ADDITIVE, fully-optional body fields, backward compatible with every
+ * existing caller that sends neither:
+ *
+ *   - `outcome` — one of `lib/scorecard/dictionary.ts#RETENTION_OUTCOMES`
+ *     (imported, never restated), recorded on the SAME task row. Never
+ *     restricted to `kind = 'retention_30d'` at this layer — the DB CHECK
+ *     already bounds the vocabulary regardless of which task carries it.
+ *   - `nextAction` — an optional `{ title, dueAt? }` that, when the
+ *     completion actually took effect, creates one new open `kind: 'manual'`
+ *     task assigned to the completing caller (the same shape
+ *     `POST .../task` itself accepts, including the date-only C8/D3e
+ *     handling), so a partner can close one loop and open the next in one
+ *     call.
+ *
+ * `outcome`/`nextAction` are only applied/created on a completion this
+ * request ITSELF performed (`justCompleted`, detected via `.select()` on
+ * the UPDATE) — never on the idempotent "already completed" replay branch,
+ * which must stay a pure no-op.
+ *
+ * Story 3.3 (README D8/D9) — two PII-free portfolio events, best-effort,
+ * emitted AFTER the canonical write, never instead of it:
+ *   - `merchant.retention_outcome_recorded` when an `outcome` was recorded.
+ *   - `merchant.sla_completed` when the task being completed had a `due_at`
+ *     already in the past (a real commitment was closed out late).
+ * Both key off the task's own id — one outcome-recording / one
+ * SLA-completion event per task, ever.
+ *
+ * NEVER TOUCHES MEDUSA. This route only reads/writes
+ * `merchant_relationship_tasks` — no sale, order, payment or product.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, canWriteRelationship } from '@/lib/relationship-access'
+import { dueAtIsoFromDateOnly, isDateOnlyShape } from '@/lib/relationship-pipeline'
+import { isAllowedOutcome } from '@/lib/portfolio/retention'
+import { portfolioEventDedupeKey } from '@/lib/portfolio/events'
+import { emitPortfolioLifecycleEvent } from '@/lib/portfolio/events-server'
 
 export const dynamic = 'force-dynamic'
+
+interface CompleteBody {
+  outcome?: unknown
+  nextAction?: { title?: unknown; dueAt?: unknown }
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; taskId: string }> }) {
   const auth = await authorizeRelationshipRequest(req)
@@ -51,13 +91,71 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
   }
 
-  // Attempt the write first — only ever succeeds while still open.
-  const { error: updateError } = await db
+  // The body is entirely OPTIONAL — a missing/invalid JSON body behaves
+  // exactly as it always has (empty object, no outcome, no next action).
+  let body: CompleteBody = {}
+  try {
+    const raw = await req.json()
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) body = raw as CompleteBody
+  } catch {
+    body = {}
+  }
+
+  let outcome: string | undefined
+  if (body.outcome !== undefined) {
+    if (typeof body.outcome !== 'string' || !isAllowedOutcome(body.outcome)) {
+      return NextResponse.json({ ok: false, error: 'Resultado no permitido.' }, { status: 400 })
+    }
+    outcome = body.outcome
+  }
+
+  let nextActionTitle: string | undefined
+  let nextActionDueAt: string | null = null
+  if (body.nextAction !== undefined) {
+    if (typeof body.nextAction !== 'object' || body.nextAction === null || Array.isArray(body.nextAction)) {
+      return NextResponse.json({ ok: false, error: 'nextAction inválido.' }, { status: 400 })
+    }
+    const na = body.nextAction
+    if (typeof na.title !== 'string' || !na.title.trim()) {
+      return NextResponse.json({ ok: false, error: 'nextAction.title es obligatorio.' }, { status: 400 })
+    }
+    nextActionTitle = na.title.trim()
+    if (na.dueAt !== undefined && na.dueAt !== '') {
+      if (typeof na.dueAt !== 'string') {
+        return NextResponse.json({ ok: false, error: 'nextAction.dueAt inválido.' }, { status: 400 })
+      }
+      // Same date-only (C8) / calendar-validity (D3e) handling as
+      // `POST /api/promoter/relationship/[id]/task` — imported, never
+      // re-derived.
+      if (isDateOnlyShape(na.dueAt)) {
+        const iso = dueAtIsoFromDateOnly(na.dueAt)
+        if (!iso) return NextResponse.json({ ok: false, error: 'nextAction.dueAt inválido.' }, { status: 400 })
+        nextActionDueAt = iso
+      } else {
+        const d = new Date(na.dueAt)
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ ok: false, error: 'nextAction.dueAt inválido.' }, { status: 400 })
+        }
+        nextActionDueAt = d.toISOString()
+      }
+    }
+  }
+
+  const now = new Date()
+  const update: Record<string, unknown> = { completed_at: now.toISOString(), completed_by: auth.user.id }
+  if (outcome !== undefined) update.outcome = outcome
+
+  // `.select()` on the UPDATE is what lets this call tell "I just completed
+  // it" apart from "it was already completed" — the idempotent replay
+  // branch (build contract, unchanged) must never re-apply `outcome` or
+  // re-create `nextAction`.
+  const { data: updatedRows, error: updateError } = await db
     .from('merchant_relationship_tasks')
-    .update({ completed_at: new Date().toISOString(), completed_by: auth.user.id })
+    .update(update)
     .eq('id', taskId)
     .eq('relationship_id', id)
     .is('completed_at', null)
+    .select('id, due_at')
 
   if (updateError) {
     // 22P02 = invalid input syntax for uuid — a malformed taskId reads as
@@ -69,12 +167,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'No se pudo completar la acción.' }, { status: 500 })
   }
 
+  const justCompletedRow = Array.isArray(updatedRows) && updatedRows.length > 0 ? updatedRows[0] : null
+  const justCompleted = justCompletedRow !== null
+  const wasOverdue =
+    justCompleted &&
+    typeof justCompletedRow!.due_at === 'string' &&
+    Date.parse(justCompletedRow!.due_at as string) < now.getTime()
+
   // Re-read regardless of whether the update matched a row — this is the
   // idempotent branch (already completed) OR the just-written state, and the
   // caller always gets the CURRENT truth either way.
   const { data, error: readError } = await db
     .from('merchant_relationship_tasks')
-    .select('id, relationship_id, title, due_at, assigned_to, completed_at, completed_by, created_by, created_at')
+    .select('id, relationship_id, title, due_at, assigned_to, outcome, completed_at, completed_by, created_by, created_at')
     .eq('id', taskId)
     .eq('relationship_id', id)
     .maybeSingle()
@@ -83,5 +188,97 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: 'Acción no encontrada.' }, { status: 404 })
   }
 
-  return NextResponse.json({ ok: true, task: data })
+  let nextActionTask: Record<string, unknown> | undefined
+
+  /** Non-null when the caller requested a follow-up task and it did NOT get
+
+   *  created — see the 207 branch at the end of this handler. */
+
+  let nextActionError: string | null = null
+  if (justCompleted && nextActionTitle) {
+    const { data: created, error: createError } = await db
+      .from('merchant_relationship_tasks')
+      .insert({
+        relationship_id: id,
+        title: nextActionTitle,
+        due_at: nextActionDueAt,
+        assigned_to: auth.user.id,
+        created_by: auth.user.id,
+      })
+      .select('id, relationship_id, title, due_at, assigned_to, completed_at, completed_by, created_by, created_at')
+      .maybeSingle()
+    if (createError) {
+      console.error('[task-complete] next-action insert failed:', createError.message)
+      nextActionError = createError.message
+    } else if (created) {
+      nextActionTask = created
+    } else {
+      nextActionError = 'la siguiente acción no se pudo leer después de crearla'
+    }
+  }
+
+  // Story 3.3 — PII-free portfolio events, AFTER the canonical write above,
+  // never instead of it. Best-effort: `emitPortfolioLifecycleEvent` never
+  // throws, and a claim/send failure here never turns a successful task
+  // completion into a failed response.
+  if (justCompleted) {
+    if (outcome !== undefined) {
+      await emitPortfolioLifecycleEvent({
+        relationshipId: id,
+        event: 'merchant.retention_outcome_recorded',
+        // Built with the shared helper like every other call site — `events.ts`
+        // instructs callers to always use it, and a bare id was the one place that
+        // didn't (fresh-reviewer finding 10, PR 311). Harmless before (event_type
+        // is part of the PK, so the two events never collided) but an instruction
+        // followed almost-everywhere is how the next drift starts.
+        dedupeKey: portfolioEventDedupeKey('merchant.retention_outcome_recorded', taskId),
+        occurredAt: now.toISOString(),
+        outcome,
+      })
+    }
+    if (wasOverdue) {
+      await emitPortfolioLifecycleEvent({
+        relationshipId: id,
+        event: 'merchant.sla_completed',
+        dedupeKey: portfolioEventDedupeKey('merchant.sla_completed', taskId),
+        occurredAt: now.toISOString(),
+      })
+    }
+  }
+
+  // The COMPLETION genuinely committed, so this is not a 500 — but the caller
+  // ASKED for a follow-up task and there isn't one, and reporting a bare
+  // `ok: true` would leave a partner believing their next action is scheduled
+  // when the queue will show "sin próxima acción" (cross-agent review, PR 311).
+  // Reported as a partial success the client can actually act on, rather than
+  // either lying or throwing away the completion that did succeed.
+  //
+  // 207 HERE, even though this epic deliberately REJECTED 207 for
+  // `/api/cron/portfolio-reminders` in favour of 503 — the two are not in
+  // conflict, because the caller is different and that is the whole reason. A
+  // cron's caller is Cloud Scheduler, which reads any 2xx as success and so
+  // neither retries nor alerts, making 207 a silent failure. This route's caller
+  // is a partner UI or an MCP agent that reads the body, and the completion
+  // genuinely SUCCEEDED — a retryable status would be a lie in the other
+  // direction and could invite a double completion. The load-bearing signal is
+  // the explicit `nextActionCreated: false` + `warning` fields, which a caller
+  // checking only `res.ok` will still surface to a human.
+  if (nextActionError !== null) {
+    return NextResponse.json(
+      {
+        ok: true,
+        task: data,
+        nextActionCreated: false,
+        warning:
+          'La tarea se marcó como completada, pero NO se pudo crear la siguiente acción que pediste. Créala de nuevo para no dejar al comercio sin próxima acción.',
+      },
+      { status: 207 },
+    )
+  }
+
+  return NextResponse.json({
+    ok: true,
+    task: data,
+    ...(nextActionTask ? { nextAction: nextActionTask, nextActionCreated: true } : {}),
+  })
 }

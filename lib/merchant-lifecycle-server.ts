@@ -120,6 +120,15 @@ export type DeliveryOutcome = 'delivered' | 'delivered_unrecorded' | 'failed' | 
 export interface PendingEmission {
   merchantId: string
   eventType: string
+  /** Sprint 3, Story 3.3 (README D8) — the third component of the widened
+   *  `merchant_lifecycle_emissions` PRIMARY KEY. `''` for every milestone
+   *  row (byte-identical to before this column existed); a real
+   *  per-occurrence key for a recurring portfolio event
+   *  (`lib/portfolio/events.ts#portfolioEventDedupeKey`). Threaded through
+   *  to `deliverClaimedEmission` so the drain's UPDATE addresses exactly
+   *  the ONE row it just sent — see that function's own header for why
+   *  this matters. */
+  dedupeKey: string
   payload: LifecycleTrackPayload
   attempts: number
 }
@@ -215,12 +224,27 @@ export async function emitMerchantLifecycle(
  * A failure records the error and increments `attempts`, leaving the row pending; it
  * never deletes the claim. Failing to record the failure is itself only logged — the
  * row stays pending either way, which is the safe direction.
+ *
+ * `dedupeKey` (Sprint 3, Story 3.3 — README D8): the THIRD component of the
+ * widened `merchant_lifecycle_emissions` PRIMARY KEY. Defaults to `''`, so
+ * every existing call site (both below and in `lib/merchant-lifecycle-sweep.ts`'s
+ * milestone paths) stays BYTE-IDENTICAL — a milestone claim is the only row
+ * that will ever exist for its `(merchant_id, event_type)` pair, so matching
+ * on `dedupe_key = ''` finds exactly the same one row the old two-column
+ * predicate did. It stops being optional the moment a RECURRING portfolio
+ * event exists: without it, this UPDATE's predicate
+ * (`merchant_id + event_type` only) would match and stamp `delivered_at` on
+ * EVERY pending occurrence of that event for that merchant at once —
+ * silently marking un-sent SLA-overdue windows as delivered because a
+ * DIFFERENT window's send happened to succeed. `lib/portfolio/events-server.ts`
+ * and the sweep's drain loop are the two callers that pass a real value.
  */
 export async function deliverClaimedEmission(
   merchantId: string,
   eventType: string,
   payload: LifecycleTrackPayload,
   attempts = 0,
+  dedupeKey = '',
 ): Promise<DeliveryOutcome> {
   // The flag is checked HERE, not before the claim. A claim skipped because telemetry
   // was off would lose the milestone forever: nothing revisits a moment that already
@@ -255,6 +279,7 @@ export async function deliverClaimedEmission(
     })
     .eq('merchant_id', merchantId)
     .eq('event_type', eventType)
+    .eq('dedupe_key', dedupeKey)
 
   if (writeError) {
     console.error(
@@ -269,7 +294,11 @@ export async function deliverClaimedEmission(
 }
 
 /**
- * Milestones claimed but not confirmed delivered. Drained by the daily sweep.
+ * Milestones AND recurring portfolio events, claimed but not confirmed
+ * delivered. Drained by the daily sweep — ONE outbox, ONE drain for both
+ * (README D8): this function does not distinguish `event_type` at all, so a
+ * pending portfolio-event row is picked up by the exact same query a
+ * pending milestone row always was.
  *
  * Bounded and oldest-first: an unbounded drain would let one bad day's backlog stall
  * the whole sweep, and the pending set is expected to be near-empty.
@@ -279,7 +308,7 @@ export async function listPendingEmissions(
 ): Promise<{ pending: PendingEmission[]; truncated: boolean; failed: boolean }> {
   const { data, error } = await db
     .from('merchant_lifecycle_emissions')
-    .select('merchant_id, event_type, payload, attempts')
+    .select('merchant_id, event_type, dedupe_key, payload, attempts')
     .is('delivered_at', null)
     .not('payload', 'is', null)
     // ATTEMPTS FIRST, then age. Ordering by age alone let the oldest N rows starve
@@ -309,6 +338,10 @@ export async function listPendingEmissions(
     pending: rows.map((r) => ({
       merchantId: String(r.merchant_id),
       eventType: String(r.event_type),
+      // `''` for every pre-Sprint-3 / milestone row (the column's own
+      // DEFAULT) — never `undefined`, so a caller that forgets to thread it
+      // through fails a type check rather than silently omitting it.
+      dedupeKey: String(r.dedupe_key ?? ''),
       payload: r.payload as LifecycleTrackPayload,
       attempts: typeof r.attempts === 'number' ? r.attempts : 0,
     })),
