@@ -152,6 +152,24 @@ export type WriteSlaPolicyResult =
  *     the row in the same write. We read the column, so monotonicity is
  *     provable; refusing here would instead dead-end the only surface that can
  *     fix a hand-edited row (there is no admin UI, D3).
+ *
+ * SECOND FIX — COMPARE-AND-SWAP (cross-agent review, PR 308). Monotonic-forward
+ * was necessary but NOT sufficient: the version was still computed from a value
+ * read in a SEPARATE round trip, so two concurrent `PUT`s both read version N and
+ * both wrote N+1. `.upsert()` made the second one a silent overwrite: last write
+ * wins, the loser's document is gone with no error, and TWO materially different
+ * policies have both claimed N+1 — destroying exactly the version-to-policy
+ * identity the first fix existed to protect. A lost update is worse than a
+ * refused one, because nothing anywhere records that it happened.
+ *
+ * So the write is now CONDITIONAL on the version we actually read:
+ *   - a row exists ⇒ `UPDATE … WHERE id = 1 AND version = <the one we read>`.
+ *     Zero rows affected means somebody else moved it first ⇒ 409, re-read and
+ *     retry. The predicate IS the concurrency control; no advisory lock, no
+ *     transaction, no `SELECT … FOR UPDATE` round trip.
+ *   - no row exists ⇒ plain `INSERT`. A `23505` on the `id = 1` primary key means
+ *     a concurrent writer created it between our read and our insert ⇒ also 409.
+ * `.upsert()` cannot express either check, which is precisely why it hid the race.
  */
 export async function writeSlaPolicy(next: SlaPolicy, updatedBy: string): Promise<WriteSlaPolicyResult> {
   const current = await loadSlaPolicy()
@@ -171,21 +189,49 @@ export async function writeSlaPolicy(next: SlaPolicy, updatedBy: string): Promis
   const baseVersion = Math.max(current.rawVersion ?? 0, current.policy.version, DEFAULT_SLA_POLICY.version)
   const versioned: SlaPolicy = { ...next, version: baseVersion + 1 }
 
-  const { error } = await db.from(TABLE).upsert(
-    {
-      id: SINGLETON_ID,
-      version: versioned.version,
-      policy: serializeSlaPolicy(versioned),
-      updated_by: updatedBy,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  )
+  const row = {
+    version: versioned.version,
+    policy: serializeSlaPolicy(versioned),
+    updated_by: updatedBy,
+    updated_at: new Date().toISOString(),
+  }
+
+  const CONFLICT: WriteSlaPolicyResult = {
+    ok: false,
+    conflict: true,
+    error:
+      'Otro administrador guardó la política mientras editabas. Vuelve a cargarla para ver la versión actual y aplica tu cambio encima.',
+  }
+
+  // NO ROW YET ⇒ plain INSERT. `23505` on the `id = 1` primary key means a
+  // concurrent writer inserted between our read and ours — a conflict, never an
+  // overwrite of a policy we never saw.
+  if (current.rawVersion === null) {
+    const { error } = await db.from(TABLE).insert({ id: SINGLETON_ID, ...row })
+    if (error) {
+      if (error.code === '23505') return CONFLICT
+      console.error('[portfolio/policy] merchant_sla_policy insert failed:', error.message)
+      return { ok: false, error: 'No se pudo guardar la política de SLA.' }
+    }
+    return { ok: true, policy: versioned }
+  }
+
+  // A ROW EXISTS ⇒ CAS on the version we read. `.select('id')` is what makes the
+  // affected-row count observable: supabase-js reports no error for an UPDATE that
+  // matched nothing, so without the select-back a lost update looks identical to a
+  // successful one — which is the whole bug.
+  const { data, error } = await db
+    .from(TABLE)
+    .update(row)
+    .eq('id', SINGLETON_ID)
+    .eq('version', current.rawVersion)
+    .select('id')
 
   if (error) {
-    console.error('[portfolio/policy] merchant_sla_policy write failed:', error.message)
+    console.error('[portfolio/policy] merchant_sla_policy update failed:', error.message)
     return { ok: false, error: 'No se pudo guardar la política de SLA.' }
   }
+  if (!data || data.length === 0) return CONFLICT
 
   return { ok: true, policy: versioned }
 }

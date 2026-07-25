@@ -457,3 +457,58 @@ test.describe('policy-server · the version can never move backwards', () => {
     expect(route).toMatch(/written\.conflict \? 409 : 500/)
   })
 })
+
+// ── CAS on the policy write (cross-agent review, PR 308) ─────────────────────
+//
+// Monotonic-forward (above) was necessary but NOT sufficient. The version was
+// still derived from a value read in a SEPARATE round trip, so two concurrent
+// PUTs both read version N and both wrote N+1 — and `.upsert()` turned the second
+// into a SILENT overwrite. Last write wins, the loser's document is gone with no
+// error, and two materially different policies both claim N+1: exactly the
+// version-to-policy identity the monotonicity fix existed to protect. A lost
+// update is worse than a refused one, because nothing records that it happened.
+
+test.describe('policy-server · the write is compare-and-swap, not an upsert', () => {
+  const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/policy-server.ts'), 'utf8')
+
+  /**
+   * CODE ONLY, comments stripped. A negative-containment assertion over raw source
+   * text false-positives on the module's own docstring, which legitimately NAMES
+   * `.upsert()` to explain why it is not used — and a guard that fails because the
+   * code documents itself well pressures the next person to delete the
+   * explanation. (The Sprint 3 builder hit this same trap on four assertions and
+   * fixed it the same way: scope to code, never weaken the docs.)
+   */
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('the blind upsert is GONE — it is what made the race invisible', () => {
+    expect(code).not.toContain('.upsert(')
+    expect(code).not.toContain("onConflict: 'id'")
+  })
+
+  test('an existing row is updated CONDITIONALLY on the version that was read', () => {
+    // The predicate IS the concurrency control — no advisory lock, no extra round trip.
+    expect(source).toMatch(/\.eq\('version', current\.rawVersion\)/)
+  })
+
+  test('the affected-row count is OBSERVABLE, or a lost update looks like a success', () => {
+    // supabase-js reports NO error for an UPDATE that matched nothing, so without
+    // selecting back, "somebody else won" is indistinguishable from "saved".
+    expect(source).toMatch(/\.select\('id'\)/)
+    expect(source).toMatch(/data\.length === 0/)
+  })
+
+  test('a fresh table INSERTs, and a concurrent creator is a conflict rather than an overwrite', () => {
+    expect(source).toMatch(/current\.rawVersion === null/)
+    expect(source).toMatch(/error\.code === '23505'/)
+  })
+
+  test('every concurrency refusal is a CONFLICT the route turns into 409, never a 500', () => {
+    expect(source).toMatch(/conflict:\s*true/)
+    const route = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'app/api/admin/sla-policy/route.ts'),
+      'utf8',
+    )
+    expect(route).toMatch(/written\.conflict \? 409 : 500/)
+  })
+})
