@@ -36,6 +36,7 @@ import { loadPortfolio } from '@/lib/portfolio/loader'
 import { loadSlaPolicy } from '@/lib/portfolio/policy-server'
 import {
   buildReminderCopy,
+  foldLatestReminderFailures,
   reminderDeepLinkPath,
   selectReminderTargets,
   type ReminderTarget,
@@ -200,12 +201,19 @@ export async function loadReminderFailures(relationshipIds: string[]): Promise<M
     console.error('[portfolio/reminders] reminder-failure read failed — badges will be omitted:', error.message)
     return byId
   }
-  for (const row of (data ?? []) as Array<{ relationship_id: string; last_error: string | null; created_at: string }>) {
-    // Newest-first ordering + first-write-wins gives "the LATEST reminder for
-    // this relationship", matching `readLastInteractions`'s own discipline in
-    // `lib/portfolio/loader.ts`.
-    if (byId.has(row.relationship_id)) continue
-    if (row.last_error) byId.set(row.relationship_id, row.last_error)
-  }
+  // The FOLD itself lives in `lib/portfolio/reminders.ts#foldLatestReminderFailures`
+  // — zero-import, so an `api` spec can walk every branch. Extracted there after
+  // the cross-agent review on PR #310 found a real false-positive in the version
+  // inlined here: it used the RESULT map as its "already handled" test, but that
+  // map is only written for a FAILED row, so a relationship whose newest reminder
+  // SUCCEEDED never closed out and an older FAILED row was accepted instead —
+  // showing "Recordatorio no entregado" for a merchant whose latest reminder was
+  // delivered. Unreachable by any spec while it lived in this `server-only`
+  // module, which is exactly why it shipped. This function now owns only the query.
+  const rows = ((data ?? []) as Array<{ relationship_id: string; last_error: string | null }>).map((row) => ({
+    relationshipId: row.relationship_id,
+    lastError: row.last_error,
+  }))
+  for (const [id, message] of foldLatestReminderFailures(rows)) byId.set(id, message)
   return byId
 }

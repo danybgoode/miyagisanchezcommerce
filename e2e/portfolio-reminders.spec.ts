@@ -10,6 +10,7 @@ import {
   buildReminderCopy,
   reminderDeepLinkPath,
   type ReminderTarget,
+  foldLatestReminderFailures,
 } from '../lib/portfolio/reminders'
 import type { PortfolioRow } from '../lib/portfolio/resolver'
 
@@ -310,5 +311,71 @@ test.describe('live · GET /api/cron/portfolio-reminders never 5xxs for an unaut
   test('no Authorization header → never a 5xx', async ({ request }) => {
     const res = await request.get('/api/cron/portfolio-reminders')
     expect(res.status()).toBeLessThan(500)
+  })
+})
+
+// ── foldLatestReminderFailures (cross-agent review finding, PR #310) ──────────
+//
+// A REAL false-positive bug, found by the cross-family reviewer. The original
+// fold lived inlined in `lib/portfolio/reminders-server.ts` and used its RESULT
+// map as the "already handled this relationship" test — but that map is only ever
+// written for a FAILED row. So a relationship whose NEWEST reminder SUCCEEDED
+// never closed out, and the next older FAILED row was accepted instead: the
+// portfolio showed "Recordatorio no entregado" for a merchant whose latest
+// reminder had been delivered cleanly, sending a partner to chase a delivery that
+// already happened.
+//
+// Two things made it survive to review: the code's comment described the INTENDED
+// rule ("newest-first + first-write-wins") rather than what the code did — and the
+// two only agree when every row failed — and the function lived in a `server-only`
+// module no spec could load. The fold is now extracted into the zero-import
+// `lib/portfolio/reminders.ts`, so these branches are actually reachable.
+
+test.describe('foldLatestReminderFailures — only the LATEST reminder decides the badge', () => {
+  test('THE REGRESSION: a successful newest row suppresses an older failure', () => {
+    // Newest-first, exactly as the query orders them.
+    const failures = foldLatestReminderFailures([
+      { relationshipId: 'r-1', lastError: null },
+      { relationshipId: 'r-1', lastError: 'telegram 500' },
+    ])
+    expect(failures.has('r-1')).toBe(false)
+    expect(failures.size).toBe(0)
+  })
+
+  test('a failing newest row reports THAT error, not an older one', () => {
+    const failures = foldLatestReminderFailures([
+      { relationshipId: 'r-1', lastError: 'push expired' },
+      { relationshipId: 'r-1', lastError: 'telegram 500' },
+    ])
+    expect(failures.get('r-1')).toBe('push expired')
+  })
+
+  test('a single failed row is reported', () => {
+    expect(foldLatestReminderFailures([{ relationshipId: 'r-1', lastError: 'boom' }]).get('r-1')).toBe('boom')
+  })
+
+  test('relationships are independent — one merchant’s failure never masks another’s success', () => {
+    const failures = foldLatestReminderFailures([
+      { relationshipId: 'r-ok', lastError: null },
+      { relationshipId: 'r-bad', lastError: 'boom' },
+      { relationshipId: 'r-ok', lastError: 'stale' },
+      { relationshipId: 'r-bad', lastError: 'older boom' },
+    ])
+    expect(failures.get('r-bad')).toBe('boom')
+    expect(failures.has('r-ok')).toBe(false)
+  })
+
+  test('an empty input is an empty map, never a throw', () => {
+    expect(foldLatestReminderFailures([]).size).toBe(0)
+  })
+
+  test('the server module no longer carries its own fold — it delegates to the pure one', () => {
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/reminders-server.ts'),
+      'utf8',
+    )
+    expect(src).toContain('foldLatestReminderFailures(rows)')
+    // The exact defective idiom must not come back.
+    expect(src).not.toContain('if (byId.has(row.relationship_id)) continue')
   })
 })

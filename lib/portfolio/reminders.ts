@@ -138,3 +138,44 @@ export function buildReminderCopy(target: ReminderTarget): ReminderCopy {
 export function reminderDeepLinkPath(relationshipId: string): string {
   return `/partner?relationshipId=${encodeURIComponent(relationshipId)}`
 }
+
+// ── The latest-reminder fold (extracted for testability, PR #310 review) ──────
+
+/** One `merchant_followup_reminders` row, reduced to what the fold below needs. */
+export interface ReminderStatusRow {
+  relationshipId: string
+  lastError: string | null
+}
+
+/**
+ * Given reminder rows ordered NEWEST-FIRST, return the relationships whose most
+ * recent reminder FAILED, mapped to that failure's message.
+ *
+ * Extracted out of `lib/portfolio/reminders-server.ts` (which is `server-only`,
+ * so no `api` spec could ever load it) after the cross-agent review on PR #310
+ * found a real false-positive bug in the inlined version: it used the RESULT map
+ * as its "already handled" test, but that map is only written for a FAILED row —
+ * so a relationship whose newest reminder SUCCEEDED never got recorded, and the
+ * next older FAILED row was accepted instead. The portfolio then showed
+ * "Recordatorio no entregado" for a merchant whose latest reminder went out
+ * cleanly, sending a partner to chase a delivery that already happened.
+ *
+ * The defect was invisible because the code's own comment described the intended
+ * rule ("newest-first + first-write-wins") rather than what the code did — the
+ * two only coincide when EVERY row failed. This is the epic's usual split
+ * applied after the fact: the pure decision lives here where a spec can walk
+ * every branch, and the server module keeps only the query.
+ *
+ * FIRST-SEEN WINS, tracked independently of the result: a successful newest row
+ * closes the relationship out and contributes no entry.
+ */
+export function foldLatestReminderFailures(rowsNewestFirst: readonly ReminderStatusRow[]): Map<string, string> {
+  const failures = new Map<string, string>()
+  const seen = new Set<string>()
+  for (const row of rowsNewestFirst) {
+    if (seen.has(row.relationshipId)) continue
+    seen.add(row.relationshipId)
+    if (row.lastError) failures.set(row.relationshipId, row.lastError)
+  }
+  return failures
+}

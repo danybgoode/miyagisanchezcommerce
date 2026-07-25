@@ -54,6 +54,11 @@ const CHANNEL_LABEL: Record<ConfirmChannel, string> = {
 interface DraftState {
   id: string
   templateId: DraftTemplateId
+  /** The API returns this (`generator: draft.generator`); typing it keeps the
+   *  client aligned with the payload. `'model'` is in the union because the
+   *  column's CHECK allows it — README D4 leaves that seam open deliberately, so
+   *  a future model-backed generator needs no client change here. */
+  generator: 'template' | 'model'
   generatorVersion: number
   factIds: string[]
   draftText: string
@@ -79,6 +84,7 @@ export default function DraftAssistant({ relationshipId }: { relationshipId: str
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedJustNow, setSavedJustNow] = useState(false)
+  const [copiedJustNow, setCopiedJustNow] = useState(false)
   const [channel, setChannel] = useState<ConfirmChannel | ''>('')
   const [confirming, setConfirming] = useState(false)
   const [confirmed, setConfirmed] = useState<ConfirmedState | null>(null)
@@ -157,8 +163,14 @@ export default function DraftAssistant({ relationshipId }: { relationshipId: str
   async function copyText() {
     try {
       await navigator.clipboard.writeText(text)
+      // Visible confirmation (cross-agent review, PR #310): the partner is about
+      // to switch apps to send this by hand, so a silent copy leaves them unsure
+      // whether there is anything on the clipboard at all.
+      setCopiedJustNow(true)
+      window.setTimeout(() => setCopiedJustNow(false), 2000)
     } catch {
-      // Clipboard API unavailable — the textarea stays manually selectable.
+      // Clipboard API unavailable — the textarea stays manually selectable, and
+      // no success flag is set, so the UI never claims a copy that didn't happen.
     }
   }
 
@@ -243,7 +255,7 @@ export default function DraftAssistant({ relationshipId }: { relationshipId: str
               </span>
             )}
             <button type="button" onClick={copyText} className="btn btn-secondary btn-sm">
-              <i className="iconoir-copy" aria-hidden /> Copiar texto
+              <i className="iconoir-copy" aria-hidden /> {copiedJustNow ? 'Copiado' : 'Copiar texto'}
             </button>
             <button
               type="button"
@@ -307,7 +319,8 @@ export default function DraftAssistant({ relationshipId }: { relationshipId: str
                 </a>
               ) : (
                 <button type="button" onClick={copyText} className="btn btn-dark btn-sm">
-                  <i className="iconoir-copy" aria-hidden /> Copiar texto para enviar
+                  <i className="iconoir-copy" aria-hidden />{' '}
+                  {copiedJustNow ? 'Copiado' : 'Copiar texto para enviar'}
                 </button>
               )}
             </div>
