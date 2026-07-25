@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 39 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(39)
+  test('covers all 40 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(40)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -74,6 +74,11 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // enablement, fail-open OFF (approval behaves as today until Daniel flips it on
     // after a real-merchant code round-trip smoke).
     expect(FLAG_META['promoter.preview_verified_approval_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // Merchant Partner stewardship portfolio (merchant-partner-lifecycle S1.1) —
+    // enablement, fail-open OFF: /partner keeps today's grant list and every new
+    // portfolio/SLA/reassign route 404s until Daniel flips it on after the
+    // two-partner scope + reassignment-attribution smokes.
+    expect(FLAG_META['promoter.partner_portfolio_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 

@@ -186,6 +186,13 @@ export const FLAG_META: Record<FlagKey, FlagMeta> = {
   // POST /api/vende/fundadoras/apply refuses every write. Capacity (25) is enforced
   // independently. Flip ON only after a disposable production application smoke passes.
   'growth.founding_merchants_enabled': { polarity: 'enablement', default: false },
+  // Merchant Partner stewardship portfolio (merchant-partner-lifecycle S1.1).
+  // Enablement: default OFF ⇒ /partner renders today's grant list byte-identically
+  // and GET /api/partner/portfolio + GET/PUT /api/admin/sla-policy + POST
+  // /api/admin/relationship/[id]/reassign all 404. Does NOT gate the shipped
+  // promoter-facing owner route. Flip ON only after the two-partner scope and
+  // reassignment-attribution smokes pass.
+  'promoter.partner_portfolio_enabled': { polarity: 'enablement', default: false },
 }
 
 /** Every flag key the platform knows about (order = display order on `/admin/flags`). */
