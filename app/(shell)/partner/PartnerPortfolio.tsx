@@ -1,6 +1,8 @@
 import { loadPortfolio } from '@/lib/portfolio/loader'
 import { resolveActor } from '@/lib/relationship-access'
 import { stageLabel } from '@/lib/merchant-stage-labels'
+import { loadReminderFailures } from '@/lib/portfolio/reminders-server'
+import DraftAssistant from './DraftAssistant'
 import {
   parsePortfolioFilters,
   type PortfolioDueState,
@@ -95,7 +97,7 @@ function filterHref(current: PortfolioFilters, override: Partial<Record<'view' |
   return qs ? `/partner?${qs}` : '/partner'
 }
 
-function PortfolioCard({ row }: { row: PortfolioRow }) {
+function PortfolioCard({ row, reminderFailed }: { row: PortfolioRow; reminderFailed: boolean }) {
   return (
     <li className="p-4 space-y-1.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -146,6 +148,20 @@ function PortfolioCard({ row }: { row: PortfolioRow }) {
           {row.assignedAt ? ` · ${fmtDate(row.assignedAt)}` : ''}
         </p>
       )}
+
+      {/* Merchant Partner lifecycle S2.2 — "recordatorio no entregado" surfaces
+          a reminder rail that quietly failed rather than staying silent
+          (build contract, Story 2.2). */}
+      {reminderFailed && (
+        <p className="text-xs text-[color:var(--danger)]">
+          <i className="iconoir-bell" aria-hidden /> Recordatorio no entregado — revisa este comercio manualmente.
+        </p>
+      )}
+
+      {/* Merchant Partner lifecycle S2.1–S2.3 — the fact-bounded draft
+          assistant. Never auto-sends (README D5); every write goes through
+          the flag-gated, scope-checked draft routes. */}
+      <DraftAssistant relationshipId={row.id} />
     </li>
   )
 }
@@ -177,6 +193,10 @@ export default async function PartnerPortfolio({
 
   const { summary, rows } = result.portfolio
   const showingNeedsAction = filters.view === 'needs_action'
+  // Merchant Partner lifecycle S2.2 — a batched, best-effort read (fails
+  // closed to an EMPTY map, never blocking the render — see
+  // `loadReminderFailures`'s own header for why that degrades safely here).
+  const reminderFailures = await loadReminderFailures(rows.map((r) => r.id))
 
   return (
     <section className="space-y-3">
@@ -218,7 +238,7 @@ export default async function PartnerPortfolio({
       ) : (
         <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
           {rows.map((row) => (
-            <PortfolioCard key={row.id} row={row} />
+            <PortfolioCard key={row.id} row={row} reminderFailed={reminderFailures.has(row.id)} />
           ))}
         </ul>
       )}
