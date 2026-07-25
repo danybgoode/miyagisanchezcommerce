@@ -66,14 +66,38 @@
 -- must be kept in lockstep by hand if that array ever changes; nothing in
 -- `lib/portfolio/` or this file re-derives the list independently.
 --
--- No new flag: both additions are reached through the SAME
--- `promoter.partner_portfolio_enabled` flag Sprint 1 already seeded (the
--- MCP route and the propose/confirm routes gate on it via
--- `resolvePartnerPortfolioActor` / `authorizePortfolioRequest`); the
--- retention-scheduling and portfolio-event sweep additions run unconditionally
--- inside the ALREADY-GATED `promoter.activation_crm_enabled` step of
--- `/api/cron/merchant-lifecycle-sweep` (same posture Sprint 2's reminder cron
--- already takes — it does not re-check `partner_portfolio_enabled` either).
+-- No new flag. WHAT IS AND IS NOT GATED, stated precisely — an earlier version of
+-- this header claimed "the MCP route and the propose/confirm routes gate on it via
+-- `resolvePartnerPortfolioActor` / `authorizePortfolioRequest`", and BOTH halves
+-- were false: `resolvePartnerPortfolioActor` checked only `partners.mcp_enabled`
+-- (ON in production since 2026-07-17), and there are no separate propose/confirm
+-- HTTP routes to gate — they are JSON-RPC tools inside the one MCP route. That is
+-- `Roadmap/LEARNINGS.md`'s "a paraphrased contract drifts permissive" in textbook
+-- form: a restated rule that ACCEPTED what the real rule rejected, in a shipped
+-- migration file. Caught by the fresh-reviewer pass on PR 311; the gate is now
+-- really there (`lib/portfolio/partner-portfolio-auth.ts` imports `PORTFOLIO_FLAG`
+-- by reference rather than re-typing the key) and this header describes the code
+-- as it actually is:
+--
+--   GATED on `promoter.partner_portfolio_enabled`:
+--     · every `/api/partner/portfolio*` + `/api/partner/relationship/*/draft*`
+--       route and the `/partner` portfolio section, via `lib/portfolio/gate-server.ts`
+--     · the admin SLA-policy and reassign routes, same helper
+--     · the partner-agent MCP route (`app/api/partner/portfolio/mcp/route.ts`),
+--       via `resolvePartnerPortfolioActor` — this is the fix
+--
+--   NOT gated on it, deliberately, and flagged for Daniel rather than assumed:
+--     · retention scheduling and portfolio-event emission inside
+--       `/api/cron/merchant-lifecycle-sweep`. They run in the step already gated by
+--       `promoter.activation_crm_enabled` (ON in prod), and `loadPortfolio` carries
+--       no flag check of its own — the flag lives at the ROUTE layer. So the first
+--       cron run after deploy DOES schedule real retention tasks and DOES emit
+--       `merchant.sla_due` / `sla_overdue` / `retention_scheduled` to Golden Beans
+--       for the existing relationships, BEFORE the kill-switch is flipped. Sprint
+--       2's reminder cron takes the same posture. Deliberate for a pre-launch
+--       tenant set (29 disposable relationships, 0 real merchants) and it is what
+--       closes D8's "safe only while the emissions table is empty" window — but it
+--       is a STATED decision, not an accident.
 
 -- ── 1. Retention task columns (Story 3.1) ───────────────────────────────────
 ALTER TABLE merchant_relationship_tasks

@@ -577,12 +577,27 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
       // constraint) when the task was already written on an earlier run —
       // never a SELECT-then-INSERT.
       const scheduled = await scheduleRetentionTask(relationshipId, now)
-      if (scheduled === 'scheduled') {
-        result.retentionTasksScheduled += 1
-        // Story 3.3 — emitted right after the canonical write it describes,
-        // never instead of it. `retentionDedupeKey` is the SAME key the task
-        // row itself was just claimed under — exactly one scheduling event
-        // per relationship, matching the task's own once-only guarantee.
+      if (scheduled === 'scheduled') result.retentionTasksScheduled += 1
+
+      // Story 3.3 — emitted right after the canonical write it describes, never
+      // instead of it. `retentionDedupeKey` is the SAME key the task row was
+      // claimed under, so exactly one scheduling event exists per relationship,
+      // matching the task's own once-only guarantee.
+      //
+      // EMITTED FOR `already_scheduled` TOO (fresh-reviewer finding 9, PR 311).
+      // The emit used to be inside the `=== 'scheduled'` branch, which bound a
+      // DURABLE fact to a TRANSIENT outcome: if the sweep died between the task
+      // insert and the emit, the next run got `already_scheduled` and the emit was
+      // never retried — the event was permanently lost, silently, with the task
+      // sitting right there in the database. Every other event in this rail is
+      // claim-backed and self-healing; this one wasn't.
+      //
+      // Retrying is FREE and cannot duplicate: the emission claim's own
+      // `(merchant_id, event_type, dedupe_key)` primary key makes a repeat a no-op
+      // (`already_emitted`), which is the same argument that lets the milestone
+      // paths derive from state rather than hooking a write. `error` still skips —
+      // we don't know whether a task exists to describe.
+      if (scheduled === 'scheduled' || scheduled === 'already_scheduled') {
         const outcome2 = await emitPortfolioLifecycleEvent({
           relationshipId,
           event: 'merchant.retention_scheduled',
@@ -590,7 +605,9 @@ export async function sweepMerchantLifecycle(now: Date = new Date()): Promise<Sw
           occurredAt: now.toISOString(),
         })
         if (recordPortfolioEvent(outcome2, result)) result.portfolioEventsEmitted += 1
-      } else if (scheduled === 'error') {
+      }
+
+      if (scheduled === 'error') {
         result.errors += 1
       }
     } catch {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { STEWARDSHIP_UPDATE_FIELDS } from '../lib/portfolio/reassign'
@@ -364,5 +364,171 @@ test.describe('completing a task never claims a follow-up it failed to create', 
 
   test('the successful path says so too — the flag is present either way, never inferred from absence', () => {
     expect(route).toMatch(/nextActionCreated: true/)
+  })
+})
+
+// ── The epic kill-switch gates the agent surface too (fresh-reviewer finding 1) ─
+//
+// THE WORST DEFECT OF THE EPIC, and it was a documentation-shaped one. The MCP
+// route checked only `partners.mcp_enabled` — ON in production since 2026-07-17
+// (re-verified live 2026-07-25) — so this branch would have shipped the agent
+// WRITE path (`propose_task_update` → `confirm_task_update`) live on deploy, with
+// `promoter.partner_portfolio_enabled` still OFF and before any of the smokes the
+// README says Daniel flips it after. The shipped MIGRATION HEADER meanwhile
+// asserted the opposite as fact ("the MCP route … gate[s] on it via
+// `resolvePartnerPortfolioActor`") — `Roadmap/LEARNINGS.md`'s "a paraphrased
+// contract drifts permissive" in textbook form: a restated rule that ACCEPTED what
+// the real rule rejected. Only the empty `partner_grants` population kept it
+// harmless; the gate itself was open.
+
+test.describe('the partner-agent surface is gated by the EPIC flag, not only by partners.mcp_enabled', () => {
+  const auth = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/partner-portfolio-auth.ts'),
+    'utf8',
+  )
+
+  test('the epic kill-switch is checked', () => {
+    expect(auth).toMatch(/isEnabled\(PORTFOLIO_FLAG\)/)
+  })
+
+  test('the flag key is IMPORTED by reference, never re-typed as a second literal', () => {
+    // Re-typing the string is exactly how the code and the migration header
+    // drifted apart in the first place.
+    expect(auth).toMatch(/import \{ PORTFOLIO_FLAG \} from '@\/lib\/portfolio\/gate-server'/)
+    const code = auth.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(code).not.toContain("'promoter.partner_portfolio_enabled'")
+  })
+
+  test('both gates run BEFORE the credential is resolved (flag → auth ordering)', () => {
+    const code = auth.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    const portfolioGate = code.indexOf('isEnabled(PORTFOLIO_FLAG)')
+    const mcpGate = code.indexOf("isEnabled('partners.mcp_enabled')")
+    const resolve = code.indexOf('resolvePartnerRow(token)')
+    expect(portfolioGate).toBeGreaterThan(-1)
+    expect(mcpGate).toBeGreaterThan(-1)
+    expect(portfolioGate).toBeLessThan(resolve)
+    expect(mcpGate).toBeLessThan(resolve)
+  })
+
+  test('a gated call is INDISTINGUISHABLE from a bad token — no message, no hint', () => {
+    // `{ ok: false, message: null }` on both gates: a caller must not be able to
+    // tell "this epic is dark" from "MCP is dark" from "your token is wrong".
+    const gateLines = auth.split('\n').filter((l) => l.includes('isEnabled(') && l.includes('return'))
+    expect(gateLines.length).toBeGreaterThanOrEqual(2)
+    for (const line of gateLines) expect(line).toContain('message: null')
+  })
+
+  test('the migration header no longer claims a gate that does not exist', () => {
+    const migration = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'supabase/migrations/20260725120000_partner_portfolio_s3.sql'),
+      'utf8',
+    )
+    // It must state what is NOT gated (the sweep) rather than implying everything is.
+    expect(migration).toContain('NOT gated on it, deliberately')
+  })
+})
+
+// ── UI/tool population parity (fresh-reviewer finding 5, PR 311) ──────────────
+//
+// The build contract required a spec that "drives the same fixture through the
+// resolver behind GET /api/partner/portfolio and through list_portfolio, and
+// asserts the row sets are identical." It was not written, and the code had
+// silently diverged: a synthetic `partner:<id>` actor meant
+// `listScopedRelationships`'s C1 steward-mirror branch (which keys off
+// `actor.clerkUserId`) could never match, so a promoter who was the assigned
+// STEWARD of a relationship saw it in the UI and NOT through the agent. Fail-closed,
+// so never a leak — but "UI and tool results agree" is the acceptance criterion,
+// and it was false.
+
+test.describe('the agent actor resolves the SAME population as the UI actor', () => {
+  const auth = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/partner-portfolio-auth.ts'),
+    'utf8',
+  )
+  const code = auth.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('the actor carries the promoter’s REAL Clerk id, so the steward mirror can match', () => {
+    expect(code).toMatch(/clerk_user_id/)
+    expect(code).toMatch(/boundClerkId \?\? `partner:\$\{partner\.id\}`/)
+  })
+
+  test('an UNBOUND promoter falls back to the synthetic id — fewer rows, never more', () => {
+    // A null clerk id must not widen access, and `.eq(null)` would match nothing
+    // in a way that is easy to get backwards. The fallback is deliberate.
+    expect(code).toMatch(/typeof bound\?\.clerk_user_id === 'string'/)
+  })
+
+  test('the shared seller-credential seam was NOT widened to get it', () => {
+    // `PARTNER_COLS` feeds every seller tool's credential resolution; a targeted
+    // read answers one question about one promoter without touching it.
+    const partnerAuth = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/partner-auth.ts'),
+      'utf8',
+    )
+    expect(partnerAuth).toContain("const PARTNER_COLS = 'id, code, name, partner_token_hash, partner_connector_slug'")
+  })
+
+  test('BOTH the UI route and the agent call the same scoped-list function — one population, by construction', () => {
+    const uiRoute = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'app/api/partner/portfolio/route.ts'),
+      'utf8',
+    )
+    const mcpRoute = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'app/api/partner/portfolio/mcp/route.ts'),
+      'utf8',
+    )
+    // Both reach the population through `loadPortfolio`, which is the only caller
+    // of `listScopedRelationships` in this epic. Neither re-derives scope.
+    expect(uiRoute).toMatch(/loadPortfolio/)
+    expect(mcpRoute).toMatch(/loadPortfolio/)
+    for (const src of [uiRoute, mcpRoute]) {
+      expect(src).not.toMatch(/from\('merchant_relationships'\)/)
+    }
+  })
+})
+
+// ── The scoped population is Daniel's ruling, pinned (finding 6, PR 311) ──────
+//
+// Story 3.2's scaffolded acceptance said "only GRANTED portfolio records", which
+// contradicted README D2 ("reuse the UI's population verbatim") and the shipped
+// four-actor rule — a partner's own `promoter_id` records and stewarded records are
+// in `/partner` scope and always were. Daniel ruled 2026-07-25: keep UI PARITY, so
+// the same person gets the same access through either surface and no second
+// authorization rule exists to drift. sprint-3.md's acceptance line was corrected
+// rather than the code narrowed. This spec pins the ruling so a future reader of
+// the old wording doesn't "fix" it back.
+
+test.describe('the agent population is UI parity, by Daniel’s ruling — not a second rule', () => {
+  test('no module in this epic re-derives scope; the ONE shipped helper decides', () => {
+    // `listScopedRelationships` owns the four populations (own / steward / granted /
+    // admin). If any epic module queried `merchant_relationships` for scope itself,
+    // that would BE the second rule D2 forbids.
+    const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'portfolio')
+    const files = readdirSync(dir).filter((f) => f.endsWith('.ts'))
+    expect(files.length).toBeGreaterThan(0)
+    const offenders: string[] = []
+    for (const f of files) {
+      const src = readFileSync(join(dir, f), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1')
+      // The loader legitimately re-reads named columns for rows the scoped list
+      // already returned; what must not exist is a scope-deciding predicate.
+      if (/from\('merchant_relationships'\)[\s\S]{0,200}\.eq\('promoter_id'/.test(src)) offenders.push(f)
+      if (/from\('partner_grants'\)/.test(src) && f !== 'partner-portfolio-auth.ts') offenders.push(f)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  test('the agent gate checks grant EXISTENCE (a credential with none is useless), not per-row grants', () => {
+    // The `activeGrants.length === 0` check is a credential-level "are you a
+    // partner at all" gate — deliberately NOT a per-relationship filter, which is
+    // what would fork the population.
+    const auth = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/partner-portfolio-auth.ts'),
+      'utf8',
+    ).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(auth).toMatch(/activeGrants\.length === 0/)
+    // It must not filter the returned relationship set by shop.
+    expect(auth).not.toMatch(/\.in\('shop_id'/)
   })
 })

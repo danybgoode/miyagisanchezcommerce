@@ -64,6 +64,7 @@ import { db } from '@/lib/supabase'
 import { authorizeRelationshipRequest, resolveRelationshipAccess, canWriteRelationship } from '@/lib/relationship-access'
 import { dueAtIsoFromDateOnly, isDateOnlyShape } from '@/lib/relationship-pipeline'
 import { isAllowedOutcome } from '@/lib/portfolio/retention'
+import { portfolioEventDedupeKey } from '@/lib/portfolio/events'
 import { emitPortfolioLifecycleEvent } from '@/lib/portfolio/events-server'
 
 export const dynamic = 'force-dynamic'
@@ -225,7 +226,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await emitPortfolioLifecycleEvent({
         relationshipId: id,
         event: 'merchant.retention_outcome_recorded',
-        dedupeKey: taskId,
+        // Built with the shared helper like every other call site — `events.ts`
+        // instructs callers to always use it, and a bare id was the one place that
+        // didn't (fresh-reviewer finding 10, PR 311). Harmless before (event_type
+        // is part of the PK, so the two events never collided) but an instruction
+        // followed almost-everywhere is how the next drift starts.
+        dedupeKey: portfolioEventDedupeKey('merchant.retention_outcome_recorded', taskId),
         occurredAt: now.toISOString(),
         outcome,
       })
@@ -234,7 +240,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await emitPortfolioLifecycleEvent({
         relationshipId: id,
         event: 'merchant.sla_completed',
-        dedupeKey: taskId,
+        dedupeKey: portfolioEventDedupeKey('merchant.sla_completed', taskId),
         occurredAt: now.toISOString(),
       })
     }

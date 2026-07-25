@@ -177,8 +177,22 @@ test.describe('the task-complete route extension never touches commerce, emits A
   test('emits merchant.retention_outcome_recorded and merchant.sla_completed, keyed off the task id', () => {
     expect(source).toContain("event: 'merchant.retention_outcome_recorded'")
     expect(source).toContain("event: 'merchant.sla_completed'")
-    // Both emissions key off `taskId` — one event per task, ever.
-    const outcomeBlock = source.slice(source.indexOf("'merchant.retention_outcome_recorded'"))
-    expect(outcomeBlock.slice(0, 200)).toContain('dedupeKey: taskId')
+    // Both emissions key off the TASK ID — one event per task, ever — and build
+    // the key with the shared `portfolioEventDedupeKey` helper like every other
+    // call site. The assertion used to pin the bare `dedupeKey: taskId` form, which
+    // was the ONE place in the epic that didn't use the helper `events.ts` tells
+    // callers to always use (fresh-reviewer finding 10, PR 311). Harmless as it
+    // stood — `event_type` is part of the emission primary key, so the two events
+    // could never collide — but an instruction followed almost-everywhere is how
+    // the next drift starts. Asserted on the task id being the KEY INPUT, not on
+    // the exact call form, so the guard checks the invariant rather than the syntax.
+    // Comments stripped before slicing: an explanatory comment between the `event:`
+    // and `dedupeKey:` lines would otherwise push the pairing outside any fixed
+    // window, making the guard fail on well-documented code rather than on a defect.
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    for (const event of ['merchant.retention_outcome_recorded', 'merchant.sla_completed']) {
+      const block = code.slice(code.indexOf(`'${event}'`))
+      expect(block.slice(0, 200), event).toMatch(/dedupeKey: portfolioEventDedupeKey\([^)]*taskId\)/)
+    }
   })
 })

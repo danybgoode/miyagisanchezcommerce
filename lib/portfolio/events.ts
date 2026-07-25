@@ -46,6 +46,7 @@
  * not import this one; the two vocabularies stay independent at the TYPE
  * level too, not merely the value level.
  */
+import { createHash } from 'node:crypto'
 
 export const PORTFOLIO_LIFECYCLE_EVENTS = [
   'merchant.steward_assigned',
@@ -101,6 +102,37 @@ export function portfolioEventDedupeKey(event: PortfolioLifecycleEvent, discrimi
  * do). Computed independently rather than imported, for the same
  * zero-import/no-coupling reason as `portfolioEventDedupeKey` above.
  */
+/**
+ * A short, stable, NON-REVERSIBLE key for a value that identifies a PERSON.
+ *
+ * Added for fresh-reviewer finding 4 (PR 311). The reassign route composed its
+ * dedupe key from the incoming steward's raw Clerk id, and `portfolioEventIdempotencyKey`
+ * embeds the dedupe key VERBATIM into `context.idempotencyKey` — so `user_2abc…`
+ * was transmitted cross-repo to Golden Beans. D9's letter permitted it (the
+ * idempotency key is an allowlisted field), but the construction was internally
+ * inconsistent: `EXCLUDED_EVENT_SOURCE_KEYS` forbids `promoterId`, `cohort` and
+ * `shopId` — opaque INTERNAL ids — while a Clerk id, which names a human and is
+ * the join key to that human's account, entered through a side channel the D9
+ * spec cannot see (it feeds the builder a synthetic dedupe key, so the leak lives
+ * in the caller).
+ *
+ * SHA-256, truncated to 16 hex chars. Requirements this has to meet, in order:
+ *   · STABLE — the same steward must produce the same key forever, or the
+ *     idempotency guarantee the key exists for evaporates.
+ *   · NON-REVERSIBLE for the recipient — Golden Beans cannot recover the Clerk id.
+ *   · COLLISION-IRRELEVANT — 64 bits over a set of stewards numbering in the
+ *     dozens. A collision would merely dedupe two distinct assignments into one
+ *     event, which is a lost measurement, not a wrong write.
+ *
+ * NOT a security control: an attacker who already knows a Clerk id can confirm it
+ * by hashing. It removes the id from the wire; it does not make the id secret.
+ * `node:crypto` is a Node builtin, so this file still loads in the Playwright
+ * `api` project (the constraint is no `server-only`/`next`/Clerk/Supabase).
+ */
+export function opaqueActorKey(value: string): string {
+  return createHash('sha256').update(value).digest('hex').slice(0, 16)
+}
+
 export function portfolioEventIdempotencyKey(
   relationshipId: string,
   event: PortfolioLifecycleEvent,
