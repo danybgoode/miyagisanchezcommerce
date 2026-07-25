@@ -2,6 +2,7 @@ import { loadPortfolio } from '@/lib/portfolio/loader'
 import { resolveActor } from '@/lib/relationship-access'
 import { stageLabel } from '@/lib/merchant-stage-labels'
 import { loadReminderFailures } from '@/lib/portfolio/reminders-server'
+import { reminderWindowKey } from '@/lib/portfolio/reminders'
 import DraftAssistant from './DraftAssistant'
 import {
   parsePortfolioFilters,
@@ -196,7 +197,18 @@ export default async function PartnerPortfolio({
   // Merchant Partner lifecycle S2.2 — a batched, best-effort read (fails
   // closed to an EMPTY map, never blocking the render — see
   // `loadReminderFailures`'s own header for why that degrades safely here).
-  const reminderFailures = await loadReminderFailures(rows.map((r) => r.id))
+  //
+  // The row's CURRENT window is passed in (fresh-reviewer finding 3, PR 310): a
+  // failure recorded for a window the merchant has since moved past — the partner
+  // handled it and rescheduled, so `slaDueAt` is now a different window — must not
+  // leave a permanent warning on a row that is healthy again.
+  const currentWindowByRelationship = new Map(
+    rows.map((r) => [r.id, reminderWindowKey('sla_overdue', r.slaDueAt)] as const),
+  )
+  const reminderFailures = await loadReminderFailures(
+    rows.map((r) => r.id),
+    currentWindowByRelationship,
+  )
 
   return (
     <section className="space-y-3">

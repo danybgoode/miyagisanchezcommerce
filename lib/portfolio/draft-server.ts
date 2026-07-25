@@ -104,7 +104,7 @@ export async function gatherDraftFacts(
     degraded = true
   }
 
-  // THE canonical lookup (Sprint 1 review fix, PR #308) — never a second
+  // THE canonical lookup (Sprint 1 review fix, PR 308) — never a second
   // hand-rolled hasOwnProperty check against a locally-imported label map.
   // `preferredChannelLabel` owns the own-property-safe guard.
   const preferredChannel = preferredChannelLabel(relationship.preferred_channel)

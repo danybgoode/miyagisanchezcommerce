@@ -314,7 +314,7 @@ test.describe('live · GET /api/cron/portfolio-reminders never 5xxs for an unaut
   })
 })
 
-// ── foldLatestReminderFailures (cross-agent review finding, PR #310) ──────────
+// ── foldLatestReminderFailures (cross-agent review finding, PR 310) ──────────
 //
 // A REAL false-positive bug, found by the cross-family reviewer. The original
 // fold lived inlined in `lib/portfolio/reminders-server.ts` and used its RESULT
@@ -335,8 +335,8 @@ test.describe('foldLatestReminderFailures — only the LATEST reminder decides t
   test('THE REGRESSION: a successful newest row suppresses an older failure', () => {
     // Newest-first, exactly as the query orders them.
     const failures = foldLatestReminderFailures([
-      { relationshipId: 'r-1', lastError: null },
-      { relationshipId: 'r-1', lastError: 'telegram 500' },
+      { relationshipId: 'r-1', lastError: null, windowKey: 'w1', deliveredChannelCount: 2 },
+      { relationshipId: 'r-1', lastError: 'telegram 500', windowKey: 'w0', deliveredChannelCount: 0 },
     ])
     expect(failures.has('r-1')).toBe(false)
     expect(failures.size).toBe(0)
@@ -344,22 +344,22 @@ test.describe('foldLatestReminderFailures — only the LATEST reminder decides t
 
   test('a failing newest row reports THAT error, not an older one', () => {
     const failures = foldLatestReminderFailures([
-      { relationshipId: 'r-1', lastError: 'push expired' },
-      { relationshipId: 'r-1', lastError: 'telegram 500' },
+      { relationshipId: 'r-1', lastError: 'push expired', windowKey: 'w1', deliveredChannelCount: 0 },
+      { relationshipId: 'r-1', lastError: 'telegram 500', windowKey: 'w0', deliveredChannelCount: 0 },
     ])
     expect(failures.get('r-1')).toBe('push expired')
   })
 
   test('a single failed row is reported', () => {
-    expect(foldLatestReminderFailures([{ relationshipId: 'r-1', lastError: 'boom' }]).get('r-1')).toBe('boom')
+    expect(foldLatestReminderFailures([{ relationshipId: 'r-1', lastError: 'boom', windowKey: 'w1', deliveredChannelCount: 0 }]).get('r-1')).toBe('boom')
   })
 
   test('relationships are independent — one merchant’s failure never masks another’s success', () => {
     const failures = foldLatestReminderFailures([
-      { relationshipId: 'r-ok', lastError: null },
-      { relationshipId: 'r-bad', lastError: 'boom' },
-      { relationshipId: 'r-ok', lastError: 'stale' },
-      { relationshipId: 'r-bad', lastError: 'older boom' },
+      { relationshipId: 'r-ok', lastError: null, windowKey: 'w1', deliveredChannelCount: 1 },
+      { relationshipId: 'r-bad', lastError: 'boom', windowKey: 'w1', deliveredChannelCount: 0 },
+      { relationshipId: 'r-ok', lastError: 'stale', windowKey: 'w0', deliveredChannelCount: 0 },
+      { relationshipId: 'r-bad', lastError: 'older boom', windowKey: 'w0', deliveredChannelCount: 0 },
     ])
     expect(failures.get('r-bad')).toBe('boom')
     expect(failures.has('r-ok')).toBe(false)
@@ -374,8 +374,84 @@ test.describe('foldLatestReminderFailures — only the LATEST reminder decides t
       join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/reminders-server.ts'),
       'utf8',
     )
-    expect(src).toContain('foldLatestReminderFailures(rows)')
+    // Matched on the CALL, not its exact argument list — the window-scoping fix
+    // (finding 3) added a second argument, and a guard that pins an argument list
+    // it doesn't care about just breaks on every legitimate change.
+    expect(src).toMatch(/foldLatestReminderFailures\(\s*rows/)
     // The exact defective idiom must not come back.
     expect(src).not.toContain('if (byId.has(row.relationship_id)) continue')
+  })
+})
+
+// ── Window-scoping + partial delivery (fresh-reviewer findings 2/3, PR 310) ────
+//
+// The cross-agent review caught the badge surviving a later SUCCESS. The fresh
+// reviewer then caught the same false-positive shape on two more axes, both of
+// which the contract's own wording ("the latest reminder FOR THE CURRENT WINDOW
+// failed") already excluded:
+//
+//   · a failure from a SUPERSEDED window badging a row that is healthy again,
+//     permanently, because nothing compared `window_key`; and
+//   · a PARTIAL delivery (telegram down, push through) badging "no se entregó"
+//     for a steward who was in fact notified — so one Telegram outage would have
+//     marked every overdue merchant undelivered.
+
+test.describe('foldLatestReminderFailures — only a CURRENT-window, fully-undelivered reminder badges', () => {
+  const CURRENT = new Map([['r-1', 'w1']])
+
+  test('a failure from a SUPERSEDED window does not badge a now-healthy row', () => {
+    const failures = foldLatestReminderFailures(
+      [{ relationshipId: 'r-1', lastError: 'telegram 500', windowKey: 'w0', deliveredChannelCount: 0 }],
+      CURRENT,
+    )
+    expect(failures.has('r-1')).toBe(false)
+  })
+
+  test('a failure in the CURRENT window still badges', () => {
+    const failures = foldLatestReminderFailures(
+      [{ relationshipId: 'r-1', lastError: 'nada disponible', windowKey: 'w1', deliveredChannelCount: 0 }],
+      CURRENT,
+    )
+    expect(failures.get('r-1')).toBe('nada disponible')
+  })
+
+  test('a PARTIAL delivery never badges — the steward was reached', () => {
+    const failures = foldLatestReminderFailures(
+      [{ relationshipId: 'r-1', lastError: 'telegram 500', windowKey: 'w1', deliveredChannelCount: 1 }],
+      CURRENT,
+    )
+    expect(failures.has('r-1')).toBe(false)
+  })
+
+  test('omitting the current-window map accepts any window (back-compatible for a caller with no window notion)', () => {
+    const failures = foldLatestReminderFailures([
+      { relationshipId: 'r-1', lastError: 'boom', windowKey: 'whatever', deliveredChannelCount: 0 },
+    ])
+    expect(failures.get('r-1')).toBe('boom')
+  })
+})
+
+test.describe('the reminder rail can OBSERVE a failure at all (finding 2)', () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/reminders-server.ts'),
+    'utf8',
+  )
+
+  test('reachability is PRE-CHECKED, because both transports return silently when unconfigured', () => {
+    // `notify()` bails on missing VAPID or an empty `push_subscriptions`; `tgSend()`
+    // bails on a missing token/chat id. Both are `Promise<void>` and swallow — so a
+    // try/catch alone can never see the common failure, and the row would claim a
+    // two-channel delivery for a run where nobody was notified.
+    expect(src).toContain('push_subscriptions')
+    expect(src).toContain('tgConfigured()')
+  })
+
+  test('a run where NO channel got through records an error even though nothing threw', () => {
+    expect(src).toMatch(/channels\.length === 0 && lastError === null/)
+    expect(src).toContain('Ningún canal disponible')
+  })
+
+  test('the cron REFUSES an unreadable SLA policy rather than risk a duplicate window (finding 4)', () => {
+    expect(src).toMatch(/source === 'read_failed'/)
   })
 })

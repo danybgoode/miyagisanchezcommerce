@@ -139,12 +139,20 @@ export function reminderDeepLinkPath(relationshipId: string): string {
   return `/partner?relationshipId=${encodeURIComponent(relationshipId)}`
 }
 
-// ── The latest-reminder fold (extracted for testability, PR #310 review) ──────
+// ── The latest-reminder fold (extracted for testability, PR 310 review) ──────
 
 /** One `merchant_followup_reminders` row, reduced to what the fold below needs. */
 export interface ReminderStatusRow {
   relationshipId: string
   lastError: string | null
+  /** The window this reminder was FOR. Required: a failure from a superseded
+   *  window must not badge a row that is now healthy (fresh-reviewer finding 3,
+   *  PR 310). */
+  windowKey: string
+  /** How many channels actually delivered. A row with `lastError` set but at
+   *  least one channel through is a PARTIAL delivery — the steward WAS reached,
+   *  so it must not render as "no se entregó" (same finding). */
+  deliveredChannelCount: number
 }
 
 /**
@@ -152,7 +160,7 @@ export interface ReminderStatusRow {
  * recent reminder FAILED, mapped to that failure's message.
  *
  * Extracted out of `lib/portfolio/reminders-server.ts` (which is `server-only`,
- * so no `api` spec could ever load it) after the cross-agent review on PR #310
+ * so no `api` spec could ever load it) after the cross-agent review on PR 310
  * found a real false-positive bug in the inlined version: it used the RESULT map
  * as its "already handled" test, but that map is only written for a FAILED row —
  * so a relationship whose newest reminder SUCCEEDED never got recorded, and the
@@ -169,13 +177,32 @@ export interface ReminderStatusRow {
  * FIRST-SEEN WINS, tracked independently of the result: a successful newest row
  * closes the relationship out and contributes no entry.
  */
-export function foldLatestReminderFailures(rowsNewestFirst: readonly ReminderStatusRow[]): Map<string, string> {
+export function foldLatestReminderFailures(
+  rowsNewestFirst: readonly ReminderStatusRow[],
+  /** The window each relationship is CURRENTLY in, by relationship id. A row
+   *  whose `windowKey` isn't the current one is stale and never badges. Omit the
+   *  map entirely (or leave an id out of it) to accept any window — used only by
+   *  callers that genuinely have no current-window notion. */
+  currentWindowByRelationship?: ReadonlyMap<string, string>,
+): Map<string, string> {
   const failures = new Map<string, string>()
   const seen = new Set<string>()
   for (const row of rowsNewestFirst) {
     if (seen.has(row.relationshipId)) continue
     seen.add(row.relationshipId)
-    if (row.lastError) failures.set(row.relationshipId, row.lastError)
+    if (!row.lastError) continue
+    // PARTIAL delivery is not a failure to surface: one channel down while
+    // another delivered means the steward WAS notified, and badging it would
+    // re-manufacture the same false positive on a different axis — a single
+    // Telegram outage would otherwise mark every overdue merchant undelivered
+    // while every steward had the push.
+    if (row.deliveredChannelCount > 0) continue
+    // STALE WINDOW: the failure belongs to a window this relationship has since
+    // moved past (the partner handled it and rescheduled), so the row is healthy
+    // now and must not carry a permanent warning.
+    const expected = currentWindowByRelationship?.get(row.relationshipId)
+    if (expected !== undefined && expected !== row.windowKey) continue
+    failures.set(row.relationshipId, row.lastError)
   }
   return failures
 }

@@ -153,7 +153,7 @@ function discoverDraftRoutes(): string[] {
       }
       if (entry !== 'route.ts') continue
       const segments = relative(ROOT, dir).split(sep)
-      if (segments.includes('draft')) out.push(relative(ROOT, full).replace(/\\/g, '/'))
+      if (segments.some((s) => s.startsWith('draft'))) out.push(relative(ROOT, full).replace(/\\/g, '/'))
     }
   }
   walk(join(ROOT, 'app', 'api'))

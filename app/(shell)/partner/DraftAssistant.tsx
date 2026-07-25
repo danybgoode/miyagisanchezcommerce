@@ -163,7 +163,7 @@ export default function DraftAssistant({ relationshipId }: { relationshipId: str
   async function copyText() {
     try {
       await navigator.clipboard.writeText(text)
-      // Visible confirmation (cross-agent review, PR #310): the partner is about
+      // Visible confirmation (cross-agent review, PR 310): the partner is about
       // to switch apps to send this by hand, so a silent copy leaves them unsure
       // whether there is anything on the clipboard at all.
       setCopiedJustNow(true)
