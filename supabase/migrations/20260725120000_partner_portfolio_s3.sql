@@ -27,11 +27,39 @@
 --      off is itself write-once — no "repair" code path is needed.
 --   2. `merchant_lifecycle_emissions` widens its PRIMARY KEY from
 --      `(merchant_id, event_type)` to `(merchant_id, event_type,
---      dedupe_key)` (Story 3.3, README D8). THIS IS SAFE ONLY BECAUSE THE
---      TABLE HOLDS 0 ROWS IN PRODUCTION (verified live 2026-07-24, per the
---      README's baseline) — the schema fork is free exactly once, while the
---      table is empty, and it expires the moment a real event lands (the
---      same call activation-ops D1 made for a different table). Milestones
+--      dedupe_key)` (Story 3.3, README D8).
+--
+--      WHY THIS IS SAFE — CORRECTED 2026-07-25, and the correction matters.
+--      The original text here said "SAFE ONLY BECAUSE THE TABLE HOLDS 0 ROWS
+--      IN PRODUCTION (verified live 2026-07-24)". That claim was true when
+--      written and was FALSE by the time the migration was applied: re-checked
+--      immediately before applying, the table held **33 rows**, all delivered,
+--      emitted by the daily sweep at ~10:00 UTC on 2026-07-25 (13
+--      `merchant.claimed`, 11 `merchant.three_products_live`, 7
+--      `merchant.payments_ready`, 2 `merchant.first_inquiry` for the 29
+--      backfilled shops). The "free exactly once, while empty" window CLOSED
+--      between planning and applying — exactly as the original text warned it
+--      would, just sooner than assumed.
+--
+--      The widening is still safe, but for a DIFFERENT and stronger reason,
+--      stated here rather than left as a stale justification: the new column is
+--      `NOT NULL DEFAULT ''`, so every pre-existing row takes `''`, and the OLD
+--      key `(merchant_id, event_type)` was already UNIQUE across those rows —
+--      therefore the WIDENED key `(merchant_id, event_type, '')` is unique over
+--      exactly the same set, and no existing row can collide under it. The PK
+--      swap is a constraint change over data that already satisfies the new
+--      constraint. (`ADD COLUMN ... NOT NULL DEFAULT` is also metadata-only in
+--      PG11+, so there is no table rewrite on those rows.) Verified before
+--      applying: the live PK really was named `merchant_lifecycle_emissions_pkey`
+--      (the `DROP CONSTRAINT IF EXISTS` below assumes that name, and a mismatch
+--      would silently no-op and then fail loudly on `ADD PRIMARY KEY`).
+--
+--      THE OPERATIONAL CONSEQUENCE, since the rail is now LIVE rather than
+--      dormant: this migration MUST be applied BEFORE the code that reads
+--      `dedupe_key` deploys. `listPendingEmissions` selects that column and
+--      `deliverClaimedEmission` filters on it, so shipping the code against an
+--      unmigrated table breaks the drain of an ACTIVELY-USED path — an outage,
+--      not a dark no-op. Apply → verify → then merge. Milestones
 --      (the 14 `merchant.*` stage/preview events in
 --      `lib/merchant-lifecycle.ts#MERCHANT_LIFECYCLE_EVENTS`) pass
 --      `dedupe_key = ''` and keep BYTE-IDENTICAL write-once semantics — the
@@ -96,7 +124,9 @@
 --       for the existing relationships, BEFORE the kill-switch is flipped. Sprint
 --       2's reminder cron takes the same posture. Deliberate for a pre-launch
 --       tenant set (29 disposable relationships, 0 real merchants) and it is what
---       closes D8's "safe only while the emissions table is empty" window — but it
+--       already closed D8's "while the emissions table is empty" window (see the
+--       correction above — 33 milestone rows landed 2026-07-25 before this
+--       migration was applied) — but it
 --       is a STATED decision, not an accident.
 
 -- ── 1. Retention task columns (Story 3.1) ───────────────────────────────────
