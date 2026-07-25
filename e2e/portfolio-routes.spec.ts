@@ -35,9 +35,15 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 
-/** Every new route file this sprint adds. Story 1.3's reassign route is
- *  appended here by `e2e/portfolio-reassign.spec.ts`, which owns it. */
-const NEW_ROUTE_FILES = ['app/api/partner/portfolio/route.ts', 'app/api/admin/sla-policy/route.ts']
+/** Every new route file this sprint adds. Story 1.3's reassign route gets its
+ *  detailed treatment in `e2e/portfolio-reassign.spec.ts`; it is listed here too
+ *  so the sprint-wide guards below (gate-first, no transport import) cover it —
+ *  the population is the sprint's routes, not one story's. */
+const NEW_ROUTE_FILES = [
+  'app/api/partner/portfolio/route.ts',
+  'app/api/admin/sla-policy/route.ts',
+  'app/api/admin/relationship/[id]/reassign/route.ts',
+]
 
 /**
  * `lib/portfolio/gate-server.ts` is `server-only`, so it cannot be IMPORTED
@@ -177,7 +183,7 @@ test.describe('source · every new route runs the portfolio flag gate before any
   })
 
   test('the admin routes narrow to isAdmin explicitly after the shared gate', () => {
-    for (const file of ['app/api/admin/sla-policy/route.ts']) {
+    for (const file of ['app/api/admin/sla-policy/route.ts', 'app/api/admin/relationship/[id]/reassign/route.ts']) {
       const text = read(file)
       expect(text, file).toContain('auth.actor.isAdmin')
       expect(text, file).toMatch(/status:\s*403/)
