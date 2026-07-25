@@ -54,7 +54,7 @@ function row(over: Partial<PortfolioRow> = {}): PortfolioRow {
     openTaskCount: 0,
     lastInteractionAt: null,
     stewardClerkUserId: 'steward_1',
-    assignmentReason: null,
+    assignmentHandoffNote: null,
     assignedAt: null,
     dueState: 'overdue',
     slaDueAt: '2026-07-20T00:00:00.000Z',

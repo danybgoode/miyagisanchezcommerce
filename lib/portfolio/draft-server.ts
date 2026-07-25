@@ -30,7 +30,7 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { stageLabel } from '@/lib/merchant-stage-labels'
 import { ageInStageDays, nextOpenTask } from '@/lib/relationship-pipeline'
-import { PREFERRED_CHANNEL_LABEL } from '@/lib/portfolio/resolver'
+import { preferredChannelLabel } from '@/lib/preferred-channels'
 import { resolveLinkedShopSummary, type RelationshipActor, type RelationshipRow } from '@/lib/relationship-access'
 import { getPromoterByClerkId } from '@/lib/promoter'
 import { shopTarget } from '@/lib/shortlink'
@@ -104,13 +104,10 @@ export async function gatherDraftFacts(
     degraded = true
   }
 
-  // Own-property check on a fixed literal map — never `channel in map`
-  // (Sprint 1 review: `in` walks the prototype chain).
-  const preferredChannel =
-    relationship.preferred_channel !== null &&
-    Object.prototype.hasOwnProperty.call(PREFERRED_CHANNEL_LABEL, relationship.preferred_channel)
-      ? PREFERRED_CHANNEL_LABEL[relationship.preferred_channel]
-      : null
+  // THE canonical lookup (Sprint 1 review fix, PR #308) — never a second
+  // hand-rolled hasOwnProperty check against a locally-imported label map.
+  // `preferredChannelLabel` owns the own-property-safe guard.
+  const preferredChannel = preferredChannelLabel(relationship.preferred_channel)
 
   const input: DraftFactsSourceInput = {
     stage: relationship.stage,
