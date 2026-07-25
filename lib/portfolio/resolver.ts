@@ -31,6 +31,7 @@
  * 0 for two distinct rows.
  */
 import { STAGE_ORDINAL, isStage, type Stage } from '@/lib/merchant-stage'
+import { preferredChannelLabel } from '@/lib/preferred-channels'
 import type { OpenTaskFact } from '@/lib/relationship-pipeline'
 import type { SlaState } from '@/lib/portfolio/sla'
 
@@ -46,18 +47,17 @@ export const PORTFOLIO_DUE_SOON_DAYS = 2
 const DAY_MS = 86_400_000
 
 /**
- * es-MX labels for `merchant_relationships.preferred_channel` (the DB CHECK's
- * five values). The row exposes this LABEL and never the contact value — which
- * channel a merchant prefers is safe operational context ("call, don't email");
- * the number itself is not.
+ * es-MX labels for `merchant_relationships.preferred_channel` — RE-EXPORTED by
+ * reference from `lib/preferred-channels.ts`, never redefined here.
+ *
+ * This module originally carried its own copy, which made a FOURTH copy of a
+ * vocabulary that already existed in three places and had already drifted
+ * (`email: 'Correo'` vs `'Correo electrónico'`) — fresh-reviewer finding 2 on
+ * PR #308. The row exposes this LABEL and never the contact value: which channel
+ * a merchant prefers is safe operational context ("call, don't email"); the
+ * number itself is not.
  */
-export const PREFERRED_CHANNEL_LABEL: Readonly<Record<string, string>> = {
-  whatsapp: 'WhatsApp',
-  phone: 'Teléfono',
-  email: 'Correo electrónico',
-  instagram: 'Instagram',
-  in_person: 'En persona',
-}
+export { PREFERRED_CHANNEL_LABEL } from '@/lib/preferred-channels'
 
 /** The already-fetched input the loader hands over. Deliberately carries NO
  *  contact value — see the file header. */
@@ -162,14 +162,13 @@ export function buildPortfolioRow(input: PortfolioInputRow, now: Date): Portfoli
     stage: input.stage,
     stageOrdinal: isStage(input.stage) ? STAGE_ORDINAL[input.stage] : 0,
     ageInStageDays: input.ageInStageDays,
-    // `hasOwnProperty`, not `in` — caught by e2e/portfolio-resolver.spec.ts:
-    // `in` walks the prototype chain, so a stored value of `'toString'` resolved
-    // to `Object.prototype.toString` and put a FUNCTION where a Spanish label
-    // belongs. Same guard `lib/flags-admin.ts#isKnownFlagKey` already applies.
-    preferredChannel:
-      channel !== null && Object.prototype.hasOwnProperty.call(PREFERRED_CHANNEL_LABEL, channel)
-        ? PREFERRED_CHANNEL_LABEL[channel]
-        : null,
+    // `preferredChannelLabel` owns the lookup, including the reason it can't be
+    // a bare `channel in LABELS`: `in` walks the prototype chain, so a stored
+    // value of `'toString'` resolved to `Object.prototype.toString` and put a
+    // FUNCTION where a Spanish label belongs (caught red by
+    // e2e/portfolio-resolver.spec.ts). Centralising the guard means no future
+    // call site can reintroduce it.
+    preferredChannel: preferredChannelLabel(channel),
     nextActionId: input.nextAction?.id ?? null,
     nextActionDueAt: input.nextAction?.dueAt ?? null,
     missingAction: input.missingAction,

@@ -55,6 +55,7 @@ import {
   decideDedupeMatch,
   type DedupeCandidateRows,
 } from '@/lib/merchant-identity'
+import { isPreferredChannel } from '@/lib/preferred-channels'
 import {
   authorizeRelationshipRequest,
   resolveRelationshipAccess,
@@ -68,7 +69,6 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const PREFERRED_CHANNELS = ['whatsapp', 'phone', 'email', 'instagram', 'in_person'] as const
 const QUALIFICATIONS = ['unknown', 'strong', 'medium', 'weak', 'disqualified'] as const
 
 interface RelationshipBody {
@@ -194,7 +194,9 @@ export async function POST(req: NextRequest) {
   const typeError = validateBodyTypes(body)
   if (typeError) return NextResponse.json({ ok: false, error: typeError }, { status: 400 })
 
-  if (body.preferredChannel && !PREFERRED_CHANNELS.includes(body.preferredChannel as (typeof PREFERRED_CHANNELS)[number])) {
+  // The channel vocabulary is imported, never restated — it mirrors the DB
+  // CHECK and lives in lib/preferred-channels.ts (PR #308 finding 2).
+  if (body.preferredChannel && !isPreferredChannel(body.preferredChannel)) {
     return NextResponse.json({ ok: false, error: 'Canal preferido inválido.' }, { status: 400 })
   }
   if (body.qualification && !QUALIFICATIONS.includes(body.qualification as (typeof QUALIFICATIONS)[number])) {

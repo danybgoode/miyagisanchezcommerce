@@ -18,6 +18,7 @@
  * `lib/fundadoras-application-server.ts` (mirrors relationship-access.ts /
  * relationship-enrich.ts's split).
  */
+import { isPreferredChannel, type PreferredChannel } from '@/lib/preferred-channels'
 import {
   normalizePhoneE164,
   normalizeEmail,
@@ -43,8 +44,11 @@ export const FUNDADORAS_CONSENT_SOURCE = 'fundadoras_public_application'
 export const FUNDADORAS_CREATED_BY = 'fundadoras_public'
 export const FUNDADORAS_DEFAULT_SOURCE = 'public_application'
 
-const PREFERRED_CHANNELS = ['whatsapp', 'phone', 'email', 'instagram', 'in_person'] as const
-export type FundadorasPreferredChannel = (typeof PREFERRED_CHANNELS)[number]
+// The channel vocabulary is imported, never restated — one source mirroring the
+// DB CHECK (`lib/preferred-channels.ts`, PR #308 finding 2). `PreferredChannel`
+// is re-exported under this module's existing name so its consumers are
+// untouched by the dedupe.
+export type FundadorasPreferredChannel = PreferredChannel
 
 const MAX_BUSINESS_NAME_LEN = 140
 const MAX_CONTACT_NAME_LEN = 140
@@ -162,8 +166,8 @@ export function validateFundadorasApplicationInput(input: FundadorasApplicationI
   const currentChannel = capOptional(trimmed(input.currentChannel), MAX_CATEGORY_LEN)
 
   const rawPreferred = trimmed(input.preferredChannel)
-  const preferredChannel = (PREFERRED_CHANNELS as readonly string[]).includes(rawPreferred)
-    ? (rawPreferred as FundadorasPreferredChannel)
+  const preferredChannel = isPreferredChannel(rawPreferred)
+    ? rawPreferred
     : null
 
   // An invalid/unresolvable promoter code is dropped SILENTLY (build contract,

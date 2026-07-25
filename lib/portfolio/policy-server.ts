@@ -36,13 +36,36 @@ const SINGLETON_ID = 1
 /** Where the policy in hand came from — surfaced so the admin GET and any
  *  future banner can tell "nobody has configured one yet" apart from "we
  *  couldn't read the one that exists". */
-export type SlaPolicySource = 'stored' | 'code_default' | 'unreadable'
+/**
+ * `unreadable` was ONE value and had to become TWO (fresh-reviewer finding 1,
+ * PR #308). Both meant "fall back to the code default", which is right for the
+ * READ path — but the WRITE path has to bump a version, and the two cases carry
+ * completely different knowledge:
+ *
+ *   - `read_failed`  — the query itself errored. We know NOTHING about the row,
+ *                      including what version it holds. A write cannot safely
+ *                      pick a next version, so it must REFUSE.
+ *   - `malformed`    — we read the row fine; its document failed validation (or
+ *                      its `version` column disagrees with the document's own).
+ *                      We DO know the column version, so a write can bump past
+ *                      it and repair the row in the same operation.
+ *
+ * Collapsing them is what let a transient read error rewind `version` from 7 to
+ * 2 — see `writeSlaPolicy`.
+ */
+export type SlaPolicySource = 'stored' | 'code_default' | 'read_failed' | 'malformed'
 
 export interface LoadedSlaPolicy {
   policy: SlaPolicy
   source: SlaPolicySource
   updatedBy: string | null
   updatedAt: string | null
+  /** The raw `version` COLUMN as stored, independent of whether the document
+   *  parsed. `null` when there is no row or the read failed outright. Carried
+   *  out solely so `writeSlaPolicy` can guarantee monotonicity even when the
+   *  document is unusable — without it, a malformed row's version is invisible
+   *  to the only code that must never go backwards. */
+  rawVersion: number | null
 }
 
 /**
@@ -59,13 +82,13 @@ export async function loadSlaPolicy(): Promise<LoadedSlaPolicy> {
 
   if (error) {
     console.error('[portfolio/policy] merchant_sla_policy read failed — falling back to the code default:', error.message)
-    return { policy: DEFAULT_SLA_POLICY, source: 'unreadable', updatedBy: null, updatedAt: null }
+    return { policy: DEFAULT_SLA_POLICY, source: 'read_failed', updatedBy: null, updatedAt: null, rawVersion: null }
   }
 
   if (!data) {
     // The expected steady state: the migration deliberately seeds nothing, so
     // absence means "the code default IS the policy" (README D3).
-    return { policy: DEFAULT_SLA_POLICY, source: 'code_default', updatedBy: null, updatedAt: null }
+    return { policy: DEFAULT_SLA_POLICY, source: 'code_default', updatedBy: null, updatedAt: null, rawVersion: null }
   }
 
   const row = data as { version: number | null; policy: unknown; updated_by: string | null; updated_at: string | null }
@@ -81,28 +104,71 @@ export async function loadSlaPolicy(): Promise<LoadedSlaPolicy> {
     console.error(
       `[portfolio/policy] merchant_sla_policy row is unusable (${isDefault ? 'malformed document' : `version column ${row.version} ≠ document ${parsed.version}`}) — falling back to the code default`,
     )
-    return { policy: DEFAULT_SLA_POLICY, source: 'unreadable', updatedBy: row.updated_by, updatedAt: row.updated_at }
+    return {
+      policy: DEFAULT_SLA_POLICY,
+      source: 'malformed',
+      updatedBy: row.updated_by,
+      updatedAt: row.updated_at,
+      rawVersion: row.version,
+    }
   }
 
-  return { policy: parsed, source: 'stored', updatedBy: row.updated_by, updatedAt: row.updated_at }
+  return { policy: parsed, source: 'stored', updatedBy: row.updated_by, updatedAt: row.updated_at, rawVersion: row.version }
 }
 
-export type WriteSlaPolicyResult = { ok: true; policy: SlaPolicy } | { ok: false; error: string }
+export type WriteSlaPolicyResult =
+  | { ok: true; policy: SlaPolicy }
+  | { ok: false; error: string; conflict?: true }
 
 /**
  * Upsert the single policy row, bumping `version` on every write (the caller
  * never chooses a version — a client-supplied one could go backwards and make
  * two different documents claim the same version).
  *
- * The version to write is derived from the CURRENT load: `stored` ⇒ its version
- * + 1; anything else ⇒ `DEFAULT_SLA_POLICY.version + 1`, so the first stored
- * policy is always strictly newer than the code default it replaces. An
- * `unreadable` current row still gets bumped past whatever the code default
- * claims rather than reusing a version number that may already be in flight.
+ * `version` MUST be monotonic. Its whole purpose is that
+ * `merchant_relationships.sla_policy_version` and every rendered portfolio row
+ * can name the policy they were computed under; two materially different
+ * documents claiming the same version makes every one of those stamps
+ * non-comparable, permanently and silently.
+ *
+ * FIX (fresh-reviewer finding 1, PR #308). The original rule was `stored ⇒
+ * its version + 1, anything else ⇒ DEFAULT_SLA_POLICY.version + 1` — and since
+ * the default's version is 1, ANY non-`stored` load wrote version **2**. A
+ * single transient Supabase error at PUT time was therefore enough to rewind a
+ * row sitting at version 7 back to 2. That is also the only place in this
+ * sprint where an unreadable read became a VALUE instead of a refusal: the
+ * route header correctly argues that `parseSlaPolicy`'s fail-closed-to-default
+ * is "exactly wrong on the write path" for the DOCUMENT, and then did precisely
+ * that for the VERSION.
+ *
+ * The two failure modes now diverge, because they carry different knowledge
+ * (see `SlaPolicySource`):
+ *
+ *   - `read_failed` ⇒ **REFUSE** (409). We could not read the row at all, so
+ *     every candidate version is a guess, and guessing is what caused the bug.
+ *     A retry once the database answers is the correct recovery — deliberately
+ *     NOT a best-effort write.
+ *   - `malformed` ⇒ bump past `max(rawVersion, document, default)` and REPAIR
+ *     the row in the same write. We read the column, so monotonicity is
+ *     provable; refusing here would instead dead-end the only surface that can
+ *     fix a hand-edited row (there is no admin UI, D3).
  */
 export async function writeSlaPolicy(next: SlaPolicy, updatedBy: string): Promise<WriteSlaPolicyResult> {
   const current = await loadSlaPolicy()
-  const baseVersion = current.source === 'stored' ? current.policy.version : DEFAULT_SLA_POLICY.version
+
+  if (current.source === 'read_failed') {
+    return {
+      ok: false,
+      conflict: true,
+      error:
+        'No se pudo leer la política actual, así que no se puede calcular la siguiente versión sin riesgo de retrocederla. Vuelve a intentar en un momento.',
+    }
+  }
+
+  // Never below any version we have actually observed. `rawVersion` covers the
+  // malformed row whose document didn't parse; `current.policy.version` covers
+  // the stored one; the code default is the floor for a fresh table.
+  const baseVersion = Math.max(current.rawVersion ?? 0, current.policy.version, DEFAULT_SLA_POLICY.version)
   const versioned: SlaPolicy = { ...next, version: baseVersion + 1 }
 
   const { error } = await db.from(TABLE).upsert(

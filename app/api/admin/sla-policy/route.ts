@@ -99,7 +99,13 @@ export async function PUT(req: NextRequest) {
   // stored row so it can only ever move forward.
   const written = await writeSlaPolicy(parsed, auth.user.id)
   if (!written.ok) {
-    return NextResponse.json({ ok: false, error: written.error }, { status: 500 })
+    // 409, not 500, when the current policy could not be READ: nothing is
+    // broken on this side, the next version simply cannot be computed without
+    // risking a silent rewind, and retrying once the database answers is the
+    // correct recovery (fresh-reviewer finding 1, PR #308). A 500 would read as
+    // "the write failed", which invites exactly the blind retry loop that would
+    // eventually land a downgraded version.
+    return NextResponse.json({ ok: false, error: written.error }, { status: written.conflict ? 409 : 500 })
   }
 
   return NextResponse.json({ ok: true, policy: serializeSlaPolicy(written.policy) })

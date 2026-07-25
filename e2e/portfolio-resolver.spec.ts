@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { STAGES } from '../lib/merchant-stage'
 import { STAGE_LABEL } from '../lib/merchant-stage-labels'
+import { PREFERRED_CHANNELS } from '../lib/preferred-channels'
 import { DEFAULT_SLA_POLICY, resolveSlaState, type SlaState } from '../lib/portfolio/sla'
 import {
   PORTFOLIO_DUE_SOON_DAYS,
@@ -146,8 +147,29 @@ test.describe('the list DTO is SAFE-ONLY — no raw contact value can reach it',
     expect(buildPortfolioRow(input({ preferredChannel: 'toString' }), NOW).preferredChannel).toBeNull()
   })
 
-  test('every DB-CHECK channel value has a label (the population is the five known values)', () => {
-    expect(Object.keys(PREFERRED_CHANNEL_LABEL).sort()).toEqual(['email', 'in_person', 'instagram', 'phone', 'whatsapp'])
+  /**
+   * POPULATION GUARD, re-derived — not hand-listed (fresh-reviewer finding 2,
+   * PR #308). The original version compared `Object.keys(PREFERRED_CHANNEL_LABEL)`
+   * against five literals typed into the spec, which proved only that the map
+   * matched the spec's own copy of the list: adding a sixth channel to the DB
+   * CHECK and to `PREFERRED_CHANNELS` would leave those merchants with NO
+   * rendered channel while this test stayed green.
+   *
+   * The population now comes from the vocabulary itself
+   * (`PREFERRED_CHANNELS`, mirroring the DB CHECK), and the labels are checked
+   * against it — so a value added without a label fails here. `tsc` also catches
+   * it now that the map is typed `Record<PreferredChannel, string>`; this is the
+   * runtime half of the same guarantee, and it additionally proves every value
+   * survives the real lookup path.
+   */
+  test('every channel in the vocabulary resolves to a non-empty label through the real lookup', () => {
+    expect(PREFERRED_CHANNELS.length).toBeGreaterThan(0) // non-vacuity
+    expect(Object.keys(PREFERRED_CHANNEL_LABEL).sort()).toEqual([...PREFERRED_CHANNELS].sort())
+    for (const channel of PREFERRED_CHANNELS) {
+      const rendered = buildPortfolioRow(input({ preferredChannel: channel }), NOW).preferredChannel
+      expect(rendered, `channel '${channel}' rendered no label`).toBeTruthy()
+      expect(typeof rendered).toBe('string')
+    }
   })
 })
 

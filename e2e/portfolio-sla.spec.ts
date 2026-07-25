@@ -403,3 +403,57 @@ test.describe('parseSlaPolicy — fails CLOSED and WHOLE to the code default', (
     }
   })
 })
+
+// ── SLA policy version monotonicity (fresh-reviewer finding 1, PR #308) ───────
+//
+// `lib/portfolio/policy-server.ts` is `server-only`, so no spec can load it and
+// exercise `writeSlaPolicy` directly — which is exactly why this defect shipped
+// with no test that could ever have caught it. These are SOURCE-TEXT guards on
+// the specific mistake, which is the strongest assertion available at this seam.
+//
+// THE DEFECT: `baseVersion` was `current.source === 'stored' ? current.policy.version
+// : DEFAULT_SLA_POLICY.version`. Since the code default's version is 1, ANY
+// non-`stored` load wrote version 2 — so one transient Supabase read error at PUT
+// time rewound a row sitting at version 7 back to 2, leaving two materially
+// different policies both claiming version 2 and making every
+// `merchant_relationships.sla_policy_version` stamp non-comparable.
+
+test.describe('policy-server · the version can never move backwards', () => {
+  const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/policy-server.ts'), 'utf8')
+
+  test('the two unreadable cases are distinguished — a failed read is not a malformed row', () => {
+    // They carry different knowledge: a failed read knows NOTHING about the
+    // stored version, a malformed row knows its column. Collapsing them into one
+    // `unreadable` value is what allowed the rewind.
+    expect(source).toContain("'read_failed'")
+    expect(source).toContain("'malformed'")
+    expect(source).not.toContain("'unreadable'")
+  })
+
+  test('a failed read REFUSES the write rather than guessing a version', () => {
+    expect(source).toMatch(/source === 'read_failed'/)
+    // Refuses via the conflict flag the route turns into a 409 — not a
+    // best-effort write, and not a 500 that would invite a blind retry loop.
+    expect(source).toMatch(/conflict:\s*true/)
+  })
+
+  test('the version bump is a MAX over every version actually observed', () => {
+    // Never a bare ternary onto the code default — that is the original bug.
+    expect(source).toMatch(/Math\.max\(/)
+    expect(source).toContain('current.rawVersion')
+    expect(source).not.toMatch(/const baseVersion = current\.source === 'stored' \?/)
+  })
+
+  test('the raw version COLUMN is carried out of the load, or the max above is blind', () => {
+    expect(source).toMatch(/rawVersion:\s*row\.version/)
+    expect(source).toMatch(/rawVersion:\s*number \| null/)
+  })
+
+  test('the route maps the refusal to 409, not 500', () => {
+    const route = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'app/api/admin/sla-policy/route.ts'),
+      'utf8',
+    )
+    expect(route).toMatch(/written\.conflict \? 409 : 500/)
+  })
+})
