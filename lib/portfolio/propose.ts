@@ -31,6 +31,9 @@
  * of `lib/portfolio/` in `e2e/portfolio-retention.spec.ts`'s population
  * guard.
  */
+// `lib/relationship-pipeline.ts` is itself zero-import, so this file still loads
+// in the Playwright `api` project with no database.
+import { dueAtIsoFromDateOnly, isDateOnlyShape } from '@/lib/relationship-pipeline'
 
 /** The task-row fields a confirmed proposal may write, plus the ONE
  *  optional interaction-append action. Exported as data so the spec derives
@@ -82,7 +85,30 @@ export function parseTaskUpdateProposal(raw: unknown): ProposalParseResult {
   }
   if (r.dueAt !== undefined) {
     if (r.dueAt !== null && typeof r.dueAt !== 'string') return { ok: false, error: 'dueAt inválido.' }
-    payload.dueAt = r.dueAt
+    // NORMALIZED AND CALENDAR-VALIDATED HERE, not just type-checked (cross-agent
+    // review round 2, PR 311). Type-checking alone let `"not-a-date"` through
+    // propose; confirm then CLAIMED the proposal (correctly, to make apply
+    // single-shot) and the task UPDATE failed — burning the proposal permanently,
+    // since every retry then hits the 409. A garbage date became a lost update.
+    //
+    // Uses the SAME shipped helpers as `POST .../task` and the task-complete route
+    // (`isDateOnlyShape` + `dueAtIsoFromDateOnly`), so the `<input type="date">`
+    // date-only case gets the Mexico-City end-of-day treatment and a calendar-
+    // invalid value like `2026-02-31` is REJECTED rather than silently rolled into
+    // March. Never re-derived here.
+    if (typeof r.dueAt === 'string' && r.dueAt !== '') {
+      if (isDateOnlyShape(r.dueAt)) {
+        const iso = dueAtIsoFromDateOnly(r.dueAt)
+        if (!iso) return { ok: false, error: 'dueAt inválido.' }
+        payload.dueAt = iso
+      } else {
+        const d = new Date(r.dueAt)
+        if (Number.isNaN(d.getTime())) return { ok: false, error: 'dueAt inválido.' }
+        payload.dueAt = d.toISOString()
+      }
+    } else {
+      payload.dueAt = r.dueAt
+    }
   }
   if (r.outcome !== undefined) {
     if (typeof r.outcome !== 'string' || !r.outcome) return { ok: false, error: 'outcome inválido.' }
@@ -90,7 +116,11 @@ export function parseTaskUpdateProposal(raw: unknown): ProposalParseResult {
   }
   if (r.completedAt !== undefined) {
     if (typeof r.completedAt !== 'string' || !r.completedAt) return { ok: false, error: 'completedAt inválido.' }
-    payload.completedAt = r.completedAt
+    // Same reasoning as `dueAt` above — a garbage instant here reached the DB and
+    // burned the claimed proposal.
+    const completed = new Date(r.completedAt)
+    if (Number.isNaN(completed.getTime())) return { ok: false, error: 'completedAt inválido.' }
+    payload.completedAt = completed.toISOString()
   }
   if (r.interactionNote !== undefined) {
     if (typeof r.interactionNote !== 'string' || !r.interactionNote.trim()) {

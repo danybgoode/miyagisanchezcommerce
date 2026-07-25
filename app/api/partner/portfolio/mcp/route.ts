@@ -183,7 +183,17 @@ export async function POST(req: NextRequest) {
 
   let body: JsonRpcRequest
   try {
-    body = (await req.json()) as JsonRpcRequest
+    const raw = await req.json()
+    // `JSON.parse` happily yields `null`, `42` or `"x"` — all valid JSON, none a
+    // JSON-RPC request object. Reading `.id` off `null` threw a TypeError and the
+    // route answered 500 instead of a well-formed invalid-request response
+    // (cross-agent review round 2, PR 311). A malformed request from an
+    // ALREADY-AUTHENTICATED caller must still be a protocol error, not a server
+    // malfunction — the same reason the `catch` above exists.
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return rpcError(null, -32600, 'Petición inválida', 400)
+    }
+    body = raw as JsonRpcRequest
   } catch {
     return rpcError(null, -32700, 'JSON inválido', 400)
   }

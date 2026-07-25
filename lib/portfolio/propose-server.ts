@@ -87,7 +87,7 @@ export async function createTaskUpdateProposal(
 
 export type ConfirmProposalResult =
   | { ok: true; task: Record<string, unknown>; interactionAdded: boolean }
-  | { ok: false; status: 400 | 403 | 404 | 409 | 500; error: string }
+  | { ok: false; status: 400 | 403 | 404 | 409 | 422 | 500; error: string }
 
 const TASK_SELECT_COLS =
   'id, relationship_id, title, due_at, assigned_to, outcome, completed_at, completed_by, created_by, created_at'
@@ -121,6 +121,27 @@ export async function confirmTaskUpdateProposal(
   const expiresMs = Date.parse(String(proposal.expires_at))
   if (!Number.isFinite(expiresMs) || expiresMs < now.getTime()) {
     return { ok: false, status: 409, error: 'La propuesta expiró.' }
+  }
+
+  // VALIDATE BEFORE CLAIMING (cross-agent review round 2, PR 311). Moving the
+  // claim ahead of the apply fixed the double-apply — and introduced a NEW failure
+  // mode: an unapplicable payload got its proposal permanently consumed (claim
+  // succeeds, apply fails, every retry 409s). `parseTaskUpdateProposal` now
+  // normalizes and calendar-validates the dates at PROPOSE time, so a bad payload
+  // can no longer become a stored proposal at all; this is the second line of
+  // defence, for a row written BEFORE that fix or inserted by hand.
+  //
+  // Validation is PURE and has no side effects, so it belongs before the claim.
+  // The resulting order — validate → claim → apply — is strictly better than
+  // either of the two previous orderings: it cannot double-apply, and it cannot
+  // burn a proposal it was never going to be able to apply.
+  const revalidated = parseTaskUpdateProposal(proposal.payload)
+  if (!revalidated.ok) {
+    return {
+      ok: false,
+      status: 422,
+      error: `La propuesta guardada ya no es aplicable (${revalidated.error}). Genera una nueva.`,
+    }
   }
 
   // ── CLAIM THE PROPOSAL BEFORE APPLYING IT (cross-agent review, PR 311) ──
@@ -158,7 +179,8 @@ export async function confirmTaskUpdateProposal(
     return { ok: false, status: 409, error: 'La propuesta ya fue confirmada.' }
   }
 
-  const payload = proposal.payload as TaskUpdateProposal
+  // The REVALIDATED (and date-normalized) payload — never the raw stored JSON.
+  const payload = revalidated.payload
 
   // ── The confirm write — POSITIVE-LIST, named field by field ────────────
   let taskRow: Record<string, unknown> | null = null

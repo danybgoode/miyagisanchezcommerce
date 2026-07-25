@@ -532,3 +532,78 @@ test.describe('the agent population is UI parity, by Daniel’s ruling — not a
     expect(auth).not.toMatch(/\.in\('shop_id'/)
   })
 })
+
+// ── Round 2: validate → claim → apply (codex, PR 311) ─────────────────────────
+//
+// My OWN claim-first fix introduced this one. Moving the claim ahead of the apply
+// stopped the double-apply and created a new failure: an unapplicable payload got
+// its proposal permanently consumed (claim succeeds, apply fails, every retry 409s),
+// so `dueAt: "not-a-date"` became a LOST update against a proposal that falsely
+// read as confirmed. Validation is pure and side-effect-free, so it belongs before
+// the claim — the resulting order is strictly better than either previous one.
+
+test.describe('a proposal is validated BEFORE it is claimed', () => {
+  const code = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/propose-server.ts'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('the stored payload is re-parsed, and an unapplicable one is refused before the claim', () => {
+    const fnStart = code.indexOf('export async function confirmTaskUpdateProposal')
+    expect(fnStart).toBeGreaterThan(-1)
+    const body = code.slice(fnStart)
+    const revalidate = body.indexOf('parseTaskUpdateProposal(proposal.payload)')
+    const claim = body.indexOf("is('confirmed_at', null)")
+    expect(revalidate, 'stored payload is never re-validated').toBeGreaterThan(-1)
+    expect(claim, 'claim not found').toBeGreaterThan(-1)
+    // ORDERING IS THE FIX.
+    expect(revalidate).toBeLessThan(claim)
+  })
+
+  test('the applied payload is the REVALIDATED one, never the raw stored JSON', () => {
+    expect(code).toMatch(/const payload = revalidated\.payload/)
+    expect(code).not.toMatch(/proposal\.payload as TaskUpdateProposal/)
+  })
+})
+
+test.describe('a garbage date can never become a stored proposal', () => {
+  test('parseTaskUpdateProposal REJECTS an unparseable dueAt and completedAt', () => {
+    for (const bad of ['not-a-date', '2026-13-45', 'yesterday']) {
+      const dueResult = parseTaskUpdateProposal({ taskId: 't1', dueAt: bad })
+      expect(dueResult.ok, `dueAt '${bad}' was accepted`).toBe(false)
+      const completedResult = parseTaskUpdateProposal({ taskId: 't1', completedAt: bad })
+      expect(completedResult.ok, `completedAt '${bad}' was accepted`).toBe(false)
+    }
+  })
+
+  test('a CALENDAR-invalid date-only value is rejected, not rolled into the next month', () => {
+    // `new Date('2026-02-31')` silently becomes March — the shipped
+    // `dueAtIsoFromDateOnly` catches that, and this proves it is actually used.
+    expect(parseTaskUpdateProposal({ taskId: 't1', dueAt: '2026-02-31' }).ok).toBe(false)
+  })
+
+  test('a VALID date is normalized to a full ISO instant', () => {
+    const res = parseTaskUpdateProposal({ taskId: 't1', dueAt: '2026-08-03' })
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.payload.dueAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  test('an explicit null dueAt still CLEARS (a deliberate unset is not a bad date)', () => {
+    const res = parseTaskUpdateProposal({ taskId: 't1', dueAt: null })
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.payload.dueAt).toBeNull()
+  })
+})
+
+test.describe('a non-object JSON-RPC body is a protocol error, not a 500', () => {
+  test('the route rejects null/array/scalar bodies before touching .id', () => {
+    const route = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'app/api/partner/portfolio/mcp/route.ts'),
+      'utf8',
+    )
+    expect(route).toMatch(/typeof raw !== 'object' \|\| raw === null \|\| Array\.isArray\(raw\)/)
+    expect(route).toMatch(/-32600/)
+  })
+})
