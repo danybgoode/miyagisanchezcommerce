@@ -188,6 +188,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   let nextActionTask: Record<string, unknown> | undefined
+
+  /** Non-null when the caller requested a follow-up task and it did NOT get
+
+   *  created — see the 207 branch at the end of this handler. */
+
+  let nextActionError: string | null = null
   if (justCompleted && nextActionTitle) {
     const { data: created, error: createError } = await db
       .from('merchant_relationship_tasks')
@@ -202,8 +208,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .maybeSingle()
     if (createError) {
       console.error('[task-complete] next-action insert failed:', createError.message)
+      nextActionError = createError.message
     } else if (created) {
       nextActionTask = created
+    } else {
+      nextActionError = 'la siguiente acción no se pudo leer después de crearla'
     }
   }
 
@@ -231,5 +240,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  return NextResponse.json({ ok: true, task: data, ...(nextActionTask ? { nextAction: nextActionTask } : {}) })
+  // The COMPLETION genuinely committed, so this is not a 500 — but the caller
+  // ASKED for a follow-up task and there isn't one, and reporting a bare
+  // `ok: true` would leave a partner believing their next action is scheduled
+  // when the queue will show "sin próxima acción" (cross-agent review, PR 311).
+  // Reported as a partial success the client can actually act on, rather than
+  // either lying or throwing away the completion that did succeed.
+  //
+  // 207 HERE, even though this epic deliberately REJECTED 207 for
+  // `/api/cron/portfolio-reminders` in favour of 503 — the two are not in
+  // conflict, because the caller is different and that is the whole reason. A
+  // cron's caller is Cloud Scheduler, which reads any 2xx as success and so
+  // neither retries nor alerts, making 207 a silent failure. This route's caller
+  // is a partner UI or an MCP agent that reads the body, and the completion
+  // genuinely SUCCEEDED — a retryable status would be a lie in the other
+  // direction and could invite a double completion. The load-bearing signal is
+  // the explicit `nextActionCreated: false` + `warning` fields, which a caller
+  // checking only `res.ok` will still surface to a human.
+  if (nextActionError !== null) {
+    return NextResponse.json(
+      {
+        ok: true,
+        task: data,
+        nextActionCreated: false,
+        warning:
+          'La tarea se marcó como completada, pero NO se pudo crear la siguiente acción que pediste. Créala de nuevo para no dejar al comercio sin próxima acción.',
+      },
+      { status: 207 },
+    )
+  }
+
+  return NextResponse.json({
+    ok: true,
+    task: data,
+    ...(nextActionTask ? { nextAction: nextActionTask, nextActionCreated: true } : {}),
+  })
 }

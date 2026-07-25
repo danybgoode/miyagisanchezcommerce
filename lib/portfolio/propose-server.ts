@@ -118,10 +118,44 @@ export async function confirmTaskUpdateProposal(
     .eq('relationship_id', relationshipId)
     .maybeSingle()
   if (readError || !proposal) return { ok: false, status: 404, error: 'Propuesta no encontrada.' }
-  if (proposal.confirmed_at) return { ok: false, status: 409, error: 'La propuesta ya fue confirmada.' }
   const expiresMs = Date.parse(String(proposal.expires_at))
   if (!Number.isFinite(expiresMs) || expiresMs < now.getTime()) {
     return { ok: false, status: 409, error: 'La propuesta expiró.' }
+  }
+
+  // ── CLAIM THE PROPOSAL BEFORE APPLYING IT (cross-agent review, PR 311) ──
+  //
+  // The read above tells us the proposal LOOKED unconfirmed; it cannot tell us we
+  // are the only one acting on it. The original order — read `confirmed_at`, apply
+  // the payload, THEN stamp — let two concurrent confirms of the same
+  // create-task proposal both pass the check and both insert, producing duplicate
+  // tasks and duplicate interaction notes. A read is not a claim.
+  //
+  // So the stamp moves FIRST and becomes a conditional claim: `.is('confirmed_at',
+  // null)` + a select-back makes the affected-row count observable (supabase-js
+  // reports no error for an UPDATE that matched nothing, so without the select the
+  // loser of the race looks exactly like the winner). Exactly one caller can ever
+  // win; every other gets 409.
+  //
+  // The ordering trade-off is deliberate and matches this epic's reminder rail
+  // (`lib/portfolio/reminders-server.ts`): claim-then-apply can at worst
+  // UNDER-apply once — a crash between claim and apply consumes the proposal
+  // without effect, and the partner sees an error and proposes again. Apply-then-
+  // claim DOUBLE-applies, and a duplicate task in a partner's queue is a false
+  // operational fact that outlives the request. Under-applying is visible;
+  // double-applying is not.
+  const { data: claimed, error: claimError } = await db
+    .from('merchant_portfolio_proposals')
+    .update({ confirmed_at: now.toISOString(), confirmed_by: confirmedBy })
+    .eq('id', proposalId)
+    .is('confirmed_at', null)
+    .select('id')
+  if (claimError) {
+    console.error('[portfolio/propose] confirm claim failed:', claimError.message)
+    return { ok: false, status: 500, error: 'No se pudo confirmar la propuesta.' }
+  }
+  if (!claimed || claimed.length === 0) {
+    return { ok: false, status: 409, error: 'La propuesta ya fue confirmada.' }
   }
 
   const payload = proposal.payload as TaskUpdateProposal
@@ -180,11 +214,7 @@ export async function confirmTaskUpdateProposal(
     else interactionAdded = true
   }
 
-  const { error: confirmError } = await db
-    .from('merchant_portfolio_proposals')
-    .update({ confirmed_at: now.toISOString(), confirmed_by: confirmedBy })
-    .eq('id', proposalId)
-  if (confirmError) console.error('[portfolio/propose] confirm stamp failed:', confirmError.message)
+  // The confirmation stamp already happened, as the CLAIM above — see its comment.
 
   return { ok: true, task: taskRow, interactionAdded }
 }

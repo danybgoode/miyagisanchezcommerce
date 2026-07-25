@@ -293,3 +293,76 @@ test.describe('live · route guards never serve an anonymous or unauthorized cal
     expect(res.status()).not.toBe(200)
   })
 })
+
+// ── Single-apply confirm + honest partial completion (cross-agent review, PR 311)
+//
+// Codex found the SAME bug class in three places across this epic's three PRs: a
+// value read in one round trip used to authorize a write in the next. A read is
+// not a claim. Both S3 instances are fixed here; the S1 one (the SLA policy
+// version) is fixed on the base branch with the same CAS shape.
+
+test.describe('confirm_task_update applies EXACTLY once', () => {
+  const code = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/portfolio/propose-server.ts'),
+    'utf8',
+  )
+    // Comments stripped: they legitimately NAME the defective ordering to explain
+    // why it was changed, and a negative assertion over raw text would fail
+    // *because* the code documents itself well.
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+  test('the proposal is CLAIMED conditionally before the payload is applied', () => {
+    // `.is('confirmed_at', null)` + select-back is the concurrency control:
+    // supabase-js reports no error for an UPDATE matching nothing, so without the
+    // select the loser of the race is indistinguishable from the winner.
+    expect(code).toMatch(/\.is\('confirmed_at', null\)/)
+    expect(code).toMatch(/\.select\('id'\)/)
+    expect(code).toMatch(/claimed\.length === 0/)
+  })
+
+  test('the claim happens BEFORE any task insert or interaction append', () => {
+    const claimAt = code.indexOf(".is('confirmed_at', null)")
+    const taskWriteAt = code.indexOf("from('merchant_relationship_tasks')")
+    const interactionAt = code.indexOf("from('merchant_relationship_interactions')")
+    expect(claimAt).toBeGreaterThan(-1)
+    expect(taskWriteAt).toBeGreaterThan(-1)
+    // Ordering IS the fix — apply-then-claim double-applies.
+    expect(claimAt).toBeLessThan(taskWriteAt)
+    if (interactionAt > -1) expect(claimAt).toBeLessThan(interactionAt)
+  })
+
+  test('a lost claim is a 409, never a silent second apply', () => {
+    expect(code).toMatch(/status: 409/)
+  })
+
+  test('the old read-then-apply guard is gone', () => {
+    // `if (proposal.confirmed_at) return …` looked like a guard and was only a
+    // snapshot — two callers could both pass it.
+    expect(code).not.toMatch(/if \(proposal\.confirmed_at\)/)
+  })
+})
+
+test.describe('completing a task never claims a follow-up it failed to create', () => {
+  const route = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      'app/api/promoter/relationship/[id]/task/[taskId]/complete/route.ts',
+    ),
+    'utf8',
+  )
+
+  test('a failed next-action insert is tracked, not just logged', () => {
+    expect(route).toMatch(/nextActionError = createError\.message/)
+  })
+
+  test('the response says explicitly that the follow-up was NOT created', () => {
+    expect(route).toMatch(/nextActionCreated: false/)
+    expect(route).toContain('NO se pudo crear la siguiente acción')
+  })
+
+  test('the successful path says so too — the flag is present either way, never inferred from absence', () => {
+    expect(route).toMatch(/nextActionCreated: true/)
+  })
+})
