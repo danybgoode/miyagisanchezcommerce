@@ -74,6 +74,10 @@ export interface ReassignStewardInput {
    * `effective_at` stay NULL, preserving that route's shipped behavior exactly.
    */
   reason?: string
+  /** ADMIN path only, OPTIONAL even there. The partner-VISIBLE handoff note —
+   *  `reason` is audit-only and is never rendered to a partner (finding 3,
+   *  PR #308). `undefined` on the promoter path, so the column is not written. */
+  handoffNote?: string | null
   effectiveAt?: string
   escalationClerkUserId?: string | null
   /**
@@ -170,6 +174,7 @@ export async function reassignSteward(input: ReassignStewardInput): Promise<Reas
     toSteward,
     // The promoter path passes neither, so neither column is written.
     assignmentReason: isPrivileged ? (input.reason ?? null) : undefined,
+    assignmentHandoffNote: isPrivileged ? (input.handoffNote ?? null) : undefined,
     assignedAt: isPrivileged ? (input.effectiveAt ?? nowIso) : undefined,
     escalationClerkUserId: input.escalationClerkUserId,
     now: nowIso,

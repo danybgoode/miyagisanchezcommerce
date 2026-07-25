@@ -140,9 +140,9 @@ function PortfolioCard({ row }: { row: PortfolioRow }) {
         </p>
       )}
 
-      {row.assignmentReason && (
+      {row.assignmentHandoffNote && (
         <p className="text-xs text-[var(--color-muted)]">
-          <i className="iconoir-user-star" aria-hidden /> Asignación: {row.assignmentReason}
+          <i className="iconoir-user-star" aria-hidden /> Traspaso: {row.assignmentHandoffNote}
           {row.assignedAt ? ` · ${fmtDate(row.assignedAt)}` : ''}
         </p>
       )}

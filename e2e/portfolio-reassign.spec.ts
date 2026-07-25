@@ -83,13 +83,38 @@ test.describe('the derivation itself is sound (a broken derivation would make ev
     }
   })
 
-  test('the stewardship set is exactly the four columns the build contract names', () => {
+  /**
+   * THE ESCAPE-HATCH GUARD. `FORBIDDEN_UPDATE_FIELDS` is derived by subtracting
+   * the stewardship set from `AUDITED_FIELDS`, so a future writer could defeat
+   * every attribution guard below simply by ADDING an attribution column to
+   * `STEWARDSHIP_UPDATE_FIELDS` — the subtraction would quietly remove it from
+   * the forbidden set. Pinning the exact membership here is what closes that,
+   * which means this list is deliberately hostile to change: widening it must be
+   * a decision somebody made on purpose, visible in a diff.
+   *
+   * Grown from four to FIVE on purpose (Daniel's call on fresh-reviewer finding
+   * 3, PR #308): `assignment_handoff_note` is the OPTIONAL partner-visible
+   * handoff text, split out from the required `assignment_reason` so the audit
+   * reason can stay candid and admin-only. It is stewardship state, not
+   * attribution — it appears in no `AUDITED_FIELDS` entry, so the forbidden set
+   * is unchanged by its addition (the next test proves the two sets stay
+   * disjoint, and `e2e/portfolio-resolver.spec.ts` proves the private reason
+   * never reaches a partner-facing row).
+   */
+  test('the stewardship set is exactly the five columns the build contract names', () => {
     expect([...STEWARDSHIP_UPDATE_FIELDS].sort()).toEqual([
       'assigned_at',
+      'assignment_handoff_note',
       'assignment_reason',
       'escalation_clerk_user_id',
       'steward_clerk_user_id',
     ])
+  })
+
+  test('the new handoff-note column is stewardship state, NOT an attribution field', () => {
+    // If it ever appears in AUDITED_FIELDS, the subtraction above would drop it
+    // from the forbidden set and this guard would have masked a real widening.
+    expect(AUDITED_FIELDS).not.toContain('assignment_handoff_note')
   })
 })
 
@@ -104,6 +129,7 @@ test.describe('buildStewardshipUpdate — the payload can only ever touch stewar
       input: {
         toSteward: 'user_new',
         assignmentReason: 'capacidad',
+        assignmentHandoffNote: 'Priorizar: vista previa lista',
         assignedAt: NOW.toISOString(),
         escalationClerkUserId: 'user_boss',
         now: NOW.toISOString(),
@@ -114,6 +140,7 @@ test.describe('buildStewardshipUpdate — the payload can only ever touch stewar
       input: {
         toSteward: null,
         assignmentReason: null,
+        assignmentHandoffNote: null,
         assignedAt: null,
         escalationClerkUserId: null,
         now: NOW.toISOString(),

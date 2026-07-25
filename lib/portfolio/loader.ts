@@ -61,7 +61,7 @@ import {
 export type LoadPortfolioResult = { ok: true; portfolio: Portfolio } | { ok: false; error: string }
 
 interface StewardshipColumns {
-  assignmentReason: string | null
+  assignmentHandoffNote: string | null
   assignedAt: string | null
   escalationClerkUserId: string | null
 }
@@ -75,7 +75,7 @@ async function readStewardshipColumns(ids: string[]): Promise<StewardshipResult>
   if (ids.length === 0) return { ok: true, byId }
   const { data, error } = await db
     .from('merchant_relationships')
-    .select('id, assignment_reason, assigned_at, escalation_clerk_user_id')
+    .select('id, assignment_handoff_note, assigned_at, escalation_clerk_user_id')
     .in('id', ids)
   if (error) {
     console.error('[portfolio/loader] stewardship column read failed:', error.message)
@@ -83,12 +83,12 @@ async function readStewardshipColumns(ids: string[]): Promise<StewardshipResult>
   }
   for (const row of (data ?? []) as Array<{
     id: string
-    assignment_reason: string | null
+    assignment_handoff_note: string | null
     assigned_at: string | null
     escalation_clerk_user_id: string | null
   }>) {
     byId.set(row.id, {
-      assignmentReason: row.assignment_reason,
+      assignmentHandoffNote: row.assignment_handoff_note,
       assignedAt: row.assigned_at,
       escalationClerkUserId: row.escalation_clerk_user_id,
     })
@@ -208,7 +208,7 @@ export async function loadPortfolio(
       createdAt: r.createdAt,
       preferredChannel: r.preferredChannel,
       stewardClerkUserId: r.stewardClerkUserId,
-      assignmentReason: steward?.assignmentReason ?? null,
+      assignmentHandoffNote: steward?.assignmentHandoffNote ?? null,
       assignedAt: steward?.assignedAt ?? null,
       ageInStageDays: r.ageInStageDays,
       nextAction: r.nextAction,

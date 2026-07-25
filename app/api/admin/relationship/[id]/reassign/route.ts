@@ -11,7 +11,15 @@
  *
  * WHAT THIS ROUTE ADDS over the promoter one:
  *   · `reason` REQUIRED — 422 without one. A privileged ownership change with no
- *     stated reason is the audit gap this story exists to close.
+ *     stated reason is the audit gap this story exists to close. AUDIT-ONLY: it
+ *     is never rendered on the partner-facing portfolio.
+ *   · `handoffNote` OPTIONAL — the ONLY partner-visible text. Daniel's call on
+ *     fresh-reviewer finding 3 (PR #308): because `reason` is required, an admin
+ *     writes it candidly ("moved off Juan, no follow-up in three weeks"), and
+ *     showing that to every partner scoped to the merchant — possibly including
+ *     Juan — is an information flow nobody had decided. Two fields: candid by
+ *     default, shared on purpose. The private reason is never substituted in as a
+ *     fallback when the note is absent.
  *   · `transferOpenTasks` REQUIRED — 422 without it. Silence is not an option: an
  *     open task left pointing at the old steward while the record moves is an
  *     orphan the queue would show to nobody. The response reports the count and
@@ -83,6 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     toSteward: parsed.value.toSteward,
     actorClerkUserId: auth.user.id,
     reason: parsed.value.reason,
+    handoffNote: parsed.value.handoffNote,
     effectiveAt: parsed.value.effectiveAt,
     escalationClerkUserId: parsed.value.escalationClerkUserId,
     transferOpenTasks: parsed.value.transferOpenTasks,

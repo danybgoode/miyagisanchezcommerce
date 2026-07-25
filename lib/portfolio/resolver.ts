@@ -74,7 +74,7 @@ export interface PortfolioInputRow {
   /** The raw enum value; the DTO exposes its label. */
   preferredChannel: string | null
   stewardClerkUserId: string | null
-  assignmentReason: string | null
+  assignmentHandoffNote: string | null
   assignedAt: string | null
   /** From `lib/relationship-enrich.ts` (which computes them with the shipped
    *  `lib/relationship-pipeline.ts` predicates — not recomputed here). */
@@ -114,7 +114,7 @@ export interface PortfolioRow {
   openTaskCount: number
   lastInteractionAt: string | null
   stewardClerkUserId: string | null
-  assignmentReason: string | null
+  assignmentHandoffNote: string | null
   assignedAt: string | null
   dueState: PortfolioDueState
   slaDueAt: string
@@ -177,7 +177,7 @@ export function buildPortfolioRow(input: PortfolioInputRow, now: Date): Portfoli
     openTaskCount: input.openTaskCount,
     lastInteractionAt: input.lastInteractionAt,
     stewardClerkUserId: input.stewardClerkUserId,
-    assignmentReason: input.assignmentReason,
+    assignmentHandoffNote: input.assignmentHandoffNote,
     assignedAt: input.assignedAt,
     dueState: deriveDueState(input, now),
     slaDueAt: input.sla.dueAt,

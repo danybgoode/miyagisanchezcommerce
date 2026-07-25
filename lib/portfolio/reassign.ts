@@ -39,6 +39,10 @@ import { dueAtIsoFromDateOnly, isDateOnlyShape } from '@/lib/relationship-pipeli
 export const STEWARDSHIP_UPDATE_FIELDS = [
   'steward_clerk_user_id',
   'assignment_reason',
+  // The OPTIONAL partner-visible handoff note. Distinct from `assignment_reason`,
+  // which is audit-only and never rendered to a partner — Daniel's call on
+  // fresh-reviewer finding 3 (PR #308). See the migration for the full reasoning.
+  'assignment_handoff_note',
   'assigned_at',
   'escalation_clerk_user_id',
 ] as const
@@ -66,6 +70,8 @@ export interface StewardshipUpdateInput {
    *  `undefined` leaves the column alone. */
   toSteward?: string | null
   assignmentReason?: string | null
+  /** Partner-visible. `undefined` leaves the column alone; `null` clears it. */
+  assignmentHandoffNote?: string | null
   assignedAt?: string | null
   escalationClerkUserId?: string | null
   /** ISO instant for the row-touch timestamp. Always written. */
@@ -81,6 +87,7 @@ export function buildStewardshipUpdate(input: StewardshipUpdateInput): Record<st
   const update: Record<string, string | null> = { [ROW_TOUCH_FIELD]: input.now }
   if (input.toSteward !== undefined) update.steward_clerk_user_id = input.toSteward
   if (input.assignmentReason !== undefined) update.assignment_reason = input.assignmentReason
+  if (input.assignmentHandoffNote !== undefined) update.assignment_handoff_note = input.assignmentHandoffNote
   if (input.assignedAt !== undefined) update.assigned_at = input.assignedAt
   if (input.escalationClerkUserId !== undefined) update.escalation_clerk_user_id = input.escalationClerkUserId
   return update
@@ -94,6 +101,11 @@ export interface ParsedReassign {
   /** REQUIRED and non-blank — a privileged ownership change with no stated
    *  reason is exactly the audit gap this story exists to close. */
   reason: string
+  /** OPTIONAL, and the ONLY one of the two the partner portfolio renders. Empty
+   *  or absent ⇒ `null`, and the row shows no assignment line at all — the
+   *  private `reason` is NEVER substituted in as a fallback (that substitution
+   *  would defeat the whole point of splitting them). */
+  handoffNote: string | null
   /** Resolved to a full ISO instant. Defaults to `now`. */
   effectiveAt: string
   /** REQUIRED. Silence is NOT an option: an open task left pointing at the old
@@ -130,6 +142,7 @@ export function parseReassignBody(body: unknown, now: Date): ReassignParse {
   const raw = body as {
     toSteward?: unknown
     reason?: unknown
+    handoffNote?: unknown
     effectiveAt?: unknown
     transferOpenTasks?: unknown
     escalationClerkUserId?: unknown
@@ -152,6 +165,14 @@ export function parseReassignBody(body: unknown, now: Date): ReassignParse {
   if (!reason) {
     return { ok: false, status: 422, error: 'La reasignación requiere una razón.' }
   }
+
+  // OPTIONAL — unlike `reason`. An admin who wants to tell the incoming partner
+  // something says so deliberately; the candid audit reason is never leaked as a
+  // stand-in (finding 3, PR #308).
+  if (raw.handoffNote !== undefined && raw.handoffNote !== null && typeof raw.handoffNote !== 'string') {
+    return { ok: false, status: 400, error: 'Nota de traspaso inválida.' }
+  }
+  const handoffNote = (typeof raw.handoffNote === 'string' ? raw.handoffNote.trim() : '') || null
 
   // ── transferOpenTasks (required, no default) ──
   if (typeof raw.transferOpenTasks !== 'boolean') {
@@ -201,5 +222,5 @@ export function parseReassignBody(body: unknown, now: Date): ReassignParse {
     }
   }
 
-  return { ok: true, value: { toSteward, reason, effectiveAt, transferOpenTasks, escalationClerkUserId } }
+  return { ok: true, value: { toSteward, reason, handoffNote, effectiveAt, transferOpenTasks, escalationClerkUserId } }
 }

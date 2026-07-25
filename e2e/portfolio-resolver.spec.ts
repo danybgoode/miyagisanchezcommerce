@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { STAGES } from '../lib/merchant-stage'
 import { STAGE_LABEL } from '../lib/merchant-stage-labels'
 import { PREFERRED_CHANNELS } from '../lib/preferred-channels'
@@ -72,7 +75,7 @@ function input(over: Partial<PortfolioInputRow> = {}): PortfolioInputRow {
     createdAt: iso(-10),
     preferredChannel: 'whatsapp',
     stewardClerkUserId: 'user_steward',
-    assignmentReason: null,
+    assignmentHandoffNote: null,
     assignedAt: null,
     ageInStageDays: 1,
     nextAction: { id: 't-1', dueAt: iso(5) },
@@ -460,5 +463,50 @@ test.describe('stage labels — one definition, es-MX complete', () => {
 
   test('the label map covers exactly the canonical stages — no orphan, no gap', () => {
     expect(Object.keys(STAGE_LABEL).sort()).toEqual([...STAGES].sort())
+  })
+})
+
+// ── The admin's private reassignment reason never reaches a partner ───────────
+//
+// Daniel's call on fresh-reviewer finding 3 (PR #308). `assignment_reason` is
+// REQUIRED on the admin reassign route, so it gets written candidly ("moved off
+// Juan, no follow-up in three weeks"). Rendering that to every partner scoped to
+// the merchant — possibly including Juan — is an information flow nobody had
+// decided. So the fields are now distinct: `assignment_reason` is audit-only, and
+// the OPTIONAL `assignment_handoff_note` is the only partner-visible text.
+
+test.describe('the private assignment reason is structurally unreachable from the portfolio row', () => {
+  const at = (p: string) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', p), 'utf8')
+
+  test('the loader never even READS the private reason out of the database', () => {
+    // Not merely unrendered — never selected onto this path at all. Asserted at
+    // the source because `lib/portfolio/loader.ts` is `server-only`, so no spec
+    // can execute it (which is precisely why finding 1 shipped untested).
+    const loader = at('lib/portfolio/loader.ts')
+    expect(loader).toContain('assignment_handoff_note')
+    expect(loader).not.toContain('assignment_reason')
+  })
+
+  test('the row DTO exposes the handoff note and has no reason field at all', () => {
+    const built = buildPortfolioRow(input({ assignmentHandoffNote: 'Priorizar: vista previa lista' }), NOW)
+    expect(built.assignmentHandoffNote).toBe('Priorizar: vista previa lista')
+    expect('assignmentReason' in built).toBe(false)
+  })
+
+  test('an absent handoff note yields null — the private reason is NEVER substituted as a fallback', () => {
+    // That substitution would defeat the entire point of splitting the fields.
+    expect(buildPortfolioRow(input({ assignmentHandoffNote: null }), NOW).assignmentHandoffNote).toBeNull()
+  })
+
+  test('a row polluted with a private reason still serializes without it', () => {
+    const leaked = 'lo quité de Juan, tres semanas sin seguimiento'
+    const polluted = { ...input(), assignmentReason: leaked } as unknown as PortfolioInputRow
+    expect(JSON.stringify(buildPortfolioRow(polluted, NOW)).includes(leaked)).toBe(false)
+  })
+
+  test('the partner UI renders the handoff note and never the reason', () => {
+    const ui = at('app/(shell)/partner/PartnerPortfolio.tsx')
+    expect(ui).toContain('assignmentHandoffNote')
+    expect(ui).not.toContain('assignmentReason')
   })
 })

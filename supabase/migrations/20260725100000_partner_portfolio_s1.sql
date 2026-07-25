@@ -48,8 +48,20 @@
 -- ── 1. Stewardship / SLA state on the canonical relationship row ────────────
 ALTER TABLE merchant_relationships
   -- WHY the current steward holds this merchant (Story 1.1 acceptance:
-  -- "assignment reason"). Free text, set by the reassignment routes.
+  -- "assignment reason"). Free text, set by the ADMIN reassignment route.
+  --
+  -- AUDIT-ONLY — never rendered on the partner-facing portfolio (Daniel's call,
+  -- 2026-07-24, on fresh-reviewer finding 3 / PR #308). The admin reason is
+  -- REQUIRED, so an admin will write candidly ("moved off Juan, no follow-up in
+  -- three weeks"); rendering that to every partner scoped to the merchant —
+  -- possibly including Juan — is an information flow nobody had decided. The
+  -- partner-visible text is the separate, OPTIONAL `assignment_handoff_note`
+  -- below: candid by default, shared only on purpose.
   ADD COLUMN IF NOT EXISTS assignment_reason        TEXT,
+  -- The OPTIONAL partner-visible handoff note ("Priorizar: vista previa lista").
+  -- This is the ONLY one of the two the portfolio renders. Absent ⇒ the row
+  -- simply shows no assignment line; the private reason is never substituted in.
+  ADD COLUMN IF NOT EXISTS assignment_handoff_note  TEXT,
   -- WHEN the current stewardship took effect. Distinct from `updated_at`
   -- (which any edit bumps) and from `created_at`.
   ADD COLUMN IF NOT EXISTS assigned_at              TIMESTAMPTZ,
