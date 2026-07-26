@@ -38,7 +38,14 @@ export function adminEmail(): string | null {
 
 /** Authed smokes are off unless explicitly enabled (and only against a dev/preview). */
 export function authEnabled(): boolean {
-  return process.env.MS_TEST_BROWSER_AUTH === '1'
+  // Keep an incomplete CI fixture set green: without the dev Clerk keys, calling
+  // clerk.signIn() would fail instead of allowing the credentialed specs to skip.
+  // The skip reporter records the missing names (never their values).
+  return Boolean(
+    process.env.MS_TEST_BROWSER_AUTH === '1' &&
+    process.env.CLERK_PUBLISHABLE_KEY &&
+    process.env.CLERK_SECRET_KEY,
+  )
 }
 
 /** Skip the current test when a fixture is missing — with a clear reason. */

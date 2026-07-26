@@ -59,11 +59,16 @@ A public listing with a **required** custom field lights up the personalization 
 skips. **Prefer anonymous assertions** — many client islands (e.g. the personalization buy box)
 render + intercept *before* sign-in, so they need no auth and run against any deploy.
 
-### Authed smokes — run **locally against a dev server** (validated working)
-Auth uses `@clerk/testing` **ticket** sign-in (no password/OTP/2FA). Clerk's testing token is
-**dev-instance only** and the dev instance only allows **localhost** as an origin — so authed smokes
-run against `npm run dev`, **not** an SSO-gated ephemeral preview (where clerk-js can't hydrate) or
-prod. `e2e/global.setup.ts` arms the token; `_helpers/auth.ts` does the sign-in.
+### Authed smokes — dev Clerk only (preview CI or local)
+Auth uses `@clerk/testing` **ticket** sign-in (no password/OTP/2FA). Clerk rejects its testing token
+for production secret keys, so the scheduled production job is deliberately anonymous. The preview
+path in `ci.yml` is the only CI path with `MS_TEST_BROWSER_AUTH=1`; it maps the dedicated dev-instance
+GitHub secrets `MS_TEST_CLERK_PUBLISHABLE_KEY` / `MS_TEST_CLERK_SECRET_KEY` to the standard Clerk env
+names. If either key or a needed fixture is absent, the affected tests skip and the job stays green.
+
+Every browser run writes `test-results/browser-smoke-fixture-skips.json`; both workflows publish its
+authed-skip count and missing fixture **names only** in the GitHub Actions job summary, then upload the
+JSON as `browser-smoke-fixture-skips`.
 
 ```bash
 # 1) boot the app (uses .env.local → the dev Clerk instance)
@@ -86,8 +91,42 @@ MS_TEST_BUYER_EMAIL=<dev user email> \
 
 > **Instance-match gotcha:** the keys, the test users, and the app must all be the **same** Clerk
 > instance, or `clerk.signIn` times out waiting for `window.Clerk`. Decode a publishable key with
-> `echo <suffix> | base64 -d` to see its frontend-API host. CI runs only the **anonymous** browser
-> smokes against the preview (non-blocking); authed is a local run.
+> `echo <suffix> | base64 -d` to see its frontend-API host. The preview CI browser layer is
+> non-blocking; its credentialed tests are informative rather than a merge gate.
+
+### Fixture inventory (derived from `e2e/**/*.spec.ts`)
+
+The table is the provisionable `MS_TEST_*` surface actually referenced by the spec tree. `ci.yml`
+wires the API and browser fixtures; `browser-smoke.yml` wires the browser-only anonymous subset for
+the production nightly. A missing fixture is a visible skip, not a failure.
+
+| Env var | Specs unlocked | Fixture requirement |
+| --- | --- | --- |
+| `MS_TEST_BROWSER_AUTH` | all auth-gated browser specs | Literal `1`; set only in the preview CI job or a local dev-Clerk run. |
+| `MS_TEST_BUYER_EMAIL` | `smoke`, `home-hero-auth`, `home-personalization`, `buyer-notification-prefs-compras`, `checkout-cp-first`, `unread-poll` browser specs | Existing buyer in the same dev Clerk instance as the target. |
+| `MS_TEST_SELLER_EMAIL` | `onboarding-success-card`, shop-settings, `seller-unclaimed-s3` browser specs | Existing seller in that dev Clerk instance. |
+| `MS_TEST_ADMIN_EMAIL` | `admin-seleccion.browser.spec.ts` | Dev Clerk user recognized as an admin by the app. This spec requires its explicit email. |
+| `MS_TEST_PDP_LISTING_ID` | `agent-prompt`, `trust-signals` browser; `ucp-cutover-api` | Public listing; seller exposes a payment or fulfillment method for trust-signals. |
+| `MS_TEST_PERSONALIZED_LISTING_ID` | `personalization`, PDP gallery fallback; `agent-prompt`, `trust-signals`, `ucp-cutover-api` fallbacks | Public listing with a required custom field. |
+| `MS_TEST_GALLERY_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with at least two photos. |
+| `MS_TEST_GALLERY_SINGLE_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with exactly one photo. |
+| `MS_TEST_GALLERY_ZERO_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with zero photos. |
+| `MS_TEST_SHIPPABLE_LISTING_ID` | `checkout-cp-first.browser.spec.ts`, `ucp-checkout-session-shipping-boundary.spec.ts` | Public, priced physical listing with Envía shipping. |
+| `MS_TEST_CLAIMED_SLUG` | `seller-unclaimed-s3.browser.spec.ts`, `collection-isolation.spec.ts` | A real claimed shop slug. |
+| `MS_TEST_UNCLAIMED_LISTING_ID` | `unclaimed-pdp.browser.spec.ts`, `unclaimed-guardrails.spec.ts` | Public listing on a “Sin reclamar” shop. |
+| `MS_TEST_GTM_ID` | `site-analytics-loader.browser.spec.ts` | Set to `1` only when the target build has `NEXT_PUBLIC_GTM_ID`; this is a repo variable, not a secret. |
+| `MS_TEST_ARRANGED_LISTING_ID` | `ucp-checkout-session-arranged-delivery.spec.ts` | Public, priced listing using coordinated delivery. |
+| `MS_TEST_EVENT_LISTING_ID` | `ucp-checkout-quantity.spec.ts`, `ucp-rental-quote.spec.ts` | Public, priced event listing (the rental spec uses it as a non-rental control). |
+| `MS_TEST_RENTAL_LISTING_ID` | `ucp-rental-quote.spec.ts` | Public, priced rental listing. |
+| `MS_TEST_PRINT_STUDIO_SUBMISSION_ID` | `print-studio-api.spec.ts` | Disposable approved print-studio submission; also requires `PRINT_STUDIO_TOKEN`. |
+| `MS_TEST_PRINT_STUDIO_SOCIAL_ID` | `print-studio-api.spec.ts` | Disposable approved social submission; also requires `PRINT_STUDIO_TOKEN`. |
+| `MS_TEST_PRINT_STUDIO_EDITION_ID` | `print-studio-api.spec.ts` | Existing `print_editions` UUID for the social-placement check. |
+| `MS_TEST_PERSONALIZATION_STRICT` | `home-personalization.browser.spec.ts` | Optional `1`: strengthens an already-running assertion; it does not unlock a skipped test. |
+
+`CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are also required for credentialed tests, but are not
+`MS_TEST_*` names. CI maps them from the dedicated dev-instance secrets above. `MS_TEST_BUYER_PASSWORD`
+and `MS_TEST_SELLER_PASSWORD` are vestigial: no spec references either, because ticket sign-in needs
+only an email plus the Clerk secret key. Do not provision them.
 
 ## Conventions
 - `_helpers/` is not a test dir (no `*.spec.ts`) — shared helpers only.

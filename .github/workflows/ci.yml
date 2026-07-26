@@ -90,6 +90,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PRINT_STUDIO_TOKEN: ${{ secrets.PRINT_STUDIO_TOKEN }}
     steps:
       - name: Resolve Vercel preview URL for this commit
         id: preview
@@ -163,6 +164,50 @@ jobs:
       # e2e/README.md → "authed browser smokes").
       - name: Browser smokes vs preview (non-blocking)
         continue-on-error: true
+        # Fixtures are scoped to THIS STEP, not the job.
+        #
+        # At job level they also reached the api gate and un-skipped two fixture-gated API specs
+        # (ucp-cutover-api, unclaimed-guardrails) that then FAILED — turning the deterministic gate
+        # red. That failure is a fixture-DATA problem, not a code one: the configured listing has no
+        # instant payment method, so `payment_options` comes back empty. Those specs have been
+        # silently skipping for as long as the fixtures were unset, and they fail the moment the
+        # fixtures are supplied — a real provisioning gap, tracked separately.
+        env:
+          MS_TEST_UNCLAIMED_LISTING_ID: ${{ secrets.MS_TEST_UNCLAIMED_LISTING_ID }}
+          MS_TEST_BROWSER_AUTH: "1"
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.MS_TEST_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.MS_TEST_CLERK_SECRET_KEY }}
+          MS_TEST_BUYER_EMAIL: ${{ secrets.MS_TEST_BUYER_EMAIL }}
+          MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
+          MS_TEST_ADMIN_EMAIL: ${{ secrets.MS_TEST_ADMIN_EMAIL }}
+          MS_TEST_PERSONALIZED_LISTING_ID: ${{ secrets.MS_TEST_PERSONALIZED_LISTING_ID }}
+          MS_TEST_PDP_LISTING_ID: ${{ secrets.MS_TEST_PDP_LISTING_ID }}
+          MS_TEST_GALLERY_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_LISTING_ID }}
+          MS_TEST_GALLERY_SINGLE_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_SINGLE_LISTING_ID }}
+          MS_TEST_GALLERY_ZERO_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_ZERO_LISTING_ID }}
+          MS_TEST_SHIPPABLE_LISTING_ID: ${{ secrets.MS_TEST_SHIPPABLE_LISTING_ID }}
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:browser
+
+      - name: Summarize credentialed browser-smoke skips
+        if: always()
+        run: node scripts/browser-smoke-summary.mjs
+      - name: Browser smokes vs preview (non-blocking)
+        continue-on-error: true
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:browser
+
+      - name: Summarize credentialed browser-smoke skips
+        if: always()
+        run: node scripts/browser-smoke-summary.mjs
+
+      - name: Upload browser-smoke fixture report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-fixture-skips
+          path: test-results/browser-smoke-fixture-skips.json
+          if-no-files-found: warn
+          retention-days: 7
