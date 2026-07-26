@@ -2,7 +2,9 @@ name: CI
 
 # Deterministic pre-merge gate (Roadmap/WAYS-OF-WORKING.md → Review & merge):
 #   typecheck-build  — tsc --noEmit + next build, on the PR branch code
-#   e2e              — Playwright suite against the PR's Vercel preview
+#   prep             — resolve the PR's Vercel preview once
+#   e2e              — four sharded Playwright API gates against that preview
+#   e2e-browser      — non-blocking browser smokes against that preview
 #
 # Why poll the Vercel API instead of the `deployment_status` event: a workflow
 # triggered by `deployment_status` runs the file from the DEFAULT branch, so it
@@ -55,24 +57,19 @@ jobs:
       - name: Build
         run: npm run build
 
-  e2e:
-    name: Playwright vs preview
+  prep:
+    name: Resolve Vercel preview
     runs-on: ubuntu-latest
+    outputs:
+      playwright_base_url: ${{ steps.preview.outputs.playwright_base_url }}
     env:
       VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-
       - name: Resolve Vercel preview URL for this commit
+        id: preview
         run: |
           set -euo pipefail
           echo "Waiting for the Vercel preview of commit ${HEAD_SHA:0:8}…"
@@ -86,7 +83,7 @@ jobs:
             echo "  attempt $i: state=${state:-<none>} url=${url:-<none>}"
             case "$state" in
               READY)
-                echo "PLAYWRIGHT_BASE_URL=https://$url" >> "$GITHUB_ENV"
+                echo "playwright_base_url=https://$url" >> "$GITHUB_OUTPUT"
                 echo "Preview ready: https://$url"
                 exit 0 ;;
               ERROR|CANCELED)
@@ -96,11 +93,46 @@ jobs:
           done
           echo "::error::Timed out waiting for the Vercel preview of $HEAD_SHA"; exit 1
 
-      - name: Run Playwright suite against the preview
-        # PLAYWRIGHT_BASE_URL was exported to $GITHUB_ENV above; the bypass token
-        # (wired into playwright.config.ts) reaches the SSO-gated preview.
-        run: npm run test:e2e
+  e2e:
+    name: Playwright API vs preview (shard ${{ matrix.shard }}/4)
+    needs: prep
+    runs-on: ubuntu-latest
+    strategy:
+      # fail-fast: false — a failing shard must NOT cancel its siblings. The default (true) would
+      # report the first failure and kill the rest, so a run with breakage in three shards looks
+      # identical to one with breakage in one. On a test gate you want the whole picture in one run;
+      # the workflow still fails either way (requirement: any shard red ⇒ gate red).
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ needs.prep.outputs.playwright_base_url }}
+      # The bypass token (wired into playwright.config.ts) reaches the SSO-gated preview.
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Run Playwright API shard against the preview
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
 
+  e2e-browser:
+    name: Browser smokes vs preview (non-blocking)
+    needs: prep
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ needs.prep.outputs.playwright_base_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       # Anonymous browser smokes against the preview — NON-BLOCKING (continue-on-error)
       # so the gate stays the api suite above. Authed smokes are NOT run here: Clerk's
       # testing token needs a dev instance + an allowed origin, which an SSO-gated
