@@ -43,11 +43,13 @@ export function FundadorasApplicationForm({ copy, visitorSubjectId }: { copy: Fo
 
   // Idempotency key is stable for this form instance; the visitor subject comes
   // from the HttpOnly first-party cookie and is never minted by this client.
-  const idempotencyKey = useRef<string>('')
+  // A lazy `useState` initializer, not a ref written during render: it is minted
+  // exactly once per form instance (same runtime behaviour as the previous ref)
+  // without tripping react-hooks/refs, which forbids touching a ref mid-render.
+  const [idempotencyKey] = useState<string>(() =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : '',
+  )
   const startedRef = useRef(false)
-  if (!idempotencyKey.current && typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    idempotencyKey.current = crypto.randomUUID()
-  }
 
   function utmSource(): string | undefined {
     if (typeof window === 'undefined') return undefined
@@ -123,7 +125,7 @@ export function FundadorasApplicationForm({ copy, visitorSubjectId }: { copy: Fo
           previewPermission,
           marketing,
           utm: utmBundle(),
-          idempotencyKey: idempotencyKey.current,
+          idempotencyKey,
         }),
       })
       const data = await res.json().catch(() => ({}))
