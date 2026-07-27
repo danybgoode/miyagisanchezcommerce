@@ -2,20 +2,12 @@
 #
 # The deterministic gate (ci.yml) stays API-only and chromium-free for speed.
 # This runs the `browser` Playwright project (Chromium) on demand and nightly,
-# against production by default. Authed/epic smokes read MS_TEST_* secrets and
-# skip gracefully when unset, so this is safe even before fixtures exist.
+# against production by default. It is intentionally anonymous: Clerk's testing
+# token is rejected by production Clerk keys. The PR-preview job in ci.yml is
+# the only CI path that enables credentialed browser smokes.
 #
-# Provision (Daniel): repo secrets
-#   MS_TEST_BUYER_EMAIL / MS_TEST_BUYER_PASSWORD
-#   MS_TEST_SELLER_EMAIL / MS_TEST_SELLER_PASSWORD
-#   MS_TEST_PDP_LISTING_ID              (a public listing whose seller exposes >=1 payment/fulfillment method)
-#   MS_TEST_PERSONALIZED_LISTING_ID     (a public listing with a required custom field; dormant — no such
-#                                        public listing exists today, so the personalization smoke skips)
-#   MS_TEST_GALLERY_LISTING_ID          (a public listing with 2+ photos — pdp-single-image-gallery-parity fix,
-#                                        2026-07-13: existed as a secret since 2026-06-10 but was never wired
-#                                        into this job's env, so the 2+ image gallery smoke silently skipped)
-#   MS_TEST_GALLERY_SINGLE_LISTING_ID   (a public listing with exactly 1 photo)
-#   MS_TEST_GALLERY_ZERO_LISTING_ID     (a public listing with 0 photos)
+# The authoritative fixture inventory is e2e/README.md. This workflow wires only
+# anonymous browser fixtures; it never enables MS_TEST_BROWSER_AUTH.
 name: Browser smoke
 
 on:
@@ -33,15 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.base_url || 'https://miyagisanchez.com' }}
-      MS_TEST_BUYER_EMAIL: ${{ secrets.MS_TEST_BUYER_EMAIL }}
-      MS_TEST_BUYER_PASSWORD: ${{ secrets.MS_TEST_BUYER_PASSWORD }}
-      MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
-      MS_TEST_SELLER_PASSWORD: ${{ secrets.MS_TEST_SELLER_PASSWORD }}
       MS_TEST_PERSONALIZED_LISTING_ID: ${{ secrets.MS_TEST_PERSONALIZED_LISTING_ID }}
       MS_TEST_PDP_LISTING_ID: ${{ secrets.MS_TEST_PDP_LISTING_ID }}
       MS_TEST_GALLERY_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_LISTING_ID }}
       MS_TEST_GALLERY_SINGLE_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_SINGLE_LISTING_ID }}
       MS_TEST_GALLERY_ZERO_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_ZERO_LISTING_ID }}
+      MS_TEST_CLAIMED_SLUG: ${{ secrets.MS_TEST_CLAIMED_SLUG }}
+      MS_TEST_UNCLAIMED_LISTING_ID: ${{ secrets.MS_TEST_UNCLAIMED_LISTING_ID }}
+      MS_TEST_GTM_ID: ${{ vars.MS_TEST_GTM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,6 +41,17 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e:browser
+      - name: Summarize credentialed browser-smoke skips
+        if: always()
+        run: node scripts/browser-smoke-summary.mjs
+      - name: Upload browser-smoke fixture report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-fixture-skips
+          path: test-results/browser-smoke-fixture-skips.json
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -51,7 +51,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: 'list',
+  reporter: [
+    ['list'],
+    ['./e2e/reporters/fixture-skip-reporter.ts'],
+  ],
   use: {
     baseURL,
     extraHTTPHeaders: {
