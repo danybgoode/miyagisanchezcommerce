@@ -28,6 +28,10 @@ import {
 } from './merchant-identity'
 import { parseSellerAcquisitionUtm, type SellerAcquisitionUtm } from './seller-acquisition'
 import type { GrowthTrackInput } from './growth-track'
+import {
+  FUNDADORAS_EXPERIMENT_DEFINITION_VERSION,
+  type FundadorasExperimentVariant,
+} from './fundadoras-experiment'
 
 export { decideDedupeMatch, type DedupeCandidateRows, type DedupeDecision }
 
@@ -379,13 +383,16 @@ export function isFundadorasEvent(event: string): event is FundadorasEventName {
 }
 
 /** The ONLY tag keys a funnel event may carry — no free text, no form values. */
-const ALLOWED_TAG_KEYS = ['utm_source', 'cohort_state'] as const
+const ALLOWED_TAG_KEYS = ['utm_source', 'cohort_state', 'variant', 'experiment_definition_version'] as const
 const MAX_TAG_VALUE_LEN = 140
 
 function sanitizeTags(tags: Record<string, unknown> | undefined): Record<string, string> {
   const out: Record<string, string> = {}
   if (!tags) return out
   for (const key of ALLOWED_TAG_KEYS) {
+    // Governed-assignment tags are server-derived below. Never echo a client or
+    // caller-supplied variant into the experiment stream.
+    if (key === 'variant' || key === 'experiment_definition_version') continue
     const value = tags[key]
     if (typeof value === 'string' && value.trim().length > 0) {
       out[key] = value.trim().slice(0, MAX_TAG_VALUE_LEN)
@@ -403,10 +410,25 @@ function sanitizeTags(tags: Record<string, unknown> | undefined): Record<string,
  */
 export function buildFundadorasEventPayload(
   event: FundadorasEventName,
-  subjectId: string,
+  userId: string,
+  visitorSubjectId: string | null,
   tags?: Record<string, unknown>,
+  variant?: FundadorasExperimentVariant | null,
 ): GrowthTrackInput {
-  return { userId: subjectId, event, tags: sanitizeTags(tags) }
+  const safeTags: Record<string, unknown> = sanitizeTags(tags)
+  if (variant) {
+    safeTags.variant = variant
+    safeTags.experiment_definition_version = FUNDADORAS_EXPERIMENT_DEFINITION_VERSION
+  }
+
+  return {
+    userId,
+    event,
+    tags: safeTags,
+    ...(visitorSubjectId === null
+      ? {}
+      : { context: { version: 1, subject: { type: 'fundadoras_visitor', id: visitorSubjectId } } }),
+  }
 }
 
 const MIN_SUBJECT_ID_LEN = 8
@@ -421,6 +443,7 @@ const MAX_SUBJECT_ID_LEN = 128
  * definitely NOT an opaque token.
  */
 export function isPlausibleOpaqueSubjectId(id: string): boolean {
+  if (id !== id.trim()) return false
   const t = id.trim()
   if (t.length < MIN_SUBJECT_ID_LEN || t.length > MAX_SUBJECT_ID_LEN) return false
   if (t.includes('@')) return false // looks like an email

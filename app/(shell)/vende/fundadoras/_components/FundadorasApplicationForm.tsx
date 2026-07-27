@@ -14,10 +14,10 @@ type FormCopy = (typeof es)['sellerAcquisition']['fundadoras']['apply']['form']
  *     preview-permission and marketing are separate OPTIONAL checkboxes, each
  *     default UNCHECKED. Leaving one unchecked sends `false`, never nothing that
  *     the server could misread as granted.
- *  2. An OPAQUE subject id (Story 2.3): a random token generated on mount,
- *     never PII, used for the anonymous funnel events and NOT sent as any
- *     identity. The server keys the accepted event on the relationship id
- *     instead — this token only ties the pre-submit funnel steps together.
+ *  2. The middleware-minted opaque visitor subject is passed from the server
+ *     render. The track route still reads its HttpOnly cookie itself; this prop
+ *     merely prevents a first render without that subject from emitting a
+ *     disconnected funnel event.
  *  3. An idempotency key per form instance so a double-tap submit is one write.
  *
  * Funnel events (view / start / validation_failed) POST to the anonymous
@@ -25,7 +25,7 @@ type FormCopy = (typeof es)['sellerAcquisition']['fundadoras']['apply']['form']
  * never blocks or surfaces to the applicant. The `accepted` event is emitted
  * server-side only.
  */
-export function FundadorasApplicationForm({ copy }: { copy: FormCopy }) {
+export function FundadorasApplicationForm({ copy, visitorSubjectId }: { copy: FormCopy; visitorSubjectId: string | null }) {
   const [businessName, setBusinessName] = useState('')
   const [contactName, setContactName] = useState('')
   const [phone, setPhone] = useState('')
@@ -41,14 +41,15 @@ export function FundadorasApplicationForm({ copy }: { copy: FormCopy }) {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
-  // Opaque subject id + idempotency key — stable for this form instance, never PII.
-  const subjectId = useRef<string>('')
-  const idempotencyKey = useRef<string>('')
+  // Idempotency key is stable for this form instance; the visitor subject comes
+  // from the HttpOnly first-party cookie and is never minted by this client.
+  // A lazy `useState` initializer, not a ref written during render: it is minted
+  // exactly once per form instance (same runtime behaviour as the previous ref)
+  // without tripping react-hooks/refs, which forbids touching a ref mid-render.
+  const [idempotencyKey] = useState<string>(() =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : '',
+  )
   const startedRef = useRef(false)
-  if (!subjectId.current && typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    subjectId.current = `fnd_${crypto.randomUUID()}`
-    idempotencyKey.current = crypto.randomUUID()
-  }
 
   function utmSource(): string | undefined {
     if (typeof window === 'undefined') return undefined
@@ -68,11 +69,11 @@ export function FundadorasApplicationForm({ copy }: { copy: FormCopy }) {
   }
 
   function track(event: string) {
-    if (!subjectId.current) return
+    if (!visitorSubjectId) return
     fetch('/api/growth/fundadoras/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, subjectId: subjectId.current, tags: { utm_source: utmSource(), cohort_state: 'open' } }),
+      body: JSON.stringify({ event, tags: { utm_source: utmSource(), cohort_state: 'open' } }),
       keepalive: true,
     }).catch(() => {}) // fire-and-forget — telemetry never blocks the applicant
   }
@@ -124,7 +125,7 @@ export function FundadorasApplicationForm({ copy }: { copy: FormCopy }) {
           previewPermission,
           marketing,
           utm: utmBundle(),
-          idempotencyKey: idempotencyKey.current,
+          idempotencyKey,
         }),
       })
       const data = await res.json().catch(() => ({}))

@@ -10,6 +10,7 @@ import {
 } from '@/lib/shortlink'
 import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib/route-shape'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
+import { FUNDADORAS_VISITOR_COOKIE_NAME } from '@/lib/fundadoras-experiment'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -41,6 +42,34 @@ function isPlatformHost(hostname: string): boolean {
   // not a tenant custom domain, before Cloudflare fronts the real domain (S2+).
   if (hostname.endsWith('.run.app')) return true
   return false
+}
+
+function isFundadorasSubjectPath(pathname: string): boolean {
+  return pathname === '/vende/fundadoras' ||
+    pathname.startsWith('/vende/fundadoras/') ||
+    pathname === '/api/growth/fundadoras/track' ||
+    pathname === '/api/vende/fundadoras/apply'
+}
+
+function requestCookieWithSubject(cookieHeader: string | null, subjectId: string): string {
+  const withoutExisting = (cookieHeader ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && !part.startsWith(`${FUNDADORAS_VISITOR_COOKIE_NAME}=`))
+  return [...withoutExisting, `${FUNDADORAS_VISITOR_COOKIE_NAME}=${subjectId}`].join('; ')
+}
+
+function setFundadorasSubjectCookie(response: NextResponse, subjectId: string | null): NextResponse {
+  if (subjectId) {
+    response.cookies.set(FUNDADORAS_VISITOR_COOKIE_NAME, subjectId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 180,
+    })
+  }
+  return response
 }
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
@@ -324,6 +353,21 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
   headers.set('x-miyagi-path', req.nextUrl.pathname)
 
+  // The page's first render needs the same stable subject that the response
+  // persists. Forward the newly minted value into this request as well: a
+  // response cookie alone would not be visible to Server Components until the
+  // visitor's next navigation. Mint ONLY when absent: a malformed value must
+  // reach the apply route as malformed so its legacy accepted event stays
+  // observable but deliberately unattributed.
+  const existingFundadorasSubject = req.cookies.get(FUNDADORAS_VISITOR_COOKIE_NAME)?.value
+  const fundadorasSubjectToSet = isFundadorasSubjectPath(req.nextUrl.pathname) &&
+    existingFundadorasSubject === undefined
+    ? `fnd_${crypto.randomUUID()}`
+    : null
+  if (fundadorasSubjectToSet) {
+    headers.set('cookie', requestCookieWithSubject(req.headers.get('cookie'), fundadorasSubjectToSet))
+  }
+
   // ── Embed surface (full-shop iframe) ──────────────────────────────────────
   // Tag /embed/* requests so the root layout drops platform chrome (white-label
   // iframe). The route is served `frame-ancestors *` via next.config so any site
@@ -392,12 +436,12 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     if (isEmbed) {
       res.cookies.set('mi_channel', 'embed', { maxAge: 60 * 60 * 2, path: '/', sameSite: 'lax' })
     }
-    return res
+    return setFundadorasSubjectCookie(res, fundadorasSubjectToSet)
   }
 
   // Default platform response — forward the sanitized headers so spoofed
   // x-miyagi-* trust headers never reach the page render.
-  return NextResponse.next({ request: { headers } })
+  return setFundadorasSubjectCookie(NextResponse.next({ request: { headers } }), fundadorasSubjectToSet)
 })
 
 export const config = {

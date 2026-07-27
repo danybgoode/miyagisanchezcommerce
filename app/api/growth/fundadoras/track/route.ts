@@ -5,7 +5,7 @@
  *
  * Deliberately NOT the Clerk-authed `/api/growth/track`: the campaign is a
  * PUBLIC, logged-out surface, so its funnel events (view / cta / start /
- * validation_failed) carry an OPAQUE client-generated subject id, never a user
+ * validation_failed) are keyed from the HttpOnly visitor cookie, never a user
  * id and never a form value. The `accepted` event is NOT accepted here — it is
  * emitted server-side from the apply route only, after the canonical write, so
  * that acceptance can never be forged from the client.
@@ -25,6 +25,11 @@ import {
   buildFundadorasEventPayload,
 } from '@/lib/fundadoras-application'
 import { sendGrowthEvent } from '@/lib/growth-engine'
+import {
+  FUNDADORAS_VISITOR_COOKIE_NAME,
+  isFundadorasVisitorSubjectId,
+  resolveFundadorasExperimentVariant,
+} from '@/lib/fundadoras-experiment'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,14 +49,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { event, subjectId, tags } = (body ?? {}) as Record<string, unknown>
+  const { event, tags } = (body ?? {}) as Record<string, unknown>
 
   // Allowlist the event name. `accepted` is emitted server-side only — reject
   // it here so a client can never mint an acceptance.
   if (typeof event !== 'string' || !isFundadorasEvent(event) || event === 'fundadoras_application_accepted') {
     return NextResponse.json({ error: 'Unknown event' }, { status: 400 })
   }
-  if (typeof subjectId !== 'string' || !isPlausibleOpaqueSubjectId(subjectId)) {
+  const visitorSubjectId = req.cookies.get(FUNDADORAS_VISITOR_COOKIE_NAME)?.value ?? null
+  if (
+    visitorSubjectId === null ||
+    !isFundadorasVisitorSubjectId(visitorSubjectId) ||
+    !isPlausibleOpaqueSubjectId(visitorSubjectId)
+  ) {
     return NextResponse.json({ error: 'Invalid subject' }, { status: 400 })
   }
 
@@ -63,8 +73,10 @@ export async function POST(req: NextRequest) {
 
   const payload = buildFundadorasEventPayload(
     event,
-    subjectId,
+    visitorSubjectId,
+    visitorSubjectId,
     typeof tags === 'object' && tags !== null ? (tags as Record<string, unknown>) : undefined,
+    resolveFundadorasExperimentVariant(visitorSubjectId),
   )
   // Fire-and-forget — never block or fail the client on a telemetry hiccup.
   sendGrowthEvent(payload).catch((e) => console.error('[fundadoras-track] growth emit failed:', e))
