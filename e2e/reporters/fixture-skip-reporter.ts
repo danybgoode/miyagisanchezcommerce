@@ -55,7 +55,15 @@ export default class FixtureSkipReporter implements Reporter {
       ...test.annotations.map((annotation) => annotation.description ?? ''),
       ...result.errors.map((error) => error.message ?? ''),
     ].join('\n')
-    if (!skipReason.includes('MS_TEST_BROWSER_AUTH')) return
+    // Match ANY MS_TEST_* fixture, not just the master switch.
+    //
+    // Cross-review (agy) caught this and it is the reporter's own reason for existing: a spec skipped
+    // by `requireEnv('MS_TEST_BUYER_EMAIL')` records the reason "Set MS_TEST_BUYER_EMAIL to run this
+    // browser smoke" — which never mentions MS_TEST_BROWSER_AUTH. The old guard returned early, so
+    // exactly the fixture-missing skips this reporter was built to count went UNCOUNTED, and the job
+    // summary read as "all fixtures present" while specs silently skipped. That is the same green-tick
+    // -over-silence failure the epic set out to end, reproduced inside the fix for it.
+    if (!/\bMS_TEST_[A-Z0-9_]+\b/.test(skipReason)) return
 
     const source = sourceFor(test.location.file)
 
