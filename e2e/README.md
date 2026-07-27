@@ -132,3 +132,26 @@ only an email plus the Clerk secret key. Do not provision them.
 - `_helpers/` is not a test dir (no `*.spec.ts`) — shared helpers only.
 - A browser spec replaces a hand-driven browser smoke that was previously "owed to Daniel."
 - Keep browser specs resilient: assert behaviour/landmarks, not volatile copy or layout.
+
+## Fixture ids that actually satisfy the gated specs (verified live 2026-07-27)
+
+Two `api`-project specs are fixture-gated and had been **silently skipping** in CI. When the fixtures
+were first supplied they **failed** — not a code bug: the configured listings did not satisfy what the
+specs assert. These do, verified against the live production endpoint:
+
+| Secret | Verified value | What the spec needs, and why this one works |
+|---|---|---|
+| `MS_TEST_PDP_LISTING_ID` | `prod_01KXBHQMR7A2YFKBMXAA2NK7ZJ` | `ucp-cutover-api.spec.ts` needs a listing whose `payment_options` include at least one **instant method with a `checkout_url`**. This one returns Stripe + bank transfer with a URL. |
+| `MS_TEST_UNCLAIMED_LISTING_ID` | `prod_01KW35VS38TVERK4BCM6667J1F` | `unclaimed-guardrails.spec.ts` needs an **unclaimed** shop: every claim-gated method unavailable, and `mercadopago.reason_unavailable` containing `vendedor registrado`. Both confirmed. |
+
+**Do not assume a listing qualifies because it is public.** Most of the catalog pre-launch is unclaimed
+"gem" listings with no registered seller, so every payment method is unavailable and any spec needing a
+`checkout_url` fails. Re-verify with:
+
+```bash
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"listing_id":"<id>"}' https://miyagisanchez.com/api/ucp/checkout-session
+```
+
+These are **production** ids on Daniel's own disposable tenants (pre-launch, no real sellers). They are
+data, not secrets — they live in repo secrets only to match the existing fixture convention.
