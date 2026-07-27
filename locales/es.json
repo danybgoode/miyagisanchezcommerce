@@ -1401,6 +1401,18 @@
       "eyebrow": "Cohorte fundadora · cupo limitado",
       "heroTitle": "25 tiendas fundadoras, acompañadas paso a paso antes de publicar.",
       "heroLead": "Te ayudamos a montar tu catálogo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
+      "experimentVariants": {
+        "control": {
+          "heroTitle": "25 tiendas fundadoras, acompañadas paso a paso antes de publicar.",
+          "heroLead": "Te ayudamos a montar tu catálogo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
+          "primaryCta": "Aplicar a la cohorte fundadora"
+        },
+        "promesa_directa": {
+          "heroTitle": "Lanza tu tienda con acompañamiento real antes de publicar.",
+          "heroLead": "Montamos tu catálogo contigo y tú apruebas una vista privada antes de salir al público. Hay 25 lugares para hacerlo paso a paso.",
+          "primaryCta": "Quiero lanzar mi tienda"
+        }
+      },
       "trustLine": "Compruébalo tú mismo: pídele a tu IA que evalúe miyagisanchez.com/vende/fundadoras y te diga qué incluye y qué no.",
       "primaryCta": "Aplicar a la cohorte fundadora",
       "secondaryCta": "Ver la página general de Vende",

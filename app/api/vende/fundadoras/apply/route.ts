@@ -24,6 +24,11 @@ import {
   type FundadorasApplicationInput,
 } from '@/lib/fundadoras-application'
 import {
+  FUNDADORAS_VISITOR_COOKIE_NAME,
+  isFundadorasVisitorSubjectId,
+  resolveFundadorasExperimentVariant,
+} from '@/lib/fundadoras-experiment'
+import {
   readFundadorasCapacityUsed,
   persistFundadorasApplication,
 } from '@/lib/fundadoras-application-server'
@@ -82,10 +87,15 @@ export async function POST(req: NextRequest) {
   if (!outcome.idempotentReplay && outcome.firstApplication) {
     const telemetryOn = await isEnabled('growth.telemetry_enabled')
     if (telemetryOn) {
-      const payload = buildFundadorasEventPayload('fundadoras_application_accepted', outcome.relationshipId, {
-        utm_source: result.clean.utm.utm_source,
-        cohort_state: 'open',
-      })
+      const cookieSubject = req.cookies.get(FUNDADORAS_VISITOR_COOKIE_NAME)?.value ?? null
+      const visitorSubjectId = cookieSubject && isFundadorasVisitorSubjectId(cookieSubject) ? cookieSubject : null
+      const payload = buildFundadorasEventPayload(
+        'fundadoras_application_accepted',
+        outcome.relationshipId,
+        visitorSubjectId,
+        { utm_source: result.clean.utm.utm_source, cohort_state: 'open' },
+        visitorSubjectId ? resolveFundadorasExperimentVariant(visitorSubjectId) : null,
+      )
       // Fire-and-forget — telemetry is observability, never blocks the write.
       sendGrowthEvent(payload).catch((e) => console.error('[fundadoras-apply] growth emit failed:', e))
     }

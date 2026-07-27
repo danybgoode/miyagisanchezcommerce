@@ -259,7 +259,7 @@ test.describe('fundadoras funnel events (pure)', () => {
   })
 
   test('payload carries ONLY the opaque subject + allowlisted tags — form values dropped', () => {
-    const payload = buildFundadorasEventPayload('fundadoras_application_accepted', 'rel-opaque-id', {
+    const payload = buildFundadorasEventPayload('fundadoras_application_accepted', 'rel-opaque-id', null, {
       utm_source: 'field-test',
       cohort_state: 'open',
       businessName: 'LEAK',

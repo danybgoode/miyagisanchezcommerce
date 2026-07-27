@@ -28,6 +28,18 @@
       "eyebrow": "Founding cohort · limited spots",
       "heroTitle": "25 founding shops, guided step by step before going live.",
       "heroLead": "We help you build your catalog and you review a private preview of your shop before anyone else sees it. Only 25 spots in this cohort.",
+      "experimentVariants": {
+        "control": {
+          "heroTitle": "25 founding shops, guided step by step before going live.",
+          "heroLead": "We help you build your catalog and you review a private preview of your shop before anyone else sees it. Only 25 spots in this cohort.",
+          "primaryCta": "Apply to the founding cohort"
+        },
+        "promesa_directa": {
+          "heroTitle": "Launch your shop with real guidance before going live.",
+          "heroLead": "We build your catalog with you, and you approve a private preview before it is public. There are 25 places to do it step by step.",
+          "primaryCta": "I want to launch my shop"
+        }
+      },
       "trustLine": "See for yourself: ask your AI to evaluate miyagisanchez.com/vende/fundadoras and tell you what it includes and what it doesn't.",
       "primaryCta": "Apply to the founding cohort",
       "secondaryCta": "See the general Sell page",

@@ -1,10 +1,20 @@
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import es from '@/locales/es.json'
 import Link from 'next/link'
 import { getOverriddenDictionary } from '@/lib/copy-overrides'
 import { isEnabled } from '@/lib/flags'
 import { decideFundadorasGateState } from '@/lib/fundadoras-application'
 import { readFundadorasCapacityUsed } from '@/lib/fundadoras-application-server'
+import { sendGrowthEvent } from '@/lib/growth-engine'
+import {
+  FUNDADORAS_EXPERIMENT_ASSIGNMENT_ENTITY_TYPE,
+  FUNDADORAS_EXPERIMENT_DEFINITION_VERSION,
+  FUNDADORAS_EXPERIMENT_KEY,
+  FUNDADORAS_VISITOR_COOKIE_NAME,
+  isFundadorasVisitorSubjectId,
+  resolveFundadorasExperimentVariant,
+} from '@/lib/fundadoras-experiment'
 import { FundadorasApplicationForm } from './_components/FundadorasApplicationForm'
 
 const BASE_URL = 'https://miyagisanchez.com'
@@ -35,13 +45,37 @@ export const dynamic = 'force-dynamic'
 export default async function FundadorasPage() {
   const ui = (await getOverriddenDictionary('es')).sellerAcquisition.fundadoras
 
-  const [flagEnabled, capacityUsed] = await Promise.all([
+  const cookieStore = await cookies()
+  const cookieSubject = cookieStore.get(FUNDADORAS_VISITOR_COOKIE_NAME)?.value ?? null
+  const visitorSubjectId = cookieSubject && isFundadorasVisitorSubjectId(cookieSubject) ? cookieSubject : null
+
+  const [flagEnabled, capacityUsed, telemetryEnabled] = await Promise.all([
     isEnabled('growth.founding_merchants_enabled'),
     readFundadorasCapacityUsed(),
+    isEnabled('growth.telemetry_enabled'),
   ])
   // A capacity-read failure fails CLOSED (treated as full) — the page never
   // invites an application it can't verify there is still room for.
   const gate = decideFundadorasGateState(flagEnabled, capacityUsed ?? Number.MAX_SAFE_INTEGER)
+  const variant = flagEnabled && visitorSubjectId
+    ? resolveFundadorasExperimentVariant(visitorSubjectId)
+    : null
+  const experimentCopy = variant ? ui.experimentVariants[variant] : null
+
+  // This is deliberately independent from rendering: a growth destination
+  // failure must never block the page or alter its assigned copy.
+  if (flagEnabled && telemetryEnabled && visitorSubjectId && variant) {
+    sendGrowthEvent({
+      userId: visitorSubjectId,
+      event: 'experiment_exposed',
+      featureId: FUNDADORAS_EXPERIMENT_KEY,
+      tags: { variant, experiment_definition_version: FUNDADORAS_EXPERIMENT_DEFINITION_VERSION },
+      context: {
+        version: 1,
+        subject: { type: FUNDADORAS_EXPERIMENT_ASSIGNMENT_ENTITY_TYPE, id: visitorSubjectId },
+      },
+    }).catch((error) => console.error('[fundadoras-page] growth exposure emit failed:', error))
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -60,13 +94,13 @@ export default async function FundadorasPage() {
         {/* Hero — one promise, one constraint, one CTA. */}
         <header className="flex flex-col gap-4">
           <span className="badge badge-warning w-fit">{ui.eyebrow}</span>
-          <h1 className="t-h1">{ui.heroTitle}</h1>
+          <h1 className="t-h1">{experimentCopy?.heroTitle ?? ui.heroTitle}</h1>
           <p className="t-lead" style={{ maxWidth: 640 }}>
-            {ui.heroLead}
+            {experimentCopy?.heroLead ?? ui.heroLead}
           </p>
           {gate === 'open' && (
             <a href="#aplicar" className="btn btn-primary btn-lg w-fit">
-              {ui.primaryCta}
+              {experimentCopy?.primaryCta ?? ui.primaryCta}
               <i className="iconoir-arrow-right" aria-hidden />
             </a>
           )}
@@ -124,7 +158,7 @@ export default async function FundadorasPage() {
                 {ui.apply.title}
               </h2>
               <p>{ui.apply.body}</p>
-              <FundadorasApplicationForm copy={ui.apply.form} />
+              <FundadorasApplicationForm copy={ui.apply.form} visitorSubjectId={visitorSubjectId} />
             </section>
           </>
         )}
