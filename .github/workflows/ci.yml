@@ -1,6 +1,7 @@
 name: CI
 
 # Deterministic pre-merge gate (Roadmap/WAYS-OF-WORKING.md → Review & merge):
+#   lint             — eslint on the files THIS branch changed (incremental by design)
 #   typecheck-build  — tsc --noEmit + next build, on the PR branch code
 #   e2e              — Playwright suite against the PR's Vercel preview
 #
@@ -19,6 +20,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Closes a real gap: WAYS-OF-WORKING has said "type-check + lint + build clean" for months while
+  # nothing here ran lint. It is INCREMENTAL on purpose — a clean checkout has 124 pre-existing
+  # errors, 52 of them React Hooks correctness rules on live commerce surfaces, so a full-tree gate
+  # could only be made green by downgrading the rules, which looks enforcing while enforcing nothing.
+  # Same incremental shape as doc-format.mjs's swept-paths allow-list. See scripts/lint-changed.mjs.
+  lint:
+    name: Lint (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # lint-changed diffs against the merge-base with origin/main; a shallow clone has no
+          # merge-base and the script fails loudly rather than passing vacuously.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint changed files
+        run: npm run lint:changed
+
   typecheck-build:
     name: Type-check + build
     runs-on: ubuntu-latest
