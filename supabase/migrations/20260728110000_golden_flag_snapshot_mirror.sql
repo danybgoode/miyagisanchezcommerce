@@ -20,7 +20,7 @@ CREATE OR REPLACE FUNCTION persist_golden_flag_snapshot(
 RETURNS TABLE (accepted BOOLEAN, current_snapshot_version BIGINT)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   current_row golden_flag_snapshot_mirror%ROWTYPE;
