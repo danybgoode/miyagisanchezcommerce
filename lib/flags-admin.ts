@@ -205,7 +205,7 @@ export function isKnownFlagKey(key: unknown): key is FlagKey {
 
 /** Parsed, validated flag-write body — a discriminated result (never throws). */
 export type FlagWriteParse =
-  | { ok: true; key: FlagKey; enabled: boolean }
+  | { ok: true; key: FlagKey; enabled: boolean; expectedSnapshotVersion: number; reason: string }
   | { ok: false; error: string }
 
 /**
@@ -219,12 +219,28 @@ export function parseFlagWriteBody(body: unknown): FlagWriteParse {
   if (typeof body !== 'object' || body === null) {
     return { ok: false, error: 'Cuerpo inválido.' }
   }
-  const { key, enabled } = body as { key?: unknown; enabled?: unknown }
+  const { key, enabled, expectedSnapshotVersion, reason } = body as {
+    key?: unknown
+    enabled?: unknown
+    expectedSnapshotVersion?: unknown
+    reason?: unknown
+  }
   if (!isKnownFlagKey(key)) {
     return { ok: false, error: 'Flag desconocida.' }
   }
   if (typeof enabled !== 'boolean') {
     return { ok: false, error: 'El valor "enabled" debe ser booleano.' }
   }
-  return { ok: true, key, enabled }
+  if (
+    typeof expectedSnapshotVersion !== 'number' ||
+    !Number.isSafeInteger(expectedSnapshotVersion) ||
+    expectedSnapshotVersion < 0
+  ) {
+    return { ok: false, error: 'La versión de la snapshot es inválida.' }
+  }
+  const safeReason = typeof reason === 'string' ? reason.trim() : ''
+  if (safeReason.length < 1 || safeReason.length > 500) {
+    return { ok: false, error: 'Se requiere un motivo de 1 a 500 caracteres.' }
+  }
+  return { ok: true, key, enabled, expectedSnapshotVersion, reason: safeReason }
 }

@@ -1,6 +1,5 @@
 import { requireAdmin } from '@/lib/admin/guard'
-import { db } from '@/lib/supabase'
-import { FLAG_KEYS, FLAG_META } from '@/lib/flags-admin'
+import { GoldenFlagAdminUnavailable, getGoldenAdminSnapshot } from '@/lib/golden-flag-admin'
 import {
   filterFlagsByPolarity,
   filterFlagsByQuery,
@@ -21,15 +20,6 @@ export const metadata = { title: 'Flags — Admin' }
 
 const PAGE_SIZE = 15
 
-type FlagRow = {
-  key: string
-  enabled: boolean
-  polarity: string | null
-  description: string | null
-  updated_at: string | null
-  updated_by: string | null
-}
-
 const SORTS: readonly FlagSort[] = ['key_asc', 'key_desc', 'status', 'polarity', 'recent']
 const STATUSES: readonly FlagStatusFilter[] = ['all', 'on', 'off']
 const POLARITIES: readonly FlagPolarityFilter[] = ['all', 'killswitch', 'enablement']
@@ -39,10 +29,10 @@ const POLARITIES: readonly FlagPolarityFilter[] = ['all', 'killswitch', 'enablem
  * Sprint 2; filter/sort/pagination polish — admin-flags-cleanup fast-follow chore).
  * Clerk-gated read-only list here; the toggles POST to `/api/admin/flags`.
  *
- * The view UNIONS the known flags (`FLAG_KEYS`) with the live `platform_flags` rows so a
- * flag whose row is ABSENT still renders — an absent row means `isEnabled()` falls open to
- * its DEFAULT_FLAGS value (`FLAG_META[key].default`), which is exactly what we show, tagged
- * "por defecto" until it's first flipped (which inserts the row).
+ * The view reads Golden's credential-scoped snapshot directly. Runtime `shadow` mode still keeps
+ * Miyagi's local mirror authoritative, but this control surface intentionally has no local-value
+ * fallback: showing an old local row here would recreate the second operational writer this story
+ * removes.
  *
  * Filter/sort/pagination is URL-search-param-driven (mirrors `/shop/manage/catalogo`'s
  * pattern — `lib/catalog-query.ts` / `CatalogFilterBar.tsx`) rather than client-side state:
@@ -57,32 +47,29 @@ export default async function AdminFlagsPage({
   await requireAdmin()
   const params = await searchParams
 
-  let rows: FlagRow[] = []
+  let snapshot: Awaited<ReturnType<typeof getGoldenAdminSnapshot>> | null = null
   try {
-    const { data } = await db
-      .from('platform_flags')
-      .select('key, enabled, polarity, description, updated_at, updated_by')
-    rows = (data ?? []) as FlagRow[]
-  } catch {
-    // Non-fatal — the client can refresh; unknown rows fall back to defaults below.
+    snapshot = await getGoldenAdminSnapshot()
+  } catch (error) {
+    if (!(error instanceof GoldenFlagAdminUnavailable)) throw error
   }
 
-  const byKey = new Map(rows.map((r) => [r.key, r]))
-  const allFlags: FlagView[] = FLAG_KEYS.map((key) => {
-    const row = byKey.get(key)
-    const meta = FLAG_META[key]
-    return {
-      key,
-      polarity: meta.polarity,
-      // Live value: the row's `enabled` when present, else the fail-open default.
-      enabled: row ? row.enabled : meta.default,
-      // `true` while no row exists yet (serving the DEFAULT_FLAGS value).
-      isDefault: !row,
-      description: row?.description ?? null,
-      updated_at: row?.updated_at ?? null,
-      updated_by: row?.updated_by ?? null,
-    }
-  })
+  // There is intentionally no platform_flags fallback here. In shadow mode the runtime's local
+  // mirror remains authoritative, but this operational surface must show the Golden source of truth
+  // rather than create a second writer or conceal a control-plane outage.
+  const allFlags: FlagView[] = (snapshot?.flags ?? []).map((flag) => ({
+    key: flag.key,
+    polarity: flag.polarity,
+    criticality: flag.criticality,
+    enabled: flag.value,
+    definitionVersion: flag.definitionVersion,
+    reason: flag.reason,
+    environment: snapshot!.environment,
+    snapshotVersion: snapshot!.snapshotVersion,
+    snapshotUpdatedAt: snapshot!.snapshotUpdatedAt,
+    updated_at: snapshot!.snapshotUpdatedAt,
+    description: flag.description,
+  }))
 
   const q = params.q ?? ''
   const status: FlagStatusFilter = STATUSES.includes(params.status as FlagStatusFilter)
@@ -117,12 +104,21 @@ export default async function AdminFlagsPage({
     <div className="max-w-4xl mx-auto px-4 py-6">
       <h1 className="text-2xl font-bold mb-1">Flags</h1>
       <p className="text-sm text-[var(--fg-muted)] mb-1">
-        Prende y apaga funciones de la plataforma sin redeploy. Cada cambio queda en la Auditoría.
+        Control de Golden Beans para las funciones de la plataforma. Cada cambio crea una versión
+        inmutable y queda auditado con su actor.
       </p>
       <p className="text-xs text-[var(--fg-muted)] mb-5">
-        Los cambios tardan hasta ~60 s en aplicarse (caché en memoria). Si el almacén de flags no
-        responde, cada función usa su valor por defecto (a prueba de fallos).
+        Entorno {snapshot?.environment ?? 'no disponible'} · snapshot v{snapshot?.snapshotVersion ?? '—'}
+        {snapshot ? ' · fresca desde Golden' : ''}.
+        Los consumidores actualizan dentro de su ventana acotada; durante shadow, la tabla local
+        sigue siendo sólo el respaldo de runtime, no una segunda operación.
       </p>
+
+      {!snapshot && (
+        <p role="alert" className="text-sm text-red-700 mb-5">
+          Golden no está disponible para leer u operar flags. No se muestra un valor local alterno.
+        </p>
+      )}
 
       <FlagsFilterBar params={params} statusCounts={statusCounts} />
 

@@ -1,30 +1,33 @@
 /**
  * Admin feature-flag control (Clerk admin-gated via `withAdmin`, epic 09 ·
- * feature-flags-inhouse, Sprint 2). Writes the OWNED `platform_flags` Supabase table
- * that `lib/flags.ts` reads through the unchanged `isEnabled()` seam — a flip takes
- * effect in both apps within one cache TTL (~60 s), no redeploy.
+ * feature-flags-inhouse, Sprint 2). Sprint 2.3 moves this familiar Miyagi surface onto
+ * Golden's control plane: it never writes `platform_flags` directly. The Clerk-admin gate runs
+ * before the server-only Golden credential is used, and the verified Clerk user is carried as the
+ * external audit actor alongside Golden's immutable definition version.
  *
- *   GET  /api/admin/flags   — list every platform_flags row
- *   POST /api/admin/flags   — upsert { key, enabled } for one known flag
+ *   GET  /api/admin/flags   — list the credential-scoped Golden snapshot
+ *   POST /api/admin/flags   — activate one Golden boolean with reason + expected snapshot version
  *
- * `withAdmin` 401s any non-admin BEFORE the handler runs (order = flag→auth→validate,
- * per LEARNINGS) and writes a best-effort `admin_audit_log` row on each successful POST —
- * so every flip is audited with no manual audit call here.
+ * `withAdmin` 401s any non-admin BEFORE the handler runs (order = auth→validate), and writes a
+ * best-effort Miyagi audit row on success. Golden's lifecycle audit is the authoritative mutation
+ * record, including the external Clerk actor and immutable new version.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { withAdmin } from '@/lib/admin/guard'
-import { db } from '@/lib/supabase'
-import { parseFlagWriteBody, FLAG_META } from '@/lib/flags-admin'
+import { parseFlagWriteBody } from '@/lib/flags-admin'
+import { getGoldenAdminSnapshot, GoldenFlagAdminUnavailable, setGoldenAdminFlag } from '@/lib/golden-flag-admin'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = withAdmin(async () => {
-  const { data, error } = await db
-    .from('platform_flags')
-    .select('key, enabled, polarity, description, updated_at, updated_by')
-  if (error) return NextResponse.json({ error: 'No se pudieron leer las flags.' }, { status: 500 })
-  return NextResponse.json({ flags: data ?? [] })
+  try {
+    return NextResponse.json(await getGoldenAdminSnapshot())
+  } catch (error) {
+    if (error instanceof GoldenFlagAdminUnavailable)
+      return NextResponse.json({ error: 'Golden no está disponible para administrar flags.' }, { status: 503 })
+    throw error
+  }
 })
 
 export const POST = withAdmin(async (req: NextRequest) => {
@@ -41,21 +44,14 @@ export const POST = withAdmin(async (req: NextRequest) => {
 
   const { userId } = await auth()
 
-  const { error } = await db.from('platform_flags').upsert(
-    {
-      key: parsed.key,
-      enabled: parsed.enabled,
-      // Stamp polarity from the known-flag SSOT so a code-added-before-seed flag's
-      // FIRST flip inserts a complete row (not NULL polarity). On an existing seeded
-      // row this re-writes the same value — a no-op, never a clobber (PostgREST upserts
-      // only the payload columns, so `description` on the seed is left intact).
-      polarity: FLAG_META[parsed.key].polarity,
-      updated_at: new Date().toISOString(),
-      updated_by: userId ?? null,
-    },
-    { onConflict: 'key' },
-  )
-  if (error) return NextResponse.json({ error: 'No se pudo actualizar la flag.' }, { status: 500 })
-
-  return NextResponse.json({ ok: true, key: parsed.key, enabled: parsed.enabled })
+  if (!userId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  try {
+    const result = await setGoldenAdminFlag({ ...parsed, clerkActorId: userId })
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ key: parsed.key, enabled: parsed.enabled, ...result })
+  } catch (error) {
+    if (error instanceof GoldenFlagAdminUnavailable)
+      return NextResponse.json({ error: 'Golden no está disponible para administrar flags.' }, { status: 503 })
+    throw error
+  }
 })

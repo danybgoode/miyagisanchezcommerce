@@ -11,22 +11,25 @@ import type { FlagPolarity } from '@/lib/flags-admin'
 export type FlagView = {
   key: string
   polarity: FlagPolarity
+  criticality: 'low' | 'medium' | 'high'
   enabled: boolean
-  /** True while no `platform_flags` row exists yet — the live value is the fail-open default. */
-  isDefault: boolean
-  description: string | null
+  definitionVersion: number
+  reason: 'STATIC'
+  environment: 'development' | 'preview' | 'production'
+  snapshotVersion: number
+  snapshotUpdatedAt: string | null
+  /** Only used by the shared deterministic sort helper; Golden owns the source timestamp. */
   updated_at: string | null
-  updated_by: string | null
+  description: string
 }
 
 /**
  * Feature-flag control surface (epic 09 · feature-flags-inhouse, Sprint 2; restyled
  * onto the shared Button/StatusBadge/Banner primitives + filter/sort/pagination moved
  * server-side — admin-flags-cleanup fast-follow chore). **Clerk-gated** — the
- * same-origin POST carries the session cookie; no auth header. Each toggle writes to
- * `platform_flags` via `/api/admin/flags`; the change propagates to both apps within
- * one cache TTL (~60 s, no redeploy). Flipping `checkout.stripe_enabled` is a money
- * path, so it confirms first.
+ * same-origin POST carries the session cookie; no auth header. Each toggle requires a reason and
+ * an optimistic Golden snapshot version, so the familiar surface cannot overwrite a newer change.
+ * Flipping `checkout.stripe_enabled` is a money path, so it confirms first.
  *
  * Receives only the CURRENT PAGE's already-filtered/sorted slice — `page.tsx` owns
  * search/filter/sort/pagination now (URL-search-param-driven, mirrors
@@ -49,13 +52,20 @@ export default function FlagsAdminClient({ flags }: { flags: FlagView[] }) {
       )
       if (!ok) return
     }
+    const reason = window.prompt('Motivo del cambio (queda auditado en Golden):')?.trim()
+    if (!reason) return
     setBusyKey(flag.key)
     setError(null)
     try {
       const res = await fetch('/api/admin/flags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: flag.key, enabled: next }),
+        body: JSON.stringify({
+          key: flag.key,
+          enabled: next,
+          expectedSnapshotVersion: flag.snapshotVersion,
+          reason,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -118,13 +128,11 @@ export default function FlagsAdminClient({ flags }: { flags: FlagView[] }) {
                   <StatusBadge token={f.enabled ? 'success' : 'neutral'}>
                     {f.enabled ? 'Activa' : 'Apagada'}
                   </StatusBadge>
-                  {f.isDefault && (
-                    <span className="text-[var(--fg-muted)] text-xs ml-1.5">· por defecto</span>
-                  )}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap text-[var(--fg-muted)]">
-                  <div>{fmt(f.updated_at)}</div>
-                  {f.updated_by && <div className="text-xs">{f.updated_by}</div>}
+                  <div>{fmt(f.snapshotUpdatedAt)}</div>
+                  <div className="text-xs">v{f.definitionVersion} · {f.environment} · {f.reason} · fresca</div>
+                  <div className="text-xs">riesgo {f.criticality}</div>
                 </td>
                 <td className="px-3 py-2">
                   <Button

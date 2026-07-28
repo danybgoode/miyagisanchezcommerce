@@ -97,34 +97,48 @@ test.describe('flags-admin · isKnownFlagKey', () => {
 })
 
 test.describe('flags-admin · parseFlagWriteBody', () => {
-  test('accepts a valid { key, enabled } body (both boolean values)', () => {
-    expect(parseFlagWriteBody({ key: 'pdp_redesign', enabled: false })).toEqual({
+  test('accepts a valid, reasoned optimistic command (both boolean values)', () => {
+    expect(parseFlagWriteBody({ key: 'pdp_redesign', enabled: false, expectedSnapshotVersion: 40, reason: 'rollback drill' })).toEqual({
       ok: true,
       key: 'pdp_redesign',
       enabled: false,
+      expectedSnapshotVersion: 40,
+      reason: 'rollback drill',
     })
-    expect(parseFlagWriteBody({ key: 'promoter.enabled', enabled: true })).toEqual({
+    expect(parseFlagWriteBody({ key: 'promoter.enabled', enabled: true, expectedSnapshotVersion: 41, reason: '  approved launch  ' })).toEqual({
       ok: true,
       key: 'promoter.enabled',
       enabled: true,
+      expectedSnapshotVersion: 41,
+      reason: 'approved launch',
     })
   })
 
   test('rejects an unknown flag key', () => {
-    const r = parseFlagWriteBody({ key: 'made.up_flag', enabled: true })
+    const r = parseFlagWriteBody({ key: 'made.up_flag', enabled: true, expectedSnapshotVersion: 1, reason: 'x' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toBe('Flag desconocida.')
   })
 
   test('rejects a non-boolean enabled (no coercion — a mutation rejects)', () => {
     for (const enabled of ['true', 1, 0, null, undefined] as const) {
-      const r = parseFlagWriteBody({ key: 'pdp_redesign', enabled })
+      const r = parseFlagWriteBody({ key: 'pdp_redesign', enabled, expectedSnapshotVersion: 1, reason: 'x' })
       expect(r.ok, String(enabled)).toBe(false)
     }
   })
 
   test('rejects missing fields / non-object bodies', () => {
-    for (const body of [null, undefined, 42, 'x', [], {}, { key: 'pdp_redesign' }] as const) {
+    for (const body of [
+      null,
+      undefined,
+      42,
+      'x',
+      [],
+      {},
+      { key: 'pdp_redesign' },
+      { key: 'pdp_redesign', enabled: true, expectedSnapshotVersion: -1, reason: 'x' },
+      { key: 'pdp_redesign', enabled: true, expectedSnapshotVersion: 1, reason: '  ' },
+    ] as const) {
       expect(parseFlagWriteBody(body).ok, JSON.stringify(body)).toBe(false)
     }
   })
