@@ -110,3 +110,30 @@ test.describe('subdomain-pricing · gate never engages for reserved labels', () 
     expect(shopSlugFromHost('a-real-shop.miyagisanchez.com')).toBe('a-real-shop')
   })
 })
+
+/**
+ * promoter-funnel-v2 · Sprint 0 (US-0.1) regression.
+ *
+ * Daniel reported (2026-07-02) a fresh, unpromoted seller signup serving its paid
+ * subdomain SKU for free, with no upsell. Investigated live against prod and could
+ * NOT reproduce: `platform_flags.subdomain.paywall_enabled` was confirmed `true`,
+ * the two most-recently-created shops carried no `subdomain_grant`, and a real
+ * post-cutover shop (`miyagi-studios`) 301-redirected correctly
+ * (`curl -sI https://miyagi-studios.miyagisanchez.com/` → `301` →
+ * `https://miyagisanchez.com/s/miyagi-studios`). See sprint-0.md for the full
+ * writeup. These tests name the exact reported scenario as a permanent guard.
+ */
+test.describe('subdomain-entitlement · promoter-funnel-v2 S0 regression (paywall not gating fresh signups)', () => {
+  test('fresh shop — no grant, no subscription, paywall ON ⇒ NOT entitled + gate redirects', () => {
+    const grant = readSubdomainGrant({})
+    expect(grant).toBeNull()
+    expect(deriveDomainEntitlement({ paywallEnabled: true, grant })).toEqual({ entitled: false, reason: 'none' })
+    expect(subdomainServeDecision({ paywallEnabled: true, grant })).toBe('redirect')
+  })
+
+  test('a stray grant of the WRONG type (e.g. custom_domain_grant) never leaks subdomain entitlement', () => {
+    const grant = readSubdomainGrant({ custom_domain_grant: GRANDFATHER })
+    expect(grant).toBeNull()
+    expect(deriveDomainEntitlement({ paywallEnabled: true, grant }).entitled).toBe(false)
+  })
+})
