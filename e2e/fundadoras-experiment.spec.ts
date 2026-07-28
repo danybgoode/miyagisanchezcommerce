@@ -17,7 +17,10 @@ import {
 } from '../lib/fundadoras-application'
 
 const PARITY_VECTORS = [
-  ['fnd_00000000-0000-4000-8000-000000000001', 'promesa_directa'],
+  // Regenerated for definition version 3 from golden-beans' own `resolveGovernedVariant`.
+  // The version is part of the assignment seed, so these necessarily differ from v1's and v2's
+  // tables — that is the seed doing its job, not a regression.
+  ['fnd_00000000-0000-4000-8000-000000000001', 'control'],
   ['fnd_11111111-1111-4111-8111-111111111111', 'promesa_directa'],
   ['fnd_a1b2c3d4-e5f6-4a7b-8c9d-000000000000', 'promesa_directa'],
   ['fnd_deadbeef-0000-4000-8000-feedface0000', 'promesa_directa'],
@@ -54,7 +57,10 @@ test.describe('Tiendas Fundadoras governed experiment (pure)', () => {
     expect(resolveFor(subject)).toBe(resolveFor(subject))
 
     const subjects = PARITY_VECTORS.map(([id]) => id)
-    expect(subjects.some((id) => resolveFor(id, FUNDADORAS_EXPERIMENT_KEY, 2) !== resolveFor(id))).toBe(true)
+    // Compare against a version that is NOT the live one, so this stays a real assertion when the
+    // live definition version moves (it was 1, it is now 2).
+    const otherVersion = FUNDADORAS_EXPERIMENT_DEFINITION_VERSION + 1
+    expect(subjects.some((id) => resolveFor(id, FUNDADORAS_EXPERIMENT_KEY, otherVersion) !== resolveFor(id))).toBe(true)
     expect(subjects.some((id) => resolveFor(id, 'fundadoras_promise_cta_v2') !== resolveFor(id))).toBe(true)
   })
 
@@ -86,7 +92,8 @@ test.describe('Tiendas Fundadoras governed experiment (pure)', () => {
       FUNDADORAS_EXPERIMENT_DEFINITION_VERSION,
     ])
     const expected = (fnv1a32(seed) / 0x100000000) * 2 < 1 ? 'aB' : 'a_b'
-    expect(resolveFor(subject, FUNDADORAS_EXPERIMENT_KEY, 1, [
+    // Must use the SAME version the seed above was built with, or this asserts nothing.
+    expect(resolveFor(subject, FUNDADORAS_EXPERIMENT_KEY, FUNDADORAS_EXPERIMENT_DEFINITION_VERSION, [
       { key: 'a_b', weight: 1 },
       { key: 'aB', weight: 1 },
     ])).toBe(expected)
@@ -130,7 +137,8 @@ test.describe('Tiendas Fundadoras governed experiment (pure)', () => {
     expect(payload.tags).toEqual({
       utm_source: 'founder-newsletter',
       variant: 'promesa_directa',
-      experiment_definition_version: 1,
+      // The SERVER's live version always wins over the client's forged '999'.
+      experiment_definition_version: FUNDADORAS_EXPERIMENT_DEFINITION_VERSION,
     })
     expect(JSON.stringify(payload)).not.toContain('leak@example.com')
     expect(JSON.stringify(payload)).not.toContain('5512345678')

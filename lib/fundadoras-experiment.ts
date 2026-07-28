@@ -8,7 +8,20 @@
 
 export const FUNDADORAS_VISITOR_COOKIE_NAME = 'fnd_sid'
 export const FUNDADORAS_EXPERIMENT_KEY = 'fundadoras_promise_cta'
-export const FUNDADORAS_EXPERIMENT_DEFINITION_VERSION = 1
+// Version 3. v1's registry plan declared an eligibility tag predicate
+// (`campaign: vende_fundadoras`) that this emitter has no reason to send, so golden-beans
+// correctly rejected every exposure as `eligibility_mismatch` and marked the results
+// not-decision-ready — the governance layer catching a mis-declared plan, exactly as designed.
+// A running definition is immutable, so the corrected plan is a NEW version rather than an edit,
+// and this constant must track it: the analysis compares `experiment_definition_version` for
+// strict equality, so an emitter one version behind is reported as `version_mismatch`.
+//
+// It is 3 rather than 2 because v2 fixed the eligibility predicate but kept v1's planned window,
+// which still contained v1's already-emitted exposures — and `version_mismatch` is a BLOCKER, so
+// those stale rows would have blocked v2 on arrival. v3 carries both fixes: no eligibility tag
+// predicate, and a window that starts after the last v1 exposure so they fall out of the fact
+// selection entirely rather than being counted as mismatches.
+export const FUNDADORAS_EXPERIMENT_DEFINITION_VERSION = 3
 export const FUNDADORAS_EXPERIMENT_ASSIGNMENT_ENTITY_TYPE = 'fundadoras_visitor'
 export const FUNDADORAS_EXPERIMENT_CONTROL_VARIANT_KEY = 'control'
 
