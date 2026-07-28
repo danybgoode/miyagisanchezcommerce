@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { parseFlagProviderMode } from '../lib/flag-provider-mode'
+import { parseFlagProviderMode, parseGoldenFlagEnvironment } from '../lib/flag-provider-mode'
 import { createFlagShadowObserver, type FlagShadowObservation } from '../lib/flag-shadow-observation'
 
 test.describe('Golden Beans flag-provider migration mode', () => {
@@ -14,6 +14,14 @@ test.describe('Golden Beans flag-provider migration mode', () => {
     expect(parseFlagProviderMode('local')).toBe('local')
     expect(parseFlagProviderMode('shadow')).toBe('shadow')
     expect(parseFlagProviderMode('golden')).toBe('golden')
+  })
+
+  test('requires an explicit valid Golden Beans environment', () => {
+    expect(parseGoldenFlagEnvironment(undefined)).toBeUndefined()
+    expect(parseGoldenFlagEnvironment('prod')).toBeUndefined()
+    expect(parseGoldenFlagEnvironment('development')).toBe('development')
+    expect(parseGoldenFlagEnvironment('preview')).toBe('preview')
+    expect(parseGoldenFlagEnvironment('production')).toBe('production')
   })
 
   test('records one PII-free observation per flag and Golden snapshot', () => {
