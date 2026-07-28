@@ -1,0 +1,93 @@
+/**
+ * Server-only bridge to Golden Beans' snapshot-backed flag provider.
+ *
+ * `flag_read` is a distinct, revocable credential: never reuse the telemetry
+ * ingest key here and never expose either key to a browser bundle. Construction
+ * and refresh are intentionally non-blocking; callers keep their local result
+ * whenever a snapshot is unavailable or stale.
+ */
+import 'server-only'
+import { createFlagProvider, type FlagProvider, type FlagResolutionReason } from '@golden-beans/sdk'
+import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
+
+export type GoldenBooleanEvaluation = {
+  value: boolean
+  snapshotVersion: number
+  flagVersion?: number
+  reason: FlagResolutionReason
+}
+
+let provider: FlagProvider | undefined
+let started = false
+
+function getProvider(): FlagProvider | undefined {
+  // Read configuration lazily. This keeps the adapter safe for runtimes that
+  // load env after module evaluation and for isolated test setup.
+  const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
+  const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
+  const environment = parseGoldenFlagEnvironment(process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT)
+  if (!baseUrl || !flagReadKey || !environment) {
+    // Runtime configuration is normally immutable, but releasing the timer
+    // makes a removed credential fail closed even in an unusual dynamic setup.
+    try {
+      provider?.shutdown()
+    } catch {
+      // A flag check must never fail because cleanup did.
+    }
+    provider = undefined
+    started = false
+    return undefined
+  }
+
+  if (!provider) {
+    provider = createFlagProvider({
+      baseUrl,
+      flagReadKey,
+      environment,
+      refreshIntervalMs: 60_000,
+      maxStaleMs: 300_000,
+      refreshTimeoutMs: 2_000,
+    })
+  }
+
+  if (!started) {
+    started = true
+    // A snapshot is an optimisation only. Never make a request wait for it and
+    // never allow an unexpected transport failure to become an unhandled reject.
+    // SDK initialize arms its own bounded periodic refresh before attempting
+    // the first fetch, so a failed cold fetch recovers on that timer. Keeping
+    // `started` true prevents every request from creating a retry storm.
+    void provider.initialize().catch(() => undefined)
+  }
+
+  return provider
+}
+
+/**
+ * Resolve from the most recent Golden Beans snapshot, if one is safe to use.
+ * The SDK returns the supplied default while not ready/stale, so callers can
+ * preserve their existing local decision without a second failure mode.
+ */
+export function evaluateGoldenBooleanFlag(
+  flagKey: string,
+  defaultValue: boolean,
+): GoldenBooleanEvaluation | undefined {
+  try {
+    const currentProvider = getProvider()
+    if (!currentProvider) return undefined
+
+    const snapshot = currentProvider.getSnapshot()
+    if (!snapshot) return undefined
+
+    const details = currentProvider.resolveBooleanEvaluation(flagKey, defaultValue)
+    return {
+      value: details.value,
+      snapshotVersion: snapshot.snapshotVersion,
+      flagVersion: details.flagVersion,
+      reason: details.reason,
+    }
+  } catch {
+    // The caller keeps its local result on every unexpected provider failure.
+    return undefined
+  }
+}
