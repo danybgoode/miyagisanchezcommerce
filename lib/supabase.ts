@@ -44,7 +44,10 @@ function getDb(): SupabaseClient {
     // Return a minimal stub so builds in envs without service-role creds don't crash.
     // Real routes will still return errors at runtime, which is the correct behaviour.
     console.warn('[supabase] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — using stub')
-    _db = { from: () => makeMissingConfigQuery() } as unknown as SupabaseClient
+    _db = {
+      from: () => makeMissingConfigQuery(),
+      rpc: () => Promise.resolve({ data: null, error: { message: 'not configured' } }),
+    } as unknown as SupabaseClient
     return _db
   }
   _db = createClient(url, key)
