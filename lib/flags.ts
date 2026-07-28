@@ -33,6 +33,8 @@ import {
 } from '@/lib/flags-cache'
 import { parseFlagProviderMode } from '@/lib/flag-provider-mode'
 import { evaluateGoldenBooleanFlag } from '@/lib/golden-flag-provider'
+import { evaluateDurableGoldenBooleanFlag } from '@/lib/golden-flag-mirror'
+import { getDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { createFlagShadowObserver } from '@/lib/flag-shadow-observation'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
@@ -493,7 +495,16 @@ export async function isEnabled(flag: FlagKey): Promise<boolean> {
   // A missing Golden definition must retain the durable local value, including
   // an active platform_flags override, rather than reverting to source default.
   const golden = evaluateGoldenBooleanFlag(flag, localValue)
-  if (!golden) return localValue
+  if (!golden) {
+    // Golden mode's only outage fallback is the monotonic, read-only snapshot
+    // mirror. `platform_flags` stays authoritative exclusively through local /
+    // shadow until Story 2.3 removes its operational writer.
+    if (mode !== 'golden') return localValue
+    const durableSnapshot = await getDurableGoldenSnapshot()
+    return durableSnapshot
+      ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, DEFAULT_FLAGS[flag]).value
+      : DEFAULT_FLAGS[flag]
+  }
 
   if (mode === 'shadow') {
     recordShadowObservation({
