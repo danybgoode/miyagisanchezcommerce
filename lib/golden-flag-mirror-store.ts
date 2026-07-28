@@ -136,8 +136,8 @@ export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefin
         // environment, even if that environment's first database read fails.
         cache.snapshot = undefined
         cache.environment = environment
-        // A cold miss may be a transient database failure. Bound retries so a recovery does not
-        // remain invisible for the full normal cache TTL, while still avoiding per-request probes.
+        // Backdate by `normal TTL - retry TTL`: the normal freshness predicate sees this miss as
+        // stale again in exactly MIRROR_FAILURE_RETRY_MS, not on every request or after 60 seconds.
         cache.fetchedAt = Date.now() - MIRROR_CACHE_TTL_MS + MIRROR_FAILURE_RETRY_MS
         return cache.snapshot
       }

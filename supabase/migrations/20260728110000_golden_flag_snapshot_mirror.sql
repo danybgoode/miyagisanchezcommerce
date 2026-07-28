@@ -32,7 +32,7 @@ BEGIN
     OR p_snapshot ->> 'snapshotVersion' IS NULL
     OR (p_snapshot ->> 'snapshotVersion') !~ '^[0-9]+$'
     OR (p_snapshot ->> 'snapshotVersion')::BIGINT <> p_snapshot_version
-    OR jsonb_typeof(p_snapshot -> 'flags') <> 'array'
+    OR jsonb_typeof(p_snapshot -> 'flags') IS DISTINCT FROM 'array'
   THEN
     RAISE EXCEPTION 'invalid Golden flag snapshot mirror payload';
   END IF;
