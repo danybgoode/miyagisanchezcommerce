@@ -18,6 +18,19 @@ let inflight: Promise<FlagSnapshot | undefined> | undefined
 const lastSuccessfulPersistByEnvironment = new Map<string, { snapshotVersion: number; at: number }>()
 const persistenceInflightByEnvironment = new Map<string, { snapshotVersion: number; token: symbol }>()
 
+/** Never let an out-of-order provider refresh or database read roll back the local LKG snapshot. */
+function retainInMemorySnapshot(snapshot: FlagSnapshot): void {
+  if (
+    cache.environment === snapshot.environment &&
+    cache.snapshot &&
+    cache.snapshot.snapshotVersion > snapshot.snapshotVersion
+  )
+    return
+  cache.snapshot = snapshot
+  cache.environment = snapshot.environment
+  cache.fetchedAt = Date.now()
+}
+
 /**
  * Persist out of band: a flag decision must never wait for its resilience
  * fallback. The RPC performs the monotonic, atomic compare-and-store.
@@ -26,9 +39,7 @@ export function scheduleDurableGoldenSnapshot(snapshot: FlagSnapshot): void {
   // A snapshot which reached the live provider is already contract-validated. Retain it in-process
   // immediately; the RPC below makes that same last-known-good value durable without making a flag
   // decision wait for database I/O.
-  cache.snapshot = snapshot
-  cache.environment = snapshot.environment
-  cache.fetchedAt = Date.now()
+  retainInMemorySnapshot(snapshot)
 
   const previous = lastSuccessfulPersistByEnvironment.get(snapshot.environment)
   const now = Date.now()
@@ -44,8 +55,9 @@ export function scheduleDurableGoldenSnapshot(snapshot: FlagSnapshot): void {
         p_snapshot_version: snapshot.snapshotVersion,
         p_snapshot: snapshot,
       }))
-      .then(({ error }) => {
-        if (!error) {
+      .then(({ data, error }) => {
+        const result = Array.isArray(data) ? data[0] : data
+        if (!error && result && typeof result === 'object' && (result as { accepted?: unknown }).accepted === true) {
           lastSuccessfulPersistByEnvironment.set(snapshot.environment, {
             snapshotVersion: snapshot.snapshotVersion,
             at: Date.now(),
@@ -70,14 +82,18 @@ async function fetchDurableGoldenSnapshot(
 ): Promise<FlagSnapshot | undefined> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
-    const query = db.from(TABLE).select('snapshot, snapshot_version').eq('environment', environment).maybeSingle()
+    const query = Promise.resolve(
+      db.from(TABLE).select('snapshot, snapshot_version').eq('environment', environment).maybeSingle(),
+    ).catch(() => undefined)
     const timeout = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => reject(new Error('golden snapshot mirror fetch timeout')), MIRROR_FETCH_TIMEOUT_MS)
     })
-    const { data, error } = (await Promise.race([query, timeout])) as {
+    const result = (await Promise.race([query, timeout])) as {
       data: { snapshot?: unknown; snapshot_version?: unknown } | null
       error: unknown
-    }
+    } | undefined
+    if (!result) return undefined
+    const { data, error } = result
     if (error || !data) return undefined
     const snapshot = parseDurableGoldenSnapshot(data.snapshot, environment)
     if (
@@ -113,8 +129,7 @@ export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefin
       // Keep a previously read durable snapshot through a transient database
       // outage. A cold instance with no mirror safely uses compile-time defaults.
       if (snapshot) {
-        cache.snapshot = snapshot
-        cache.environment = environment
+        retainInMemorySnapshot(snapshot)
       } else if (cache.environment !== environment) {
         // Never carry a production mirror into another explicitly configured
         // environment, even if that environment's first database read fails.
