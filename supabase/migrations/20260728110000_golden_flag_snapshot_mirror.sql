@@ -29,6 +29,7 @@ BEGIN
     OR p_snapshot_version < 0
     OR p_snapshot IS NULL
     OR p_snapshot ->> 'environment' IS DISTINCT FROM p_environment
+    OR p_snapshot ->> 'snapshotVersion' IS NULL
     OR (p_snapshot ->> 'snapshotVersion') !~ '^[0-9]+$'
     OR (p_snapshot ->> 'snapshotVersion')::BIGINT <> p_snapshot_version
     OR jsonb_typeof(p_snapshot -> 'flags') <> 'array'
