@@ -7,6 +7,7 @@ import { parseDurableGoldenSnapshot } from '@/lib/golden-flag-mirror'
 
 const TABLE = 'golden_flag_snapshot_mirror'
 const MIRROR_CACHE_TTL_MS = 60_000
+const MIRROR_FAILURE_RETRY_MS = 2_000
 const MIRROR_FETCH_TIMEOUT_MS = 2_000
 
 const cache: { snapshot: FlagSnapshot | undefined; environment: GoldenFlagEnvironment | undefined; fetchedAt: number | undefined } = {
@@ -135,6 +136,14 @@ export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefin
         // environment, even if that environment's first database read fails.
         cache.snapshot = undefined
         cache.environment = environment
+        // A cold miss may be a transient database failure. Bound retries so a recovery does not
+        // remain invisible for the full normal cache TTL, while still avoiding per-request probes.
+        cache.fetchedAt = Date.now() - MIRROR_CACHE_TTL_MS + MIRROR_FAILURE_RETRY_MS
+        return cache.snapshot
+      }
+      if (!cache.snapshot) {
+        cache.fetchedAt = Date.now() - MIRROR_CACHE_TTL_MS + MIRROR_FAILURE_RETRY_MS
+        return cache.snapshot
       }
       cache.fetchedAt = Date.now()
       return cache.snapshot
