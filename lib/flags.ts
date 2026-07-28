@@ -478,7 +478,9 @@ export async function isEnabled(flag: FlagKey): Promise<boolean> {
   // behavior-changing cutover. A missing/stale snapshot always falls back to it.
   if (mode === 'local') return localValue
 
-  const golden = evaluateGoldenBooleanFlag(flag, DEFAULT_FLAGS[flag])
+  // A missing Golden definition must retain the durable local value, including
+  // an active platform_flags override, rather than reverting to source default.
+  const golden = evaluateGoldenBooleanFlag(flag, localValue)
   if (!golden) return localValue
 
   if (mode === 'shadow') {

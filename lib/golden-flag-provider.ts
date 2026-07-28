@@ -16,13 +16,14 @@ export type GoldenBooleanEvaluation = {
   reason: FlagResolutionReason
 }
 
-const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
-const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
-
 let provider: FlagProvider | undefined
 let started = false
 
 function getProvider(): FlagProvider | undefined {
+  // Read configuration lazily. This keeps the adapter safe for runtimes that
+  // load env after module evaluation and for isolated test setup.
+  const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
+  const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
   if (!baseUrl || !flagReadKey) return undefined
 
   if (!provider) {
