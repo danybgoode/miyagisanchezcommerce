@@ -1201,6 +1201,14 @@ html[data-platform-theme] .platform-theme-spot {
   animation: shimmer 1.6s var(--ease-standard) infinite;
 }
 
+/* Reuses the `fade-in` keyframe defined below (originally for .sheet-backdrop) —
+   a general-purpose "ease this in once its data is ready" utility for anything
+   swapping out of a .skeleton state (HomeRetomaOffers rail cards, HomeSellerModule). */
+.fade-in { animation: fade-in 220ms var(--ease-standard) both; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in { animation: none; }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.9s linear infinite; display: inline-block; }
 
