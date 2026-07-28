@@ -27,8 +27,13 @@ import { mergeRailCards, type RailCard, type ViewedWithCard } from '@/lib/home-r
  */
 export default function HomeRetomaOffers() {
   const { data, isLoaded, isSignedIn, settled } = useHomePersonalization()
-  const [railCards, setRailCards] = useState<RailCard[]>([])
-  const [railReady, setRailReady] = useState(false)
+  // Stored WITH the favorites key it was built from, so "these cards are stale" is DERIVED during
+  // render instead of reset by the effect (same pattern as the provider). That is what lets the
+  // effect drop its synchronous `setRailReady(false)` / `setRailCards([])` — banned by
+  // `react-hooks/set-state-in-effect`, and a cascading render for a value that was never really
+  // state. A sign-out or account switch changes the key, so the previous session's rail stops
+  // counting immediately rather than lingering for a frame.
+  const [rail, setRail] = useState<{ key: string; cards: RailCard[] } | null>(null)
 
   const recentFavorites = data?.recentFavorites ?? []
   // A stable, content-based key (not the `data` object identity) so the effect below
@@ -43,23 +48,26 @@ export default function HomeRetomaOffers() {
   // entirely while `data` is still null — nothing to merge favorites against yet, even
   // though the rail itself is already visible as a skeleton at this point.
   useEffect(() => {
-    if (!data) {
-      // Signed out, session still resolving, or the personalization fetch hasn't
-      // landed yet — nothing to merge. Also covers sign-out / account switch, so a new
-      // session never briefly shows the previous user's rail while its own fetch is
-      // still in flight.
-      setRailReady(false)
-      setRailCards([])
-      return
-    }
+    // Signed out, session still resolving, or the personalization fetch hasn't landed — nothing
+    // to merge favorites against yet, so there is no by-ids fetch to make. The rail is already
+    // showing a skeleton at this point; staleness is handled by the key check during render.
+    if (!data) return
+
     let cancelled = false
+    const key = favoritesContentKey
+    const finish = (viewedWithCards: ViewedWithCard[]) => {
+      if (!cancelled) setRail({ key, cards: mergeRailCards(recentFavorites, viewedWithCards, Date.now()) })
+    }
+
     const favoriteIds = new Set(recentFavorites.map(f => f.medusaId))
     const viewed = readRecentlyViewed().filter(v => !favoriteIds.has(v.id))
 
     if (viewed.length === 0) {
-      setRailCards(mergeRailCards(recentFavorites, [], Date.now()))
-      setRailReady(true)
-      return
+      // Nothing device-local to hydrate — resolve on a microtask rather than inline, so this stays
+      // out of the effect body proper (the same set-state-in-effect rule as above). One tick is
+      // imperceptible and the skeleton is already on screen covering it.
+      Promise.resolve().then(() => finish([]))
+      return () => { cancelled = true }
     }
 
     const ids = viewed.map(v => encodeURIComponent(v.id)).join(',')
@@ -68,18 +76,13 @@ export default function HomeRetomaOffers() {
       .then((json: { listings?: ViewedWithCard['card'][] }) => {
         if (cancelled) return
         const cardById = new Map((json.listings ?? []).map(c => [c.medusaId, c]))
-        const viewedWithCards: ViewedWithCard[] = viewed
-          .filter(v => cardById.has(v.id)) // sold/delisted since viewing — silently drop
-          .map(v => ({ ts: v.ts, card: cardById.get(v.id)! }))
-        setRailCards(mergeRailCards(recentFavorites, viewedWithCards, Date.now()))
-        setRailReady(true)
+        finish(
+          viewed
+            .filter(v => cardById.has(v.id)) // sold/delisted since viewing — silently drop
+            .map(v => ({ ts: v.ts, card: cardById.get(v.id)! }))
+        )
       })
-      .catch(() => {
-        if (!cancelled) {
-          setRailCards(mergeRailCards(recentFavorites, [], Date.now()))
-          setRailReady(true)
-        }
-      })
+      .catch(() => finish([]))
 
     return () => { cancelled = true }
     // `!!data` catches the null→object transition (e.g. a signed-in user with zero
@@ -96,6 +99,10 @@ export default function HomeRetomaOffers() {
   if (!isSignedIn) return null
 
   const offerAlerts = data ? deriveOfferAlerts(data.offerAlertInputs ?? []) : []
+  // Cards only count when they were built from the favorites currently in hand — see the `rail`
+  // note at the top. A stale key reads as not-ready, which is what makes the reset derivable.
+  const railReady = rail?.key === favoritesContentKey
+  const railCards = railReady ? rail!.cards : []
   // True for the whole window from "we know they're signed in" to "the rail has its
   // final cards" — covers the personalization fetch and the by-ids fetch as one span,
   // so the skeleton doesn't hand off to a second, shorter pop-in partway through.
@@ -116,7 +123,11 @@ export default function HomeRetomaOffers() {
         <section className="mb-6" data-testid="home-retoma-rail">
           <div className="flex items-center justify-between mb-3">
             {showRailSkeleton ? (
-              <div className="skeleton" style={{ width: 160, height: 16, borderRadius: 4 }} />
+              // Dimensions are the "standard" option from references/homepage-loader-options.html
+              // verbatim. The card WIDTH deliberately stays at the rail's real 150px rather than
+              // the mockup's 120px — that mockup is a scaled-down demo, and the whole point of the
+              // skeleton is to reserve the real final height so nothing below it shifts.
+              <div className="skeleton" style={{ width: 150, height: 15, borderRadius: 4 }} />
             ) : (
               <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
                 Retoma donde te quedaste
@@ -131,8 +142,8 @@ export default function HomeRetomaOffers() {
               ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} style={{ flex: '0 0 auto', width: 150 }}>
                     <div className="skeleton" style={{ width: '100%', aspectRatio: '1 / 1' }} />
-                    <div className="skeleton" style={{ width: '70%', height: 13, borderRadius: 4, marginTop: 8 }} />
-                    <div className="skeleton" style={{ width: '90%', height: 11, borderRadius: 4, marginTop: 6 }} />
+                    <div className="skeleton" style={{ width: '70%', height: 12, borderRadius: 4, marginTop: 8 }} />
+                    <div className="skeleton" style={{ width: '90%', height: 10, borderRadius: 4, marginTop: 6 }} />
                   </div>
                 ))
               : railCards.map(card => (
@@ -144,6 +155,12 @@ export default function HomeRetomaOffers() {
                   >
                     <div style={{ position: 'relative' }}>
                       {card.imageUrl ? (
+                        // Raw <img>, matching the other 40-odd seller-image surfaces here: these
+                        // are remote R2 uploads, so next/image would route every rail thumbnail
+                        // through the optimizer — a metered cost and a remotePatterns change, not
+                        // a like-for-like swap. Pre-existing; called out rather than forced,
+                        // per lint-changed's own advice.
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={card.imageUrl} alt={card.title} className="w-full object-cover" style={{ aspectRatio: '1 / 1' }} />
                       ) : (
                         <div className="w-full flex items-center justify-center" style={{ aspectRatio: '1 / 1', background: 'var(--bg-sunk)' }}>

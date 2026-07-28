@@ -72,21 +72,28 @@ export default function HomePersonalizationProvider({
   publishableApiKey: string
 }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth()
-  const [data, setData] = useState<HomePersonalization | null>(null)
-  const [settled, setSettled] = useState(false)
+  // The fetch result is stored WITH the session it belongs to, and `data`/`settled` are then
+  // DERIVED from it during render rather than reset by the effect. That is what removes the
+  // sign-out/account-switch clear (the old `setData(null)` at the top of the effect): a result
+  // whose key no longer matches the current session simply stops counting, so the previous
+  // user's favorites/offers/seller stats can never be read even for one frame.
+  //
+  // Deriving it also keeps the effect free of synchronous setState, which the
+  // `react-hooks/set-state-in-effect` rule bans — a reset-then-refetch is exactly the cascading
+  // render the rule exists to stop, and here the reset was never real state to begin with.
+  const [fetched, setFetched] = useState<{ key: string; data: HomePersonalization | null } | null>(null)
+
+  // Identifies the session a result belongs to. `userId` is in here, not just `isSignedIn`,
+  // because an account switch keeps `isSignedIn` true — without it the new session would read
+  // the previous user's result as its own.
+  const sessionKey = `${isLoaded ? 'ready' : 'loading'}:${isSignedIn ? 'in' : 'out'}:${userId ?? ''}`
 
   useEffect(() => {
-    if (!isLoaded) return
-    // Clear on sign-out, and clear before each (re)fetch so a sign-out or account switch
-    // never leaks the previous user's favorites/offers/seller stats while the new fetch
-    // is in flight (or after signing out entirely). `userId` in the deps re-runs this on
-    // an account switch (isSignedIn stays true, so it alone wouldn't).
-    setData(null)
-    setSettled(false)
-    if (!isSignedIn) return
+    if (!isLoaded || !isSignedIn) return
 
     let cancelled = false
     ;(async () => {
+      let result: HomePersonalization | null = null
       try {
         const token = await getToken()
         if (!token || cancelled) return
@@ -101,25 +108,28 @@ export default function HomePersonalizationProvider({
           return
         }
         if (cancelled) return
-        const json = (await res.json()) as HomePersonalization
-        if (!cancelled) setData(json)
+        result = (await res.json()) as HomePersonalization
       } catch (err) {
         // best-effort progressive enhancement — leave the islands empty, but never silent
         if (!cancelled) logPersonalizationFetchFailure(err)
       } finally {
         // EVERY terminal path lands here — success, non-OK status, thrown error, and the
-        // no-token early return. That is the point: the slots key their skeleton off
-        // `settled`, so any exit that isn't a cancellation must stop the shimmer, or a
-        // failure becomes an infinite loading state. Cancelled runs are excluded because
-        // a newer effect pass owns the state by then.
-        if (!cancelled) setSettled(true)
+        // no-token early return — recording the attempt even when it produced nothing. That is
+        // the point: the slots key their skeleton off `settled`, so any exit that isn't a
+        // cancellation must stop the shimmer, or a failure becomes an infinite loading state.
+        // Cancelled runs are excluded because a newer effect pass owns the state by then.
+        if (!cancelled) setFetched({ key: sessionKey, data: result })
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [isLoaded, isSignedIn, userId, getToken, storeUrl, publishableApiKey])
+  }, [isLoaded, isSignedIn, userId, sessionKey, getToken, storeUrl, publishableApiKey])
+
+  // A result only counts for the session that produced it — see the `fetched` note above.
+  const settled = fetched?.key === sessionKey
+  const data = settled ? fetched!.data : null
 
   return (
     <HomePersonalizationContext.Provider value={{ data, isLoaded, isSignedIn: !!isSignedIn, settled }}>
