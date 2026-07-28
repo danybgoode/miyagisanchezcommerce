@@ -54,13 +54,10 @@ function getProvider(): FlagProvider | undefined {
     started = true
     // A snapshot is an optimisation only. Never make a request wait for it and
     // never allow an unexpected transport failure to become an unhandled reject.
-    void provider.initialize()
-      .then((result) => {
-        if (!result.ok) started = false
-      })
-      .catch(() => {
-        started = false
-      })
+    // SDK initialize arms its own bounded periodic refresh before attempting
+    // the first fetch, so a failed cold fetch recovers on that timer. Keeping
+    // `started` true prevents every request from creating a retry storm.
+    void provider.initialize().catch(() => undefined)
   }
 
   return provider
