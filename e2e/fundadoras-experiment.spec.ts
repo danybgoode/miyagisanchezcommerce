@@ -17,15 +17,15 @@ import {
 } from '../lib/fundadoras-application'
 
 const PARITY_VECTORS = [
-  // Regenerated for definition version 2 from golden-beans' own `resolveGovernedVariant`.
-  // The version is part of the assignment seed, so these necessarily differ from v1's table —
-  // that is the seed doing its job, not a regression.
-  ['fnd_00000000-0000-4000-8000-000000000001', 'promesa_directa'],
+  // Regenerated for definition version 3 from golden-beans' own `resolveGovernedVariant`.
+  // The version is part of the assignment seed, so these necessarily differ from v1's and v2's
+  // tables — that is the seed doing its job, not a regression.
+  ['fnd_00000000-0000-4000-8000-000000000001', 'control'],
   ['fnd_11111111-1111-4111-8111-111111111111', 'promesa_directa'],
-  ['fnd_a1b2c3d4-e5f6-4a7b-8c9d-000000000000', 'control'],
-  ['fnd_deadbeef-0000-4000-8000-feedface0000', 'control'],
+  ['fnd_a1b2c3d4-e5f6-4a7b-8c9d-000000000000', 'promesa_directa'],
+  ['fnd_deadbeef-0000-4000-8000-feedface0000', 'promesa_directa'],
   ['fnd_5f2c1e8a-3b4d-4c5e-9f01-2a3b4c5d6e7f', 'promesa_directa'],
-  ['fnd_ffffffff-ffff-4fff-8fff-ffffffffffff', 'control'],
+  ['fnd_ffffffff-ffff-4fff-8fff-ffffffffffff', 'promesa_directa'],
   ['fnd_01234567-89ab-4cde-8f01-23456789abcd', 'control'],
   ['fnd_9e107d9d-372b-4b0b-8f0a-6d3f0e4c1a2b', 'control'],
 ] as const
