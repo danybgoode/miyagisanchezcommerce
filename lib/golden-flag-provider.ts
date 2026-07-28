@@ -26,7 +26,18 @@ function getProvider(): FlagProvider | undefined {
   const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
   const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
   const environment = parseGoldenFlagEnvironment(process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT)
-  if (!baseUrl || !flagReadKey || !environment) return undefined
+  if (!baseUrl || !flagReadKey || !environment) {
+    // Runtime configuration is normally immutable, but releasing the timer
+    // makes a removed credential fail closed even in an unusual dynamic setup.
+    try {
+      provider?.shutdown()
+    } catch {
+      // A flag check must never fail because cleanup did.
+    }
+    provider = undefined
+    started = false
+    return undefined
+  }
 
   if (!provider) {
     provider = createFlagProvider({
@@ -43,7 +54,13 @@ function getProvider(): FlagProvider | undefined {
     started = true
     // A snapshot is an optimisation only. Never make a request wait for it and
     // never allow an unexpected transport failure to become an unhandled reject.
-    void provider.initialize().catch(() => undefined)
+    void provider.initialize()
+      .then((result) => {
+        if (!result.ok) started = false
+      })
+      .catch(() => {
+        started = false
+      })
   }
 
   return provider
@@ -58,17 +75,22 @@ export function evaluateGoldenBooleanFlag(
   flagKey: string,
   defaultValue: boolean,
 ): GoldenBooleanEvaluation | undefined {
-  const currentProvider = getProvider()
-  if (!currentProvider) return undefined
+  try {
+    const currentProvider = getProvider()
+    if (!currentProvider) return undefined
 
-  const snapshot = currentProvider.getSnapshot()
-  if (!snapshot) return undefined
+    const snapshot = currentProvider.getSnapshot()
+    if (!snapshot) return undefined
 
-  const details = currentProvider.resolveBooleanEvaluation(flagKey, defaultValue)
-  return {
-    value: details.value,
-    snapshotVersion: snapshot.snapshotVersion,
-    flagVersion: details.flagVersion,
-    reason: details.reason,
+    const details = currentProvider.resolveBooleanEvaluation(flagKey, defaultValue)
+    return {
+      value: details.value,
+      snapshotVersion: snapshot.snapshotVersion,
+      flagVersion: details.flagVersion,
+      reason: details.reason,
+    }
+  } catch {
+    // The caller keeps its local result on every unexpected provider failure.
+    return undefined
   }
 }
