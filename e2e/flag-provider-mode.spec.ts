@@ -193,6 +193,93 @@ test.describe('Golden Beans flag-provider migration mode', () => {
     provider.shutdown()
   })
 
+  test('one evaluator stages different per-flag authorities and reports the exact snapshot source', async () => {
+    const reports: Array<Record<string, unknown>> = []
+    const isEnabled = createFlagProviderEvaluator<TestFlag>({
+      readLocal: async (flag) => testDefaults[flag],
+      getMode: (flag) => (flag === 'checkout.stripe_enabled' ? 'local' : 'golden'),
+      evaluateGolden: (flag, localValue) =>
+        flag === 'domain.paywall_enabled'
+          ? {
+              value: !localValue,
+              snapshotVersion: 40,
+              flagVersion: 1,
+              reason: 'STATIC',
+            }
+          : undefined,
+      readDurableGolden: async () => undefined,
+      observeShadow: () => undefined,
+      getDefault: (flag) => testDefaults[flag],
+      reportAuthority: (report) => reports.push(report),
+    })
+
+    expect(await isEnabled('checkout.stripe_enabled')).toBe(true)
+    expect(await isEnabled('domain.paywall_enabled')).toBe(true)
+    expect(reports).toEqual([
+      {
+        flagKey: 'checkout.stripe_enabled',
+        authority: 'local',
+        source: 'local',
+        snapshotVersion: undefined,
+        flagVersion: undefined,
+        reason: undefined,
+        matchesLocal: undefined,
+      },
+      {
+        flagKey: 'domain.paywall_enabled',
+        authority: 'golden',
+        source: 'golden',
+        snapshotVersion: 40,
+        flagVersion: 1,
+        reason: 'STATIC',
+        matchesLocal: false,
+      },
+    ])
+  })
+
+  test('mode and reporting failures never escape the public decision seam', async () => {
+    const isEnabled = createFlagProviderEvaluator<TestFlag>({
+      readLocal: async (flag) => testDefaults[flag],
+      getMode: () => {
+        throw new Error('bad manifest adapter')
+      },
+      evaluateGolden: () => {
+        throw new Error('unreachable')
+      },
+      readDurableGolden: async () => {
+        throw new Error('unreachable')
+      },
+      observeShadow: () => {
+        throw new Error('unreachable')
+      },
+      getDefault: (flag) => testDefaults[flag],
+      reportAuthority: () => {
+        throw new Error('reporter outage')
+      },
+    })
+
+    await expect(isEnabled('checkout.stripe_enabled')).resolves.toBe(true)
+    await expect(isEnabled('domain.paywall_enabled')).resolves.toBe(false)
+  })
+
+  test('golden authority returns a durable snapshot before local/default fallback', async () => {
+    const isEnabled = createFlagProviderEvaluator<TestFlag>({
+      readLocal: async (flag) => testDefaults[flag],
+      getMode: () => 'golden',
+      evaluateGolden: () => undefined,
+      readDurableGolden: async () => ({
+        value: false,
+        snapshotVersion: 39,
+        flagVersion: 1,
+        reason: 'STATIC',
+      }),
+      observeShadow: () => undefined,
+      getDefault: (flag) => testDefaults[flag],
+    })
+
+    await expect(isEnabled('checkout.stripe_enabled')).resolves.toBe(false)
+  })
+
   for (const failure of ['timeout', 'malformed', 'stale'] as const) {
     test(`keeps both established default polarities when the provider is ${failure}`, async () => {
       let now = 1_000

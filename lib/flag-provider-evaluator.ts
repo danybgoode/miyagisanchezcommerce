@@ -1,4 +1,8 @@
 import type { FlagProviderMode } from './flag-provider-mode'
+import type {
+  FlagAuthorityObservation,
+  FlagDecisionSource,
+} from './flag-authority-observation'
 
 export type BooleanFlagEvaluation = {
   value: boolean
@@ -9,9 +13,12 @@ export type BooleanFlagEvaluation = {
 
 export type FlagProviderEvaluatorDependencies<K extends string> = {
   readLocal: (flag: K) => Promise<boolean>
-  getMode: () => FlagProviderMode
+  getMode: (flag: K) => FlagProviderMode
   evaluateGolden: (flag: K, localValue: boolean) => BooleanFlagEvaluation | undefined
-  readDurableGolden: (flag: K, localValue: boolean) => Promise<boolean | undefined>
+  readDurableGolden: (
+    flag: K,
+    localValue: boolean,
+  ) => Promise<BooleanFlagEvaluation | undefined>
   observeShadow: (input: {
     flagKey: K
     defaultValue: boolean
@@ -22,6 +29,7 @@ export type FlagProviderEvaluatorDependencies<K extends string> = {
     reason: string
   }) => void
   getDefault: (flag: K) => boolean
+  reportAuthority?: (observation: FlagAuthorityObservation<K>) => void
 }
 
 /**
@@ -35,6 +43,27 @@ export function createFlagProviderEvaluator<K extends string>(
   dependencies: FlagProviderEvaluatorDependencies<K>,
 ): (flag: K) => Promise<boolean> {
   return async (flag: K): Promise<boolean> => {
+    const report = (
+      authority: FlagProviderMode,
+      source: FlagDecisionSource,
+      localValue: boolean,
+      evaluation?: BooleanFlagEvaluation,
+    ) => {
+      try {
+        dependencies.reportAuthority?.({
+          flagKey: flag,
+          authority,
+          source,
+          snapshotVersion: evaluation?.snapshotVersion,
+          flagVersion: evaluation?.flagVersion,
+          reason: evaluation?.reason,
+          matchesLocal: evaluation ? evaluation.value === localValue : undefined,
+        })
+      } catch {
+        // Operational reporting is never part of the decision.
+      }
+    }
+
     let localValue = dependencies.getDefault(flag)
     try {
       localValue = await dependencies.readLocal(flag)
@@ -42,8 +71,16 @@ export function createFlagProviderEvaluator<K extends string>(
       // A local-store failure retains the established compile-time polarity.
     }
 
-    const mode = dependencies.getMode()
-    if (mode === 'local') return localValue
+    let mode: FlagProviderMode = 'local'
+    try {
+      mode = dependencies.getMode(flag)
+    } catch {
+      // Invalid cutover configuration must preserve local authority.
+    }
+    if (mode === 'local') {
+      report(mode, 'local', localValue)
+      return localValue
+    }
 
     let golden: BooleanFlagEvaluation | undefined
     try {
@@ -53,12 +90,21 @@ export function createFlagProviderEvaluator<K extends string>(
     }
 
     if (!golden) {
-      if (mode !== 'golden') return localValue
-      try {
-        return (await dependencies.readDurableGolden(flag, localValue)) ?? localValue
-      } catch {
+      if (mode !== 'golden') {
+        report(mode, 'fallback', localValue)
         return localValue
       }
+      try {
+        const durable = await dependencies.readDurableGolden(flag, localValue)
+        if (durable) {
+          report(mode, 'durable', localValue, durable)
+          return durable.value
+        }
+      } catch {
+        // The established local/default polarity below remains authoritative.
+      }
+      report(mode, 'fallback', localValue)
+      return localValue
     }
 
     if (mode === 'shadow') {
@@ -75,9 +121,11 @@ export function createFlagProviderEvaluator<K extends string>(
       } catch {
         // Evidence collection must never affect a feature decision.
       }
+      report(mode, 'local', localValue, golden)
       return localValue
     }
 
+    report(mode, 'golden', localValue, golden)
     return golden.value
   }
 }
