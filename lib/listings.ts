@@ -9,6 +9,14 @@ import { splitCategoriesFrontend } from './collection-derive'
 import { readPriceGrid, type PriceGrid } from './price-grid'
 import { getCustomFields, type CustomFieldDef } from './personalization'
 import {
+  isMarketUnavailable,
+  marketMetaFor,
+  marketMetaUnavailable,
+  planMarketCatalogRead,
+  verifyMarketFilter,
+  type MarketScopedMeta,
+} from './market-catalog'
+import {
   pickFeatured,
   curateGrid,
   curatedGridSize,
@@ -32,42 +40,106 @@ function medusaFetch(path: string, options?: RequestInit) {
   })
 }
 
+/**
+ * A read of a listing that is deliberately NOT market-scoped, because it resolves
+ * something the OWNER of the product defined rather than something the marketplace
+ * publishes (epic decision D4: owned-shop reads never gain the market filter).
+ *
+ * It is a separate, differently-named helper rather than a bare `medusaFetch` so
+ * the exemption is visible in one grep and so the population guard
+ * (`e2e/market-catalog-population-guard.spec.ts`) can assert the invariant
+ * lexically: no marketplace catalog read anywhere in this module goes out through
+ * plain `medusaFetch`.
+ */
+function ownershipScopedFetch(path: string, options?: RequestInit) {
+  return medusaFetch(path, options)
+}
+
+/**
+ * Every public MARKETPLACE catalog read goes through here, and only through here.
+ * It appends the resolved market to the query so the backend can scope product
+ * membership to that market's Sales Channel.
+ *
+ * The refusal to read at all for a non-open market happens one level up, in
+ * `planMarketCatalogRead` — by the time this runs, the market is known-open.
+ */
+function marketCatalogFetch(marketQuery: string, path: string, options?: RequestInit) {
+  const separator = path.includes('?') ? '&' : '?'
+  return medusaFetch(`${path}${separator}${marketQuery}`, options)
+}
+
+export type MarketScopedListings = { listings: Listing[]; total: number; page: number } & MarketScopedMeta
+
+/**
+ * The marketplace list read. `market` defaults to `DEFAULT_MARKET` for
+ * un-annotated legacy callers (epic decision D5), so MX behaviour is unchanged;
+ * a market that is unknown or whose marketplace is not open returns the structured
+ * unavailable state and NEVER issues the request.
+ */
 export async function searchListings(
   params: SearchParams,
-): Promise<{ listings: Listing[]; total: number; page: number }> {
+  market?: unknown,
+): Promise<MarketScopedListings> {
   const page = Math.max(1, parseInt(params.page ?? '1'))
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) {
+    return { listings: [], total: 0, page, ...marketMetaUnavailable(decision) }
+  }
   const qs = buildQuery({ ...params, page: String(page), limit: 24 })
 
-  const res = await medusaFetch(`/store/listings${qs}`, {
+  const res = await marketCatalogFetch(decision.query, `/store/listings${qs}`, {
     next: { revalidate: CACHE.CATALOG, tags: ['listings'] },
   } as RequestInit)
 
   if (!res.ok) {
     console.error('[listings] searchListings failed', res.status, await res.text())
-    return { listings: [], total: 0, page }
+    return { listings: [], total: 0, page, ...marketMetaFor(decision.market) }
   }
 
   const data = await res.json()
-  return { listings: data.listings ?? [], total: data.total ?? 0, page: data.page ?? page }
+  const unconfirmed = verifyMarketFilter(decision.market, data)
+  if (unconfirmed) {
+    console.error('[listings] searchListings market filter unconfirmed', unconfirmed.reason)
+    return { listings: [], total: 0, page, ...marketMetaUnavailable(unconfirmed) }
+  }
+  return {
+    listings: data.listings ?? [],
+    total: data.total ?? 0,
+    page: data.page ?? page,
+    ...marketMetaFor(decision.market),
+  }
 }
 
 // Lightweight total-only count for the mobile filter sheet's live "Ver X
 // resultados". Same backend filter pipeline as searchListings (so the count is
 // exact), but asks for a single row and returns only the total.
-export async function countListings(params: SearchParams): Promise<number> {
+//
+// Returns the market meta alongside the number rather than a bare `0`, because a
+// count is the one place "none" and "this market is closed" look identical to a
+// reader (`LEARNINGS.md`: unknown and none are different facts).
+export async function countListings(
+  params: SearchParams,
+  market?: unknown,
+): Promise<{ total: number } & MarketScopedMeta> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) {
+    return { total: 0, ...marketMetaUnavailable(decision) }
+  }
   const qs = buildQuery({ ...params, page: '1', limit: 1 })
 
-  const res = await medusaFetch(`/store/listings${qs}`, {
+  const res = await marketCatalogFetch(decision.query, `/store/listings${qs}`, {
     next: { revalidate: CACHE.CATALOG, tags: ['listings'] },
   } as RequestInit)
 
   if (!res.ok) {
     console.error('[listings] countListings failed', res.status, await res.text())
-    return 0
+    return { total: 0, ...marketMetaFor(decision.market) }
   }
 
   const data = await res.json()
-  return data.total ?? 0
+  const unconfirmed = verifyMarketFilter(decision.market, data)
+  if (unconfirmed) return { total: 0, ...marketMetaUnavailable(unconfirmed) }
+  return { total: data.total ?? 0, ...marketMetaFor(decision.market) }
 }
 
 /**
@@ -82,8 +154,14 @@ export async function countListings(params: SearchParams): Promise<number> {
  * backend-first deploy window), returns null so the UI falls back to the plain
  * free-text autos panel instead of erroring.
  */
-export async function getAutoFacets(marca?: string): Promise<CarFacets | null> {
-  const res = await medusaFetch(`/store/listings?category=autos&facets=1`, {
+export async function getAutoFacets(marca?: string, market?: unknown): Promise<CarFacets | null> {
+  const decision = planMarketCatalogRead(market)
+  // A facet rail is derived from the catalog, so a refused market gets no rail at
+  // all — `null` is already this function's "no rail, fall back to the free-text
+  // panel" answer, and it is fail-closed (it can render no rows).
+  if (isMarketUnavailable(decision)) return null
+
+  const res = await marketCatalogFetch(decision.query, `/store/listings?category=autos&facets=1`, {
     next: { revalidate: CACHE.CATEGORY, tags: ['listings'] },
   } as RequestInit)
 
@@ -93,15 +171,20 @@ export async function getAutoFacets(marca?: string): Promise<CarFacets | null> {
   }
 
   const data = await res.json()
+  if (verifyMarketFilter(decision.market, data)) return null
   const pool = data.facet_pool as CarFacetInput[] | undefined
   if (!Array.isArray(pool)) return null   // old backend, no facet_pool → graceful degrade
   return deriveCarFacets(pool, { marca })
 }
 
-export const getListing = unstable_cache(
-  async (id: string): Promise<Listing | null> => {
-    const res = await medusaFetch(`/store/listings/${id}`)
-    if (!res.ok) return null
+// Returns the market ECHO alongside the listing rather than swallowing it, so the
+// confirm/absent/mismatch decision can be made OUTSIDE this cache wrapper — a
+// refusal is a fact about the response contract, not a value worth caching against
+// the listings tag for the next revalidation window.
+const getListingCached = unstable_cache(
+  async (id: string, marketQuery: string): Promise<{ listing: Listing | null; market_code: unknown }> => {
+    const res = await marketCatalogFetch(marketQuery, `/store/listings/${id}`)
+    if (!res.ok) return { listing: null, market_code: undefined }
     const data = await res.json()
     const listing = data.listing ?? null
 
@@ -115,11 +198,26 @@ export const getListing = unstable_cache(
       }).catch(() => {})
     }
 
-    return listing
+    return { listing, market_code: data.market_code }
   },
   ['listing'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
+
+/**
+ * The marketplace detail (PDP) read. Fail-closed answer is `null`, which the PDP
+ * routes already turn into an ordinary 404 — the correct user-facing outcome for a
+ * market with no marketplace, and one that cannot render another market's product.
+ * Callers needing the *reason* (Sprint 2's `/us` surface, the MCP tools) call
+ * `planMarketCatalogRead` directly and get the structured state.
+ */
+export async function getListing(id: string, market?: unknown): Promise<Listing | null> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return null
+  const { listing, market_code } = await getListingCached(id, decision.query)
+  if (verifyMarketFilter(decision.market, { market_code })) return null
+  return listing
+}
 
 /**
  * Fresh, side-effect-free read of a listing's custom-field defs, for a
@@ -131,10 +229,17 @@ export const getListing = unstable_cache(
  * (an upload isn't a "view", and we want the seller's latest limits, not a
  * cached one). Returns `[]` on any failure — callers fall back to the
  * global hard caps, never to an unbounded upload.
+ *
+ * Deliberately NOT market-scoped (epic decision D4): these are limits the product's
+ * OWNER set, and the buyer uploading against them may have arrived through the
+ * shop's own subdomain, custom domain or embed — none of which are marketplace
+ * surfaces. Market-filtering this read would break an owned-shop upload. It goes
+ * through `ownershipScopedFetch` so that exemption is explicit rather than an
+ * omission the population guard has to be taught about.
  */
 export async function getListingCustomFieldsUncached(id: string): Promise<CustomFieldDef[]> {
   try {
-    const res = await medusaFetch(`/store/listings/${id}`, { cache: 'no-store' })
+    const res = await ownershipScopedFetch(`/store/listings/${id}`, { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return getCustomFields(data.listing?.metadata ?? null)
@@ -303,12 +408,22 @@ export const getShopCollections = unstable_cache(
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
-export async function getRecentListings(limit = 8): Promise<Listing[]> {
-  const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
+// The pool helpers below (`getRecentListings`, `getSeleccionCandidates`, the
+// curated pool) answer `[]` for a refused market rather than a structured state.
+// That is fail-closed — an empty pool renders an empty module — and it is the right
+// shape here because their consumers are internal grid builders and one admin
+// screen, none of which render a market-unavailable surface. The PUBLIC list and
+// count reads (`searchListings`, `countListings`) carry the structured state, and
+// any new caller that needs it asks `planMarketCatalogRead` directly.
+export async function getRecentListings(limit = 8, market?: unknown): Promise<Listing[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  const res = await marketCatalogFetch(decision.query, `/store/listings?sort=reciente&limit=${limit}`, {
     next: { revalidate: CACHE.LISTING, tags: ['listings'] },
   } as RequestInit)
   if (!res.ok) return []
   const data = await res.json()
+  if (verifyMarketFilter(decision.market, data)) return []
   return data.listings ?? []
 }
 
@@ -318,12 +433,15 @@ export async function getRecentListings(limit = 8): Promise<Listing[]> {
  * refreshes it. v1 surfaces the freshest `limit`; pinning a product older than
  * that needs the search follow-up noted in sprint-2.md.
  */
-export async function getSeleccionCandidates(limit = 50): Promise<Listing[]> {
-  const res = await medusaFetch(`/store/listings?sort=reciente&limit=${limit}`, {
+export async function getSeleccionCandidates(limit = 50, market?: unknown): Promise<Listing[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  const res = await marketCatalogFetch(decision.query, `/store/listings?sort=reciente&limit=${limit}`, {
     next: { revalidate: CACHE.LISTING, tags: ['listings'] },
   } as RequestInit)
   if (!res.ok) return []
   const data = await res.json()
+  if (verifyMarketFilter(decision.market, data)) return []
   return data.listings ?? []
 }
 
@@ -338,9 +456,9 @@ export async function getSeleccionCandidates(limit = 50): Promise<Listing[]> {
 // fetch per request window. Degrades gracefully: each fetch contributes only if it
 // succeeds, so if the backend `featured` filter lags a deploy the pool is just the
 // freshest-24 (today's behaviour) — never throws (the homepage prerenders at build).
-async function fetchListings(path: string): Promise<Listing[]> {
+async function fetchListings(marketQuery: string, path: string): Promise<Listing[]> {
   try {
-    const res = await medusaFetch(path, {
+    const res = await marketCatalogFetch(marketQuery, path, {
       next: { revalidate: CACHE.LISTING, tags: ['listings'] },
     } as RequestInit)
     if (!res.ok) return []
@@ -354,11 +472,11 @@ async function fetchListings(path: string): Promise<Listing[]> {
   }
 }
 
-const getCuratedPool = unstable_cache(
-  async (): Promise<Listing[]> => {
+const getCuratedPoolCached = unstable_cache(
+  async (marketQuery: string): Promise<Listing[]> => {
     const [fresh, pinned] = await Promise.all([
-      fetchListings('/store/listings?sort=reciente&limit=24'),
-      fetchListings('/store/listings?featured=true&limit=50'),
+      fetchListings(marketQuery, '/store/listings?sort=reciente&limit=24'),
+      fetchListings(marketQuery, '/store/listings?featured=true&limit=50'),
     ])
     return unionById(fresh, pinned)
   },
@@ -366,12 +484,18 @@ const getCuratedPool = unstable_cache(
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
 
+async function getCuratedPool(market?: unknown): Promise<Listing[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  return getCuratedPoolCached(decision.query)
+}
+
 // `now` is injectable so the page can pass ONE timestamp to both featured + grid:
 // computing it independently in each could, at the exact 14-day cutoff, let a
 // listing be the featured pick in one call yet not be excluded by the other.
 /** The Selección featured pick (pinned-first, else freshest qualifying); null when none. */
-export async function getFeaturedListing(now = Date.now()): Promise<Listing | null> {
-  const pool = await getCuratedPool()
+export async function getFeaturedListing(now = Date.now(), market?: unknown): Promise<Listing | null> {
+  const pool = await getCuratedPool(market)
   return pickFeatured(pool, now)
 }
 
@@ -381,8 +505,8 @@ export async function getFeaturedListing(now = Date.now()): Promise<Listing | nu
  * featured card. The unpinned remainder is shuffled per ISR window (`windowSeed(now)`,
  * S3.1) so it visibly rotates across revalidations; pinned/admin-ordered items stay fixed.
  */
-export async function getCuratedListings(now = Date.now()): Promise<Listing[]> {
-  const pool = await getCuratedPool()
+export async function getCuratedListings(now = Date.now(), market?: unknown): Promise<Listing[]> {
+  const pool = await getCuratedPool(market)
   const featured = pickFeatured(pool, now)
   const n = curatedGridSize(pool, now, featured?.id)
   return curateGrid(pool, now, n, featured?.id, windowSeed(now))
@@ -393,18 +517,24 @@ export async function getCuratedListings(now = Date.now()): Promise<Listing[]> {
  * countListings (one cheap total-only call per category), drops empty categories.
  * Cached ~5 min behind the listings tag.
  */
-export const getCategoryCounts = unstable_cache(
-  async (): Promise<CategoryCount[]> => {
+const getCategoryCountsCached = unstable_cache(
+  async (market: string): Promise<CategoryCount[]> => {
     const totals = await Promise.all(
-      CATEGORIES.map(c => countListings({ category: c.key })),
+      CATEGORIES.map(c => countListings({ category: c.key }, market)),
     )
     const counts: Record<string, number> = {}
-    CATEGORIES.forEach((c, i) => { counts[c.key] = totals[i] })
+    CATEGORIES.forEach((c, i) => { counts[c.key] = totals[i].total })
     return liveCategoryCounts(counts)
   },
   ['category-counts'],
   { revalidate: CACHE.CATEGORY, tags: ['listings'] },
 )
+
+export async function getCategoryCounts(market?: unknown): Promise<CategoryCount[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  return getCategoryCountsCached(decision.market.code)
+}
 
 export function formatPrice(listing: Listing): string {
   if (listing.price_cents == null) return 'Precio a consultar'
