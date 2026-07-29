@@ -36,6 +36,7 @@ import { evaluateGoldenBooleanFlag } from '@/lib/golden-flag-provider'
 import { evaluateDurableGoldenBooleanFlag } from '@/lib/golden-flag-mirror'
 import { getDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { createFlagShadowObserver } from '@/lib/flag-shadow-observation'
+import { createFlagProviderEvaluator } from '@/lib/flag-provider-evaluator'
 
 /** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
 export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled' | 'promoter.private_preview_enabled' | 'promoter.preview_verified_approval_enabled' | 'promoter.activation_crm_enabled' | 'growth.founding_merchants_enabled' | 'promoter.partner_portfolio_enabled'
@@ -478,46 +479,29 @@ async function refreshIfStale(): Promise<void> {
  * any error, timeout, or when the table is unreadable/empty. A fresh cache resolves
  * with no DB hit; a stale cache awaits one bounded (≤2 s) refresh first.
  */
-export async function isEnabled(flag: FlagKey): Promise<boolean> {
-  try {
-    await refreshIfStale()
-  } catch {
-    // Defensive: refreshIfStale already swallows errors, but never let a flag read throw.
-  }
-  const localValue = resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
-  const mode = parseFlagProviderMode(process.env.GOLDEN_BEANS_FLAG_PROVIDER_MODE)
-
-  // The default is local. In shadow mode we deliberately evaluate Golden Beans
-  // but retain the existing platform_flags decision, proving parity before any
-  // behavior-changing cutover. A missing/stale snapshot always falls back to it.
-  if (mode === 'local') return localValue
-
-  // A missing Golden definition must retain the durable local value, including
-  // an active platform_flags override, rather than reverting to source default.
-  const golden = evaluateGoldenBooleanFlag(flag, localValue)
-  if (!golden) {
+const evaluateEnabledFlag = createFlagProviderEvaluator<FlagKey>({
+  async readLocal(flag) {
+    try {
+      await refreshIfStale()
+    } catch {
+      // Defensive: refreshIfStale already swallows errors, but a flag read never throws.
+    }
+    return resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
+  },
+  getMode: () => parseFlagProviderMode(process.env.GOLDEN_BEANS_FLAG_PROVIDER_MODE),
+  evaluateGolden: evaluateGoldenBooleanFlag,
+  async readDurableGolden(flag, localValue) {
     // Golden mode's only outage fallback is the monotonic, read-only snapshot
-    // mirror. `platform_flags` stays authoritative exclusively through local /
-    // shadow until Story 2.3 removes its operational writer.
-    if (mode !== 'golden') return localValue
+    // mirror. `platform_flags` stays authoritative exclusively in local/shadow.
     const durableSnapshot = await getDurableGoldenSnapshot()
     return durableSnapshot
       ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, localValue).value
-      : localValue
-  }
+      : undefined
+  },
+  observeShadow: recordShadowObservation,
+  getDefault: (flag) => DEFAULT_FLAGS[flag],
+})
 
-  if (mode === 'shadow') {
-    recordShadowObservation({
-      flagKey: flag,
-      defaultValue: DEFAULT_FLAGS[flag],
-      localValue,
-      goldenValue: golden.value,
-      snapshotVersion: golden.snapshotVersion,
-      flagVersion: golden.flagVersion,
-      reason: golden.reason,
-    })
-    return localValue
-  }
-
-  return golden.value
+export async function isEnabled(flag: FlagKey): Promise<boolean> {
+  return evaluateEnabledFlag(flag)
 }
