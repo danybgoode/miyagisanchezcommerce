@@ -409,24 +409,24 @@ export function getFlagCutoverStatus(): FlagCutoverStatus<FlagKey> {
       legacyMode,
       status: parseFlagCutover(rawManifest, FLAG_KEYS, legacyMode),
     }
+    const status = cutoverCache.status
+    const reportValue = {
+      source: status.source,
+      valid: status.valid,
+      all: status.all,
+      invalidReason: status.invalidReason,
+      overrides: Object.entries(status.overrides)
+        .map(([key, authority]) => ({ key, authority }))
+        .sort((left, right) => left.key.localeCompare(right.key)),
+      counts: summarizeFlagCutover(status, FLAG_KEYS),
+    }
+    const report = JSON.stringify(reportValue)
+    if (lastCutoverReport !== report) {
+      lastCutoverReport = report
+      writeControlPlaneRecord('flag-cutover', reportValue)
+    }
   }
-
-  const status = cutoverCache.status
-  const report = JSON.stringify({
-    source: status.source,
-    valid: status.valid,
-    all: status.all,
-    invalidReason: status.invalidReason,
-    overrides: Object.entries(status.overrides)
-      .map(([key, authority]) => ({ key, authority }))
-      .sort((left, right) => left.key.localeCompare(right.key)),
-    counts: summarizeFlagCutover(status, FLAG_KEYS),
-  })
-  if (lastCutoverReport !== report) {
-    lastCutoverReport = report
-    writeControlPlaneRecord('flag-cutover', JSON.parse(report))
-  }
-  return status
+  return cutoverCache.status
 }
 
 // Shadow records are intentionally control-plane-only and bounded to one per
