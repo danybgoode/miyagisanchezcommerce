@@ -5,7 +5,7 @@ import { CACHE } from './cache-policy'
 import { buildQuery, isPrintPlacementListing } from './listing-query'
 import { deriveCarFacets, type CarFacets, type CarFacetInput } from './car-facets'
 import { financingDisplay } from './auto-financing'
-import { splitCategoriesFrontend } from './collection-derive'
+import { splitCategoriesFrontend, type CategoryRow } from './collection-derive'
 import { readPriceGrid, type PriceGrid } from './price-grid'
 import { getCustomFields, type CustomFieldDef } from './personalization'
 import {
@@ -277,6 +277,54 @@ export const getShop = unstable_cache(
   { revalidate: CACHE.SHOP, tags: ['shops'] },
 )
 
+/**
+ * The shape of the Medusa seller-products payload AS THIS MAPPER READS IT — not a
+ * full model, just the fields touched below. Introduced by the market-architecture
+ * S1 PR for a boring reason: `lint:changed` judges every file a branch touches, and
+ * this mapper's `any` annotations predate that gate.
+ *
+ * Every field is OPTIONAL and every read below was already optional-chained with a
+ * `??` fallback, so this is a type-only change with no runtime effect. Keep it that
+ * way — widening a field to required here would turn a tolerated missing value into
+ * a build error against a payload the backend is still free to send.
+ */
+interface SellerProductPrice {
+  amount?: number
+  currency_code?: string
+  min_quantity?: number | null
+}
+
+interface SellerProductLocationLevel {
+  stocked_quantity?: number | null
+  reserved_quantity?: number | null
+}
+
+interface SellerProductInventoryItem {
+  inventory?: { location_levels?: SellerProductLocationLevel[] | null } | null
+}
+
+interface SellerProductVariant {
+  metadata?: { disabled?: boolean } | null
+  prices?: SellerProductPrice[] | null
+  manage_inventory?: boolean | null
+  allow_backorder?: boolean | null
+  inventory_items?: SellerProductInventoryItem[] | null
+}
+
+interface SellerProduct {
+  id: string
+  title: string
+  description?: string | null
+  status?: string
+  created_at?: string
+  metadata?: Record<string, unknown> | null
+  variants?: SellerProductVariant[] | null
+  images?: Array<{ url: string; metadata?: { alt?: string | null } | null }> | null
+  tags?: Array<{ value: string }> | null
+  type?: { value?: string } | null
+  categories?: CategoryRow[] | null
+}
+
 export const getShopListings = unstable_cache(
   async (sellerSlug: string): Promise<Listing[]> => {
     const res = await medusaFetch(`/store/sellers/${sellerSlug}/products`, {
@@ -293,25 +341,25 @@ export const getShopListings = unstable_cache(
     // live in the backend /store/listings route.
     const seller = data.seller
     return (data.products ?? [])
-      .filter((p: any) => !isPrintPlacementListing(p.metadata))
-      .map((p: any) => {
+      .filter((p: SellerProduct) => !isPrintPlacementListing(p.metadata))
+      .map((p: SellerProduct) => {
         const meta = (p.metadata ?? {}) as Record<string, unknown>
         // Price = min across all variants ("desde $X" for multi-variant
         // configurator listings); inventory = summed across all variants.
         // Mirrors apps/backend/src/api/store/_utils/listing.ts:toListingShape.
         // Excludes any variant flagged metadata.disabled (defensive; nothing
         // sets this today — mirrors apps/backend's toListingShape filter).
-        const variants: any[] = (p.variants ?? []).filter((v: any) => v?.metadata?.disabled !== true)
+        const variants: SellerProductVariant[] = (p.variants ?? []).filter((v) => v?.metadata?.disabled !== true)
         const variantPrices = variants
-          .map((v: any) => {
-            const prices: any[] = v?.prices ?? []
-            const mxnPrices = prices.filter((pr: any) => pr.currency_code === 'mxn')
+          .map((v) => {
+            const prices: SellerProductPrice[] = v?.prices ?? []
+            const mxnPrices = prices.filter((pr) => pr.currency_code === 'mxn')
             // A variant can carry multiple mxn prices (quantity tiers) — the
             // display price must be the base (qty=1) entry, not whichever
             // tier the API happens to return first (cross-agent review
             // catch, 2026-07-05 — mirrors apps/backend's toListingShape fix).
             const basePrice = mxnPrices.length > 0
-              ? mxnPrices.reduce((lowest: any, pr: any) => ((pr.min_quantity ?? 1) < (lowest.min_quantity ?? 1) ? pr : lowest))
+              ? mxnPrices.reduce((lowest, pr) => ((pr.min_quantity ?? 1) < (lowest.min_quantity ?? 1) ? pr : lowest))
               : undefined
             return basePrice ?? prices[0]
           })
@@ -321,20 +369,20 @@ export const getShopListings = unstable_cache(
           : undefined
         const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
         const { platformCategory, collections } = splitCategoriesFrontend(p.categories, seller?.slug)
-        const manageInventory = variants.some((v: any) => !!v?.manage_inventory)
-        const allowBackorder = variants.some((v: any) => !!v?.allow_backorder)
-        const managedLevels = manageInventory
+        const manageInventory = variants.some((v) => !!v?.manage_inventory)
+        const allowBackorder = variants.some((v) => !!v?.allow_backorder)
+        const managedLevels: SellerProductLocationLevel[] = manageInventory
           ? variants
-              .filter((v: any) => v?.manage_inventory)
-              .flatMap((v: any) => v?.inventory_items ?? [])
-              .flatMap((ii: any) => ii?.inventory?.location_levels ?? [])
+              .filter((v) => v?.manage_inventory)
+              .flatMap((v) => v?.inventory_items ?? [])
+              .flatMap((ii) => ii?.inventory?.location_levels ?? [])
           : []
         const availableQuantity = manageInventory
-          ? managedLevels.reduce((sum: number, lvl: any) =>
+          ? managedLevels.reduce((sum: number, lvl) =>
               sum + (Number(lvl?.stocked_quantity ?? 0) - Number(lvl?.reserved_quantity ?? 0)), 0)
           : null
         const reservedQuantity = manageInventory
-          ? managedLevels.reduce((sum: number, lvl: any) => sum + Number(lvl?.reserved_quantity ?? 0), 0)
+          ? managedLevels.reduce((sum: number, lvl) => sum + Number(lvl?.reserved_quantity ?? 0), 0)
           : null
         return {
           id: p.id,
@@ -353,8 +401,8 @@ export const getShopListings = unstable_cache(
           location: (meta.location as string) ?? null,
           attrs: (meta.attrs as Record<string, unknown> | undefined) ?? {},
           metadata: meta,
-          images: (p.images ?? []).map((img: any) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
-          tags: (p.tags ?? []).map((t: any) => t.value),
+          images: (p.images ?? []).map((img) => ({ url: img.url, alt: img.metadata?.alt ?? null })),
+          tags: (p.tags ?? []).map((t) => t.value),
           status: p.status === 'published' ? 'active' : p.status,
           source_platform: (meta.source_platform as string) ?? null,
           source_url: (meta.source_url as string) ?? null,
