@@ -7,26 +7,41 @@
  * whenever a snapshot is unavailable or stale.
  */
 import 'server-only'
-import { createFlagProvider, type FlagProvider, type FlagResolutionReason } from '@golden-beans/sdk'
+import {
+  createFlagProvider,
+  type FlagProvider,
+  type FlagResolutionReason,
+} from '@golden-beans/sdk'
 import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
 import { scheduleDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
+import { trackGoldenFlagEvaluation } from '@/lib/growth-engine'
 
 export type GoldenBooleanEvaluation = {
   value: boolean
   snapshotVersion: number
   flagVersion?: number
+  variant?: string
   reason: FlagResolutionReason
 }
 
 let provider: FlagProvider | undefined
 let started = false
+let configuration:
+  | {
+      baseUrl: string
+      flagReadKey: string
+      environment: string
+    }
+  | undefined
 
 function getProvider(): FlagProvider | undefined {
   // Read configuration lazily. This keeps the adapter safe for runtimes that
   // load env after module evaluation and for isolated test setup.
   const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
   const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
-  const environment = parseGoldenFlagEnvironment(process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT)
+  const environment = parseGoldenFlagEnvironment(
+    process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT,
+  )
   if (!baseUrl || !flagReadKey || !environment) {
     // Runtime configuration is normally immutable, but releasing the timer
     // makes a removed credential fail closed even in an unusual dynamic setup.
@@ -37,7 +52,23 @@ function getProvider(): FlagProvider | undefined {
     }
     provider = undefined
     started = false
+    configuration = undefined
     return undefined
+  }
+
+  if (
+    provider &&
+    (configuration?.baseUrl !== baseUrl ||
+      configuration.flagReadKey !== flagReadKey ||
+      configuration.environment !== environment)
+  ) {
+    try {
+      provider.shutdown()
+    } catch {
+      // Replacing a rotated credential must not affect a flag decision.
+    }
+    provider = undefined
+    started = false
   }
 
   if (!provider) {
@@ -49,6 +80,7 @@ function getProvider(): FlagProvider | undefined {
       maxStaleMs: 300_000,
       refreshTimeoutMs: 2_000,
     })
+    configuration = { baseUrl, flagReadKey, environment }
   }
 
   if (!started) {
@@ -81,11 +113,25 @@ export function evaluateGoldenBooleanFlag(
     if (!snapshot) return undefined
     scheduleDurableGoldenSnapshot(snapshot)
 
-    const details = currentProvider.resolveBooleanEvaluation(flagKey, defaultValue)
+    const details = currentProvider.resolveBooleanEvaluation(
+      flagKey,
+      defaultValue,
+    )
+    if (details.flagVersion !== undefined && details.variant) {
+      void trackGoldenFlagEvaluation({
+        flagKey,
+        flagVersion: details.flagVersion,
+        variant: details.variant,
+        reason: details.reason,
+        snapshotVersion: snapshot.snapshotVersion,
+        environment: snapshot.environment,
+      })
+    }
     return {
       value: details.value,
       snapshotVersion: snapshot.snapshotVersion,
       flagVersion: details.flagVersion,
+      variant: details.variant,
       reason: details.reason,
     }
   } catch {

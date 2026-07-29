@@ -12,12 +12,18 @@
  * when its `platform_flags` row is ABSENT (an absent row ⇒ `isEnabled()` falls open to
  * DEFAULT_FLAGS, so the admin view unions the known keys with the DB rows).
  *
- * Drift guard: `FLAG_META` is typed `Record<FlagKey, FlagMeta>`, so adding a key to
- * `lib/flags.ts` (or removing one) without updating this map fails `tsc` — the known-key
- * set here can never silently diverge from the seam. The `FlagKey` import is TYPE-ONLY,
- * erased at runtime, so this module stays server-free and importable by the api runner.
+ * Drift guard: the keys, defaults and classifications are all derived from
+ * `lib/flag-catalog.ts`, so this display seam cannot carry a second drifting list.
  */
-import type { FlagKey } from './flags'
+import {
+  FLAG_CATALOG,
+  FLAG_KEYS,
+  type FlagKey,
+  type FlagPolarity,
+} from './flag-catalog'
+
+export { FLAG_KEYS }
+export type { FlagKey, FlagPolarity }
 
 /**
  * Both fail-open polarities (doc-only, mirrors the `platform_flags.polarity` column):
@@ -26,8 +32,6 @@ import type { FlagKey } from './flags'
  *  - `enablement` → default OFF (the gate stays off if the store is down; the
  *    deliberate act is enabling — e.g. `subdomain.paywall_enabled`).
  */
-export type FlagPolarity = 'killswitch' | 'enablement'
-
 export interface FlagMeta {
   /** Fail-open polarity (informational — shown in the admin table). */
   polarity: FlagPolarity
@@ -36,167 +40,20 @@ export interface FlagMeta {
 }
 
 /**
- * Known-flag metadata SSOT for the admin surface. Values mirror `DEFAULT_FLAGS` in
- * `lib/flags.ts` and the seed in `supabase/migrations/20260701120000_platform_flags.sql`
- * (kill-switch ⇒ default true; enablement ⇒ default false). Typed against `FlagKey` so
- * it can never drift from the seam (see the file header).
+ * Admin projection of the typed catalog. The catalog is the only hand-maintained
+ * inventory; this map is derived so no key/default can be omitted or duplicated.
  */
-export const FLAG_META: Record<FlagKey, FlagMeta> = {
-  'checkout.stripe_enabled': { polarity: 'killswitch', default: true },
-  // Rental booking charged as nights × rate + deposit (rental-backend-line-item-pricing
-  // S1, backend rail already merged). Enablement: default OFF ⇒ today's coordination
-  // flow (the backend 422s a rental checkout). Flip ON after S2–S3 + the money smoke.
-  'checkout.rental_pricing_enabled': { polarity: 'enablement', default: false },
-  'pdp_redesign': { polarity: 'killswitch', default: true },
-  'domain.paywall_enabled': { polarity: 'enablement', default: false },
-  'events.quantity_enabled': { polarity: 'enablement', default: false },
-  'shipping.envia_enabled': { polarity: 'enablement', default: false },
-  // Correos de México Impresos manual-economy rate at checkout (epic
-  // shipping-provider-expansion S3). Enablement: default OFF ⇒ the option
-  // never appears (web or agents) — independent of shipping.envia_enabled
-  // (a different provider, no funding gate, no comp-grant). Real enforcement
-  // lives in the BACKEND (envia/rates + checkout-options routes).
-  'shipping.correos_enabled': { polarity: 'enablement', default: false },
-  // Per-listing delivery_mode: 'carrier'|'arranged' (arranged-only-delivery epic
-  // S1). Enablement: default OFF ⇒ the seller "Entrega" toggle stays hidden and
-  // checkout-options ignores delivery_mode (every listing behaves as carrier).
-  // Real enforcement lives in the BACKEND (checkout-options + product-write routes).
-  'shipping.arranged_only_enabled': { polarity: 'enablement', default: false },
-  'promoter.enabled': { polarity: 'enablement', default: false },
-  'ml.connect_enabled': { polarity: 'enablement', default: false },
-  'ml.import_enabled': { polarity: 'enablement', default: false },
-  'ml.publish_enabled': { polarity: 'enablement', default: false },
-  // Two-way ML stock sync (epic 03 S4). Fail-CLOSED by function but seeds OFF; its real
-  // enforcement lives in the backend + a per-seller enable, so the platform default is OFF.
-  'ml.sync_enabled': { polarity: 'killswitch', default: false },
-  // ML-sync paid/promoter-SKU entitlement gate (epic 03 S5). Enablement: default OFF ⇒
-  // no paywall (any connected seller may enable sync); flip ON to start charging.
-  'ml.sync_paywall_enabled': { polarity: 'enablement', default: false },
-  // Materialize a paid ML sale as a real Medusa order (epic ml-orders-native S1).
-  // Enablement: default OFF ⇒ today's behavior (stock sync only, no order) — a flag
-  // outage can never start creating orders unsupervised. Real enforcement lives in the
-  // BACKEND (webhook + reconcile job); flip ON once Daniel's live ML-sandbox
-  // order-materialization smoke passes.
-  'ml.orders_enabled': { polarity: 'enablement', default: false },
-  'subdomain.paywall_enabled': { polarity: 'enablement', default: false },
-  // Personal MCP URL + Claude one-click (epic 03 · seller-agent-connect-mcp-url S2) —
-  // a NEW auth path to seller-scoped MCP tools. Enablement: default OFF ⇒ the URL
-  // route 404s and the panel shows only the existing Bearer-token flow.
-  'seller_agent.connector_url_enabled': { polarity: 'enablement', default: false },
-  // Net-remittance (SPEI/DiMo/CoDi) promoter close (epic 08 · promoter-funnel-v2 S4).
-  // Enablement: default OFF ⇒ the close checkout only ever offers Stripe.
-  'promoter.transfer_enabled': { polarity: 'enablement', default: false },
-  // Print-configurator artwork/custom-fields addition (custom-print-products
-  // S3.4) — NOT the underlying variant/tier buy box (Sprint 2, unaffected).
-  // Kill-switch: default ON, matching `pdp_redesign`'s polarity — OFF
-  // reverts a configurator listing to Sprint 2's buy box with no artwork
-  // field, never all the way back to a broken pre-Sprint-2 checkout.
-  'configurator.enabled': { polarity: 'killswitch', default: true },
-  // Seller profit/margins dashboard + the backend financial-events ledger
-  // (epic 03 · profit-analyzer S1). Enablement: default OFF ⇒ the profit page
-  // 404s and the ledger writes are no-ops; append-only + the backfill route
-  // mean a late flip loses nothing. Flip ON after Daniel's margin smoke.
-  'ops.profit_enabled': { polarity: 'enablement', default: false },
-  // Bookshop launchpad — writer submission portal + review queue + campaigns
-  // (epic 03 · bookshop-launchpad). Enablement: default OFF ⇒ /s/[slug]/convocatoria
-  // + every /api/launchpad route 404s/rejects, and the seller Convocatoria surface
-  // is hidden. Flip ON after Daniel's Sprint 1 guest submit→approve→publish→buy smoke.
-  'launchpad.enabled': { polarity: 'enablement', default: false },
-  // Medusa-order buyer-id resolution for seller-triggered dispatch (ship-manual,
-  // ship, return-request/[requestId]) + (S2) payment-webhook Compras dispatch
-  // (epic 05 · buyer-notifications-money-path S1). Kill-switch: default ON ⇒ OFF
-  // reverts to the guest fall-through (email-only) that ran before this epic.
-  'notifications.buyer_moneypath_enabled': { polarity: 'killswitch', default: true },
-  // Runtime copy-override merge seam + Sprint 3 announcements (epic
-  // admin-content-and-announcements). Kill-switch: default ON ⇒ OFF reverts every
-  // surface to pure compile-time locales/*.json copy with no banners.
-  'content.overrides_enabled': { polarity: 'killswitch', default: true },
-  // Inventory modes (sin límite / sobre pedido) + per-channel (Miyagi/ML) publish
-  // toggles + ML price override (epic 03 · catalog-management S2). Enablement:
-  // default OFF ⇒ today's exact behavior (tracked-only inventory, coupled ML
-  // publish state, no price override) — real enforcement lives in the BACKEND
-  // (write routes + the /store/listings marketplace-browse filter). Flip ON
-  // after Daniel's money-path smoke (buy a sin-límite + a sobre-pedido product
-  // end-to-end) and an ML toggle round-trip on a real ML test listing.
-  'catalog.inventory_channels_enabled': { polarity: 'enablement', default: false },
-  // Staged bulk actions — select-across-filter → diff preview → apply (epic 03 ·
-  // catalog-management S3). Kill-switch, fail-CLOSED like ml.sync_enabled: a bulk
-  // action can mutate hundreds of products in one call, so default OFF hides the
-  // selection/bulk UI until Daniel's live smoke.
-  'catalog.bulk_enabled': { polarity: 'killswitch', default: false },
-  // Shopify-shop → staged supply-batch connector (epic 03 · platform-migrations
-  // S1). Enablement: default OFF ⇒ the fetch/import seller routes 4xx and the
-  // "Migrar desde Shopify" entry point + MCP tool stay hidden. Flip ON only
-  // after Daniel's live real-Shopify-domain pull + parity report smoke passes.
-  'migrations.connector_enabled': { polarity: 'enablement', default: false },
-  // Seller shell (dark top bar + SellerNav) over /sell + /sell/setup for a
-  // signed-in shop owner, instead of buyer chrome (epic 03 · catalog-management
-  // S6, Story 6.1). Kill-switch: default ON ⇒ OFF reverts those two routes to
-  // buyer chrome instantly, no redeploy.
-  'seller.shell_on_sell_enabled': { polarity: 'killswitch', default: true },
-  // Redirect a fresh, shop-less merchant from /sell into the S1 Bienvenida →
-  // S2 Tres puertas first-run (epic 03 · seller-portal-onboarding-three-doors
-  // S1). Enablement: default OFF ⇒ /sell keeps today's SellWizard entry
-  // unchanged. Flip ON after the Sprint 1 smoke walkthrough passes.
-  'onboarding.three_doors_enabled': { polarity: 'enablement', default: false },
-  // Forwards the setup-guide funnel (guide_view, guide_step_complete,
-  // first_share_tap) to the golden-beans Growth Engine's POST /v1/track
-  // (golden-beans Roadmap/01-growth-engine/growth-engine-v1 S1.3). Enablement:
-  // default OFF ⇒ app/api/growth/track/route.ts returns { skipped: true }
-  // without ever calling lib/growth-engine.ts — a standalone telemetry sink,
-  // not a money/auth path. Flip ON once golden-beans is deployed and Daniel's
-  // live flag-flip + live-event smoke passes.
-  'growth.telemetry_enabled': { polarity: 'enablement', default: false },
-  // MCP configure_listing_options tool (mcp-parity-core S2) — an agent building
-  // priced option dimensions / per-combo prices / quantity tiers. Enablement:
-  // default OFF ⇒ the tool refuses; flip ON after Daniel's live CPP-build smoke.
-  'mcp.configure_options.enabled': { polarity: 'enablement', default: false },
-  // MCP delete_listing tool (mcp-parity-core S3.1) — agent soft-delete of an
-  // owned listing. Enablement: default OFF; flip ON after Daniel's live smoke.
-  'mcp.delete_listing.enabled': { polarity: 'enablement', default: false },
-  // MCP apply_price tool (mcp-parity-core S3.2) — agent one-click price apply
-  // (same pipeline as Profit Analyzer). Enablement: default OFF; flip ON after
-  // Daniel's live cart-verified smoke.
-  'mcp.apply_price.enabled': { polarity: 'enablement', default: false },
-  // MCP patch_store_configuration `support` block (mcp-parity-core S4.1) —
-  // enabling support via agent provisions a REAL product. Enablement: default
-  // OFF; flip ON after Daniel's live provision-and-purchase smoke.
-  'mcp.support_config.enabled': { polarity: 'enablement', default: false },
-  // MCP patch_store_configuration `checkout` block (mcp-parity-core S4.2) —
-  // escrow/CTA presentation via agent. Enablement: default OFF; flip ON after
-  // Daniel's live escrow-mode checkout smoke.
-  'mcp.checkout_config.enabled': { polarity: 'enablement', default: false },
-  // Miyagi Partners multi-shop MCP credential (miyagi-partners-mcp S1) — every
-  // ms_partner_ code path. Enablement: default OFF ⇒ a partner token is rejected
-  // like a garbage token; flip ON after Daniel's Sprint-1 smoke walkthrough.
-  'partners.mcp_enabled': { polarity: 'enablement', default: false },
-  // Founding merchant consent-safe previews (consent-previews S1.1) — gates the
-  // promoter setup/listing seam (create private draft + opaque link vs. force
-  // publish). Enablement: default OFF ⇒ today's force-publish; flip ON after a
-  // disposable shop passes the full cross-channel privacy sweep.
-  'promoter.private_preview_enabled': { polarity: 'enablement', default: false },
-  'promoter.preview_verified_approval_enabled': { polarity: 'enablement', default: false },
-  // Founding merchant activation operations S1.1 — gates the new relationship
-  // intake step + /api/promoter/relationship* routes. Default OFF ⇒ those
-  // routes 404 and /promotor/cerrar is unchanged. Flip ON only after the
-  // migration is verified live + the disposable-merchant smoke passes.
-  'promoter.activation_crm_enabled': { polarity: 'enablement', default: false },
-  // Tiendas Fundadoras public acquisition campaign (epic tiendas-fundadoras-acquisition
-  // S1.3). Enablement: default OFF ⇒ /vende/fundadoras shows a truthful closed state and
-  // POST /api/vende/fundadoras/apply refuses every write. Capacity (25) is enforced
-  // independently. Flip ON only after a disposable production application smoke passes.
-  'growth.founding_merchants_enabled': { polarity: 'enablement', default: false },
-  // Merchant Partner stewardship portfolio (merchant-partner-lifecycle S1.1).
-  // Enablement: default OFF ⇒ /partner renders today's grant list byte-identically
-  // and GET /api/partner/portfolio + GET/PUT /api/admin/sla-policy + POST
-  // /api/admin/relationship/[id]/reassign all 404. Does NOT gate the shipped
-  // promoter-facing owner route. Flip ON only after the two-partner scope and
-  // reassignment-attribution smokes pass.
-  'promoter.partner_portfolio_enabled': { polarity: 'enablement', default: false },
-}
-
-/** Every flag key the platform knows about (order = display order on `/admin/flags`). */
-export const FLAG_KEYS = Object.keys(FLAG_META) as FlagKey[]
+export const FLAG_META = Object.freeze(
+  Object.fromEntries(
+    FLAG_KEYS.map((key) => [
+      key,
+      {
+        polarity: FLAG_CATALOG[key].polarity,
+        default: FLAG_CATALOG[key].default,
+      },
+    ]),
+  ) as Record<FlagKey, FlagMeta>,
+)
 
 /** Narrow an untrusted value to a known `FlagKey`. */
 export function isKnownFlagKey(key: unknown): key is FlagKey {

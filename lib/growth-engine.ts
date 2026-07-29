@@ -10,18 +10,37 @@
  * unconfigured — safe to call even before GROWTH_ENGINE_URL/GROWTH_ENGINE_API_KEY
  * are set.
  *
- * Not the `@golden-beans/sdk` package — that's a same-repo (golden-beans monorepo)
- * workspace package; cross-repo npm publishing is explicitly out of scope for Sprint 1
- * (see golden-beans' sprint-1.md). This is a small hand-written client, same shape.
- *
  * Env vars:
  *   GROWTH_ENGINE_URL      — e.g. https://golden-beans-gamma.vercel.app
  *   GROWTH_ENGINE_API_KEY  — this project's per-project API key (golden-beans Story 1.1)
  */
+import 'server-only'
+import {
+  createGrowthEngineClient,
+  type EventContext,
+  type FlagEvaluationTelemetryInput,
+  type ScenarioExecutionTelemetryInput,
+} from '@golden-beans/sdk'
 import type { GrowthTrackInput } from './growth-track'
 
-const GROWTH_ENGINE_URL = process.env.GROWTH_ENGINE_URL
-const GROWTH_ENGINE_API_KEY = process.env.GROWTH_ENGINE_API_KEY
+const TELEMETRY_TIMEOUT_MS = 5_000
+
+function growthClient(userId: string, flagEvaluationSampleRate?: number) {
+  const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
+  const apiKey = process.env.GROWTH_ENGINE_API_KEY
+  if (!baseUrl || !apiKey) return undefined
+  return createGrowthEngineClient({
+    baseUrl,
+    apiKey,
+    userId,
+    flagEvaluationSampleRate,
+    fetchImpl: (input, init) =>
+      fetch(input, {
+        ...init,
+        signal: AbortSignal.timeout(TELEMETRY_TIMEOUT_MS),
+      }),
+  })
+}
 
 export async function sendGrowthEvent(input: GrowthTrackInput): Promise<void> {
   await sendGrowthEventWithResult(input)
@@ -42,22 +61,57 @@ export async function sendGrowthEvent(input: GrowthTrackInput): Promise<void> {
  * a 401 from a rotated key or a 400 from a rejected context is exactly the case
  * that must not be mistaken for a delivered event.
  */
-export async function sendGrowthEventWithResult(input: GrowthTrackInput): Promise<boolean> {
-  if (!GROWTH_ENGINE_URL || !GROWTH_ENGINE_API_KEY) return false // silently skip if not configured
-
+export async function sendGrowthEventWithResult(
+  input: GrowthTrackInput,
+): Promise<boolean> {
   try {
-    const res = await fetch(`${GROWTH_ENGINE_URL}/api/v1/track`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${GROWTH_ENGINE_API_KEY}`,
-      },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(5000), // 5s timeout — never block the request path
+    const client = growthClient(input.userId)
+    if (!client) return false
+    const result = await client.track(input.event, {
+      featureId: input.featureId,
+      tags: input.tags,
+      metadata: input.metadata,
+      context: input.context as EventContext | undefined,
     })
-    return res.ok
+    return result.ok
   } catch {
     // Intentionally swallowed — growth telemetry is observability, not critical path
     return false
+  }
+}
+
+/**
+ * Sampled Golden flag-evaluation fact. The fixed synthetic service subject is deliberately
+ * non-personal, and this promise is safe to fire-and-forget beside a flag decision.
+ */
+export async function trackGoldenFlagEvaluation(
+  input: Omit<FlagEvaluationTelemetryInput, 'subject'>,
+): Promise<void> {
+  try {
+    const configuredRate = Number(
+      process.env.GOLDEN_BEANS_FLAG_EVALUATION_SAMPLE_RATE ?? '0.1',
+    )
+    const client = growthClient('miyagi_frontend_flag_provider', configuredRate)
+    if (!client) return
+    await client.trackFlagEvaluation({
+      ...input,
+      subject: { type: 'service', id: 'miyagi_frontend' },
+    })
+  } catch {
+    // Analytics can never affect the flag result that has already been computed.
+  }
+}
+
+/** Canonical assignment + execution fact for the one explicit resilience probe seam. */
+export async function trackGoldenScenarioExecution(
+  input: ScenarioExecutionTelemetryInput,
+): Promise<void> {
+  try {
+    // Scenario facts are evidence, not sampled hot-path observations.
+    const client = growthClient('miyagi_frontend_scenario_probe', 1)
+    if (!client) return
+    await client.trackScenarioExecution(input)
+  } catch {
+    // The probe outcome and lease settlement remain authoritative if analytics is unavailable.
   }
 }
