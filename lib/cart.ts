@@ -9,6 +9,8 @@
  */
 
 import type { PersonalizationPayload } from './personalization'
+import { DEFAULT_MARKET } from './markets'
+import { PROCESS_MARKET_ENV, resolveRegionIdForMarket } from './market-medusa'
 import { readEventDetails } from './event-listing'
 import {
   EVENT_TICKET_METADATA_KEY,
@@ -51,9 +53,6 @@ const MEDUSA_BASE = process.env.NEXT_PUBLIC_MEDUSA_STORE_URL
   ?? process.env.MEDUSA_STORE_URL
   ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-const MXN_REGION_ID = process.env.NEXT_PUBLIC_MEDUSA_MXN_REGION_ID
-  ?? process.env.MEDUSA_MXN_REGION_ID
-  ?? ''
 // Absolute base for the fire-and-forget manual-order email below — a plain
 // relative fetch() only resolves in a browser; the first true server-to-
 // server caller of startCheckout() (MCP checkout, custom-print-products
@@ -174,6 +173,14 @@ export interface StartCheckoutParams {
    *  server-recomputes the total (nights × rate + deposit) from these dates plus
    *  the listing's own rate/attrs; there is no amount field here to tamper with. */
   rental?: { check_in: string; check_out: string }
+  /**
+   * Operating market for this checkout — resolves the Medusa Region and therefore
+   * the currency, payment providers and fulfillment options (epic decision D5).
+   * Every caller today omits it and resolves to `DEFAULT_MARKET` (`mx`), which is
+   * why this seam changes no MX behaviour; a market with no Region fails closed
+   * here rather than borrowing Mexico's rails.
+   */
+  market?: unknown
 }
 
 export interface StartCheckoutResult {
@@ -211,7 +218,20 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     support,
     suppressManualEmail,
     rental,
+    market,
   } = params
+
+  // Resolve the Medusa Region from the market BEFORE any network call, so an
+  // unsupported market fails here rather than after a cart already exists.
+  // `UnknownMarketError` propagates deliberately: cart creation is a write seam and
+  // an unrecognised market at a write seam is a bug, not a degraded read.
+  const regionId = resolveRegionIdForMarket(market ?? DEFAULT_MARKET, PROCESS_MARKET_ENV)
+  if (regionId === null) {
+    throw new Error(
+      'This market has no Medusa Region, so no cart can be created in it. ' +
+      'US commerce (currency, payment providers, fulfillment) is an explicit non-goal of this epic.',
+    )
+  }
 
   // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
@@ -245,13 +265,13 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     } catch { /* non-fatal */ }
   }
 
-  // 2. Create cart in the MXN region. Medusa v2 Store cart creation does not
+  // 2. Create cart in the market's region. Medusa v2 Store cart creation does not
   // accept customer_id; authenticated carts are associated by token/email.
   const cartRes = await medusaFetch('/store/carts', {
     method: 'POST',
     headers: authHeaders,
     body: JSON.stringify({
-      region_id: MXN_REGION_ID,
+      region_id: regionId,
       ...(buyerEmail ? { email: buyerEmail } : {}),
     }),
   })
