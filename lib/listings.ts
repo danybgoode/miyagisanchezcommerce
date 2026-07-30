@@ -18,8 +18,14 @@ import {
   type MarketScopedMeta,
   type MarketUnavailable,
 } from './market-catalog'
-import { isMarketCode, requireMarket, type MarketCode, type MarketRecord } from './markets'
-import { readPublicSellerMarket, selectBaseSellerPrice, type SellerPrice } from './owned-market'
+import { requireMarket, type MarketRecord } from './markets'
+import {
+  readOwnedPriceGridPayload,
+  readPublicSellerMarket,
+  selectBaseSellerPrice,
+  type OwnedShopPriceGridResult,
+  type SellerPrice,
+} from './owned-market'
 import {
   pickFeatured,
   curateGrid,
@@ -396,26 +402,23 @@ export function getOwnedShopListing(sellerSlug: string, id: string): Promise<Lis
   return getOwnedShopListingCached(sellerSlug, id)
 }
 
-export interface OwnedShopPriceGrid {
-  readonly price_grid: PriceGrid | null
-  readonly market_code: MarketCode
-}
-
 const getOwnedShopPriceGridCached = unstable_cache(
-  async (sellerSlug: string, id: string): Promise<OwnedShopPriceGrid | null> => {
-    const res = await ownershipScopedFetch(
-      `/store/sellers/${encodeURIComponent(sellerSlug)}/products/${encodeURIComponent(id)}/price-grid`,
-      { next: { revalidate: CACHE.LISTING, tags: ['listings'] } } as RequestInit,
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    if (!data || typeof data !== 'object') return null
-    const payload = data as Record<string, unknown>
-    if (!isMarketCode(payload.market_code)) return null
-    const grid = readPriceGrid({ price_grid: payload.price_grid })
-    if (payload.price_grid !== null && payload.price_grid !== undefined && !grid) return null
-    if (grid && grid.product_id !== id) return null
-    return { price_grid: grid, market_code: payload.market_code }
+  async (sellerSlug: string, id: string): Promise<OwnedShopPriceGridResult> => {
+    let res: Response
+    try {
+      res = await ownershipScopedFetch(
+        `/store/sellers/${encodeURIComponent(sellerSlug)}/products/${encodeURIComponent(id)}/price-grid`,
+        { next: { revalidate: CACHE.LISTING, tags: ['listings'] } } as RequestInit,
+      )
+    } catch {
+      return { status: 'error' }
+    }
+    if (!res.ok) return { status: 'unavailable', http_status: res.status }
+    try {
+      return readOwnedPriceGridPayload(await res.json(), id)
+    } catch {
+      return { status: 'invalid' }
+    }
   },
   ['owned-shop-price-grid'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
@@ -425,7 +428,7 @@ const getOwnedShopPriceGridCached = unstable_cache(
 export function getOwnedShopPriceGrid(
   sellerSlug: string,
   id: string,
-): Promise<OwnedShopPriceGrid | null> {
+): Promise<OwnedShopPriceGridResult> {
   return getOwnedShopPriceGridCached(sellerSlug, id)
 }
 

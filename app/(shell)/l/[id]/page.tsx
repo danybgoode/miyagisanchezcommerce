@@ -54,6 +54,8 @@ import { excerptModel } from '@/lib/excerpt'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
+import { resolveOwnedPriceGridForPdp } from '@/lib/owned-market'
+import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
@@ -126,22 +128,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
-  const ownedPriceGrid = priceGridResult && 'market_code' in priceGridResult
-    ? priceGridResult
-    : null
-  const marketplacePriceGrid = priceGridResult && !('market_code' in priceGridResult)
-    ? priceGridResult
-    : null
-  if (
-    channelSlug &&
-    ownedPriceGrid &&
-    ownedPriceGrid.market_code !== listing.shop?.market_code
-  ) {
-    notFound()
-  }
-  const priceGrid = channelSlug
-    ? ownedPriceGrid?.price_grid ?? null
-    : marketplacePriceGrid
+  const priceGrid: PriceGrid | null = channelSlug
+    ? resolveOwnedPriceGridForPdp(priceGridResult, listing.shop?.market_code)
+    : readPriceGrid(priceGridResult)
+  // The backend returns a real grid even for a flat product (one variant/base
+  // tier). Therefore null on a tenant channel means unavailable, malformed, wrong
+  // product, or wrong market — never permission to fall through to plain checkout.
+  if (channelSlug && !priceGrid) notFound()
 
   // Consent-safe previews: the PDP is the LAST public surface that could reveal a
   // product belonging to a shop still awaiting its merchant's approval.

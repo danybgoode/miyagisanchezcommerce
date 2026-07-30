@@ -260,6 +260,8 @@ test.describe('population guard · owned detail is a real seller boundary', () =
     expect(listingPage).toContain("get('x-miyagi-shop-slug')")
     expect(listingPage).toContain('getOwnedShopListing(channelSlug, id)')
     expect(listingPage).toContain('getOwnedShopPriceGrid(channelSlug, id)')
+    expect(listingPage).toContain('resolveOwnedPriceGridForPdp')
+    expect(listingPage).toMatch(/if\s*\(\s*channelSlug\s*&&\s*!priceGrid\s*\)\s*notFound\(\)/)
     expect(listingPage).not.toContain('searchParams')
   })
 
