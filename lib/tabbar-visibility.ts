@@ -48,7 +48,7 @@ export interface BottomTab {
 }
 
 export const BOTTOM_TABS: readonly BottomTab[] = [
-  { key: 'home',      kind: 'tab', href: '/',                  icon: 'iconoir-home-simple', label: 'Inicio' },
+  { key: 'home',      kind: 'tab', href: '/mx',                icon: 'iconoir-home-simple', label: 'Inicio' },
   { key: 'messages',  kind: 'tab', href: '/messages', signedOutHref: '/sign-in', icon: 'iconoir-chat-bubble', label: 'Mensajes', unread: true },
   { key: 'sell',      kind: 'fab', href: '/sell',             icon: 'iconoir-plus',        label: 'Vender' },
   { key: 'favorites', kind: 'tab', href: '/account/favorites', signedOutHref: '/sign-in', icon: 'iconoir-heart', label: 'Favoritos' },
@@ -63,7 +63,7 @@ export function resolveBottomTabHref(tab: BottomTab, isSignedIn: boolean): strin
 
 /**
  * Is this tab the active one for `pathname`? Pure so the spec can pin it.
- *   - home: exact `/` only
+ *   - home: exact `/mx` only (`/` is the master-brand market selector)
  *   - messages: anything under `/messages`
  *   - favorites: anything under `/account/favorites`
  *   - profile: `/account[...]` (but NOT the favorites subtree, which is its own tab)
@@ -75,7 +75,7 @@ export function resolveBottomTabHref(tab: BottomTab, isSignedIn: boolean): strin
  */
 export function isBottomTabActive(key: BottomTabKey, pathname: string): boolean {
   switch (key) {
-    case 'home':      return pathname === '/'
+    case 'home':      return pathname === '/mx'
     case 'messages':  return pathname.startsWith('/messages')
     case 'favorites': return pathname.startsWith('/account/favorites')
     case 'sell':      return pathname === '/sell' || pathname.startsWith('/sell/')

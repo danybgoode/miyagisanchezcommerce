@@ -171,6 +171,27 @@ export function platformMarketRedirectPath(
 }
 
 /**
+ * Compose a retired shop-slug redirect with the market cutover.
+ *
+ * A page-level `/mx/s/old → /mx/s/current` redirect is correct for an already
+ * canonical request, but a legacy `/s/old` request must not first stop at
+ * `/mx/s/old`. Middleware resolves the alias and uses this helper so the single
+ * 308 lands directly on the current market URL, including any shop subpath.
+ */
+export function retiredShopMarketRedirectPath(
+  pathname: string,
+  currentSlug: string,
+  market: MarketCode = DEFAULT_MARKET,
+): string | null {
+  if (!pathname || hasMarketPrefix(pathname)) return null
+  const path = stripTrailingSlash(pathname)
+  const match = /^\/s\/[^/]+(\/.*)?$/.exec(path)
+  const current = currentSlug.trim().toLowerCase()
+  if (!match || !current || current.includes('/')) return null
+  return marketPrefixedPath(`/s/${current}${match[1] ?? ''}`, market)
+}
+
+/**
  * Build an ABSOLUTE marketplace URL against a caller-supplied origin.
  *
  * The origin decides the prefix, and that is the only input consulted: a

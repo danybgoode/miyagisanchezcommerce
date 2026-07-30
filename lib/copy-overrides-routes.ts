@@ -86,7 +86,9 @@ const EVENTS_SECTIONS: Record<string, RouteInfo | null> = {
 
 /** A namespace with one single page (no per-section fan-out). */
 const SIMPLE_NAMESPACE_ROUTES: Record<string, RouteInfo | null> = {
-  home: { label: 'Inicio', path: '/' },
+  // `home.*` is the Mexico marketplace copy. The master-brand root `/` is now
+  // the market selector and does not consume this dictionary namespace.
+  home: { label: 'Inicio', path: '/mx' },
   terms: { label: 'Términos', path: '/terminos' },
   acerca: { label: 'Acerca (plataforma)', path: '/acerca' },
   // Site-wide mechanics rendered in the shell on every page — a KNOWN

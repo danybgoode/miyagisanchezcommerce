@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs'
 /**
  * marketplace-static-shell S1.3 — guards the route-group split invariant:
  *   • the marketplace `(site)` layout chain (root + `(site)/layout.tsx`) reads NO
- *     request headers, so the homepage can become a static CDN asset (S2);
+ *     request headers, so the Mexico homepage can become a static CDN asset (S2);
  *   • the dynamic `(shell)/layout.tsx` keeps the per-request channel/header logic;
- *   • the split is invisible — the homepage still serves platform chrome anonymously,
+ *   • the split is invisible — the `/mx` homepage still serves platform chrome anonymously,
  *     and a white-label `/embed/*` path still suppresses it.
  *
  * The static invariant is proved by source-introspection (the honest check — an HTTP
@@ -44,14 +44,14 @@ test.describe('static-shell split · static invariant', () => {
 
   // admin-content-and-announcements S1.1 — the copy-override reader is deliberately
   // ISR-safe (unstable_cache, see lib/copy-overrides.ts) SO THAT a future sprint can
-  // read it from this static chain without forcing `/` dynamic. Sprint 2 (S2.2) is that
-  // future sprint: `app/(site)/page.tsx` now imports `getOverriddenDictionary` to key its
+  // read it from this static chain without forcing `/mx` dynamic. Sprint 2 (S2.2) is that
+  // future sprint: `app/(site)/mx/page.tsx` now imports `getOverriddenDictionary` to key its
   // editorial strings under `home.*` — via the sanctioned unstable_cache-backed primitive,
   // NOT a per-request one, so this no longer needs to forbid the import outright. What
   // still matters: the copy-override read must stay scoped to the PAGE (rendered only for
-  // `/`), never leak into the SHARED layout chain (rendered for every route under `(site)`)
+  // `/mx`), never leak into the SHARED layout chain (rendered for every route under `(site)`)
   // — that would be a much bigger blast-radius change than Sprint 2 intended. `next
-  // build`'s route table is the ground truth that `/` is still `○` (checked in
+  // build`'s route table is the ground truth that `/mx` is still `○` (checked in
   // sprint-2.md's smoke walkthrough); this spec keeps guarding the real header/auth
   // culprits on the two shared layout files (page-level prose can't be regex-matched
   // reliably, hence checking layouts only here — they carry no such comments).
@@ -69,7 +69,7 @@ test.describe('static-shell split · static invariant', () => {
 
 test.describe('static-shell split · channels unbroken', () => {
   test('the marketplace homepage still renders platform chrome anonymously', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html).toContain(SEARCH_MARKER)

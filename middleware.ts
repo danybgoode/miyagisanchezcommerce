@@ -12,7 +12,11 @@ import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { FUNDADORAS_VISITOR_COOKIE_NAME } from '@/lib/fundadoras-experiment'
 import { isPlatformHost } from '@/lib/platform-host'
-import { platformMarketRedirectPath, stripMarketPrefix } from '@/lib/market-url'
+import {
+  platformMarketRedirectPath,
+  retiredShopMarketRedirectPath,
+  stripMarketPrefix,
+} from '@/lib/market-url'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -352,22 +356,6 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.next({ request: { headers } })
   }
 
-  // ── Legacy marketplace paths → canonical Mexico market (LAST route rule) ─
-  // Every tenant branch above has already returned. Keeping this below the
-  // subdomain, custom-domain and embed exits is the isolation guarantee: those
-  // channels continue to serve `/l/:id`, `/s/:slug` and `/c/:collection`
-  // without ever learning about `/mx`. Search + query are preserved and the
-  // pure helper normalizes a trailing slash, so the destination is one hop.
-  //
-  // `/c/:collection` is intentionally absent: live evidence confirmed it is a
-  // tenant-only route keyed by x-miyagi-shop-slug, not a marketplace surface.
-  const marketRedirect = platformMarketRedirectPath(req.nextUrl.pathname)
-  if (marketRedirect) {
-    const url = req.nextUrl.clone()
-    url.pathname = marketRedirect
-    return NextResponse.redirect(url, 308)
-  }
-
   // ── Cheap, cached 404 for clearly-malformed listing/shop URLs ─────────────
   // Scanners hammering dead/junk paths (`/l/.env`, `/s/wp-login.php`, …) were the
   // #1 source of `/_not-found` function invocations + Fluid Active CPU (epic 09 ·
@@ -398,6 +386,60 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         },
       },
     )
+  }
+
+  // ── Legacy marketplace paths → canonical Mexico market (LAST route rule) ─
+  // Every tenant branch above has already returned. Keeping this below the
+  // subdomain, custom-domain and embed exits is the isolation guarantee: those
+  // channels continue to serve `/l/:id`, `/s/:slug` and `/c/:collection`
+  // without ever learning about `/mx`. The malformed-path guard stays directly
+  // above this rule so scanner junk retains its one-request cheap 404 instead of
+  // paying for a redirect followed by the same 404.
+  //
+  // Retired shop slugs need special composition: `/s/old` must land directly on
+  // `/mx/s/current`, not chain through `/mx/s/old`. This lookup runs only for
+  // well-formed legacy shop paths. If Supabase is unavailable, the ordinary
+  // market redirect still works; alias resolution degrades to the page seam.
+  const legacyShopMatch = /^\/s\/([^/]+)(?:\/|$)/.exec(req.nextUrl.pathname)
+  if (legacyShopMatch && isLikelyShopSlug(legacyShopMatch[1])) {
+    try {
+      const requestedSlug = legacyShopMatch[1].toLowerCase()
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { data: aliasShop, error: aliasError } = await supabase
+        .from('marketplace_shops')
+        .select('slug, metadata')
+        .contains('metadata', { previous_slug_keys: [requestedSlug] })
+        .limit(1)
+        .maybeSingle()
+      if (aliasError) throw aliasError
+      if (aliasShop?.slug) {
+        const previous = (
+          (aliasShop.metadata as Record<string, unknown> | null)?.previous_slugs ?? []
+        ) as PreviousSlug[]
+        const current = pickAliasTarget(String(aliasShop.slug), previous, requestedSlug)
+        const aliasRedirect = current
+          ? retiredShopMarketRedirectPath(req.nextUrl.pathname, current)
+          : null
+        if (aliasRedirect) {
+          const url = req.nextUrl.clone()
+          url.pathname = aliasRedirect
+          return NextResponse.redirect(url, 308)
+        }
+      }
+    } catch {
+      // Alias resolution is enhancement-only; preserve the ordinary market
+      // cutover below rather than turning a dependency outage into a 500.
+    }
+  }
+
+  // `/c/:collection` is intentionally absent: live evidence confirmed it is a
+  // tenant-only route keyed by x-miyagi-shop-slug, not a marketplace surface.
+  // Search + query are preserved and the helper normalizes a trailing slash.
+  const marketRedirect = platformMarketRedirectPath(req.nextUrl.pathname)
+  if (marketRedirect) {
+    const url = req.nextUrl.clone()
+    url.pathname = marketRedirect
+    return NextResponse.redirect(url, 308)
   }
 
   // ── Standard platform routing ────────────────────────────────────────────

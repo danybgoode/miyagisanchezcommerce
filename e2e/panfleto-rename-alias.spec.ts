@@ -23,16 +23,16 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://miyagisanchez.com'
 const isProd = new URL(baseURL).host === 'miyagisanchez.com'
 
 test.describe('panfleto rename — alias redirect', () => {
-  test('/s/miyagiprints redirects to /s/panfleto once renamed', async ({ request }) => {
-    const res = await request.get('/s/miyagiprints', { maxRedirects: 0 })
-    // The page-level redirect is Next.js's permanentRedirect() -> 308, NOT a
-    // literal 301 (301 is what middleware's own NextResponse.redirect(url,301)
-    // issues for the mschz.org/subdomain host paths — a DIFFERENT code path for
-    // the same alias logic). Caught live: this test skipped forever against a
-    // real renamed shop before the fix, asserting the wrong status code.
+  test('/s/miyagiprints redirects in one hop to /mx/s/panfleto once renamed', async ({ request }) => {
+    const res = await request.get('/s/miyagiprints?ref=QR', { maxRedirects: 0 })
+    // Platform legacy paths use the market-cutover 308. Alias resolution must
+    // be composed into that same response: `/mx/s/miyagiprints` as an
+    // intermediate target would silently recreate a two-hop redirect chain.
     test.skip(res.status() !== 308, 'miyagiprints not renamed to panfleto in this environment yet')
     const location = res.headers()['location'] ?? ''
-    expect(location).toContain('/s/panfleto')
+    const target = new URL(location, baseURL)
+    expect(target.pathname).toBe('/mx/s/panfleto')
+    expect(target.searchParams.get('ref')).toBe('QR')
   })
 })
 
@@ -54,6 +54,6 @@ test.describe('panfleto rename — cross-host checks (production only)', () => {
     // (caught live: this test failed against today's un-renamed prod before
     // the fix, asserting against a real .../404 redirect instead of skipping).
     test.skip(res.status() !== 301 || location.includes('/404'), 'mschz.org/panfleto not resolving yet in this environment')
-    expect(location).toContain('/s/panfleto')
+    expect(new URL(location).pathname).toBe('/mx/s/panfleto')
   })
 })

@@ -34,7 +34,7 @@ test.describe('buildPageNavGroups', () => {
   test('resolves a real route for a known namespace/section, null for an unknown one', () => {
     const groups = buildPageNavGroups(keys)
     const home = groups.find((g) => g.namespace === 'home')!
-    expect(home.sections[0].route).toEqual({ label: 'Inicio', path: '/' })
+    expect(home.sections[0].route).toEqual({ label: 'Inicio', path: '/mx' })
 
     const unknown = buildPageNavGroups([{ namespace: 'bogus', key: 'foo.bar' }])
     expect(unknown[0].sections[0].route).toBeNull()
@@ -85,7 +85,7 @@ test.describe('buildPageNavGroups', () => {
       { namespace: 'home', key: 'selection.heading' },
     ])
     const home = groups.find((g) => g.namespace === 'home')!
-    expect(home.uniformRoute).toEqual({ label: 'Inicio', path: '/' })
+    expect(home.uniformRoute).toEqual({ label: 'Inicio', path: '/mx' })
   })
 
   test('uniformRoute is null when a group\'s sections genuinely point at different destinations', () => {

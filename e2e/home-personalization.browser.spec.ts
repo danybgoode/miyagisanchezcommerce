@@ -11,7 +11,7 @@ import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
  *    homepage is byte-unchanged for signed-out/loading visitors (mirrors the
  *    `home-static` api guardrail, but in a real browser after hydration settles).
  *  • SIGNED-IN — fixture-gated (MS_TEST_BROWSER_AUTH=1 + MS_TEST_BUYER_EMAIL, dev/preview
- *    only). Signs in, loads `/`, and asserts the island container reacts. CAVEAT: the S3
+ *    only). Signs in, loads `/mx`, and asserts the island container reacts. CAVEAT: the S3
  *    endpoint's CORS allows the prod origin only, so on a dev preview the cross-origin
  *    fetch is blocked and the islands degrade to nothing — i.e. this can only positively
  *    confirm hydration on prod. The real signed-in eyeball is therefore owed to Daniel
@@ -27,7 +27,7 @@ const MODULE_IDS = [
 
 test.describe('home-personalization · islands (browser)', () => {
   test('anonymous: no personalization module renders on the static homepage', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/mx')
     // Let client hydration settle — the islands mount client-side, then no-op (no session).
     await page.waitForLoadState('networkidle')
     for (const id of MODULE_IDS) {
@@ -39,7 +39,7 @@ test.describe('home-personalization · islands (browser)', () => {
     test.skip(!authEnabled(), 'Set MS_TEST_BROWSER_AUTH=1 (+ dev Clerk keys) to run authed browser smokes.')
     const email = requireEnv(buyerEmail(), 'MS_TEST_BUYER_EMAIL')
     await signIn(page, email)
-    await page.goto('/')
+    await page.goto('/mx')
     await page.waitForLoadState('networkidle')
 
     // A signed-in homepage shows exactly one seller module (snapshot XOR recruit) once the

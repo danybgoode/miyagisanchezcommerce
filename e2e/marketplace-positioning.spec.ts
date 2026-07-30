@@ -10,7 +10,7 @@ const OG_PILLS = ['Marketplace', 'Segundamano', 'Tu propia tienda', '0% comisió
 
 test.describe('marketplace positioning metadata', () => {
   test('homepage head uses marketplace positioning copy', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
 
     const html = await res.text()

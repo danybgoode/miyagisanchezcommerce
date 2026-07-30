@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   marketplaceUrl,
   platformMarketRedirectPath,
+  retiredShopMarketRedirectPath,
 } from '../lib/market-url'
 import {
   HOME_TARGET,
@@ -31,6 +32,19 @@ test.describe('one-hop market redirects and tenant isolation', () => {
       ['/account', null],
     ]
     for (const [from, to] of matrix) expect(platformMarketRedirectPath(from), from).toBe(to)
+  })
+
+  test('retired shop paths compose the alias and market cutover into one hop', () => {
+    expect(retiredShopMarketRedirectPath('/s/miyagiprints', 'panfleto')).toBe('/mx/s/panfleto')
+    expect(retiredShopMarketRedirectPath('/s/miyagiprints/c/libros', 'panfleto')).toBe(
+      '/mx/s/panfleto/c/libros',
+    )
+    expect(retiredShopMarketRedirectPath('/s/miyagiprints/acerca/miyagiprints', 'panfleto')).toBe(
+      '/mx/s/panfleto/acerca/miyagiprints',
+    )
+    expect(retiredShopMarketRedirectPath('/s/miyagiprints/', 'panfleto')).toBe('/mx/s/panfleto')
+    expect(retiredShopMarketRedirectPath('/mx/s/miyagiprints', 'panfleto')).toBeNull()
+    expect(retiredShopMarketRedirectPath('/l/prod_123', 'panfleto')).toBeNull()
   })
 
   test('shortlinks target canonical destinations without a second hop', () => {

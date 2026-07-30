@@ -7,7 +7,7 @@ import es from '../locales/es.json' with { type: 'json' }
  *   • the curated content renders without auth (Selección / Categorías), and
  *   • the four signed-in modules are gone for EVERYONE (no server-side personalization
  *     in the render) — so the page can prerender to a CDN asset.
- * The `next build` static-marker check for `/` (no `ƒ`) is the load-bearing companion to
+ * The `next build` static-marker check for `/mx` (no `ƒ`) is the load-bearing companion to
  * this spec; see sprint-2.md.
  */
 
@@ -20,7 +20,7 @@ const SIGNED_IN_MODULE_TESTIDS = [
 
 test.describe('static homepage · curated shell, no personalization', () => {
   test('the four signed-in modules are absent for an anonymous visitor', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     for (const id of SIGNED_IN_MODULE_TESTIDS) {
@@ -38,7 +38,7 @@ test.describe('static homepage · curated shell, no personalization', () => {
     const hasListings = !!(await cat.json())?.items?.length
     test.skip(!hasListings, 'no active listings in this environment')
 
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     // Curated shell markers — the hero (always) + the Selección heading.
@@ -47,17 +47,17 @@ test.describe('static homepage · curated shell, no personalization', () => {
   })
 
   test('Recién llegado al barrio renders anonymously when the recent-listings pool is non-empty', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     const hasRecienLlegado = html.includes('data-testid="home-recien-llegado"')
     test.skip(!hasRecienLlegado, 'no listings available for Recién llegado in this environment')
     expect(html).toContain(es.home.recienLlegado.heading)
-    expect(html).toMatch(/href="\/l\?sort=reciente"[^>]*>\s*Ver todo/)
+    expect(html).toMatch(/href="\/mx\/l\?sort=reciente"[^>]*>\s*Ver todo/)
   })
 
   test('Pasillos chips carry the same live counts as the Categorías list (S3.3)', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
@@ -83,7 +83,7 @@ test.describe('static homepage · curated shell, no personalization', () => {
   })
 
   test('the seller block is the sole closing CTA, linking straight to /sign-up (S3.4 follow-up)', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     // Gated on Selección being non-empty (same condition page.tsx renders on) —
@@ -111,7 +111,7 @@ test.describe('static homepage · curated shell, no personalization', () => {
   // values (not a hardcoded string) means this fails loud if the wiring is ever reverted
   // to a literal, and self-updates if the copy is edited in `locales/es.json` directly.
   test('the hero renders the home.hero dictionary copy (no live override applied)', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html).toContain(es.home.hero.heading)
@@ -125,11 +125,11 @@ test.describe('static homepage · curated shell, no personalization', () => {
   // markup IS present in the static server render (React SSRs client components into
   // the initial HTML same as any other) — its interactive UTM-forwarding href only
   // resolves after hydration, so this spec only proves the anchor + copy shipped. The
-  // load-bearing static-ness proof is the `next build` route table showing `○ /` (no
+  // load-bearing static-ness proof is the `next build` route table showing `○ /mx` (no
   // `ƒ`) — this component adds no headers()/cookies()/searchParams read, so it can't
   // force the route dynamic.
   test('the comparador teaser card renders and links to /comparador', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     const teaser = html.match(/<a[^>]*data-testid="home-comparador-teaser"[^>]*>/)?.[0] ?? ''
