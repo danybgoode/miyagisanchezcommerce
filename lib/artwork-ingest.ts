@@ -12,7 +12,10 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { uploadToR2, isR2Configured } from '@/lib/r2'
 import { sniffFileFormat } from '@/lib/file-sniff'
-import { getListingCustomFieldsUncached } from '@/lib/listings'
+import {
+  getListingCustomFieldsUncached,
+  getOwnedListingCustomFieldsUncached,
+} from '@/lib/listings'
 import { ARTWORK_FORMATS, MAX_ARTWORK_SIZE_MB, type ArtworkFormat } from '@/lib/personalization'
 
 const BUCKET = 'listing-images'
@@ -51,6 +54,7 @@ export async function ingestArtworkBytes(
   bytes: Uint8Array,
   listingId: string,
   fieldId: string,
+  options: { sellerSlug?: string | null } = {},
 ): Promise<ArtworkIngestOk | ArtworkIngestError> {
   if (bytes.byteLength === 0) {
     return { ok: false, status: 400, error: 'No se recibió ningún archivo.' }
@@ -66,7 +70,9 @@ export async function ingestArtworkBytes(
   // supplied limit. A field that doesn't resolve at all is rejected outright
   // (never falls back to the global cap), same discipline as the human
   // upload route (cross-agent review catch, 2026-07-06).
-  const defs = await getListingCustomFieldsUncached(listingId)
+  const defs = options.sellerSlug
+    ? await getOwnedListingCustomFieldsUncached(options.sellerSlug, listingId)
+    : await getListingCustomFieldsUncached(listingId)
   const fieldDef = defs.find(d => d.id === fieldId && d.type === 'file')
   if (!fieldDef) {
     return { ok: false, status: 400, error: 'Campo de archivo no válido.' }

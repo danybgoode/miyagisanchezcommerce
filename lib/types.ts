@@ -1,3 +1,5 @@
+import type { MarketCode, MarketplaceStatus } from './markets'
+
 export type Shop = {
   id: string
   slug: string
@@ -11,6 +13,11 @@ export type Shop = {
   source_url: string | null
   metadata: Record<string, unknown> | null
   created_at: string
+  /** Sanitized public operating-market projection. Raw metadata is not a contract. */
+  market_code?: MarketCode
+  country_code?: string
+  currency_code?: string
+  marketplace_status?: MarketplaceStatus
   // Federated commerce — own channel
   custom_domain: string | null
   custom_domain_verified: boolean

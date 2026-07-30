@@ -13,11 +13,13 @@ import {
   marketMetaFor,
   marketMetaUnavailable,
   planMarketCatalogRead,
+  readMarketUnavailableResponse,
   takeMarketScopedField,
   type MarketScopedMeta,
   type MarketUnavailable,
 } from './market-catalog'
-import { requireMarket, type MarketRecord } from './markets'
+import { isMarketCode, requireMarket, type MarketCode, type MarketRecord } from './markets'
+import { readPublicSellerMarket, selectBaseSellerPrice, type SellerPrice } from './owned-market'
 import {
   pickFeatured,
   curateGrid,
@@ -102,6 +104,21 @@ function unavailableStateOrRethrow(error: unknown): MarketUnavailable {
   throw error
 }
 
+/**
+ * Preserve the backend's explicit market refusal, but never turn an arbitrary
+ * server failure into an apparently healthy empty catalog.
+ */
+async function unavailableResponseOrThrow(
+  res: Response,
+  market: MarketRecord,
+  operation: string,
+): Promise<MarketUnavailable> {
+  const payload = await res.json().catch(() => null)
+  const unavailable = readMarketUnavailableResponse(market, res.status, payload)
+  if (unavailable) return unavailable
+  throw new Error(`${operation} failed (${res.status})`)
+}
+
 export type MarketScopedListings = { listings: Listing[]; total: number; page: number } & MarketScopedMeta
 
 /**
@@ -126,8 +143,8 @@ export async function searchListings(
   } as RequestInit)
 
   if (!res.ok) {
-    console.error('[listings] searchListings failed', res.status, await res.text())
-    return { listings: [], total: 0, page, ...marketMetaFor(decision.market) }
+    const unavailable = await unavailableResponseOrThrow(res, decision.market, 'searchListings')
+    return { listings: [], total: 0, page, ...marketMetaUnavailable(unavailable) }
   }
 
   const data = await res.json()
@@ -166,8 +183,8 @@ export async function countListings(
   } as RequestInit)
 
   if (!res.ok) {
-    console.error('[listings] countListings failed', res.status, await res.text())
-    return { total: 0, ...marketMetaFor(decision.market) }
+    const unavailable = await unavailableResponseOrThrow(res, decision.market, 'countListings')
+    return { total: 0, ...marketMetaUnavailable(unavailable) }
   }
 
   const data = await res.json()
@@ -273,19 +290,29 @@ export async function getListing(id: string, market?: unknown): Promise<Listing 
  * cached one). Returns `[]` on any failure — callers fall back to the
  * global hard caps, never to an unbounded upload.
  *
- * Deliberately NOT market-scoped (epic decision D4): these are limits the product's
- * OWNER set, and the buyer uploading against them may have arrived through the
- * shop's own subdomain, custom domain or embed — none of which are marketplace
- * surfaces. Market-filtering this read would break an owned-shop upload. It goes
- * through `ownershipScopedFetch` so that exemption is explicit rather than an
- * omission the population guard has to be taught about.
+ * This helper is the MARKETPLACE version and therefore uses the market seam.
+ * Tenant uploads use the separately named owner helper below; keeping both entry
+ * points explicit prevents an owner exemption from becoming a bare marketplace
+ * by-id read.
  */
-export async function getListingCustomFieldsUncached(id: string): Promise<CustomFieldDef[]> {
+export async function getListingCustomFieldsUncached(
+  id: string,
+  market?: unknown,
+): Promise<CustomFieldDef[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
   try {
-    const res = await ownershipScopedFetch(`/store/listings/${id}`, { cache: 'no-store' })
+    const res = await marketCatalogFetch(decision.query, `/store/listings/${id}`, { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
-    return getCustomFields(data.listing?.metadata ?? null)
+    const { value: listing, unavailable } = takeMarketScopedField<Listing | null>(
+      decision.market,
+      data,
+      'listing',
+      null,
+    )
+    if (unavailable) return []
+    return getCustomFields(listing?.metadata ?? null)
   } catch {
     return []
   }
@@ -297,17 +324,128 @@ export async function getListingCustomFieldsUncached(id: string): Promise<Custom
  * rows, never a metadata mirror (custom-print-products Sprint 2, Story 2.3).
  * Returns null for a normal single-variant listing (no tiers to show).
  */
-export const getPriceGrid = unstable_cache(
-  async (id: string): Promise<PriceGrid | null> => {
-    const res = await medusaFetch(`/store/listings/${id}/price-grid`, {
+const getPriceGridCached = unstable_cache(
+  async (id: string, marketCode: string, marketQuery: string): Promise<PriceGrid | null> => {
+    const market = requireMarket(marketCode)
+    const res = await marketCatalogFetch(marketQuery, `/store/listings/${id}/price-grid`, {
       next: { revalidate: CACHE.LISTING, tags: ['listings'] },
     } as RequestInit)
     if (!res.ok) return null
-    return readPriceGrid(await res.json())
+    const data = await res.json()
+    const { value, unavailable } = takeMarketScopedField<unknown>(market, data, 'price_grid', null)
+    if (unavailable) throw new MarketFilterUnconfirmedError(unavailable)
+    return readPriceGrid({ price_grid: value })
   },
   ['price-grid'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
 )
+
+export async function getPriceGrid(id: string, market?: unknown): Promise<PriceGrid | null> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return null
+  try {
+    return await getPriceGridCached(id, decision.market.code, decision.query)
+  } catch (error) {
+    const state = unavailableStateOrRethrow(error)
+    console.error('[listings] getPriceGrid market filter unconfirmed', state.reason)
+    return null
+  }
+}
+
+interface OwnedListingPayload {
+  listing?: Listing | null
+  seller?: Shop | null
+  market_code?: unknown
+}
+
+function readOwnedListingPayload(
+  payload: unknown,
+  sellerSlug: string,
+  listingId: string,
+): Listing | null {
+  if (!payload || typeof payload !== 'object') return null
+  const data = payload as OwnedListingPayload
+  const sellerMarket = readPublicSellerMarket(data.seller)
+  if (
+    !sellerMarket ||
+    data.market_code !== sellerMarket.market_code ||
+    data.seller?.slug !== sellerSlug ||
+    data.listing?.id !== listingId ||
+    typeof data.listing.currency !== 'string' ||
+    data.listing.currency.toLowerCase() !== sellerMarket.currency_code
+  ) {
+    return null
+  }
+  return { ...data.listing, shop: data.seller }
+}
+
+const getOwnedShopListingCached = unstable_cache(
+  async (sellerSlug: string, id: string): Promise<Listing | null> => {
+    const res = await ownershipScopedFetch(
+      `/store/sellers/${encodeURIComponent(sellerSlug)}/products/${encodeURIComponent(id)}`,
+    )
+    if (!res.ok) return null
+    return readOwnedListingPayload(await res.json(), sellerSlug, id)
+  },
+  ['owned-shop-listing'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
+/** Trusted-channel PDP detail. Ownership + published state replace Sales Channel membership. */
+export function getOwnedShopListing(sellerSlug: string, id: string): Promise<Listing | null> {
+  return getOwnedShopListingCached(sellerSlug, id)
+}
+
+export interface OwnedShopPriceGrid {
+  readonly price_grid: PriceGrid | null
+  readonly market_code: MarketCode
+}
+
+const getOwnedShopPriceGridCached = unstable_cache(
+  async (sellerSlug: string, id: string): Promise<OwnedShopPriceGrid | null> => {
+    const res = await ownershipScopedFetch(
+      `/store/sellers/${encodeURIComponent(sellerSlug)}/products/${encodeURIComponent(id)}/price-grid`,
+      { next: { revalidate: CACHE.LISTING, tags: ['listings'] } } as RequestInit,
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data || typeof data !== 'object') return null
+    const payload = data as Record<string, unknown>
+    if (!isMarketCode(payload.market_code)) return null
+    const grid = readPriceGrid({ price_grid: payload.price_grid })
+    if (payload.price_grid !== null && payload.price_grid !== undefined && !grid) return null
+    if (grid && grid.product_id !== id) return null
+    return { price_grid: grid, market_code: payload.market_code }
+  },
+  ['owned-shop-price-grid'],
+  { revalidate: CACHE.LISTING, tags: ['listings'] },
+)
+
+/** Trusted-channel price grid, deliberately independent of marketplace membership. */
+export function getOwnedShopPriceGrid(
+  sellerSlug: string,
+  id: string,
+): Promise<OwnedShopPriceGrid | null> {
+  return getOwnedShopPriceGridCached(sellerSlug, id)
+}
+
+/** Fresh owner-scoped field definitions for tenant artwork uploads. */
+export async function getOwnedListingCustomFieldsUncached(
+  sellerSlug: string,
+  id: string,
+): Promise<CustomFieldDef[]> {
+  try {
+    const res = await ownershipScopedFetch(
+      `/store/sellers/${encodeURIComponent(sellerSlug)}/products/${encodeURIComponent(id)}`,
+      { cache: 'no-store' },
+    )
+    if (!res.ok) return []
+    const listing = readOwnedListingPayload(await res.json(), sellerSlug, id)
+    return getCustomFields(listing?.metadata ?? null)
+  } catch {
+    return []
+  }
+}
 
 export const getShop = unstable_cache(
   async (slug: string): Promise<Shop | null> => {
@@ -383,6 +521,8 @@ export const getShopListings = unstable_cache(
     // "more from this shop"), matching the general-catalog exclusion already
     // live in the backend /store/listings route.
     const seller = data.seller
+    const sellerMarket = readPublicSellerMarket(seller)
+    if (!sellerMarket) return []
     return (data.products ?? [])
       .filter((p: SellerProduct) => !isPrintPlacementListing(p.metadata))
       .map((p: SellerProduct) => {
@@ -396,21 +536,21 @@ export const getShopListings = unstable_cache(
         const variantPrices = variants
           .map((v) => {
             const prices: SellerProductPrice[] = v?.prices ?? []
-            const mxnPrices = prices.filter((pr) => pr.currency_code === 'mxn')
-            // A variant can carry multiple mxn prices (quantity tiers) — the
-            // display price must be the base (qty=1) entry, not whichever
-            // tier the API happens to return first (cross-agent review
-            // catch, 2026-07-05 — mirrors apps/backend's toListingShape fix).
-            const basePrice = mxnPrices.length > 0
-              ? mxnPrices.reduce((lowest, pr) => ((pr.min_quantity ?? 1) < (lowest.min_quantity ?? 1) ? pr : lowest))
-              : undefined
-            return basePrice ?? prices[0]
+            const validPrices: SellerPrice[] = prices.filter(
+              (price): price is SellerPrice =>
+                typeof price.amount === 'number' &&
+                typeof price.currency_code === 'string',
+            )
+            return selectBaseSellerPrice(validPrices, sellerMarket.currency_code)
           })
           .filter((pr): pr is { amount: number; currency_code: string } => !!pr)
         const priceObj = variantPrices.length > 0
           ? variantPrices.reduce((min, pr) => (pr.amount < min.amount ? pr : min))
           : undefined
-        const fallbackPrice = typeof meta.price_cents === 'number' ? meta.price_cents : null
+        const metadataCurrency = typeof meta.currency === 'string' ? meta.currency.toLowerCase() : null
+        const fallbackPrice = metadataCurrency === sellerMarket.currency_code && typeof meta.price_cents === 'number'
+          ? meta.price_cents
+          : null
         const { platformCategory, collections } = splitCategoriesFrontend(p.categories, seller?.slug)
         const manageInventory = variants.some((v) => !!v?.manage_inventory)
         const allowBackorder = variants.some((v) => !!v?.allow_backorder)
@@ -434,7 +574,7 @@ export const getShopListings = unstable_cache(
           title: p.title,
           description: p.description ?? null,
           price_cents: priceObj?.amount ?? fallbackPrice,
-          currency: (priceObj?.currency_code ?? (meta.currency as string | undefined) ?? 'mxn').toUpperCase(),
+          currency: sellerMarket.currency_code.toUpperCase(),
           condition: (meta.condition as string) ?? null,
           listing_type: p.type?.value ?? (meta.listing_type as string | undefined) ?? 'product',
           category: platformCategory?.handle ?? null,
@@ -470,6 +610,10 @@ export const getShopListings = unstable_cache(
             source_url: seller.source_url ?? null,
             metadata: seller.metadata ?? null,
             created_at: seller.created_at ?? p.created_at,
+            market_code: sellerMarket.market_code,
+            country_code: sellerMarket.country_code,
+            currency_code: sellerMarket.currency_code,
+            marketplace_status: sellerMarket.marketplace_status,
             custom_domain: null,
             custom_domain_verified: false,
             custom_domain_vercel_ok: false,

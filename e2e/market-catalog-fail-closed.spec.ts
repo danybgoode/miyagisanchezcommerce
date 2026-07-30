@@ -8,6 +8,7 @@ import {
   marketMetaUnavailable,
   planMarketCatalogRead,
   readMarketFilterState,
+  readMarketUnavailableResponse,
   takeMarketScopedField,
   verifyMarketFilter,
   type MarketCatalogDecision,
@@ -101,6 +102,55 @@ test.describe('readMarketFilterState · three states, never two', () => {
     expect(readMarketFilterState({ [MARKET_ECHO_FIELD]: 'mx' }, 'us')).toBe('mismatch')
     expect(readMarketFilterState({ [MARKET_ECHO_FIELD]: 'zz' }, 'mx')).toBe('mismatch')
     expect(readMarketFilterState({ [MARKET_ECHO_FIELD]: 7 }, 'mx')).toBe('mismatch')
+  })
+})
+
+test.describe('non-2xx backend market refusals stay structured', () => {
+  test('the exact 503 gate response is preserved', () => {
+    expect(readMarketUnavailableResponse(MARKETS.mx, 503, {
+      unavailable: true,
+      market_code: 'mx',
+      marketplace_status: 'active',
+      reason: 'market_filter_unavailable',
+      message: 'Filter temporarily unavailable.',
+    })).toEqual({
+      unavailable: true,
+      market_code: 'mx',
+      marketplace_status: 'active',
+      reason: 'market_filter_unavailable',
+    })
+  })
+
+  test('the exact 404 closed-market response is preserved', () => {
+    expect(readMarketUnavailableResponse(MARKETS.us, 404, {
+      unavailable: true,
+      market_code: 'us',
+      marketplace_status: 'invitation',
+      reason: 'marketplace_not_open',
+    })?.reason).toBe('marketplace_not_open')
+  })
+
+  test('arbitrary server bugs and malformed refusals are not reclassified', () => {
+    const candidates: Array<[number, unknown]> = [
+      [500, { error: 'database exploded' }],
+      [503, { unavailable: true, reason: 'market_filter_unavailable' }],
+      [503, {
+        unavailable: true,
+        market_code: 'us',
+        marketplace_status: 'active',
+        reason: 'market_filter_unavailable',
+      }],
+      [503, {
+        unavailable: true,
+        market_code: 'mx',
+        marketplace_status: 'active',
+        reason: 'unexpected_server_bug',
+      }],
+      [503, 'not-json'],
+    ]
+    for (const [status, payload] of candidates) {
+      expect(readMarketUnavailableResponse(MARKETS.mx, status, payload)).toBeNull()
+    }
   })
 })
 

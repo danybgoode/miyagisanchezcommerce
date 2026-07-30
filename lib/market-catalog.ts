@@ -170,6 +170,35 @@ export function verifyMarketFilter(market: MarketRecord, payload: unknown): Mark
 }
 
 /**
+ * Preserve a backend market-gate refusal carried on a non-2xx response.
+ *
+ * This is deliberately narrow. Only the backend's exact structured gate body for
+ * the requested market is recognized; an arbitrary/malformed 500 is a server bug
+ * and must still throw at the I/O shell instead of being laundered into "catalog
+ * unavailable". The backend keeps human prose in `message`; `reason` is the stable
+ * machine contract shared with this module.
+ */
+export function readMarketUnavailableResponse(
+  market: MarketRecord,
+  status: number,
+  payload: unknown,
+): MarketUnavailable | null {
+  if (!payload || typeof payload !== 'object') return null
+  const body = payload as Record<string, unknown>
+  if (body.unavailable !== true) return null
+  if (normalizeMarketCode(body.market_code) !== market.code) return null
+  if (body.marketplace_status !== market.marketplace_status) return null
+
+  if (status === 503 && body.reason === 'market_filter_unavailable') {
+    return unavailable(market.code, market.marketplace_status, 'market_filter_unavailable')
+  }
+  if (status === 404 && body.reason === 'marketplace_not_open') {
+    return unavailable(market.code, market.marketplace_status, 'marketplace_not_open')
+  }
+  return null
+}
+
+/**
  * Verify a catalog response AND extract the field the caller wants, in ONE call.
  *
  * This exists because the two-step version — `verifyMarketFilter(...)` on one line,

@@ -65,12 +65,12 @@ function stripComments(source: string): string {
 const CATALOG_PATH = '/store/listings'
 
 /**
- * `/store/listings/:id/price-grid` and `/store/listings/:id/view` are SUB-RESOURCES
- * of an already-resolved listing (a price ladder, a view counter), not catalog
- * browse — scoping them by market would filter nothing and break an owned-shop PDP.
+ * `/store/listings/:id/view` is a write after a marketplace detail read, not a
+ * catalog read. Price grids are NOT exempt: their amounts are market-currency data
+ * and must use either the marketplace seam or the seller-owned endpoint.
  */
 function isSubResourceTail(tail: string): boolean {
-  return /^(?:\/\$\{[^}]*\}|\/[\w.-]+)?\/(?:price-grid|view)\b/.test(tail)
+  return /^(?:\/\$\{[^}]*\}|\/[\w.-]+)?\/view\b/.test(tail)
 }
 
 /** Does this (comment-stripped) source perform a marketplace catalog read? */
@@ -100,6 +100,9 @@ const OWNERSHIP_SCOPED = new Set([
   'lib/listing-status.ts',
   // The seller's own edit form, loading their own product.
   'app/(shell)/sell/edit/[id]/page.tsx',
+  // Seller-authenticated edit endpoints. These resolve a product the caller owns.
+  'app/api/sell/listing/[id]/route.ts',
+  'app/api/sell/listing/[id]/price-grid/route.ts',
   // Post-purchase summary: the shop name for an order the buyer just paid for.
   'app/(shell)/payment/success/page.tsx',
   // Order enrichment and manual shipping, both keyed by an order the caller owns.
@@ -219,6 +222,80 @@ function topLevelBlocks(source: string): Array<{ name: string; body: string }> {
     body: lines.slice(start.line, index + 1 < starts.length ? starts[index + 1].line : lines.length).join('\n'),
   }))
 }
+
+test.describe('population guard · owned detail is a real seller boundary', () => {
+  const LISTINGS = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+  const byName = new Map(topLevelBlocks(LISTINGS).map((block) => [block.name, block.body]))
+  const OWNER_READERS = [
+    'getOwnedShopListingCached',
+    'getOwnedShopPriceGridCached',
+    'getOwnedListingCustomFieldsUncached',
+  ]
+
+  for (const name of OWNER_READERS) {
+    test(`${name} uses /store/sellers/:slug/products/:id, never the marketplace endpoint`, () => {
+      const body = byName.get(name)
+      expect(body, `${name} no longer exists — reclassify the owner read`).toBeTruthy()
+      expect(body).toContain('ownershipScopedFetch')
+      expect(body).toContain('/store/sellers/')
+      expect(body).toContain('/products/')
+      expect(body).not.toContain('/store/listings')
+      expect(body).not.toContain('marketCatalogFetch')
+    })
+  }
+
+  test('marketplace price-grid is classified and verifies its market echo', () => {
+    const body = byName.get('getPriceGridCached')
+    expect(body, 'getPriceGridCached no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('marketCatalogFetch')
+    expect(body).toContain('takeMarketScopedField')
+    expect(body).not.toContain('ownershipScopedFetch')
+    expect(body).not.toContain('medusaFetch(')
+  })
+
+  test('tenant PDP selection comes only from the trusted middleware header', () => {
+    const source = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'l', '[id]', 'page.tsx'), 'utf8'))
+    const listingPage = topLevelBlocks(source).find((block) => block.name === 'ListingPage')?.body
+    expect(listingPage, 'ListingPage no longer exists — re-point this guard').toBeTruthy()
+    expect(listingPage).toContain("get('x-miyagi-shop-slug')")
+    expect(listingPage).toContain('getOwnedShopListing(channelSlug, id)')
+    expect(listingPage).toContain('getOwnedShopPriceGrid(channelSlug, id)')
+    expect(listingPage).not.toContain('searchParams')
+  })
+
+  test('artwork upload propagates the trusted header and never reads a form seller slug', () => {
+    const source = stripComments(readFileSync(join(ROOT, 'app', 'api', 'artwork', 'upload', 'route.ts'), 'utf8'))
+    expect(source).toContain("req.headers.get('x-miyagi-shop-slug')")
+    expect(source).toContain('sellerSlug: trustedSellerSlug')
+    expect(source).not.toMatch(/formData\.get\(['"]sellerSlug['"]\)/)
+  })
+
+  test('owned shop display currency is the validated seller contract, with no MXN fallback', () => {
+    const body = byName.get('getShopListings')
+    expect(body, 'getShopListings no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('readPublicSellerMarket')
+    expect(body).toContain('selectBaseSellerPrice')
+    expect(body).toContain('sellerMarket.currency_code.toUpperCase()')
+    expect(body).not.toMatch(/['"]mxn['"]/i)
+    expect(body).not.toContain('prices[0]')
+  })
+
+  test('facet projection is market-echo checked', () => {
+    const body = byName.get('getAutoFacets')
+    expect(body, 'getAutoFacets no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain("'facet_pool'")
+    expect(body).toContain('takeMarketScopedField')
+  })
+
+  for (const name of ['searchListings', 'countListings']) {
+    test(`${name} preserves only structured non-2xx market refusals`, () => {
+      const body = byName.get(name)
+      expect(body, `${name} no longer exists — re-point this guard`).toBeTruthy()
+      expect(body).toContain('unavailableResponseOrThrow')
+      expect(body).toContain('marketMetaUnavailable')
+    })
+  }
+})
 
 test.describe('population guard · every market-scoped read VERIFIES, not just fetches', () => {
   /**

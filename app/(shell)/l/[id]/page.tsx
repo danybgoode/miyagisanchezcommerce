@@ -2,7 +2,15 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, getShopListings, getPriceGrid, formatPrice, conditionLabel } from '@/lib/listings'
+import {
+  getListing,
+  getOwnedShopListing,
+  getOwnedShopPriceGrid,
+  getShopListings,
+  getPriceGrid,
+  formatPrice,
+  conditionLabel,
+} from '@/lib/listings'
 import ConfiguratorBuyBox from './ConfiguratorBuyBox'
 import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
@@ -58,7 +66,10 @@ import type { Metadata } from 'next'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   if (!isLikelyListingId(id)) return { title: 'Anuncio no encontrado' }
-  const listing = await getListing(id)
+  const channelSlug = (await headers()).get('x-miyagi-shop-slug')
+  const listing = channelSlug
+    ? await getOwnedShopListing(channelSlug, id)
+    : await getListing(id)
   if (!listing) return { title: 'Anuncio no encontrado' }
   // Canonical follows the seller's live custom domain when set, so the product
   // ranks under the brand domain rather than the marketplace mirror.
@@ -106,10 +117,31 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // guard also covers custom-domain / subdomain channels, where /l/[id] passes
   // through middleware untouched.
   if (!isLikelyListingId(id)) notFound()
-  const [listing, clerkUser, priceGrid, configuratorFlagOn] = await Promise.all([
-    getListing(id), currentUser(), getPriceGrid(id), isEnabled('configurator.enabled'),
+  const reqHeaders = await headers()
+  const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
+  const [listing, clerkUser, priceGridResult, configuratorFlagOn] = await Promise.all([
+    channelSlug ? getOwnedShopListing(channelSlug, id) : getListing(id),
+    currentUser(),
+    channelSlug ? getOwnedShopPriceGrid(channelSlug, id) : getPriceGrid(id),
+    isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
+  const ownedPriceGrid = priceGridResult && 'market_code' in priceGridResult
+    ? priceGridResult
+    : null
+  const marketplacePriceGrid = priceGridResult && !('market_code' in priceGridResult)
+    ? priceGridResult
+    : null
+  if (
+    channelSlug &&
+    ownedPriceGrid &&
+    ownedPriceGrid.market_code !== listing.shop?.market_code
+  ) {
+    notFound()
+  }
+  const priceGrid = channelSlug
+    ? ownedPriceGrid?.price_grid ?? null
+    : marketplacePriceGrid
 
   // Consent-safe previews: the PDP is the LAST public surface that could reveal a
   // product belonging to a shop still awaiting its merchant's approval.
@@ -166,8 +198,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // PDP is reached on a custom domain (channel slug set by middleware) but the
   // product belongs to another shop, render the white-label not-found instead of
   // leaking a different seller's listing under this brand.
-  const reqHeaders = await headers()
-  const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
   const onChannel = !!channelSlug
   if (onChannel && listing.shop?.slug !== channelSlug) notFound()
   // On a custom domain the buyer can't sign in / pay (Clerk is platform-only), so
