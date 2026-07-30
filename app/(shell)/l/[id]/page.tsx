@@ -2,14 +2,21 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, getShopListings, getPriceGrid, formatPrice, conditionLabel } from '@/lib/listings'
+import {
+  getListing,
+  getOwnedShopListing,
+  getOwnedShopPriceGrid,
+  getShopListings,
+  getPriceGrid,
+  formatPrice,
+  conditionLabel,
+} from '@/lib/listings'
 import ConfiguratorBuyBox from './ConfiguratorBuyBox'
 import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
-import { getShopStripe } from '@/lib/stripe'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import { isShopClaimed } from '@/lib/claim'
 import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import BuyButton from '@/app/components/BuyButton'
@@ -46,6 +53,8 @@ import { excerptModel } from '@/lib/excerpt'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
 import { formatOfferAmount } from '@/lib/offers'
+import { resolveOwnedPriceGridForPdp } from '@/lib/owned-market'
+import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
 import { isEnabled } from '@/lib/flags'
 import { derivePdpBarMode } from '@/lib/pdp-bar'
@@ -58,7 +67,10 @@ import type { Metadata } from 'next'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   if (!isLikelyListingId(id)) return { title: 'Anuncio no encontrado' }
-  const listing = await getListing(id)
+  const channelSlug = (await headers()).get('x-miyagi-shop-slug')
+  const listing = channelSlug
+    ? await getOwnedShopListing(channelSlug, id)
+    : await getListing(id)
   if (!listing) return { title: 'Anuncio no encontrado' }
   // Canonical follows the seller's live custom domain when set, so the product
   // ranks under the brand domain rather than the marketplace mirror.
@@ -106,10 +118,22 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // guard also covers custom-domain / subdomain channels, where /l/[id] passes
   // through middleware untouched.
   if (!isLikelyListingId(id)) notFound()
-  const [listing, clerkUser, priceGrid, configuratorFlagOn] = await Promise.all([
-    getListing(id), currentUser(), getPriceGrid(id), isEnabled('configurator.enabled'),
+  const reqHeaders = await headers()
+  const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
+  const [listing, clerkUser, priceGridResult, configuratorFlagOn] = await Promise.all([
+    channelSlug ? getOwnedShopListing(channelSlug, id) : getListing(id),
+    currentUser(),
+    channelSlug ? getOwnedShopPriceGrid(channelSlug, id) : getPriceGrid(id),
+    isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
+  const priceGrid: PriceGrid | null = channelSlug
+    ? resolveOwnedPriceGridForPdp(priceGridResult, listing.shop?.market_code)
+    : readPriceGrid(priceGridResult)
+  // The backend returns a real grid even for a flat product (one variant/base
+  // tier). Therefore null on a tenant channel means unavailable, malformed, wrong
+  // product, or wrong market — never permission to fall through to plain checkout.
+  if (channelSlug && !priceGrid) notFound()
 
   // Consent-safe previews: the PDP is the LAST public surface that could reveal a
   // product belonging to a shop still awaiting its merchant's approval.
@@ -166,8 +190,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // PDP is reached on a custom domain (channel slug set by middleware) but the
   // product belongs to another shop, render the white-label not-found instead of
   // leaking a different seller's listing under this brand.
-  const reqHeaders = await headers()
-  const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
   const onChannel = !!channelSlug
   if (onChannel && listing.shop?.slug !== channelSlug) notFound()
   // On a custom domain the buyer can't sign in / pay (Clerk is platform-only), so
@@ -200,9 +222,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const isPrintPlacement = listing.metadata?.is_print_placement === true
   const printEditionId = listing.metadata?.print_edition_id as string | undefined
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
-  const stripeSettings = getShopStripe(shopMeta)
-  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = sellerHasMpConnected(shopMeta)
+  const paymentAvailability = publicShopPaymentAvailability(shopMeta)
+  const sellerHasStripe = paymentAvailability.stripe
+  const sellerHasMp = paymentAvailability.mercadopago
+  const hasBankTransfer = paymentAvailability.bankTransfer
+  const hasDimo = paymentAvailability.dimo
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status
@@ -217,7 +241,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     whatsapp_cta?: boolean
     show_email?: boolean
     contact_email?: string | null
-    bank_transfer?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null }
   } | undefined
   const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null }; accent_color?: string | null } | undefined
   // Own-shop premium presentation (epic 07, Sprint 1, Story 1.3) — applies the
@@ -261,19 +284,19 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
     ? storedTiers
     : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
-  const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
   const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
   const hasDirectContact = !!(whatsappPhone || visiblePhone || contactEmail || bookingUrl)
   const paymentMethods = [
     sellerHasMp && !isDigital && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
     sellerHasStripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
-    hasClabe && { icon: 'iconoir-bank', label: 'SPEI', note: checkoutSettings?.bank_transfer?.bank_name ?? 'Transferencia bancaria' },
+    hasBankTransfer && { icon: 'iconoir-bank', label: 'SPEI', note: 'Transferencia bancaria' },
+    hasDimo && { icon: 'iconoir-smartphone-device', label: 'DiMo', note: 'Transferencia por teléfono' },
     whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
     bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
   // Seller offers at least one online/selectable payment path → show the single
   // "Comprar ahora" button (the checkout page is the method chooser).
-  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasClabe
+  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo
   const fulfillmentMethods = [
     shippingSettings?.local_pickup && {
       icon: 'iconoir-shop',
@@ -424,7 +447,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     currency: listing.currency,
     imageUrl: listing.images?.[0]?.url ?? null,
     listing_type: listing.listing_type,
-    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
+    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
   } : null
 
   const bundleListings = showBuyButtons && listing.shop?.slug
@@ -454,7 +477,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       currency: item.currency,
       imageUrl: item.images?.[0]?.url ?? null,
       listing_type: item.listing_type,
-      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
+      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
     })),
   ] : []
 
@@ -1142,7 +1165,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               tiers={subTiers}
               shopName={listing.shop?.name ?? ''}
               hasStripe={sellerHasStripe}
-              hasClabe={hasClabe}
+              hasBankTransfer={hasBankTransfer}
               hasMp={sellerHasMp}
               isSignedIn={isSignedIn}
               buyerDisplayName={clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') : undefined}

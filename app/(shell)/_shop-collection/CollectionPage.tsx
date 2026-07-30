@@ -6,6 +6,7 @@ import { isLikelyCollectionSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { shortCollectionSlug } from '@/lib/collection-derive'
 import { readableTextOn } from '@/lib/platform-theme'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import AnnouncementBar from '../s/[slug]/AnnouncementBar'
 import ShopCollectionNav from '../s/[slug]/ShopCollectionNav'
 import ClosetListingCard from '../s/[slug]/ClosetListingCard'
@@ -62,9 +63,7 @@ export default async function CollectionPage({
   const themePreset = settings.theme_preset as string | null | undefined
   const accent = theme.accent_color ?? 'var(--color-accent)'
   const accentTextColor = readableTextOn(theme.accent_color ?? undefined)
-  const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
-  const stripeSettings = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
-  const sellerHasStripe = !!(stripeSettings.enabled !== false && stripeSettings.charges_enabled && stripeSettings.account_id)
+  const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
 
   return (
     <div data-shop-preset={themePreset || undefined}>
@@ -110,7 +109,11 @@ export default async function CollectionPage({
                   currency: listing.currency ?? 'MXN',
                   imageUrl: listing.images?.[0]?.url ?? null,
                   listing_type: listing.listing_type ?? 'product',
-                  paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled },
+                  paymentMethods: {
+                    stripe: paymentAvailability.stripe,
+                    mp: paymentAvailability.mercadopago,
+                    spei: paymentAvailability.bankTransfer,
+                  },
                   href: `/l/${listing.id}`,
                   formattedPrice: formatPrice(listing),
                   status: listing.status,
