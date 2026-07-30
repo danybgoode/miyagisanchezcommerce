@@ -184,13 +184,19 @@ test.describe('public Shop consumer population guard', () => {
     }
   })
 
-  test('public UCP checkout discovery reads only the sanitized Shop projection', () => {
+  test('public UCP checkout discovery reads only bridge IDs plus the sanitized Shop projection', () => {
     const route = stripComments(readFileSync(
       join(ROOT, 'app/api/ucp/checkout-session/route.ts'),
       'utf8',
     ))
+    const mirrorSelect = route.match(
+      /\.from\('marketplace_listings'\)[\s\S]*?\.select\('([^']+)'\)/,
+    )?.[1]
 
-    expect(route).toContain(".select('*, shop:marketplace_shops(slug)')")
+    expect(mirrorSelect).toBe('id, medusa_product_id, shop:marketplace_shops(slug)')
+    expect(mirrorSelect).not.toMatch(
+      /\b(?:price_cents|currency|listing_type|metadata|attrs|status|manage_inventory|available_quantity|reserved_quantity)\b/,
+    )
     expect(route).toContain('await getShop(sellerSlug)')
     expect(route).toContain('publicShopPaymentAvailability(shopMeta)')
     expect(route).not.toMatch(/marketplace_shops\([^)]*\bmetadata\b/)
