@@ -1,4 +1,5 @@
 import type { MarketCode, MarketplaceStatus } from './markets'
+import type { PublicShopMetadata } from './public-shop-commerce'
 
 export type Shop = {
   id: string
@@ -11,7 +12,7 @@ export type Shop = {
   verified: boolean
   source: string | null
   source_url: string | null
-  metadata: Record<string, unknown> | null
+  metadata: PublicShopMetadata | null
   created_at: string
   /** Sanitized public operating-market projection. Raw metadata is not a contract. */
   market_code?: MarketCode

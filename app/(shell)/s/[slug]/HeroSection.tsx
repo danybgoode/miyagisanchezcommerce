@@ -25,8 +25,8 @@ export default function HeroSection({
   accent,
   textColor,
   sellerHasStripe,
-  mpEnabled,
-  hasClabe,
+  sellerHasMp,
+  hasBankTransfer,
 }: {
   hero: HeroSettings | null | undefined
   listings: Listing[]
@@ -34,8 +34,8 @@ export default function HeroSection({
   accent: string
   textColor: string
   sellerHasStripe: boolean
-  mpEnabled: boolean
-  hasClabe: boolean
+  sellerHasMp: boolean
+  hasBankTransfer: boolean
 }) {
   if (!hero) return null
 
@@ -64,7 +64,7 @@ export default function HeroSection({
                 currency: listing.currency ?? 'MXN',
                 imageUrl: listing.images?.[0]?.url ?? null,
                 listing_type: listing.listing_type ?? 'product',
-                paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
+                paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
                 href: `/l/${listing.id}`,
                 formattedPrice: formatPrice(listing),
                 status: listing.status,

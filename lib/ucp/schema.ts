@@ -21,6 +21,7 @@ import { shortCollectionSlug } from '@/lib/collection-derive'
 import { hasExcerpt } from '@/lib/excerpt'
 import type { PriceGrid } from '@/lib/price-grid'
 import { deriveInventoryMode } from '@/lib/inventory-mode'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -225,10 +226,9 @@ export function toUcpListing(
 
   // ── Payment methods ─────────────────────────────────────────────────────────
   const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
-  const stripeSettings = (shopMeta.settings as Record<string, unknown> | undefined)?.stripe as
-    { enabled?: boolean; charges_enabled?: boolean; account_id?: string } | undefined
-  const hasMp = (shopMeta.mp_enabled as boolean | undefined) !== false
-  const hasStripe = !!(stripeSettings?.enabled !== false && stripeSettings?.charges_enabled && stripeSettings.account_id)
+  const paymentAvailability = publicShopPaymentAvailability(shopMeta)
+  const hasMp = paymentAvailability.mercadopago
+  const hasStripe = paymentAvailability.stripe
 
   // ── Escrow ──────────────────────────────────────────────────────────────────
   const escrowMode = ((shopMeta.settings as Record<string, unknown> | undefined)

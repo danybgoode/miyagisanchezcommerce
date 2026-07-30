@@ -18,6 +18,7 @@ import { resolveEmbedShop, embedKeyFromRequest } from '@/lib/embed-auth'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
+import { getShop } from '@/lib/listings'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,7 +43,8 @@ export async function GET(req: NextRequest) {
   }
 
   const key = embedKeyFromRequest(req)
-  const shop = await resolveEmbedShop(key)
+  const resolved = await resolveEmbedShop(key)
+  const shop = resolved?.slug ? await getShop(resolved.slug) : null
 
   if (!shop) {
     return NextResponse.json({ valid: false }, { status: 404, headers: CORS })

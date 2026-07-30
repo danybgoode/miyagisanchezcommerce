@@ -16,8 +16,7 @@ import { isLikelyListingId } from '@/lib/route-shape'
 import { listingTypeFrame } from '@/lib/listing-query'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
 import { checkoutHopHref, signInHopHref } from '@/lib/checkout-hop'
-import { getShopStripe } from '@/lib/stripe'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import { isShopClaimed } from '@/lib/claim'
 import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import BuyButton from '@/app/components/BuyButton'
@@ -223,9 +222,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const isPrintPlacement = listing.metadata?.is_print_placement === true
   const printEditionId = listing.metadata?.print_edition_id as string | undefined
   const shopMeta = listing.shop?.metadata as Record<string, unknown> | null
-  const stripeSettings = getShopStripe(shopMeta)
-  const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
-  const sellerHasMp = sellerHasMpConnected(shopMeta)
+  const paymentAvailability = publicShopPaymentAvailability(shopMeta)
+  const sellerHasStripe = paymentAvailability.stripe
+  const sellerHasMp = paymentAvailability.mercadopago
+  const hasBankTransfer = paymentAvailability.bankTransfer
+  const hasDimo = paymentAvailability.dimo
   const hasBuyablePrice = !!(listing.price_cents && listing.price_cents > 0)
   const repuve = listing.metadata?.repuve as { status?: string; folio?: string; verified_at?: string } | undefined
   const showRepuve = listing.category === 'autos' && !!repuve?.status
@@ -240,7 +241,6 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     whatsapp_cta?: boolean
     show_email?: boolean
     contact_email?: string | null
-    bank_transfer?: { clabe?: string | null; bank_name?: string | null; account_holder?: string | null }
   } | undefined
   const themeSettings = shopSettings.theme as { social?: { whatsapp?: string | null }; accent_color?: string | null } | undefined
   // Own-shop premium presentation (epic 07, Sprint 1, Story 1.3) — applies the
@@ -284,19 +284,19 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
     ? storedTiers
     : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
-  const hasClabe = !!(checkoutSettings?.bank_transfer?.clabe?.trim() && checkoutSettings.bank_transfer.clabe.trim().length === 18)
   const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
   const hasDirectContact = !!(whatsappPhone || visiblePhone || contactEmail || bookingUrl)
   const paymentMethods = [
     sellerHasMp && !isDigital && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
     sellerHasStripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
-    hasClabe && { icon: 'iconoir-bank', label: 'SPEI', note: checkoutSettings?.bank_transfer?.bank_name ?? 'Transferencia bancaria' },
+    hasBankTransfer && { icon: 'iconoir-bank', label: 'SPEI', note: 'Transferencia bancaria' },
+    hasDimo && { icon: 'iconoir-smartphone-device', label: 'DiMo', note: 'Transferencia por teléfono' },
     whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
     bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
   // Seller offers at least one online/selectable payment path → show the single
   // "Comprar ahora" button (the checkout page is the method chooser).
-  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasClabe
+  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo
   const fulfillmentMethods = [
     shippingSettings?.local_pickup && {
       icon: 'iconoir-shop',
@@ -447,7 +447,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     currency: listing.currency,
     imageUrl: listing.images?.[0]?.url ?? null,
     listing_type: listing.listing_type,
-    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
+    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
   } : null
 
   const bundleListings = showBuyButtons && listing.shop?.slug
@@ -477,7 +477,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       currency: item.currency,
       imageUrl: item.images?.[0]?.url ?? null,
       listing_type: item.listing_type,
-      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasClabe },
+      paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
     })),
   ] : []
 
@@ -1165,7 +1165,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               tiers={subTiers}
               shopName={listing.shop?.name ?? ''}
               hasStripe={sellerHasStripe}
-              hasClabe={hasClabe}
+              hasBankTransfer={hasBankTransfer}
               hasMp={sellerHasMp}
               isSignedIn={isSignedIn}
               buyerDisplayName={clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') : undefined}

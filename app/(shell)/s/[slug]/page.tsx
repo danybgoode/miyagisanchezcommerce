@@ -17,6 +17,7 @@ import ShopContentLinks from './ShopContentLinks'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
@@ -149,7 +150,6 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const scheduling = (settings.scheduling ?? {}) as { links?: Array<{ label?: string; url?: string }> }
   const calcom = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
   const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
-  const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
   // Own-shop premium presentation (epic 07, Sprint 1) — absent keys render today's storefront.
   const announcement = settings.announcement as AnnouncementSettings | null | undefined
   const hero = settings.hero as HeroSettings | null | undefined
@@ -163,10 +163,11 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
     returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: 'Políticas' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
-  const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
-  const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
-  const checkoutSett = (settings.checkout ?? {}) as { bank_transfer?: { clabe?: string | null } }
-  const hasClabe = !!(checkoutSett.bank_transfer?.clabe?.trim() && checkoutSett.bank_transfer.clabe.trim().length === 18)
+  const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
+  const sellerHasStripe = paymentAvailability.stripe
+  const sellerHasMp = paymentAvailability.mercadopago
+  const hasBankTransfer = paymentAvailability.bankTransfer
+  const hasDimo = paymentAvailability.dimo
   const hasPickup = !!shipping.local_pickup
   const hasScheduling = !!(calcom.connected && calcom.booking_url) || !!scheduling.links?.some(link => link.url)
   const returnsLabel = returnsPolicy?.window === '7d' ? '7 días'
@@ -314,8 +315,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
         accent={accent}
         textColor={accentTextColor}
         sellerHasStripe={sellerHasStripe}
-        mpEnabled={mpEnabled}
-        hasClabe={hasClabe}
+        sellerHasMp={sellerHasMp}
+        hasBankTransfer={hasBankTransfer}
       />
 
       {/* ── Collection nav strip (own-shop premium presentation, Sprint 2) ───── */}
@@ -331,10 +332,12 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">
-        {(mpEnabled || sellerHasStripe || hasPickup || hasScheduling || returnsLabel) && (
+        {(sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo || hasPickup || hasScheduling || returnsLabel) && (
           <div className="flex flex-wrap gap-2 mb-5">
-            {mpEnabled && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
+            {sellerHasMp && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
             {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Tarjeta</span>}
+            {hasBankTransfer && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">SPEI</span>}
+            {hasDimo && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">DiMo</span>}
             {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Pickup{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
             {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? 'Agenda disponible'}</span>}
             {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700">Devoluciones {returnsLabel}</span>}
@@ -364,7 +367,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                     currency: listing.currency ?? 'MXN',
                     imageUrl: listing.images?.[0]?.url ?? null,
                     listing_type: listing.listing_type ?? 'product',
-                    paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
+                    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
                     href: `/l/${listing.id}`,
                     formattedPrice: formatPrice(listing),
                     status: listing.status,

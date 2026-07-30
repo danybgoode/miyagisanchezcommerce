@@ -3,8 +3,8 @@ import { embedKeyFromRequest, looksLikeEmbedKey, resolveEmbedShop } from '@/lib/
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { coerceSupportSettings, validateSupportContribution } from '@/lib/support-widget'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
-import { getShopStripe } from '@/lib/stripe'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { getShop } from '@/lib/listings'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,11 +44,9 @@ function originDomain(req: NextRequest): string | undefined {
 }
 
 function providerAvailable(provider: CheckoutProvider, metadata: Record<string, unknown> | null) {
-  if (provider === 'stripe') {
-    const stripe = getShopStripe(metadata)
-    return !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
-  }
-  if (provider === 'mercadopago') return sellerHasMpConnected(metadata)
+  const paymentAvailability = publicShopPaymentAvailability(metadata)
+  if (provider === 'stripe') return paymentAvailability.stripe
+  if (provider === 'mercadopago') return paymentAvailability.mercadopago
   return false
 }
 
@@ -73,7 +71,8 @@ export async function POST(req: NextRequest) {
   }
 
   const key = embedKeyFromRequest(req) ?? (looksLikeEmbedKey(body.embed_key) ? body.embed_key : null)
-  const shop = await resolveEmbedShop(key)
+  const resolved = await resolveEmbedShop(key)
+  const shop = resolved?.slug ? await getShop(resolved.slug) : null
   const metadata = (shop?.metadata ?? null) as Record<string, unknown> | null
   const settings = (metadata?.settings ?? {}) as Record<string, unknown>
   const support = coerceSupportSettings(settings.support)
