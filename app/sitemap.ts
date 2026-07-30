@@ -5,6 +5,7 @@ import { shortCollectionSlug } from '@/lib/collection-derive'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { PLATFORM_SITEMAP_ENTRIES } from '@/lib/market-sitemap'
+import { listingUrlFor, marketplaceUrl } from '@/lib/market-url'
 
 export function platformSitemap(): MetadataRoute.Sitemap {
   const base = 'https://miyagisanchez.com'
@@ -62,19 +63,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       contentPaths = []
     }
     return [
-      { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
+      { url: marketplaceUrl(base, '/'), changeFrequency: 'daily', priority: 1 },
       ...listings.map((l) => ({
-        url: `${base}/mx/l/${l.id}`,
+        url: listingUrlFor(base, l.id),
         changeFrequency: 'weekly' as const,
         priority: 0.8,
       })),
       ...collections.map((c) => ({
-        url: `${base}/c/${shortCollectionSlug(c.handle, shopSlug)}`,
+        url: marketplaceUrl(base, `/c/${shortCollectionSlug(c.handle, shopSlug)}`),
         changeFrequency: 'weekly' as const,
         priority: 0.7,
       })),
       ...contentPaths.map((p) => ({
-        url: `${base}${p}`,
+        url: marketplaceUrl(base, p),
         changeFrequency: 'monthly' as const,
         priority: 0.6,
       })),

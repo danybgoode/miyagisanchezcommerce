@@ -26,7 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { getPriceGrid } from '@/lib/listings'
-import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines } from '@/lib/price-grid'
+import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines, type PriceGrid } from '@/lib/price-grid'
 import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
@@ -1267,6 +1267,20 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
 
+  // A configured listing must prove its price ladder in the requested market
+  // before the general checkout-session lookup. Besides avoiding a redundant
+  // write-path attempt, this preserves the configurator's actionable "no price
+  // grid" response when the listing is absent or unpublished in this market.
+  // The checkout-session boundary still runs below for every grid that exists,
+  // so this does not weaken Sales Channel validation before cart creation.
+  let configuredPriceGrid: PriceGrid | null = null
+  if (args.variant_id) {
+    configuredPriceGrid = await getPriceGrid(listingId, marketDecision.market.code)
+    if (!configuredPriceGrid) {
+      return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
+    }
+  }
+
   // All buyer checkout creation starts with the same market-scoped discovery
   // boundary as get_checkout_options. This verifies Sales Channel membership
   // before either a flat gateway checkout or a configured Medusa cart can write.
@@ -1283,7 +1297,7 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     const data = await validation.json() as {
       listing?: { listing_type?: string }
       unavailable?: boolean
-      error?: string
+      error?: unknown
     }
     if (!validation.ok) {
       if (data.unavailable) {
@@ -1291,7 +1305,10 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
       }
       return {
         isError: true,
-        content: [{ type: 'text', text: `Checkout failed: ${data.error ?? validation.status}` }],
+        content: [{
+          type: 'text',
+          text: `Checkout failed: ${publicCheckoutError(data.error, `Unable to validate listing (${validation.status})`)}`,
+        }],
       }
     }
     marketSession = data
@@ -1304,7 +1321,7 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   // the flat MP/Stripe preference below can't compute a tier price at all
   // (custom-print-products S4 · 4.2).
   if (args.variant_id) {
-    return handleCreateConfiguredCheckout(args, marketDecision.market.code)
+    return handleCreateConfiguredCheckout(args, marketDecision.market.code, configuredPriceGrid!)
   }
 
   // Rental guard (S3.1 cross-review catch): this endpoint charges a bare
@@ -1329,8 +1346,8 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
 
   try {
     const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json() as { checkoutUrl?: string; error?: string }
-    if (!res.ok || !data.checkoutUrl) return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${data.error ?? 'Unknown error'}` }] }
+    const data = await res.json() as { checkoutUrl?: string; error?: unknown }
+    if (!res.ok || !data.checkoutUrl) return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${publicCheckoutError(data.error, 'Unknown error')}` }] }
     return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n**Abre este enlace para completar el pago:**\n${data.checkoutUrl}\n\nEl enlace es válido por 30 minutos.` }] }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
@@ -1354,7 +1371,33 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
 // into per-cause strings.
 const ARTWORK_DOWNLOAD_ERROR = 'No pudimos descargar o validar el archivo de artwork_url. Usa una URL pública https:// que apunte directo a la imagen.'
 
-async function handleCreateConfiguredCheckout(args: Record<string, unknown>, marketCode: MarketCode) {
+/**
+ * Convert the deliberately loose error shapes returned by gateway/session
+ * boundaries into one short public message. Read only `message`/`error`; never
+ * stringify the full object, whose sibling fields may contain request details
+ * or credentials. Common credential assignments are redacted as a final guard.
+ */
+function publicCheckoutError(value: unknown, fallback: string): string {
+  const readMessage = (candidate: unknown, depth = 0): string | null => {
+    if (typeof candidate === 'string') {
+      const normalized = candidate.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
+      return normalized || null
+    }
+    if (!candidate || typeof candidate !== 'object' || depth >= 2) return null
+    const record = candidate as Record<string, unknown>
+    return readMessage(record.message, depth + 1) ?? readMessage(record.error, depth + 1)
+  }
+  return (readMessage(value) ?? fallback)
+    .replace(/\b(Bearer)\s+\S+/gi, '$1 [redacted]')
+    .replace(/\b(api[_ -]?key|authorization|password|secret|token)(\s*[:=]\s*)[^\s,;]+/gi, '$1$2[redacted]')
+    .slice(0, 240)
+}
+
+async function handleCreateConfiguredCheckout(
+  args: Record<string, unknown>,
+  marketCode: MarketCode,
+  priceGrid: PriceGrid,
+) {
   const listingId = String(args.listing_id ?? '')
   const variantId = String(args.variant_id ?? '')
   const quantity = Math.max(1, Math.floor(Number(args.quantity ?? 1)) || 1)
@@ -1362,10 +1405,6 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>, mar
   const provider: CheckoutProvider = method === 'stripe' ? 'stripe' : 'mercadopago'
   const buyerEmail = args.buyer_email ? String(args.buyer_email) : undefined
 
-  const priceGrid = await getPriceGrid(listingId, marketCode)
-  if (!priceGrid) {
-    return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
-  }
   const variant = priceGrid.variants.find(v => v.id === variantId)
   if (!variant) {
     return { isError: true, content: [{ type: 'text', text: `variant_id "${variantId}" was not found on this listing's price_grid — call get_listing again for the current variant ids.` }] }
@@ -1430,7 +1469,7 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>, mar
     }
     return { content: [{ type: 'text', text: `✅ Order created (pago directo).\n\n${restatement}\n\nOrder: ${result.cart_id}` }] }
   } catch (e) {
-    return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${(e as Error).message}` }] }
+    return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${publicCheckoutError(e, 'Unable to create configured checkout')}` }] }
   }
 }
 
