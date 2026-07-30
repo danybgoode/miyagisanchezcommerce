@@ -182,7 +182,7 @@ test.describe('population guard · the market-scoped seam has no bare catalog fe
     const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
     expect(stripped).toContain("from './market-catalog'")
     expect(stripped).toContain('planMarketCatalogRead')
-    expect(stripped).toContain('verifyMarketFilter')
+    expect(stripped).toContain('takeMarketScopedField')
   })
 
   test('owned-shop reads are NOT market-scoped (D4)', () => {
@@ -194,6 +194,143 @@ test.describe('population guard · the market-scoped seam has no bare catalog fe
       expect(match[1], match[1]).not.toContain('market')
     }
     expect(stripped).toContain('/store/sellers/')
+  })
+})
+
+/**
+ * Split a source file into its TOP-LEVEL declarations. Nested declarations are
+ * indented and a top-level one starts at column 0, so a column-anchored regex is
+ * enough here and needs no parser. Each block runs to the start of the next
+ * declaration, which is what makes "does THIS function verify" answerable instead
+ * of "does the file contain the word somewhere" — the whole-file version is what
+ * let a missing check hide next to six correct ones (`LEARNINGS.md`: anchor a
+ * source-text guard inside the function, never across the file).
+ */
+function topLevelBlocks(source: string): Array<{ name: string; body: string }> {
+  const lines = source.split('\n')
+  const DECL = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type)\s+(\w+)/
+  const starts: Array<{ name: string; line: number }> = []
+  lines.forEach((line, index) => {
+    const match = DECL.exec(line)
+    if (match) starts.push({ name: match[1], line: index })
+  })
+  return starts.map((start, index) => ({
+    name: start.name,
+    body: lines.slice(start.line, index + 1 < starts.length ? starts[index + 1].line : lines.length).join('\n'),
+  }))
+}
+
+test.describe('population guard · every market-scoped read VERIFIES, not just fetches', () => {
+  /**
+   * The round-one guard proved every catalog read went THROUGH `marketCatalogFetch`.
+   * It did not prove any of them checked the market echo afterwards — and one did
+   * not: the curated homepage pool fetched through the seam and returned
+   * `data.listings` unverified, on the highest-traffic surface in the app. That is
+   * guarding the door instead of the population, one level in.
+   *
+   * So: every top-level block that CALLS `marketCatalogFetch` must also confirm the
+   * market, by either `takeMarketScopedField` (which returns the rows and the
+   * verdict together) or a bare `verifyMarketFilter`. An exemption is allowed, but
+   * it is not a free pass — it must name the block that does the verifying on its
+   * behalf, and that block is then asserted to actually do it.
+   */
+  // Matched as CALLS, tolerating an explicit generic argument
+  // (`takeMarketScopedField<Listing[]>(...)`). Pinning the bare `name(` spelling
+  // failed on correct code the first time this ran — a guard must assert the
+  // invariant ("this block confirms the market"), not one way of writing it
+  // (`LEARNINGS.md`: three of five source-text guard failures were the assertion's
+  // fault, not the code's).
+  const VERIFIERS = [
+    /\btakeMarketScopedField\s*(?:<[^>()]*>)?\s*\(/,
+    /\bverifyMarketFilter\s*(?:<[^>()]*>)?\s*\(/,
+  ]
+  const verifies = (body: string) => VERIFIERS.some((pattern) => pattern.test(body))
+
+  /** block name → the block that verifies for it. Both sides are checked. */
+  const VERIFIED_ELSEWHERE: Record<string, { reason: string; verifiedBy: string }> = {
+    marketCatalogFetch: {
+      reason: 'This IS the fetch helper — its own definition names itself; there is no response here to verify.',
+      // Its own body must NOT verify; the check belongs to each caller. Pointing at
+      // itself keeps the map total without inventing a fake verifier.
+      verifiedBy: 'marketCatalogFetch',
+    },
+  }
+
+  const LISTINGS = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+  const BLOCKS = topLevelBlocks(LISTINGS)
+  const byName = new Map(BLOCKS.map((block) => [block.name, block]))
+
+  const fetchers = BLOCKS.filter((block) => block.body.includes('marketCatalogFetch('))
+
+  test('the block scan found the fetchers (it is not vacuous)', () => {
+    expect(fetchers.length).toBeGreaterThan(4)
+    expect(fetchers.map((block) => block.name)).toContain('fetchListings')
+  })
+
+  for (const block of fetchers) {
+    test(`${block.name} — fetches the market catalog AND confirms the market`, () => {
+      const exemption = VERIFIED_ELSEWHERE[block.name]
+      if (exemption && exemption.verifiedBy !== block.name) {
+        const verifier = byName.get(exemption.verifiedBy)
+        expect(verifier, `${block.name} claims ${exemption.verifiedBy} verifies for it, but no such block exists`).toBeTruthy()
+        expect(
+          verifies(verifier!.body),
+          `${block.name} is exempt because "${exemption.reason}" — but ${exemption.verifiedBy} does not verify either`,
+        ).toBe(true)
+        return
+      }
+      if (exemption) return // self-referential exemption: the helper itself, no response in scope
+      expect(
+        verifies(block.body),
+        `${block.name} reads the market catalog but never confirms the market. Use takeMarketScopedField, ` +
+        'or add a VERIFIED_ELSEWHERE entry naming the block that verifies on its behalf.',
+      ).toBe(true)
+    })
+  }
+
+  test('no exemption is stale — every entry names a block that still exists', () => {
+    for (const [name, exemption] of Object.entries(VERIFIED_ELSEWHERE)) {
+      expect(byName.has(name), `exemption for ${name}, which no longer exists`).toBe(true)
+      expect(byName.has(exemption.verifiedBy), `${name} points at missing ${exemption.verifiedBy}`).toBe(true)
+    }
+  })
+
+  test('the PDP read confirms the market BEFORE it records a view', () => {
+    /**
+     * `getListingCached` records a view as a side effect, and that write is inside
+     * the cache wrapper on purpose so a listing accrues roughly one view per
+     * revalidation window rather than one per render. Verifying after it meant a
+     * listing we then REFUSED to serve still had its view counter incremented —
+     * metrics for a product nobody was shown.
+     *
+     * The fix was ordering, not placement, so the guard is an ordering assertion,
+     * sliced to the function body first (`LEARNINGS.md`: an ordering guard compared
+     * across a whole file matches the IMPORT of the symbol, which precedes
+     * everything).
+     */
+    const block = byName.get('getListingCached')
+    expect(block, 'getListingCached no longer exists — re-point this guard').toBeTruthy()
+    const body = block!.body
+    const verifyAt = body.search(/\b(?:takeMarketScopedField|verifyMarketFilter)\s*(?:<[^>()]*>)?\s*\(/)
+    const viewAt = body.indexOf('/view')
+    expect(verifyAt, 'no market confirmation in getListingCached').toBeGreaterThan(-1)
+    expect(viewAt, 'no view write in getListingCached — re-point this guard').toBeGreaterThan(-1)
+    expect(verifyAt).toBeLessThan(viewAt)
+  })
+
+  test('taking rows out of a payload goes through the combined verify+extract call', () => {
+    // `takeMarketScopedField` exists so the rows and the verdict cannot be separated.
+    // A raw `data.listings` read in a market-scoped block is the two-step shape that
+    // regressed once already.
+    const offenders = fetchers
+      .filter((block) => !VERIFIED_ELSEWHERE[block.name])
+      // Catch both `data.listings` and a casted extraction such as
+      // `(data as { listings?: Listing[] }).listings`. The first mutation pass
+      // found that the simpler regex missed the latter and let the exact curated
+      // pool regression shape through.
+      .filter((block) => /\bdata(?:\s+as\s+[^)\n]+)?\)?\s*\.(?:listings|facet_pool|listing)\b/.test(block.body))
+      .map((block) => block.name)
+    expect(offenders).toEqual([])
   })
 })
 

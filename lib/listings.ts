@@ -13,9 +13,11 @@ import {
   marketMetaFor,
   marketMetaUnavailable,
   planMarketCatalogRead,
-  verifyMarketFilter,
+  takeMarketScopedField,
   type MarketScopedMeta,
+  type MarketUnavailable,
 } from './market-catalog'
+import { requireMarket, type MarketRecord } from './markets'
 import {
   pickFeatured,
   curateGrid,
@@ -68,6 +70,38 @@ function marketCatalogFetch(marketQuery: string, path: string, options?: Request
   return medusaFetch(`${path}${separator}${marketQuery}`, options)
 }
 
+/**
+ * Thrown when a response could not confirm its market, from INSIDE an
+ * `unstable_cache` body.
+ *
+ * The reads that are not cached simply return the unavailable state. The cached
+ * ones cannot: whatever their function returns is what the cache stores for the
+ * whole revalidation window, so returning a refusal there would persist it, and
+ * returning rows would persist rows from the wrong market. Throwing crosses the
+ * cache boundary without handing it a value to keep.
+ *
+ * Stated honestly, because it is the load-bearing bit: this does NOT depend on
+ * Next declining to cache a rejected promise. If it does decline, the next request
+ * re-fetches and recovers as soon as the backend is fixed; if it ever memoises the
+ * rejection instead, the window degrades to an empty pool. BOTH outcomes are
+ * fail-closed. The outcome that must be impossible — storing rows from a mismatched
+ * response — is impossible either way, because the rows are never returned.
+ */
+class MarketFilterUnconfirmedError extends Error {
+  readonly state: MarketUnavailable
+  constructor(state: MarketUnavailable) {
+    super(`Market filter unconfirmed (${state.reason}) for market ${state.market_code ?? 'unknown'}.`)
+    this.name = 'MarketFilterUnconfirmedError'
+    this.state = state
+  }
+}
+
+/** Re-raise anything that is not our own refusal — never swallow a real bug. */
+function unavailableStateOrRethrow(error: unknown): MarketUnavailable {
+  if (error instanceof MarketFilterUnconfirmedError) return error.state
+  throw error
+}
+
 export type MarketScopedListings = { listings: Listing[]; total: number; page: number } & MarketScopedMeta
 
 /**
@@ -97,13 +131,13 @@ export async function searchListings(
   }
 
   const data = await res.json()
-  const unconfirmed = verifyMarketFilter(decision.market, data)
-  if (unconfirmed) {
-    console.error('[listings] searchListings market filter unconfirmed', unconfirmed.reason)
-    return { listings: [], total: 0, page, ...marketMetaUnavailable(unconfirmed) }
+  const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(decision.market, data, 'listings', [])
+  if (unavailable) {
+    console.error('[listings] searchListings market filter unconfirmed', unavailable.reason)
+    return { listings, total: 0, page, ...marketMetaUnavailable(unavailable) }
   }
   return {
-    listings: data.listings ?? [],
+    listings,
     total: data.total ?? 0,
     page: data.page ?? page,
     ...marketMetaFor(decision.market),
@@ -137,9 +171,9 @@ export async function countListings(
   }
 
   const data = await res.json()
-  const unconfirmed = verifyMarketFilter(decision.market, data)
-  if (unconfirmed) return { total: 0, ...marketMetaUnavailable(unconfirmed) }
-  return { total: data.total ?? 0, ...marketMetaFor(decision.market) }
+  const { value: total, unavailable } = takeMarketScopedField<number>(decision.market, data, 'total', 0)
+  if (unavailable) return { total, ...marketMetaUnavailable(unavailable) }
+  return { total, ...marketMetaFor(decision.market) }
 }
 
 /**
@@ -171,22 +205,27 @@ export async function getAutoFacets(marca?: string, market?: unknown): Promise<C
   }
 
   const data = await res.json()
-  if (verifyMarketFilter(decision.market, data)) return null
-  const pool = data.facet_pool as CarFacetInput[] | undefined
-  if (!Array.isArray(pool)) return null   // old backend, no facet_pool → graceful degrade
+  const { value: pool } = takeMarketScopedField<CarFacetInput[] | null>(decision.market, data, 'facet_pool', null)
+  if (!Array.isArray(pool)) return null   // refused market, or old backend with no facet_pool → graceful degrade
   return deriveCarFacets(pool, { marca })
 }
 
-// Returns the market ECHO alongside the listing rather than swallowing it, so the
-// confirm/absent/mismatch decision can be made OUTSIDE this cache wrapper — a
-// refusal is a fact about the response contract, not a value worth caching against
-// the listings tag for the next revalidation window.
+// The market check happens INSIDE this cache body, before anything else, for a
+// reason worth stating: the view counter below is a WRITE, and it is deliberately
+// inside the cache so a listing records roughly one view per revalidation window
+// rather than one per render. Verifying outside the wrapper (the shape this
+// started as) left that write firing on a response we then refused — a product we
+// never showed anyone accruing views. Order matters more than placement here:
+// confirm the market, THEN record the view.
 const getListingCached = unstable_cache(
-  async (id: string, marketQuery: string): Promise<{ listing: Listing | null; market_code: unknown }> => {
+  async (id: string, marketCode: string, marketQuery: string): Promise<Listing | null> => {
+    const market = requireMarket(marketCode)
     const res = await marketCatalogFetch(marketQuery, `/store/listings/${id}`)
-    if (!res.ok) return { listing: null, market_code: undefined }
+    if (!res.ok) return null
     const data = await res.json()
-    const listing = data.listing ?? null
+
+    const { value: listing, unavailable } = takeMarketScopedField<Listing | null>(market, data, 'listing', null)
+    if (unavailable) throw new MarketFilterUnconfirmedError(unavailable)
 
     // Increment view count fire-and-forget via a PATCH on the seller product metadata
     // (async, does not block rendering)
@@ -198,7 +237,7 @@ const getListingCached = unstable_cache(
       }).catch(() => {})
     }
 
-    return { listing, market_code: data.market_code }
+    return listing
   },
   ['listing'],
   { revalidate: CACHE.LISTING, tags: ['listings'] },
@@ -214,9 +253,13 @@ const getListingCached = unstable_cache(
 export async function getListing(id: string, market?: unknown): Promise<Listing | null> {
   const decision = planMarketCatalogRead(market)
   if (isMarketUnavailable(decision)) return null
-  const { listing, market_code } = await getListingCached(id, decision.query)
-  if (verifyMarketFilter(decision.market, { market_code })) return null
-  return listing
+  try {
+    return await getListingCached(id, decision.market.code, decision.query)
+  } catch (error) {
+    const state = unavailableStateOrRethrow(error)
+    console.error('[listings] getListing market filter unconfirmed', state.reason)
+    return null
+  }
 }
 
 /**
@@ -471,8 +514,9 @@ export async function getRecentListings(limit = 8, market?: unknown): Promise<Li
   } as RequestInit)
   if (!res.ok) return []
   const data = await res.json()
-  if (verifyMarketFilter(decision.market, data)) return []
-  return data.listings ?? []
+  const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(decision.market, data, 'listings', [])
+  if (unavailable) return []
+  return listings
 }
 
 /**
@@ -489,8 +533,9 @@ export async function getSeleccionCandidates(limit = 50, market?: unknown): Prom
   } as RequestInit)
   if (!res.ok) return []
   const data = await res.json()
-  if (verifyMarketFilter(decision.market, data)) return []
-  return data.listings ?? []
+  const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(decision.market, data, 'listings', [])
+  if (unavailable) return []
+  return listings
 }
 
 // ── Homepage Polish — Dirección B · Sprint 2: curated Selección + Categorías ──
@@ -504,27 +549,41 @@ export async function getSeleccionCandidates(limit = 50, market?: unknown): Prom
 // fetch per request window. Degrades gracefully: each fetch contributes only if it
 // succeeds, so if the backend `featured` filter lags a deploy the pool is just the
 // freshest-24 (today's behaviour) — never throws (the homepage prerenders at build).
-async function fetchListings(marketQuery: string, path: string): Promise<Listing[]> {
+async function fetchListings(market: MarketRecord, marketQuery: string, path: string): Promise<Listing[]> {
+  let data: unknown
   try {
     const res = await marketCatalogFetch(marketQuery, path, {
       next: { revalidate: CACHE.LISTING, tags: ['listings'] },
     } as RequestInit)
     if (!res.ok) return []
-    const data = await res.json()
-    return data.listings ?? []
+    data = await res.json()
   } catch {
     // Network reject / malformed JSON (e.g. backend mid-deploy) → degrade to empty,
     // never throw: the homepage prerenders at build and the pool falls back to whatever
     // the other fetch returned.
     return []
   }
+
+  // The market check sits OUTSIDE that catch deliberately, and the distinction is
+  // the whole point: a transport failure is a degraded read and may legitimately
+  // become an empty pool, but a response that cannot confirm its market is a
+  // REFUSAL, and a refusal must not be silently downgraded into "there was nothing
+  // there". Swallowing it in the catch above is precisely how this path shipped
+  // without a check at all — the only read in the file that went through
+  // `marketCatalogFetch` and never called `verifyMarketFilter`. (Cross-family
+  // review of the first PR, and the population guard now proves the pairing for
+  // every call site rather than for the ones a reader happened to look at.)
+  const { value: rows, unavailable } = takeMarketScopedField<Listing[]>(market, data, 'listings', [])
+  if (unavailable) throw new MarketFilterUnconfirmedError(unavailable)
+  return rows
 }
 
 const getCuratedPoolCached = unstable_cache(
-  async (marketQuery: string): Promise<Listing[]> => {
+  async (marketCode: string, marketQuery: string): Promise<Listing[]> => {
+    const market = requireMarket(marketCode)
     const [fresh, pinned] = await Promise.all([
-      fetchListings(marketQuery, '/store/listings?sort=reciente&limit=24'),
-      fetchListings(marketQuery, '/store/listings?featured=true&limit=50'),
+      fetchListings(market, marketQuery, '/store/listings?sort=reciente&limit=24'),
+      fetchListings(market, marketQuery, '/store/listings?featured=true&limit=50'),
     ])
     return unionById(fresh, pinned)
   },
@@ -535,7 +594,13 @@ const getCuratedPoolCached = unstable_cache(
 async function getCuratedPool(market?: unknown): Promise<Listing[]> {
   const decision = planMarketCatalogRead(market)
   if (isMarketUnavailable(decision)) return []
-  return getCuratedPoolCached(decision.query)
+  try {
+    return await getCuratedPoolCached(decision.market.code, decision.query)
+  } catch (error) {
+    const state = unavailableStateOrRethrow(error)
+    console.error('[listings] curated pool market filter unconfirmed', state.reason)
+    return []
+  }
 }
 
 // `now` is injectable so the page can pass ONE timestamp to both featured + grid:

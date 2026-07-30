@@ -170,6 +170,41 @@ export function verifyMarketFilter(market: MarketRecord, payload: unknown): Mark
 }
 
 /**
+ * Verify a catalog response AND extract the field the caller wants, in ONE call.
+ *
+ * This exists because the two-step version — `verifyMarketFilter(...)` on one line,
+ * `data.listings ?? []` on another — is a pairing a reader has to remember, and one
+ * read path in the first PR did not: the curated homepage pool fetched through the
+ * market seam and then returned `data.listings` without ever checking the echo. A
+ * cross-family review caught it. The lesson is not "look harder next time"; it is
+ * that a contract enforced by convention will eventually be broken by someone
+ * following a nearby example.
+ *
+ * So the rows and the verdict come out of the same call, and the rows are `fallback`
+ * whenever the verdict is unavailable. There is no argument order that yields the
+ * payload's contents without the check having run.
+ */
+export interface MarketScopedField<T> {
+  /** The extracted value, or `fallback` when the read was refused. */
+  readonly value: T
+  /** Non-null exactly when the read was refused. */
+  readonly unavailable: MarketUnavailable | null
+}
+
+export function takeMarketScopedField<T>(
+  market: MarketRecord,
+  payload: unknown,
+  field: string,
+  fallback: T,
+): MarketScopedField<T> {
+  const unavailable = verifyMarketFilter(market, payload)
+  if (unavailable) return { value: fallback, unavailable }
+  if (payload === null || typeof payload !== 'object') return { value: fallback, unavailable: null }
+  const raw = (payload as Record<string, unknown>)[field]
+  return { value: (raw ?? fallback) as T, unavailable: null }
+}
+
+/**
  * What a market-scoped list read carries in addition to its rows, so a caller (and
  * Sprint 2's `/us` surface, and the MCP tools) can tell the three cases apart
  * without re-deriving them.

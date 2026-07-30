@@ -8,6 +8,7 @@ import {
   marketMetaUnavailable,
   planMarketCatalogRead,
   readMarketFilterState,
+  takeMarketScopedField,
   verifyMarketFilter,
   type MarketCatalogDecision,
   type MarketUnavailable,
@@ -139,6 +140,60 @@ test.describe('a buyer-supplied query parameter can never choose the market', ()
     const qs = buildQuery({ q: 'taza', market: 'us' } as never)
     expect(qs).toContain('q=taza')
     expect(qs).not.toContain('market')
+  })
+})
+
+test.describe('takeMarketScopedField · a mismatched response yields NO rows', () => {
+  /**
+   * The regression this pins, in the shape it actually shipped: the curated
+   * homepage pool called the market seam and then returned `data.listings` without
+   * ever checking the echo, so a `mismatch` response would have rendered another
+   * market's products on the highest-traffic surface in the app.
+   *
+   * The cached wrapper itself (`getCuratedPool` in `lib/listings.ts`) cannot be
+   * exercised here — the Playwright `api` runner cannot load `next/cache`, which
+   * is why that file's pure logic lives in this module in the first place. What is
+   * tested is the decision that governs it, in the one call the fixed code now
+   * makes: rows and verdict come out together, and the rows are empty whenever the
+   * verdict is unavailable.
+   */
+  const POOL = { [MARKET_ECHO_FIELD]: 'us', listings: [{ id: 'prod_mx_1' }, { id: 'prod_mx_2' }] }
+
+  test('a mismatched echo returns the fallback, never the payload rows', () => {
+    const { value, unavailable } = takeMarketScopedField<Array<{ id: string }>>(MARKETS.mx, POOL, 'listings', [])
+    expect(value).toEqual([])
+    expect(unavailable?.reason).toBe('market_mismatch')
+  })
+
+  test('the rows really are in the payload — the assertion above is not vacuous', () => {
+    expect(POOL.listings).toHaveLength(2)
+  })
+
+  test('a confirmed echo returns the rows', () => {
+    const confirmed = { [MARKET_ECHO_FIELD]: 'mx', listings: [{ id: 'prod_mx_1' }] }
+    const { value, unavailable } = takeMarketScopedField<Array<{ id: string }>>(MARKETS.mx, confirmed, 'listings', [])
+    expect(value).toEqual([{ id: 'prod_mx_1' }])
+    expect(unavailable).toBeNull()
+  })
+
+  test('an absent echo returns rows for MX and the fallback for any other market', () => {
+    const legacy = { listings: [{ id: 'prod_mx_1' }] }
+    expect(takeMarketScopedField(MARKETS.mx, legacy, 'listings', []).value).toEqual([{ id: 'prod_mx_1' }])
+    const refused = takeMarketScopedField(MARKETS.us, legacy, 'listings', [])
+    expect(refused.value).toEqual([])
+    expect(refused.unavailable?.reason).toBe('market_filter_unavailable')
+  })
+
+  test('it works for every field a catalog response carries, not just listings', () => {
+    const mismatched = { [MARKET_ECHO_FIELD]: 'us', total: 77, facet_pool: [{ marca: 'x' }], listing: { id: 'p' } }
+    expect(takeMarketScopedField(MARKETS.mx, mismatched, 'total', 0).value).toBe(0)
+    expect(takeMarketScopedField(MARKETS.mx, mismatched, 'facet_pool', null).value).toBeNull()
+    expect(takeMarketScopedField(MARKETS.mx, mismatched, 'listing', null).value).toBeNull()
+  })
+
+  test('a malformed payload yields the fallback rather than throwing', () => {
+    expect(takeMarketScopedField(MARKETS.mx, null, 'listings', []).value).toEqual([])
+    expect(takeMarketScopedField(MARKETS.mx, 'not-json', 'listings', []).value).toEqual([])
   })
 })
 
