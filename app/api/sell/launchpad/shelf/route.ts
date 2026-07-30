@@ -23,6 +23,8 @@ import {
   type ShelfCollection,
 } from '@/lib/launchpad-shelf'
 import { shortCollectionSlug } from '@/lib/collection-derive'
+import { marketplaceUrl } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +47,11 @@ function medusaFetch(path: string, clerkJwt: string, options?: RequestInit) {
 interface RawCollection { id: string; name: string; handle: string }
 interface RawCategory { id: string }
 interface RawProduct { id: string; status?: string; metadata?: Record<string, unknown> | null; categories?: RawCategory[] }
+
+function shelfCollectionUrl(sellerSlug: string, shortSlug: string | null): string | null {
+  if (!sellerSlug || !shortSlug) return null
+  return marketplaceUrl(SITE_ORIGIN, `/s/${sellerSlug}/c/${shortSlug}`)
+}
 
 /** Read the shop's collections + published launchpad works, shaped for the pure
  *  deriver. A launchpad work is any product carrying the mint's provenance
@@ -101,7 +108,7 @@ export async function GET() {
     suggest: s.suggest,
     total_works: s.totalWorks,
     missing: s.missingWorkIds.length,
-    collection_url: s.convocatoria && shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
+    collection_url: s.convocatoria ? shelfCollectionUrl(state.sellerSlug, shortSlug) : null,
   })
 }
 
@@ -124,7 +131,7 @@ export async function POST() {
     return NextResponse.json({
       ok: true,
       assigned: 0,
-      collection_url: s.convocatoria && shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
+      collection_url: s.convocatoria ? shelfCollectionUrl(state.sellerSlug, shortSlug) : null,
     })
   }
 
@@ -168,6 +175,6 @@ export async function POST() {
     assigned,
     failed,
     collection_id: convocatoria.id,
-    collection_url: shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
+    collection_url: shelfCollectionUrl(state.sellerSlug, shortSlug),
   })
 }

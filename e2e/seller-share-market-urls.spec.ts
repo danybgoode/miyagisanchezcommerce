@@ -54,4 +54,22 @@ test.describe('seller public-shop share URLs', () => {
     )
     expect(source).not.toContain('publicUrl={`/mx/s/')
   })
+
+  test('the launchpad shelf API returns an absolute platform collection URL', () => {
+    expect(
+      marketplaceUrl(
+        'https://miyagisanchez.com',
+        '/s/editorial-demo/c/convocatoria',
+      ),
+    ).toBe('https://miyagisanchez.com/mx/s/editorial-demo/c/convocatoria')
+
+    const file = 'app/api/sell/launchpad/shelf/route.ts'
+    const source = readFileSync(path.join(ROOT, file), 'utf8')
+    expect(source).toContain("from '@/lib/market-url'")
+    expect(source).toContain("from '@/lib/market-seo'")
+    expect(source).toContain(
+      'marketplaceUrl(SITE_ORIGIN, `/s/${sellerSlug}/c/${shortSlug}`)',
+    )
+    expect(source).not.toContain('`/mx/s/${state.sellerSlug}/c/${shortSlug}`')
+  })
 })
