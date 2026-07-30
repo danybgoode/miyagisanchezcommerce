@@ -54,6 +54,9 @@ const PROPERTY_TYPES = [
 
 function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
+  // The portal target exists only after hydration; this one-shot state flip is
+  // the external DOM-availability synchronization the effect models.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true) }, [])
 
   // The trigger only exists below `sm`; retaining the normal in-flow form until it

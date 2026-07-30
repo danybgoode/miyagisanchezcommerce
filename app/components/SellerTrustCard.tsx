@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- seller logos may use arbitrary remote hosts */
 import Link from 'next/link'
 import type { Shop } from '@/lib/types'
 

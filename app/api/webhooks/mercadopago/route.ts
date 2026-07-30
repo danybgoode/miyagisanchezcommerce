@@ -130,7 +130,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     currency?: string
     buyer_email?: string | null
     buyer_name?: string | null
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   } | null = null
 
   try {
@@ -156,13 +156,15 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
   if (!ipn || ipn.status !== 'approved' || !ipn.cart_id) return
 
   const cartId = ipn.cart_id
-  const meta = (ipn.metadata ?? {}) as Record<string, any>
-  const productId = (meta.product_id as string) ?? ''
+  const meta = ipn.metadata ?? {}
+  const metaText = (key: string): string | null =>
+    typeof meta[key] === 'string' ? meta[key] : null
+  const productId = metaText('product_id') ?? ''
   const currency = (ipn.currency ?? 'MXN').toUpperCase()
   const amountCents = ipn.amount_cents ?? 0
   const buyerEmail = ipn.buyer_email ?? null
   const buyerName = ipn.buyer_name ?? null
-  const offerId = (meta.offer_id as string | undefined) ?? null
+  const offerId = metaText('offer_id')
   const shippingAmountCents = Number(meta.shipping_amount_cents ?? 0) || 0
 
   const completed = await completeMedusaCart(cartId)
@@ -187,7 +189,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
   const { created } = await upsertOrderMirror({
     medusaOrderId,
     cartId,
-    sellerId: (meta.seller_id as string) ?? sellerId,
+    sellerId: metaText('seller_id') ?? sellerId,
     productId,
     paymentMethod: 'mercadopago',
     amountCents,
@@ -195,20 +197,20 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     buyerEmail,
     buyerName,
     buyerClerkId,
-    fulfillmentMethod: (meta.fulfillment_method as string) ?? null,
-    pickupSpotId: (meta.pickup_spot_id as string) ?? null,
+    fulfillmentMethod: metaText('fulfillment_method'),
+    pickupSpotId: metaText('pickup_spot_id'),
     shippingAmountCents,
     mpPaymentId: paymentId,
     offerId,
     eventTickets,
-    shippingQuote: meta.shipping_rate_id ? {
-      rate_id: meta.shipping_rate_id,
-      carrier: meta.shipping_carrier ?? null,
-      service: meta.shipping_service ?? null,
+    shippingQuote: metaText('shipping_rate_id') ? {
+      rate_id: metaText('shipping_rate_id')!,
+      carrier: metaText('shipping_carrier'),
+      service: metaText('shipping_service'),
       amount_cents: shippingAmountCents,
-      currency: meta.shipping_currency ?? currency,
+      currency: metaText('shipping_currency') ?? currency,
       delivery_estimate: meta.shipping_delivery_estimate ? Number(meta.shipping_delivery_estimate) : null,
-      delivery_label: meta.shipping_delivery_label || null,
+      delivery_label: metaText('shipping_delivery_label'),
     } : null,
   })
 
@@ -290,13 +292,16 @@ async function getMedusaListing(productId: string): Promise<ListingInfo | null> 
     const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
     const checkout = (settings.checkout ?? {}) as Record<string, unknown>
     const theme    = (settings.theme    ?? {}) as Record<string, unknown>
+    const social   = (theme.social      ?? {}) as Record<string, unknown>
     const shipping = (settings.shipping ?? {}) as Record<string, unknown>
     return {
       title: listing?.title ?? listing?.name ?? 'Producto',
       seller_name: listing?.seller?.name ?? listing?.shop?.name ?? '',
       seller_clerk_id: listing?.seller?.clerk_user_id ?? listing?.shop?.clerk_user_id ?? undefined,
       seller_phone: checkout.show_phone && checkout.phone ? String(checkout.phone) : null,
-      seller_whatsapp: (theme as any)?.social?.whatsapp ?? checkout.phone ?? null,
+      seller_whatsapp: typeof social.whatsapp === 'string'
+        ? social.whatsapp
+        : typeof checkout.phone === 'string' ? checkout.phone : null,
       pickup_spots: (shipping.pickup_spots ?? []) as ListingInfo['pickup_spots'],
     }
   } catch {

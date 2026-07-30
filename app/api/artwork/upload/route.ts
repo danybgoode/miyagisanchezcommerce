@@ -21,6 +21,10 @@ import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { MAX_ARTWORK_SIZE_MB } from '@/lib/personalization'
 
 export async function POST(req: NextRequest) {
+  // Set by middleware after it strips any inbound x-miyagi-* values. A tenant
+  // upload must resolve the field definition through the seller-owned endpoint;
+  // never accept a seller slug from multipart form data.
+  const trustedSellerSlug = req.headers.get('x-miyagi-shop-slug')
   const ip = getClientIp(req)
   const rl = await checkRateLimit('artwork_upload', ip)
   if (!rl.allowed) {
@@ -60,7 +64,9 @@ export async function POST(req: NextRequest) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer())
-  const result = await ingestArtworkBytes(bytes, listingId, fieldId)
+  const result = await ingestArtworkBytes(bytes, listingId, fieldId, {
+    sellerSlug: trustedSellerSlug,
+  })
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status })

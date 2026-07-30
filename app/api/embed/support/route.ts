@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { embedKeyFromRequest, resolveEmbedShop } from '@/lib/embed-auth'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { coerceSupportSettings } from '@/lib/support-widget'
-import { getShopStripe } from '@/lib/stripe'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
+import { getShop } from '@/lib/listings'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -13,10 +13,10 @@ const CORS = {
 }
 
 function supportProviders(metadata: Record<string, unknown> | null) {
-  const stripe = getShopStripe(metadata)
+  const paymentAvailability = publicShopPaymentAvailability(metadata)
   return {
-    stripe: !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id),
-    mercadopago: sellerHasMpConnected(metadata),
+    stripe: paymentAvailability.stripe,
+    mercadopago: paymentAvailability.mercadopago,
   }
 }
 
@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
   }
 
   const key = embedKeyFromRequest(req)
-  const shop = await resolveEmbedShop(key)
+  const resolved = await resolveEmbedShop(key)
+  const shop = resolved?.slug ? await getShop(resolved.slug) : null
   const metadata = (shop?.metadata ?? null) as Record<string, unknown> | null
   const settings = (metadata?.settings ?? {}) as Record<string, unknown>
   const support = coerceSupportSettings(settings.support)

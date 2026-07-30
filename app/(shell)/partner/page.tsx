@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
 import { db } from '@/lib/supabase'
@@ -122,7 +123,7 @@ export default async function PartnerDashboardPage({
       {!promoter && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
           Vincula tu código de promotor (PRM-…) en{' '}
-          <a href="/promotor/cerrar" className="underline">/promotor/cerrar</a> para empezar a operar
+          <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> para empezar a operar
           como socio. Si crees que esto es un error, contacta al equipo de Miyagi.
         </div>
       )}
@@ -130,7 +131,7 @@ export default async function PartnerDashboardPage({
       {promoter && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
           Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
-          en <a href="/promotor/cerrar" className="underline">/promotor/cerrar</a> — el acceso se otorga
+          en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
           automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.
         </div>
       )}
@@ -146,12 +147,12 @@ export default async function PartnerDashboardPage({
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0 text-sm">
-                <a href={`/mx/s/${g.shop.slug}`} target="_blank" rel="noreferrer" className="underline">
+                <Link href={`/mx/s/${g.shop.slug}`} target="_blank" rel="noreferrer" className="underline">
                   Ver tienda
-                </a>
-                <a href="/shop/manage" className="underline">
+                </Link>
+                <Link href="/shop/manage" className="underline">
                   Administrar
-                </a>
+                </Link>
               </div>
             </li>
           ))}

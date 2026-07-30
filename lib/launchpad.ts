@@ -22,7 +22,6 @@ import { randomUUID } from 'crypto'
 import { db } from '@/lib/supabase'
 import {
   cleanEmail,
-  isValidEmail,
   hashSweepstakesEmail,
   hashVerificationCode,
   safeCompare,

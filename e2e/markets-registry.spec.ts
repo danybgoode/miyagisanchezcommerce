@@ -114,12 +114,56 @@ test.describe('market registry · a locale is never a market (decision D3)', () 
   })
 })
 
-test.describe('market registry · narrowing accepts codes and nothing adjacent', () => {
-  test('an exact code, case-insensitively, with surrounding whitespace', () => {
+test.describe('market registry · isMarketCode is STRICT, so its narrowing is sound', () => {
+  /**
+   * This spec previously asserted `isMarketCode('MX') === true`. That was faithful
+   * to the contract as written — and the contract was wrong. A lenient predicate
+   * declared `value is MarketCode` lets `if (isMarketCode(v)) MARKETS[v]`
+   * type-check while returning `undefined` at runtime for `'MX'`: a market lookup
+   * silently yielding nothing, which is the exact hole the registry exists to
+   * close. Caught by the cross-family review, in the architect's own file.
+   *
+   * Worth recording rather than quietly fixing: a golden spec that faithfully
+   * encodes the contract will faithfully encode a BUG in the contract too. The
+   * spec did its job; catching this needed a second pair of eyes on the contract
+   * itself, which is what the cross-family pass is for.
+   */
+  test('the canonical form, and ONLY the canonical form', () => {
     expect(isMarketCode('mx')).toBe(true)
-    expect(isMarketCode('MX')).toBe(true)
-    expect(isMarketCode(' us ')).toBe(true)
+    expect(isMarketCode('us')).toBe(true)
+  })
+
+  test('a non-canonical spelling is REFUSED — the narrowing must not outrun the lookup', () => {
+    for (const value of ['MX', 'Mx', ' us ', 'us\n', ' mx']) {
+      expect(isMarketCode(value), JSON.stringify(value)).toBe(false)
+    }
+  })
+
+  test('every value the predicate accepts is a real key of MARKETS', () => {
+    // The soundness property itself, asserted directly rather than by example:
+    // if the predicate says yes, the lookup must not return undefined.
+    for (const value of ['mx', 'us', 'MX', ' us ', 'mex', 'es-MX', '', 0, null, undefined, {}]) {
+      if (isMarketCode(value)) expect(MARKETS[value], JSON.stringify(value)).toBeTruthy()
+    }
+  })
+
+  test('normalizeMarketCode keeps the leniency and returns the CANONICAL value', () => {
+    // Leniency belongs here, where the return value is the tidied string rather
+    // than a blessing of the original — so nothing downstream ever carries a
+    // non-canonical string typed as a MarketCode.
+    expect(normalizeMarketCode('MX')).toBe('mx')
+    expect(normalizeMarketCode(' us ')).toBe('us')
     expect(normalizeMarketCode(' US ')).toBe('us')
+    expect(normalizeMarketCode('mx')).toBe('mx')
+  })
+
+  test('the lenient path still lands on a real record — no ghost codes', () => {
+    for (const value of ['MX', ' us ', 'Us']) {
+      const code = normalizeMarketCode(value)
+      expect(code, JSON.stringify(value)).not.toBeNull()
+      expect(MARKETS[code!]).toBeTruthy()
+      expect(getMarket(value)).toEqual(MARKETS[code!])
+    }
   })
 
   test('nothing else — a country name, a currency, a padded or suffixed variant', () => {

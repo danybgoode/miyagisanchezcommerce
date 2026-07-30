@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- marketplace media hosts are seller-controlled and not finitely allow-listable */
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { searchListings, getAutoFacets, formatPrice, conditionLabel, financingChip } from '@/lib/listings'

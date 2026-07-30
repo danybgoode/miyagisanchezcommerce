@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- seller catalog media may use arbitrary remote hosts */
 import { Fragment } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'

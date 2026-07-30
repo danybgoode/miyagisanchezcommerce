@@ -170,6 +170,70 @@ export function verifyMarketFilter(market: MarketRecord, payload: unknown): Mark
 }
 
 /**
+ * Preserve a backend market-gate refusal carried on a non-2xx response.
+ *
+ * This is deliberately narrow. Only the backend's exact structured gate body for
+ * the requested market is recognized; an arbitrary/malformed 500 is a server bug
+ * and must still throw at the I/O shell instead of being laundered into "catalog
+ * unavailable". The backend keeps human prose in `message`; `reason` is the stable
+ * machine contract shared with this module.
+ */
+export function readMarketUnavailableResponse(
+  market: MarketRecord,
+  status: number,
+  payload: unknown,
+): MarketUnavailable | null {
+  if (!payload || typeof payload !== 'object') return null
+  const body = payload as Record<string, unknown>
+  if (body.unavailable !== true) return null
+  if (normalizeMarketCode(body.market_code) !== market.code) return null
+  if (body.marketplace_status !== market.marketplace_status) return null
+
+  if (status === 503 && body.reason === 'market_filter_unavailable') {
+    return unavailable(market.code, market.marketplace_status, 'market_filter_unavailable')
+  }
+  if (status === 404 && body.reason === 'marketplace_not_open') {
+    return unavailable(market.code, market.marketplace_status, 'marketplace_not_open')
+  }
+  return null
+}
+
+/**
+ * Verify a catalog response AND extract the field the caller wants, in ONE call.
+ *
+ * This exists because the two-step version — `verifyMarketFilter(...)` on one line,
+ * `data.listings ?? []` on another — is a pairing a reader has to remember, and one
+ * read path in the first PR did not: the curated homepage pool fetched through the
+ * market seam and then returned `data.listings` without ever checking the echo. A
+ * cross-family review caught it. The lesson is not "look harder next time"; it is
+ * that a contract enforced by convention will eventually be broken by someone
+ * following a nearby example.
+ *
+ * So the rows and the verdict come out of the same call, and the rows are `fallback`
+ * whenever the verdict is unavailable. There is no argument order that yields the
+ * payload's contents without the check having run.
+ */
+export interface MarketScopedField<T> {
+  /** The extracted value, or `fallback` when the read was refused. */
+  readonly value: T
+  /** Non-null exactly when the read was refused. */
+  readonly unavailable: MarketUnavailable | null
+}
+
+export function takeMarketScopedField<T>(
+  market: MarketRecord,
+  payload: unknown,
+  field: string,
+  fallback: T,
+): MarketScopedField<T> {
+  const unavailable = verifyMarketFilter(market, payload)
+  if (unavailable) return { value: fallback, unavailable }
+  if (payload === null || typeof payload !== 'object') return { value: fallback, unavailable: null }
+  const raw = (payload as Record<string, unknown>)[field]
+  return { value: (raw ?? fallback) as T, unavailable: null }
+}
+
+/**
  * What a market-scoped list read carries in addition to its rows, so a caller (and
  * Sprint 2's `/us` surface, and the MCP tools) can tell the three cases apart
  * without re-deriving them.

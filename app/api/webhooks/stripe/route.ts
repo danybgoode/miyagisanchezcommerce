@@ -121,13 +121,16 @@ async function getMedusaListing(productId: string): Promise<ListingInfo | null> 
     const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
     const checkout = (settings.checkout ?? {}) as Record<string, unknown>
     const theme    = (settings.theme    ?? {}) as Record<string, unknown>
+    const social   = (theme.social      ?? {}) as Record<string, unknown>
     const shipping = (settings.shipping ?? {}) as Record<string, unknown>
     return {
       title: listing?.title ?? listing?.name ?? 'Producto',
       seller_name: listing?.seller?.name ?? listing?.shop?.name ?? '',
       seller_clerk_id: listing?.seller?.clerk_user_id ?? listing?.shop?.clerk_user_id ?? undefined,
       seller_phone: checkout.show_phone && checkout.phone ? String(checkout.phone) : null,
-      seller_whatsapp: (theme as any)?.social?.whatsapp ?? checkout.phone ?? null,
+      seller_whatsapp: typeof social.whatsapp === 'string'
+        ? social.whatsapp
+        : typeof checkout.phone === 'string' ? checkout.phone : null,
       pickup_spots: (shipping.pickup_spots ?? []) as ListingInfo['pickup_spots'],
     }
   } catch {
@@ -391,7 +394,6 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
     seller_id,
     offer_id,
     fulfillment_method,
-    payment_method,
     pickup_spot_id,
     shipping_rate_id,
     shipping_carrier,

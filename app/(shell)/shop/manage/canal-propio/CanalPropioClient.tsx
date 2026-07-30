@@ -663,9 +663,9 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
 
                 {!domainDnsOk && dnsRecord?.isApex && (
                   <p className="text-xs text-[var(--color-muted)] -mt-2 mb-4">
-                    Este es un dominio raíz (sin "www"): tu proveedor de DNS necesita soportar un
+                    Este es un dominio raíz (sin &quot;www&quot;): tu proveedor de DNS necesita soportar un
                     registro CNAME (o ALIAS/ANAME) en la raíz — la mayoría de los proveedores
-                    modernos lo permiten (Cloudflare, y muchos otros vía "flattening").
+                    modernos lo permiten (Cloudflare, y muchos otros vía &quot;flattening&quot;).
                   </p>
                 )}
 

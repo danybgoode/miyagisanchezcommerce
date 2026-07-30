@@ -463,7 +463,6 @@ function SuccessUI({
   orderNumber,
   sellerName,
   listingId,
-  isDigital: _isDigital,
   provider,
 }: {
   buyerName: string | null

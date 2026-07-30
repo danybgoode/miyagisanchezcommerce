@@ -3,7 +3,7 @@ import 'server-only'
 import type { FlagSnapshot } from '@golden-beans/sdk'
 import { db } from '@/lib/supabase'
 import { parseGoldenFlagEnvironment, type GoldenFlagEnvironment } from '@/lib/flag-provider-mode'
-import { parseDurableGoldenSnapshot } from '@/lib/golden-flag-mirror'
+import { parseDurableGoldenSnapshot, retainNewestGoldenSnapshot } from '@/lib/golden-flag-mirror'
 
 const TABLE = 'golden_flag_snapshot_mirror'
 const MIRROR_CACHE_TTL_MS = 60_000
@@ -21,13 +21,10 @@ const persistenceInflightByEnvironment = new Map<string, { snapshotVersion: numb
 
 /** Never let an out-of-order provider refresh or database read roll back the local LKG snapshot. */
 function retainInMemorySnapshot(snapshot: FlagSnapshot): void {
-  if (
-    cache.environment === snapshot.environment &&
-    cache.snapshot &&
-    cache.snapshot.snapshotVersion > snapshot.snapshotVersion
+  cache.snapshot = retainNewestGoldenSnapshot(
+    cache.environment === snapshot.environment ? cache.snapshot : undefined,
+    snapshot,
   )
-    return
-  cache.snapshot = snapshot
   cache.environment = snapshot.environment
   cache.fetchedAt = Date.now()
 }

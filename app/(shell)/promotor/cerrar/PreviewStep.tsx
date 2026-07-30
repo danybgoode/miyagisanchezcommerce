@@ -55,7 +55,12 @@ export default function PreviewStep({ shop, n }: { shop: Shop; n: number }) {
     } catch { /* best-effort — the buttons still work */ }
   }, [shop.shopId])
 
-  useEffect(() => { loadState() }, [loadState])
+  useEffect(() => {
+    // The preview row is an external system snapshot; loading it is the effect's
+    // synchronization job even though the async helper owns the eventual setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadState()
+  }, [loadState])
 
   async function mint() {
     setBusy('mint'); setError(null)

@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     toUcpListing(
       l,
       baseUrl,
-      await getPriceGrid(l.medusa_product_id ?? l.id),
+      await getPriceGrid(l.medusa_product_id ?? l.id, marketDecision.market.code),
       inventoryChannelsEnabled,
       marketDecision.market.code,
     )))

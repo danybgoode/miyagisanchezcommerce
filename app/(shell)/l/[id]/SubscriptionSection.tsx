@@ -19,7 +19,7 @@ interface SubscriptionSectionProps {
   tiers: SubscriptionTier[]
   shopName: string
   hasStripe: boolean   // seller has Stripe Connect active
-  hasClabe: boolean    // seller has CLABE configured
+  hasBankTransfer: boolean
   hasMp: boolean       // seller has MercadoPago enabled
   isSignedIn: boolean  // buyer is authenticated
   buyerDisplayName?: string  // pre-filled from Clerk (authenticated users)
@@ -41,7 +41,7 @@ export default function SubscriptionSection({
   tiers,
   shopName,
   hasStripe,
-  hasClabe,
+  hasBankTransfer,
   hasMp,
   isSignedIn,
   buyerDisplayName,
@@ -292,7 +292,7 @@ export default function SubscriptionSection({
               </button>
             )}
 
-            {hasClabe && (
+            {hasBankTransfer && (
               <button
                 type="button"
                 onClick={() => setShowSpei(true)}
@@ -302,7 +302,7 @@ export default function SubscriptionSection({
               </button>
             )}
 
-            {!hasStripe && !hasMp && !hasClabe && (
+            {!hasStripe && !hasMp && !hasBankTransfer && (
               <div className="text-center py-2">
                 <p className="text-sm text-[var(--color-muted)]">El vendedor aún no ha configurado los pagos en línea.</p>
               </div>

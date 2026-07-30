@@ -19,6 +19,7 @@
  */
 
 import { returnsWindowLabel, type TrustMethod } from '@/lib/trust-signals'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 
 export interface ShopTrustInputs {
   paymentMethods: TrustMethod[]
@@ -61,7 +62,6 @@ export function deriveShopTrustInputs(
   const checkout = (settings.checkout ?? {}) as {
     phone?: string | null
     whatsapp_cta?: boolean
-    bank_transfer?: { clabe?: string | null; bank_name?: string | null }
   }
   const shipping = (settings.shipping ?? {}) as {
     local_pickup?: boolean
@@ -71,14 +71,7 @@ export function deriveShopTrustInputs(
   const calcom = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
   const orders = (settings.orders ?? {}) as { processing_time?: string }
   const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
-  const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
-
-  // Mirror the shop page (`app/s/[slug]/page.tsx`): MP is platform-default-on
-  // (`metadata.mp_enabled !== false`), Stripe needs a connected charges-enabled account.
-  const mpEnabled = (meta.mp_enabled as boolean | undefined) !== false
-  const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
-  const clabe = checkout.bank_transfer?.clabe?.trim()
-  const hasClabe = !!(clabe && clabe.length === 18)
+  const paymentAvailability = publicShopPaymentAvailability(meta)
   const whatsapp = checkout.whatsapp_cta ? (theme.social?.whatsapp || checkout.phone || null) : null
 
   const localPickup = !!shipping.local_pickup
@@ -92,9 +85,10 @@ export function deriveShopTrustInputs(
   const returnsLabel = returnsWindowLabel(returnsPolicy?.window)
 
   const paymentMethods = [
-    mpEnabled && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
-    sellerHasStripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
-    hasClabe && { icon: 'iconoir-bank', label: 'SPEI', note: checkout.bank_transfer?.bank_name ?? 'Transferencia bancaria' },
+    paymentAvailability.mercadopago && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
+    paymentAvailability.stripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
+    paymentAvailability.bankTransfer && { icon: 'iconoir-bank', label: 'SPEI', note: 'Transferencia bancaria' },
+    paymentAvailability.dimo && { icon: 'iconoir-smartphone-device', label: 'DiMo', note: 'Transferencia por teléfono' },
     whatsapp && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
   ].filter(Boolean) as TrustMethod[]
 
@@ -119,6 +113,6 @@ export function deriveShopTrustInputs(
     processingLabel,
     returnsLabel,
     verified: !!verified,
-    paymentProtected: sellerHasStripe || mpEnabled,
+    paymentProtected: paymentAvailability.stripe || paymentAvailability.mercadopago,
   }
 }

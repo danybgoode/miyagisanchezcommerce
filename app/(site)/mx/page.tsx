@@ -80,6 +80,8 @@ function timeAgo(dateStr: string): string {
 export default async function HomePage() {
   // One timestamp for both the featured pick and the grid so their selection is
   // atomic (no 14-day-cutoff divergence between the two reads).
+  // This is a server-render snapshot shared by all reads, not client render state.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
   // Each read degrades to its empty fallback on failure (`.catch`) — because the page is
   // now prerendered at BUILD time, a thrown Medusa/Supabase fetch (e.g. a transient

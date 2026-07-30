@@ -68,7 +68,10 @@ export async function GET(
     return NextResponse.json(unconfirmedMarket, { headers: CORS })
   }
   const listing = data.listing as Listing
-  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const priceGrid = await getPriceGrid(
+    listing.medusa_product_id ?? listing.id,
+    marketDecision.market.code,
+  )
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
 
   return NextResponse.json(

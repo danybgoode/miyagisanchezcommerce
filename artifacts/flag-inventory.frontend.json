@@ -1,0 +1,561 @@
+{
+  "schemaVersion": 1,
+  "source": "typescript-callsite-derivation",
+  "flags": [
+    {
+      "key": "catalog.bulk_enabled",
+      "compileDefault": false,
+      "polarity": "killswitch",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/shop/manage/catalogo/page.tsx:108",
+        "app/api/ucp/mcp/route.ts:3391",
+        "app/api/ucp/mcp/route.ts:3431",
+        "lib/catalog-bulk.ts:252",
+        "lib/catalog-bulk.ts:504"
+      ]
+    },
+    {
+      "key": "catalog.inventory_channels_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/l/[id]/page.tsx:384",
+        "app/(shell)/sell/edit/[id]/page.tsx:187",
+        "app/(shell)/shop/manage/catalogo/page.tsx:102",
+        "app/api/ucp/catalog/[id]/route.ts:75",
+        "app/api/ucp/catalog/route.ts:109",
+        "app/api/ucp/checkout-session/route.ts:603",
+        "app/api/ucp/mcp/route.ts:1020",
+        "app/api/ucp/mcp/route.ts:1114",
+        "app/api/ucp/mcp/route.ts:1516"
+      ]
+    },
+    {
+      "key": "checkout.rental_pricing_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/checkout/page.tsx:197",
+        "app/(shell)/l/[id]/page.tsx:427",
+        "app/api/ucp/checkout-session/route.ts:323"
+      ]
+    },
+    {
+      "key": "checkout.stripe_enabled",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/api/checkout/options/route.ts:47"
+      ]
+    },
+    {
+      "key": "configurator.enabled",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/l/[id]/page.tsx:160"
+      ]
+    },
+    {
+      "key": "content.overrides_enabled",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/announcements.ts:103",
+        "lib/copy-overrides-merge.ts:82",
+        "lib/cost-comparator-data.ts:33"
+      ]
+    },
+    {
+      "key": "domain.paywall_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/admin/tenant-directory-server.ts:52",
+        "lib/domain-entitlement-server.ts:35"
+      ]
+    },
+    {
+      "key": "events.quantity_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/checkout/page.tsx:152",
+        "app/(shell)/l/[id]/page.tsx:460",
+        "app/api/ucp/checkout-session/route.ts:354"
+      ]
+    },
+    {
+      "key": "growth.founding_merchants_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/vende/fundadoras/page.tsx:53",
+        "app/api/vende/fundadoras/apply/route.ts:67"
+      ]
+    },
+    {
+      "key": "growth.telemetry_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/vende/fundadoras/page.tsx:55",
+        "app/api/growth/fundadoras/track/route.ts:68",
+        "app/api/growth/track/route.ts:39",
+        "app/api/vende/fundadoras/apply/route.ts:88",
+        "lib/merchant-lifecycle-server.ts:259",
+        "lib/preview-lifecycle.ts:41"
+      ]
+    },
+    {
+      "key": "launchpad.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/s/[slug]/convocatoria/page.tsx:46",
+        "app/(shell)/sell/edit/[id]/page.tsx:182",
+        "app/(shell)/shop/manage/convocatoria/campanas/page.tsx:16",
+        "app/(shell)/shop/manage/convocatoria/page.tsx:15",
+        "app/(shell)/shop/manage/settings/page.tsx:53",
+        "app/(shell)/v/[slug]/page.tsx:17",
+        "app/(shell)/v/[slug]/page.tsx:46",
+        "app/api/cron/launchpad-campaigns/route.ts:27",
+        "app/api/launchpad/[slug]/submit/route.ts:39",
+        "app/api/launchpad/[slug]/upload/route.ts:27",
+        "app/api/launchpad/[slug]/verification/route.ts:23",
+        "app/api/launchpad/campaigns/[slug]/verification/route.ts:20",
+        "app/api/launchpad/campaigns/[slug]/vote/route.ts:30",
+        "app/api/sell/launchpad/campaigns/[id]/activate/route.ts:16",
+        "app/api/sell/launchpad/campaigns/[id]/cancel/route.ts:14",
+        "app/api/sell/launchpad/campaigns/[id]/qr/route.ts:15",
+        "app/api/sell/launchpad/campaigns/[id]/route.ts:15",
+        "app/api/sell/launchpad/campaigns/[id]/route.ts:28",
+        "app/api/sell/launchpad/campaigns/options/route.ts:33",
+        "app/api/sell/launchpad/campaigns/route.ts:16",
+        "app/api/sell/launchpad/campaigns/route.ts:27",
+        "app/api/sell/launchpad/shelf/route.ts:112",
+        "app/api/sell/launchpad/shelf/route.ts:90",
+        "app/api/sell/launchpad/submissions/[id]/download/route.ts:21",
+        "app/api/sell/launchpad/submissions/[id]/publish/route.ts:20",
+        "app/api/sell/launchpad/submissions/[id]/route.ts:22",
+        "app/api/sell/launchpad/submissions/route.ts:15",
+        "app/api/sell/listing/[id]/route.ts:146",
+        "app/api/ucp/mcp/route.ts:2673",
+        "app/api/ucp/mcp/route.ts:2719",
+        "app/api/ucp/mcp/route.ts:2748",
+        "app/api/ucp/mcp/route.ts:2788",
+        "app/api/ucp/mcp/route.ts:2857",
+        "app/api/ucp/mcp/route.ts:2892",
+        "app/api/ucp/mcp/route.ts:2926",
+        "app/api/ucp/mcp/route.ts:2958"
+      ]
+    },
+    {
+      "key": "mcp.apply_price.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/ucp/mcp/route.ts:3265"
+      ]
+    },
+    {
+      "key": "mcp.checkout_config.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/ucp/mcp/route.ts:1812"
+      ]
+    },
+    {
+      "key": "mcp.configure_options.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/ucp/mcp/route.ts:3087"
+      ]
+    },
+    {
+      "key": "mcp.delete_listing.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/ucp/mcp/route.ts:3215"
+      ]
+    },
+    {
+      "key": "mcp.support_config.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/ucp/mcp/route.ts:1809"
+      ]
+    },
+    {
+      "key": "migrations.connector_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/shop/manage/import/page.tsx:43",
+        "app/(shell)/shop/manage/shopify/import/page.tsx:18",
+        "app/(shell)/shop/manage/shopify/import/parity/[batchId]/page.tsx:32",
+        "app/api/promoter/close/migration/route.ts:27",
+        "app/api/sell/shopify/import/fetch/route.ts:28",
+        "app/api/sell/shopify/import/parity/estimate/route.ts:23",
+        "app/api/sell/shopify/import/parity/route.ts:17",
+        "app/api/sell/shopify/import/route.ts:25",
+        "app/api/ucp/mcp/route.ts:3459"
+      ]
+    },
+    {
+      "key": "ml.connect_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/shop/manage/mercadolibre/page.tsx:30",
+        "app/(shell)/shop/manage/settings/page.tsx:49",
+        "app/api/sell/ml/callback/route.ts:22",
+        "app/api/sell/ml/connect/route.ts:24",
+        "app/api/sell/ml/disconnect/route.ts:17"
+      ]
+    },
+    {
+      "key": "ml.import_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/shop/manage/mercadolibre/import/page.tsx:20",
+        "app/(shell)/shop/manage/mercadolibre/page.tsx:45",
+        "app/api/sell/ml/import/fetch/route.ts:20",
+        "app/api/sell/ml/import/route.ts:23"
+      ]
+    },
+    {
+      "key": "ml.orders_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "backend",
+      "callsites": []
+    },
+    {
+      "key": "ml.publish_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/sell/edit/[id]/page.tsx:172",
+        "app/api/sell/ml/predict/route.ts:18",
+        "app/api/sell/ml/publish/route.ts:19",
+        "app/api/ucp/mcp/route.ts:3240",
+        "lib/listing-status.ts:53"
+      ]
+    },
+    {
+      "key": "ml.sync_enabled",
+      "compileDefault": false,
+      "polarity": "killswitch",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/shop/manage/mercadolibre/page.tsx:46",
+        "app/api/promoter/close/ml-sync/route.ts:34",
+        "app/api/sell/ml/subscribe/route.ts:31",
+        "app/api/sell/ml/sync-settings/route.ts:26",
+        "app/api/sell/ml/sync-settings/route.ts:54"
+      ]
+    },
+    {
+      "key": "ml.sync_paywall_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "both",
+      "callsites": [
+        "lib/ml-sync-entitlement-server.ts:37"
+      ]
+    },
+    {
+      "key": "notifications.buyer_moneypath_enabled",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/orders/[id]/return-request/[requestId]/route.ts:95",
+        "app/api/orders/[id]/ship-manual/route.ts:59",
+        "app/api/orders/[id]/ship/route.ts:120",
+        "app/api/orders/finalize-manual/route.ts:101",
+        "app/api/webhooks/mercadopago/route.ts:175",
+        "app/api/webhooks/mercadopago/route.ts:539",
+        "app/api/webhooks/stripe/route.ts:420"
+      ]
+    },
+    {
+      "key": "onboarding.three_doors_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/sell/page.tsx:127",
+        "app/(shell)/shop/manage/import/page.tsx:32"
+      ]
+    },
+    {
+      "key": "ops.profit_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/shop/manage/catalogo/page.tsx:113",
+        "app/(shell)/shop/manage/profit/page.tsx:32"
+      ]
+    },
+    {
+      "key": "partners.mcp_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/partner/page.tsx:62",
+        "app/api/sell/partner-grants/route.ts:48",
+        "app/api/sell/partner-grants/route.ts:85",
+        "app/api/ucp/mcp/p/[slug]/route.ts:41",
+        "app/api/ucp/mcp/p/[slug]/route.ts:49",
+        "lib/partner-auth.ts:160",
+        "lib/partner-grant-server.ts:67",
+        "lib/portfolio/partner-portfolio-auth.ts:108"
+      ]
+    },
+    {
+      "key": "pdp_redesign",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/l/[id]/page.tsx:405"
+      ]
+    },
+    {
+      "key": "promoter.activation_crm_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/admin/promoter/activacion/page.tsx:18",
+        "app/(shell)/admin/relaciones/conciliacion/page.tsx:19",
+        "app/(shell)/admin/relaciones/page.tsx:21",
+        "app/(shell)/promotor/cerrar/page.tsx:27",
+        "app/(shell)/promotor/relaciones/page.tsx:19",
+        "lib/merchant-lifecycle-sweep.ts:539",
+        "lib/relationship-access.ts:122"
+      ]
+    },
+    {
+      "key": "promoter.enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/promotor/[code]/page.tsx:26",
+        "app/(shell)/promotor/cerrar/page.tsx:18",
+        "app/(shell)/shop/manage/canal-propio/page.tsx:54",
+        "app/(shell)/vende/promotor/page.tsx:45",
+        "app/api/print/submissions/[id]/checkout/route.ts:100",
+        "app/api/promoter/attribute/route.ts:22",
+        "app/api/promoter/claim/link/route.ts:22",
+        "app/api/promoter/close/domain/route.ts:35",
+        "app/api/promoter/close/listing/route.ts:66",
+        "app/api/promoter/close/migration/route.ts:27",
+        "app/api/promoter/close/ml-sync/route.ts:34",
+        "app/api/promoter/close/print/route.ts:36",
+        "app/api/promoter/close/subdomain/route.ts:40",
+        "app/api/promoter/close/transfer/[id]/report/route.ts:20",
+        "app/api/promoter/close/transfer/route.ts:21",
+        "app/api/promoter/me/bind/route.ts:24",
+        "app/api/promoter/preview/activate/route.ts:57",
+        "app/api/promoter/preview/route.ts:38",
+        "app/api/promoter/rate-card/route.ts:22",
+        "app/api/promoter/shop/setup/route.ts:31",
+        "app/api/promoter/validate-code/route.ts:24",
+        "lib/domain-subscription-checkout.ts:90",
+        "lib/ml-sync-subscription-checkout.ts:69",
+        "lib/subdomain-subscription-checkout.ts:95"
+      ]
+    },
+    {
+      "key": "promoter.partner_portfolio_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/partner/page.tsx:67",
+        "lib/portfolio/gate-server.ts:54",
+        "lib/portfolio/partner-portfolio-auth.ts:107",
+        "lib/portfolio/reminders-server.ts:220"
+      ]
+    },
+    {
+      "key": "promoter.preview_verified_approval_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/preview/[token]/page.tsx:71",
+        "app/api/preview/[token]/decision/route.ts:85",
+        "app/api/preview/[token]/verify/start/route.ts:26",
+        "app/api/promoter/relationship/[id]/consent/route.ts:148",
+        "lib/preview-consent.ts:362"
+      ]
+    },
+    {
+      "key": "promoter.private_preview_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/preview/[token]/page.tsx:38",
+        "app/(shell)/promotor/cerrar/page.tsx:26",
+        "app/api/preview/[token]/decision/route.ts:40",
+        "app/api/preview/[token]/verify/start/route.ts:25",
+        "app/api/promoter/close/listing/route.ts:123",
+        "app/api/promoter/preview/activate/route.ts:60",
+        "app/api/promoter/preview/route.ts:41",
+        "app/api/promoter/shop/setup/route.ts:154"
+      ]
+    },
+    {
+      "key": "promoter.transfer_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/(shell)/promotor/cerrar/page.tsx:25",
+        "app/api/promoter/close/domain/route.ts:62",
+        "app/api/promoter/close/migration/route.ts:56",
+        "app/api/promoter/close/ml-sync/route.ts:61",
+        "app/api/promoter/close/subdomain/route.ts:97",
+        "app/api/promoter/close/transfer/[id]/report/route.ts:20",
+        "app/api/promoter/close/transfer/route.ts:21"
+      ]
+    },
+    {
+      "key": "seller_agent.connector_url_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "app/api/sell/agent-connector/route.ts:109",
+        "app/api/sell/agent-connector/route.ts:40",
+        "app/api/sell/agent-connector/route.ts:77",
+        "app/api/ucp/mcp/c/[slug]/route.ts:43",
+        "app/api/ucp/mcp/c/[slug]/route.ts:53"
+      ]
+    },
+    {
+      "key": "seller.shell_on_sell_enabled",
+      "compileDefault": true,
+      "polarity": "killswitch",
+      "criticality": "low",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/seller-shell-gate.ts:52"
+      ]
+    },
+    {
+      "key": "shipping.arranged_only_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/sell/edit/[id]/page.tsx:191",
+        "app/(shell)/sell/page.tsx:116"
+      ]
+    },
+    {
+      "key": "shipping.correos_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/shop/manage/settings/[section]/page.tsx:97"
+      ]
+    },
+    {
+      "key": "shipping.envia_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "app/(shell)/shop/manage/settings/[section]/page.tsx:80",
+        "app/api/orders/[id]/ship/route.ts:187",
+        "app/api/orders/[id]/ship/route.ts:392"
+      ]
+    },
+    {
+      "key": "subdomain.paywall_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "medium",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/subdomain-entitlement-server.ts:45"
+      ]
+    }
+  ],
+  "typedDynamicCallsites": [
+    "app/(shell)/shop/manage/_components/SellerShellChrome.tsx:42"
+  ]
+}

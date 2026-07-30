@@ -29,7 +29,6 @@ export interface EmbedShop {
   name: string | null
   verified: boolean | null
   logo_url: string | null
-  metadata: Record<string, unknown> | null
 }
 
 /** Generate a fresh publishable embed key. */
@@ -84,7 +83,7 @@ export async function resolveEmbedShop(key?: string | null): Promise<EmbedShop |
   try {
     const { data, error } = await db
       .from('marketplace_shops')
-      .select('id, slug, name, verified, logo_url, metadata')
+      .select('id, slug, name, verified, logo_url')
       .eq('metadata->>embed_key', key)
       .limit(1)
       .maybeSingle()

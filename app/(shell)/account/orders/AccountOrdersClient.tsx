@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { carrierLabel } from '@/lib/envia'

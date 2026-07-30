@@ -22,10 +22,19 @@ export class GoldenFlagAdminUnavailable extends Error {}
 
 function config(): { baseUrl: string; credential: string; environment: GoldenFlagEnvironment } {
   const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
-  const credential = process.env.GOLDEN_BEANS_FLAG_ADMIN_KEY
+  const credential = getGoldenFlagAdminCredential()
   const environment = parseGoldenFlagEnvironment(process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT)
   if (!baseUrl || !credential || !environment) throw new GoldenFlagAdminUnavailable('Flag admin is not configured')
   return { baseUrl, credential, environment }
+}
+
+/** Shared only by signed server-to-server control-plane protocols; never return this to a client. */
+export function getGoldenFlagAdminCredential(): string {
+  const credential = process.env.GOLDEN_BEANS_FLAG_ADMIN_KEY
+  if (!credential || credential.length < 16) {
+    throw new GoldenFlagAdminUnavailable('Flag admin is not configured')
+  }
+  return credential
 }
 
 function isGoldenFlag(value: unknown): value is GoldenAdminFlag {

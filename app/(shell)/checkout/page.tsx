@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- checkout previews preserve arbitrary seller-hosted image URLs */
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'

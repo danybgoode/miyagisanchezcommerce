@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- conversation attachments preserve arbitrary participant-hosted image URLs */
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
@@ -193,7 +195,6 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
             Prueba de impresión
           </div>
           {imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="Prueba de impresión" style={{ width: '100%', maxWidth: 240, borderRadius: 10, display: 'block', marginBottom: 8 }} />
           )}
           <div style={{ fontSize: 13, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)', lineHeight: 1.5 }}>
@@ -834,6 +835,9 @@ export default function ConversationClient({ conversationId, initialConversation
   // Backfill once on (re)connect, and when the tab regains focus — covers any
   // events missed while disconnected and refreshes joined offer/checkout data.
   useEffect(() => {
+    // Realtime connection state is external; reconnect intentionally schedules
+    // the same state-refresh path used by the visibility listener below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (connected) refresh()
   }, [connected, refresh])
   useEffect(() => {

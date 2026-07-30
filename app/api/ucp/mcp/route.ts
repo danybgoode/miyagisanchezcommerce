@@ -39,7 +39,7 @@ import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
-import { resolveAgentShop, type AgentShop } from '@/lib/agent-auth'
+import type { AgentShop } from '@/lib/agent-auth'
 import { resolveToolShop } from '@/lib/partner-auth'
 import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
@@ -208,7 +208,7 @@ const TOOLS = [
   },
   {
     name: 'get_checkout_options',
-    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND contact-first methods (bank transfer/SPEI with CLABE, cash on pickup, WhatsApp) with full instructions. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
+    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND privacy-safe availability for contact-first methods (bank transfer/SPEI, cash on pickup, WhatsApp). Bank coordinates are intentionally omitted here and arrive only from the protected checkout response after checkout starts. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -1022,7 +1022,7 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     toUcpListing(
       l,
       baseUrl,
-      await getPriceGrid(l.medusa_product_id ?? l.id),
+      await getPriceGrid(l.medusa_product_id ?? l.id, marketDecision.market.code),
       inventoryChannelsEnabled,
       marketDecision.market.code,
     )))
@@ -1107,7 +1107,10 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 
   if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
 
-  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const priceGrid = await getPriceGrid(
+    listing.medusa_product_id ?? listing.id,
+    marketDecision.market.code,
+  )
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled, marketDecision.market.code)
 
@@ -1183,7 +1186,7 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
       payment_options?: Array<{
         method: string; label: string; description: string; available: boolean;
         instant: boolean; checkout_url?: string; instructions?: string;
-        contact_url?: string; bank_details?: { clabe: string; bank_name: string | null; account_holder: string | null }
+        contact_url?: string
         reason_unavailable?: string
       }>
       escrow?: { available: boolean; required: boolean; description: string }
@@ -1204,11 +1207,6 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
       lines.push(o.description)
       if (o.checkout_url) lines.push(`→ Usar create_checkout con method="${o.method}" para generar el enlace de pago`)
       if (o.instructions) lines.push(`📋 ${o.instructions}`)
-      if (o.bank_details) {
-        lines.push(`🏦 CLABE: \`${o.bank_details.clabe}\``)
-        if (o.bank_details.bank_name) lines.push(`   Banco: ${o.bank_details.bank_name}`)
-        if (o.bank_details.account_holder) lines.push(`   Titular: ${o.bank_details.account_holder}`)
-      }
       if (o.contact_url) lines.push(`📱 ${o.contact_url}`)
       return lines.join('\n')
     }

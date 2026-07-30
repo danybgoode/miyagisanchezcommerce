@@ -1,6 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import Link from 'next/link'
 import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { hasExcerpt } from '@/lib/excerpt'
@@ -17,12 +16,15 @@ import ShopContentLinks from './ShopContentLinks'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 import type { MarketCode } from '@/lib/markets'
 import { marketCatalogCanonical } from '@/lib/market-seo'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
+
+interface Social { instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string }
 
 export async function generateShopMetadata({
   params,
@@ -70,39 +72,6 @@ export async function generateShopMetadata({
 }
 
 export const generateMetadata = generateShopMetadata
-
-// ── Social link helpers ────────────────────────────────────────────────────────
-
-interface Social { instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string }
-
-function SocialLinks({ social }: { social: Social }) {
-  const links = [
-    social.instagram && { href: `https://instagram.com/${social.instagram}`, label: 'Instagram', icon: 'iconoir-camera' },
-    social.tiktok    && { href: `https://tiktok.com/@${social.tiktok}`,     label: 'TikTok',    icon: 'iconoir-music-note' },
-    social.facebook  && { href: social.facebook,                              label: 'Facebook',  icon: 'iconoir-community' },
-    social.whatsapp  && { href: `https://wa.me/${social.whatsapp}`,           label: 'WhatsApp',  icon: 'iconoir-chat-bubble' },
-  ].filter(Boolean) as { href: string; label: string; icon: string }[]
-
-  if (links.length === 0) return null
-
-  return (
-    <div className="flex items-center gap-2 mt-2 flex-wrap">
-      {links.map(l => (
-        <a
-          key={l.label}
-          href={l.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={l.label}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-white/30 text-white/90 hover:bg-white/20 transition-colors no-underline"
-        >
-          <i className={l.icon} aria-hidden />
-          <span>{l.label}</span>
-        </a>
-      ))}
-    </div>
-  )
-}
 
 // ── Shop page ─────────────────────────────────────────────────────────────────
 
@@ -183,7 +152,6 @@ export async function ShopPage({
   const scheduling = (settings.scheduling ?? {}) as { links?: Array<{ label?: string; url?: string }> }
   const calcom = (settings.calcom ?? {}) as { connected?: boolean; booking_url?: string; event_type_title?: string }
   const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
-  const stripe = (settings.stripe ?? {}) as { enabled?: boolean; charges_enabled?: boolean; account_id?: string }
   // Own-shop premium presentation (epic 07, Sprint 1) — absent keys render today's storefront.
   const announcement = settings.announcement as AnnouncementSettings | null | undefined
   const hero = settings.hero as HeroSettings | null | undefined
@@ -197,10 +165,11 @@ export async function ShopPage({
     wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
     returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: 'Políticas' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
-  const mpEnabled = ((shop.metadata as Record<string, unknown> | null)?.mp_enabled as boolean | undefined) !== false
-  const sellerHasStripe = !!(stripe.enabled !== false && stripe.charges_enabled && stripe.account_id)
-  const checkoutSett = (settings.checkout ?? {}) as { bank_transfer?: { clabe?: string | null } }
-  const hasClabe = !!(checkoutSett.bank_transfer?.clabe?.trim() && checkoutSett.bank_transfer.clabe.trim().length === 18)
+  const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
+  const sellerHasStripe = paymentAvailability.stripe
+  const sellerHasMp = paymentAvailability.mercadopago
+  const hasBankTransfer = paymentAvailability.bankTransfer
+  const hasDimo = paymentAvailability.dimo
   const hasPickup = !!shipping.local_pickup
   const hasScheduling = !!(calcom.connected && calcom.booking_url) || !!scheduling.links?.some(link => link.url)
   const returnsLabel = returnsPolicy?.window === '7d' ? '7 días'
@@ -250,6 +219,8 @@ export async function ShopPage({
               className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-white flex items-center justify-center text-3xl flex-shrink-0 overflow-hidden"
             >
               {shop.logo_url ? (
+                // Remote seller logos are not constrained to a Next Image allow-list.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
               ) : (
                 <i className="iconoir-shop" aria-hidden />
@@ -270,7 +241,7 @@ export async function ShopPage({
                 )}
               </div>
               {theme.tagline && (
-                <p className="text-sm text-[var(--color-muted)] mt-0.5 italic">"{theme.tagline}"</p>
+                <p className="text-sm text-[var(--color-muted)] mt-0.5 italic">&ldquo;{theme.tagline}&rdquo;</p>
               )}
               {shop.location && (
                 <p className="text-xs text-[var(--color-muted)] mt-0.5"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>
@@ -348,8 +319,8 @@ export async function ShopPage({
         accent={accent}
         textColor={accentTextColor}
         sellerHasStripe={sellerHasStripe}
-        mpEnabled={mpEnabled}
-        hasClabe={hasClabe}
+        sellerHasMp={sellerHasMp}
+        hasBankTransfer={hasBankTransfer}
         marketBasePath={marketBasePath}
       />
 
@@ -366,10 +337,12 @@ export async function ShopPage({
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">
-        {(mpEnabled || sellerHasStripe || hasPickup || hasScheduling || returnsLabel) && (
+        {(sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo || hasPickup || hasScheduling || returnsLabel) && (
           <div className="flex flex-wrap gap-2 mb-5">
-            {mpEnabled && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
+            {sellerHasMp && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
             {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Tarjeta</span>}
+            {hasBankTransfer && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">SPEI</span>}
+            {hasDimo && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">DiMo</span>}
             {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Pickup{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
             {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? 'Agenda disponible'}</span>}
             {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700">Devoluciones {returnsLabel}</span>}
@@ -399,7 +372,7 @@ export async function ShopPage({
                     currency: listing.currency ?? 'MXN',
                     imageUrl: listing.images?.[0]?.url ?? null,
                     listing_type: listing.listing_type ?? 'product',
-                    paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
+                    paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
                     href: `${marketBasePath}/l/${listing.id}`,
                     formattedPrice: formatPrice(listing),
                     status: listing.status,

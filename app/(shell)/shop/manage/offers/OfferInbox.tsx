@@ -1,12 +1,12 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- offer thumbnails preserve arbitrary seller-hosted image URLs */
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
-  canAccept, canCounter, canDecline, isExpired,
-  formatOfferAmount, offerQuality, timeAgo, timeUntil,
-  type Offer,
+  isExpired, formatOfferAmount, offerQuality, timeAgo, timeUntil, type Offer,
 } from '@/lib/offers'
 import { Toast, useToast } from '@/components/feedback/Toast'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -307,7 +307,7 @@ function OfferCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
+export default function OfferInbox({ shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
   const [offers, setOffers] = useState<InboxOffer[]>(initialOffers)
   const { toast, showToast, dismissToast } = useToast()
   const [counterOffer, setCounterOffer] = useState<InboxOffer | null>(null)

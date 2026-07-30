@@ -377,7 +377,13 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
   // Restore a persisted transfer for this shop+SKU on mount / SKU change — so a
   // reload after "Ya transferí" doesn't lose the "pendiente de aprobación" state.
   useEffect(() => {
-    if (!transferEnabled) { setTransfer(null); return }
+    if (!transferEnabled) {
+      // The flag is external configuration; clear the synchronized snapshot when
+      // that external source disables the transfer rail.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTransfer(null)
+      return
+    }
     const transferSku = sku === 'ml-sync' ? 'ml_sync' : sku
     let cancelled = false
     fetch(`/api/promoter/close/transfer?shopId=${encodeURIComponent(shop.shopId)}&sku=${transferSku}`)

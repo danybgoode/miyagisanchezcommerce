@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- conversation thumbnails preserve arbitrary seller-hosted image URLs */
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'

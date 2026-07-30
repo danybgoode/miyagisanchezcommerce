@@ -25,8 +25,8 @@ export default function HeroSection({
   accent,
   textColor,
   sellerHasStripe,
-  mpEnabled,
-  hasClabe,
+  sellerHasMp,
+  hasBankTransfer,
   marketBasePath = '',
 }: {
   hero: HeroSettings | null | undefined
@@ -35,8 +35,8 @@ export default function HeroSection({
   accent: string
   textColor: string
   sellerHasStripe: boolean
-  mpEnabled: boolean
-  hasClabe: boolean
+  sellerHasMp: boolean
+  hasBankTransfer: boolean
   marketBasePath?: string
 }) {
   if (!hero) return null
@@ -66,7 +66,7 @@ export default function HeroSection({
                 currency: listing.currency ?? 'MXN',
                 imageUrl: listing.images?.[0]?.url ?? null,
                 listing_type: listing.listing_type ?? 'product',
-                paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
+                paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
                 href: `${marketBasePath}/l/${listing.id}`,
                 formattedPrice: formatPrice(listing),
                 status: listing.status,
@@ -85,6 +85,8 @@ export default function HeroSection({
   return (
     <div className="max-w-6xl mx-auto px-4 mb-6">
       <div className="relative w-full aspect-[16/6] rounded-xl overflow-hidden">
+        {/* Remote seller-authored URLs are not constrained to a Next Image allow-list. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={promoImage}
           alt=""

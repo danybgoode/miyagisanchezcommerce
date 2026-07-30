@@ -139,8 +139,10 @@ function FirstRunApply() {
   // no-op for every other entry into this page (paste/upload unaffected).
   useEffect(() => {
     const stashed = consumeSetupFile()
+    // sessionStorage is the external handoff source; consuming it once and
+    // hydrating the review state is exactly the synchronization performed here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stashed) review(stashed, 'file', 'desde-tres-puertas.json')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleFile(f: File) {

@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- bundle media preserves arbitrary seller-hosted image URLs */
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCart, type CartItem } from './CartContext'

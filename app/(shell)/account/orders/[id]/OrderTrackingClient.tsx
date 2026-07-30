@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
+
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -609,7 +611,6 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
             <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Prueba de impresión</h3>
             {order.proof_image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
             )}
             <p className="text-sm">
@@ -639,7 +640,6 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               {(order.event_tickets ?? []).map((ticket, index) => (
                 <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
                   <div className="flex items-start gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">Boleto {index + 1}</p>
