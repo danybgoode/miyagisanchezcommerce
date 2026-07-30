@@ -13,6 +13,7 @@ import {
   type FlagResolutionReason,
 } from '@golden-beans/sdk'
 import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
+import { createFlagProviderRequestRefreshGate } from '@/lib/flag-provider-request-refresh'
 import { scheduleDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { trackGoldenFlagEvaluation } from '@/lib/growth-engine'
 
@@ -26,6 +27,7 @@ export type GoldenBooleanEvaluation = {
 
 let provider: FlagProvider | undefined
 let started = false
+const requestRefreshGate = createFlagProviderRequestRefreshGate()
 let configuration:
   | {
       baseUrl: string
@@ -52,6 +54,7 @@ function getProvider(): FlagProvider | undefined {
     }
     provider = undefined
     started = false
+    requestRefreshGate.reset()
     configuration = undefined
     return undefined
   }
@@ -69,6 +72,7 @@ function getProvider(): FlagProvider | undefined {
     }
     provider = undefined
     started = false
+    requestRefreshGate.reset()
   }
 
   if (!provider) {
@@ -85,12 +89,18 @@ function getProvider(): FlagProvider | undefined {
 
   if (!started) {
     started = true
+    requestRefreshGate.markAttempt()
     // A snapshot is an optimisation only. Never make a request wait for it and
     // never allow an unexpected transport failure to become an unhandled reject.
     // SDK initialize arms its own bounded periodic refresh before attempting
     // the first fetch, so a failed cold fetch recovers on that timer. Keeping
     // `started` true prevents every request from creating a retry storm.
     void provider.initialize().catch(() => undefined)
+  } else if (requestRefreshGate.takeIfDue()) {
+    // Cloud Run can throttle the SDK's periodic timer between requests. Kick
+    // the same deduplicated refresh from live traffic, but never await it: this
+    // request keeps resolving synchronously from the accepted snapshot/LKG.
+    void provider.refresh().catch(() => undefined)
   }
 
   return provider
