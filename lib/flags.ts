@@ -31,14 +31,25 @@ import {
   FLAG_FETCH_TIMEOUT_MS,
   type FlagRow,
 } from '@/lib/flags-cache'
-import { parseFlagProviderMode } from '@/lib/flag-provider-mode'
+import {
+  DEFAULT_FLAGS,
+  FLAG_KEYS,
+  type FlagKey,
+} from '@/lib/flag-catalog'
+import {
+  parseFlagCutover,
+  resolveFlagAuthority,
+  summarizeFlagCutover,
+  type FlagCutoverStatus,
+} from '@/lib/flag-cutover'
 import { evaluateGoldenBooleanFlag } from '@/lib/golden-flag-provider'
 import { evaluateDurableGoldenBooleanFlag } from '@/lib/golden-flag-mirror'
 import { getDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { createFlagShadowObserver } from '@/lib/flag-shadow-observation'
+import { createFlagProviderEvaluator } from '@/lib/flag-provider-evaluator'
+import { createFlagAuthorityObserver } from '@/lib/flag-authority-observation'
 
-/** The flags this app knows about. Add a key here + to DEFAULT_FLAGS to extend. */
-export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabled' | 'domain.paywall_enabled' | 'pdp_redesign' | 'events.quantity_enabled' | 'shipping.envia_enabled' | 'shipping.correos_enabled' | 'shipping.arranged_only_enabled' | 'promoter.enabled' | 'ml.connect_enabled' | 'ml.import_enabled' | 'ml.publish_enabled' | 'ml.sync_enabled' | 'ml.sync_paywall_enabled' | 'ml.orders_enabled' | 'subdomain.paywall_enabled' | 'seller_agent.connector_url_enabled' | 'promoter.transfer_enabled' | 'configurator.enabled' | 'ops.profit_enabled' | 'launchpad.enabled' | 'notifications.buyer_moneypath_enabled' | 'content.overrides_enabled' | 'catalog.inventory_channels_enabled' | 'catalog.bulk_enabled' | 'migrations.connector_enabled' | 'seller.shell_on_sell_enabled' | 'onboarding.three_doors_enabled' | 'growth.telemetry_enabled' | 'mcp.configure_options.enabled' | 'mcp.delete_listing.enabled' | 'mcp.apply_price.enabled' | 'mcp.support_config.enabled' | 'mcp.checkout_config.enabled' | 'partners.mcp_enabled' | 'promoter.private_preview_enabled' | 'promoter.preview_verified_approval_enabled' | 'promoter.activation_crm_enabled' | 'growth.founding_merchants_enabled' | 'promoter.partner_portfolio_enabled'
+export type { FlagKey } from '@/lib/flag-catalog'
 
 /**
  * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
@@ -353,49 +364,6 @@ export type FlagKey = 'checkout.stripe_enabled' | 'checkout.rental_pricing_enabl
  *    owner-history columns) stays forward-compatible regardless of this flag.
  *    Flip ON only after the two-partner scope + reassignment-attribution
  *    smokes pass. */
-const DEFAULT_FLAGS: Record<FlagKey, boolean> = {
-  'checkout.stripe_enabled': true,
-  'checkout.rental_pricing_enabled': false,
-  'domain.paywall_enabled': false,
-  'pdp_redesign': true,
-  'events.quantity_enabled': false,
-  'shipping.envia_enabled': false,
-  'shipping.correos_enabled': false,
-  'shipping.arranged_only_enabled': false,
-  'promoter.enabled': false,
-  'ml.connect_enabled': false,
-  'ml.import_enabled': false,
-  'ml.publish_enabled': false,
-  'ml.sync_enabled': false,
-  'ml.sync_paywall_enabled': false,
-  'ml.orders_enabled': false,
-  'subdomain.paywall_enabled': false,
-  'seller_agent.connector_url_enabled': false,
-  'promoter.transfer_enabled': false,
-  'configurator.enabled': true,
-  'ops.profit_enabled': false,
-  'launchpad.enabled': false,
-  'notifications.buyer_moneypath_enabled': true,
-  'content.overrides_enabled': true,
-  'catalog.inventory_channels_enabled': false,
-  'catalog.bulk_enabled': false,
-  'migrations.connector_enabled': false,
-  'seller.shell_on_sell_enabled': true,
-  'onboarding.three_doors_enabled': false,
-  'growth.telemetry_enabled': false,
-  'mcp.configure_options.enabled': false,
-  'mcp.delete_listing.enabled': false,
-  'mcp.apply_price.enabled': false,
-  'mcp.support_config.enabled': false,
-  'mcp.checkout_config.enabled': false,
-  'partners.mcp_enabled': false,
-  'promoter.private_preview_enabled': false,
-  'promoter.preview_verified_approval_enabled': false,
-  'promoter.activation_crm_enabled': false,
-  'growth.founding_merchants_enabled': false,
-  'promoter.partner_portfolio_enabled': false,
-}
-
 const TABLE = 'platform_flags'
 
 // Module-level in-process cache. Single-threaded module evaluation → no init race.
@@ -405,23 +373,73 @@ const TABLE = 'platform_flags'
 let cache: { rows: FlagRow[] | null; fetchedAt: number | null } = { rows: null, fetchedAt: null }
 let inflight: Promise<void> | null = null
 
-// Shadow records are intentionally control-plane-only and bounded to one per
-// flag/snapshot in each process. They are the parity evidence during migration,
-// not request telemetry; no subject or request data can enter this record.
-const recordShadowObservation = createFlagShadowObserver((observation) => {
+function writeControlPlaneRecord(prefix: string, value: unknown): void {
   try {
-    // Sentry's production build removes console-level debug logging. Write the
-    // deliberately PII-free control-plane record directly so Cloud Run keeps
-    // the migration evidence without making a flag read able to throw.
-    const line = `[golden-beans:flag-shadow] ${JSON.stringify(observation)}`
+    const line = `[golden-beans:${prefix}] ${JSON.stringify(value)}`
     if (typeof process !== 'undefined' && typeof process.stdout?.write === 'function') {
       process.stdout.write(`${line}\n`)
       return
     }
     console.info(line)
   } catch {
-    // Shadow evidence must never affect a feature decision.
+    // Cutover evidence must never affect a feature decision.
   }
+}
+
+let cutoverCache:
+  | {
+      rawManifest: string | undefined
+      legacyMode: string | undefined
+      status: FlagCutoverStatus<FlagKey>
+    }
+  | undefined
+let lastCutoverReport: string | undefined
+
+/** Current typed cutover state. Raw env content is never included in the report. */
+export function getFlagCutoverStatus(): FlagCutoverStatus<FlagKey> {
+  const rawManifest = process.env.GOLDEN_BEANS_FLAG_CUTOVER
+  const legacyMode = process.env.GOLDEN_BEANS_FLAG_PROVIDER_MODE
+  if (
+    !cutoverCache ||
+    cutoverCache.rawManifest !== rawManifest ||
+    cutoverCache.legacyMode !== legacyMode
+  ) {
+    cutoverCache = {
+      rawManifest,
+      legacyMode,
+      status: parseFlagCutover(rawManifest, FLAG_KEYS, legacyMode),
+    }
+    const status = cutoverCache.status
+    const reportValue = {
+      source: status.source,
+      valid: status.valid,
+      all: status.all,
+      invalidReason: status.invalidReason,
+      overrides: Object.entries(status.overrides)
+        .map(([key, authority]) => ({ key, authority }))
+        .sort((left, right) => left.key.localeCompare(right.key)),
+      counts: summarizeFlagCutover(status, FLAG_KEYS),
+    }
+    const report = JSON.stringify(reportValue)
+    if (lastCutoverReport !== report) {
+      lastCutoverReport = report
+      writeControlPlaneRecord('flag-cutover', reportValue)
+    }
+  }
+  return cutoverCache.status
+}
+
+// Shadow records are intentionally control-plane-only and bounded to one per
+// flag/snapshot in each process. They are the parity evidence during migration,
+// not request telemetry; no subject or request data can enter this record.
+const recordShadowObservation = createFlagShadowObserver((observation) => {
+  // Sentry's production build removes console-level debug logging. Write the
+  // deliberately PII-free control-plane record directly so Cloud Run keeps it.
+  writeControlPlaneRecord('flag-shadow', observation)
+})
+
+const recordAuthorityObservation = createFlagAuthorityObserver<FlagKey>((observation) => {
+  writeControlPlaneRecord('flag-authority', observation)
 })
 
 /**
@@ -478,46 +496,30 @@ async function refreshIfStale(): Promise<void> {
  * any error, timeout, or when the table is unreadable/empty. A fresh cache resolves
  * with no DB hit; a stale cache awaits one bounded (≤2 s) refresh first.
  */
-export async function isEnabled(flag: FlagKey): Promise<boolean> {
-  try {
-    await refreshIfStale()
-  } catch {
-    // Defensive: refreshIfStale already swallows errors, but never let a flag read throw.
-  }
-  const localValue = resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
-  const mode = parseFlagProviderMode(process.env.GOLDEN_BEANS_FLAG_PROVIDER_MODE)
-
-  // The default is local. In shadow mode we deliberately evaluate Golden Beans
-  // but retain the existing platform_flags decision, proving parity before any
-  // behavior-changing cutover. A missing/stale snapshot always falls back to it.
-  if (mode === 'local') return localValue
-
-  // A missing Golden definition must retain the durable local value, including
-  // an active platform_flags override, rather than reverting to source default.
-  const golden = evaluateGoldenBooleanFlag(flag, localValue)
-  if (!golden) {
+const evaluateEnabledFlag = createFlagProviderEvaluator<FlagKey>({
+  async readLocal(flag) {
+    try {
+      await refreshIfStale()
+    } catch {
+      // Defensive: refreshIfStale already swallows errors, but a flag read never throws.
+    }
+    return resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
+  },
+  getMode: (flag) => resolveFlagAuthority(getFlagCutoverStatus(), flag),
+  evaluateGolden: evaluateGoldenBooleanFlag,
+  async readDurableGolden(flag, localValue) {
     // Golden mode's only outage fallback is the monotonic, read-only snapshot
-    // mirror. `platform_flags` stays authoritative exclusively through local /
-    // shadow until Story 2.3 removes its operational writer.
-    if (mode !== 'golden') return localValue
+    // mirror. `platform_flags` stays authoritative exclusively in local/shadow.
     const durableSnapshot = await getDurableGoldenSnapshot()
     return durableSnapshot
-      ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, localValue).value
-      : localValue
-  }
+      ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, localValue)
+      : undefined
+  },
+  observeShadow: recordShadowObservation,
+  getDefault: (flag) => DEFAULT_FLAGS[flag],
+  reportAuthority: recordAuthorityObservation,
+})
 
-  if (mode === 'shadow') {
-    recordShadowObservation({
-      flagKey: flag,
-      defaultValue: DEFAULT_FLAGS[flag],
-      localValue,
-      goldenValue: golden.value,
-      snapshotVersion: golden.snapshotVersion,
-      flagVersion: golden.flagVersion,
-      reason: golden.reason,
-    })
-    return localValue
-  }
-
-  return golden.value
+export async function isEnabled(flag: FlagKey): Promise<boolean> {
+  return evaluateEnabledFlag(flag)
 }

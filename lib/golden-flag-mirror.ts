@@ -20,6 +20,21 @@ export type DurableGoldenBooleanEvaluation = {
   reason: FlagResolutionReason
 }
 
+/** Selects a last-known-good snapshot without allowing an older version to win. */
+export function retainNewestGoldenSnapshot(
+  current: FlagSnapshot | undefined,
+  candidate: FlagSnapshot,
+): FlagSnapshot {
+  if (
+    current &&
+    current.environment === candidate.environment &&
+    current.snapshotVersion >= candidate.snapshotVersion
+  ) {
+    return current
+  }
+  return candidate
+}
+
 export function parseDurableGoldenSnapshot(
   input: unknown,
   environment: GoldenFlagEnvironment,
