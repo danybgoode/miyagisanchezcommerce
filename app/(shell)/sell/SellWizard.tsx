@@ -8,6 +8,8 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { slugify } from '@/lib/slug'
 import { Banner } from '@/components/feedback/Banner'
 import { SuccessCard } from '@/components/SuccessCard'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -238,6 +240,7 @@ function PhotoUploader({
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2">
         {photos.map((photo, index) => (
           <div key={photo.localId} className="relative aspect-square rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)]">
+            {/* eslint-disable-next-line @next/next/no-img-element -- local object URL preview before upload */}
             <img
               src={photo.localUrl}
               alt=""
@@ -1204,18 +1207,23 @@ function StepSuccess({
   result: { shopSlug: string; listingId: string }
   onPublishAnother: () => void
 }) {
+  // This card shares the free marketplace presence, even when a seller reached
+  // the wizard through their custom domain. Tenant middleware rejects `/mx/*`,
+  // so never combine the canonical platform path with the ambient origin.
+  const publicShopUrl = shopUrlFor(SITE_ORIGIN, result.shopSlug)
+
   return (
     <SuccessCard
       headline="¡Tu anuncio está publicado!"
       subcopy="Ya está visible para compradores en todo México."
       counts={{ created: 1, updated: 0, failed: 0, draft: 0 }}
-      liveUrl={`/s/${result.shopSlug}`}
+      liveUrl={publicShopUrl}
       liveLabel="Ver mi tienda pública ↗"
       nextActions={[
-        { label: 'Ver mi anuncio', href: `/l/${result.listingId}` },
+        { label: 'Ver mi anuncio', href: listingUrlFor(SITE_ORIGIN, result.listingId) },
         { label: '+ Publicar otro anuncio', onClick: onPublishAnother },
       ]}
-      shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/s/${result.shopSlug}`}
+      shareUrl={publicShopUrl}
     />
   )
 }
@@ -1284,15 +1292,16 @@ export default function SellWizard({
     features_raw: string   // newline-separated list
     is_highlighted: boolean
   }
-  const makeDefaultTier = (): SubTier => ({
-    id: Math.random().toString(36).slice(2),
+  const initialTierId = useId()
+  const makeDefaultTier = (id: string): SubTier => ({
+    id,
     label: '',
     price_raw: '',
     interval: 'month',
     features_raw: '',
     is_highlighted: false,
   })
-  const [subTiers, setSubTiers] = useState<SubTier[]>([makeDefaultTier()])
+  const [subTiers, setSubTiers] = useState<SubTier[]>([makeDefaultTier(initialTierId)])
   const [listingErrors, setListingErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

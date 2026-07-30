@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const ROOT = process.cwd()
 
 /**
  * MCP agent parity for the configurator (custom-print-products epic,
@@ -9,6 +13,28 @@ import { test, expect } from '@playwright/test'
  * artwork URL and a real payment, is owed to Daniel per sprint-4.md).
  */
 test.describe('MCP create_checkout — configurator parity', () => {
+  test('source orders the market-scoped configurator guard before checkout-session prevalidation', () => {
+    const source = readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8')
+    const createCheckout = source.slice(
+      source.indexOf('async function handleCreateCheckout('),
+      source.indexOf('async function handleCreateConfiguredCheckout('),
+    )
+
+    const configuredGuard = createCheckout.indexOf(
+      'getPriceGrid(listingId, marketDecision.market.code)',
+    )
+    const sessionValidation = createCheckout.indexOf(
+      'fetch(`${baseUrl}/api/ucp/checkout-session`',
+    )
+
+    expect(configuredGuard).toBeGreaterThan(-1)
+    expect(sessionValidation).toBeGreaterThan(-1)
+    expect(configuredGuard).toBeLessThan(sessionValidation)
+    expect(source).toContain('function publicCheckoutError(')
+    expect(source).not.toContain('JSON.stringify(value)')
+    expect(createCheckout).not.toContain('Checkout failed: ${data.error')
+  })
+
   test('tools/list advertises variant_id/quantity/artwork_url on create_checkout', async ({ request }) => {
     const res = await request.post('/api/ucp/mcp', { data: { jsonrpc: '2.0', id: 1, method: 'tools/list' } })
     const tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> =
@@ -30,6 +56,7 @@ test.describe('MCP create_checkout — configurator parity', () => {
     const result = (await res.json()).result as { isError?: boolean; content: Array<{ text: string }> }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('no configurator price grid')
+    expect(result.content[0].text).not.toContain('[object Object]')
   })
 
   test('an unresolvable variant_id on a real price_grid names the mismatch, not a generic failure', async ({ request }) => {
@@ -45,6 +72,7 @@ test.describe('MCP create_checkout — configurator parity', () => {
     })
     const result = (await res.json()).result as { isError?: boolean; content: Array<{ text: string }> }
     expect(result.isError).toBe(true)
+    expect(result.content[0].text).not.toContain('[object Object]')
     expect(result.content[0].text).not.toContain('undefined')
     expect(result.content[0].text).not.toMatch(/TypeError|ReferenceError/)
   })
@@ -60,6 +88,7 @@ test.describe('MCP create_checkout — configurator parity', () => {
     // The flat path's error shape ("Checkout failed: ...") is distinct from
     // the configurator path's ("...no configurator price grid...") — this
     // pins that a call with no variant_id never takes the new branch.
+    expect(result.content[0].text).not.toContain('[object Object]')
     expect(result.content[0].text).not.toContain('configurator price grid')
   })
 })

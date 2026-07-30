@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order thumbnails preserve arbitrary seller-hosted image URLs */
+
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -9,6 +11,8 @@ import { mlOrderBadgeLabel } from '@/lib/ml-order-badge'
 import { orderStatusToToken } from '@/lib/status-badge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Banner } from '@/components/feedback/Banner'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -437,7 +441,7 @@ export default function OrdersInbox({
               <p className="text-sm text-[var(--color-muted)] mb-4 max-w-xs mx-auto">
                 Cuando los compradores paguen tus productos, aparecerán aquí.
               </p>
-              <Link href={`/s/${shop.slug}`}
+              <Link href={shopUrlFor(SITE_ORIGIN, shop.slug)}
                 className="text-sm text-[var(--color-accent)] no-underline hover:underline">
                 Ver tu tienda →
               </Link>

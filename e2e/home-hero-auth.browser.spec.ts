@@ -16,7 +16,7 @@ import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
 
 test.describe('home-hero · signed-out only (browser)', () => {
   test('anonymous: the hero is present and visible', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/mx')
     await page.waitForLoadState('networkidle')
     const hero = page.locator('[data-testid="home-hero"]')
     await expect(hero).toHaveCount(1)
@@ -27,7 +27,7 @@ test.describe('home-hero · signed-out only (browser)', () => {
     test.skip(!authEnabled(), 'Set MS_TEST_BROWSER_AUTH=1 (+ dev Clerk keys) to run authed browser smokes.')
     const email = requireEnv(buyerEmail(), 'MS_TEST_BUYER_EMAIL')
     await signIn(page, email)
-    await page.goto('/')
+    await page.goto('/mx')
     await page.waitForLoadState('networkidle')
     await expect(page.locator('[data-testid="home-hero"]')).toHaveCount(0)
   })

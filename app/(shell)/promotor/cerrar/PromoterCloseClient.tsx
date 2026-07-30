@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { ESTADO_NAMES } from '@/lib/mx-locations'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import ListingStep from './ListingStep'
 import PrintAdStep from './PrintAdStep'
 import PreviewStep from './PreviewStep'
@@ -261,7 +263,7 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
     <Card n={n} title="Montar la tienda">
       {shop ? (
         <p className="text-sm">
-          <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>
+          <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shopUrlFor(SITE_ORIGIN, shop.slug)}</a>
         </p>
       ) : (
         <div className="space-y-3">
@@ -377,7 +379,13 @@ function CloseStep({ shop, transferEnabled, n }: { shop: Shop; transferEnabled: 
   // Restore a persisted transfer for this shop+SKU on mount / SKU change — so a
   // reload after "Ya transferí" doesn't lose the "pendiente de aprobación" state.
   useEffect(() => {
-    if (!transferEnabled) { setTransfer(null); return }
+    if (!transferEnabled) {
+      // The flag is external configuration; clear the synchronized snapshot when
+      // that external source disables the transfer rail.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTransfer(null)
+      return
+    }
     const transferSku = sku === 'ml-sync' ? 'ml_sync' : sku
     let cancelled = false
     fetch(`/api/promoter/close/transfer?shopId=${encodeURIComponent(shop.shopId)}&sku=${transferSku}`)

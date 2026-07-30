@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
+
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -22,6 +24,8 @@ import {
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -569,7 +573,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-snug">{listing?.title}</p>
             {shop && (
-              <Link href={`/s/${shop.slug}`}
+              <Link href={shopUrlFor(SITE_ORIGIN, shop.slug)}
                 className="text-xs text-[var(--color-muted)] hover:text-[var(--color-accent)] no-underline mt-0.5 block">
                 {shop.name} →
               </Link>
@@ -609,7 +613,6 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
             <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Prueba de impresión</h3>
             {order.proof_image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
             )}
             <p className="text-sm">
@@ -639,7 +642,6 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               {(order.event_tickets ?? []).map((ticket, index) => (
                 <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
                   <div className="flex items-start gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">Boleto {index + 1}</p>
@@ -948,7 +950,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <p className="text-xs text-[var(--color-muted)] mt-0.5">Contacta al vendedor si tienes dudas sobre tu pedido.</p>
           </div>
           <Link
-            href={`/s/${shop.slug}`}
+            href={shopUrlFor(SITE_ORIGIN, shop.slug)}
             className="flex-shrink-0 text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline ml-3"
           >
             Ir a la tienda →

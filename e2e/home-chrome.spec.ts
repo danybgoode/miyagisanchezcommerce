@@ -13,12 +13,12 @@ import es from '../locales/es.json' with { type: 'json' }
  *     whether the live strip has items or falls back to the banner.
  *
  * The signed-in *absence* of the hero is enforced by the client `AuthShow`
- * gate in app/(site)/page.tsx; the api project holds no session, so that path
+ * gate in app/(site)/mx/page.tsx; the api project holds no session, so that path
  * is covered by code review + the (anonymous) browser smoke, not asserted here.
  */
 test.describe('home chrome · hero + footer + vecindario entry', () => {
   test('S3.1 — the signed-out hero renders with its heading', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
@@ -27,7 +27,7 @@ test.describe('home chrome · hero + footer + vecindario entry', () => {
   })
 
   test('S3.3 — the footer is mobile-visible (no `hidden`) and carries Términos', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
@@ -47,7 +47,7 @@ test.describe('home chrome · hero + footer + vecindario entry', () => {
   })
 
   test('S3.4 — the Vecindario entry keeps its testid on a /vecindario anchor', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 

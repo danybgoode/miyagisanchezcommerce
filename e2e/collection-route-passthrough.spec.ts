@@ -25,10 +25,23 @@ test.describe('boundary-isolation deny-list — /c/[collection] must always pass
     expect(isBoundaryDeniedPath('/l/')).toBe(true)
   })
 
+  test('country-prefixed cross-shop paths are denied on tenant hosts too', () => {
+    for (const market of ['mx', 'us']) {
+      expect(isBoundaryDeniedPath(`/${market}/s/foreign-shop`)).toBe(true)
+      expect(isBoundaryDeniedPath(`/${market}/s/foreign-shop/c/zines`)).toBe(true)
+      expect(isBoundaryDeniedPath(`/${market}/l`)).toBe(true)
+      expect(isBoundaryDeniedPath(`/${market}/l/prod_01KTQY8PFAVCRRD61DNSXNXKM8`)).toBe(true)
+    }
+  })
+
   test('a path that merely shares the /l or /s prefix without a boundary slash is NOT denied', () => {
     // e.g. a hypothetical /listings or /shop route must not be swept in by a
     // loose prefix match — same discipline as isSellerModePath's own guard.
     expect(isBoundaryDeniedPath('/listings')).toBe(false)
     expect(isBoundaryDeniedPath('/shop')).toBe(false)
+    // Tenant PDPs stay valid; their page-level owner check rejects a foreign ID.
+    expect(isBoundaryDeniedPath('/l/prod_01KTQY8PFAVCRRD61DNSXNXKM8')).toBe(false)
+    expect(isBoundaryDeniedPath('/mx/listings')).toBe(false)
+    expect(isBoundaryDeniedPath('/us/shop')).toBe(false)
   })
 })

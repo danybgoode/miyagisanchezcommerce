@@ -107,7 +107,7 @@ async function sellerEmail(shopId: string): Promise<string | null> {
 }
 
 async function notifyMet(campaign: CampaignWithMeta, couponCode: string): Promise<void> {
-  const productUrl = `${SITE_URL}/l/${campaign.reward_product_id}`
+  const productUrl = `${SITE_URL}/mx/l/${campaign.reward_product_id}`
   const expiresAt = new Date(Date.now() + COUPON_VALIDITY_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const title = campaign.title ?? 'la campaña'
 

@@ -1,8 +1,12 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { carrierLabel } from '@/lib/envia'
+import { browseUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -237,7 +241,7 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
               <p className="text-sm text-[var(--color-muted)] mb-5 max-w-xs mx-auto">
                 Explora miles de productos de vendedores locales en México.
               </p>
-              <Link href="/l"
+              <Link href={browseUrlFor(SITE_ORIGIN)}
                 className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors">
                 Explorar productos
               </Link>

@@ -6,6 +6,8 @@ import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import ConvocatoriaSettingsClient from './ConvocatoriaSettingsClient'
 import SubmissionsQueue from './SubmissionsQueue'
 import ShelfCard from './ShelfCard'
+import { marketplaceUrl } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const metadata = { title: 'Convocatoria — Miyagi Sánchez' }
 
@@ -43,7 +45,7 @@ export default async function ConvocatoriaManagePage() {
           accepts_manuscripts: lp.accepts_manuscripts === true,
           guidelines: typeof lp.guidelines === 'string' ? lp.guidelines : null,
         }}
-        publicUrl={`/s/${shop.slug}/convocatoria`}
+        publicUrl={marketplaceUrl(SITE_ORIGIN, `/s/${shop.slug}/convocatoria`)}
       />
 
       <div className="mt-8">

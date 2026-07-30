@@ -30,7 +30,7 @@ test.describe('homepage icon language', () => {
   })
 
   test('homepage SSR renders Iconoir category glyphs and no removed design emoji', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 

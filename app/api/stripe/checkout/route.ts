@@ -4,6 +4,7 @@ import { stripe, getShopStripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { detectChannel } from '@/lib/channel'
 import { resolveOrigin } from '@/lib/request-origin'
+import { listingUrlFor } from '@/lib/market-url'
 
 interface CheckoutBody {
   listingId: string
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
     // Collect buyer email for digital delivery
     customer_email: undefined, // Stripe shows email field automatically
     success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/l/${listing.id}?payment=cancelled`,
+    cancel_url: `${listingUrlFor(origin, listing.id)}?payment=cancelled`,
     metadata: {
       listing_id: listing.id,
       shop_id: listing.shop_id,

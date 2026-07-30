@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 /**
  * Promoter workspace — private preview + activation step
@@ -55,7 +57,12 @@ export default function PreviewStep({ shop, n }: { shop: Shop; n: number }) {
     } catch { /* best-effort — the buttons still work */ }
   }, [shop.shopId])
 
-  useEffect(() => { loadState() }, [loadState])
+  useEffect(() => {
+    // The preview row is an external system snapshot; loading it is the effect's
+    // synchronization job even though the async helper owns the eventual setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadState()
+  }, [loadState])
 
   async function mint() {
     setBusy('mint'); setError(null)
@@ -137,7 +144,7 @@ export default function PreviewStep({ shop, n }: { shop: Shop; n: number }) {
       {activated ? (
         <p className="text-sm text-[color:var(--success)]">
           <i className="iconoir-check-circle" aria-hidden /> La tienda ya es pública —{' '}
-          <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>.
+          <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shopUrlFor(SITE_ORIGIN, shop.slug)}</a>.
         </p>
       ) : (
         <>

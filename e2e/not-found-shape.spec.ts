@@ -61,7 +61,11 @@ const MIDDLEWARE_404 = 'Not found.'
 
 test.describe('cheap 404 — junk listing/shop URLs short-circuit', () => {
   test('a junk listing URL 404s with a cache header, no page render', async ({ request }) => {
-    const res = await request.get('/l/wp-admin', { maxRedirects: 0 })
+    // Avoid a scanner keyword that some hosting edges intercept before the app;
+    // this still fails the exact same listing-id predicate in our middleware.
+    // Malformed legacy paths are not indexable marketplace URLs and must keep
+    // short-circuiting directly, without paying for a redirect plus a second hit.
+    const res = await request.get('/l/not-a-real-id', { maxRedirects: 0 })
     expect(res.status()).toBe(404)
     expect(res.headers()['cache-control'] ?? '').toContain('s-maxage')
     expect(await res.text()).toContain(MIDDLEWARE_404)
@@ -78,7 +82,7 @@ test.describe('cheap 404 — junk listing/shop URLs short-circuit', () => {
     // Valid `prod_`-shape but no such product → passes the middleware shape gate,
     // reaches the page, getListing returns null → notFound(). Confirms we 404 the
     // *deleted* case cleanly without the bare middleware short-circuit.
-    const res = await request.get('/l/prod_00000000000000000000000000', { maxRedirects: 0 })
+    const res = await request.get('/mx/l/prod_00000000000000000000000000', { maxRedirects: 0 })
     expect(res.status()).toBe(404)
     expect(await res.text()).not.toContain(MIDDLEWARE_404)
   })

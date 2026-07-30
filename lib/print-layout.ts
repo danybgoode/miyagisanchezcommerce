@@ -9,6 +9,7 @@
  */
 
 import type { PrintAdContent, PrintAdSubmission, PrintSocialSubmission, PrintTierKey } from '@/lib/print'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 
 // ── Paper / grid ──────────────────────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ export function listingToBlock(item: CatalogListing, siteUrl: string): PrintBloc
       body: excerpt(item.description),
       price: item.price ?? undefined,
       photos: item.image ? [item.image] : [],
-      cta_target: { type: 'listing', id: item.id, url: `${siteUrl}/l/${item.id}` },
+      cta_target: { type: 'listing', id: item.id, url: listingUrlFor(siteUrl, item.id) },
     },
     style: {},
     tier_key: null,
@@ -261,7 +262,7 @@ export function shopToBlock(item: CatalogShop, siteUrl: string): PrintBlock {
       headline: item.name,
       body: excerpt(item.description),
       logo_url: item.logo ?? null,
-      cta_target: { type: 'shop', id: item.slug, url: `${siteUrl}/s/${item.slug}` },
+      cta_target: { type: 'shop', id: item.slug, url: shopUrlFor(siteUrl, item.slug) },
     },
     style: {},
     tier_key: null,

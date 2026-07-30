@@ -139,7 +139,7 @@ export async function deliverOrderWebhook(
       listing: {
         id:    listing.id,
         title: listing.title,
-        url:   `https://miyagisanchez.com/l/${listing.id}`,
+        url:   `https://miyagisanchez.com/mx/l/${listing.id}`,
       },
       buyer: {
         email: order.buyer_email,

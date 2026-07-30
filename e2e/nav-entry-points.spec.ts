@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test'
  */
 test.describe('nav entry points · /vende vs /sell + Vecindario', () => {
   test('signed-out seller CTAs lead to /vende, not /sell', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
 
@@ -29,7 +29,7 @@ test.describe('nav entry points · /vende vs /sell + Vecindario', () => {
   })
 
   test('the publish affordance (⊕ FAB) still resolves to /sell', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     // The bottom-bar FAB is always rendered and points at the publish flow.
@@ -37,7 +37,9 @@ test.describe('nav entry points · /vende vs /sell + Vecindario', () => {
   })
 
   test('the Inicio feed carries a Vecindario entry that resolves to /vecindario', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    // `/` is now the market selector; the Inicio feed lives at the Mexico
+    // marketplace homepage.
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     // Stable marker on the feed card (set in app/page.tsx), wired to /vecindario.
@@ -49,7 +51,7 @@ test.describe('nav entry points · /vende vs /sell + Vecindario', () => {
   })
 
   test('the footer Vecindario link still resolves to /vecindario', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html).toContain('href="/vecindario"')

@@ -10,6 +10,8 @@ import {
   getSweepstakesSettings,
   publicSweepstakesUrl,
 } from '@/lib/sweepstakes'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import SweepstakesEntryClient from './SweepstakesEntryClient'
 
 export const dynamic = 'force-dynamic'
@@ -90,7 +92,7 @@ export default async function SweepstakesPage({
       status={active ? 'active' : isEnded || campaign.status === 'completed' ? 'ended' : isTooEarly ? 'not_live' : 'not_live'}
       purchaseBonusEnabled={campaign.purchase_bonus_enabled}
       purchaseTicketValue={campaign.purchase_ticket_value}
-      shopUrl={shop?.slug ? `/s/${shop.slug}` : null}
+      shopUrl={shop?.slug ? shopUrlFor(SITE_ORIGIN, shop.slug) : null}
       shopName={shop?.name ?? null}
     />
   )

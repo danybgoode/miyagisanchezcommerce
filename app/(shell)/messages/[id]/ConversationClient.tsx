@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- conversation attachments preserve arbitrary participant-hosted image URLs */
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
@@ -10,6 +12,8 @@ import type { CheckoutProvider } from '@/lib/cart'
 import type { LedgerView } from '@/lib/transaction-ledger'
 import { useConversationStream } from '@/lib/messaging/stream'
 import { ensurePushSubscription } from '@/lib/push-client'
+import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -193,7 +197,6 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
             Prueba de impresión
           </div>
           {imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="Prueba de impresión" style={{ width: '100%', maxWidth: 240, borderRadius: 10, display: 'block', marginBottom: 8 }} />
           )}
           <div style={{ fontSize: 13, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)', lineHeight: 1.5 }}>
@@ -834,6 +837,9 @@ export default function ConversationClient({ conversationId, initialConversation
   // Backfill once on (re)connect, and when the tab regains focus — covers any
   // events missed while disconnected and refreshes joined offer/checkout data.
   useEffect(() => {
+    // Realtime connection state is external; reconnect intentionally schedules
+    // the same state-refresh path used by the visibility listener below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (connected) refresh()
   }, [connected, refresh])
   useEffect(() => {
@@ -873,11 +879,14 @@ export default function ConversationClient({ conversationId, initialConversation
 
   const showActionBar = offer && conv.status === 'active'
   const isClosed = conv.status !== 'active'
+  const listingHref = listing
+    ? listingUrlFor(SITE_ORIGIN, listing.medusa_product_id ?? listing.id)
+    : browseUrlFor(SITE_ORIGIN)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Listing header */}
-      <Link href={`/l/${listing?.id}`} className="no-underline" style={{ flexShrink: 0 }}>
+      <Link href={listingHref} className="no-underline" style={{ flexShrink: 0 }}>
         <div
           className="flex items-center gap-3"
           style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}

@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../../SellerBreadcrumb'
@@ -23,6 +25,8 @@ import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-
 import { orderStatusToToken, returnStatusToToken } from '@/lib/status-badge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -163,7 +167,6 @@ function StatusStepper({ status }: { status: string }) {
       {ORDER_STEPS.map((step, i) => {
         const done    = i < currentIdx
         const current = i === currentIdx
-        const future  = i > currentIdx
         return (
           <div key={step.key} className="flex items-center flex-1">
             <div className="flex flex-col items-center flex-1">
@@ -717,10 +720,6 @@ export default function OrderDetail({ order }: OrderDetailProps) {
   const listing = Array.isArray(order.marketplace_listings)
     ? order.marketplace_listings[0]
     : order.marketplace_listings
-  const shop = Array.isArray(order.marketplace_shops)
-    ? order.marketplace_shops[0]
-    : order.marketplace_shops
-
   const thumb  = listing?.images?.[0]?.url ?? null
   const statusLabel = STATUS_LABEL[currentStatus] ?? STATUS_LABEL.paid
   const statusToken  = orderStatusToToken(currentStatus)
@@ -989,10 +988,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             }
           </div>
           <div className="flex-1">
-            <Link href={`/l/${listing?.id}`}
-              className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
-              {listing?.title}
-            </Link>
+            {listing ? (
+              <Link href={listingUrlFor(SITE_ORIGIN, listing.id)}
+                className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
+                {listing.title}
+              </Link>
+            ) : (
+              <span className="font-semibold text-sm">Artículo no disponible</span>
+            )}
             <p className="text-xs text-[var(--color-muted)] mt-0.5 capitalize">{listing?.listing_type}</p>
             <p className="text-xl font-bold mt-2">{formatPrice(order.amount_cents, order.currency)}</p>
           </div>
@@ -1036,7 +1039,6 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           {proofSent ? (
             <div className="text-sm">
               {proofImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={proofImageUrl} alt="Prueba de impresión" className="w-full max-w-[200px] rounded-[var(--r-md)] mb-2" />
               )}
               <p className="text-[var(--color-muted)]">
@@ -1080,7 +1082,6 @@ export default function OrderDetail({ order }: OrderDetailProps) {
               {(order.event_tickets ?? []).map((ticket, index) => (
                 <div key={ticket.token} className="rounded-[var(--r-md)] border border-[var(--color-border)] p-3">
                   <div className="flex items-start gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-[var(--r-md)] border border-[var(--color-border)]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">Boleto {index + 1}</p>
@@ -1381,7 +1382,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
           </p>
           <button type="button" onClick={() => updateStatus('processing')} disabled={updatingStatus}
             className="text-sm font-semibold text-[var(--info)] border border-[var(--info)] rounded-[var(--r-md)] px-4 py-2 hover:bg-[var(--info-soft)] disabled:opacity-50 transition-colors">
-            {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Marcar como "En preparación"</>}
+            {updatingStatus ? 'Actualizando…' : <><i className="iconoir-check" aria-hidden /> Marcar como &ldquo;En preparación&rdquo;</>}
           </button>
         </div>
       )}

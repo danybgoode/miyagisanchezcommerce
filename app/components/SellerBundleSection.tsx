@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- bundle media preserves arbitrary seller-hosted image URLs */
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCart, type CartItem } from './CartContext'
@@ -25,10 +27,12 @@ export default function SellerBundleSection({
   sellerName,
   items,
   bundleTiers = [],
+  marketBasePath = '',
 }: {
   sellerName: string
   items: CartItem[]
   bundleTiers?: BundleTier[]
+  marketBasePath?: string
 }) {
   const router = useRouter()
   const { addItem, removeItem, closeCart, items: cartItems } = useCart()
@@ -76,7 +80,7 @@ export default function SellerBundleSection({
           const inBundle = cartItems.some(cartItem => cartItem.productId === item.productId)
           return (
             <div key={item.productId} style={{ minWidth: 0 }}>
-              <Link href={`/l/${item.productId}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+              <Link href={`${marketBasePath}/l/${item.productId}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
                 <div style={{ aspectRatio: '1 / 1', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-sunk)', marginBottom: 7 }}>
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />

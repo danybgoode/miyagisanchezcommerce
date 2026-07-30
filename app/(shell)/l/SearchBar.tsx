@@ -16,6 +16,7 @@ type SearchBarProps = {
   initialTotal?: number
   /** Derived autos facet rail (cars-vertical S1.1); null ⇒ plain free-text panel. */
   carFacets?: CarFacets | null
+  marketBasePath?: string
 }
 
 const SORT_OPTIONS: { value: SortOption | ''; label: string }[] = [
@@ -53,6 +54,9 @@ const PROPERTY_TYPES = [
 
 function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
+  // The portal target exists only after hydration; this one-shot state flip is
+  // the external DOM-availability synchronization the effect models.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true) }, [])
 
   // The trigger only exists below `sm`; retaining the normal in-flow form until it
@@ -60,7 +64,7 @@ function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNo
   return open && mounted ? createPortal(children, document.body) : children
 }
 
-export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets }: SearchBarProps) {
+export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets, marketBasePath = '' }: SearchBarProps) {
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
@@ -173,7 +177,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
       <form
         ref={formRef}
         method="GET"
-        action="/l"
+        action={`${marketBasePath}/l`}
         onChange={scheduleRecount}
         className={[
           'bg-[var(--claim-accent)]',

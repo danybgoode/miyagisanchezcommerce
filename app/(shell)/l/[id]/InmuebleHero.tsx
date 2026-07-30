@@ -20,12 +20,14 @@ export default function InmuebleHero({
   bookingUrl,
   attrs,
   location,
+  marketBasePath = '',
 }: {
   listingId: string
   isSignedIn: boolean
   bookingUrl: string | null
   attrs: Record<string, unknown> | null | undefined
   location: string | null
+  marketBasePath?: string
 }) {
   const model = inmuebleHeroModel({ bookingUrl })
   const iconSpecs: InmuebleIconSpec[] = inmuebleIconSpecs(attrs)
@@ -85,7 +87,7 @@ export default function InmuebleHero({
           {model.primaryLabel}
         </a>
       ) : (
-        <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} />
+        <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
       )}
     </div>
   )

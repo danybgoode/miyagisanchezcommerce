@@ -26,11 +26,11 @@ export interface UnclaimedNoticeModel {
   claimLabel: string
 }
 
-export function unclaimedNoticeModel(shopSlug: string): UnclaimedNoticeModel {
+export function unclaimedNoticeModel(shopSlug: string, marketBasePath = ''): UnclaimedNoticeModel {
   return {
     title: 'Tienda aún no reclamada',
     body: 'Este anuncio se importó y la tienda todavía no tiene dueño en Miyagi Sánchez. Puedes contactar directamente para preguntar por el artículo. La compra protegida y las ofertas en línea se activan cuando el dueño reclame la tienda.',
-    claimHref: `/s/${shopSlug}/claim`,
+    claimHref: `${marketBasePath}/s/${shopSlug}/claim`,
     claimLabel: '¿Es tuya esta tienda? Reclama gratis',
   }
 }

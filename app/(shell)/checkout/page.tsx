@@ -1,4 +1,6 @@
+/* eslint-disable @next/next/no-img-element -- checkout previews preserve arbitrary seller-hosted image URLs */
 import { redirect, notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { getListing, getPriceGrid, formatPrice } from '@/lib/listings'
@@ -10,6 +12,8 @@ import { clampTicketQuantity } from '@/lib/ticket-quantity'
 import { readEventDetails } from '@/lib/event-listing'
 import { resolveRentalCheckoutDisplay } from '@/lib/rental-checkout-display'
 import { rentalUnitsLabel, formatRentalCents, type RentalPrice } from '@/lib/rental-pricing'
+import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
 
@@ -91,8 +95,22 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // anything but a plain string.
   const checkIn = Array.isArray(params.checkIn) ? (params.checkIn as unknown as string[])[0] : params.checkIn
   const checkOut = Array.isArray(params.checkOut) ? (params.checkOut as unknown as string[])[0] : params.checkOut
+  // Checkout itself is native on every channel, but catalog URLs differ:
+  // platform PDPs live under /mx/l while a tenant must stay on /l (middleware
+  // deliberately denies /mx/l there). Only middleware may set these headers;
+  // the platform branch strips client-supplied copies before this page runs.
+  // `params.origin` remains a checkout-return hint and is never trusted for
+  // channel boundary decisions.
+  const requestHeaders = await headers()
+  const channel = requestHeaders.get('x-miyagi-channel')
+  const channelDomain = requestHeaders.get('x-miyagi-domain')
+  const onTenantChannel = channel === 'custom' || channel === 'subdomain'
+  const marketOrigin = onTenantChannel && channelDomain
+    ? `https://${channelDomain}`
+    : SITE_ORIGIN
+  const browsePath = new URL(browseUrlFor(marketOrigin)).pathname
   const rawListingId = params.listingId
-  if (!rawListingId) redirect('/l')
+  if (!rawListingId) redirect(browsePath)
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
@@ -100,19 +118,20 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
   const listing = await getListing(listingId)
   if (!listing) notFound()
+  const listingPath = new URL(listingUrlFor(marketOrigin, listing.id)).pathname
 
   // Last-line money-path guard: /checkout is directly URL-reachable (the deep-link
   // target of checkoutHopHref/signInHopHref), so an unclaimed (gem) shop must be
   // redirected away even though the PDP no longer links here. Shared predicate —
   // see lib/claim.ts (same one the PDP + offers route + checkout-session use).
   const isClaimed = isShopClaimed(listing.shop)
-  if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/l/${listing.id}`)
+  if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(listingPath)
 
   const offerPriceCents = await getAcceptedOfferPrice(offerId, listing.id, user.id)
-  if (offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
+  if (offerId && !offerPriceCents) redirect(`${listingPath}?offer=unavailable`)
   let amountCents = offerPriceCents ?? listing.price_cents
-  if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
-  if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
+  if (!amountCents || amountCents <= 0) redirect(listingPath)
+  if (listing.status !== 'active') redirect(`${listingPath}?checkout=unavailable`)
 
   const isOfferCheckout = !!offerPriceCents
   // An offer is entirely orthogonal to the configurator feature — negotiation
@@ -133,7 +152,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // unlimited) could wrongly block a buyer whose chosen variant is fine
   // (cross-agent review catch, 2026-07-05) — Medusa's own per-variant
   // reservation at order placement is the real authority for that variant.
-  if (!variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
+  if (!variantId && listing.in_stock === false) redirect(`${listingPath}?checkout=unavailable`)
 
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
@@ -182,7 +201,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   if (isConfiguratorCheckout) {
     const priceGrid = await getPriceGrid(listing.id)
     const resolved = priceGrid ? unitPriceCentsFor(priceGrid, variantId!, quantity) : null
-    if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
+    if (resolved == null) redirect(`${listingPath}?checkout=unavailable`)
     amountCents = resolved
   }
 
@@ -202,7 +221,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       rateCents: listing.price_cents ?? 0,
       attrs: listing.attrs,
     })
-    if (!result.ok) redirect(`/l/${listing.id}?checkout=unavailable`)
+    if (!result.ok) redirect(`${listingPath}?checkout=unavailable`)
     rentalBreakdown = result.breakdown
     amountCents = result.breakdown.totalCents
   }
@@ -210,7 +229,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
       <div style={{ marginBottom: 18 }}>
-        <Link href={`/l/${listing.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
+        <Link href={listingPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
           Volver al anuncio
         </Link>

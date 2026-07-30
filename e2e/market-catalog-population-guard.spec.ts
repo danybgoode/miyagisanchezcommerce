@@ -24,14 +24,10 @@ import { fileURLToPath } from 'node:url'
  *                       (epic decision D4): adding it there is exactly the failure
  *                       this epic exists to prevent — an owned shop must keep
  *                       working with no marketplace membership at all.
- *   DEFERRED_D10      — the UCP/MCP agent surfaces. Decision D10 assigns their
- *                       `market` parameter to Sprint 2. They are safe to defer for
- *                       one specific, CHECKED reason: they accept no market input
- *                       today, so there is no door into another market through
- *                       them. The last test in this file asserts that, which makes
- *                       the deferral self-expiring — the moment Sprint 2 introduces
- *                       a `market` token in those files, this guard goes red and
- *                       forces them through the seam.
+ *   AGENT_MARKET_SCOPED — UCP/MCP public browse. Sprint 2 expired D10's temporary
+ *                         deferral: these surfaces now accept `market`, must plan
+ *                         through the same fail-closed seam, and verify the backend
+ *                         echo before returning catalog rows.
  *
  * Source-text scanning only: no network, no DB. Comments are stripped before every
  * scan, because a negative-containment guard that fires on a doc comment explaining
@@ -95,6 +91,12 @@ const MARKET_SCOPED = new Set([
   'lib/listings.ts',
 ])
 
+const AGENT_MARKET_SCOPED = new Set([
+  'app/api/ucp/catalog/route.ts',
+  'app/api/ucp/catalog/[id]/route.ts',
+  'app/api/ucp/mcp/route.ts',
+])
+
 const OWNERSHIP_SCOPED = new Set([
   // A seller publishing: is this listing actually checkout-viable for its OWNER?
   'lib/listing-status.ts',
@@ -115,13 +117,7 @@ const OWNERSHIP_SCOPED = new Set([
   'app/api/supply/listing-images/route.ts',
 ])
 
-const DEFERRED_D10 = new Set([
-  'app/api/ucp/catalog/route.ts',
-  'app/api/ucp/catalog/[id]/route.ts',
-  'app/api/ucp/mcp/route.ts',
-])
-
-const CLASSIFIED = new Set([...MARKET_SCOPED, ...OWNERSHIP_SCOPED, ...DEFERRED_D10])
+const CLASSIFIED = new Set([...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED])
 
 const CATALOG_READERS = [join(ROOT, 'app'), join(ROOT, 'lib')]
   .flatMap(listSourceFiles)
@@ -150,7 +146,7 @@ test.describe('population guard · every marketplace catalog reader is classifie
   })
 
   test('the three buckets are disjoint', () => {
-    const all = [...MARKET_SCOPED, ...OWNERSHIP_SCOPED, ...DEFERRED_D10]
+    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
     expect(all.length).toBe(new Set(all).size)
   })
 })
@@ -453,15 +449,151 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
   })
 })
 
-test.describe('population guard · the D10 deferral is self-expiring', () => {
-  for (const file of DEFERRED_D10) {
-    test(`${file} accepts no market input yet — deferring it is still safe`, () => {
-      // This is the ENTIRE justification for deferring these three files to Sprint 2:
-      // with no market input there is no door into another market through them, so
-      // they cannot serve MX rows under a US request. The day that stops being true,
-      // this test fails and the deferral ends.
+test.describe('population guard · D10 agent surfaces are market-scoped', () => {
+  for (const file of AGENT_MARKET_SCOPED) {
+    test(`${file} plans and verifies a market-scoped catalog read`, () => {
       const stripped = stripComments(readFileSync(join(ROOT, file), 'utf8'))
-      expect(/\bmarket(?:_code|s)?\b/.test(stripped), `${file} now mentions a market — route it through lib/market-catalog.ts`).toBe(false)
+      expect(stripped).toContain("from '@/lib/market-catalog'")
+      expect(stripped).toContain('planMarketCatalogRead')
+      expect(stripped).toContain('verifyMarketFilter')
     })
   }
+
+  const MCP_SOURCE = stripComments(readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8'))
+  const MCP_BLOCKS = topLevelBlocks(MCP_SOURCE)
+  const MCP_OWNER_EXEMPTIONS = new Set([
+    // Seller-agent writes recompute the owner's price-grid after an authenticated
+    // ownership check. D4: these must not depend on marketplace publication.
+    'handleConfigureListingOptions',
+    'handleApplyPrice',
+  ])
+  const MCP_DIRECT_CATALOG_READERS = MCP_BLOCKS.filter((block) =>
+    block.body.includes('${MEDUSA_BASE}/store/listings'),
+  )
+
+  test('the MCP block scan discovers every direct catalog reader, not only the file', () => {
+    const names = MCP_DIRECT_CATALOG_READERS.map((block) => block.name)
+    expect(names).toContain('handleMakeOffer')
+    expect(names).toContain('getShopCalcom')
+    expect(names).toContain('getShopSchedulingLinks')
+    expect(names).toContain('handleGetShop')
+  })
+
+  for (const block of MCP_DIRECT_CATALOG_READERS) {
+    if (MCP_OWNER_EXEMPTIONS.has(block.name)) continue
+    test(`MCP ${block.name} carries and verifies a country market`, () => {
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without receiving a planned market`,
+      ).toMatch(/marketDecision\.market|marketCode/)
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without putting market on the request`,
+      ).toMatch(/[?&]market=|params\.set\('market'|marketDecision\.query/)
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without checking the backend echo`,
+      ).toContain('verifyMarketFilter')
+    })
+  }
+
+  test('every MCP direct-catalog exemption still exists and is seller-owned', () => {
+    const names = new Set(MCP_DIRECT_CATALOG_READERS.map((block) => block.name))
+    for (const exemption of MCP_OWNER_EXEMPTIONS) {
+      expect(names.has(exemption), `stale MCP owner exemption: ${exemption}`).toBe(true)
+    }
+  })
+
+  const MARKET_PRICE_GRID_READERS = [
+    {
+      file: 'app/(shell)/l/[id]/page.tsx',
+      block: 'ListingPage',
+      call: /getPriceGrid\(\s*id\s*,\s*market\s*\)/,
+    },
+    {
+      file: 'app/api/ucp/catalog/route.ts',
+      block: 'GET',
+      call: /getPriceGrid\([^)]*,\s*marketDecision\.market\.code\s*\)/,
+    },
+    {
+      file: 'app/api/ucp/catalog/[id]/route.ts',
+      block: 'GET',
+      call: /getPriceGrid\([^)]*,\s*marketDecision\.market\.code\s*,?\s*\)/,
+    },
+    {
+      file: 'app/api/ucp/mcp/route.ts',
+      block: 'handleSearchListings',
+      call: /getPriceGrid\([^)]*,\s*marketDecision\.market\.code\s*\)/,
+    },
+    {
+      file: 'app/api/ucp/mcp/route.ts',
+      block: 'handleGetListing',
+      call: /getPriceGrid\([^)]*,\s*marketDecision\.market\.code\s*,?\s*\)/,
+    },
+  ]
+
+  for (const reader of MARKET_PRICE_GRID_READERS) {
+    test(`${reader.file} · ${reader.block} threads the selected market into its price grid`, () => {
+      const stripped = stripComments(readFileSync(join(ROOT, reader.file), 'utf8'))
+      const body = topLevelBlocks(stripped).find((block) => block.name === reader.block)?.body
+      expect(body, `${reader.block} no longer exists in ${reader.file} — re-point this guard`).toBeTruthy()
+      expect(body).toMatch(reader.call)
+    })
+  }
+})
+
+test.describe('population guard · marketplace shop routes do not use owner inventory', () => {
+  test('the marketplace shop reader filters through the market catalog seam', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'getMarketplaceShopListings')?.body
+    expect(body, 'getMarketplaceShopListings must remain a distinct market-scoped seam').toBeTruthy()
+    expect(body).toContain('planMarketCatalogRead')
+    expect(body).toContain('marketCatalogFetch')
+    expect(body).toContain('takeMarketScopedField')
+    expect(body).toContain('seller_slug')
+    expect(body).not.toContain('ownershipScopedFetch')
+  })
+
+  test('marketplace shop reads preserve unavailable as a third state, never empty success', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'getMarketplaceShopListings')?.body
+    expect(body, 'getMarketplaceShopListings must remain a distinct market-scoped seam').toBeTruthy()
+    expect(body).toContain('marketMetaUnavailable')
+    expect(body).toContain('marketMetaFor')
+    expect(body).not.toMatch(/return\s+\[\]/)
+  })
+
+  test('shop home selects owner inventory only when no country market was supplied and surfaces refusal', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 's', '[slug]', 'page.tsx'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'ShopPage')?.body
+    expect(body, 'ShopPage no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('readPublicSellerMarket')
+    expect(body).toContain('getMarketplaceShopListings')
+    expect(body).toContain('market_unavailable')
+    expect(body).toContain('notFound()')
+  })
+
+  test('marketplace collection pages surface catalog refusal instead of claiming an empty collection', () => {
+    const stripped = stripComments(readFileSync(
+      join(ROOT, 'app', '(shell)', '_shop-collection', 'CollectionPage.tsx'),
+      'utf8',
+    ))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'CollectionPage')?.body
+    expect(body, 'CollectionPage no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('getMarketplaceShopListings')
+    expect(body).toContain('market_unavailable')
+    expect(body).toContain('notFound()')
+  })
+
+  test('Mexico shop wrappers pass the market separately from the URL prefix', () => {
+    const home = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'mx', 's', '[slug]', 'page.tsx'), 'utf8'))
+    const collection = stripComments(readFileSync(
+      join(ROOT, 'app', '(shell)', 'mx', 's', '[slug]', 'c', '[collection]', 'page.tsx'),
+      'utf8',
+    ))
+    expect(home).toContain("market: 'mx'")
+    expect(home).toContain("marketBasePath: '/mx'")
+    expect(collection).toContain("market: 'mx'")
+    expect(collection).toContain("marketBasePath: '/mx'")
+  })
 })

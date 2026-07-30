@@ -1,6 +1,12 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import {
+  getShop,
+  getShopListings,
+  getMarketplaceShopListings,
+  getShopCollections,
+  formatPrice,
+} from '@/lib/listings'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyShopSlug } from '@/lib/route-shape'
@@ -19,24 +25,52 @@ import { readableTextOn } from '@/lib/platform-theme'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
+import type { MarketCode } from '@/lib/markets'
+import { marketCatalogCanonical } from '@/lib/market-seo'
+import { readPublicSellerMarket } from '@/lib/owned-market'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
 interface Social { instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateShopMetadata({
+  params,
+  market,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}): Promise<Metadata> {
   const { slug } = await params
+  const requestHeaders = await headers()
   if (!isLikelyShopSlug(slug)) return { title: 'Tienda no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) {
+    return { title: 'Tienda no encontrada' }
+  }
   // Don't leak a preview-private shop's name/description in metadata (S1.2 guard).
   if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
   const t = (theme?.theme ?? {}) as Record<string, unknown>
+  if (marketBasePath) {
+    const pathname = `${marketBasePath}/s/${slug}`
+    return {
+      title: shop.name,
+      description: (t.tagline as string | undefined) ?? shop.description ?? undefined,
+      ...marketCatalogCanonical(pathname),
+      openGraph: {
+        url: `https://miyagisanchez.com${pathname}`,
+        images: (t.banner_url as string | undefined) ? [{ url: t.banner_url as string }] : undefined,
+      },
+    }
+  }
   // Canonical points at the shop's own domain when live, so search engines
   // consolidate ranking on the brand domain instead of the marketplace mirror.
-  const domain = await getActiveCustomDomain(slug)
-  const canonical = domain ? `https://${domain}/` : `https://miyagisanchez.com/s/${slug}`
+  const requestDomain = requestHeaders.get('x-miyagi-domain')
+  const domain = requestDomain ?? await getActiveCustomDomain(slug)
+  const canonical = domain ? `https://${domain}/` : `https://miyagisanchez.com/mx/s/${slug}`
   return {
     title: shop.name,
     description: (t.tagline as string | undefined) ?? shop.description ?? undefined,
@@ -48,9 +82,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+export const generateMetadata = generateShopMetadata
+
 // ── Shop page ─────────────────────────────────────────────────────────────────
 
-export default async function ShopPage({ params }: { params: Promise<{ slug: string }> }) {
+export async function ShopPage({
+  params,
+  market,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}) {
   const { slug } = await params
   // Short-circuit junk URLs BEFORE any Medusa fetch (epic 09 · cost reduction
   // S2.2): a clearly-malformed slug can be neither a live nor a retired shop
@@ -64,9 +108,10 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
     // The shop may have been renamed — 301 a retired slug to its current one for
     // 90 days so old links/business cards keep working (US-4).
     const current = await getSlugRedirect(slug)
-    if (current) permanentRedirect(`/s/${current}`)
+    if (current) permanentRedirect(`${marketBasePath}/s/${current}`)
     notFound()
   }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
 
   // Consent-safe preview leak guard (founding-merchant-consent-previews S1.2): a
   // shop with a non-activated preview anchor is private across every public
@@ -81,7 +126,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // /s/[slug] traffic to the tenant's own home so links + ranking move with them.
   const reqHeaders = await headers()
   const onChannel = reqHeaders.get('x-miyagi-channel') === 'custom'
-  if (!onChannel) {
+  if (!onChannel && !marketBasePath) {
     const domain = await getActiveCustomDomain(shop.slug)
     if (domain) permanentRedirect(`https://${domain}/`)
   }
@@ -89,12 +134,28 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // custom domain — both already serve `/c/...` at the domain root), the
   // full `/s/[slug]/c/...` prefix only on the marketplace host.
   const channelValue = reqHeaders.get('x-miyagi-channel')
-  const navBasePath = (channelValue === 'custom' || channelValue === 'subdomain') ? '' : `/s/${shop.slug}`
+  const navBasePath = (channelValue === 'custom' || channelValue === 'subdomain')
+    ? ''
+    : `${marketBasePath}/s/${shop.slug}`
 
-  const [listings, collections] = await Promise.all([
-    getShopListings(shop.slug),
+  const [listingRead, allCollections] = await Promise.all([
+    market
+      ? getMarketplaceShopListings(shop.slug, market)
+      : getShopListings(shop.slug).then((listings) => ({
+          listings,
+          market_code: null,
+          market_unavailable: null,
+        })),
     getShopCollections(shop.slug),
   ])
+  // A refused/mismatched catalog is unavailable, not an empty successful shop.
+  // Rendering the latter would cache and index a confident falsehood.
+  if (listingRead.market_unavailable) notFound()
+  const listings = listingRead.listings
+  const publishedCollectionHandles = new Set(listings.flatMap((listing) => listing.collections ?? []))
+  const collections = market
+    ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))
+    : allCollections
 
   // Extract theme from metadata
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
@@ -271,7 +332,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           {/* Claim CTA for unowned shops */}
           {!shop.clerk_user_id && (
             <div className="mt-3">
-              <ClaimButton href={`/s/${slug}/claim`} accent={accent} />
+              <ClaimButton href={`${marketBasePath}/s/${slug}/claim`} accent={accent} />
             </div>
           )}
         </div>
@@ -287,6 +348,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
         sellerHasStripe={sellerHasStripe}
         sellerHasMp={sellerHasMp}
         hasBankTransfer={hasBankTransfer}
+        marketBasePath={marketBasePath}
       />
 
       {/* ── Collection nav strip (own-shop premium presentation, Sprint 2) ───── */}
@@ -338,7 +400,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                     imageUrl: listing.images?.[0]?.url ?? null,
                     listing_type: listing.listing_type ?? 'product',
                     paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
-                    href: `/l/${listing.id}`,
+                    href: `${marketBasePath}/l/${listing.id}`,
                     formattedPrice: formatPrice(listing),
                     status: listing.status,
                     hasExcerpt: hasExcerpt(listing.metadata),
@@ -359,3 +421,5 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   // white-label shell (ChannelLayout), so the page just returns its content.
   return pageContent
 }
+
+export default ShopPage

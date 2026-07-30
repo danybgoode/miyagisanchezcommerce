@@ -23,7 +23,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
-import { getPriceGrid, getShop } from '@/lib/listings'
+import { getListing, getPriceGrid, getShop } from '@/lib/listings'
+import { isMarketUnavailable, planMarketCatalogRead } from '@/lib/market-catalog'
+import type { MarketCode } from '@/lib/markets'
 import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { isShopClaimed } from '@/lib/claim'
@@ -74,6 +76,7 @@ interface UcpCheckoutSession {
   created_at:          string
   expires_at:          string   // sessions are informational — 30 min expiry
   listing_id:          string
+  market_code:         MarketCode
   offer_id:            string | null
   price: {
     amount_cents:      number
@@ -227,7 +230,17 @@ export async function POST(req: NextRequest) {
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
 
-  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown; quantity?: number; check_in?: string; check_out?: string }
+  let body: {
+    listing_id?: string
+    market?: unknown
+    offer_id?: string
+    buyer_email?: string
+    buyer_name?: string
+    personalization?: unknown
+    quantity?: number
+    check_in?: string
+    check_out?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -238,18 +251,34 @@ export async function POST(req: NextRequest) {
   if (!listing_id) {
     return NextResponse.json({ error: 'listing_id is required' }, { status: 400, headers: CORS })
   }
+  const marketDecision = planMarketCatalogRead(body.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return NextResponse.json(
+      marketDecision,
+      { status: marketDecision.market_code ? 404 : 400, headers: CORS },
+    )
+  }
 
   // ── Fetch listing + shop ──────────────────────────────────────────────────
   const { data: rawListing, error: listErr } = await db
     .from('marketplace_listings')
-    // This public discovery route needs only the mirror's seller slug. Commerce
-    // settings are re-read below from Medusa's allow-listed public projection.
-    .select('*, shop:marketplace_shops(slug)')
+    // Supabase is a legacy-id / offer-FK bridge only. Selecting commercial
+    // columns here makes it too easy to accidentally re-authorize stale facts.
+    .select('id, medusa_product_id, shop:marketplace_shops(slug)')
     .eq(listingLookupColumn(listing_id), listing_id)
-    .eq('status', 'active')
     .single()
 
   if (listErr || !rawListing) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
+  }
+  // Supabase remains the bridge for offers, whose foreign key uses the mirror
+  // UUID. It is not authoritative for any catalog or commerce fact.
+  const mirrorListingId = rawListing.id
+  const medusaListingId = typeof rawListing.medusa_product_id === 'string'
+    ? rawListing.medusa_product_id
+    : listing_id
+  const marketListing = await getListing(medusaListingId, marketDecision.market.code)
+  if (!marketListing) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
 
@@ -257,7 +286,7 @@ export async function POST(req: NextRequest) {
     shop?: { slug?: string | null } | Array<{ slug?: string | null }> | null
   }).shop
   const sellerSlug = (Array.isArray(joinedShop) ? joinedShop[0]?.slug : joinedShop?.slug) ?? null
-  if (!sellerSlug) {
+  if (!sellerSlug || marketListing.shop?.slug !== sellerSlug) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
 
@@ -268,7 +297,11 @@ export async function POST(req: NextRequest) {
   if (!shop || shop.slug !== sellerSlug) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
-  const listing = { ...rawListing, shop } as Listing
+  // The market-scoped Medusa row owns price, currency, inventory, listing type,
+  // metadata/personalization, and the UCP payload. Using the mirror after merely
+  // validating Medusa would reopen a stale-price and cross-channel seam.
+  const listing = { ...marketListing, shop } as Listing
+  const publicListingId = listing.medusa_product_id ?? listing.id
   const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
   const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
   const checkout = (settings.checkout ?? {}) as Record<string, unknown>
@@ -283,7 +316,7 @@ export async function POST(req: NextRequest) {
       .from('marketplace_offers')
       .select('offer_amount_cents, counter_amount_cents, status')
       .eq('id', offer_id)
-      .eq('listing_id', listing.id)
+      .eq('listing_id', mirrorListingId)
       .single()
 
     if (offer?.status === 'accepted') {
@@ -415,7 +448,7 @@ export async function POST(req: NextRequest) {
   // the real S1/S2 rail that server-recomputes and charges `rentalQuote.total_cents`.
   const rentalCheckoutUrl = rentalQuote
     ? `${baseUrl}/checkout?${new URLSearchParams({
-        listingId: listing.medusa_product_id ?? listing.id,
+        listingId: publicListingId,
         checkIn:   rentalQuote.check_in,
         checkOut:  rentalQuote.check_out,
       }).toString()}`
@@ -570,7 +603,8 @@ export async function POST(req: NextRequest) {
     session_id:         randomUUID(),
     created_at:         now.toISOString(),
     expires_at:         expiresAt.toISOString(),
-    listing_id:         listing.id,
+    listing_id:         publicListingId,
+    market_code:        marketDecision.market.code,
     offer_id:           offer_id ?? null,
     price: hasPrice ? {
       amount_cents:  priceCents!,
@@ -599,8 +633,11 @@ export async function POST(req: NextRequest) {
         : 'Sin Compra Protegida en esta tienda.',
     },
     listing: toUcpListing(
-      listing, baseUrl, await getPriceGrid(listing.medusa_product_id ?? listing.id),
+      listing,
+      baseUrl,
+      await getPriceGrid(publicListingId, marketDecision.market.code),
       await isEnabled('catalog.inventory_channels_enabled'),
+      marketDecision.market.code,
     ),
     personalization: {
       submitted: submittedPersonalization,

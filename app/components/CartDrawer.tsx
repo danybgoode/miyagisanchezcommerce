@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useCart, type CartItem } from './CartContext'
+import { marketplaceUrl, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 const SPRING   = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 const EASE_OUT = 'cubic-bezier(0.2, 0, 0, 1)'
@@ -39,7 +41,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
           {seller.sellerName.charAt(0).toUpperCase()}
         </div>
         <Link
-          href={`/s/${seller.sellerSlug}`}
+          href={shopUrlFor(SITE_ORIGIN, seller.sellerSlug)}
           onClick={closeCart}
           style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', textDecoration: 'none' }}
           className="hover:text-[var(--accent)]"
@@ -68,7 +70,10 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
               border: '1px solid var(--border)',
             }}>
               {item.imageUrl
-                ? <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- seller image URLs are already normalized by the catalog
+                  <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )
                 : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <i className="iconoir-package" style={{ fontSize: 20, color: 'var(--fg-subtle)' }} />
                   </div>
@@ -134,7 +139,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {(hasMp || hasStripe) && (
             <Link
-              href={`/checkout/bundle?sellerId=${sellerId}`}
+              href={`${SITE_ORIGIN}/checkout/bundle?sellerId=${encodeURIComponent(sellerId)}`}
               onClick={closeCart}
               style={{
                 width: '100%', padding: '11px 16px', borderRadius: 12,
@@ -185,7 +190,7 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
         Agrega artículos desde cualquier listing para pagar todo en un solo paso.
       </p>
       <Link
-        href="/l"
+        href={marketplaceUrl(SITE_ORIGIN, '/l')}
         onClick={onClose}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,

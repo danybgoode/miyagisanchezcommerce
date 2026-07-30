@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- marketplace media hosts are seller-controlled and not finitely allow-listable */
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { searchListings, getAutoFacets, formatPrice, conditionLabel, financingChip } from '@/lib/listings'
@@ -8,6 +9,7 @@ import SearchBar from './SearchBar'
 import CategoryChips from '@/app/components/CategoryChips'
 import ListingTypeChips from '@/app/components/ListingTypeChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
+import type { MarketCode } from '@/lib/markets'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -25,15 +27,23 @@ function timeAgo(dateStr: string): string {
   return `Hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? 's' : ''}`
 }
 
-export default async function ListingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+export async function ListingsPage({
+  searchParams,
+  market = 'mx',
+  marketBasePath = '',
+}: {
+  searchParams: Promise<SearchParams>
+  market?: MarketCode
+  marketBasePath?: string
+}) {
   const [params, user] = await Promise.all([searchParams, currentUser()])
   // Autos facet rail rides alongside the grid fetch (cars-vertical S1.1); modelo
   // options scope to the applied marca. Only for the autos category — every other
   // category skips the extra call. Null (no facet_pool yet / non-autos) ⇒ the
   // SearchBar falls back to its plain free-text autos panel.
   const [{ listings, total, page }, carFacets] = await Promise.all([
-    searchListings(params),
-    params.category === 'autos' ? getAutoFacets(params.brand) : Promise.resolve(null),
+    searchListings(params, market),
+    params.category === 'autos' ? getAutoFacets(params.brand, market) : Promise.resolve(null),
   ])
 
   // Fetch user's favorited listing IDs for quick heart rendering
@@ -60,14 +70,14 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
   function pageUrl(p: number) {
     const sp = new URLSearchParams(params as Record<string, string>)
     sp.set('page', String(p))
-    return `/l?${sp.toString()}`
+    return `${marketBasePath}/l?${sp.toString()}`
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <CategoryChips activeCategory={params.category} className="mb-3" />
+      <CategoryChips activeCategory={params.category} className="mb-3" marketBasePath={marketBasePath} />
 
-      <ListingTypeChips params={params} className="mb-5" />
+      <ListingTypeChips params={params} className="mb-5" marketBasePath={marketBasePath} />
 
       <SearchBar
         params={params}
@@ -76,6 +86,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
         initialState={params.state}
         initialTotal={total}
         carFacets={carFacets}
+        marketBasePath={marketBasePath}
       />
 
       {/* Result count */}
@@ -85,7 +96,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           {params.q && <> para <em>&ldquo;{params.q}&rdquo;</em></>}
         </p>
         {Object.values(params).some(Boolean) && (
-          <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
+          <Link href={`${marketBasePath}/l`} style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
             className="hover:text-[var(--fg)]">
             × Limpiar filtros
           </Link>
@@ -98,7 +109,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           <p style={{ fontWeight: 500, color: 'var(--fg)', marginBottom: 4 }}>Sin resultados</p>
           <p style={{ fontSize: 13 }}>Intenta con otros términos o revisa los filtros.</p>
           {Object.values(params).some(Boolean) && (
-            <Link href="/l" className="btn btn-secondary btn-sm no-underline" style={{ marginTop: 12, display: 'inline-block' }}>
+            <Link href={`${marketBasePath}/l`} className="btn btn-secondary btn-sm no-underline" style={{ marginTop: 12, display: 'inline-block' }}>
               Limpiar filtros
             </Link>
           )}
@@ -109,7 +120,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {listings.map(listing => (
               <div key={listing.id} style={{ position: 'relative' }}>
-                <Link href={`/l/${listing.id}`} className="card-tile no-underline block">
+                <Link href={`${marketBasePath}/l/${listing.id}`} className="card-tile no-underline block">
                 <div style={{ position: 'relative' }}>
                 {listing.images?.[0] ? (
                   <img src={listing.images[0].url} alt={listing.title} className="w-full h-40 object-cover" style={listing.in_stock === false ? { opacity: 0.55 } : undefined} />
@@ -208,3 +219,5 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
     </div>
   )
 }
+
+export default ListingsPage

@@ -30,6 +30,10 @@ test.describe('resolveAgentContext · URL → context (S1.3)', () => {
     expect(resolveAgentContext('/l/prod_123', null)).toEqual({ kind: 'pdp', listingId: 'prod_123' })
   })
 
+  test('market PDP: /mx/l/<id>', () => {
+    expect(resolveAgentContext('/mx/l/prod_123', null)).toEqual({ kind: 'pdp', listingId: 'prod_123' })
+  })
+
   test('catalog: /l with a search query', () => {
     expect(resolveAgentContext('/l', new URLSearchParams('q=tenis'))).toEqual({
       kind: 'catalog', search: 'tenis', queryString: 'q=tenis',
@@ -38,6 +42,12 @@ test.describe('resolveAgentContext · URL → context (S1.3)', () => {
 
   test('catalog: /l with no params (no search)', () => {
     expect(resolveAgentContext('/l', null)).toEqual({ kind: 'catalog', search: undefined, queryString: undefined })
+  })
+
+  test('market catalog: /mx/l with a search query', () => {
+    expect(resolveAgentContext('/mx/l', new URLSearchParams('q=tenis'))).toEqual({
+      kind: 'catalog', search: 'tenis', queryString: 'q=tenis',
+    })
   })
 
   test('catalog: /l falls back to category when there is no q', () => {
@@ -63,6 +73,10 @@ test.describe('resolveAgentContext · URL → context (S1.3)', () => {
     expect(resolveAgentContext('/s/zapatos-mx', null)).toEqual({ kind: 'shop', slug: 'zapatos-mx' })
   })
 
+  test('market shop: /mx/s/<slug>', () => {
+    expect(resolveAgentContext('/mx/s/zapatos-mx', null)).toEqual({ kind: 'shop', slug: 'zapatos-mx' })
+  })
+
   test('account with an order ref: /account/orders/<id>', () => {
     expect(resolveAgentContext('/account/orders/order_9', null)).toEqual({ kind: 'account', orderRef: 'order_9' })
   })
@@ -82,19 +96,19 @@ test.describe('resolveAgentContext · URL → context (S1.3)', () => {
 test.describe('buildAgentPrompt · route templates carry the canonical URL (S1.3)', () => {
   test('PDP prompt contains the canonical product URL + a product ask', () => {
     const p = buildAgentPrompt({ kind: 'pdp', listingId: 'prod_123' })
-    expect(p).toContain('https://miyagisanchez.com/l/prod_123')
+    expect(p).toContain('https://miyagisanchez.com/mx/l/prod_123')
     expect(p).toContain('producto')
   })
 
   test('catalog prompt mentions the search + the catalog URL', () => {
     const p = buildAgentPrompt({ kind: 'catalog', search: 'tenis', queryString: 'q=tenis' })
     expect(p).toContain('tenis')
-    expect(p).toContain('https://miyagisanchez.com/l?q=tenis')
+    expect(p).toContain('https://miyagisanchez.com/mx/l?q=tenis')
   })
 
   test('shop prompt contains the canonical shop URL', () => {
     const p = buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx' })
-    expect(p).toContain('https://miyagisanchez.com/s/zapatos-mx')
+    expect(p).toContain('https://miyagisanchez.com/mx/s/zapatos-mx')
     expect(p).toContain('tienda')
   })
 
@@ -165,7 +179,7 @@ test.describe('buildAgentPrompt · PDP + shop human-readable details (S2.2)', ()
   test('PDP names the product + price and keeps the canonical URL', () => {
     const p = buildAgentPrompt({ kind: 'pdp', listingId: 'prod_1', title: 'Tenis Nike Air', price: '$499.00' })
     expect(p).toContain('«Tenis Nike Air» ($499.00)')
-    expect(p).toContain('https://miyagisanchez.com/l/prod_1')
+    expect(p).toContain('https://miyagisanchez.com/mx/l/prod_1')
   })
 
   test('PDP with a title but no price omits the parenthetical (no "undefined")', () => {
@@ -183,7 +197,7 @@ test.describe('buildAgentPrompt · PDP + shop human-readable details (S2.2)', ()
   test('shop names the shop and keeps the canonical URL', () => {
     const p = buildAgentPrompt({ kind: 'shop', slug: 'zapatos-mx', shopName: 'Zapatos MX' })
     expect(p).toContain('«Zapatos MX»')
-    expect(p).toContain('https://miyagisanchez.com/s/zapatos-mx')
+    expect(p).toContain('https://miyagisanchez.com/mx/s/zapatos-mx')
   })
 
   test('shop with no name degrades to the URL-only prompt', () => {

@@ -12,9 +12,10 @@ type Props = {
    * plain nav-chip variant (e.g. `/l`'s filter bar) — unchanged, zero regression.
    */
   counts?: CategoryCount[]
+  marketBasePath?: string
 }
 
-export default function CategoryChips({ activeCategory, className, counts }: Props) {
+export default function CategoryChips({ activeCategory, className, counts, marketBasePath = '' }: Props) {
   // Degrade to the full static list (no counts) when the live-counts fetch comes
   // back empty — a transient `getCategoryCounts()` gap must never take the whole
   // browse-by-category rail down with it (that's a distinct concern from the
@@ -28,7 +29,7 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
       {/* Lead chip — clears category filter */}
       <Link
-        href="/l"
+        href={`${marketBasePath}/l`}
         className={`chip${!activeCategory ? ' is-selected' : ''}`}
       >
         <i className="iconoir-view-grid" aria-hidden />
@@ -38,7 +39,7 @@ export default function CategoryChips({ activeCategory, className, counts }: Pro
       {items.map(cat => (
         <Link
           key={cat.key}
-          href={`/l?category=${cat.key}`}
+          href={`${marketBasePath}/l?category=${cat.key}`}
           className={`chip${cat.key === activeCategory ? ' is-selected' : ''}`}
         >
           <i className={`iconoir-${cat.icon}`} aria-hidden />

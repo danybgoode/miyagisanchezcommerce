@@ -26,7 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { toUcpListing } from '@/lib/ucp/schema'
 import { getPriceGrid } from '@/lib/listings'
-import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines } from '@/lib/price-grid'
+import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines, type PriceGrid } from '@/lib/price-grid'
 import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
 import { startCheckout, type CheckoutProvider } from '@/lib/cart'
@@ -111,6 +111,8 @@ import {
 // adds new ones — see that file's header), making the baseline's id set always
 // correct for the schema too.
 import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
+import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
+import { MARKETS, type MarketCode } from '@/lib/markets'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -155,10 +157,11 @@ const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDatas
 const TOOLS = [
   {
     name: 'search_listings',
-    description: 'Search the Miyagi Sánchez marketplace catalog. Returns listings with prices, trust signals, and checkout URLs. Use this to find products, services, cars, real estate, and more across Mexico.',
+    description: 'Search a Miyagi Sánchez country-market catalog. Mexico is the active market. `market` temporarily defaults to `mx`; pass it explicitly for durable integrations. Returns listings with market_code, prices, trust signals, and canonical checkout URLs.',
     inputSchema: {
       type: 'object',
       properties: {
+        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         q:            { type: 'string', description: 'Search query in Spanish (e.g. "iPhone 14 pro" or "taller mecánico CDMX")' },
         category:     { type: 'string', enum: ['autos','inmuebles','electronica','hogar','moda','deportes','servicios','mascotas','herramientas','negocios','otros'], description: 'Product category' },
         listing_type: { type: 'string', enum: ['product','service','rental','digital'], description: 'Type of listing' },
@@ -182,10 +185,11 @@ const TOOLS = [
   },
   {
     name: 'get_neighborhood_pulse',
-    description: 'Read the public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. Read-only; use it to understand local context before recommending what to buy.',
+    description: 'Read one country market’s public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.',
     inputSchema: {
       type: 'object',
       properties: {
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         community_limit: { type: 'number', minimum: 1, maximum: 24, default: 12, description: 'Number of community items to return' },
         trending_limit: { type: 'number', minimum: 1, maximum: 20, default: 8, description: 'Number of trending listings to return' },
         shop_limit: { type: 'number', minimum: 1, maximum: 12, default: 6, description: 'Number of merchant spotlights to return' },
@@ -194,12 +198,13 @@ const TOOLS = [
   },
   {
     name: 'get_listing',
-    description: 'Get full details for a specific listing by ID, including trust signals, seller info, available payment methods, and checkout URLs.',
+    description: 'Get full market-scoped details for a specific listing by ID, including market_code, trust signals, seller info, available payment methods, and checkout URLs. `market` temporarily defaults to mx.',
     inputSchema: {
       type: 'object',
       required: ['id'],
       properties: {
         id: { type: 'string', description: 'Listing UUID from search_listings results' },
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
       },
     },
   },
@@ -211,6 +216,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
         buyer_email: { type: 'string', description: 'Buyer email (optional)' },
         check_in:    { type: 'string', description: 'Rental check-in date, YYYY-MM-DD. Only applies to rental listings — send with check_out for an exact bookable total.' },
@@ -226,6 +232,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
         method:      { type: 'string', enum: ['mercadopago','stripe'], default: 'mercadopago', description: 'Payment method' },
         buyer_email: { type: 'string', description: 'Buyer email (optional, pre-fills checkout form)' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — uses negotiated price instead of list price' },
@@ -265,11 +272,12 @@ const TOOLS = [
   },
   {
     name: 'make_offer',
-    description: "Submit a price offer on a listing. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
+    description: "Submit a price offer on a listing in one country market. `market` temporarily defaults to `mx`. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'offer_amount', 'buyer_name', 'buyer_email'],
       properties: {
+        market:        { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id:    { type: 'string', description: 'Listing UUID' },
         offer_amount:  { type: 'number', description: 'Your offer in MXN pesos (e.g. 1500 = $1,500)' },
         buyer_name:    { type: 'string', description: 'Your name' },
@@ -280,11 +288,12 @@ const TOOLS = [
   },
   {
     name: 'get_shop',
-    description: "Get a seller's shop profile and their active listings. Use to check a seller's trust level, location, and what else they're selling.",
+    description: "Get a seller's shop profile and their listings in one country market. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.",
     inputSchema: {
       type: 'object',
       required: ['shop_slug'],
       properties: {
+        market:    { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         shop_slug: { type: 'string', description: 'Shop slug from listing.shop.slug in search results' },
         limit:     { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of listings to return' },
       },
@@ -292,11 +301,12 @@ const TOOLS = [
   },
   {
     name: 'check_availability',
-    description: "Check available appointment slots for a listing. Returns the next available days and time slots from the seller's Cal.com calendar. Use before book_appointment to show the buyer what times are available.",
+    description: "Check available appointment slots for a listing in one country market. `market` temporarily defaults to `mx`. Returns the next available days and time slots from the seller's Cal.com calendar. Use before book_appointment to show the buyer what times are available.",
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
       properties: {
+        market:     { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id: { type: 'string', description: 'Listing UUID' },
         date_from:  { type: 'string', description: 'Start date to check (YYYY-MM-DD). Defaults to today.' },
         date_to:    { type: 'string', description: 'End date to check (YYYY-MM-DD). Defaults to 7 days from today.' },
@@ -306,11 +316,12 @@ const TOOLS = [
   },
   {
     name: 'book_appointment',
-    description: 'Book an appointment slot for a listing — schedules a visit, test drive, or meeting with the seller. Returns booking confirmation with a unique ID.',
+    description: 'Book an appointment slot for a listing in one country market — schedules a visit, test drive, or meeting with the seller. `market` temporarily defaults to `mx`. Returns booking confirmation with a unique ID.',
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'start_time', 'buyer_name', 'buyer_email'],
       properties: {
+        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id:  { type: 'string', description: 'Listing UUID' },
         start_time:  { type: 'string', description: 'ISO 8601 datetime of the desired slot (from check_availability)' },
         buyer_name:  { type: 'string', description: 'Full name of the person booking' },
@@ -498,7 +509,7 @@ const TOOLS = [
   },
   {
     name: 'set_shop_slug',
-    description: "SELLER TOOL. Change YOUR OWN shop's public URL slug (miyagisanchez.com/s/<slug>). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The old slug keeps 301-redirecting to the new one for 90 days. Format: 3–40 chars, lowercase letters/numbers/hyphens; reserved words rejected; taken slugs rejected.",
+    description: "SELLER TOOL. Change YOUR OWN shop's public platform URL slug (miyagisanchez.com/mx/s/<slug>). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The old slug keeps 301-redirecting to the new one for 90 days. Format: 3–40 chars, lowercase letters/numbers/hyphens; reserved words rejected; taken slugs rejected.",
     inputSchema: {
       type: 'object',
       required: ['slug'],
@@ -975,8 +986,13 @@ for (const tool of TOOLS) {
 
 async function handleSearchListings(args: Record<string, unknown>, baseUrl: string) {
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   const params = new URLSearchParams()
+  params.set('market', marketDecision.market.code)
   params.set('limit', String(limit))
   if (args.q)            params.set('q', String(args.q))
   if (args.category)     params.set('category', String(args.category))
@@ -996,19 +1012,31 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
   if (args.fuel)         params.set('fuel', String(args.fuel))
   if (args.sort)         params.set('sort', String(args.sort))
 
-  let data: { listings?: Listing[] }
+  let data: { listings?: Listing[]; market_code?: unknown }
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Search failed: ${res.status}` }] }
-    data = await res.json() as { listings?: Listing[] }
+    data = await res.json() as { listings?: Listing[]; market_code?: unknown }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+  const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+  if (unconfirmedMarket) {
+    return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
   }
 
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   const items = await Promise.all((data.listings ?? []).map(async (l: Listing) =>
-    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
-  if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
+    toUcpListing(
+      l,
+      baseUrl,
+      await getPriceGrid(l.medusa_product_id ?? l.id, marketDecision.market.code),
+      inventoryChannelsEnabled,
+      marketDecision.market.code,
+    )))
+  if (items.length === 0) {
+    return { content: [{ type: 'text', text: JSON.stringify({ listings: [], market_code: marketDecision.market.code }, null, 2) }] }
+  }
 
   const summary = items.map(item => {
     const price = item.price ? item.price.formatted : 'Precio a consultar'
@@ -1021,15 +1049,19 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return `**${item.title}**\n${price} · ${item.location ?? item.state ?? 'México'} · ${item.condition ?? item.listing_type}\n${flags}\nID: \`${item.id}\` | ${item.url}`
   }).join('\n\n---\n\n')
 
-  return { content: [{ type: 'text', text: `Found ${items.length} listings:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items }, null, 2) }] }
+  return { content: [{ type: 'text', text: `Found ${items.length} listings in market ${marketDecision.market.code}:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items, market_code: marketDecision.market.code }, null, 2) }] }
 }
 
 async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl: string) {
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
   const pulse = await getNeighborhoodPulseAgentView(baseUrl, {
     itemLimit: Number(args.community_limit ?? 12),
     listingLimit: Number(args.trending_limit ?? 8),
     shopLimit: Number(args.shop_limit ?? 6),
-  })
+  }, marketDecision.market.code)
 
   const community = pulse.community_items.slice(0, 5).map((item) =>
     `• ${item.caption} — ${item.type_label}, ${item.zone}`,
@@ -1066,12 +1098,20 @@ async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl
 
 async function handleGetListing(args: Record<string, unknown>, baseUrl: string) {
   const id = String(args.id ?? '')
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+    if (unconfirmedMarket) {
+      return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+    }
     listing = data.listing ?? null
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
@@ -1079,9 +1119,12 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 
   if (!listing) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
 
-  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const priceGrid = await getPriceGrid(
+    listing.medusa_product_id ?? listing.id,
+    marketDecision.market.code,
+  )
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
-  const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled)
+  const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled, marketDecision.market.code)
 
   // Configurator options/tiers + the file-upload contract (custom-print-products
   // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
@@ -1130,8 +1173,15 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
   if (!listingId) {
     return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const body: Record<string, string> = { listing_id: listingId }
+  const body: Record<string, string> = {
+    listing_id: listingId,
+    market: marketDecision.market.code,
+  }
   if (args.offer_id)    body.offer_id    = String(args.offer_id)
   if (args.buyer_email) body.buyer_email = String(args.buyer_email)
   if (args.check_in)    body.check_in    = String(args.check_in)
@@ -1208,12 +1258,70 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
 }
 
 async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: string) {
+  const listingId = String(args.listing_id ?? '')
+  if (!listingId) {
+    return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+  }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
+
+  // A configured listing must prove its price ladder in the requested market
+  // before the general checkout-session lookup. Besides avoiding a redundant
+  // write-path attempt, this preserves the configurator's actionable "no price
+  // grid" response when the listing is absent or unpublished in this market.
+  // The checkout-session boundary still runs below for every grid that exists,
+  // so this does not weaken Sales Channel validation before cart creation.
+  let configuredPriceGrid: PriceGrid | null = null
+  if (args.variant_id) {
+    configuredPriceGrid = await getPriceGrid(listingId, marketDecision.market.code)
+    if (!configuredPriceGrid) {
+      return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
+    }
+  }
+
+  // All buyer checkout creation starts with the same market-scoped discovery
+  // boundary as get_checkout_options. This verifies Sales Channel membership
+  // before either a flat gateway checkout or a configured Medusa cart can write.
+  let marketSession: { listing?: { listing_type?: string } }
+  try {
+    const validation = await fetch(`${baseUrl}/api/ucp/checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        listing_id: listingId,
+        market: marketDecision.market.code,
+      }),
+    })
+    const data = await validation.json() as {
+      listing?: { listing_type?: string }
+      unavailable?: boolean
+      error?: unknown
+    }
+    if (!validation.ok) {
+      if (data.unavailable) {
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] }
+      }
+      return {
+        isError: true,
+        content: [{
+          type: 'text',
+          text: `Checkout failed: ${publicCheckoutError(data.error, `Unable to validate listing (${validation.status})`)}`,
+        }],
+      }
+    }
+    marketSession = data
+  } catch (error) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(error)}` }] }
+  }
+
   // Configurator path: a variant_id means this is a multi-variant/tiered
   // listing, which MUST resolve its price through Medusa's own cart —
   // the flat MP/Stripe preference below can't compute a tier price at all
   // (custom-print-products S4 · 4.2).
   if (args.variant_id) {
-    return handleCreateConfiguredCheckout(args)
+    return handleCreateConfiguredCheckout(args, marketDecision.market.code, configuredPriceGrid!)
   }
 
   // Rental guard (S3.1 cross-review catch): this endpoint charges a bare
@@ -1225,27 +1333,21 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   // failure — this is defense-in-depth on top of that primary fix, not the
   // only guard, so a transient Medusa hiccup shouldn't block every OTHER
   // (non-rental) checkout through this endpoint.
-  try {
-    const listingRes = await fetch(`${MEDUSA_BASE}/store/listings/${String(args.listing_id ?? '')}`, { headers: MEDUSA_HEADERS })
-    if (listingRes.ok) {
-      const listingData = await listingRes.json() as { listing?: { listing_type?: string } }
-      if (listingData.listing?.listing_type === 'rental') {
-        return { isError: true, content: [{ type: 'text', text: 'Este anuncio es una renta — create_checkout no calcula noches × tarifa + depósito y cobraría un monto incorrecto. Usa get_checkout_options con check_in/check_out para obtener el checkout_url correcto.' }] }
-      }
-    }
-  } catch { /* lookup failed — fall through rather than block a non-rental checkout on a transient error */ }
+  if (marketSession.listing?.listing_type === 'rental') {
+    return { isError: true, content: [{ type: 'text', text: 'Este anuncio es una renta — create_checkout no calcula noches × tarifa + depósito y cobraría un monto incorrecto. Usa get_checkout_options con check_in/check_out para obtener el checkout_url correcto.' }] }
+  }
 
   const method = String(args.method ?? 'mercadopago')
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
 
-  const body: Record<string, string> = { listingId: String(args.listing_id) }
+  const body: Record<string, string> = { listingId }
   if (args.buyer_email) body.buyerEmail = String(args.buyer_email)
   if (args.offer_id)    body.offerId    = String(args.offer_id)
 
   try {
     const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const data = await res.json() as { checkoutUrl?: string; error?: string }
-    if (!res.ok || !data.checkoutUrl) return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${data.error ?? 'Unknown error'}` }] }
+    const data = await res.json() as { checkoutUrl?: string; error?: unknown }
+    if (!res.ok || !data.checkoutUrl) return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${publicCheckoutError(data.error, 'Unknown error')}` }] }
     return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n**Abre este enlace para completar el pago:**\n${data.checkoutUrl}\n\nEl enlace es válido por 30 minutos.` }] }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
@@ -1269,7 +1371,33 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
 // into per-cause strings.
 const ARTWORK_DOWNLOAD_ERROR = 'No pudimos descargar o validar el archivo de artwork_url. Usa una URL pública https:// que apunte directo a la imagen.'
 
-async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
+/**
+ * Convert the deliberately loose error shapes returned by gateway/session
+ * boundaries into one short public message. Read only `message`/`error`; never
+ * stringify the full object, whose sibling fields may contain request details
+ * or credentials. Common credential assignments are redacted as a final guard.
+ */
+function publicCheckoutError(value: unknown, fallback: string): string {
+  const readMessage = (candidate: unknown, depth = 0): string | null => {
+    if (typeof candidate === 'string') {
+      const normalized = candidate.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
+      return normalized || null
+    }
+    if (!candidate || typeof candidate !== 'object' || depth >= 2) return null
+    const record = candidate as Record<string, unknown>
+    return readMessage(record.message, depth + 1) ?? readMessage(record.error, depth + 1)
+  }
+  return (readMessage(value) ?? fallback)
+    .replace(/\b(Bearer)\s+\S+/gi, '$1 [redacted]')
+    .replace(/\b(api[_ -]?key|authorization|password|secret|token)(\s*[:=]\s*)[^\s,;]+/gi, '$1$2[redacted]')
+    .slice(0, 240)
+}
+
+async function handleCreateConfiguredCheckout(
+  args: Record<string, unknown>,
+  marketCode: MarketCode,
+  priceGrid: PriceGrid,
+) {
   const listingId = String(args.listing_id ?? '')
   const variantId = String(args.variant_id ?? '')
   const quantity = Math.max(1, Math.floor(Number(args.quantity ?? 1)) || 1)
@@ -1277,10 +1405,6 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
   const provider: CheckoutProvider = method === 'stripe' ? 'stripe' : 'mercadopago'
   const buyerEmail = args.buyer_email ? String(args.buyer_email) : undefined
 
-  const priceGrid = await getPriceGrid(listingId)
-  if (!priceGrid) {
-    return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
-  }
   const variant = priceGrid.variants.find(v => v.id === variantId)
   if (!variant) {
     return { isError: true, content: [{ type: 'text', text: `variant_id "${variantId}" was not found on this listing's price_grid — call get_listing again for the current variant ids.` }] }
@@ -1292,8 +1416,13 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
-    if (res.ok) listing = ((await res.json()) as { listing?: Listing }).listing ?? null
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
+    if (res.ok) {
+      const data = await res.json() as { listing?: Listing; market_code?: unknown }
+      if (!verifyMarketFilter(MARKETS[marketCode], data)) {
+        listing = data.listing ?? null
+      }
+    }
   } catch { /* currency/custom-field checks below degrade if this fails */ }
 
   const customFields = getCustomFields(listing?.metadata ?? null)
@@ -1333,13 +1462,14 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
       personalization,
       provider,
       buyerEmail,
+      market: marketCode,
     })
     if (result.redirect_url) {
       return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n${restatement}\n\n**Abre este enlace para completar el pago:**\n${result.redirect_url}` }] }
     }
     return { content: [{ type: 'text', text: `✅ Order created (pago directo).\n\n${restatement}\n\nOrder: ${result.cart_id}` }] }
   } catch (e) {
-    return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${(e as Error).message}` }] }
+    return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${publicCheckoutError(e, 'Unable to create configured checkout')}` }] }
   }
 }
 
@@ -1425,13 +1555,21 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
   if (!listingId || isNaN(amount) || !buyerName || !buyerEmail) {
     return { isError: true, content: [{ type: 'text', text: 'Missing required fields: listing_id, offer_amount, buyer_name, buyer_email' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let listing: { id: string; title: string; price_cents: number | null; listing_type: string } | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
     if (res.ok) {
-      const d = await res.json() as { listing?: Listing }
-      if (d.listing?.status === 'active') listing = d.listing
+      const data = await res.json() as { listing?: Listing; market_code?: unknown }
+      const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+      if (unconfirmedMarket) {
+        return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+      }
+      if (data.listing?.status === 'active') listing = data.listing
     }
   } catch { /* listing stays null */ }
 
@@ -1464,6 +1602,10 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
 async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   const slug  = String(args.shop_slug ?? '')
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let seller: Record<string, unknown> | null = null
   try {
@@ -1476,17 +1618,38 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   }
 
   if (!seller) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
+  if (seller.market_code !== marketDecision.market.code) {
+    return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found in market "${marketDecision.market.code}".` }] }
+  }
 
   let listings: ReturnType<typeof toUcpListing>[] = []
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
-    if (res.ok) {
-      const d = await res.json() as { listings?: Listing[] }
-      const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
-      listings = await Promise.all((d.listings ?? []).map(async l =>
-        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
+    const params = new URLSearchParams({
+      seller_slug: slug,
+      limit: String(limit),
+    })
+    params.set('market', marketDecision.market.code)
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) {
+      return { isError: true, content: [{ type: 'text', text: `Shop catalog failed: ${res.status}` }] }
     }
-  } catch { /* listings stays empty */ }
+    const data = await res.json() as { listings?: Listing[]; market_code?: unknown }
+    const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+    if (unconfirmedMarket) {
+      return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+    }
+    const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
+    listings = await Promise.all((data.listings ?? []).map(async l =>
+      toUcpListing(
+        l,
+        baseUrl,
+        await getPriceGrid(l.medusa_product_id ?? l.id, marketDecision.market.code),
+        inventoryChannelsEnabled,
+        marketDecision.market.code,
+      )))
+  } catch (error) {
+    return { isError: true, content: [{ type: 'text', text: `Shop catalog unavailable: ${String(error)}` }] }
+  }
 
   const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
@@ -1495,21 +1658,27 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     seller.description ? `\n${seller.description}\n` : '',
     `**Ubicación:** ${seller.location ?? 'No especificada'}`,
     `**Tienda reclamada:** ${isClaimed ? 'Sí' : 'No'}`,
-    `**URL:** ${baseUrl}/s/${seller.slug}`,
+    `**URL:** ${baseUrl}/${marketDecision.market.code}/s/${seller.slug}`,
     `\n**${listings.length} anuncios activos:**`,
     ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (ID: \`${item.id}\`)`),
   ].filter(s => s !== '').join('\n')
 
-  return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop: seller, listings }, null, 2) }] }
+  return {
+    content: [
+      { type: 'text', text: profile },
+      { type: 'text', text: JSON.stringify({ market_code: marketDecision.market.code, shop: seller, listings }, null, 2) },
+    ],
+  }
 }
 
-async function getShopCalcom(listingId: string): Promise<{
+async function getShopCalcom(listingId: string, marketCode: MarketCode): Promise<{
   apiKey: string; eventTypeId: number; bookingUrl: string; listing: { title: string; category: string | null }
 } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return null
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    if (verifyMarketFilter(MARKETS[marketCode], data)) return null
     const listing = data.listing
     if (!listing?.shop) return null
     const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
@@ -1532,11 +1701,15 @@ async function getShopCalcom(listingId: string): Promise<{
 
 // ── Link-only scheduling fallback ─────────────────────────────────────────────
 
-async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: string; label: string; title: string } | null> {
+async function getShopSchedulingLinks(
+  listingId: string,
+  marketCode: MarketCode,
+): Promise<{ bookingUrl: string; label: string; title: string } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return null
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    if (verifyMarketFilter(MARKETS[marketCode], data)) return null
     const listing = data.listing
     if (!listing?.shop) return null
     const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
@@ -1552,11 +1725,15 @@ async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: 
 async function handleCheckAvailability(args: Record<string, unknown>) {
   const listingId = String(args.listing_id ?? '')
   if (!listingId) return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const cal = await getShopCalcom(listingId)
+  const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
     // Try link-only fallback — seller pasted a booking link without an API key
-    const linkSchedule = await getShopSchedulingLinks(listingId)
+    const linkSchedule = await getShopSchedulingLinks(listingId, marketDecision.market.code)
     if (!linkSchedule) {
       return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled. Use the booking_url from get_listing to book directly.' }] }
     }
@@ -1628,11 +1805,15 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   if (!listingId || !startTime || !buyerName || !buyerEmail) {
     return { isError: true, content: [{ type: 'text', text: 'Required: listing_id, start_time, buyer_name, buyer_email' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const cal = await getShopCalcom(listingId)
+  const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
     // Try link-only fallback
-    const linkSchedule = await getShopSchedulingLinks(listingId)
+    const linkSchedule = await getShopSchedulingLinks(listingId, marketDecision.market.code)
     if (!linkSchedule) {
       return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled.' }] }
     }
@@ -2351,7 +2532,7 @@ async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: str
 
   return {
     content: [
-      { type: 'text', text: `✅ Slug cambiado: \`${shop.slug}\` → \`${newSlug}\`.\n\nTu tienda ahora vive en https://miyagisanchez.com/s/${newSlug} — el slug anterior seguirá redirigiendo (301) durante 90 días.${mirrorError ? '\n⚠ El espejo del catálogo puede tardar en reflejarlo.' : ''}` },
+      { type: 'text', text: `✅ Slug cambiado: \`${shop.slug}\` → \`${newSlug}\`.\n\nTu tienda ahora vive en https://miyagisanchez.com/mx/s/${newSlug} — el slug anterior seguirá redirigiendo (301) durante 90 días.${mirrorError ? '\n⚠ El espejo del catálogo puede tardar en reflejarlo.' : ''}` },
     ],
   }
 }
@@ -3856,7 +4037,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {}, resources: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_neighborhood_pulse for local context → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
+      instructions: 'Miyagi Sánchez is a commerce system with country markets and independent owned-shop channels. Mexico (`mx`) is the active country marketplace; United States (`us`) is invitation-only and returns a structured unavailable result. BUYER workflow: search_listings(market) → get_neighborhood_pulse for local context → get_listing(id, market) → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow stays shop-scoped and market-neutral: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
     }
   }
 

@@ -11,38 +11,17 @@ import {
 import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib/route-shape'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { FUNDADORAS_VISITOR_COOKIE_NAME } from '@/lib/fundadoras-experiment'
+import { isPlatformHost } from '@/lib/platform-host'
+import {
+  platformMarketRedirectPath,
+  retiredShopMarketRedirectPath,
+  stripMarketPrefix,
+} from '@/lib/market-url'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
   '/shop/manage(.*)',
 ])
-
-// Hostnames that are part of the miyagisanchez platform itself
-const PLATFORM_HOSTS = [
-  'miyagisanchez.com',
-  'www.miyagisanchez.com',
-  'localhost',
-  '127.0.0.1',
-  // Cloudflare→ALB→Cloud Run staging hostname (09-platform-infra
-  // frontend-vercel-to-cloudrun, S2.2). NOTE: this alone is not sufficient —
-  // 'gcp' must ALSO be in lib/subdomain.ts's INFRA_SUBDOMAINS, since
-  // shopSlugFromHost() runs BEFORE this check and would otherwise treat it as
-  // a shop-slug lookup first. Both gates are load-bearing (found live: with
-  // only one of the two, the request still 404s "Shop not found" — either as
-  // an unknown subdomain, or as an unknown custom domain).
-  'gcp.miyagisanchez.com',
-]
-
-function isPlatformHost(hostname: string): boolean {
-  if (PLATFORM_HOSTS.some(h => hostname === h || hostname.startsWith(h + ':'))) return true
-  // Vercel preview / branch URLs
-  if (hostname.endsWith('.vercel.app')) return true
-  // Cloud Run's default dark URL (09-platform-infra frontend-vercel-to-cloudrun,
-  // S1.3/S1.4) — same reasoning as .vercel.app: a platform-served preview host,
-  // not a tenant custom domain, before Cloudflare fronts the real domain (S2+).
-  if (hostname.endsWith('.run.app')) return true
-  return false
-}
 
 function isFundadorasSubjectPath(pathname: string): boolean {
   return pathname === '/vende/fundadoras' ||
@@ -147,7 +126,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         const url = req.nextUrl.clone()
         url.protocol = 'https:'
         url.host = ROOT_DOMAIN
-        url.pathname = `/s/${slug}`
+        url.pathname = `/mx/s/${slug}`
         url.search = ''
         return NextResponse.redirect(url, 301)
       }
@@ -388,7 +367,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Well-formed-but-deleted ids/slugs (and retired-slug 301s) are NOT caught here
   // — they flow to the page, which 404s/redirects them normally. The page guards
   // share these same lib/route-shape predicates (defense-in-depth + channel hosts).
-  const platformPath = req.nextUrl.pathname
+  const platformPath = stripMarketPrefix(req.nextUrl.pathname)
   const listingSeg = /^\/l\/([^/]+)\/?$/.exec(platformPath)
   const shopSeg = /^\/s\/([^/]+)\/?$/.exec(platformPath)
   if (
@@ -407,6 +386,60 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         },
       },
     )
+  }
+
+  // ── Legacy marketplace paths → canonical Mexico market (LAST route rule) ─
+  // Every tenant branch above has already returned. Keeping this below the
+  // subdomain, custom-domain and embed exits is the isolation guarantee: those
+  // channels continue to serve `/l/:id`, `/s/:slug` and `/c/:collection`
+  // without ever learning about `/mx`. The malformed-path guard stays directly
+  // above this rule so scanner junk retains its one-request cheap 404 instead of
+  // paying for a redirect followed by the same 404.
+  //
+  // Retired shop slugs need special composition: `/s/old` must land directly on
+  // `/mx/s/current`, not chain through `/mx/s/old`. This lookup runs only for
+  // well-formed legacy shop paths. If Supabase is unavailable, the ordinary
+  // market redirect still works; alias resolution degrades to the page seam.
+  const legacyShopMatch = /^\/s\/([^/]+)(?:\/|$)/.exec(req.nextUrl.pathname)
+  if (legacyShopMatch && isLikelyShopSlug(legacyShopMatch[1])) {
+    try {
+      const requestedSlug = legacyShopMatch[1].toLowerCase()
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { data: aliasShop, error: aliasError } = await supabase
+        .from('marketplace_shops')
+        .select('slug, metadata')
+        .contains('metadata', { previous_slug_keys: [requestedSlug] })
+        .limit(1)
+        .maybeSingle()
+      if (aliasError) throw aliasError
+      if (aliasShop?.slug) {
+        const previous = (
+          (aliasShop.metadata as Record<string, unknown> | null)?.previous_slugs ?? []
+        ) as PreviousSlug[]
+        const current = pickAliasTarget(String(aliasShop.slug), previous, requestedSlug)
+        const aliasRedirect = current
+          ? retiredShopMarketRedirectPath(req.nextUrl.pathname, current)
+          : null
+        if (aliasRedirect) {
+          const url = req.nextUrl.clone()
+          url.pathname = aliasRedirect
+          return NextResponse.redirect(url, 308)
+        }
+      }
+    } catch {
+      // Alias resolution is enhancement-only; preserve the ordinary market
+      // cutover below rather than turning a dependency outage into a 500.
+    }
+  }
+
+  // `/c/:collection` is intentionally absent: live evidence confirmed it is a
+  // tenant-only route keyed by x-miyagi-shop-slug, not a marketplace surface.
+  // Search + query are preserved and the helper normalizes a trailing slash.
+  const marketRedirect = platformMarketRedirectPath(req.nextUrl.pathname)
+  if (marketRedirect) {
+    const url = req.nextUrl.clone()
+    url.pathname = marketRedirect
+    return NextResponse.redirect(url, 308)
   }
 
   // ── Standard platform routing ────────────────────────────────────────────

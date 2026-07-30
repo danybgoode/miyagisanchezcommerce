@@ -10,8 +10,8 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/shop/manage/catalogo/page.tsx:108",
-        "app/api/ucp/mcp/route.ts:3360",
-        "app/api/ucp/mcp/route.ts:3400",
+        "app/api/ucp/mcp/route.ts:3541",
+        "app/api/ucp/mcp/route.ts:3581",
         "lib/catalog-bulk.ts:252",
         "lib/catalog-bulk.ts:504"
       ]
@@ -23,15 +23,15 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:351",
-        "app/(shell)/sell/edit/[id]/page.tsx:187",
+        "app/(shell)/l/[id]/page.tsx:384",
+        "app/(shell)/sell/edit/[id]/page.tsx:189",
         "app/(shell)/shop/manage/catalogo/page.tsx:102",
-        "app/api/ucp/catalog/[id]/route.ts:63",
-        "app/api/ucp/catalog/route.ts:99",
-        "app/api/ucp/checkout-session/route.ts:603",
-        "app/api/ucp/mcp/route.ts:1008",
-        "app/api/ucp/mcp/route.ts:1083",
-        "app/api/ucp/mcp/route.ts:1485"
+        "app/api/ucp/catalog/[id]/route.ts:75",
+        "app/api/ucp/catalog/route.ts:109",
+        "app/api/ucp/checkout-session/route.ts:639",
+        "app/api/ucp/mcp/route.ts:1028",
+        "app/api/ucp/mcp/route.ts:1126",
+        "app/api/ucp/mcp/route.ts:1641"
       ]
     },
     {
@@ -41,9 +41,9 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:196",
-        "app/(shell)/l/[id]/page.tsx:394",
-        "app/api/ucp/checkout-session/route.ts:323"
+        "app/(shell)/checkout/page.tsx:215",
+        "app/(shell)/l/[id]/page.tsx:427",
+        "app/api/ucp/checkout-session/route.ts:356"
       ]
     },
     {
@@ -63,7 +63,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:127"
+        "app/(shell)/l/[id]/page.tsx:160"
       ]
     },
     {
@@ -96,9 +96,9 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:151",
-        "app/(shell)/l/[id]/page.tsx:427",
-        "app/api/ucp/checkout-session/route.ts:354"
+        "app/(shell)/checkout/page.tsx:170",
+        "app/(shell)/l/[id]/page.tsx:460",
+        "app/api/ucp/checkout-session/route.ts:387"
       ]
     },
     {
@@ -134,13 +134,13 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/s/[slug]/convocatoria/page.tsx:40",
-        "app/(shell)/sell/edit/[id]/page.tsx:182",
+        "app/(shell)/s/[slug]/convocatoria/page.tsx:70",
+        "app/(shell)/sell/edit/[id]/page.tsx:184",
         "app/(shell)/shop/manage/convocatoria/campanas/page.tsx:16",
-        "app/(shell)/shop/manage/convocatoria/page.tsx:15",
+        "app/(shell)/shop/manage/convocatoria/page.tsx:17",
         "app/(shell)/shop/manage/settings/page.tsx:53",
-        "app/(shell)/v/[slug]/page.tsx:17",
-        "app/(shell)/v/[slug]/page.tsx:46",
+        "app/(shell)/v/[slug]/page.tsx:19",
+        "app/(shell)/v/[slug]/page.tsx:48",
         "app/api/cron/launchpad-campaigns/route.ts:27",
         "app/api/launchpad/[slug]/submit/route.ts:39",
         "app/api/launchpad/[slug]/upload/route.ts:27",
@@ -155,21 +155,21 @@
         "app/api/sell/launchpad/campaigns/options/route.ts:33",
         "app/api/sell/launchpad/campaigns/route.ts:16",
         "app/api/sell/launchpad/campaigns/route.ts:27",
-        "app/api/sell/launchpad/shelf/route.ts:112",
-        "app/api/sell/launchpad/shelf/route.ts:90",
+        "app/api/sell/launchpad/shelf/route.ts:119",
+        "app/api/sell/launchpad/shelf/route.ts:97",
         "app/api/sell/launchpad/submissions/[id]/download/route.ts:21",
         "app/api/sell/launchpad/submissions/[id]/publish/route.ts:20",
         "app/api/sell/launchpad/submissions/[id]/route.ts:22",
         "app/api/sell/launchpad/submissions/route.ts:15",
         "app/api/sell/listing/[id]/route.ts:146",
-        "app/api/ucp/mcp/route.ts:2642",
-        "app/api/ucp/mcp/route.ts:2688",
-        "app/api/ucp/mcp/route.ts:2717",
-        "app/api/ucp/mcp/route.ts:2757",
-        "app/api/ucp/mcp/route.ts:2826",
-        "app/api/ucp/mcp/route.ts:2861",
-        "app/api/ucp/mcp/route.ts:2895",
-        "app/api/ucp/mcp/route.ts:2927"
+        "app/api/ucp/mcp/route.ts:2823",
+        "app/api/ucp/mcp/route.ts:2869",
+        "app/api/ucp/mcp/route.ts:2898",
+        "app/api/ucp/mcp/route.ts:2938",
+        "app/api/ucp/mcp/route.ts:3007",
+        "app/api/ucp/mcp/route.ts:3042",
+        "app/api/ucp/mcp/route.ts:3076",
+        "app/api/ucp/mcp/route.ts:3108"
       ]
     },
     {
@@ -179,7 +179,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3234"
+        "app/api/ucp/mcp/route.ts:3415"
       ]
     },
     {
@@ -189,7 +189,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1781"
+        "app/api/ucp/mcp/route.ts:1962"
       ]
     },
     {
@@ -199,7 +199,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3056"
+        "app/api/ucp/mcp/route.ts:3237"
       ]
     },
     {
@@ -209,7 +209,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3184"
+        "app/api/ucp/mcp/route.ts:3365"
       ]
     },
     {
@@ -219,7 +219,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1778"
+        "app/api/ucp/mcp/route.ts:1959"
       ]
     },
     {
@@ -237,7 +237,7 @@
         "app/api/sell/shopify/import/parity/estimate/route.ts:23",
         "app/api/sell/shopify/import/parity/route.ts:17",
         "app/api/sell/shopify/import/route.ts:25",
-        "app/api/ucp/mcp/route.ts:3428"
+        "app/api/ucp/mcp/route.ts:3609"
       ]
     },
     {
@@ -282,10 +282,10 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/edit/[id]/page.tsx:172",
+        "app/(shell)/sell/edit/[id]/page.tsx:174",
         "app/api/sell/ml/predict/route.ts:18",
         "app/api/sell/ml/publish/route.ts:19",
-        "app/api/ucp/mcp/route.ts:3209",
+        "app/api/ucp/mcp/route.ts:3390",
         "lib/listing-status.ts:53"
       ]
     },
@@ -323,10 +323,10 @@
         "app/api/orders/[id]/return-request/[requestId]/route.ts:95",
         "app/api/orders/[id]/ship-manual/route.ts:59",
         "app/api/orders/[id]/ship/route.ts:120",
-        "app/api/orders/finalize-manual/route.ts:101",
-        "app/api/webhooks/mercadopago/route.ts:173",
-        "app/api/webhooks/mercadopago/route.ts:534",
-        "app/api/webhooks/stripe/route.ts:418"
+        "app/api/orders/finalize-manual/route.ts:117",
+        "app/api/webhooks/mercadopago/route.ts:175",
+        "app/api/webhooks/mercadopago/route.ts:539",
+        "app/api/webhooks/stripe/route.ts:421"
       ]
     },
     {
@@ -358,7 +358,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:61",
+        "app/(shell)/partner/page.tsx:64",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
@@ -375,7 +375,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:372"
+        "app/(shell)/l/[id]/page.tsx:405"
       ]
     },
     {
@@ -434,7 +434,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:66",
+        "app/(shell)/partner/page.tsx:69",
         "lib/portfolio/gate-server.ts:54",
         "lib/portfolio/partner-portfolio-auth.ts:107",
         "lib/portfolio/reminders-server.ts:220"
@@ -518,7 +518,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/edit/[id]/page.tsx:191",
+        "app/(shell)/sell/edit/[id]/page.tsx:193",
         "app/(shell)/sell/page.tsx:116"
       ]
     },

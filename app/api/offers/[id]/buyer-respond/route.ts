@@ -7,6 +7,7 @@ import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, 
 import { notify } from '@/lib/notify'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
+import { listingUrlFor } from '@/lib/market-url'
 
 interface BuyerRespondBody {
   action: 'accept-counter' | 'withdraw'
@@ -102,6 +103,7 @@ export async function PATCH(
     }
 
     const acceptedCents = offer.counter_amount_cents!
+    const listingUrl = listingUrlFor(origin, listing.id)
     const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
     const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
       { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
@@ -144,7 +146,7 @@ export async function PATCH(
             offer_id: id,
           },
           success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/l/${listing.id}?offer=cancelled`,
+          cancel_url: `${listingUrl}?offer=cancelled`,
         })
         checkoutSessionId = session.id
         checkoutExpires = new Date(expiresAt * 1000).toISOString()
@@ -164,7 +166,6 @@ export async function PATCH(
       checkout_expires_at: checkoutExpires,
     }).eq('id', id)
 
-    const listingUrl = `${origin}/l/${listing.id}`
     const conversationUrl = await getConversationUrl()
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: acceptedCents, currency: listing.currency }, true).catch(e => console.error('[conv] accept-counter event:', e))

@@ -16,6 +16,8 @@ import {
   type CatalogImportRow,
 } from '@/lib/catalog-import'
 import { SuccessCard } from '@/components/SuccessCard'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 /** Must match CHUNK_MAX in app/api/sell/import/route.ts. */
 const IMPORT_CHUNK = 25
@@ -55,6 +57,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 // ── Uploader: paste/file → validate → editable staging → import ──────────────
 
 function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pagosConfigured: boolean }) {
+  const publicShopUrl = shopSlug ? shopUrlFor(SITE_ORIGIN, shopSlug) : ''
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [result, setResult] = useState<CatalogParseResult | null>(null)
@@ -437,7 +440,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
                   headline="Tu catálogo está listo"
                   subcopy={`Creamos ${created} producto${created === 1 ? '' : 's'} nuevo${created === 1 ? '' : 's'}${updated > 0 ? ` y actualizamos ${updated}` : ''}${failed.length > 0 ? ` · ${failed.length} fallaron` : ''}.`}
                   counts={{ created, updated, failed: failed.length, draft: 0 }}
-                  liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+                  liveUrl={publicShopUrl || '/shop/manage'}
                   liveLabel={shopSlug ? 'Ver mi tienda pública ↗' : 'Ver mis anuncios →'}
                   warningCallout={!pagosConfigured ? {
                     text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
@@ -445,7 +448,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
                     ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
                   } : undefined}
                   nextActions={[{ label: 'Ver mis anuncios', href: '/shop/manage' }]}
-                  shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+                  shareUrl={publicShopUrl}
                 />
                 {imagesFailed > 0 && (
                   <p className="text-xs text-amber-700 mt-3 text-center">

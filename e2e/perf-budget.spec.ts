@@ -72,7 +72,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   })
 
   test('the homepage LCP element (Selección featured card) uses next/image with priority', () => {
-    const page = read('app/(site)/page.tsx')
+    const page = read('app/(site)/mx/page.tsx')
     expect(page).toMatch(/import Image from 'next\/image'/)
     const featuredBlock = page.slice(page.indexOf('Featured card'), page.indexOf('Grid — price 16px'))
     expect(featuredBlock).not.toMatch(/<img\s/)
@@ -88,7 +88,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   })
 
   test('the Selección grid marks only the first row (idx < 2) as priority', () => {
-    const page = read('app/(site)/page.tsx')
+    const page = read('app/(site)/mx/page.tsx')
     const gridBlock = page.slice(page.indexOf('Grid — price 16px'), page.indexOf('Categorías —'))
     expect(gridBlock).not.toMatch(/<img\s/)
     // Same tag-scoping as the featured-card check above.
@@ -283,7 +283,7 @@ test.describe('perf-budget · S2.3 mechanism fixture (no network — determinist
 
 test.describe('perf-budget · live check (skips gracefully pre-deploy / empty catalog / preview-config-gap)', () => {
   test('first-row homepage image URLs carry sizing params and long-lived cache headers', async ({ request, baseURL }) => {
-    const homeRes = await request.get('/', { headers: { Accept: 'text/html' } })
+    const homeRes = await request.get('/mx', { headers: { Accept: 'text/html' } })
     test.skip(!homeRes.ok(), 'homepage not reachable in this environment')
     const html = await homeRes.text()
 
@@ -336,7 +336,7 @@ test.describe('perf-budget · live check (skips gracefully pre-deploy / empty ca
   // semantics as the sibling test above.
   test('the first few /api/img-sourced URLs on the homepage all carry long-lived cache headers, not just the first', async ({ request, baseURL }) => {
     test.slow() // multiple live resize round-trips; give this more headroom than the default 30s
-    const homeRes = await request.get('/', { headers: { Accept: 'text/html' } })
+    const homeRes = await request.get('/mx', { headers: { Accept: 'text/html' } })
     test.skip(!homeRes.ok(), 'homepage not reachable in this environment')
     const html = await homeRes.text()
 
@@ -390,7 +390,7 @@ test.describe('perf-budget · live check (skips gracefully pre-deploy / empty ca
     const isProd = baseURL === PROD_URL
     test.skip(!isProd, 'hard budget assertion only runs against the prod host — see S1 comments on why preview is excluded')
 
-    const homeRes = await request.get('/', { headers: { Accept: 'text/html' } })
+    const homeRes = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(homeRes.ok()).toBeTruthy()
     const html = await homeRes.text()
     const headHtml = html.slice(html.indexOf('<head'), html.indexOf('</head>'))

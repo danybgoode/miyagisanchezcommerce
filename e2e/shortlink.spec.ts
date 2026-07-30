@@ -32,12 +32,12 @@ test.describe('shortlink · host + segment', () => {
 
 test.describe('shortlink · targets', () => {
   test('shop + listing canonical targets', () => {
-    expect(shopTarget('mi-tienda')).toBe(`${PLATFORM_ORIGIN}/s/mi-tienda`)
-    expect(listingTarget('prod_01ABC')).toBe(`${PLATFORM_ORIGIN}/l/prod_01ABC`)
+    expect(shopTarget('mi-tienda')).toBe(`${PLATFORM_ORIGIN}/mx/s/mi-tienda`)
+    expect(listingTarget('prod_01ABC')).toBe(`${PLATFORM_ORIGIN}/mx/l/prod_01ABC`)
   })
 
   test('home + branded 404 targets', () => {
-    expect(HOME_TARGET).toBe('https://miyagisanchez.com')
+    expect(HOME_TARGET).toBe('https://miyagisanchez.com/mx')
     expect(NOT_FOUND_TARGET).toBe('https://miyagisanchez.com/404')
   })
 })
@@ -55,23 +55,27 @@ test.describe('shortlink · known-prefix passthrough', () => {
     expect([...PASSTHROUGH_PREFIXES].sort()).toEqual(['e', 'g', 'l', 's', 'v'])
   })
 
-  test('all 5 prefixes 301 to the identical multi-segment path on the platform origin', () => {
+  test('marketplace prefixes canonicalize to MX; out-of-scope prefixes keep the identical path', () => {
     expect(passthroughTarget('/g/verano-2026', '')).toBe(`${PLATFORM_ORIGIN}/g/verano-2026`)
     expect(passthroughTarget('/e/lanzamiento', '')).toBe(`${PLATFORM_ORIGIN}/e/lanzamiento`)
     expect(passthroughTarget('/v/vota-mi-obra', '')).toBe(`${PLATFORM_ORIGIN}/v/vota-mi-obra`)
-    expect(passthroughTarget('/l/prod_01ABC', '')).toBe(`${PLATFORM_ORIGIN}/l/prod_01ABC`)
-    expect(passthroughTarget('/s/mi-tienda/c/coleccion', '')).toBe(`${PLATFORM_ORIGIN}/s/mi-tienda/c/coleccion`)
+    expect(passthroughTarget('/l/prod_01ABC', '')).toBe(`${PLATFORM_ORIGIN}/mx/l/prod_01ABC`)
+    expect(passthroughTarget('/s/mi-tienda/c/coleccion', '')).toBe(`${PLATFORM_ORIGIN}/mx/s/mi-tienda/c/coleccion`)
   })
 
   test('prefix match is case-insensitive; path case is preserved verbatim', () => {
     expect(passthroughTarget('/G/Verano-2026', '')).toBe(`${PLATFORM_ORIGIN}/G/Verano-2026`)
     expect(passthroughTarget('/E/lanzamiento', '')).toBe(`${PLATFORM_ORIGIN}/E/lanzamiento`)
+    expect(passthroughTarget('/S/Mi-Tienda', '?ref=QR'))
+      .toBe(`${PLATFORM_ORIGIN}/mx/S/Mi-Tienda?ref=QR`)
+    expect(passthroughTarget('/L/prod_ABC', ''))
+      .toBe(`${PLATFORM_ORIGIN}/mx/L/prod_ABC`)
   })
 
   test('query string is preserved verbatim alongside the path', () => {
     expect(passthroughTarget('/e/lanzamiento', '?lang=en')).toBe(`${PLATFORM_ORIGIN}/e/lanzamiento?lang=en`)
     expect(passthroughTarget('/s/mi-tienda/c/coleccion', '?utm_source=ig&ref=abc'))
-      .toBe(`${PLATFORM_ORIGIN}/s/mi-tienda/c/coleccion?utm_source=ig&ref=abc`)
+      .toBe(`${PLATFORM_ORIGIN}/mx/s/mi-tienda/c/coleccion?utm_source=ig&ref=abc`)
   })
 
   test('multi-segment, non-allowlisted prefix → null (caller 404s it)', () => {

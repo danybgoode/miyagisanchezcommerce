@@ -149,7 +149,7 @@ export default function HomeRetomaOffers() {
               : railCards.map(card => (
                   <Link
                     key={card.medusaId}
-                    href={`/l/${card.medusaId}`}
+                    href={`/mx/l/${card.medusaId}`}
                     className="card-tile no-underline fade-in"
                     style={{ flex: '0 0 auto', width: 150 }}
                   >

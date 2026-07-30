@@ -5,6 +5,10 @@ import { getLaunchpadShopBySlug } from '@/lib/launchpad'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { MAX_MANUSCRIPT_SIZE_MB } from '@/lib/launchpad-types'
 import ConvocatoriaClient from './ConvocatoriaClient'
+import { getShop } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { marketCatalogCanonical } from '@/lib/market-seo'
+import type { MarketCode } from '@/lib/markets'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +21,28 @@ Conservas los derechos de autor de tu manuscrito. Al enviarlo, concedes a la lib
 
 Puedes pedir que retiremos tu obra en cualquier momento escribiéndonos, y la librería puede retirar cualquier obra a su criterio o ante una reclamación de derechos.`
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateConvocatoriaMetadata({
+  params,
+  market,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}): Promise<Metadata> {
   const { slug } = await params
-  const shop = await getLaunchpadShopBySlug(slug)
-  return { title: shop ? `Convocatoria — ${shop.name}` : 'Convocatoria', robots: { index: false } }
+  const [launchpadShop, shop] = await Promise.all([getLaunchpadShopBySlug(slug), getShop(slug)])
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) {
+    return { title: 'Convocatoria', robots: { index: false } }
+  }
+  return {
+    title: launchpadShop ? `Convocatoria — ${launchpadShop.name}` : 'Convocatoria',
+    robots: { index: false },
+    ...(marketBasePath ? marketCatalogCanonical(`${marketBasePath}/s/${slug}/convocatoria`) : {}),
+  }
 }
+
+export const generateMetadata = generateConvocatoriaMetadata
 
 function StateMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -35,14 +56,29 @@ function StateMessage({ title, body }: { title: string; body: string }) {
   )
 }
 
-export default async function ConvocatoriaPage({ params }: { params: Promise<{ slug: string }> }) {
+export async function ConvocatoriaPage({
+  params,
+  market,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}) {
   const { slug } = await params
-  const [enabled, shop] = await Promise.all([isEnabled('launchpad.enabled'), getLaunchpadShopBySlug(slug)])
+  const [enabled, shop, seller] = await Promise.all([
+    isEnabled('launchpad.enabled'),
+    getLaunchpadShopBySlug(slug),
+    getShop(slug),
+  ])
 
   if (!enabled) {
     return <StateMessage title="Convocatoria no disponible" body="Esta función no está disponible en este momento." />
   }
   if (!shop) {
+    return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
+  }
+  if (market && readPublicSellerMarket(seller)?.market_code !== market) {
     return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
   }
   // Consent-safe previews: this is the ONE shop sub-page middleware rewrites onto
@@ -67,7 +103,7 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
     <main className="min-h-screen bg-[var(--color-background)]">
       <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10">
         <div className="mb-6">
-          <Link href={`/s/${shop.slug}`} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
+          <Link href={`${marketBasePath}/s/${shop.slug}`} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
             ← {shop.name}
           </Link>
           <h1 className="text-3xl sm:text-4xl font-bold mt-3 leading-tight">Convocatoria de manuscritos</h1>
@@ -95,3 +131,5 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
     </main>
   )
 }
+
+export default ConvocatoriaPage

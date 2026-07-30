@@ -1,8 +1,11 @@
+/* eslint-disable @next/next/no-img-element -- conversation thumbnails preserve arbitrary seller-hosted image URLs */
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { browseUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const metadata: Metadata = { title: 'Mensajes — Miyagi Sánchez' }
 
@@ -157,7 +160,7 @@ export default async function MessagesPage() {
           <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
             Cuando hagas o recibas una oferta, la conversación aparecerá aquí.
           </p>
-          <Link href="/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+          <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
             <i className="iconoir-search" style={{ fontSize: 16 }} />
             Explorar anuncios
           </Link>

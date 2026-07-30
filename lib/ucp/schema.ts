@@ -21,6 +21,8 @@ import { shortCollectionSlug } from '@/lib/collection-derive'
 import { hasExcerpt } from '@/lib/excerpt'
 import type { PriceGrid } from '@/lib/price-grid'
 import { deriveInventoryMode } from '@/lib/inventory-mode'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
@@ -81,6 +83,7 @@ export interface UcpTrust {
 export interface UcpListing {
   // Core identity
   id: string
+  market_code: MarketCode
   url: string
   title: string
   description: string | null
@@ -220,6 +223,7 @@ export function toUcpListing(
   // Fail-closed default (matches DEFAULT_FLAGS['catalog.inventory_channels_enabled'])
   // for any caller that hasn't been threaded to pass the real flag value yet.
   inventoryChannelsEnabled = false,
+  marketCode: MarketCode = DEFAULT_MARKET,
 ): UcpListing {
   const shop = listing.shop
   const publicListingId = listing.medusa_product_id ?? listing.id
@@ -301,7 +305,7 @@ export function toUcpListing(
     '@type': event ? 'Event' : listing.listing_type === 'service' ? 'Service' : 'Product',
     name: listing.title,
     description: listing.description,
-    url: `${baseUrl}/l/${publicListingId}`,
+    url: listingUrlFor(baseUrl, publicListingId, marketCode),
     image: listing.images?.[0]?.url,
     startDate: event?.starts_at ?? undefined,
     location: event?.location_label ? {
@@ -327,7 +331,8 @@ export function toUcpListing(
 
   return {
     id: publicListingId,
-    url: `${baseUrl}/l/${publicListingId}`,
+    market_code: marketCode,
+    url: listingUrlFor(baseUrl, publicListingId, marketCode),
     title: listing.title,
     description: listing.description,
     price: hasPrice ? {
@@ -362,7 +367,7 @@ export function toUcpListing(
       slug: shop.slug,
       verified: shop.verified ?? false,
       location: shop.location,
-      url: `${baseUrl}/s/${shop.slug}`,
+      url: shopUrlFor(baseUrl, shop.slug, marketCode),
       ...deriveUcpShopExtras(shop),
     } : {
       id: listing.shop_id,

@@ -12,8 +12,8 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('home announcement card · structural default (no active campaign)', () => {
-  test('the homepage renders with no announcement card and its usual chrome intact', async ({ request }) => {
-    const res = await request.get('/', { headers: { Accept: 'text/html' } })
+  test('the Mexico homepage renders with no announcement card and its usual chrome intact', async ({ request }) => {
+    const res = await request.get('/mx', { headers: { Accept: 'text/html' } })
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html).not.toContain('data-testid="home-announcement-card"')

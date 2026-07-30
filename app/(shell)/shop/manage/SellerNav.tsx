@@ -15,6 +15,8 @@ import {
 } from '@/lib/seller-nav'
 import type { FlagKey } from '@/lib/flags'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 interface SellerNavProps {
   /** Server-resolved via `isEnabled()` in `layout.tsx` — never forked here. */
@@ -304,7 +306,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
             ))}
             {shopSlug && (
               <Link
-                href={`/s/${shopSlug}`}
+                href={shopUrlFor(SITE_ORIGIN, shopSlug)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMoreOpen(false)}

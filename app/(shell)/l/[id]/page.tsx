@@ -63,19 +63,42 @@ import { digitalFileInfo, digitalSpecs } from '@/lib/digital-delivery'
 import { deriveInventoryMode, deriveBuyBoxBehavior } from '@/lib/inventory-mode'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { Metadata } from 'next'
+import type { MarketCode } from '@/lib/markets'
+import { marketCatalogCanonical } from '@/lib/market-seo'
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateListingMetadata({
+  params,
+  market = 'mx',
+  marketBasePath = '',
+}: {
+  params: Promise<{ id: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}): Promise<Metadata> {
   const { id } = await params
   if (!isLikelyListingId(id)) return { title: 'Anuncio no encontrado' }
-  const channelSlug = (await headers()).get('x-miyagi-shop-slug')
+  const requestHeaders = await headers()
+  const channelSlug = requestHeaders.get('x-miyagi-shop-slug')
   const listing = channelSlug
     ? await getOwnedShopListing(channelSlug, id)
-    : await getListing(id)
+    : await getListing(id, market)
   if (!listing) return { title: 'Anuncio no encontrado' }
+  if (marketBasePath) {
+    const canonical = `${marketBasePath}/l/${listing.id}`
+    return {
+      title: listing.title,
+      description: listing.description ?? undefined,
+      ...marketCatalogCanonical(canonical),
+      openGraph: { url: `https://miyagisanchez.com${canonical}` },
+    }
+  }
   // Canonical follows the seller's live custom domain when set, so the product
   // ranks under the brand domain rather than the marketplace mirror.
-  const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
-  const canonical = domain ? `https://${domain}/l/${listing.id}` : `https://miyagisanchez.com/l/${listing.id}`
+  const requestDomain = requestHeaders.get('x-miyagi-domain')
+  const domain = requestDomain ?? await getActiveCustomDomain(listing.shop?.slug ?? '')
+  const canonical = domain
+    ? `https://${domain}/l/${listing.id}`
+    : `https://miyagisanchez.com/mx/l/${listing.id}`
   return {
     title: listing.title,
     description: listing.description ?? undefined,
@@ -83,6 +106,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     openGraph: { url: canonical },
   }
 }
+
+export const generateMetadata = generateListingMetadata
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -108,7 +133,15 @@ function formatCents(cents: number, currency: string): string {
   }).format(cents / 100)
 }
 
-export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
+export async function ListingPage({
+  params,
+  market = 'mx',
+  marketBasePath = '',
+}: {
+  params: Promise<{ id: string }>
+  market?: MarketCode
+  marketBasePath?: string
+}) {
   const { id } = await params
   // Short-circuit junk URLs BEFORE any Medusa fetch (epic 09 · cost reduction
   // S2.2): a clearly-malformed id can never be a real product, so 404 it without
@@ -121,9 +154,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   const reqHeaders = await headers()
   const channelSlug = reqHeaders.get('x-miyagi-shop-slug')
   const [listing, clerkUser, priceGridResult, configuratorFlagOn] = await Promise.all([
-    channelSlug ? getOwnedShopListing(channelSlug, id) : getListing(id),
+    channelSlug ? getOwnedShopListing(channelSlug, id) : getListing(id, market),
     currentUser(),
-    channelSlug ? getOwnedShopPriceGrid(channelSlug, id) : getPriceGrid(id),
+    channelSlug ? getOwnedShopPriceGrid(channelSlug, id) : getPriceGrid(id, market),
     isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
@@ -199,7 +232,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   // SEO continuity: on the marketplace host, if this product's shop has a LIVE
   // custom domain, 308-redirect the legacy /l/[id] link to the tenant's own
   // domain so traffic + ranking consolidate there.
-  if (!onChannel) {
+  if (!onChannel && !marketBasePath) {
     const domain = await getActiveCustomDomain(listing.shop?.slug ?? '')
     if (domain) permanentRedirect(`https://${domain}/l/${listing.id}`)
   }
@@ -591,7 +624,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           Ver conversación
         </Link>
       )}
-      <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
+      <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} marketBasePath={marketBasePath} />
     </div>
   ) : isOwnListing ? (
     <Link href={`/sell/edit/${listing.id}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
@@ -669,7 +702,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   )
 
   // "Preguntar" demoted to a light text link below the primary/secondary actions (S1.3).
-  const redesignAskLink = <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} label="Preguntar" variant="link" />
+  const redesignAskLink = <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} label="Preguntar" variant="link" marketBasePath={marketBasePath} />
 
   const redesignBarContent = (
     <div data-testid="pdp-action-bar" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -760,6 +793,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       bookingText={bookingText}
       agendarLabel={agendarLabel}
       pickupSpots={pickupSpots}
+      marketBasePath={marketBasePath}
     />
   ) : null
 
@@ -822,10 +856,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
         {/* Breadcrumbs */}
         <nav style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <Link href="/" style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Inicio</Link>
+          <Link href={marketBasePath || '/'} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Inicio</Link>
           <span>›</span>
-          <Link href="/l" style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
-          {listing.category && (<><span>›</span><Link href={`/l?category=${listing.category}`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)] capitalize">{listing.category}</Link></>)}
+          <Link href={`${marketBasePath}/l`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+          {listing.category && (<><span>›</span><Link href={`${marketBasePath}/l?category=${listing.category}`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)] capitalize">{listing.category}</Link></>)}
         </nav>
 
         {/* Title + meta */}
@@ -929,7 +963,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             gem-imported shop with no owner. Buy/Offer/Cart already suppressed via
             isShopClaimed (no gating change); SellerTrustCard below carries contact
             + the claim nudge. ──────────────────────────────────────────────────── */}
-        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} />}
+        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} marketBasePath={marketBasePath} />}
 
         {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
             service attrs + description. Leads the page for service listings, so the
@@ -943,6 +977,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingText={bookingText}
             inclusions={listingSpecs(listing)}
             description={listing.description}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -960,6 +995,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingUrl={bookingUrl}
             rentalPricingEnabled={rentalPricingEnabled}
             sellerHasPaymentMethod={hasAnyPayment}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1015,6 +1051,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             specs={listingSpecs(listing)}
             priceCents={listing.price_cents}
             attrs={listing.attrs ?? (listing.metadata?.attrs as Record<string, unknown> | undefined) ?? {}}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1028,6 +1065,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             bookingUrl={bookingUrl}
             attrs={(listing.attrs ?? listing.metadata?.attrs) as Record<string, unknown> | undefined}
             location={listing.location}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1084,7 +1122,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
               <div style={{ marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
-                <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
+                <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} marketBasePath={marketBasePath} />
               </div>
             </>
           ) : null}
@@ -1195,7 +1233,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {sellerTrustCard && <div className="hidden md:block">{sellerTrustCard}</div>}
 
         {bundleItems.length > 1 && listing.shop && !suppressGenericBar && (
-          <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} />
+          <SellerBundleSection sellerName={listing.shop.name} items={bundleItems} bundleTiers={shopBundleTiers} marketBasePath={marketBasePath} />
         )}
 
         {/* ── Especificaciones (S3.3 · finding #7) ────────────────────────────────
@@ -1254,7 +1292,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         {listing.tags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
             {listing.tags.map(tag => (
-              <Link key={tag} href={`/l?q=${encodeURIComponent(tag)}`} className="chip no-underline" style={{ fontSize: 12, padding: '4px 12px' }}>{tag}</Link>
+              <Link key={tag} href={`${marketBasePath}/l?q=${encodeURIComponent(tag)}`} className="chip no-underline" style={{ fontSize: 12, padding: '4px 12px' }}>{tag}</Link>
             ))}
           </div>
         )}
@@ -1297,3 +1335,5 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     </div>
   )
 }
+
+export default ListingPage

@@ -9,6 +9,7 @@
  */
 
 import { MercadoPagoConfig, Preference, Payment, PreApproval, PreApprovalPlan } from 'mercadopago'
+import { listingUrlFor } from './market-url'
 
 // ── Client singleton ──────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ export async function createMpPreference(p: CreatePreferenceParams): Promise<MpP
       notification_url: `${p.origin}/api/webhooks/mercadopago`,
       back_urls: {
         success: `${p.origin}/payment/success?source=mp`,
-        failure: `${p.origin}/l/${p.listingId}?payment=failed`,
+        failure: `${listingUrlFor(p.origin, p.listingId)}?payment=failed`,
         pending: `${p.origin}/payment/pending?source=mp`,
       },
       auto_return: 'approved',
@@ -160,7 +161,7 @@ export async function createMpPreapproval(
         transaction_amount: p.priceCents / 100,
         currency_id: p.currency.toUpperCase(),
       },
-      back_url: `${p.origin}/l/${p.listingId}?payment=mp_sub`,
+      back_url: `${listingUrlFor(p.origin, p.listingId)}?payment=mp_sub`,
       external_reference: JSON.stringify({
         listing_id: p.listingId,
         shop_id: p.shopId,

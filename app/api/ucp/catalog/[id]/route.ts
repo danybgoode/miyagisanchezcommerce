@@ -12,6 +12,7 @@ import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { getPriceGrid } from '@/lib/listings'
 import { isEnabled } from '@/lib/flags'
 import type { Listing } from '@/lib/types'
+import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -32,6 +33,10 @@ export async function GET(
 ) {
   const { id } = await params
   const baseUrl = req.headers.get('origin') ?? 'https://miyagisanchez.com'
+  const marketDecision = planMarketCatalogRead(req.nextUrl.searchParams.get('market'))
+  if (isMarketUnavailable(marketDecision)) {
+    return NextResponse.json(marketDecision, { headers: CORS })
+  }
 
   // Widget traffic is rate-limited; agents/marketplace are not. No-op w/o Redis.
   if (isEmbedRequest(req)) {
@@ -48,7 +53,7 @@ export async function GET(
     return NextResponse.json({ error: 'Missing listing id' }, { status: 400, headers: CORS })
   }
 
-  const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}`, {
+  const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, {
     headers: { 'x-publishable-api-key': PUB_KEY },
     next: { revalidate: 60 } as RequestInit['next'],
   })
@@ -58,12 +63,19 @@ export async function GET(
   }
 
   const data = await res.json()
+  const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+  if (unconfirmedMarket) {
+    return NextResponse.json(unconfirmedMarket, { headers: CORS })
+  }
   const listing = data.listing as Listing
-  const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
+  const priceGrid = await getPriceGrid(
+    listing.medusa_product_id ?? listing.id,
+    marketDecision.market.code,
+  )
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
 
   return NextResponse.json(
-    toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled),
+    toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled, marketDecision.market.code),
     { headers: CORS },
   )
 }

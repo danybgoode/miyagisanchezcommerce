@@ -6,6 +6,7 @@ import { createSubscriptionCheckout } from '@/lib/stripe-subscriptions'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { detectChannel } from '@/lib/channel'
 import { resolveOrigin } from '@/lib/request-origin'
+import { listingUrlFor } from '@/lib/market-url'
 
 export async function POST(req: NextRequest) {
   // ── Auth required — subscriptions need buyer identity for lifecycle management ──
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
   const url = await createSubscriptionCheckout({
     priceId,
     successUrl: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}&type=subscription`,
-    cancelUrl: `${origin}/l/${listing.id}?payment=cancelled`,
+    cancelUrl: `${listingUrlFor(origin, listing.id)}?payment=cancelled`,
     buyerEmail,
     metadata: {
       listing_id: listing.id,

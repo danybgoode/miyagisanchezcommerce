@@ -29,6 +29,8 @@ import { slugify } from '@/lib/slug'
 import { SuccessCard, SuccessCardProgress } from '@/components/SuccessCard'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
 import { getOnboardingElapsedMs } from '@/lib/onboarding-timing'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Copy-to-clipboard (mirrors the import clients) ────────────────────────────
 function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
@@ -139,8 +141,10 @@ function FirstRunApply() {
   // no-op for every other entry into this page (paste/upload unaffected).
   useEffect(() => {
     const stashed = consumeSetupFile()
+    // sessionStorage is the external handoff source; consuming it once and
+    // hydrating the review state is exactly the synchronization performed here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stashed) review(stashed, 'file', 'desde-tres-puertas.json')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleFile(f: File) {
@@ -341,7 +345,7 @@ function FirstRunApply() {
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{shopNamePreview || '(se generará automáticamente)'}</p>
                   <p className="text-xs text-[var(--color-muted)] truncate">
-                    {slugPreview ? `/s/${slugPreview}` : 'tu enlace se genera al crear la tienda'}
+                    {slugPreview ? shopUrlFor(SITE_ORIGIN, slugPreview) : 'tu enlace se genera al crear la tienda'}
                   </p>
                   {(displayProfile.city || displayProfile.state) && (
                     <p className="text-xs text-[var(--color-muted)]">
@@ -524,6 +528,7 @@ function FirstRunApply() {
 function SetupReport({ report }: { report: SetupApplyReport }) {
   const { shop, shopSlug, config, catalog } = report
   const shopOk = shop !== 'failed'
+  const publicShopUrl = shopSlug ? shopUrlFor(SITE_ORIGIN, shopSlug) : ''
   const failedRows = catalog.rows.filter((r) => r.status === 'failed')
   const configIssueBlocks = config.filter((b) => b.issues.length > 0)
 
@@ -570,14 +575,14 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
         headline="Tu tienda está lista"
         subcopy={`Creamos tu tienda con ${catalog.created} producto${catalog.created === 1 ? '' : 's'} publicado${catalog.created === 1 ? '' : 's'}${catalog.failed > 0 ? ` · ${catalog.failed} no se pudo${catalog.failed === 1 ? '' : 'n'} crear (corrígelo abajo)` : ''}. Diseño y envíos quedaron configurados.`}
         counts={{ created: catalog.created, updated: catalog.updated, failed: catalog.failed, draft: 0 }}
-        liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+        liveUrl={publicShopUrl || '/shop/manage'}
         warningCallout={{
           text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
           primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos/wizard' },
           ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
         }}
         nextActions={[{ label: 'Ir a mi tienda', href: '/shop/manage' }]}
-        shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+        shareUrl={publicShopUrl}
       />
 
       {/* Config blocks that need attention (kept below the card — the same
@@ -608,6 +613,7 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
 // ── Post-setup loop-close: clerk prompt + connect-agent + what's next ─────────────
 function LoopClose({ shopSlug }: { shopSlug: string | null }) {
   const clerkPrompt = buildClerkPrompt()
+  const publicShopUrl = shopSlug ? shopUrlFor(SITE_ORIGIN, shopSlug) : null
   return (
     <div className="mt-10 pt-6 border-t border-[var(--color-border)] space-y-6">
       <div className="text-center">
@@ -659,8 +665,8 @@ function LoopClose({ shopSlug }: { shopSlug: string | null }) {
           </li>
           <li>
             <i className="iconoir-link" aria-hidden /> <strong className="text-[var(--color-foreground)] font-medium">Comparte tu tienda</strong>
-            {shopSlug
-              ? <> — tu enlace público es <Link href={`/s/${shopSlug}`} className="text-[var(--color-accent)] hover:underline">/s/{shopSlug}</Link>.</>
+            {publicShopUrl
+              ? <> — tu enlace público es <Link href={publicShopUrl} className="text-[var(--color-accent)] hover:underline">{publicShopUrl}</Link>.</>
               : <> desde el panel de tu tienda.</>}
           </li>
           <li>

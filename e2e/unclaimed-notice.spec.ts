@@ -21,6 +21,7 @@ test.describe('unclaimed-notice · honest notice + claim (S5.4)', () => {
   test('claim href targets the shop claim flow (matches SellerTrustCard)', () => {
     expect(unclaimedNoticeModel('mi-tienda').claimHref).toBe('/s/mi-tienda/claim')
     expect(unclaimedNoticeModel('otra').claimHref).toBe('/s/otra/claim')
+    expect(unclaimedNoticeModel('mi-tienda', '/mx').claimHref).toBe('/mx/s/mi-tienda/claim')
   })
 
   test('claim label is the gratis nudge', () => {

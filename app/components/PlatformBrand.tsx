@@ -10,7 +10,7 @@ export default function PlatformBrand({ variant }: Props) {
   const className = variant === 'desktop' ? 'platform-brand platform-brand-desktop' : 'platform-brand platform-brand-mobile'
 
   return (
-    <Link href="/" className={className} aria-label="Miyagi Sánchez - inicio">
+    <Link href="/mx" className={className} aria-label="Miyagi Sánchez México - inicio">
       <span className="platform-brand-core" aria-hidden>
         {variant === 'mobile' ? (
           // eslint-disable-next-line @next/next/no-img-element

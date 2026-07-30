@@ -1,9 +1,12 @@
+/* eslint-disable @next/next/no-img-element -- seller catalog media may use arbitrary remote hosts */
 import { Fragment } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
 import SetupGuideCard from './SetupGuideCard'
 import { pendingSummary as buildPendingSummary } from '@/lib/seller-pending-summary'
 import type { SetupStep } from '@/lib/setup-guide'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,7 +74,7 @@ export default function ManageDashboard({
               pending-work signal (the Pedidos/Ofertas badges' replacement). */}
           <div className="mt-2 flex flex-col gap-1">
             <Link
-              href={`/s/${shop.slug}`}
+              href={shopUrlFor(SITE_ORIGIN, shop.slug)}
               className="text-xs text-[var(--color-accent)] hover:underline no-underline w-fit"
               target="_blank"
             >

@@ -75,7 +75,7 @@ test.describe('tabbar · BOTTOM_TABS (set + order)', () => {
 
   test('signed-in hrefs and es-MX aria-labels', () => {
     const byKey = Object.fromEntries(BOTTOM_TABS.map(t => [t.key, t]))
-    expect(byKey.home.href).toBe('/')
+    expect(byKey.home.href).toBe('/mx')
     expect(byKey.messages.href).toBe('/messages')
     expect(byKey.sell.href).toBe('/sell')
     expect(byKey.favorites.href).toBe('/account/favorites')
@@ -98,15 +98,16 @@ test.describe('tabbar · resolveBottomTabHref', () => {
 
   test('signed-in keeps the real destination; un-gated tabs never change', () => {
     expect(resolveBottomTabHref(byKey.favorites, true)).toBe('/account/favorites')
-    expect(resolveBottomTabHref(byKey.home, false)).toBe('/')   // no signedOutHref
+    expect(resolveBottomTabHref(byKey.home, false)).toBe('/mx')   // no signedOutHref
     expect(resolveBottomTabHref(byKey.sell, false)).toBe('/sell')
   })
 })
 
 test.describe('tabbar · isBottomTabActive', () => {
-  test('home is active only on the exact root', () => {
-    expect(isBottomTabActive('home', '/')).toBe(true)
-    expect(isBottomTabActive('home', '/l')).toBe(false)
+  test('home is active only on the exact Mexico marketplace root', () => {
+    expect(isBottomTabActive('home', '/mx')).toBe(true)
+    expect(isBottomTabActive('home', '/')).toBe(false) // master-brand selector is not Inicio
+    expect(isBottomTabActive('home', '/mx/l')).toBe(false)
   })
 
   test('favorites and profile do not both light up on the favorites subtree', () => {

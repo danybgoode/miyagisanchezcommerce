@@ -13,6 +13,8 @@ import Link from 'next/link'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { isVerifiedCustomDomain } from '@/lib/custom-domain'
+import { browseUrlFor, listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const metadata = { title: 'Pago completado — Miyagi Sánchez' }
 
@@ -83,6 +85,14 @@ export default async function PaymentSuccessPage({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   const params = await searchParams
+  const requestHeaders = await headers()
+  const channel = requestHeaders.get('x-miyagi-channel')
+  const onCustomDomain = channel === 'custom'
+  const onTenantChannel = channel === 'custom' || channel === 'subdomain'
+  const channelDomain = requestHeaders.get('x-miyagi-domain')
+  const marketOrigin = onTenantChannel && channelDomain
+    ? `https://${channelDomain.split(':')[0]}`
+    : SITE_ORIGIN
 
   // ── New Medusa flow ──────────────────────────────────────────────────────
   if (params.cart_id) {
@@ -111,14 +121,13 @@ export default async function PaymentSuccessPage({
     // Own-channel return: if this purchase began on a tenant's custom domain, send
     // the buyer back to that domain's success page so the funnel ends on their brand.
     // Guards: redirect ONLY to a VERIFIED tenant domain (never a value forged into
-    // order metadata → no open redirect), and ONLY from the platform — the onChannel
-    // check stops a redirect loop once we're already on the domain. completeMedusaCart
+    // order metadata → no open redirect), and ONLY from outside that custom domain —
+    // the onCustomDomain check stops a loop once we're already there. completeMedusaCart
     // is idempotent, so re-running it on the domain just returns the same order.
     const orderMeta = (order?.metadata ?? {}) as Record<string, unknown>
     const originDomain = typeof orderMeta.origin_domain === 'string' ? orderMeta.origin_domain : null
     if (originDomain && orderMeta.channel === 'custom_domain') {
-      const onChannel = (await headers()).get('x-miyagi-channel') === 'custom'
-      if (!onChannel && (await isVerifiedCustomDomain(originDomain))) {
+      if (!onCustomDomain && (await isVerifiedCustomDomain(originDomain))) {
         const qs = new URLSearchParams({ cart_id: cartId })
         if (mpPaymentId) qs.set('payment_id', mpPaymentId)
         if (mpStatus) qs.set('status', mpStatus)
@@ -136,6 +145,7 @@ export default async function PaymentSuccessPage({
         currency={String(supportMeta.currency ?? 'MXN').toUpperCase()}
         sellerSlug={(supportMeta.seller_slug as string | undefined) ?? null}
         provider={mpPaymentId ? 'mercadopago' : 'stripe'}
+        marketOrigin={marketOrigin}
       />
     }
 
@@ -170,6 +180,7 @@ export default async function PaymentSuccessPage({
       listingId={productId ?? null}
       isDigital={false}
       provider={mpPaymentId ? 'mercadopago' : 'stripe'}
+      marketOrigin={marketOrigin}
     />
   }
 
@@ -259,12 +270,12 @@ export default async function PaymentSuccessPage({
 
         <div className="flex flex-col gap-3">
           {listingId && (
-            <Link href={`/l/${listingId}`}
+            <Link href={listingUrlFor(marketOrigin, listingId)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}
-          <Link href="/l"
+          <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>
@@ -322,6 +333,7 @@ function SupportSuccessUI({
   currency,
   sellerSlug,
   provider,
+  marketOrigin,
 }: {
   cartId: string
   orderId: string | null
@@ -330,6 +342,7 @@ function SupportSuccessUI({
   currency: string
   sellerSlug: string | null
   provider: 'stripe' | 'mercadopago'
+  marketOrigin: string
 }) {
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
@@ -356,7 +369,7 @@ function SupportSuccessUI({
 
         <div className="flex flex-col gap-3">
           {sellerSlug && (
-            <Link href={`/s/${sellerSlug}`}
+            <Link href={shopUrlFor(marketOrigin, sellerSlug)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver la tienda
             </Link>
@@ -463,8 +476,8 @@ function SuccessUI({
   orderNumber,
   sellerName,
   listingId,
-  isDigital: _isDigital,
   provider,
+  marketOrigin,
 }: {
   buyerName: string | null
   amountPaid: string | null
@@ -474,6 +487,7 @@ function SuccessUI({
   listingId: string | null
   isDigital: boolean
   provider: 'stripe' | 'mercadopago'
+  marketOrigin: string
 }) {
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
@@ -518,12 +532,12 @@ function SuccessUI({
             Ver mis pedidos
           </Link>
           {listingId && (
-            <Link href={`/l/${listingId}`}
+            <Link href={listingUrlFor(marketOrigin, listingId)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}
-          <Link href="/l"
+          <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>

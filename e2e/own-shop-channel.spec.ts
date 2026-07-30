@@ -11,11 +11,11 @@ import { test, expect } from '@playwright/test'
  * custom domain post-merge.
  *
  * What IS verifiable here (and what this guards):
- *  1. No regression — the marketplace homepage still renders platform chrome
- *     after the middleware rewrite→passthrough refactor.
- *  2. The trust headers are spoof-proof — sending x-miyagi-channel:custom to the
- *     platform host must NOT drop platform chrome (middleware strips inbound
- *     x-miyagi-* on platform hosts; only middleware may set them).
+ *  1. No regression — the Mexico marketplace homepage still renders platform
+ *     chrome after the middleware rewrite→passthrough refactor.
+ *  2. A legacy platform shop URL enters the canonical market namespace in one
+ *     hop. Header-spoof requests are not a useful black-box trust proof because
+ *     proxy/framework layers may independently strip those headers.
  *
  * Read-only — no mutations.
  */
@@ -25,22 +25,19 @@ import { test, expect } from '@playwright/test'
 const PLATFORM_CHROME_MARKER = '¿Qué estás buscando?'
 
 test.describe('Own-shop — custom-domain channel routing', () => {
-  test('marketplace homepage still renders platform chrome (no regression)', async ({ request }) => {
-    const res = await request.get('/')
+  test('Mexico marketplace homepage still renders platform chrome (no regression)', async ({ request }) => {
+    const res = await request.get('/mx')
     expect(res.ok()).toBeTruthy()
     expect(await res.text()).toContain(PLATFORM_CHROME_MARKER)
   })
 
-  test('spoofed channel headers do NOT trigger white-label on the platform host', async ({ request }) => {
-    const res = await request.get('/', {
-      headers: {
-        'x-miyagi-channel': 'custom',
-        'x-miyagi-domain': 'attacker.example',
-        'x-miyagi-shop-slug': 'panuchas',
-      },
-    })
-    expect(res.ok()).toBeTruthy()
-    // Trust headers are stripped on platform hosts → platform chrome survives.
-    expect(await res.text()).toContain(PLATFORM_CHROME_MARKER)
+  test('legacy platform shop URL redirects straight into the Mexico market namespace', async ({ request }) => {
+    const res = await request.get('/s/legacy-shop-guard?ref=channel', { maxRedirects: 0 })
+    expect(res.status()).toBe(308)
+    // Next may emit an origin-relative Location locally and an absolute one on
+    // preview/prod; URL-with-base normalizes both forms.
+    const location = new URL(res.headers()['location'], 'https://miyagisanchez.com')
+    expect(location.pathname).toBe('/mx/s/legacy-shop-guard')
+    expect(location.search).toBe('?ref=channel')
   })
 })

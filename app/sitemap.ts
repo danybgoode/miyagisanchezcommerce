@@ -4,6 +4,17 @@ import { getShop, getShopListings, getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug } from '@/lib/collection-derive'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
+import { PLATFORM_SITEMAP_ENTRIES } from '@/lib/market-sitemap'
+import { listingUrlFor, marketplaceUrl } from '@/lib/market-url'
+
+export function platformSitemap(): MetadataRoute.Sitemap {
+  const base = 'https://miyagisanchez.com'
+  return PLATFORM_SITEMAP_ENTRIES.map(({ path, changeFrequency, priority }) => ({
+    url: `${base}${path}`,
+    changeFrequency,
+    priority,
+  }))
+}
 
 /**
  * Host-aware sitemap.
@@ -52,41 +63,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       contentPaths = []
     }
     return [
-      { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
+      { url: marketplaceUrl(base, '/'), changeFrequency: 'daily', priority: 1 },
       ...listings.map((l) => ({
-        url: `${base}/l/${l.id}`,
+        url: listingUrlFor(base, l.id),
         changeFrequency: 'weekly' as const,
         priority: 0.8,
       })),
       ...collections.map((c) => ({
-        url: `${base}/c/${shortCollectionSlug(c.handle, shopSlug)}`,
+        url: marketplaceUrl(base, `/c/${shortCollectionSlug(c.handle, shopSlug)}`),
         changeFrequency: 'weekly' as const,
         priority: 0.7,
       })),
       ...contentPaths.map((p) => ({
-        url: `${base}${p}`,
+        url: marketplaceUrl(base, p),
         changeFrequency: 'monthly' as const,
         priority: 0.6,
       })),
     ]
   }
 
-  const base = 'https://miyagisanchez.com'
-  return [
-    { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
-    { url: `${base}/l`, changeFrequency: 'daily', priority: 0.9 },
-    { url: `${base}/acerca`, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${base}/vende`, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${base}/vende/creadores`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/mundial`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/negocios`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/servicios`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/autos`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/migracion`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/vende/migracion/shopify`, changeFrequency: 'weekly', priority: 0.7 },
-    { url: `${base}/vende/migracion/tiendanube`, changeFrequency: 'weekly', priority: 0.7 },
-    { url: `${base}/vende/migracion/woocommerce`, changeFrequency: 'weekly', priority: 0.7 },
-    { url: `${base}/vende/migracion/bigcartel`, changeFrequency: 'weekly', priority: 0.7 },
-    { url: `${base}/sell`, changeFrequency: 'monthly', priority: 0.5 },
-  ]
+  return platformSitemap()
 }

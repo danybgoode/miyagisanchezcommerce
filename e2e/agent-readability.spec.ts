@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test'
  * bogus-path variant below is the observed-red mechanism for that guard.
  */
 
-const OG_IMAGE_PAGES = ['/', '/vende', '/acerca', '/agent']
+const OG_IMAGE_PAGES = ['/', '/mx', '/vende', '/acerca', '/agent']
 
 function ogTag(html: string, property: string): string | null {
   const re = new RegExp(`<meta property="${property}" content="([^"]*)"`)
@@ -37,12 +37,23 @@ function canonicalHref(html: string): string | null {
 }
 
 test.describe('Agent-readability surface — substantive content', () => {
-  test('/ returns a real marketplace shell, not an empty page', async ({ request }) => {
+  test('/ returns the substantive master-brand market selector', async ({ request }) => {
     const res = await request.get('/')
+    expect(res.ok()).toBeTruthy()
+    const html = await res.text()
+    expect(html.length).toBeGreaterThan(10_000)
+    expect(html).toContain('Tu tienda es tuya. El mercado es por país.')
+    expect(html).toContain('Entrar a Miyagi México')
+    expect(html).toContain('Conocer el piloto')
+  })
+
+  test('/mx returns the Mexico marketplace shell, not an empty page', async ({ request }) => {
+    const res = await request.get('/mx')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html.length).toBeGreaterThan(20_000)
     expect(html).toContain('Miyagi Sánchez')
+    expect(html).toContain('¿Qué estás buscando?')
   })
 
   test('/vende returns the seller-acquisition pitch', async ({ request }) => {
@@ -139,8 +150,8 @@ test.describe('Agent-readability surface — OG/social-preview sweep (Story 1.2)
     })
   }
 
-  test('/ and /vende share the same visual OG frame (shared template) with distinct headlines', async ({ request }) => {
-    const [home, vende] = await Promise.all([request.get('/'), request.get('/vende')])
+  test('/mx and /vende share the same visual OG frame (shared template) with distinct headlines', async ({ request }) => {
+    const [home, vende] = await Promise.all([request.get('/mx'), request.get('/vende')])
     const homeAlt = ogTag(await home.text(), 'og:image:alt')
     const vendeAlt = ogTag(await vende.text(), 'og:image:alt')
     expect(homeAlt).toBeTruthy()

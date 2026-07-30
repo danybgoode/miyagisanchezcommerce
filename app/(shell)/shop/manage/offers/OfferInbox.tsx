@@ -1,18 +1,20 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- offer thumbnails preserve arbitrary seller-hosted image URLs */
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
-  canAccept, canCounter, canDecline, isExpired,
-  formatOfferAmount, offerQuality, timeAgo, timeUntil,
-  type Offer,
+  isExpired, formatOfferAmount, offerQuality, timeAgo, timeUntil, type Offer,
 } from '@/lib/offers'
 import { Toast, useToast } from '@/components/feedback/Toast'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { offerQualityToToken, offerStatusToToken } from '@/lib/status-badge'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -206,7 +208,7 @@ function OfferCard({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <Link href={`/l/${listing.id}`}
+            <Link href={listingUrlFor(SITE_ORIGIN, listing.id)}
               className="text-sm font-semibold text-[var(--color-text)] hover:text-[var(--color-accent)] truncate block no-underline">
               {listing.title}
             </Link>
@@ -307,7 +309,7 @@ function OfferCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
+export default function OfferInbox({ shopSlug, initialOffers, convByOfferId = {} }: OfferInboxProps) {
   const [offers, setOffers] = useState<InboxOffer[]>(initialOffers)
   const { toast, showToast, dismissToast } = useToast()
   const [counterOffer, setCounterOffer] = useState<InboxOffer | null>(null)
@@ -436,7 +438,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
               <p className="text-sm text-[var(--color-muted)] mb-4">
                 Cuando los compradores hagan ofertas en tus anuncios, aparecerán aquí.
               </p>
-              <Link href={`/s/${shopSlug}`}
+              <Link href={shopUrlFor(SITE_ORIGIN, shopSlug)}
                 className="text-sm text-[var(--color-accent)] no-underline hover:underline">
                 Ver tu tienda →
               </Link>

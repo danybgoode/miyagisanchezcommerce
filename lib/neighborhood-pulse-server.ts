@@ -4,6 +4,7 @@ import { CACHE } from '@/lib/cache-policy'
 import type { PrintSocialSubmission } from '@/lib/print'
 import { getRecentListings } from '@/lib/listings'
 import type { Listing, Shop } from '@/lib/types'
+import type { MarketCode } from '@/lib/markets'
 import {
   rankNeighborhoodListings,
   rankNeighborhoodShops,
@@ -138,17 +139,20 @@ async function favoriteCountsForListings(listings: Listing[]): Promise<Map<strin
   return counts
 }
 
-async function recentListingCandidates(limit: number): Promise<Listing[]> {
+async function recentListingCandidates(limit: number, market: MarketCode): Promise<Listing[]> {
   try {
-    return await withTimeout(getRecentListings(limit), 2_500, [])
+    return await withTimeout(getRecentListings(limit, market), 2_500, [])
   } catch (error) {
     console.warn('[neighborhood-pulse] catalog unavailable:', error)
     return []
   }
 }
 
-export async function getTrendingNeighborhoodListings(limit = 8): Promise<NeighborhoodTrendingListing[]> {
-  const candidates = await recentListingCandidates(Math.max(limit * 4, 24))
+export async function getTrendingNeighborhoodListings(
+  limit = 8,
+  market: MarketCode = 'mx',
+): Promise<NeighborhoodTrendingListing[]> {
+  const candidates = await recentListingCandidates(Math.max(limit * 4, 24), market)
   if (candidates.length === 0) return []
 
   const favoriteCounts = await favoriteCountsForListings(candidates)
@@ -160,8 +164,11 @@ export async function getTrendingNeighborhoodListings(limit = 8): Promise<Neighb
   ).slice(0, limit)
 }
 
-export async function getNeighborhoodSpotlightShops(limit = 6): Promise<NeighborhoodSpotlightShop[]> {
-  const candidates = await recentListingCandidates(Math.max(limit * 8, 36))
+export async function getNeighborhoodSpotlightShops(
+  limit = 6,
+  market: MarketCode = 'mx',
+): Promise<NeighborhoodSpotlightShop[]> {
+  const candidates = await recentListingCandidates(Math.max(limit * 8, 36), market)
   if (candidates.length === 0) return []
 
   const byShop = new Map<string, NeighborhoodShopRankSignals & {
