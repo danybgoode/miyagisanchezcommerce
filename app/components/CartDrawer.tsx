@@ -68,7 +68,10 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
               border: '1px solid var(--border)',
             }}>
               {item.imageUrl
-                ? <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- seller image URLs are already normalized by the catalog
+                  <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )
                 : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <i className="iconoir-package" style={{ fontSize: 20, color: 'var(--fg-subtle)' }} />
                   </div>

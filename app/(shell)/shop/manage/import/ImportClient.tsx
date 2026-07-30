@@ -437,7 +437,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
                   headline="Tu catálogo está listo"
                   subcopy={`Creamos ${created} producto${created === 1 ? '' : 's'} nuevo${created === 1 ? '' : 's'}${updated > 0 ? ` y actualizamos ${updated}` : ''}${failed.length > 0 ? ` · ${failed.length} fallaron` : ''}.`}
                   counts={{ created, updated, failed: failed.length, draft: 0 }}
-                  liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+                  liveUrl={shopSlug ? `/mx/s/${shopSlug}` : '/shop/manage'}
                   liveLabel={shopSlug ? 'Ver mi tienda pública ↗' : 'Ver mis anuncios →'}
                   warningCallout={!pagosConfigured ? {
                     text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
@@ -445,7 +445,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
                     ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
                   } : undefined}
                   nextActions={[{ label: 'Ver mis anuncios', href: '/shop/manage' }]}
-                  shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+                  shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/mx/s/${shopSlug}` : ''}
                 />
                 {imagesFailed > 0 && (
                   <p className="text-xs text-amber-700 mt-3 text-center">

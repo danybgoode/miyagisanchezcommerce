@@ -9,6 +9,7 @@ import {
   publicSubmitterLabel,
 } from '@/lib/neighborhood-pulse'
 import { toUcpListing, type UcpListing } from '@/lib/ucp/schema'
+import { MARKETS, type MarketCode } from '@/lib/markets'
 
 export type NeighborhoodPulseAgentItem = {
   id: string
@@ -40,13 +41,15 @@ export type NeighborhoodPulseAgentView = {
   _meta: {
     view: 'neighborhood_pulse'
     read_only: true
-    locale: 'es-MX'
+    market_code: MarketCode
+    locale: string
   }
 }
 
 export async function getNeighborhoodPulseAgentView(
   baseUrl: string,
   options: { itemLimit?: number; listingLimit?: number; shopLimit?: number } = {},
+  marketCode: MarketCode = 'mx',
 ): Promise<NeighborhoodPulseAgentView> {
   const clampLimit = (value: unknown, fallback: number, max: number): number => {
     const n = Number(value)
@@ -57,9 +60,12 @@ export async function getNeighborhoodPulseAgentView(
   const shopLimit = clampLimit(options.shopLimit, 6, 12)
 
   const [items, trending, spotlight] = await Promise.all([
-    getNeighborhoodPulseItems(itemLimit),
-    getTrendingNeighborhoodListings(listingLimit),
-    getNeighborhoodSpotlightShops(shopLimit),
+    // Community submissions predate the country-market model and carry no
+    // market field. They are known-MX content, so never replay them into a
+    // future open market until the source model can prove membership.
+    marketCode === 'mx' ? getNeighborhoodPulseItems(itemLimit) : Promise.resolve([]),
+    getTrendingNeighborhoodListings(listingLimit, marketCode),
+    getNeighborhoodSpotlightShops(shopLimit, marketCode),
   ])
 
   return {
@@ -74,7 +80,7 @@ export async function getNeighborhoodPulseAgentView(
       submitter_label: publicSubmitterLabel(item),
       created_at: item.created_at,
     })),
-    trending_listings: trending.map((listing) => toUcpListing(listing, baseUrl)),
+    trending_listings: trending.map((listing) => toUcpListing(listing, baseUrl, null, false, marketCode)),
     spotlight_shops: spotlight.map((shop) => ({
       id: shop.id,
       slug: shop.slug,
@@ -82,13 +88,14 @@ export async function getNeighborhoodPulseAgentView(
       tagline: shop.tagline,
       colonia: shop.colonia,
       logo_url: shop.logo_url,
-      url: `${baseUrl}/mx/s/${shop.slug}`,
+      url: `${baseUrl}/${marketCode}/s/${shop.slug}`,
       listing_count: shop.listing_count,
     })),
     _meta: {
       view: 'neighborhood_pulse',
       read_only: true,
-      locale: 'es-MX',
+      market_code: marketCode,
+      locale: MARKETS[marketCode].default_locale,
     },
   }
 }

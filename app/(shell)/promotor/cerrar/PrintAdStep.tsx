@@ -109,7 +109,7 @@ export default function PrintAdStep({ shop, n }: { shop: Shop; n: number }) {
       })
       const data = await res.json()
       if (!res.ok || !data.ok) { setError(data.error ?? 'No se pudo iniciar el pago.'); return }
-      if (data.url) { window.location.href = data.url; return }
+      if (data.url) { window.location.assign(data.url); return }
       setDone(true)
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }

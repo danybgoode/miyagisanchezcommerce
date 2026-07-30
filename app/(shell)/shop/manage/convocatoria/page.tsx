@@ -43,7 +43,7 @@ export default async function ConvocatoriaManagePage() {
           accepts_manuscripts: lp.accepts_manuscripts === true,
           guidelines: typeof lp.guidelines === 'string' ? lp.guidelines : null,
         }}
-        publicUrl={`/s/${shop.slug}/convocatoria`}
+        publicUrl={`/mx/s/${shop.slug}/convocatoria`}
       />
 
       <div className="mt-8">

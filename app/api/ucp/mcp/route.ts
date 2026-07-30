@@ -185,10 +185,11 @@ const TOOLS = [
   },
   {
     name: 'get_neighborhood_pulse',
-    description: 'Read the public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. Read-only; use it to understand local context before recommending what to buy.',
+    description: 'Read one country market’s public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.',
     inputSchema: {
       type: 'object',
       properties: {
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         community_limit: { type: 'number', minimum: 1, maximum: 24, default: 12, description: 'Number of community items to return' },
         trending_limit: { type: 'number', minimum: 1, maximum: 20, default: 8, description: 'Number of trending listings to return' },
         shop_limit: { type: 'number', minimum: 1, maximum: 12, default: 6, description: 'Number of merchant spotlights to return' },
@@ -286,11 +287,12 @@ const TOOLS = [
   },
   {
     name: 'get_shop',
-    description: "Get a seller's shop profile and their active listings. Use to check a seller's trust level, location, and what else they're selling.",
+    description: "Get a seller's shop profile and their listings in one country market. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.",
     inputSchema: {
       type: 'object',
       required: ['shop_slug'],
       properties: {
+        market:    { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         shop_slug: { type: 'string', description: 'Shop slug from listing.shop.slug in search results' },
         limit:     { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of listings to return' },
       },
@@ -1048,11 +1050,15 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
 }
 
 async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl: string) {
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
   const pulse = await getNeighborhoodPulseAgentView(baseUrl, {
     itemLimit: Number(args.community_limit ?? 12),
     listingLimit: Number(args.trending_limit ?? 8),
     shopLimit: Number(args.shop_limit ?? 6),
-  })
+  }, marketDecision.market.code)
 
   const community = pulse.community_items.slice(0, 5).map((item) =>
     `• ${item.caption} — ${item.type_label}, ${item.zone}`,
@@ -1546,6 +1552,10 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
 async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   const slug  = String(args.shop_slug ?? '')
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let seller: Record<string, unknown> | null = null
   try {
@@ -1558,17 +1568,38 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   }
 
   if (!seller) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
+  if (seller.market_code !== marketDecision.market.code) {
+    return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found in market "${marketDecision.market.code}".` }] }
+  }
 
   let listings: ReturnType<typeof toUcpListing>[] = []
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings?seller_slug=${encodeURIComponent(slug)}&limit=${limit}`, { headers: MEDUSA_HEADERS })
-    if (res.ok) {
-      const d = await res.json() as { listings?: Listing[] }
-      const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
-      listings = await Promise.all((d.listings ?? []).map(async l =>
-        toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
+    const params = new URLSearchParams({
+      seller_slug: slug,
+      limit: String(limit),
+    })
+    params.set('market', marketDecision.market.code)
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
+    if (!res.ok) {
+      return { isError: true, content: [{ type: 'text', text: `Shop catalog failed: ${res.status}` }] }
     }
-  } catch { /* listings stays empty */ }
+    const data = await res.json() as { listings?: Listing[]; market_code?: unknown }
+    const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+    if (unconfirmedMarket) {
+      return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+    }
+    const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
+    listings = await Promise.all((data.listings ?? []).map(async l =>
+      toUcpListing(
+        l,
+        baseUrl,
+        await getPriceGrid(l.medusa_product_id ?? l.id, marketDecision.market.code),
+        inventoryChannelsEnabled,
+        marketDecision.market.code,
+      )))
+  } catch (error) {
+    return { isError: true, content: [{ type: 'text', text: `Shop catalog unavailable: ${String(error)}` }] }
+  }
 
   const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
@@ -1577,12 +1608,17 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     seller.description ? `\n${seller.description}\n` : '',
     `**Ubicación:** ${seller.location ?? 'No especificada'}`,
     `**Tienda reclamada:** ${isClaimed ? 'Sí' : 'No'}`,
-    `**URL:** ${baseUrl}/s/${seller.slug}`,
+    `**URL:** ${baseUrl}/${marketDecision.market.code}/s/${seller.slug}`,
     `\n**${listings.length} anuncios activos:**`,
     ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (ID: \`${item.id}\`)`),
   ].filter(s => s !== '').join('\n')
 
-  return { content: [{ type: 'text', text: profile }, { type: 'text', text: JSON.stringify({ shop: seller, listings }, null, 2) }] }
+  return {
+    content: [
+      { type: 'text', text: profile },
+      { type: 'text', text: JSON.stringify({ market_code: marketDecision.market.code, shop: seller, listings }, null, 2) },
+    ],
+  }
 }
 
 async function getShopCalcom(listingId: string): Promise<{

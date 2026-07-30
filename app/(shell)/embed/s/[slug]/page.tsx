@@ -121,7 +121,10 @@ export default async function EmbedShopPage({
                   >
                     <div className="aspect-square bg-[var(--embed-surface-sunk)] flex items-center justify-center overflow-hidden">
                       {img
-                        ? <img src={img} alt={listing.title} className="w-full h-full object-cover" />
+                        ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- embed images keep their remote seller origin
+                          <img src={img} alt={listing.title} className="w-full h-full object-cover" />
+                        )
                         : <span className="text-3xl text-[var(--embed-placeholder)]"><i className="iconoir-shop" aria-hidden /></span>}
                     </div>
                     <div className="p-2.5">

@@ -89,7 +89,7 @@ export default function ComparteClient({
           {productCount} producto{productCount === 1 ? '' : 's'}{location ? ` · ${location}` : ''}
         </p>
         <p className="inline-block mt-2 text-xs font-mono bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-pill)] px-3 py-1">
-          /s/{shopSlug}
+          /mx/s/{shopSlug}
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3 mt-6 pt-5 border-t border-[var(--color-border)]">

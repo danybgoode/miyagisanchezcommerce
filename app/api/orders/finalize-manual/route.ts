@@ -15,6 +15,7 @@ import {
   getSellerEmail,
   sendManualOrderToBuyer,
   sendManualOrderToSeller,
+  type EmailPersonalization,
   type ManualPaymentSnapshot,
 } from '@/lib/email'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
@@ -22,6 +23,7 @@ import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { isEnabled } from '@/lib/flags'
 import { resolveBuyerClerkId } from '@/lib/order-buyer'
 import { listingUrlFor } from '@/lib/market-url'
+import type { RentalBookingLike } from '@/lib/rental-booking'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -29,6 +31,19 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 function fmt(cents: number, currency: string) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN', maximumFractionDigits: 0 }).format((cents ?? 0) / 100)
+}
+
+type ManualOrder = {
+  payment_method?: string
+  manual_payment?: ManualPaymentSnapshot | null
+  marketplace_listings?: { id?: string; title?: string } | null
+  marketplace_shops?: { name?: string } | null
+  buyer_email?: string | null
+  buyer_name?: string | null
+  amount_cents?: number
+  currency?: string
+  personalization?: EmailPersonalization | null
+  rental_booking?: RentalBookingLike | null
 }
 
 export async function POST(req: NextRequest) {
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
       cache: 'no-store',
     })
     if (!res.ok) return NextResponse.json({ ok: false, reason: 'order not found' }, { status: 200 })
-    const { order } = await res.json() as { order: any }
+    const { order } = await res.json() as { order: ManualOrder | null }
 
     if (order?.payment_method !== 'manual' || !order?.manual_payment) {
       return NextResponse.json({ ok: false, reason: 'not a manual order' }, { status: 200 })

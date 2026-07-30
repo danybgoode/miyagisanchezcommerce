@@ -10,8 +10,8 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/shop/manage/catalogo/page.tsx:108",
-        "app/api/ucp/mcp/route.ts:3442",
-        "app/api/ucp/mcp/route.ts:3482",
+        "app/api/ucp/mcp/route.ts:3478",
+        "app/api/ucp/mcp/route.ts:3518",
         "lib/catalog-bulk.ts:252",
         "lib/catalog-bulk.ts:504"
       ]
@@ -28,10 +28,10 @@
         "app/(shell)/shop/manage/catalogo/page.tsx:102",
         "app/api/ucp/catalog/[id]/route.ts:75",
         "app/api/ucp/catalog/route.ts:109",
-        "app/api/ucp/checkout-session/route.ts:633",
-        "app/api/ucp/mcp/route.ts:1023",
-        "app/api/ucp/mcp/route.ts:1117",
-        "app/api/ucp/mcp/route.ts:1567"
+        "app/api/ucp/checkout-session/route.ts:639",
+        "app/api/ucp/mcp/route.ts:1025",
+        "app/api/ucp/mcp/route.ts:1123",
+        "app/api/ucp/mcp/route.ts:1591"
       ]
     },
     {
@@ -43,7 +43,7 @@
       "callsites": [
         "app/(shell)/checkout/page.tsx:197",
         "app/(shell)/l/[id]/page.tsx:427",
-        "app/api/ucp/checkout-session/route.ts:350"
+        "app/api/ucp/checkout-session/route.ts:356"
       ]
     },
     {
@@ -98,7 +98,7 @@
       "callsites": [
         "app/(shell)/checkout/page.tsx:152",
         "app/(shell)/l/[id]/page.tsx:460",
-        "app/api/ucp/checkout-session/route.ts:381"
+        "app/api/ucp/checkout-session/route.ts:387"
       ]
     },
     {
@@ -162,14 +162,14 @@
         "app/api/sell/launchpad/submissions/[id]/route.ts:22",
         "app/api/sell/launchpad/submissions/route.ts:15",
         "app/api/sell/listing/[id]/route.ts:146",
-        "app/api/ucp/mcp/route.ts:2724",
-        "app/api/ucp/mcp/route.ts:2770",
-        "app/api/ucp/mcp/route.ts:2799",
-        "app/api/ucp/mcp/route.ts:2839",
-        "app/api/ucp/mcp/route.ts:2908",
-        "app/api/ucp/mcp/route.ts:2943",
-        "app/api/ucp/mcp/route.ts:2977",
-        "app/api/ucp/mcp/route.ts:3009"
+        "app/api/ucp/mcp/route.ts:2760",
+        "app/api/ucp/mcp/route.ts:2806",
+        "app/api/ucp/mcp/route.ts:2835",
+        "app/api/ucp/mcp/route.ts:2875",
+        "app/api/ucp/mcp/route.ts:2944",
+        "app/api/ucp/mcp/route.ts:2979",
+        "app/api/ucp/mcp/route.ts:3013",
+        "app/api/ucp/mcp/route.ts:3045"
       ]
     },
     {
@@ -179,7 +179,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3316"
+        "app/api/ucp/mcp/route.ts:3352"
       ]
     },
     {
@@ -189,7 +189,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1863"
+        "app/api/ucp/mcp/route.ts:1899"
       ]
     },
     {
@@ -199,7 +199,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3138"
+        "app/api/ucp/mcp/route.ts:3174"
       ]
     },
     {
@@ -209,7 +209,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3266"
+        "app/api/ucp/mcp/route.ts:3302"
       ]
     },
     {
@@ -219,7 +219,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1860"
+        "app/api/ucp/mcp/route.ts:1896"
       ]
     },
     {
@@ -237,7 +237,7 @@
         "app/api/sell/shopify/import/parity/estimate/route.ts:23",
         "app/api/sell/shopify/import/parity/route.ts:17",
         "app/api/sell/shopify/import/route.ts:25",
-        "app/api/ucp/mcp/route.ts:3510"
+        "app/api/ucp/mcp/route.ts:3546"
       ]
     },
     {
@@ -285,7 +285,7 @@
         "app/(shell)/sell/edit/[id]/page.tsx:172",
         "app/api/sell/ml/predict/route.ts:18",
         "app/api/sell/ml/publish/route.ts:19",
-        "app/api/ucp/mcp/route.ts:3291",
+        "app/api/ucp/mcp/route.ts:3327",
         "lib/listing-status.ts:53"
       ]
     },
@@ -323,7 +323,7 @@
         "app/api/orders/[id]/return-request/[requestId]/route.ts:95",
         "app/api/orders/[id]/ship-manual/route.ts:59",
         "app/api/orders/[id]/ship/route.ts:120",
-        "app/api/orders/finalize-manual/route.ts:102",
+        "app/api/orders/finalize-manual/route.ts:117",
         "app/api/webhooks/mercadopago/route.ts:175",
         "app/api/webhooks/mercadopago/route.ts:539",
         "app/api/webhooks/stripe/route.ts:421"

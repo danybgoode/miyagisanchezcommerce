@@ -238,6 +238,7 @@ function PhotoUploader({
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2">
         {photos.map((photo, index) => (
           <div key={photo.localId} className="relative aspect-square rounded-[var(--r-md)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)]">
+            {/* eslint-disable-next-line @next/next/no-img-element -- local object URL preview before upload */}
             <img
               src={photo.localUrl}
               alt=""
@@ -1284,15 +1285,16 @@ export default function SellWizard({
     features_raw: string   // newline-separated list
     is_highlighted: boolean
   }
-  const makeDefaultTier = (): SubTier => ({
-    id: Math.random().toString(36).slice(2),
+  const initialTierId = useId()
+  const makeDefaultTier = (id: string): SubTier => ({
+    id,
     label: '',
     price_raw: '',
     interval: 'month',
     features_raw: '',
     is_highlighted: false,
   })
-  const [subTiers, setSubTiers] = useState<SubTier[]>([makeDefaultTier()])
+  const [subTiers, setSubTiers] = useState<SubTier[]>([makeDefaultTier(initialTierId)])
   const [listingErrors, setListingErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

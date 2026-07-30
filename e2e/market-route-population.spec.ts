@@ -68,6 +68,24 @@ test.describe('market route population', () => {
     expect(offenders).toEqual([])
   })
 
+  test('seller management success surfaces emit canonical marketplace shop URLs', () => {
+    const expected = [
+      'app/(shell)/shop/manage/import/ImportClient.tsx',
+      'app/(shell)/shop/manage/convocatoria/page.tsx',
+      'app/(shell)/shop/manage/comparte/ComparteClient.tsx',
+    ]
+    for (const file of expected) {
+      const source = readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toContain('/mx/s/')
+      expect(source, file).not.toMatch(/(?:liveUrl|shareUrl|publicUrl)=\{?`?\/s\//)
+    }
+    const comparte = readFileSync(
+      path.join(ROOT, 'app/(shell)/shop/manage/comparte/ComparteClient.tsx'),
+      'utf8',
+    )
+    expect(comparte).not.toMatch(/(?:^|\s)\/s\/\{shopSlug\}/)
+  })
+
   test('every literal MX shop route passes a market decision, not only a URL prefix', () => {
     const wrappers = filesBelow('app/(shell)/mx/s')
       .filter((file) => file.endsWith('/page.tsx'))

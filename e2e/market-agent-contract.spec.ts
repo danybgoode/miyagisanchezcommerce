@@ -89,7 +89,19 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(post).toContain('getListing(medusaListingId, marketDecision.market.code)')
   })
 
-  test('buyer checkout tools expose and thread the selected market', () => {
+  test('checkout commercial facts come from the market-scoped Medusa listing, not the mirror', () => {
+    const source = readFileSync(join(ROOT, 'app/api/ucp/checkout-session/route.ts'), 'utf8')
+    const post = source.slice(source.indexOf('export async function POST'))
+    expect(post).toContain('const mirrorListingId = rawListing.id')
+    expect(post).toContain('const listing = { ...marketListing, shop } as Listing')
+    expect(post).toContain('const publicListingId = listing.medusa_product_id ?? listing.id')
+    expect(post).not.toContain('const listing = { ...rawListing, shop } as Listing')
+    expect(post).toContain(".eq('listing_id', mirrorListingId)")
+    expect(post).not.toContain(".eq('status', 'active')")
+    expect(post).toContain('listing_id:         publicListingId')
+  })
+
+  test('buyer catalog and checkout tools expose and thread the selected market', () => {
     const source = readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8')
     const optionsTool = source.slice(
       source.indexOf("name: 'get_checkout_options'"),
@@ -115,5 +127,35 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(createHandler).toContain('planMarketCatalogRead(args.market)')
     expect(createHandler).toContain('/api/ucp/checkout-session')
     expect(createHandler).toContain('market: marketDecision.market.code')
+
+    const shopTool = source.slice(
+      source.indexOf("name: 'get_shop'"),
+      source.indexOf("name: 'check_availability'"),
+    )
+    const shopHandler = source.slice(
+      source.indexOf('async function handleGetShop'),
+      source.indexOf('async function getShopCalcom'),
+    )
+    expect(shopTool).toContain('market:')
+    expect(shopHandler).toContain('planMarketCatalogRead(args.market)')
+    expect(shopHandler).toContain("params.set('market', marketDecision.market.code)")
+    expect(shopHandler).toContain('verifyMarketFilter(marketDecision.market, data)')
+    expect(shopHandler).toContain('marketDecision.market.code')
+
+    const pulseTool = source.slice(
+      source.indexOf("name: 'get_neighborhood_pulse'"),
+      source.indexOf("name: 'get_listing'"),
+    )
+    const pulseHandler = source.slice(
+      source.indexOf('async function handleGetNeighborhoodPulse'),
+      source.indexOf('async function handleGetListing'),
+    )
+    expect(pulseTool).toContain('market:')
+    expect(pulseHandler).toContain('planMarketCatalogRead(args.market)')
+    expect(pulseHandler).toContain('marketDecision.market.code')
+
+    const pulseRoute = readFileSync(join(ROOT, 'app/api/ucp/neighborhood-pulse/route.ts'), 'utf8')
+    expect(pulseRoute).toContain("planMarketCatalogRead(searchParams.get('market'))")
+    expect(pulseRoute).toContain('marketDecision.market.code')
   })
 })
