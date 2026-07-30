@@ -79,6 +79,22 @@ test.describe('privacy-safe public shop commerce projection', () => {
     })
   })
 
+  test('Mercado Pago ignores the stale nested enabled flag but honors the platform opt-out', () => {
+    expect(publicShopPaymentAvailability({
+      mp_enabled: true,
+      settings: {
+        mercadopago: { connected: true, enabled: false },
+      },
+    }).mercadopago).toBe(true)
+
+    expect(publicShopPaymentAvailability({
+      mp_enabled: false,
+      settings: {
+        mercadopago: { connected: true, enabled: false },
+      },
+    }).mercadopago).toBe(false)
+  })
+
   test('optional enabled flags preserve each rail’s backend activation rule', () => {
     expect(publicShopPaymentAvailability({
       settings: {
@@ -191,6 +207,19 @@ test.describe('public Shop consumer population guard', () => {
       expect(source, file).not.toContain('bank_details')
       expect(source, file).not.toMatch(/\.\s*(?:clabe|bank_name|account_holder)\b/)
     }
+  })
+
+  test('get_checkout_options describes safe discovery, not bank-coordinate delivery', () => {
+    const mcp = stripComments(readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8'))
+    const start = mcp.indexOf("name: 'get_checkout_options'")
+    const end = mcp.indexOf("name: 'create_checkout'", start)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+
+    const tool = mcp.slice(start, end)
+    expect(tool).not.toContain('SPEI with CLABE')
+    expect(tool).toContain('Bank coordinates are intentionally omitted here')
+    expect(tool).toContain('after checkout starts')
   })
 
   test('transactional and protected payment-detail seams remain intact', () => {

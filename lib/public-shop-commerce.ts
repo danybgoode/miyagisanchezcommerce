@@ -70,10 +70,13 @@ export function publicShopPaymentAvailability(
       stripe.connected === true &&
       stripe.charges_enabled === true &&
       stripe.enabled !== false,
+    // Mirrors backend sellerMpConnected: `connected` is the safe public proxy
+    // for connected+token, while the stale nested `enabled` flag is ignored.
+    // The top-level platform opt-out remains authoritative because /api/mp/checkout
+    // refuses `mp_enabled === false` and the settings sync mirrors it to Medusa.
     mercadopago:
       meta.mp_enabled !== false &&
-      mercadoPago.connected === true &&
-      mercadoPago.enabled !== false,
+      mercadoPago.connected === true,
     bankTransfer:
       bankTransfer.configured === true &&
       bankTransfer.enabled !== false,

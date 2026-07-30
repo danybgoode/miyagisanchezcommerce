@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS })
   }
 
-  const { listing_id, offer_id, buyer_email, buyer_name, check_in, check_out } = body
+  const { listing_id, offer_id, check_in, check_out } = body
   if (!listing_id) {
     return NextResponse.json({ error: 'listing_id is required' }, { status: 400, headers: CORS })
   }

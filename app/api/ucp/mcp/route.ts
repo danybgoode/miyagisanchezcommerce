@@ -39,7 +39,7 @@ import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
-import { resolveAgentShop, type AgentShop } from '@/lib/agent-auth'
+import type { AgentShop } from '@/lib/agent-auth'
 import { resolveToolShop } from '@/lib/partner-auth'
 import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
@@ -205,7 +205,7 @@ const TOOLS = [
   },
   {
     name: 'get_checkout_options',
-    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND contact-first methods (bank transfer/SPEI with CLABE, cash on pickup, WhatsApp) with full instructions. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
+    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND privacy-safe availability for contact-first methods (bank transfer/SPEI, cash on pickup, WhatsApp). Bank coordinates are intentionally omitted here and arrive only from the protected checkout response after checkout starts. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
