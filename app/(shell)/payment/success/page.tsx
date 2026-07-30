@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/supabase'
 import { isVerifiedCustomDomain } from '@/lib/custom-domain'
-import { listingUrlFor, marketplaceUrl, shopUrlFor } from '@/lib/market-url'
+import { browseUrlFor, listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const metadata = { title: 'Pago completado — Miyagi Sánchez' }
@@ -86,9 +86,11 @@ export default async function PaymentSuccessPage({
 }) {
   const params = await searchParams
   const requestHeaders = await headers()
-  const onChannel = requestHeaders.get('x-miyagi-channel') === 'custom'
+  const channel = requestHeaders.get('x-miyagi-channel')
+  const onCustomDomain = channel === 'custom'
+  const onTenantChannel = channel === 'custom' || channel === 'subdomain'
   const channelDomain = requestHeaders.get('x-miyagi-domain')
-  const marketOrigin = onChannel && channelDomain
+  const marketOrigin = onTenantChannel && channelDomain
     ? `https://${channelDomain.split(':')[0]}`
     : SITE_ORIGIN
 
@@ -119,13 +121,13 @@ export default async function PaymentSuccessPage({
     // Own-channel return: if this purchase began on a tenant's custom domain, send
     // the buyer back to that domain's success page so the funnel ends on their brand.
     // Guards: redirect ONLY to a VERIFIED tenant domain (never a value forged into
-    // order metadata → no open redirect), and ONLY from the platform — the onChannel
-    // check stops a redirect loop once we're already on the domain. completeMedusaCart
+    // order metadata → no open redirect), and ONLY from outside that custom domain —
+    // the onCustomDomain check stops a loop once we're already there. completeMedusaCart
     // is idempotent, so re-running it on the domain just returns the same order.
     const orderMeta = (order?.metadata ?? {}) as Record<string, unknown>
     const originDomain = typeof orderMeta.origin_domain === 'string' ? orderMeta.origin_domain : null
     if (originDomain && orderMeta.channel === 'custom_domain') {
-      if (!onChannel && (await isVerifiedCustomDomain(originDomain))) {
+      if (!onCustomDomain && (await isVerifiedCustomDomain(originDomain))) {
         const qs = new URLSearchParams({ cart_id: cartId })
         if (mpPaymentId) qs.set('payment_id', mpPaymentId)
         if (mpStatus) qs.set('status', mpStatus)
@@ -273,7 +275,7 @@ export default async function PaymentSuccessPage({
               Ver el anuncio
             </Link>
           )}
-          <Link href={marketplaceUrl(marketOrigin, '/l')}
+          <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>
@@ -535,7 +537,7 @@ function SuccessUI({
               Ver el anuncio
             </Link>
           )}
-          <Link href={marketplaceUrl(marketOrigin, '/l')}
+          <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>

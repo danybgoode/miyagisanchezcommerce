@@ -2,10 +2,11 @@ import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import {
+  browseUrlFor,
   listingUrlFor,
-  marketplaceUrl,
   shopUrlFor,
 } from '../lib/market-url'
+import { isBoundaryDeniedPath } from '../lib/route-shape'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PAYMENT_SUCCESS = readFileSync(
@@ -18,6 +19,7 @@ test.describe('tenant-aware catalog URLs', () => {
   test('the shared seam prefixes platform URLs but never tenant URLs', () => {
     const platform = 'https://miyagisanchez.com'
     const tenant = 'https://tienda.example'
+    const subdomain = 'https://bonsai.miyagisanchez.com'
 
     expect(listingUrlFor(platform, 'prod_123')).toBe(
       'https://miyagisanchez.com/mx/l/prod_123',
@@ -25,7 +27,7 @@ test.describe('tenant-aware catalog URLs', () => {
     expect(shopUrlFor(platform, 'bonsai')).toBe(
       'https://miyagisanchez.com/mx/s/bonsai',
     )
-    expect(marketplaceUrl(platform, '/l')).toBe(
+    expect(browseUrlFor(platform)).toBe(
       'https://miyagisanchez.com/mx/l',
     )
 
@@ -33,11 +35,31 @@ test.describe('tenant-aware catalog URLs', () => {
       'https://tienda.example/l/prod_123',
     )
     expect(shopUrlFor(tenant, 'bonsai')).toBe(
-      'https://tienda.example/s/bonsai',
+      'https://tienda.example/',
     )
-    expect(marketplaceUrl(tenant, '/l')).toBe(
-      'https://tienda.example/l',
+    expect(browseUrlFor(tenant)).toBe(
+      'https://tienda.example/',
     )
+    expect(listingUrlFor(subdomain, 'prod_123')).toBe(
+      'https://bonsai.miyagisanchez.com/l/prod_123',
+    )
+    expect(shopUrlFor(subdomain, 'bonsai')).toBe(
+      'https://bonsai.miyagisanchez.com/',
+    )
+    expect(browseUrlFor(subdomain)).toBe(
+      'https://bonsai.miyagisanchez.com/',
+    )
+
+    for (const url of [
+      listingUrlFor(tenant, 'prod_123'),
+      shopUrlFor(tenant, 'bonsai'),
+      browseUrlFor(tenant),
+      listingUrlFor(subdomain, 'prod_123'),
+      shopUrlFor(subdomain, 'bonsai'),
+      browseUrlFor(subdomain),
+    ]) {
+      expect(isBoundaryDeniedPath(new URL(url).pathname), url).toBe(false)
+    }
   })
 
   test('tenant sitemap delegates every emitted URL to the origin-aware seam', () => {
@@ -50,15 +72,18 @@ test.describe('tenant-aware catalog URLs', () => {
 
   test('all three payment-success catalog branches use the current channel origin', () => {
     expect(PAYMENT_SUCCESS).toContain("from '@/lib/market-url'")
-    expect(PAYMENT_SUCCESS).toContain("const onChannel = requestHeaders.get('x-miyagi-channel') === 'custom'")
+    expect(PAYMENT_SUCCESS).toContain("const channel = requestHeaders.get('x-miyagi-channel')")
+    expect(PAYMENT_SUCCESS).toContain(
+      "const onTenantChannel = channel === 'custom' || channel === 'subdomain'",
+    )
     expect(PAYMENT_SUCCESS).toContain("const channelDomain = requestHeaders.get('x-miyagi-domain')")
     expect(PAYMENT_SUCCESS).toContain(
-      "const marketOrigin = onChannel && channelDomain\n    ? `https://${channelDomain.split(':')[0]}`\n    : SITE_ORIGIN",
+      "const marketOrigin = onTenantChannel && channelDomain\n    ? `https://${channelDomain.split(':')[0]}`\n    : SITE_ORIGIN",
     )
 
     expect(PAYMENT_SUCCESS.match(/listingUrlFor\(marketOrigin, listingId\)/g)).toHaveLength(2)
     expect(PAYMENT_SUCCESS).toContain('shopUrlFor(marketOrigin, sellerSlug)')
-    expect(PAYMENT_SUCCESS.match(/marketplaceUrl\(marketOrigin, '\/l'\)/g)).toHaveLength(2)
+    expect(PAYMENT_SUCCESS.match(/browseUrlFor\(marketOrigin\)/g)).toHaveLength(2)
 
     expect(PAYMENT_SUCCESS).not.toMatch(/href=\{`\/mx\/l\/\$\{listingId\}`\}/)
     expect(PAYMENT_SUCCESS).not.toMatch(/href=\{`\/mx\/s\/\$\{sellerSlug\}`\}/)

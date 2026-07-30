@@ -27,9 +27,11 @@
  * `/s/<slug>/c/<collection>`, which the `/s/` family already covers.
  *
  * ── The rule every absolute link obeys ───────────────────────────────────────
- * A marketplace URL on the PLATFORM host carries the market prefix. The same
- * logical page on a TENANT channel (subdomain, custom domain, embed) carries no
- * prefix at all and never will — a tenant is not a country marketplace. So a
+ * A marketplace URL on the PLATFORM host carries the market prefix. A listing
+ * on a TENANT channel (subdomain, custom domain, embed) carries no prefix at all
+ * and never will — a tenant is not a country marketplace. Tenant shop and browse
+ * links collapse to `/`, because that channel serves exactly one shop and its
+ * middleware deliberately denies the cross-shop `/s/*` and `/l` surfaces. So a
  * link builder that emits an absolute URL has to know which of the two it is
  * addressing, and it learns that from the ORIGIN it was handed
  * (`marketplaceUrl`), never by sniffing ambient request state. Components that
@@ -221,7 +223,16 @@ export function listingUrlFor(origin: string, listingId: string, market: MarketC
   return marketplaceUrl(origin, `/l/${listingId}`, market)
 }
 
-/** `marketplaceUrl` for a shop storefront. */
+/** Marketplace browse on platform; the single-shop tenant homepage otherwise. */
+export function browseUrlFor(origin: string, market: MarketCode = DEFAULT_MARKET): string {
+  return isPlatformOrigin(origin)
+    ? marketplaceUrl(origin, '/l', market)
+    : marketplaceUrl(origin, '/')
+}
+
+/** Marketplace shop page on platform; the same shop's tenant homepage otherwise. */
 export function shopUrlFor(origin: string, slug: string, market: MarketCode = DEFAULT_MARKET): string {
-  return marketplaceUrl(origin, `/s/${slug}`, market)
+  return isPlatformOrigin(origin)
+    ? marketplaceUrl(origin, `/s/${slug}`, market)
+    : marketplaceUrl(origin, '/')
 }

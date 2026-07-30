@@ -26,6 +26,8 @@ import DomainPaywallUpsell from './DomainPaywallUpsell'
 import DnsSetupPanel from './DnsSetupPanel'
 import { dnsRecordFor, CNAME_TARGET } from '@/lib/domain-utils'
 import { SlugField, type SlugStatus } from '@/components/SlugField'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Registrar DNS guides ──────────────────────────────────────────────────────
 // Interpolate CNAME_TARGET (not a hardcoded literal) so a future provider swap
@@ -285,13 +287,14 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
   }
 
   // ── Slug editor ────────────────────────────────────────────────────────────
-  const shopUrl = `miyagisanchez.com/mx/s/${shopSlug}`
+  const shopUrl = shopUrlFor(SITE_ORIGIN, shopSlug)
+  const shopUrlLabel = shopUrl.replace(/^https?:\/\//, '')
   const subdomainUrl = `${shopSlug}.miyagisanchez.com`
   const shortUrl = `mschz.org/${shopSlug}`
   function startSlugEdit() { setSlugInput(shopSlug); setSlugStatus('idle'); setSlugError(null); setSlugEditing(true) }
   function cancelSlugEdit() { setSlugInput(shopSlug); setSlugEditing(false); setSlugError(null) }
   function copyShopUrl() {
-    navigator.clipboard.writeText(`https://${shopUrl}`)
+    navigator.clipboard.writeText(shopUrl)
     setSlugCopied(true); setTimeout(() => setSlugCopied(false), 2000)
   }
   function copySubdomainUrl() {
@@ -382,7 +385,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
               <>
                 <div className="flex items-center gap-2 mt-2">
                   <code className="flex-1 min-w-0 truncate text-sm font-mono bg-[var(--bg-elevated)] border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2">
-                    {shopUrl}
+                    {shopUrlLabel}
                   </code>
                   <button
                     type="button"
@@ -511,7 +514,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
               {!savedDomain && domainRemovedNote && (
                 <Banner variant="success" className="mb-3">
                   Dominio <span className="font-mono">{domainRemovedNote}</span> eliminado. Tu tienda sigue
-                  activa en <span className="font-mono">miyagisanchez.com/mx/s/{shopSlug}</span>.
+                  activa en <span className="font-mono">{shopUrlLabel}</span>.
                 </Banner>
               )}
 
@@ -771,14 +774,14 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                           </span>
                         </div>
                         <p className="font-mono text-xs font-medium text-[var(--color-muted)] truncate mb-1">
-                          miyagisanchez.com/mx/s/{shopSlug}
+                          {shopUrlLabel}
                         </p>
                         <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
                           Visible en el marketplace para descubrimiento y SEO. Sin cambios.
                         </p>
                         {shopSlug && (
                           <a
-                            href={`/mx/s/${shopSlug}`}
+                            href={shopUrlFor(SITE_ORIGIN, shopSlug)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline hover:underline"

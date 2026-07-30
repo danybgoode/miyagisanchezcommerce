@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useCart } from '@/app/components/CartContext'
 import CheckoutExperience from '@/app/(shell)/checkout/CheckoutExperience'
+import { browseUrlFor, listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,7 +42,7 @@ export default function BundleCheckoutClient() {
   if (!isSignedIn) {
     return (
       <main className="max-w-[640px] mx-auto px-4 py-8">
-        <Link href="/mx/l" style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
+        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
         <section style={{ marginTop: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 20, textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Inicia sesión para comprar tu paquete</h1>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}>Guardamos tu selección y te regresamos aquí para revisar antes de pagar.</p>
@@ -55,11 +57,11 @@ export default function BundleCheckoutClient() {
   if (items.length === 0) {
     return (
       <main className="max-w-[640px] mx-auto px-4 py-8">
-        <Link href="/mx/l" style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
+        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
         <section style={{ marginTop: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 20, textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Tu paquete está vacío</h1>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}>Agrega artículos de una misma tienda para revisar el paquete.</p>
-          <Link href="/mx/l" className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>Ver anuncios</Link>
+          <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>Ver anuncios</Link>
         </section>
       </main>
     )
@@ -68,7 +70,7 @@ export default function BundleCheckoutClient() {
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
       <div style={{ marginBottom: 18 }}>
-        <Link href={`/mx/s/${seller.sellerSlug}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
+        <Link href={shopUrlFor(SITE_ORIGIN, seller.sellerSlug)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
           Volver a la tienda
         </Link>
@@ -109,7 +111,7 @@ export default function BundleCheckoutClient() {
           <div style={{ display: 'grid' }}>
             {items.map(item => (
               <div key={item.productId} style={{ display: 'flex', gap: 12, padding: 14, borderBottom: '1px solid var(--border)' }}>
-                <Link href={`/mx/l/${item.productId}`} style={{ width: 68, height: 68, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-sunk)', flexShrink: 0 }}>
+                <Link href={listingUrlFor(SITE_ORIGIN, item.productId)} style={{ width: 68, height: 68, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-sunk)', flexShrink: 0 }}>
                   {item.imageUrl ? <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
                 </Link>
                 <div style={{ flex: 1, minWidth: 0 }}>

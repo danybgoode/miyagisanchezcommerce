@@ -8,6 +8,8 @@ import { SlugField, type SlugStatus } from '@/components/SlugField'
 import { slugify } from '@/lib/slug'
 import { Banner } from '@/components/feedback/Banner'
 import { SuccessCard } from '@/components/SuccessCard'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1205,18 +1207,23 @@ function StepSuccess({
   result: { shopSlug: string; listingId: string }
   onPublishAnother: () => void
 }) {
+  // This card shares the free marketplace presence, even when a seller reached
+  // the wizard through their custom domain. Tenant middleware rejects `/mx/*`,
+  // so never combine the canonical platform path with the ambient origin.
+  const publicShopUrl = shopUrlFor(SITE_ORIGIN, result.shopSlug)
+
   return (
     <SuccessCard
       headline="¡Tu anuncio está publicado!"
       subcopy="Ya está visible para compradores en todo México."
       counts={{ created: 1, updated: 0, failed: 0, draft: 0 }}
-      liveUrl={`/mx/s/${result.shopSlug}`}
+      liveUrl={publicShopUrl}
       liveLabel="Ver mi tienda pública ↗"
       nextActions={[
-        { label: 'Ver mi anuncio', href: `/mx/l/${result.listingId}` },
+        { label: 'Ver mi anuncio', href: listingUrlFor(SITE_ORIGIN, result.listingId) },
         { label: '+ Publicar otro anuncio', onClick: onPublishAnother },
       ]}
-      shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/mx/s/${result.shopSlug}`}
+      shareUrl={publicShopUrl}
     />
   )
 }

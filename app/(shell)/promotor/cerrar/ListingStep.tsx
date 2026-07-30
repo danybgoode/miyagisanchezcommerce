@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { CATEGORIES } from '@/lib/types'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 type Shop = { shopId: string; slug: string; name: string }
 
@@ -76,7 +78,7 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
       </h2>
       {done ? (
         <p className="text-sm text-[color:var(--success)]">
-          <i className="iconoir-check-circle" aria-hidden /> Anuncio publicado — ya se ve en <a className="underline" href={`/mx/s/${shop.slug}`} target="_blank" rel="noreferrer">/mx/s/{shop.slug}</a>.
+          <i className="iconoir-check-circle" aria-hidden /> Anuncio publicado — ya se ve en <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shopUrlFor(SITE_ORIGIN, shop.slug)}</a>.
         </p>
       ) : (
         <div className="space-y-3">

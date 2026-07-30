@@ -5,6 +5,8 @@ import { getListing } from '@/lib/listings'
 import { excerptModel } from '@/lib/excerpt'
 import { getCampaignBySlug } from '@/lib/launchpad-campaigns'
 import { campaignAcceptsVotes } from '@/lib/launchpad-campaign-types'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import VoteClient, { type CampaignWorkView } from './VoteClient'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +63,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
           productId: w.product_id,
           title: listing.title,
           image: listing.images?.[0]?.url ?? null,
-          href: `/mx/l/${w.product_id}`,
+          href: listingUrlFor(SITE_ORIGIN, w.product_id),
           excerptSnippet: snippet,
           hasMoreExcerpt: !!excerpt?.text && excerpt.text.length > EXCERPT_SNIPPET,
         }
@@ -89,7 +91,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
       open={campaignAcceptsVotes(campaign)}
       works={works}
       shopName={shop?.name ?? null}
-      shopUrl={shop?.slug ? `/mx/s/${shop.slug}` : null}
+      shopUrl={shop?.slug ? shopUrlFor(SITE_ORIGIN, shop.slug) : null}
     />
   )
 }

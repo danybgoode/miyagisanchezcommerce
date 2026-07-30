@@ -12,6 +12,8 @@ import type { CheckoutProvider } from '@/lib/cart'
 import type { LedgerView } from '@/lib/transaction-ledger'
 import { useConversationStream } from '@/lib/messaging/stream'
 import { ensurePushSubscription } from '@/lib/push-client'
+import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -877,11 +879,14 @@ export default function ConversationClient({ conversationId, initialConversation
 
   const showActionBar = offer && conv.status === 'active'
   const isClosed = conv.status !== 'active'
+  const listingHref = listing
+    ? listingUrlFor(SITE_ORIGIN, listing.medusa_product_id ?? listing.id)
+    : browseUrlFor(SITE_ORIGIN)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Listing header */}
-      <Link href={`/mx/l/${listing?.id}`} className="no-underline" style={{ flexShrink: 0 }}>
+      <Link href={listingHref} className="no-underline" style={{ flexShrink: 0 }}>
         <div
           className="flex items-center gap-3"
           style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}

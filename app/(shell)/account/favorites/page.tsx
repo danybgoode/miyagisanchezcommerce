@@ -5,6 +5,8 @@ import { db } from '@/lib/supabase'
 import Link from 'next/link'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import type { Metadata } from 'next'
+import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export const metadata: Metadata = { title: 'Favoritos — Miyagi Sánchez' }
 
@@ -78,7 +80,7 @@ export default async function FavoritesPage() {
           <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
             Guarda artículos con el corazón para seguir sus precios y no perderlos de vista.
           </p>
-          <Link href="/mx/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+          <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
             <i className="iconoir-search" style={{ fontSize: 16 }} />
             Explorar anuncios
           </Link>
@@ -94,7 +96,7 @@ export default async function FavoritesPage() {
 
               return (
                 <div key={fav.id} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: 'var(--bg-elevated)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)' }}>
-                  <Link href={`/mx/l/${listing.medusa_product_id}`} className="no-underline block">
+                  <Link href={listingUrlFor(SITE_ORIGIN, listing.medusa_product_id!)} className="no-underline block">
                     <div style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                       {listing.images?.[0] ? (
                         <img src={listing.images[0].url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

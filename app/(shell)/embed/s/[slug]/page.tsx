@@ -23,6 +23,8 @@ import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/p
 import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
+import { listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import type { Metadata } from 'next'
 
 export const revalidate = 120
@@ -67,7 +69,7 @@ export default async function EmbedShopPage({
   // Buy breaks out of the iframe to our own origin (Clerk can't run framed).
   // Carry the embed key through for attribution where present.
   const listingHref = (id: string) =>
-    `/mx/l/${id}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
+    `${listingUrlFor(SITE_ORIGIN, id)}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
 
   return (
     <ChannelLayout

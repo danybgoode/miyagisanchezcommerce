@@ -10,6 +10,8 @@ import { getMlProductLink } from '@/lib/ml-publish-bridge'
 import type { MlLinkView } from '@/lib/ml-publish'
 import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
 import { excerptModel } from '@/lib/excerpt'
+import { listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Editar anuncio' }
@@ -209,7 +211,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           </span>
           <span className="text-xs text-[var(--color-muted)]">·</span>
           <Link
-            href={`/mx/l/${listing.medusa_product_id ?? listing.id}`}
+            href={listingUrlFor(SITE_ORIGIN, listing.medusa_product_id ?? listing.id)}
             target="_blank"
             className="text-xs text-[var(--color-accent)] hover:underline"
           >

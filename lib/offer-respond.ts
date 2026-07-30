@@ -14,6 +14,7 @@ import { stripe } from './stripe'
 import { dispatchToBuyer } from './notifications/dispatch'
 import { buildBuyerMessage } from './notifications/buyer-messages'
 import { offerQuality, formatOfferAmount, timeUntil, canAccept, canCounter, canDecline, type OfferStatus } from './offers'
+import { listingUrlFor } from './market-url'
 import {
   sendOfferDeclined, sendOfferCountered, sendOfferAccepted,
   sendBuyerCounterExpiryWarning, sendBuyerPaymentExpiryWarning, cancelScheduledEmail,
@@ -288,6 +289,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
   if (action === 'accept') {
     cancelSellerReminders()
     const acceptedCents = offer.offer_amount_cents
+    const listingUrl = listingUrlFor(origin, listing.id)
     const shopMeta = listing.marketplace_shops.metadata as Record<string, unknown> | null
     const stripeSettings = (shopMeta?.settings as Record<string, unknown> | undefined)?.stripe as
       { enabled?: boolean; account_id?: string; charges_enabled?: boolean } | undefined
@@ -320,7 +322,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           },
           metadata: { listing_id: listing.id, shop_id: listing.marketplace_shops.id, listing_type: listing.listing_type, offer_id: id },
           success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/mx/l/${listing.id}?offer=cancelled`,
+          cancel_url: `${listingUrl}?offer=cancelled`,
         })
         checkoutSessionId = session.id
         checkoutExpires = new Date(expiresAt * 1000).toISOString()
@@ -341,21 +343,21 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     // standalone notify() push is folded into the seam).
     const acceptedMsg = buildBuyerMessage('offer_accepted', {
       listingTitle: listing.title,
-      url: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
+      url: conversationUrl ?? listingUrl,
     })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
         sendOfferAccepted({
           listingTitle: listing.title, listingId: listing.id,
-          listingUrl: `${origin}/mx/l/${listing.id}`,
+          listingUrl,
           askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
           offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
           offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
           buyerName: offer.buyer_name, buyerEmail: to,
           currency: listing.currency, offerId: id,
           expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-          checkoutUrl: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
+          checkoutUrl: conversationUrl ?? listingUrl,
           checkoutExpiresAt: checkoutExpires,
           conversationUrl,
         }),
@@ -367,7 +369,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
       sendBuyerPaymentExpiryWarning({
         buyerEmail: offer.buyer_email,
         listingTitle: listing.title,
-        checkoutUrl: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
+        checkoutUrl: conversationUrl ?? listingUrl,
         agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
         expiresAt: checkoutExpires,
       }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))

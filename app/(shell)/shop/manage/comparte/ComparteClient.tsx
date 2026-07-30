@@ -8,6 +8,8 @@ import ConnectAgentPanel from '@/components/ConnectAgentPanel'
 import { buildWhatsAppShareLink } from '@/lib/share-link'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
 import { pushGrowthEvent } from '@/lib/growth-events'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 export default function ComparteClient({
   shopName,
@@ -27,7 +29,10 @@ export default function ComparteClient({
   const { toast, showToast, dismissToast } = useToast()
   const [copied, setCopied] = useState(false)
 
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://miyagisanchez.com'}/mx/s/${shopSlug}`
+  // "Comparte" promotes the seller's free Miyagi marketplace presence. Use the
+  // platform origin deliberately: this component can render behind a tenant
+  // domain, where an ambient-origin `/mx/s/*` URL is denied by middleware.
+  const shareUrl = shopUrlFor(SITE_ORIGIN, shopSlug)
   const shareTitle = `${shopName} en Miyagi Sánchez`
 
   function tapShare(channel: string) {
@@ -89,7 +94,7 @@ export default function ComparteClient({
           {productCount} producto{productCount === 1 ? '' : 's'}{location ? ` · ${location}` : ''}
         </p>
         <p className="inline-block mt-2 text-xs font-mono bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-pill)] px-3 py-1">
-          /mx/s/{shopSlug}
+          {shareUrl}
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3 mt-6 pt-5 border-t border-[var(--color-border)]">

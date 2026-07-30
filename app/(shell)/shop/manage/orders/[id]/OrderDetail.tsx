@@ -25,6 +25,8 @@ import { addTag as addTagLocal, removeTag as removeTagLocal } from '@/lib/order-
 import { orderStatusToToken, returnStatusToToken } from '@/lib/status-badge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { listingUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -986,10 +988,14 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             }
           </div>
           <div className="flex-1">
-            <Link href={`/mx/l/${listing?.id}`}
-              className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
-              {listing?.title}
-            </Link>
+            {listing ? (
+              <Link href={listingUrlFor(SITE_ORIGIN, listing.id)}
+                className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
+                {listing.title}
+              </Link>
+            ) : (
+              <span className="font-semibold text-sm">Artículo no disponible</span>
+            )}
             <p className="text-xs text-[var(--color-muted)] mt-0.5 capitalize">{listing?.listing_type}</p>
             <p className="text-xl font-bold mt-2">{formatPrice(order.amount_cents, order.currency)}</p>
           </div>

@@ -78,17 +78,25 @@ test.describe('market route population', () => {
   })
 
   test('seller management success surfaces emit canonical marketplace shop URLs', () => {
-    const expected = [
+    const seamBacked = [
       'app/(shell)/shop/manage/import/ImportClient.tsx',
-      'app/(shell)/shop/manage/convocatoria/page.tsx',
       'app/(shell)/shop/manage/comparte/ComparteClient.tsx',
     ]
-    for (const file of expected) {
+    for (const file of seamBacked) {
       const source = readFileSync(path.join(ROOT, file), 'utf8')
-      expect(source, file).toContain('/mx/s/')
-      const withoutCanonicalMxPaths = source.replaceAll('/mx/s/', '')
-      expect(withoutCanonicalMxPaths, file).not.toMatch(/\/s\/(?:\$\{|\{)/)
+      expect(source, file).toContain('shopUrlFor(SITE_ORIGIN,')
+      expect(source, file).not.toContain('window.location.origin')
     }
+
+    const convocatoria = readFileSync(
+      path.join(ROOT, 'app/(shell)/shop/manage/convocatoria/page.tsx'),
+      'utf8',
+    )
+    expect(convocatoria).toContain(
+      'marketplaceUrl(SITE_ORIGIN, `/s/${shop.slug}/convocatoria`)',
+    )
+    expect(convocatoria).not.toContain('publicUrl={`/mx/s/')
+
     const comparte = readFileSync(
       path.join(ROOT, 'app/(shell)/shop/manage/comparte/ComparteClient.tsx'),
       'utf8',

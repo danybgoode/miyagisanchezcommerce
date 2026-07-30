@@ -5,6 +5,8 @@ import { isEnabled } from '@/lib/flags'
 import { db } from '@/lib/supabase'
 import { getPromoterByClerkId } from '@/lib/promoter'
 import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
@@ -147,7 +149,7 @@ export default async function PartnerDashboardPage({
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0 text-sm">
-                <Link href={`/mx/s/${g.shop.slug}`} target="_blank" rel="noreferrer" className="underline">
+                <Link href={shopUrlFor(SITE_ORIGIN, g.shop.slug)} target="_blank" rel="noreferrer" className="underline">
                   Ver tienda
                 </Link>
                 <Link href="/shop/manage" className="underline">

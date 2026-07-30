@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { PrintEditionPublic, PrintAdContent } from '@/lib/print'
 import { matchesCoverage, COVERAGE_NOTICE_TEXT } from '@/lib/promoter-coverage'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 type Shop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null }
 type Mode = 'now' | 'later'
@@ -99,7 +101,7 @@ export default function PrintAdStep({ shop, n }: { shop: Shop; n: number }) {
             body: body.trim(),
             photos,
             contact: { whatsapp_seller: whatsapp.trim() || null },
-            cta_target: { type: 'shop', id: shop.slug, url: `/mx/s/${shop.slug}` },
+            cta_target: { type: 'shop', id: shop.slug, url: shopUrlFor(SITE_ORIGIN, shop.slug) },
           }
         : {}
 

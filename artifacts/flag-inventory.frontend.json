@@ -24,7 +24,7 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/l/[id]/page.tsx:384",
-        "app/(shell)/sell/edit/[id]/page.tsx:187",
+        "app/(shell)/sell/edit/[id]/page.tsx:189",
         "app/(shell)/shop/manage/catalogo/page.tsx:102",
         "app/api/ucp/catalog/[id]/route.ts:75",
         "app/api/ucp/catalog/route.ts:109",
@@ -41,7 +41,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:197",
+        "app/(shell)/checkout/page.tsx:215",
         "app/(shell)/l/[id]/page.tsx:427",
         "app/api/ucp/checkout-session/route.ts:356"
       ]
@@ -96,7 +96,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:152",
+        "app/(shell)/checkout/page.tsx:170",
         "app/(shell)/l/[id]/page.tsx:460",
         "app/api/ucp/checkout-session/route.ts:387"
       ]
@@ -135,12 +135,12 @@
       "enforcement": "frontend",
       "callsites": [
         "app/(shell)/s/[slug]/convocatoria/page.tsx:70",
-        "app/(shell)/sell/edit/[id]/page.tsx:182",
+        "app/(shell)/sell/edit/[id]/page.tsx:184",
         "app/(shell)/shop/manage/convocatoria/campanas/page.tsx:16",
-        "app/(shell)/shop/manage/convocatoria/page.tsx:15",
+        "app/(shell)/shop/manage/convocatoria/page.tsx:17",
         "app/(shell)/shop/manage/settings/page.tsx:53",
-        "app/(shell)/v/[slug]/page.tsx:17",
-        "app/(shell)/v/[slug]/page.tsx:46",
+        "app/(shell)/v/[slug]/page.tsx:19",
+        "app/(shell)/v/[slug]/page.tsx:48",
         "app/api/cron/launchpad-campaigns/route.ts:27",
         "app/api/launchpad/[slug]/submit/route.ts:39",
         "app/api/launchpad/[slug]/upload/route.ts:27",
@@ -282,7 +282,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/edit/[id]/page.tsx:172",
+        "app/(shell)/sell/edit/[id]/page.tsx:174",
         "app/api/sell/ml/predict/route.ts:18",
         "app/api/sell/ml/publish/route.ts:19",
         "app/api/ucp/mcp/route.ts:3390",
@@ -358,7 +358,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:62",
+        "app/(shell)/partner/page.tsx:64",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
@@ -434,7 +434,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:67",
+        "app/(shell)/partner/page.tsx:69",
         "lib/portfolio/gate-server.ts:54",
         "lib/portfolio/partner-portfolio-auth.ts:107",
         "lib/portfolio/reminders-server.ts:220"
@@ -518,7 +518,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/edit/[id]/page.tsx:191",
+        "app/(shell)/sell/edit/[id]/page.tsx:193",
         "app/(shell)/sell/page.tsx:116"
       ]
     },

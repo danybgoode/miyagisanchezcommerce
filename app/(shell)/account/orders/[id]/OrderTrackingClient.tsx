@@ -24,6 +24,8 @@ import {
 } from '@/lib/pickup-appointment'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { formatRentalBookingLines, type RentalBookingLike, type RentalBookingState } from '@/lib/rental-booking'
+import { shopUrlFor } from '@/lib/market-url'
+import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -571,7 +573,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-snug">{listing?.title}</p>
             {shop && (
-              <Link href={`/mx/s/${shop.slug}`}
+              <Link href={shopUrlFor(SITE_ORIGIN, shop.slug)}
                 className="text-xs text-[var(--color-muted)] hover:text-[var(--color-accent)] no-underline mt-0.5 block">
                 {shop.name} →
               </Link>
@@ -948,7 +950,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             <p className="text-xs text-[var(--color-muted)] mt-0.5">Contacta al vendedor si tienes dudas sobre tu pedido.</p>
           </div>
           <Link
-            href={`/mx/s/${shop.slug}`}
+            href={shopUrlFor(SITE_ORIGIN, shop.slug)}
             className="flex-shrink-0 text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline ml-3"
           >
             Ir a la tienda →
