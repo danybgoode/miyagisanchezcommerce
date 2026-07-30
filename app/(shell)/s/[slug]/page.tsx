@@ -1,6 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import Link from 'next/link'
 import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { hasExcerpt } from '@/lib/excerpt'
@@ -22,6 +21,8 @@ import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/typ
 import type { Metadata } from 'next'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
+
+interface Social { instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -45,39 +46,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       images: (t.banner_url as string | undefined) ? [{ url: t.banner_url as string }] : undefined,
     },
   }
-}
-
-// ── Social link helpers ────────────────────────────────────────────────────────
-
-interface Social { instagram?: string; facebook?: string; whatsapp?: string; tiktok?: string; twitter?: string }
-
-function SocialLinks({ social }: { social: Social }) {
-  const links = [
-    social.instagram && { href: `https://instagram.com/${social.instagram}`, label: 'Instagram', icon: 'iconoir-camera' },
-    social.tiktok    && { href: `https://tiktok.com/@${social.tiktok}`,     label: 'TikTok',    icon: 'iconoir-music-note' },
-    social.facebook  && { href: social.facebook,                              label: 'Facebook',  icon: 'iconoir-community' },
-    social.whatsapp  && { href: `https://wa.me/${social.whatsapp}`,           label: 'WhatsApp',  icon: 'iconoir-chat-bubble' },
-  ].filter(Boolean) as { href: string; label: string; icon: string }[]
-
-  if (links.length === 0) return null
-
-  return (
-    <div className="flex items-center gap-2 mt-2 flex-wrap">
-      {links.map(l => (
-        <a
-          key={l.label}
-          href={l.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={l.label}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-white/30 text-white/90 hover:bg-white/20 transition-colors no-underline"
-        >
-          <i className={l.icon} aria-hidden />
-          <span>{l.label}</span>
-        </a>
-      ))}
-    </div>
-  )
 }
 
 // ── Shop page ─────────────────────────────────────────────────────────────────
@@ -217,6 +185,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
               className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-white flex items-center justify-center text-3xl flex-shrink-0 overflow-hidden"
             >
               {shop.logo_url ? (
+                // Remote seller logos are not constrained to a Next Image allow-list.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
               ) : (
                 <i className="iconoir-shop" aria-hidden />
@@ -237,7 +207,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
                 )}
               </div>
               {theme.tagline && (
-                <p className="text-sm text-[var(--color-muted)] mt-0.5 italic">"{theme.tagline}"</p>
+                <p className="text-sm text-[var(--color-muted)] mt-0.5 italic">&ldquo;{theme.tagline}&rdquo;</p>
               )}
               {shop.location && (
                 <p className="text-xs text-[var(--color-muted)] mt-0.5"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>

@@ -83,6 +83,8 @@ export default function HeroSection({
   return (
     <div className="max-w-6xl mx-auto px-4 mb-6">
       <div className="relative w-full aspect-[16/6] rounded-xl overflow-hidden">
+        {/* Remote seller-authored URLs are not constrained to a Next Image allow-list. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={promoImage}
           alt=""

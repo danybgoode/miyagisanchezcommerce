@@ -4,14 +4,14 @@
  * The unified checkout intelligence endpoint. Given a listing (+ optional offer),
  * returns every payment method the seller has enabled with:
  *   - Pre-generated checkout URLs for instant methods (MP, Stripe)
- *   - Structured instructions for contact-first methods (SPEI, cash, WhatsApp)
+ *   - Privacy-safe availability/instructions for contact-first methods
  *   - A recommended_method field so an agent can present the best option first
  *   - Escrow details when applicable
  *
  * Payment methods covered:
  *   mercadopago    — cards, OXXO, digital wallet, meses sin intereses
  *   stripe         — international cards (Visa/MC/AMEX)
- *   bank_transfer  — SPEI with seller's CLABE, bank, and account holder
+ *   bank_transfer  — SPEI availability (coordinates are returned only after checkout starts)
  *   cash_on_pickup — derived from shop's local_pickup setting
  *   whatsapp       — contact-first, derived from shop phone + whatsapp_cta
  *
@@ -23,11 +23,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
-import { getPriceGrid } from '@/lib/listings'
+import { getPriceGrid, getShop } from '@/lib/listings'
 import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
-import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { isShopClaimed } from '@/lib/claim'
+import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import { ensureUrlProtocol } from '@/lib/url'
 import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity, ticketTotalLabel } from '@/lib/ticket-quantity'
@@ -63,11 +63,6 @@ interface PaymentOption {
   // Contact-first methods
   instructions?: string
   contact_url?:  string         // wa.me link or tel: link
-  bank_details?: {
-    clabe:          string
-    bank_name:      string | null
-    account_holder: string | null
-  }
   // Why unavailable (helps AI agent give useful feedback)
   reason_unavailable?: string
   // Scheduling (Cal.com)
@@ -247,7 +242,9 @@ export async function POST(req: NextRequest) {
   // ── Fetch listing + shop ──────────────────────────────────────────────────
   const { data: rawListing, error: listErr } = await db
     .from('marketplace_listings')
-    .select('*, shop:marketplace_shops(id,slug,name,verified,location,clerk_user_id,metadata,mp_enabled,source_url)')
+    // This public discovery route needs only the mirror's seller slug. Commerce
+    // settings are re-read below from Medusa's allow-listed public projection.
+    .select('*, shop:marketplace_shops(slug)')
     .eq(listingLookupColumn(listing_id), listing_id)
     .eq('status', 'active')
     .single()
@@ -256,8 +253,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
 
-  const listing = rawListing as Listing
-  const shop    = listing.shop as (Shop & { mp_enabled?: boolean | null }) | undefined
+  const joinedShop = (rawListing as {
+    shop?: { slug?: string | null } | Array<{ slug?: string | null }> | null
+  }).shop
+  const sellerSlug = (Array.isArray(joinedShop) ? joinedShop[0]?.slug : joinedShop?.slug) ?? null
+  if (!sellerSlug) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
+  }
+
+  // `getShop` is backed by Medusa's sanitized public seller shape. Never use the
+  // Supabase mirror's raw metadata here: this endpoint is unauthenticated and its
+  // result is relayed verbatim by the public MCP `get_checkout_options` tool.
+  const shop = await getShop(sellerSlug) as Shop | null
+  if (!shop || shop.slug !== sellerSlug) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
+  }
+  const listing = { ...rawListing, shop } as Listing
   const shopMeta = (shop?.metadata ?? {}) as Record<string, unknown>
   const settings = (shopMeta.settings ?? {}) as Record<string, unknown>
   const checkout = (settings.checkout ?? {}) as Record<string, unknown>
@@ -347,12 +358,10 @@ export async function POST(req: NextRequest) {
   const lineTotalCents = hasPrice ? priceCents! * quantity : null
 
   // ── Shop signals ──────────────────────────────────────────────────────────
-  const stripeSettings = ((settings.stripe ?? {}) as Record<string, unknown>)
-  const hasMp          = sellerHasMpConnected(shopMeta as Record<string, unknown> | null)
-  const hasStripe      = !!(stripeSettings.enabled !== false && stripeSettings.charges_enabled && stripeSettings.account_id)
-
-  const bankTransfer   = (checkout.bank_transfer ?? {}) as Record<string, unknown>
-  const hasBankTransfer = !!(bankTransfer.enabled && bankTransfer.clabe)
+  const paymentAvailability = publicShopPaymentAvailability(shopMeta)
+  const hasMp = paymentAvailability.mercadopago
+  const hasStripe = paymentAvailability.stripe
+  const hasBankTransfer = paymentAvailability.bankTransfer
 
   const localPickup    = !!(shipping.local_pickup)
   const theme = (settings.theme ?? {}) as Record<string, unknown>
@@ -461,15 +470,10 @@ export async function POST(req: NextRequest) {
     available: bankAvailable,
     instant:   false,
     escrow_compatible: false,  // manual confirmation — can't hold in escrow
-    ...(hasBankTransfer && {
-      instructions: `Transfiere ${ hasPrice ? formatMxn(priceCents!, currency) : '' } a la cuenta indicada y envía tu comprobante al vendedor.${rentalNote}`,
-      bank_details: {
-        clabe:          String(bankTransfer.clabe ?? ''),
-        bank_name:      (bankTransfer.bank_name as string | null) ?? null,
-        account_holder: (bankTransfer.account_holder as string | null) ?? null,
-      },
+    ...(bankAvailable && {
+      instructions: `Inicia el pago para recibir los datos de transferencia del vendedor y enviar tu comprobante.${rentalNote}`,
     }),
-    ...(!hasBankTransfer && { reason_unavailable: 'El vendedor no ha configurado transferencia bancaria.' }),
+    ...(!bankAvailable && { reason_unavailable: 'El vendedor no ha configurado transferencia bancaria.' }),
   }
 
   // 4. Cash on pickup

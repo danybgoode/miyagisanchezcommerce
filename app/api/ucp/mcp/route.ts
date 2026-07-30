@@ -1155,7 +1155,7 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
       payment_options?: Array<{
         method: string; label: string; description: string; available: boolean;
         instant: boolean; checkout_url?: string; instructions?: string;
-        contact_url?: string; bank_details?: { clabe: string; bank_name: string | null; account_holder: string | null }
+        contact_url?: string
         reason_unavailable?: string
       }>
       escrow?: { available: boolean; required: boolean; description: string }
@@ -1176,11 +1176,6 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
       lines.push(o.description)
       if (o.checkout_url) lines.push(`→ Usar create_checkout con method="${o.method}" para generar el enlace de pago`)
       if (o.instructions) lines.push(`📋 ${o.instructions}`)
-      if (o.bank_details) {
-        lines.push(`🏦 CLABE: \`${o.bank_details.clabe}\``)
-        if (o.bank_details.bank_name) lines.push(`   Banco: ${o.bank_details.bank_name}`)
-        if (o.bank_details.account_holder) lines.push(`   Titular: ${o.bank_details.account_holder}`)
-      }
       if (o.contact_url) lines.push(`📱 ${o.contact_url}`)
       return lines.join('\n')
     }

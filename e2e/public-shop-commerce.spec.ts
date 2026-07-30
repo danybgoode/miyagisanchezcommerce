@@ -144,6 +144,7 @@ test.describe('public Shop consumer population guard', () => {
       'app/(shell)/_shop-collection/CollectionPage.tsx',
       'lib/trust-inputs.ts',
       'lib/ucp/schema.ts',
+      'app/api/ucp/checkout-session/route.ts',
       'app/api/embed/support/route.ts',
       'app/api/embed/support/checkout/route.ts',
     ]) {
@@ -165,5 +166,46 @@ test.describe('public Shop consumer population guard', () => {
       const source = stripComments(readFileSync(join(ROOT, file), 'utf8'))
       expect(source, file).toContain('await getShop(resolved.slug)')
     }
+  })
+
+  test('public UCP checkout discovery reads only the sanitized Shop projection', () => {
+    const route = stripComments(readFileSync(
+      join(ROOT, 'app/api/ucp/checkout-session/route.ts'),
+      'utf8',
+    ))
+
+    expect(route).toContain(".select('*, shop:marketplace_shops(slug)')")
+    expect(route).toContain('await getShop(sellerSlug)')
+    expect(route).toContain('publicShopPaymentAvailability(shopMeta)')
+    expect(route).not.toMatch(/marketplace_shops\([^)]*\bmetadata\b/)
+    expect(route).not.toMatch(/\b(?:sellerHasMpConnected|const\s+stripeSettings|const\s+bankTransfer)\b/)
+    expect(route).not.toMatch(/\.\s*(?:account_id|clabe|bank_name|account_holder)\b/)
+  })
+
+  test('public UCP and MCP discovery never return manual payment coordinates', () => {
+    for (const file of [
+      'app/api/ucp/checkout-session/route.ts',
+      'app/api/ucp/mcp/route.ts',
+    ]) {
+      const source = stripComments(readFileSync(join(ROOT, file), 'utf8'))
+      expect(source, file).not.toContain('bank_details')
+      expect(source, file).not.toMatch(/\.\s*(?:clabe|bank_name|account_holder)\b/)
+    }
+  })
+
+  test('transactional and protected payment-detail seams remain intact', () => {
+    const cart = stripComments(readFileSync(join(ROOT, 'lib/cart.ts'), 'utf8'))
+    const order = stripComments(readFileSync(
+      join(ROOT, 'app/(shell)/account/orders/[id]/OrderTrackingClient.tsx'),
+      'utf8',
+    ))
+    const subscription = stripComments(readFileSync(
+      join(ROOT, 'app/api/subscriptions/spei/route.ts'),
+      'utf8',
+    ))
+
+    expect(cart).toContain('clabe?: string | null')
+    expect(order).toContain('order.manual_payment.spei?.clabe')
+    expect(subscription).toContain('clabe: clabe ?? null')
   })
 })
