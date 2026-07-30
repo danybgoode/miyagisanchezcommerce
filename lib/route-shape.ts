@@ -1,7 +1,7 @@
 /**
  * lib/route-shape.ts
  *
- * Pure, dependency-free shape predicates for the two dynamic storefront routes
+ * Pure, edge-safe shape predicates for the two dynamic storefront routes
  * `/l/[id]` (a Medusa product id) and `/s/[slug]` (a seller slug). They answer
  * one cheap question — "could this path segment EVER address a real listing /
  * shop?" — WITHOUT any network call, so a clearly-malformed id/slug can 404
@@ -19,6 +19,8 @@
  * retired slug obeys the same format rules as a live one, so rejecting malformed
  * shapes never swallows a redirect.
  */
+
+import { MARKET_CODES } from './markets'
 
 // Medusa v2 product ids are `prod_` + a 26-char ULID (Crockford base32), e.g.
 // `prod_01KTQY8PFAVCRRD61DNSXNXKM8` (total length 31). We accept 20–32 trailing
@@ -71,5 +73,14 @@ export function isLikelyCollectionSlug(slug: string): boolean {
  * (own-shop-premium-presentation S2) without the shared function changing.
  */
 export function isBoundaryDeniedPath(path: string): boolean {
-  return path === '/s' || path.startsWith('/s/') || path === '/l' || path === '/l/'
+  const first = path.split('/')[1]
+  const hasMarketPrefix = (MARKET_CODES as readonly string[]).includes(first)
+  const normalized = hasMarketPrefix
+    ? path.slice(first.length + 1) || '/'
+    : path
+  return normalized === '/s' ||
+    normalized.startsWith('/s/') ||
+    normalized === '/l' ||
+    normalized === '/l/' ||
+    (hasMarketPrefix && normalized.startsWith('/l/'))
 }

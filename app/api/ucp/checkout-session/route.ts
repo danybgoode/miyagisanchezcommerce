@@ -23,7 +23,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/supabase'
 import { toUcpListing } from '@/lib/ucp/schema'
-import { getPriceGrid, getShop } from '@/lib/listings'
+import { getListing, getPriceGrid, getShop } from '@/lib/listings'
+import { isMarketUnavailable, planMarketCatalogRead } from '@/lib/market-catalog'
+import type { MarketCode } from '@/lib/markets'
 import { readPersonalization, validatePersonalization, getCustomFields, type PersonalizationPayload } from '@/lib/personalization'
 import { isEmbedRequest } from '@/lib/embed-auth'
 import { isShopClaimed } from '@/lib/claim'
@@ -74,6 +76,7 @@ interface UcpCheckoutSession {
   created_at:          string
   expires_at:          string   // sessions are informational — 30 min expiry
   listing_id:          string
+  market_code:         MarketCode
   offer_id:            string | null
   price: {
     amount_cents:      number
@@ -227,7 +230,17 @@ export async function POST(req: NextRequest) {
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
 
-  let body: { listing_id?: string; offer_id?: string; buyer_email?: string; buyer_name?: string; personalization?: unknown; quantity?: number; check_in?: string; check_out?: string }
+  let body: {
+    listing_id?: string
+    market?: unknown
+    offer_id?: string
+    buyer_email?: string
+    buyer_name?: string
+    personalization?: unknown
+    quantity?: number
+    check_in?: string
+    check_out?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -237,6 +250,13 @@ export async function POST(req: NextRequest) {
   const { listing_id, offer_id, check_in, check_out } = body
   if (!listing_id) {
     return NextResponse.json({ error: 'listing_id is required' }, { status: 400, headers: CORS })
+  }
+  const marketDecision = planMarketCatalogRead(body.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return NextResponse.json(
+      marketDecision,
+      { status: marketDecision.market_code ? 404 : 400, headers: CORS },
+    )
   }
 
   // ── Fetch listing + shop ──────────────────────────────────────────────────
@@ -252,12 +272,19 @@ export async function POST(req: NextRequest) {
   if (listErr || !rawListing) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
+  const medusaListingId = typeof rawListing.medusa_product_id === 'string'
+    ? rawListing.medusa_product_id
+    : listing_id
+  const marketListing = await getListing(medusaListingId, marketDecision.market.code)
+  if (!marketListing) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
+  }
 
   const joinedShop = (rawListing as {
     shop?: { slug?: string | null } | Array<{ slug?: string | null }> | null
   }).shop
   const sellerSlug = (Array.isArray(joinedShop) ? joinedShop[0]?.slug : joinedShop?.slug) ?? null
-  if (!sellerSlug) {
+  if (!sellerSlug || marketListing.shop?.slug !== sellerSlug) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404, headers: CORS })
   }
 
@@ -571,6 +598,7 @@ export async function POST(req: NextRequest) {
     created_at:         now.toISOString(),
     expires_at:         expiresAt.toISOString(),
     listing_id:         listing.id,
+    market_code:        marketDecision.market.code,
     offer_id:           offer_id ?? null,
     price: hasPrice ? {
       amount_cents:  priceCents!,
@@ -599,8 +627,11 @@ export async function POST(req: NextRequest) {
         : 'Sin Compra Protegida en esta tienda.',
     },
     listing: toUcpListing(
-      listing, baseUrl, await getPriceGrid(listing.medusa_product_id ?? listing.id),
+      listing,
+      baseUrl,
+      await getPriceGrid(listing.medusa_product_id ?? listing.id, marketDecision.market.code),
       await isEnabled('catalog.inventory_channels_enabled'),
+      marketDecision.market.code,
     ),
     personalization: {
       submitted: submittedPersonalization,

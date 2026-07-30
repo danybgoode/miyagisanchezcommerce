@@ -496,3 +496,37 @@ test.describe('population guard · D10 agent surfaces are market-scoped', () => 
     })
   }
 })
+
+test.describe('population guard · marketplace shop routes do not use owner inventory', () => {
+  test('the marketplace shop reader filters through the market catalog seam', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'getMarketplaceShopListings')?.body
+    expect(body, 'getMarketplaceShopListings must remain a distinct market-scoped seam').toBeTruthy()
+    expect(body).toContain('planMarketCatalogRead')
+    expect(body).toContain('marketCatalogFetch')
+    expect(body).toContain('takeMarketScopedField')
+    expect(body).toContain('seller_slug')
+    expect(body).not.toContain('ownershipScopedFetch')
+  })
+
+  test('shop home selects owner inventory only when no country market was supplied', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 's', '[slug]', 'page.tsx'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'ShopPage')?.body
+    expect(body, 'ShopPage no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('readPublicSellerMarket')
+    expect(body).toContain('getMarketplaceShopListings')
+    expect(body).toMatch(/market\s*\?\s*getMarketplaceShopListings\(\s*shop\.slug\s*,\s*market\s*\)\s*:\s*getShopListings\(\s*shop\.slug\s*\)/)
+  })
+
+  test('Mexico shop wrappers pass the market separately from the URL prefix', () => {
+    const home = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'mx', 's', '[slug]', 'page.tsx'), 'utf8'))
+    const collection = stripComments(readFileSync(
+      join(ROOT, 'app', '(shell)', 'mx', 's', '[slug]', 'c', '[collection]', 'page.tsx'),
+      'utf8',
+    ))
+    expect(home).toContain("market: 'mx'")
+    expect(home).toContain("marketBasePath: '/mx'")
+    expect(collection).toContain("market: 'mx'")
+    expect(collection).toContain("marketBasePath: '/mx'")
+  })
+})

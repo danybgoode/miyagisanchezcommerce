@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import PrintAdBuilder, { type BuilderEdition, type BuilderListing, type SellerPrefill } from './PrintAdBuilder'
+import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 
 export const metadata = { title: 'Diseña tu anuncio impreso — Miyagi Sánchez' }
 
@@ -47,7 +48,7 @@ export default async function PrintAdBuilderPage({ params, searchParams }: {
     logo_url: seller.logo_url ?? null,
     location: seller.location ?? null,
     whatsapp,
-    shop_url: `${SITE_URL}/s/${seller.slug}`,
+    shop_url: shopUrlFor(SITE_URL, seller.slug),
   }
 
   // ── Open edition (find by id among open editions) ─────────────────────────
@@ -68,7 +69,7 @@ export default async function PrintAdBuilderPage({ params, searchParams }: {
       id: l.id,
       title: l.title,
       image: l.images?.[0]?.url ?? null,
-      url: `${SITE_URL}/mx/l/${l.id}`,
+      url: listingUrlFor(SITE_URL, l.id),
     }))
 
   return (

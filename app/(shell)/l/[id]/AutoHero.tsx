@@ -33,6 +33,7 @@ export default function AutoHero({
   specs,
   priceCents,
   attrs,
+  marketBasePath = '',
 }: {
   listingId: string
   isSignedIn: boolean
@@ -41,6 +42,7 @@ export default function AutoHero({
   specs: Spec[]
   priceCents: number | null | undefined
   attrs: Record<string, unknown>
+  marketBasePath?: string
 }) {
   const model = autoHeroModel({ bookingUrl })
   const rep = repuveDisplay(repuve)
@@ -132,7 +134,7 @@ export default function AutoHero({
           {model.primaryLabel}
         </a>
       ) : (
-        <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} />
+        <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
       )}
     </div>
   )

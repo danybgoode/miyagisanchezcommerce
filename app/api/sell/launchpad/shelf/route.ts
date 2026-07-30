@@ -101,7 +101,7 @@ export async function GET() {
     suggest: s.suggest,
     total_works: s.totalWorks,
     missing: s.missingWorkIds.length,
-    collection_url: s.convocatoria && shortSlug ? `/s/${state.sellerSlug}/c/${shortSlug}` : null,
+    collection_url: s.convocatoria && shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
   })
 }
 
@@ -124,7 +124,7 @@ export async function POST() {
     return NextResponse.json({
       ok: true,
       assigned: 0,
-      collection_url: s.convocatoria && shortSlug ? `/s/${state.sellerSlug}/c/${shortSlug}` : null,
+      collection_url: s.convocatoria && shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
     })
   }
 
@@ -168,6 +168,6 @@ export async function POST() {
     assigned,
     failed,
     collection_id: convocatoria.id,
-    collection_url: shortSlug ? `/s/${state.sellerSlug}/c/${shortSlug}` : null,
+    collection_url: shortSlug ? `/mx/s/${state.sellerSlug}/c/${shortSlug}` : null,
   })
 }

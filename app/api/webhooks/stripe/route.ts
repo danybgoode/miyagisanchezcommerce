@@ -49,6 +49,7 @@ import { ML_SYNC_GRANT_KEY } from '@/lib/ml-sync-entitlement'
 import { releaseCustomDomainForShop } from '@/lib/domain-lapse-server'
 import { markAttributionPaid, isPromoterSku } from '@/lib/promoter'
 import { oneTimeGrantNote } from '@/lib/promoter-close'
+import { listingUrlFor } from '@/lib/market-url'
 import { notifyMerchantCloseReceipt } from '@/lib/promoter-close-notify'
 import { MIGRATION_CHECKOUT_KIND } from '@/lib/migration-checkout'
 
@@ -504,7 +505,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
         ? originDomain
         : null
       const siteBase = storeDomain ? `https://${storeDomain}` : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com')
-      const listingUrl = `${siteBase}/mx/l/${product_id}`
+      const listingUrl = listingUrlFor(siteBase, product_id)
       const amountFormatted = formatOfferAmount(amountTotal, currency)
       const personalization = completed?.personalization ?? []
 

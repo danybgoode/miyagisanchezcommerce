@@ -9,6 +9,11 @@ import {
   passthroughTarget,
   shopTarget,
 } from '../lib/shortlink'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 test.describe('one-hop market redirects and tenant isolation', () => {
   test('legacy platform paths land directly on canonical MX paths', () => {
@@ -45,5 +50,11 @@ test.describe('one-hop market redirects and tenant isolation', () => {
     expect(marketplaceUrl('https://miyagisanchez.com', '/l/prod_123')).toBe(
       'https://miyagisanchez.com/mx/l/prod_123',
     )
+  })
+
+  test('Stripe post-purchase email uses the origin-aware listing URL seam', () => {
+    const source = readFileSync(join(ROOT, 'app/api/webhooks/stripe/route.ts'), 'utf8')
+    expect(source).toContain('listingUrlFor(siteBase, product_id)')
+    expect(source).not.toContain('`${siteBase}/mx/l/${product_id}`')
   })
 })

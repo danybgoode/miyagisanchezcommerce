@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test'
 import { isMarketUnavailable, planMarketCatalogRead } from '../lib/market-catalog'
 import { toUcpListing } from '../lib/ucp/schema'
 import type { Listing } from '../lib/types'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const LISTING = {
   id: 'prod_123',
@@ -71,5 +76,44 @@ test.describe('UCP/MCP country-market contract', () => {
     if (isMarketUnavailable(plan)) throw new Error('expected open market')
     expect(plan.market.code).toBe('mx')
     expect(plan.query).toBe('market=mx')
+  })
+
+  test('checkout discovery refuses a closed market before reading the mirror', () => {
+    const source = readFileSync(join(ROOT, 'app/api/ucp/checkout-session/route.ts'), 'utf8')
+    const post = source.slice(source.indexOf('export async function POST'))
+    const planAt = post.indexOf('planMarketCatalogRead')
+    const mirrorAt = post.indexOf(".from('marketplace_listings')")
+    expect(planAt).toBeGreaterThan(-1)
+    expect(mirrorAt).toBeGreaterThan(-1)
+    expect(planAt).toBeLessThan(mirrorAt)
+    expect(post).toContain('getListing(medusaListingId, marketDecision.market.code)')
+  })
+
+  test('buyer checkout tools expose and thread the selected market', () => {
+    const source = readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8')
+    const optionsTool = source.slice(
+      source.indexOf("name: 'get_checkout_options'"),
+      source.indexOf("name: 'create_checkout'"),
+    )
+    const createTool = source.slice(
+      source.indexOf("name: 'create_checkout'"),
+      source.indexOf("name: 'get_support_options'"),
+    )
+    expect(optionsTool).toContain("market:")
+    expect(createTool).toContain("market:")
+
+    const optionsHandler = source.slice(
+      source.indexOf('async function handleGetCheckoutOptions'),
+      source.indexOf('async function handleCreateCheckout'),
+    )
+    const createHandler = source.slice(
+      source.indexOf('async function handleCreateCheckout'),
+      source.indexOf('const ARTWORK_DOWNLOAD_ERROR'),
+    )
+    expect(optionsHandler).toContain('planMarketCatalogRead(args.market)')
+    expect(optionsHandler).toContain('market: marketDecision.market.code')
+    expect(createHandler).toContain('planMarketCatalogRead(args.market)')
+    expect(createHandler).toContain('/api/ucp/checkout-session')
+    expect(createHandler).toContain('market: marketDecision.market.code')
   })
 })

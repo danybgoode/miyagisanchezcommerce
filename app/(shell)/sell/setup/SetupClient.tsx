@@ -343,7 +343,7 @@ function FirstRunApply() {
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{shopNamePreview || '(se generará automáticamente)'}</p>
                   <p className="text-xs text-[var(--color-muted)] truncate">
-                    {slugPreview ? `/s/${slugPreview}` : 'tu enlace se genera al crear la tienda'}
+                    {slugPreview ? `/mx/s/${slugPreview}` : 'tu enlace se genera al crear la tienda'}
                   </p>
                   {(displayProfile.city || displayProfile.state) && (
                     <p className="text-xs text-[var(--color-muted)]">
@@ -572,14 +572,14 @@ function SetupReport({ report }: { report: SetupApplyReport }) {
         headline="Tu tienda está lista"
         subcopy={`Creamos tu tienda con ${catalog.created} producto${catalog.created === 1 ? '' : 's'} publicado${catalog.created === 1 ? '' : 's'}${catalog.failed > 0 ? ` · ${catalog.failed} no se pudo${catalog.failed === 1 ? '' : 'n'} crear (corrígelo abajo)` : ''}. Diseño y envíos quedaron configurados.`}
         counts={{ created: catalog.created, updated: catalog.updated, failed: catalog.failed, draft: 0 }}
-        liveUrl={shopSlug ? `/s/${shopSlug}` : '/shop/manage'}
+        liveUrl={shopSlug ? `/mx/s/${shopSlug}` : '/shop/manage'}
         warningCallout={{
           text: 'Lo único que falta para vender: activa cómo cobrar. Son ~4 minutos con Mercado Pago.',
           primaryAction: { label: 'Activar cobros ahora', href: '/shop/manage/settings/pagos/wizard' },
           ghostAction: { label: 'Ir a mi Resumen', href: '/shop/manage' },
         }}
         nextActions={[{ label: 'Ir a mi tienda', href: '/shop/manage' }]}
-        shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${shopSlug}` : ''}
+        shareUrl={shopSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/mx/s/${shopSlug}` : ''}
       />
 
       {/* Config blocks that need attention (kept below the card — the same

@@ -67,7 +67,7 @@ export default async function EmbedShopPage({
   // Buy breaks out of the iframe to our own origin (Clerk can't run framed).
   // Carry the embed key through for attribution where present.
   const listingHref = (id: string) =>
-    `/l/${id}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
+    `/mx/l/${id}?channel=embed${key ? `&ref_key=${encodeURIComponent(key)}` : ''}`
 
   return (
     <ChannelLayout

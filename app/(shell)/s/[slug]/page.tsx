@@ -1,6 +1,12 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getShop, getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import {
+  getShop,
+  getShopListings,
+  getMarketplaceShopListings,
+  getShopCollections,
+  formatPrice,
+} from '@/lib/listings'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyShopSlug } from '@/lib/route-shape'
@@ -21,6 +27,7 @@ import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/typ
 import type { Metadata } from 'next'
 import type { MarketCode } from '@/lib/markets'
 import { marketCatalogCanonical } from '@/lib/market-seo'
+import { readPublicSellerMarket } from '@/lib/owned-market'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -28,6 +35,7 @@ interface Social { instagram?: string; facebook?: string; whatsapp?: string; tik
 
 export async function generateShopMetadata({
   params,
+  market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string }>
@@ -39,6 +47,9 @@ export async function generateShopMetadata({
   if (!isLikelyShopSlug(slug)) return { title: 'Tienda no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Tienda no encontrada' }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) {
+    return { title: 'Tienda no encontrada' }
+  }
   // Don't leak a preview-private shop's name/description in metadata (S1.2 guard).
   if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Tienda no encontrada' }
   const theme = (shop.metadata as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined
@@ -77,6 +88,7 @@ export const generateMetadata = generateShopMetadata
 
 export async function ShopPage({
   params,
+  market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string }>
@@ -99,6 +111,7 @@ export async function ShopPage({
     if (current) permanentRedirect(`${marketBasePath}/s/${current}`)
     notFound()
   }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
 
   // Consent-safe preview leak guard (founding-merchant-consent-previews S1.2): a
   // shop with a non-activated preview anchor is private across every public
@@ -125,10 +138,14 @@ export async function ShopPage({
     ? ''
     : `${marketBasePath}/s/${shop.slug}`
 
-  const [listings, collections] = await Promise.all([
-    getShopListings(shop.slug),
+  const [listings, allCollections] = await Promise.all([
+    market ? getMarketplaceShopListings(shop.slug, market) : getShopListings(shop.slug),
     getShopCollections(shop.slug),
   ])
+  const publishedCollectionHandles = new Set(listings.flatMap((listing) => listing.collections ?? []))
+  const collections = market
+    ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))
+    : allCollections
 
   // Extract theme from metadata
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>

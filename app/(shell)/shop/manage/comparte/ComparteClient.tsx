@@ -27,7 +27,7 @@ export default function ComparteClient({
   const { toast, showToast, dismissToast } = useToast()
   const [copied, setCopied] = useState(false)
 
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://miyagisanchez.com'}/s/${shopSlug}`
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://miyagisanchez.com'}/mx/s/${shopSlug}`
   const shareTitle = `${shopName} en Miyagi Sánchez`
 
   function tapShare(channel: string) {

@@ -624,7 +624,7 @@ export async function ListingPage({
           Ver conversación
         </Link>
       )}
-      <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
+      <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} marketBasePath={marketBasePath} />
     </div>
   ) : isOwnListing ? (
     <Link href={`/sell/edit/${listing.id}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
@@ -702,7 +702,7 @@ export async function ListingPage({
   )
 
   // "Preguntar" demoted to a light text link below the primary/secondary actions (S1.3).
-  const redesignAskLink = <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} label="Preguntar" variant="link" />
+  const redesignAskLink = <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} label="Preguntar" variant="link" marketBasePath={marketBasePath} />
 
   const redesignBarContent = (
     <div data-testid="pdp-action-bar" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -963,7 +963,7 @@ export async function ListingPage({
             gem-imported shop with no owner. Buy/Offer/Cart already suppressed via
             isShopClaimed (no gating change); SellerTrustCard below carries contact
             + the claim nudge. ──────────────────────────────────────────────────── */}
-        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} />}
+        {unclaimedLed && listing.shop?.slug && <UnclaimedNotice shopSlug={listing.shop.slug} marketBasePath={marketBasePath} />}
 
         {/* ── Service hero (S4.1) — schedule-led, with "Qué incluye" from the
             service attrs + description. Leads the page for service listings, so the
@@ -977,6 +977,7 @@ export async function ListingPage({
             bookingText={bookingText}
             inclusions={listingSpecs(listing)}
             description={listing.description}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -994,6 +995,7 @@ export async function ListingPage({
             bookingUrl={bookingUrl}
             rentalPricingEnabled={rentalPricingEnabled}
             sellerHasPaymentMethod={hasAnyPayment}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1049,6 +1051,7 @@ export async function ListingPage({
             specs={listingSpecs(listing)}
             priceCents={listing.price_cents}
             attrs={listing.attrs ?? (listing.metadata?.attrs as Record<string, unknown> | undefined) ?? {}}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1062,6 +1065,7 @@ export async function ListingPage({
             bookingUrl={bookingUrl}
             attrs={(listing.attrs ?? listing.metadata?.attrs) as Record<string, unknown> | undefined}
             location={listing.location}
+            marketBasePath={marketBasePath}
           />
         )}
 
@@ -1118,7 +1122,7 @@ export async function ListingPage({
                 </div>
               </div>
               <div style={{ marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
-                <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} />
+                <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} marketBasePath={marketBasePath} />
               </div>
             </>
           ) : null}

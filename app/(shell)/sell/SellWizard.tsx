@@ -1209,13 +1209,13 @@ function StepSuccess({
       headline="¡Tu anuncio está publicado!"
       subcopy="Ya está visible para compradores en todo México."
       counts={{ created: 1, updated: 0, failed: 0, draft: 0 }}
-      liveUrl={`/s/${result.shopSlug}`}
+      liveUrl={`/mx/s/${result.shopSlug}`}
       liveLabel="Ver mi tienda pública ↗"
       nextActions={[
-        { label: 'Ver mi anuncio', href: `/l/${result.listingId}` },
+        { label: 'Ver mi anuncio', href: `/mx/l/${result.listingId}` },
         { label: '+ Publicar otro anuncio', onClick: onPublishAnother },
       ]}
-      shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/s/${result.shopSlug}`}
+      shareUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/mx/s/${result.shopSlug}`}
     />
   )
 }

@@ -21,6 +21,7 @@ import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
 import { isEnabled } from '@/lib/flags'
 import { resolveBuyerClerkId } from '@/lib/order-buyer'
+import { listingUrlFor } from '@/lib/market-url'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const listingUrl = productId ? `${SITE}/l/${productId}` : SITE
+    const listingUrl = productId ? listingUrlFor(SITE, productId) : SITE
     const buyerOrderUrl = `${SITE}/account/orders/${orderId}`
     const sellerOrderUrl = `${SITE}/shop/manage/orders/${orderId}`
 

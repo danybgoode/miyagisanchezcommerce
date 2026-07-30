@@ -1,7 +1,14 @@
-import { ConvocatoriaPage } from '@/app/(shell)/s/[slug]/convocatoria/page'
+import {
+  ConvocatoriaPage,
+  generateConvocatoriaMetadata,
+} from '@/app/(shell)/s/[slug]/convocatoria/page'
 
-export { generateMetadata } from '@/app/(shell)/s/[slug]/convocatoria/page'
+type Props = { params: Promise<{ slug: string }> }
 
-export default function MexicoConvocatoriaPage({ params }: { params: Promise<{ slug: string }> }) {
-  return ConvocatoriaPage({ params, marketBasePath: '/mx' })
+export function generateMetadata({ params }: Props) {
+  return generateConvocatoriaMetadata({ params, market: 'mx', marketBasePath: '/mx' })
+}
+
+export default function MexicoConvocatoriaPage({ params }: Props) {
+  return ConvocatoriaPage({ params, market: 'mx', marketBasePath: '/mx' })
 }

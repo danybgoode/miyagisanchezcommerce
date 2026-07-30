@@ -1,6 +1,11 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
-import { getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import {
+  getShopListings,
+  getMarketplaceShopListings,
+  getShopCollections,
+  formatPrice,
+} from '@/lib/listings'
 import { hasExcerpt } from '@/lib/excerpt'
 import { isLikelyCollectionSlug } from '@/lib/route-shape'
 import { getActiveCustomDomain } from '@/lib/custom-domain'
@@ -12,6 +17,7 @@ import ShopCollectionNav from '../s/[slug]/ShopCollectionNav'
 import ClosetListingCard from '../s/[slug]/ClosetListingCard'
 import type { AnnouncementSettings } from '@/lib/shop-settings/types'
 import type { Shop } from '@/lib/types'
+import type { MarketCode } from '@/lib/markets'
 
 /**
  * Shared body for both collection-page routes (own-shop premium
@@ -30,33 +36,41 @@ export default async function CollectionPage({
   collectionShortSlug,
   basePath,
   isMarketplaceRoute,
+  market,
   marketBasePath = '',
 }: {
   shop: Shop
   collectionShortSlug: string
   basePath: string
   isMarketplaceRoute: boolean
+  market?: MarketCode
   marketBasePath?: string
 }) {
   // Cheap shape guard before any Medusa fetch (mirrors isLikelyShopSlug/
   // isLikelyListingId's role on the sibling routes).
   if (!isLikelyCollectionSlug(collectionShortSlug)) notFound()
 
-  const collections = await getShopCollections(shop.slug)
+  const [allCollections, allListings] = await Promise.all([
+    getShopCollections(shop.slug),
+    market ? getMarketplaceShopListings(shop.slug, market) : getShopListings(shop.slug),
+  ])
+  const publishedCollectionHandles = new Set(allListings.flatMap((listing) => listing.collections ?? []))
+  const collections = market
+    ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))
+    : allCollections
   const matched = collections.find((c) => shortCollectionSlug(c.handle, shop.slug) === collectionShortSlug)
   // A foreign shop's collection handle, or a genuinely nonexistent one, is
   // simply absent from THIS shop's own collection list — this lookup IS the
   // per-shop isolation check (scoped by shop.slug, never trusts the raw id).
   if (!matched) notFound()
 
-  if (isMarketplaceRoute) {
+  if (isMarketplaceRoute && !marketBasePath) {
     const domain = await getActiveCustomDomain(shop.slug)
     if (domain) permanentRedirect(`https://${domain}/c/${collectionShortSlug}`)
   }
 
   // Compose downstream of the already print-placement-filtered listing read
   // — never re-query Medusa directly or reimplement that exclusion.
-  const allListings = await getShopListings(shop.slug)
   const listings = allListings.filter((l) => l.collections?.includes(matched.handle))
 
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>

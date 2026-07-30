@@ -99,7 +99,7 @@ export default function PrintAdStep({ shop, n }: { shop: Shop; n: number }) {
             body: body.trim(),
             photos,
             contact: { whatsapp_seller: whatsapp.trim() || null },
-            cta_target: { type: 'shop', id: shop.slug, url: `/s/${shop.slug}` },
+            cta_target: { type: 'shop', id: shop.slug, url: `/mx/s/${shop.slug}` },
           }
         : {}
 

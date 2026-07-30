@@ -82,7 +82,7 @@ export async function getNeighborhoodPulseAgentView(
       tagline: shop.tagline,
       colonia: shop.colonia,
       logo_url: shop.logo_url,
-      url: `${baseUrl}/s/${shop.slug}`,
+      url: `${baseUrl}/mx/s/${shop.slug}`,
       listing_count: shop.listing_count,
     })),
     _meta: {

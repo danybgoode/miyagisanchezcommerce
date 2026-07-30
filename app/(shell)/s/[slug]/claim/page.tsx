@@ -3,17 +3,22 @@ import Link from 'next/link'
 import { getShop } from '@/lib/listings'
 import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import ClaimForm from '../ClaimForm'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import type { MarketCode } from '@/lib/markets'
 
 export async function ClaimPage({
   params,
+  market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string }>
+  market?: MarketCode
   marketBasePath?: string
 }) {
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) notFound()
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
   // Consent-safe previews: a preview-private shop must not expose its name — nor a
   // live claim form — before the merchant has approved being presented at all.
   await assertShopNotPreviewPrivate(shop)

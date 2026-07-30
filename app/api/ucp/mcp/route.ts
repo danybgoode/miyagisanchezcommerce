@@ -112,6 +112,7 @@ import {
 // correct for the schema too.
 import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
 import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
+import { MARKETS, type MarketCode } from '@/lib/markets'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -214,6 +215,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
         buyer_email: { type: 'string', description: 'Buyer email (optional)' },
         check_in:    { type: 'string', description: 'Rental check-in date, YYYY-MM-DD. Only applies to rental listings — send with check_out for an exact bookable total.' },
@@ -229,6 +231,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
         method:      { type: 'string', enum: ['mercadopago','stripe'], default: 'mercadopago', description: 'Payment method' },
         buyer_email: { type: 'string', description: 'Buyer email (optional, pre-fills checkout form)' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — uses negotiated price instead of list price' },
@@ -1161,8 +1164,15 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
   if (!listingId) {
     return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const body: Record<string, string> = { listing_id: listingId }
+  const body: Record<string, string> = {
+    listing_id: listingId,
+    market: marketDecision.market.code,
+  }
   if (args.offer_id)    body.offer_id    = String(args.offer_id)
   if (args.buyer_email) body.buyer_email = String(args.buyer_email)
   if (args.check_in)    body.check_in    = String(args.check_in)
@@ -1239,12 +1249,53 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
 }
 
 async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: string) {
+  const listingId = String(args.listing_id ?? '')
+  if (!listingId) {
+    return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+  }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
+
+  // All buyer checkout creation starts with the same market-scoped discovery
+  // boundary as get_checkout_options. This verifies Sales Channel membership
+  // before either a flat gateway checkout or a configured Medusa cart can write.
+  let marketSession: { listing?: { listing_type?: string } }
+  try {
+    const validation = await fetch(`${baseUrl}/api/ucp/checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        listing_id: listingId,
+        market: marketDecision.market.code,
+      }),
+    })
+    const data = await validation.json() as {
+      listing?: { listing_type?: string }
+      unavailable?: boolean
+      error?: string
+    }
+    if (!validation.ok) {
+      if (data.unavailable) {
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] }
+      }
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Checkout failed: ${data.error ?? validation.status}` }],
+      }
+    }
+    marketSession = data
+  } catch (error) {
+    return { isError: true, content: [{ type: 'text', text: `Network error: ${String(error)}` }] }
+  }
+
   // Configurator path: a variant_id means this is a multi-variant/tiered
   // listing, which MUST resolve its price through Medusa's own cart —
   // the flat MP/Stripe preference below can't compute a tier price at all
   // (custom-print-products S4 · 4.2).
   if (args.variant_id) {
-    return handleCreateConfiguredCheckout(args)
+    return handleCreateConfiguredCheckout(args, marketDecision.market.code)
   }
 
   // Rental guard (S3.1 cross-review catch): this endpoint charges a bare
@@ -1256,20 +1307,14 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   // failure — this is defense-in-depth on top of that primary fix, not the
   // only guard, so a transient Medusa hiccup shouldn't block every OTHER
   // (non-rental) checkout through this endpoint.
-  try {
-    const listingRes = await fetch(`${MEDUSA_BASE}/store/listings/${String(args.listing_id ?? '')}`, { headers: MEDUSA_HEADERS })
-    if (listingRes.ok) {
-      const listingData = await listingRes.json() as { listing?: { listing_type?: string } }
-      if (listingData.listing?.listing_type === 'rental') {
-        return { isError: true, content: [{ type: 'text', text: 'Este anuncio es una renta — create_checkout no calcula noches × tarifa + depósito y cobraría un monto incorrecto. Usa get_checkout_options con check_in/check_out para obtener el checkout_url correcto.' }] }
-      }
-    }
-  } catch { /* lookup failed — fall through rather than block a non-rental checkout on a transient error */ }
+  if (marketSession.listing?.listing_type === 'rental') {
+    return { isError: true, content: [{ type: 'text', text: 'Este anuncio es una renta — create_checkout no calcula noches × tarifa + depósito y cobraría un monto incorrecto. Usa get_checkout_options con check_in/check_out para obtener el checkout_url correcto.' }] }
+  }
 
   const method = String(args.method ?? 'mercadopago')
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
 
-  const body: Record<string, string> = { listingId: String(args.listing_id) }
+  const body: Record<string, string> = { listingId }
   if (args.buyer_email) body.buyerEmail = String(args.buyer_email)
   if (args.offer_id)    body.offerId    = String(args.offer_id)
 
@@ -1300,7 +1345,7 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
 // into per-cause strings.
 const ARTWORK_DOWNLOAD_ERROR = 'No pudimos descargar o validar el archivo de artwork_url. Usa una URL pública https:// que apunte directo a la imagen.'
 
-async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
+async function handleCreateConfiguredCheckout(args: Record<string, unknown>, marketCode: MarketCode) {
   const listingId = String(args.listing_id ?? '')
   const variantId = String(args.variant_id ?? '')
   const quantity = Math.max(1, Math.floor(Number(args.quantity ?? 1)) || 1)
@@ -1308,7 +1353,7 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
   const provider: CheckoutProvider = method === 'stripe' ? 'stripe' : 'mercadopago'
   const buyerEmail = args.buyer_email ? String(args.buyer_email) : undefined
 
-  const priceGrid = await getPriceGrid(listingId)
+  const priceGrid = await getPriceGrid(listingId, marketCode)
   if (!priceGrid) {
     return { isError: true, content: [{ type: 'text', text: `Listing ${listingId} has no configurator price grid — omit variant_id for a plain listing.` }] }
   }
@@ -1323,8 +1368,13 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
-    if (res.ok) listing = ((await res.json()) as { listing?: Listing }).listing ?? null
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
+    if (res.ok) {
+      const data = await res.json() as { listing?: Listing; market_code?: unknown }
+      if (!verifyMarketFilter(MARKETS[marketCode], data)) {
+        listing = data.listing ?? null
+      }
+    }
   } catch { /* currency/custom-field checks below degrade if this fails */ }
 
   const customFields = getCustomFields(listing?.metadata ?? null)
@@ -1364,6 +1414,7 @@ async function handleCreateConfiguredCheckout(args: Record<string, unknown>) {
       personalization,
       provider,
       buyerEmail,
+      market: marketCode,
     })
     if (result.redirect_url) {
       return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n${restatement}\n\n**Abre este enlace para completar el pago:**\n${result.redirect_url}` }] }

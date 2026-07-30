@@ -39,7 +39,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
           {seller.sellerName.charAt(0).toUpperCase()}
         </div>
         <Link
-          href={`/s/${seller.sellerSlug}`}
+          href={`/mx/s/${seller.sellerSlug}`}
           onClick={closeCart}
           style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', textDecoration: 'none' }}
           className="hover:text-[var(--accent)]"
@@ -185,7 +185,7 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
         Agrega artículos desde cualquier listing para pagar todo en un solo paso.
       </p>
       <Link
-        href="/l"
+        href="/mx/l"
         onClick={onClose}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,

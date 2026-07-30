@@ -41,6 +41,7 @@ export default function RentalBooking({
   bookingUrl,
   rentalPricingEnabled,
   sellerHasPaymentMethod,
+  marketBasePath = '',
 }: {
   listingId: string
   dailyRateCents: number
@@ -53,6 +54,7 @@ export default function RentalBooking({
   rentalPricingEnabled: boolean
   /** Whether the seller has ≥1 online/selectable payment path configured. */
   sellerHasPaymentMethod: boolean
+  marketBasePath?: string
 }) {
   // Today in Mexico City (not UTC) — a UTC `today` rolls to tomorrow after ~18:00
   // local (UTC-6), which would block a same-day check-in. en-CA renders YYYY-MM-DD.
@@ -148,7 +150,7 @@ export default function RentalBooking({
             </>
           ) : (
             <>
-              <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" />
+              <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" marketBasePath={marketBasePath} />
               <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
                 Coordinarás el cobro y el depósito con el vendedor.
               </p>

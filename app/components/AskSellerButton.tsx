@@ -8,6 +8,7 @@ export default function AskSellerButton({
   isSignedIn,
   label = 'Preguntar al vendedor',
   variant = 'button',
+  marketBasePath = '',
 }: {
   listingId: string
   isSignedIn: boolean
@@ -18,6 +19,7 @@ export default function AskSellerButton({
    * (S1.3) where "Preguntar" is demoted below the primary buy / offer actions.
    */
   variant?: 'button' | 'link'
+  marketBasePath?: string
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -25,7 +27,7 @@ export default function AskSellerButton({
 
   async function askSeller() {
     if (!isSignedIn) {
-      router.push(`/sign-in?redirect_url=${encodeURIComponent(`/l/${listingId}`)}`)
+      router.push(`/sign-in?redirect_url=${encodeURIComponent(`${marketBasePath}/l/${listingId}`)}`)
       return
     }
 

@@ -629,6 +629,44 @@ export const getShopListings = unstable_cache(
 )
 
 /**
+ * Country-market view of one seller's catalog.
+ *
+ * Keep this separate from `getShopListings`: that function is the seller-owned
+ * channel and intentionally ignores marketplace Sales Channel membership (D4).
+ * A `/mx/s/:slug` page is marketplace discovery, so it uses the same channel
+ * filter and market-echo verification as the main marketplace grid.
+ */
+export async function getMarketplaceShopListings(
+  sellerSlug: string,
+  market?: unknown,
+): Promise<Listing[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  const qs = new URLSearchParams({ seller_slug: sellerSlug, limit: '100' })
+  const res = await marketCatalogFetch(
+    decision.query,
+    `/store/listings?${qs.toString()}`,
+    { next: { revalidate: CACHE.LISTING, tags: ['listings'] } } as RequestInit,
+  )
+  if (!res.ok) {
+    await unavailableResponseOrThrow(res, decision.market, 'getMarketplaceShopListings')
+    return []
+  }
+  const data = await res.json()
+  const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(
+    decision.market,
+    data,
+    'listings',
+    [],
+  )
+  if (unavailable) {
+    console.error('[listings] marketplace shop market filter unconfirmed', unavailable.reason)
+    return []
+  }
+  return listings
+}
+
+/**
  * A shop's seller-defined collections (own-shop-premium-presentation S2),
  * ordered by the seller's own sort_order. Public read — powers the shop's
  * nav strip on every channel (marketplace/subdomain/custom domain).

@@ -58,13 +58,23 @@ test.describe('market route population', () => {
     expect(offenders).toEqual([])
   })
 
-  test('the only remaining bare cart links are the tenant-safe global drawer', () => {
+  test('platform component links never point at bare marketplace redirect sources', () => {
     const offenders = filesBelow('app').flatMap((file) => {
       const source = readFileSync(file, 'utf8')
       return /href="\/l"|href=\{`\/l\/|href=\{`\/s\//.test(source)
         ? [path.relative(ROOT, file)]
         : []
     })
-    expect(offenders).toEqual(['app/components/CartDrawer.tsx'])
+    expect(offenders).toEqual([])
+  })
+
+  test('every literal MX shop route passes a market decision, not only a URL prefix', () => {
+    const wrappers = filesBelow('app/(shell)/mx/s')
+      .filter((file) => file.endsWith('/page.tsx'))
+    expect(wrappers.length).toBeGreaterThan(5)
+    const offenders = wrappers
+      .filter((file) => !readFileSync(file, 'utf8').includes("market: 'mx'"))
+      .map((file) => path.relative(ROOT, file))
+    expect(offenders).toEqual([])
   })
 })

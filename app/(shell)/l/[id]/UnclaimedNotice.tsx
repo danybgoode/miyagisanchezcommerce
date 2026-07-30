@@ -13,8 +13,14 @@ import { unclaimedNoticeModel } from '@/lib/unclaimed-notice'
  * Presentational Server Component. Copy + claim href live in the pure
  * `unclaimedNoticeModel` seam.
  */
-export default function UnclaimedNotice({ shopSlug }: { shopSlug: string }) {
-  const model = unclaimedNoticeModel(shopSlug)
+export default function UnclaimedNotice({
+  shopSlug,
+  marketBasePath = '',
+}: {
+  shopSlug: string
+  marketBasePath?: string
+}) {
+  const model = unclaimedNoticeModel(shopSlug, marketBasePath)
 
   return (
     <div

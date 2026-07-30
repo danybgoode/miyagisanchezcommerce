@@ -22,6 +22,7 @@ export default function ServiceHero({
   bookingText,
   inclusions,
   description,
+  marketBasePath = '',
 }: {
   listingId: string
   isSignedIn: boolean
@@ -29,6 +30,7 @@ export default function ServiceHero({
   bookingText: string | null
   inclusions: Spec[]
   description: string | null
+  marketBasePath?: string
 }) {
   const model = serviceHeroModel({ bookingUrl, bookingText })
 
@@ -56,10 +58,10 @@ export default function ServiceHero({
             {model.primaryLabel}
           </a>
         ) : (
-          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} />
+          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
         )}
         <div style={{ marginTop: 8, textAlign: 'center' }}>
-          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Preguntar" variant="link" />
+          <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Preguntar" variant="link" marketBasePath={marketBasePath} />
         </div>
       </div>
 

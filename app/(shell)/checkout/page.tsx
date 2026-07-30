@@ -93,7 +93,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const checkIn = Array.isArray(params.checkIn) ? (params.checkIn as unknown as string[])[0] : params.checkIn
   const checkOut = Array.isArray(params.checkOut) ? (params.checkOut as unknown as string[])[0] : params.checkOut
   const rawListingId = params.listingId
-  if (!rawListingId) redirect('/l')
+  if (!rawListingId) redirect('/mx/l')
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
@@ -107,13 +107,13 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // redirected away even though the PDP no longer links here. Shared predicate —
   // see lib/claim.ts (same one the PDP + offers route + checkout-session use).
   const isClaimed = isShopClaimed(listing.shop)
-  if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/l/${listing.id}`)
+  if (!isClaimed || listing.shop?.clerk_user_id === user.id) redirect(`/mx/l/${listing.id}`)
 
   const offerPriceCents = await getAcceptedOfferPrice(offerId, listing.id, user.id)
-  if (offerId && !offerPriceCents) redirect(`/l/${listing.id}?offer=unavailable`)
+  if (offerId && !offerPriceCents) redirect(`/mx/l/${listing.id}?offer=unavailable`)
   let amountCents = offerPriceCents ?? listing.price_cents
-  if (!amountCents || amountCents <= 0) redirect(`/l/${listing.id}`)
-  if (listing.status !== 'active') redirect(`/l/${listing.id}?checkout=unavailable`)
+  if (!amountCents || amountCents <= 0) redirect(`/mx/l/${listing.id}`)
+  if (listing.status !== 'active') redirect(`/mx/l/${listing.id}?checkout=unavailable`)
 
   const isOfferCheckout = !!offerPriceCents
   // An offer is entirely orthogonal to the configurator feature — negotiation
@@ -134,7 +134,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   // unlimited) could wrongly block a buyer whose chosen variant is fine
   // (cross-agent review catch, 2026-07-05) — Medusa's own per-variant
   // reservation at order placement is the real authority for that variant.
-  if (!variantId && listing.in_stock === false) redirect(`/l/${listing.id}?checkout=unavailable`)
+  if (!variantId && listing.in_stock === false) redirect(`/mx/l/${listing.id}?checkout=unavailable`)
 
   // Payment + delivery availability is resolved by Medusa via the checkout-options
   // endpoint (CheckoutExperience fetches it). The page only carries listing context.
@@ -183,7 +183,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   if (isConfiguratorCheckout) {
     const priceGrid = await getPriceGrid(listing.id)
     const resolved = priceGrid ? unitPriceCentsFor(priceGrid, variantId!, quantity) : null
-    if (resolved == null) redirect(`/l/${listing.id}?checkout=unavailable`)
+    if (resolved == null) redirect(`/mx/l/${listing.id}?checkout=unavailable`)
     amountCents = resolved
   }
 
@@ -203,7 +203,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       rateCents: listing.price_cents ?? 0,
       attrs: listing.attrs,
     })
-    if (!result.ok) redirect(`/l/${listing.id}?checkout=unavailable`)
+    if (!result.ok) redirect(`/mx/l/${listing.id}?checkout=unavailable`)
     rentalBreakdown = result.breakdown
     amountCents = result.breakdown.totalCents
   }

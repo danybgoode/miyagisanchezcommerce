@@ -4,21 +4,28 @@ import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/p
 import { isLikelyShopSlug } from '@/lib/route-shape'
 import { getSlugRedirect } from '@/lib/slug-redirect'
 import CollectionPage from '../../../../_shop-collection/CollectionPage'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import type { MarketCode } from '@/lib/markets'
 import type { Metadata } from 'next'
 
 export const revalidate = 120
 
 export async function generateShopCollectionMetadata({
   params,
+  market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string; collection: string }>
+  market?: MarketCode
   marketBasePath?: string
 }): Promise<Metadata> {
   const { slug, collection } = await params
   if (!isLikelyShopSlug(slug)) return { title: 'Colección no encontrada' }
   const shop = await getShop(slug)
   if (!shop) return { title: 'Colección no encontrada' }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) {
+    return { title: 'Colección no encontrada' }
+  }
   // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
   // rather than relying on Next discarding metadata when the body notFound()s —
   // that behavior was asserted in review but never actually verified.
@@ -40,9 +47,11 @@ export const generateMetadata = generateShopCollectionMetadata
 // /s/* home there) — the channel path is app/(shell)/c/[collection]/page.tsx.
 export async function ShopCollectionPage({
   params,
+  market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string; collection: string }>
+  market?: MarketCode
   marketBasePath?: string
 }) {
   const { slug, collection } = await params
@@ -53,6 +62,7 @@ export async function ShopCollectionPage({
     if (current) permanentRedirect(`${marketBasePath}/s/${current}/c/${collection}`)
     notFound()
   }
+  if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
   // Consent-safe previews: never render a preview-private shop's shell.
   await assertShopNotPreviewPrivate(shop)
 
@@ -62,6 +72,7 @@ export async function ShopCollectionPage({
       collectionShortSlug={collection}
       basePath={`${marketBasePath}/s/${shop.slug}`}
       isMarketplaceRoute
+      market={market}
       marketBasePath={marketBasePath}
     />
   )

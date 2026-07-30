@@ -90,7 +90,7 @@ export default async function SweepstakesPage({
       status={active ? 'active' : isEnded || campaign.status === 'completed' ? 'ended' : isTooEarly ? 'not_live' : 'not_live'}
       purchaseBonusEnabled={campaign.purchase_bonus_enabled}
       purchaseTicketValue={campaign.purchase_ticket_value}
-      shopUrl={shop?.slug ? `/s/${shop.slug}` : null}
+      shopUrl={shop?.slug ? `/mx/s/${shop.slug}` : null}
       shopName={shop?.name ?? null}
     />
   )

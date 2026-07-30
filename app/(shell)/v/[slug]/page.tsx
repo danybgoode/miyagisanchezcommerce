@@ -61,7 +61,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
           productId: w.product_id,
           title: listing.title,
           image: listing.images?.[0]?.url ?? null,
-          href: `/l/${w.product_id}`,
+          href: `/mx/l/${w.product_id}`,
           excerptSnippet: snippet,
           hasMoreExcerpt: !!excerpt?.text && excerpt.text.length > EXCERPT_SNIPPET,
         }
@@ -89,7 +89,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ slug:
       open={campaignAcceptsVotes(campaign)}
       works={works}
       shopName={shop?.name ?? null}
-      shopUrl={shop?.slug ? `/s/${shop.slug}` : null}
+      shopUrl={shop?.slug ? `/mx/s/${shop.slug}` : null}
     />
   )
 }
