@@ -12,7 +12,8 @@
  * layer needs no custom_domain lookup of its own.
  */
 
-import { listingUrlFor, marketplaceUrl, shopUrlFor } from './market-url'
+import { listingUrlFor, marketBasePath, marketplaceUrl, shopUrlFor } from './market-url'
+import { DEFAULT_MARKET } from './markets'
 
 export const PLATFORM_ORIGIN = 'https://miyagisanchez.com'
 
@@ -76,8 +77,12 @@ export function passthroughTarget(pathname: string, search: string): string | nu
   if (segments.length < 2) return null
   const prefix = segments[0].toLowerCase()
   if (!PASSTHROUGH_PREFIXES.has(prefix)) return null
+  // The short domain matches the prefix case-insensitively but preserves the
+  // remainder verbatim. `marketplaceUrl` classifies route families
+  // case-sensitively, so use its registry-backed base-path seam here after the
+  // allowlist has already established that this is an s/l marketplace route.
   const target = prefix === 's' || prefix === 'l'
-    ? marketplaceUrl(PLATFORM_ORIGIN, pathname)
+    ? `${PLATFORM_ORIGIN}${marketBasePath(DEFAULT_MARKET)}${pathname}`
     : `${PLATFORM_ORIGIN}${pathname}`
   return `${target}${search || ''}`
 }

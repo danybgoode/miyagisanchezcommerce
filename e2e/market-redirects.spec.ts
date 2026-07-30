@@ -39,6 +39,8 @@ test.describe('one-hop market redirects and tenant isolation', () => {
     expect(shopTarget('bonsai')).toBe('https://miyagisanchez.com/mx/s/bonsai')
     expect(passthroughTarget('/l/prod_123', '?ref=QR')).toBe('https://miyagisanchez.com/mx/l/prod_123?ref=QR')
     expect(passthroughTarget('/s/bonsai/c/libros', '')).toBe('https://miyagisanchez.com/mx/s/bonsai/c/libros')
+    expect(passthroughTarget('/S/Bonsai/c/Libros', '')).toBe('https://miyagisanchez.com/mx/S/Bonsai/c/Libros')
+    expect(passthroughTarget('/L/prod_ABC', '')).toBe('https://miyagisanchez.com/mx/L/prod_ABC')
     expect(passthroughTarget('/g/sorteo', '')).toBe('https://miyagisanchez.com/g/sorteo')
   })
 

@@ -66,6 +66,10 @@ test.describe('shortlink · known-prefix passthrough', () => {
   test('prefix match is case-insensitive; path case is preserved verbatim', () => {
     expect(passthroughTarget('/G/Verano-2026', '')).toBe(`${PLATFORM_ORIGIN}/G/Verano-2026`)
     expect(passthroughTarget('/E/lanzamiento', '')).toBe(`${PLATFORM_ORIGIN}/E/lanzamiento`)
+    expect(passthroughTarget('/S/Mi-Tienda', '?ref=QR'))
+      .toBe(`${PLATFORM_ORIGIN}/mx/S/Mi-Tienda?ref=QR`)
+    expect(passthroughTarget('/L/prod_ABC', ''))
+      .toBe(`${PLATFORM_ORIGIN}/mx/L/prod_ABC`)
   })
 
   test('query string is preserved verbatim alongside the path', () => {
