@@ -68,6 +68,15 @@ test.describe('market route population', () => {
     expect(offenders).toEqual([])
   })
 
+  test('the global cart always hops from tenant channels to canonical platform destinations', () => {
+    const source = readFileSync(path.join(ROOT, 'app/components/CartDrawer.tsx'), 'utf8')
+    expect(source).toContain('shopUrlFor(SITE_ORIGIN, seller.sellerSlug)')
+    expect(source).toContain("marketplaceUrl(SITE_ORIGIN, '/l')")
+    expect(source).toContain('`${SITE_ORIGIN}/checkout/bundle?sellerId=${encodeURIComponent(sellerId)}`')
+    expect(source).not.toMatch(/href=\{?['"`]\/mx\//)
+    expect(source).not.toMatch(/href=\{`\/checkout\/bundle/)
+  })
+
   test('seller management success surfaces emit canonical marketplace shop URLs', () => {
     const expected = [
       'app/(shell)/shop/manage/import/ImportClient.tsx',

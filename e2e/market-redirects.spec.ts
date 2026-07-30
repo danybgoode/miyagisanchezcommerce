@@ -42,6 +42,15 @@ test.describe('one-hop market redirects and tenant isolation', () => {
     expect(passthroughTarget('/g/sorteo', '')).toBe('https://miyagisanchez.com/g/sorteo')
   })
 
+  test('shortlinks delegate marketplace URL construction to the shared origin-aware seam', () => {
+    const source = readFileSync(join(ROOT, 'lib/shortlink.ts'), 'utf8')
+    expect(source).toContain("from './market-url'")
+    expect(source).toContain('shopUrlFor(PLATFORM_ORIGIN, slug)')
+    expect(source).toContain('listingUrlFor(PLATFORM_ORIGIN, productId)')
+    expect(source).toContain("marketplaceUrl(PLATFORM_ORIGIN, '/')")
+    expect(source).not.toMatch(/`\$\{PLATFORM_ORIGIN\}\/mx\/[sl]/)
+  })
+
   test('tenant origins never receive a country prefix', () => {
     expect(marketplaceUrl('https://bonsai.miyagisanchez.com', '/l/prod_123')).toBe(
       'https://bonsai.miyagisanchez.com/l/prod_123',

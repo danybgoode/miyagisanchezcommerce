@@ -639,9 +639,11 @@ export const getShopListings = unstable_cache(
 export async function getMarketplaceShopListings(
   sellerSlug: string,
   market?: unknown,
-): Promise<Listing[]> {
+): Promise<{ listings: Listing[] } & MarketScopedMeta> {
   const decision = planMarketCatalogRead(market)
-  if (isMarketUnavailable(decision)) return []
+  if (isMarketUnavailable(decision)) {
+    return { listings: [], ...marketMetaUnavailable(decision) }
+  }
   const qs = new URLSearchParams({ seller_slug: sellerSlug, limit: '100' })
   const res = await marketCatalogFetch(
     decision.query,
@@ -649,8 +651,12 @@ export async function getMarketplaceShopListings(
     { next: { revalidate: CACHE.LISTING, tags: ['listings'] } } as RequestInit,
   )
   if (!res.ok) {
-    await unavailableResponseOrThrow(res, decision.market, 'getMarketplaceShopListings')
-    return []
+    const unavailable = await unavailableResponseOrThrow(
+      res,
+      decision.market,
+      'getMarketplaceShopListings',
+    )
+    return { listings: [], ...marketMetaUnavailable(unavailable) }
   }
   const data = await res.json()
   const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(
@@ -661,9 +667,9 @@ export async function getMarketplaceShopListings(
   )
   if (unavailable) {
     console.error('[listings] marketplace shop market filter unconfirmed', unavailable.reason)
-    return []
+    return { listings, ...marketMetaUnavailable(unavailable) }
   }
-  return listings
+  return { listings, ...marketMetaFor(decision.market) }
 }
 
 /**

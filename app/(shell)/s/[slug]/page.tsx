@@ -138,10 +138,20 @@ export async function ShopPage({
     ? ''
     : `${marketBasePath}/s/${shop.slug}`
 
-  const [listings, allCollections] = await Promise.all([
-    market ? getMarketplaceShopListings(shop.slug, market) : getShopListings(shop.slug),
+  const [listingRead, allCollections] = await Promise.all([
+    market
+      ? getMarketplaceShopListings(shop.slug, market)
+      : getShopListings(shop.slug).then((listings) => ({
+          listings,
+          market_code: null,
+          market_unavailable: null,
+        })),
     getShopCollections(shop.slug),
   ])
+  // A refused/mismatched catalog is unavailable, not an empty successful shop.
+  // Rendering the latter would cache and index a confident falsehood.
+  if (listingRead.market_unavailable) notFound()
+  const listings = listingRead.listings
   const publishedCollectionHandles = new Set(listings.flatMap((listing) => listing.collections ?? []))
   const collections = market
     ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))

@@ -50,10 +50,20 @@ export default async function CollectionPage({
   // isLikelyListingId's role on the sibling routes).
   if (!isLikelyCollectionSlug(collectionShortSlug)) notFound()
 
-  const [allCollections, allListings] = await Promise.all([
+  const [allCollections, listingRead] = await Promise.all([
     getShopCollections(shop.slug),
-    market ? getMarketplaceShopListings(shop.slug, market) : getShopListings(shop.slug),
+    market
+      ? getMarketplaceShopListings(shop.slug, market)
+      : getShopListings(shop.slug).then((listings) => ({
+          listings,
+          market_code: null,
+          market_unavailable: null,
+        })),
   ])
+  // Do not collapse a missing/mismatched market echo into a healthy empty
+  // collection: those are different facts and only the latter may render.
+  if (listingRead.market_unavailable) notFound()
+  const allListings = listingRead.listings
   const publishedCollectionHandles = new Set(allListings.flatMap((listing) => listing.collections ?? []))
   const collections = market
     ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))

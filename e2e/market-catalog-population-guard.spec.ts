@@ -554,13 +554,35 @@ test.describe('population guard · marketplace shop routes do not use owner inve
     expect(body).not.toContain('ownershipScopedFetch')
   })
 
-  test('shop home selects owner inventory only when no country market was supplied', () => {
+  test('marketplace shop reads preserve unavailable as a third state, never empty success', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'listings.ts'), 'utf8'))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'getMarketplaceShopListings')?.body
+    expect(body, 'getMarketplaceShopListings must remain a distinct market-scoped seam').toBeTruthy()
+    expect(body).toContain('marketMetaUnavailable')
+    expect(body).toContain('marketMetaFor')
+    expect(body).not.toMatch(/return\s+\[\]/)
+  })
+
+  test('shop home selects owner inventory only when no country market was supplied and surfaces refusal', () => {
     const stripped = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 's', '[slug]', 'page.tsx'), 'utf8'))
     const body = topLevelBlocks(stripped).find((block) => block.name === 'ShopPage')?.body
     expect(body, 'ShopPage no longer exists — re-point this guard').toBeTruthy()
     expect(body).toContain('readPublicSellerMarket')
     expect(body).toContain('getMarketplaceShopListings')
-    expect(body).toMatch(/market\s*\?\s*getMarketplaceShopListings\(\s*shop\.slug\s*,\s*market\s*\)\s*:\s*getShopListings\(\s*shop\.slug\s*\)/)
+    expect(body).toContain('market_unavailable')
+    expect(body).toContain('notFound()')
+  })
+
+  test('marketplace collection pages surface catalog refusal instead of claiming an empty collection', () => {
+    const stripped = stripComments(readFileSync(
+      join(ROOT, 'app', '(shell)', '_shop-collection', 'CollectionPage.tsx'),
+      'utf8',
+    ))
+    const body = topLevelBlocks(stripped).find((block) => block.name === 'CollectionPage')?.body
+    expect(body, 'CollectionPage no longer exists — re-point this guard').toBeTruthy()
+    expect(body).toContain('getMarketplaceShopListings')
+    expect(body).toContain('market_unavailable')
+    expect(body).toContain('notFound()')
   })
 
   test('Mexico shop wrappers pass the market separately from the URL prefix', () => {
