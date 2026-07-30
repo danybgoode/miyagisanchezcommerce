@@ -24,11 +24,24 @@ const isProd = new URL(baseURL).host === 'miyagisanchez.com'
 
 test.describe('panfleto rename — alias redirect', () => {
   test('/s/miyagiprints redirects in one hop to /mx/s/panfleto once renamed', async ({ request }) => {
+    // Detect the fixture at the canonical page seam first. A bare `/s/*`
+    // request always receives the market-cutover 308 now, even when no retired
+    // alias exists, so its status alone can no longer activate this test.
+    const canonical = await request.get('/mx/s/miyagiprints', { maxRedirects: 0 })
+    const canonicalLocation = canonical.headers()['location'] ?? ''
+    const canonicalTarget = canonicalLocation
+      ? new URL(canonicalLocation, baseURL).pathname
+      : null
+    test.skip(
+      canonical.status() !== 308 || canonicalTarget !== '/mx/s/panfleto',
+      'miyagiprints not renamed to panfleto in this environment yet',
+    )
+
     const res = await request.get('/s/miyagiprints?ref=QR', { maxRedirects: 0 })
     // Platform legacy paths use the market-cutover 308. Alias resolution must
     // be composed into that same response: `/mx/s/miyagiprints` as an
     // intermediate target would silently recreate a two-hop redirect chain.
-    test.skip(res.status() !== 308, 'miyagiprints not renamed to panfleto in this environment yet')
+    expect(res.status()).toBe(308)
     const location = res.headers()['location'] ?? ''
     const target = new URL(location, baseURL)
     expect(target.pathname).toBe('/mx/s/panfleto')
