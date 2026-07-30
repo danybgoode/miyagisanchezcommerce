@@ -272,11 +272,12 @@ const TOOLS = [
   },
   {
     name: 'make_offer',
-    description: "Submit a price offer on a listing. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
+    description: "Submit a price offer on a listing in one country market. `market` temporarily defaults to `mx`. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'offer_amount', 'buyer_name', 'buyer_email'],
       properties: {
+        market:        { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id:    { type: 'string', description: 'Listing UUID' },
         offer_amount:  { type: 'number', description: 'Your offer in MXN pesos (e.g. 1500 = $1,500)' },
         buyer_name:    { type: 'string', description: 'Your name' },
@@ -300,11 +301,12 @@ const TOOLS = [
   },
   {
     name: 'check_availability',
-    description: "Check available appointment slots for a listing. Returns the next available days and time slots from the seller's Cal.com calendar. Use before book_appointment to show the buyer what times are available.",
+    description: "Check available appointment slots for a listing in one country market. `market` temporarily defaults to `mx`. Returns the next available days and time slots from the seller's Cal.com calendar. Use before book_appointment to show the buyer what times are available.",
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
       properties: {
+        market:     { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id: { type: 'string', description: 'Listing UUID' },
         date_from:  { type: 'string', description: 'Start date to check (YYYY-MM-DD). Defaults to today.' },
         date_to:    { type: 'string', description: 'End date to check (YYYY-MM-DD). Defaults to 7 days from today.' },
@@ -314,11 +316,12 @@ const TOOLS = [
   },
   {
     name: 'book_appointment',
-    description: 'Book an appointment slot for a listing — schedules a visit, test drive, or meeting with the seller. Returns booking confirmation with a unique ID.',
+    description: 'Book an appointment slot for a listing in one country market — schedules a visit, test drive, or meeting with the seller. `market` temporarily defaults to `mx`. Returns booking confirmation with a unique ID.',
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'start_time', 'buyer_name', 'buyer_email'],
       properties: {
+        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
         listing_id:  { type: 'string', description: 'Listing UUID' },
         start_time:  { type: 'string', description: 'ISO 8601 datetime of the desired slot (from check_availability)' },
         buyer_name:  { type: 'string', description: 'Full name of the person booking' },
@@ -1513,13 +1516,21 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
   if (!listingId || isNaN(amount) || !buyerName || !buyerEmail) {
     return { isError: true, content: [{ type: 'text', text: 'Missing required fields: listing_id, offer_amount, buyer_name, buyer_email' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let listing: { id: string; title: string; price_cents: number | null; listing_type: string } | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
     if (res.ok) {
-      const d = await res.json() as { listing?: Listing }
-      if (d.listing?.status === 'active') listing = d.listing
+      const data = await res.json() as { listing?: Listing; market_code?: unknown }
+      const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+      if (unconfirmedMarket) {
+        return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+      }
+      if (data.listing?.status === 'active') listing = data.listing
     }
   } catch { /* listing stays null */ }
 
@@ -1621,13 +1632,14 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   }
 }
 
-async function getShopCalcom(listingId: string): Promise<{
+async function getShopCalcom(listingId: string, marketCode: MarketCode): Promise<{
   apiKey: string; eventTypeId: number; bookingUrl: string; listing: { title: string; category: string | null }
 } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return null
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    if (verifyMarketFilter(MARKETS[marketCode], data)) return null
     const listing = data.listing
     if (!listing?.shop) return null
     const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
@@ -1650,11 +1662,15 @@ async function getShopCalcom(listingId: string): Promise<{
 
 // ── Link-only scheduling fallback ─────────────────────────────────────────────
 
-async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: string; label: string; title: string } | null> {
+async function getShopSchedulingLinks(
+  listingId: string,
+  marketCode: MarketCode,
+): Promise<{ bookingUrl: string; label: string; title: string } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return null
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    if (verifyMarketFilter(MARKETS[marketCode], data)) return null
     const listing = data.listing
     if (!listing?.shop) return null
     const shopMeta = (listing.shop.metadata ?? {}) as Record<string, unknown>
@@ -1670,11 +1686,15 @@ async function getShopSchedulingLinks(listingId: string): Promise<{ bookingUrl: 
 async function handleCheckAvailability(args: Record<string, unknown>) {
   const listingId = String(args.listing_id ?? '')
   if (!listingId) return { isError: true, content: [{ type: 'text', text: 'listing_id is required' }] }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const cal = await getShopCalcom(listingId)
+  const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
     // Try link-only fallback — seller pasted a booking link without an API key
-    const linkSchedule = await getShopSchedulingLinks(listingId)
+    const linkSchedule = await getShopSchedulingLinks(listingId, marketDecision.market.code)
     if (!linkSchedule) {
       return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled. Use the booking_url from get_listing to book directly.' }] }
     }
@@ -1746,11 +1766,15 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   if (!listingId || !startTime || !buyerName || !buyerEmail) {
     return { isError: true, content: [{ type: 'text', text: 'Required: listing_id, start_time, buyer_name, buyer_email' }] }
   }
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
-  const cal = await getShopCalcom(listingId)
+  const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
     // Try link-only fallback
-    const linkSchedule = await getShopSchedulingLinks(listingId)
+    const linkSchedule = await getShopSchedulingLinks(listingId, marketDecision.market.code)
     if (!linkSchedule) {
       return { isError: true, content: [{ type: 'text', text: 'This listing does not have scheduling enabled.' }] }
     }

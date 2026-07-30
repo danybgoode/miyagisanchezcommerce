@@ -142,6 +142,46 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(shopHandler).toContain('verifyMarketFilter(marketDecision.market, data)')
     expect(shopHandler).toContain('marketDecision.market.code')
 
+    const offerTool = source.slice(
+      source.indexOf("name: 'make_offer'"),
+      source.indexOf("name: 'get_shop'"),
+    )
+    const offerHandler = source.slice(
+      source.indexOf('async function handleMakeOffer'),
+      source.indexOf('async function handleGetShop'),
+    )
+    expect(offerTool).toContain('market:')
+    expect(offerHandler).toContain('planMarketCatalogRead(args.market)')
+    expect(offerHandler).toContain('verifyMarketFilter(marketDecision.market, data)')
+
+    for (const [toolName, nextTool] of [
+      ['check_availability', 'book_appointment'],
+      ['book_appointment', 'get_buyer_trust'],
+    ]) {
+      const tool = source.slice(
+        source.indexOf(`name: '${toolName}'`),
+        source.indexOf(`name: '${nextTool}'`),
+      )
+      expect(tool, toolName).toContain('market:')
+    }
+    for (const [handlerName, nextHandler] of [
+      ['handleCheckAvailability', 'handleBookAppointment'],
+      ['handleBookAppointment', 'handleGetBuyerTrust'],
+    ]) {
+      const handler = source.slice(
+        source.indexOf(`async function ${handlerName}`),
+        source.indexOf(`async function ${nextHandler}`),
+      )
+      expect(handler, handlerName).toContain('planMarketCatalogRead(args.market)')
+      expect(handler, handlerName).toContain('marketDecision.market.code')
+    }
+    const schedulingReaders = source.slice(
+      source.indexOf('async function getShopCalcom'),
+      source.indexOf('async function handleGetBuyerTrust'),
+    )
+    expect(schedulingReaders).toContain('?market=${marketCode}')
+    expect(schedulingReaders).toContain('verifyMarketFilter(MARKETS[marketCode], data)')
+
     const pulseTool = source.slice(
       source.indexOf("name: 'get_neighborhood_pulse'"),
       source.indexOf("name: 'get_listing'"),

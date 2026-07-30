@@ -77,7 +77,8 @@ test.describe('market route population', () => {
     for (const file of expected) {
       const source = readFileSync(path.join(ROOT, file), 'utf8')
       expect(source, file).toContain('/mx/s/')
-      expect(source, file).not.toMatch(/(?:liveUrl|shareUrl|publicUrl)=\{?`?\/s\//)
+      const withoutCanonicalMxPaths = source.replaceAll('/mx/s/', '')
+      expect(withoutCanonicalMxPaths, file).not.toMatch(/\/s\/(?:\$\{|\{)/)
     }
     const comparte = readFileSync(
       path.join(ROOT, 'app/(shell)/shop/manage/comparte/ComparteClient.tsx'),

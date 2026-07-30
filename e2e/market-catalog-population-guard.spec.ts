@@ -459,6 +459,51 @@ test.describe('population guard · D10 agent surfaces are market-scoped', () => 
     })
   }
 
+  const MCP_SOURCE = stripComments(readFileSync(join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8'))
+  const MCP_BLOCKS = topLevelBlocks(MCP_SOURCE)
+  const MCP_OWNER_EXEMPTIONS = new Set([
+    // Seller-agent writes recompute the owner's price-grid after an authenticated
+    // ownership check. D4: these must not depend on marketplace publication.
+    'handleConfigureListingOptions',
+    'handleApplyPrice',
+  ])
+  const MCP_DIRECT_CATALOG_READERS = MCP_BLOCKS.filter((block) =>
+    block.body.includes('${MEDUSA_BASE}/store/listings'),
+  )
+
+  test('the MCP block scan discovers every direct catalog reader, not only the file', () => {
+    const names = MCP_DIRECT_CATALOG_READERS.map((block) => block.name)
+    expect(names).toContain('handleMakeOffer')
+    expect(names).toContain('getShopCalcom')
+    expect(names).toContain('getShopSchedulingLinks')
+    expect(names).toContain('handleGetShop')
+  })
+
+  for (const block of MCP_DIRECT_CATALOG_READERS) {
+    if (MCP_OWNER_EXEMPTIONS.has(block.name)) continue
+    test(`MCP ${block.name} carries and verifies a country market`, () => {
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without receiving a planned market`,
+      ).toMatch(/marketDecision\.market|marketCode/)
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without putting market on the request`,
+      ).toMatch(/[?&]market=|params\.set\('market'|marketDecision\.query/)
+      expect(
+        block.body,
+        `${block.name} reads the public catalog without checking the backend echo`,
+      ).toContain('verifyMarketFilter')
+    })
+  }
+
+  test('every MCP direct-catalog exemption still exists and is seller-owned', () => {
+    const names = new Set(MCP_DIRECT_CATALOG_READERS.map((block) => block.name))
+    for (const exemption of MCP_OWNER_EXEMPTIONS) {
+      expect(names.has(exemption), `stale MCP owner exemption: ${exemption}`).toBe(true)
+    }
+  })
+
   const MARKET_PRICE_GRID_READERS = [
     {
       file: 'app/(shell)/l/[id]/page.tsx',
