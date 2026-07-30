@@ -660,7 +660,7 @@ function LoopClose({ shopSlug }: { shopSlug: string | null }) {
           <li>
             <i className="iconoir-link" aria-hidden /> <strong className="text-[var(--color-foreground)] font-medium">Comparte tu tienda</strong>
             {shopSlug
-              ? <> — tu enlace público es <Link href={`/s/${shopSlug}`} className="text-[var(--color-accent)] hover:underline">/s/{shopSlug}</Link>.</>
+              ? <> — tu enlace público es <Link href={`/mx/s/${shopSlug}`} className="text-[var(--color-accent)] hover:underline">/mx/s/{shopSlug}</Link>.</>
               : <> desde el panel de tu tienda.</>}
           </li>
           <li>

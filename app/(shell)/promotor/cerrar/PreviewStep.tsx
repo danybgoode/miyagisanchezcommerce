@@ -137,7 +137,7 @@ export default function PreviewStep({ shop, n }: { shop: Shop; n: number }) {
       {activated ? (
         <p className="text-sm text-[color:var(--success)]">
           <i className="iconoir-check-circle" aria-hidden /> La tienda ya es pública —{' '}
-          <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>.
+          <a className="underline" href={`/mx/s/${shop.slug}`} target="_blank" rel="noreferrer">/mx/s/{shop.slug}</a>.
         </p>
       ) : (
         <>

@@ -35,7 +35,13 @@ function StateMessage({ title, body }: { title: string; body: string }) {
   )
 }
 
-export default async function ConvocatoriaPage({ params }: { params: Promise<{ slug: string }> }) {
+export async function ConvocatoriaPage({
+  params,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  marketBasePath?: string
+}) {
   const { slug } = await params
   const [enabled, shop] = await Promise.all([isEnabled('launchpad.enabled'), getLaunchpadShopBySlug(slug)])
 
@@ -67,7 +73,7 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
     <main className="min-h-screen bg-[var(--color-background)]">
       <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10">
         <div className="mb-6">
-          <Link href={`/s/${shop.slug}`} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
+          <Link href={`${marketBasePath}/s/${shop.slug}`} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
             ← {shop.name}
           </Link>
           <h1 className="text-3xl sm:text-4xl font-bold mt-3 leading-tight">Convocatoria de manuscritos</h1>
@@ -95,3 +101,5 @@ export default async function ConvocatoriaPage({ params }: { params: Promise<{ s
     </main>
   )
 }
+
+export default ConvocatoriaPage

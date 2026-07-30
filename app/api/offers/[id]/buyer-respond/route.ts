@@ -144,7 +144,7 @@ export async function PATCH(
             offer_id: id,
           },
           success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/l/${listing.id}?offer=cancelled`,
+          cancel_url: `${origin}/mx/l/${listing.id}?offer=cancelled`,
         })
         checkoutSessionId = session.id
         checkoutExpires = new Date(expiresAt * 1000).toISOString()
@@ -164,7 +164,7 @@ export async function PATCH(
       checkout_expires_at: checkoutExpires,
     }).eq('id', id)
 
-    const listingUrl = `${origin}/l/${listing.id}`
+    const listingUrl = `${origin}/mx/l/${listing.id}`
     const conversationUrl = await getConversationUrl()
 
     emitConvEvent('offer_accepted', 'system', { amount_cents: acceptedCents, currency: listing.currency }, true).catch(e => console.error('[conv] accept-counter event:', e))

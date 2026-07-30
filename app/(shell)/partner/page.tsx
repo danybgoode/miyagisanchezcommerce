@@ -146,7 +146,7 @@ export default async function PartnerDashboardPage({
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0 text-sm">
-                <a href={`/s/${g.shop.slug}`} target="_blank" rel="noreferrer" className="underline">
+                <a href={`/mx/s/${g.shop.slug}`} target="_blank" rel="noreferrer" className="underline">
                   Ver tienda
                 </a>
                 <a href="/shop/manage" className="underline">

@@ -76,7 +76,7 @@ export default async function PlatformShell({
                   primary control (PWA Liquid-Glass Nav Polish S2.2). Desktop
                   search is a separate block below and is untouched. */}
               <form
-                action="/l"
+                action="/mx/l"
                 method="GET"
                 className="pwa-hidden"
                 style={{ flex: 1, minWidth: 0 }}
@@ -200,7 +200,7 @@ export default async function PlatformShell({
                   minWidth: 0,
                 }}
               >
-                <form action="/l" method="GET" style={{ flex: 1, maxWidth: 440, minWidth: 0 }}>
+                <form action="/mx/l" method="GET" style={{ flex: 1, maxWidth: 440, minWidth: 0 }}>
                   <div style={{ position: 'relative' }}>
                     <i
                       className="iconoir-search"
@@ -312,7 +312,7 @@ export default async function PlatformShell({
           style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
         >
           <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
-          <Link href="/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+          <Link href="/mx/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
           <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
           <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
           <AuthShow when="signed-out">

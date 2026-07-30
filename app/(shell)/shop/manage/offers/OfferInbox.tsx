@@ -206,7 +206,7 @@ function OfferCard({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <Link href={`/l/${listing.id}`}
+            <Link href={`/mx/l/${listing.id}`}
               className="text-sm font-semibold text-[var(--color-text)] hover:text-[var(--color-accent)] truncate block no-underline">
               {listing.title}
             </Link>
@@ -436,7 +436,7 @@ export default function OfferInbox({ shopId, shopSlug, initialOffers, convByOffe
               <p className="text-sm text-[var(--color-muted)] mb-4">
                 Cuando los compradores hagan ofertas en tus anuncios, aparecerán aquí.
               </p>
-              <Link href={`/s/${shopSlug}`}
+              <Link href={`/mx/s/${shopSlug}`}
                 className="text-sm text-[var(--color-accent)] no-underline hover:underline">
                 Ver tu tienda →
               </Link>

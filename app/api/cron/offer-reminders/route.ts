@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     const listing = raw.marketplace_listings
     const shop = listing.marketplace_shops
     const currency = listing.currency
-    const listingUrl = `https://miyagisanchez.com/l/${listing.id}`
+    const listingUrl = `https://miyagisanchez.com/mx/l/${listing.id}`
     const askingPrice = fmt(listing.price_cents, currency)
     const offerAmount = fmt(raw.offer_amount_cents, currency)
     const offerPct = Math.round((raw.offer_amount_cents / listing.price_cents) * 100)

@@ -2,7 +2,7 @@
  * lib/slug.ts
  *
  * Shared, dependency-free helpers for the seller-chosen shop slug
- * (`miyagisanchez.com/s/[slug]`). Used by the slug field at shop creation, the
+ * (`miyagisanchez.com/mx/s/[slug]`). Used by the slug field at shop creation, the
  * slug editor in settings, and the availability API.
  *
  * The slug is authoritative in Medusa (`seller.slug`, unique). These rules MUST

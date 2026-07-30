@@ -77,7 +77,7 @@ export default async function FavoritesPage() {
           <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
             Guarda artículos con el corazón para seguir sus precios y no perderlos de vista.
           </p>
-          <Link href="/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+          <Link href="/mx/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
             <i className="iconoir-search" style={{ fontSize: 16 }} />
             Explorar anuncios
           </Link>
@@ -93,7 +93,7 @@ export default async function FavoritesPage() {
 
               return (
                 <div key={fav.id} style={{ position: 'relative', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: 'var(--bg-elevated)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)' }}>
-                  <Link href={`/l/${listing.medusa_product_id}`} className="no-underline block">
+                  <Link href={`/mx/l/${listing.medusa_product_id}`} className="no-underline block">
                     <div style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                       {listing.images?.[0] ? (
                         <img src={listing.images[0].url} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

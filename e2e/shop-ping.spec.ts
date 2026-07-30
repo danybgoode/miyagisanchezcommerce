@@ -9,18 +9,18 @@ import { newShopPingText, shouldPingShopCreate } from '../lib/shop-notify'
  * re-POST/idempotent branch" contract. Pure-logic — no network, no auth.
  */
 test.describe('new-shop ping · message + net-new contract', () => {
-  test('builds the ops-chat string with name, location, and the /s/<slug> deep link', () => {
+  test('builds the ops-chat string with name, location, and the /mx/s/<slug> deep link', () => {
     const text = newShopPingText('Acme', 'CDMX', 'acme')
     expect(text).toContain('🏪')
     expect(text).toContain('Nueva tienda reclamada')
     expect(text).toContain('Acme')
-    expect(text).toContain('miyagisanchez.com/s/acme')
+    expect(text).toContain('miyagisanchez.com/mx/s/acme')
   })
 
   test('omits the location segment when location is null', () => {
     const text = newShopPingText('Acme', null, 'acme')
     expect(text).not.toContain(' · ')
-    expect(text).toContain('miyagisanchez.com/s/acme')
+    expect(text).toContain('miyagisanchez.com/mx/s/acme')
   })
 
   test('HTML-escapes the shop name (parse_mode: HTML body)', () => {

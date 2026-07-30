@@ -96,7 +96,7 @@ export async function GET() {
             fontWeight: 700,
           }}
         >
-          miyagisanchez.com/s/{shop.slug}
+          miyagisanchez.com/mx/s/{shop.slug}
         </div>
       </div>
     ),

@@ -32,11 +32,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       name: 'miyagisanchez-ucp',
-      description: 'Miyagi Sánchez — Universal Commerce Protocol API. A P2P marketplace for Mexico with native AI agent support: browse listings, compare prices, make offers, and complete checkout without leaving your AI interface.',
+      description: 'Miyagi Sánchez — Universal Commerce Protocol API for a commerce system with country markets and independent owned-shop channels. Mexico is the active marketplace; other markets fail closed until opened.',
       version: '1.0',
       base_url: base,
-      locale: 'es-MX',
-      currency: 'MXN',
+      default_market: 'mx',
 
       // Canonical capability slugs — single source of truth in lib/ucp/capabilities.ts.
       capabilities: UCP_CAPABILITIES,
@@ -52,9 +51,10 @@ export async function GET(req: NextRequest) {
         catalog: {
           method: 'GET',
           url: `${base}/api/ucp/catalog`,
-          description: 'Search and filter active listings. Supports full-text (Spanish), category, price range, location, condition, and automotive/real-estate metadata filters.',
+          description: 'Search and filter active listings in one country market. `market` temporarily defaults to mx; invitation markets return a structured unavailable response.',
           auth: 'none',
           params: {
+            market:        'mx | us (temporary default: mx; us is invitation-only)',
             q:            'Full-text search query (Spanish websearch syntax)',
             category:     'autos | inmuebles | electronica | hogar | moda | deportes | servicios | mascotas | herramientas | negocios | otros',
             listing_type: 'product | service | rental | digital',
@@ -82,6 +82,9 @@ export async function GET(req: NextRequest) {
           url: `${base}/api/ucp/catalog/{id}`,
           description: 'Get full UCP detail for a single listing including all trust signals, payment methods, and checkout URLs.',
           auth: 'none',
+          params: {
+            market: 'mx | us (temporary default: mx)',
+          },
         },
 
         neighborhood_pulse: {

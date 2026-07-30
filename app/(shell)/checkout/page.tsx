@@ -210,7 +210,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   return (
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
       <div style={{ marginBottom: 18 }}>
-        <Link href={`/l/${listing.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
+        <Link href={`/mx/l/${listing.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
           Volver al anuncio
         </Link>

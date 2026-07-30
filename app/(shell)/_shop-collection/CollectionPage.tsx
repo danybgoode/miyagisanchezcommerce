@@ -29,11 +29,13 @@ export default async function CollectionPage({
   collectionShortSlug,
   basePath,
   isMarketplaceRoute,
+  marketBasePath = '',
 }: {
   shop: Shop
   collectionShortSlug: string
   basePath: string
   isMarketplaceRoute: boolean
+  marketBasePath?: string
 }) {
   // Cheap shape guard before any Medusa fetch (mirrors isLikelyShopSlug/
   // isLikelyListingId's role on the sibling routes).
@@ -111,7 +113,7 @@ export default async function CollectionPage({
                   imageUrl: listing.images?.[0]?.url ?? null,
                   listing_type: listing.listing_type ?? 'product',
                   paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled },
-                  href: `/l/${listing.id}`,
+                  href: `${marketBasePath}/l/${listing.id}`,
                   formattedPrice: formatPrice(listing),
                   status: listing.status,
                   hasExcerpt: hasExcerpt(listing.metadata),

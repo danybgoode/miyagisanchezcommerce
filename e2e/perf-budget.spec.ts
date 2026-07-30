@@ -72,7 +72,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   })
 
   test('the homepage LCP element (Selección featured card) uses next/image with priority', () => {
-    const page = read('app/(site)/page.tsx')
+    const page = read('app/(site)/mx/page.tsx')
     expect(page).toMatch(/import Image from 'next\/image'/)
     const featuredBlock = page.slice(page.indexOf('Featured card'), page.indexOf('Grid — price 16px'))
     expect(featuredBlock).not.toMatch(/<img\s/)
@@ -88,7 +88,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   })
 
   test('the Selección grid marks only the first row (idx < 2) as priority', () => {
-    const page = read('app/(site)/page.tsx')
+    const page = read('app/(site)/mx/page.tsx')
     const gridBlock = page.slice(page.indexOf('Grid — price 16px'), page.indexOf('Categorías —'))
     expect(gridBlock).not.toMatch(/<img\s/)
     // Same tag-scoping as the featured-card check above.

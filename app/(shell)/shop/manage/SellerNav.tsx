@@ -304,7 +304,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
             ))}
             {shopSlug && (
               <Link
-                href={`/s/${shopSlug}`}
+                href={`/mx/s/${shopSlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMoreOpen(false)}

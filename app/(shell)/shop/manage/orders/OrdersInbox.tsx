@@ -437,7 +437,7 @@ export default function OrdersInbox({
               <p className="text-sm text-[var(--color-muted)] mb-4 max-w-xs mx-auto">
                 Cuando los compradores paguen tus productos, aparecerán aquí.
               </p>
-              <Link href={`/s/${shop.slug}`}
+              <Link href={`/mx/s/${shop.slug}`}
                 className="text-sm text-[var(--color-accent)] no-underline hover:underline">
                 Ver tu tienda →
               </Link>

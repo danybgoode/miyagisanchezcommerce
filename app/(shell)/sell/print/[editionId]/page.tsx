@@ -68,7 +68,7 @@ export default async function PrintAdBuilderPage({ params, searchParams }: {
       id: l.id,
       title: l.title,
       image: l.images?.[0]?.url ?? null,
-      url: `${SITE_URL}/l/${l.id}`,
+      url: `${SITE_URL}/mx/l/${l.id}`,
     }))
 
   return (

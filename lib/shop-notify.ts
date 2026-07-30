@@ -25,10 +25,10 @@ function esc(s: string | number): string {
  * The exact ops-chat string for a newly created/claimed shop:
  *   🏪 Nueva tienda reclamada
  *   <name>[ · <location>]
- *   miyagisanchez.com/s/<slug>
+ *   miyagisanchez.com/mx/s/<slug>
  */
 export function newShopPingText(name: string, location: string | null, slug: string): string {
-  return `🏪 <b>Nueva tienda reclamada</b>\n<b>${esc(name)}</b>${location ? ` · ${esc(location)}` : ''}\nmiyagisanchez.com/s/${esc(slug)}`
+  return `🏪 <b>Nueva tienda reclamada</b>\n<b>${esc(name)}</b>${location ? ` · ${esc(location)}` : ''}\nmiyagisanchez.com/mx/s/${esc(slug)}`
 }
 
 /**

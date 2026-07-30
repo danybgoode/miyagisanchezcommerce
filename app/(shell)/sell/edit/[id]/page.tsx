@@ -209,7 +209,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           </span>
           <span className="text-xs text-[var(--color-muted)]">·</span>
           <Link
-            href={`/l/${listing.medusa_product_id ?? listing.id}`}
+            href={`/mx/l/${listing.medusa_product_id ?? listing.id}`}
             target="_blank"
             className="text-xs text-[var(--color-accent)] hover:underline"
           >

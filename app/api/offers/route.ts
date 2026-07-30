@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
   const emailCtx = {
     listingTitle: listing.title,
     listingId,
-    listingUrl: `https://miyagisanchez.com/l/${listingId}`,
+    listingUrl: `https://miyagisanchez.com/mx/l/${listingId}`,
     askingPrice: formatOfferAmount(listing.price_cents!, listing.currency),
     offerAmount: formatOfferAmount(offerAmountCents, listing.currency),
     offerPct,

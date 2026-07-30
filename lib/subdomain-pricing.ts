@@ -8,7 +8,7 @@
  *
  * Pure + next-free → unit-testable by the Playwright `api` runner.
  *
- * The store URL `miyagisanchez.com/s/tu-tienda` stays FREE for everyone forever;
+ * The platform store URL `miyagisanchez.com/mx/s/tu-tienda` stays FREE forever;
  * the paid SKU is the white-label `tu-tienda.miyagisanchez.com` subdomain. Existing
  * shops are grandfathered free (silent; not surfaced in public pricing copy).
  */

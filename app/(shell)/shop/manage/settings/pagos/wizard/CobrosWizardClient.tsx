@@ -143,7 +143,7 @@ export default function CobrosWizardClient({
             <Link href="/shop/manage" className="btn btn-primary flex-1 text-center no-underline">
               Volver a mi Resumen
             </Link>
-            <a href={`/s/${shopSlug}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 text-center no-underline">
+            <a href={`/mx/s/${shopSlug}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary flex-1 text-center no-underline">
               Probar un pago de $10
             </a>
           </div>

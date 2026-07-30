@@ -261,7 +261,7 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
     <Card n={n} title="Montar la tienda">
       {shop ? (
         <p className="text-sm">
-          <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={`/s/${shop.slug}`} target="_blank" rel="noreferrer">/s/{shop.slug}</a>
+          <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={`/mx/s/${shop.slug}`} target="_blank" rel="noreferrer">/mx/s/{shop.slug}</a>
         </p>
       ) : (
         <div className="space-y-3">

@@ -199,13 +199,13 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     // prefs in one place (the standalone notify() push is folded into the seam).
     const declinedMsg = buildBuyerMessage('offer_declined', {
       listingTitle: listing.title,
-      url: `https://miyagisanchez.com/l/${listing.id}`,
+      url: `https://miyagisanchez.com/mx/l/${listing.id}`,
     })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
         sendOfferDeclined({
-          listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+          listingTitle: listing.title, listingUrl: `https://miyagisanchez.com/mx/l/${listing.id}`,
           askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
           offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
           buyerEmail: to, buyerName: offer.buyer_name,
@@ -240,14 +240,14 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     const conversationUrl = await getConversationUrl()
     const counteredMsg = buildBuyerMessage('offer_countered', {
       listingTitle: listing.title,
-      url: conversationUrl ?? `https://miyagisanchez.com/l/${listing.id}`,
+      url: conversationUrl ?? `https://miyagisanchez.com/mx/l/${listing.id}`,
     })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
         sendOfferCountered({
           listingTitle: listing.title, listingId: listing.id,
-          listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+          listingUrl: `https://miyagisanchez.com/mx/l/${listing.id}`,
           askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
           offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
           offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
@@ -267,7 +267,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     sendBuyerCounterExpiryWarning({
       buyerEmail: offer.buyer_email,
       listingTitle: listing.title,
-      listingUrl: `https://miyagisanchez.com/l/${listing.id}`,
+      listingUrl: `https://miyagisanchez.com/mx/l/${listing.id}`,
       counterAmount: formatOfferAmount(counterAmountCents, listing.currency),
       expiresAt: counterExpiresAt,
       conversationUrl,
@@ -320,7 +320,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
           },
           metadata: { listing_id: listing.id, shop_id: listing.marketplace_shops.id, listing_type: listing.listing_type, offer_id: id },
           success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/l/${listing.id}?offer=cancelled`,
+          cancel_url: `${origin}/mx/l/${listing.id}?offer=cancelled`,
         })
         checkoutSessionId = session.id
         checkoutExpires = new Date(expiresAt * 1000).toISOString()
@@ -341,21 +341,21 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
     // standalone notify() push is folded into the seam).
     const acceptedMsg = buildBuyerMessage('offer_accepted', {
       listingTitle: listing.title,
-      url: conversationUrl ?? `${origin}/l/${listing.id}`,
+      url: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
     })
     void dispatchToBuyer(offerBuyer, {
       group: 'buyer.ofertas',
       email: to =>
         sendOfferAccepted({
           listingTitle: listing.title, listingId: listing.id,
-          listingUrl: `${origin}/l/${listing.id}`,
+          listingUrl: `${origin}/mx/l/${listing.id}`,
           askingPrice: formatOfferAmount(listing.price_cents, listing.currency),
           offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
           offerPct: Math.round((offer.offer_amount_cents / listing.price_cents) * 100),
           buyerName: offer.buyer_name, buyerEmail: to,
           currency: listing.currency, offerId: id,
           expiresAt: checkoutExpires ?? new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-          checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
+          checkoutUrl: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
           checkoutExpiresAt: checkoutExpires,
           conversationUrl,
         }),
@@ -367,7 +367,7 @@ export async function respondToOffer(p: RespondParams): Promise<RespondResult> {
       sendBuyerPaymentExpiryWarning({
         buyerEmail: offer.buyer_email,
         listingTitle: listing.title,
-        checkoutUrl: conversationUrl ?? `${origin}/l/${listing.id}`,
+        checkoutUrl: conversationUrl ?? `${origin}/mx/l/${listing.id}`,
         agreedAmount: formatOfferAmount(acceptedCents, listing.currency),
         expiresAt: checkoutExpires,
       }, new Date(new Date(checkoutExpires).getTime() - 4 * 3600 * 1000))

@@ -506,7 +506,7 @@ export async function notifyWriterOnPublish(productId: string): Promise<void> {
       authorName: submission.author_name,
       title: submission.title,
       shopName,
-      url: `${SITE_URL}/l/${productId}`,
+      url: `${SITE_URL}/mx/l/${productId}`,
     })
     await db
       .from('launchpad_submissions')

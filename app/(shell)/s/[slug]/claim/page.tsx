@@ -4,7 +4,13 @@ import { getShop } from '@/lib/listings'
 import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
 import ClaimForm from '../ClaimForm'
 
-export default async function ClaimPage({ params }: { params: Promise<{ slug: string }> }) {
+export async function ClaimPage({
+  params,
+  marketBasePath = '',
+}: {
+  params: Promise<{ slug: string }>
+  marketBasePath?: string
+}) {
   const { slug } = await params
   const shop = await getShop(slug)
   if (!shop) notFound()
@@ -16,7 +22,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
     return (
       <div className="max-w-lg mx-auto px-4 py-12">
         <nav className="text-sm text-[var(--color-muted)] mb-6">
-          <Link href={`/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
+          <Link href={`${marketBasePath}/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
           {' › '}
           <span>Reclamar tienda</span>
         </nav>
@@ -28,7 +34,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
             <i className="iconoir-shop text-2xl" aria-hidden />
             <div>
               <p className="font-bold text-[var(--color-text)]">{shop.name}</p>
-              <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com/s/{slug}</p>
+              <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com{marketBasePath}/s/{slug}</p>
             </div>
             <span className="ml-auto text-xs font-semibold bg-[var(--accent)] text-[color:var(--fg-inverse)] px-2 py-0.5 rounded">
               Reclamada
@@ -76,7 +82,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
 
           {/* Footer */}
           <div className="px-5 py-3 border-t border-[var(--color-border)] bg-[var(--color-background)]">
-            <Link href={`/s/${slug}`} className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline">
+            <Link href={`${marketBasePath}/s/${slug}`} className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline">
               ← Ver tienda
             </Link>
           </div>
@@ -88,7 +94,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
   return (
     <div className="max-w-lg mx-auto px-4 py-12">
       <nav className="text-sm text-[var(--color-muted)] mb-6">
-        <Link href={`/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
+        <Link href={`${marketBasePath}/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
         {' › '}
         <span>Reclamar tienda</span>
       </nav>
@@ -101,3 +107,5 @@ export default async function ClaimPage({ params }: { params: Promise<{ slug: st
     </div>
   )
 }
+
+export default ClaimPage

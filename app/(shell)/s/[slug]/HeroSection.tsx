@@ -27,6 +27,7 @@ export default function HeroSection({
   sellerHasStripe,
   mpEnabled,
   hasClabe,
+  marketBasePath = '',
 }: {
   hero: HeroSettings | null | undefined
   listings: Listing[]
@@ -36,6 +37,7 @@ export default function HeroSection({
   sellerHasStripe: boolean
   mpEnabled: boolean
   hasClabe: boolean
+  marketBasePath?: string
 }) {
   if (!hero) return null
 
@@ -65,7 +67,7 @@ export default function HeroSection({
                 imageUrl: listing.images?.[0]?.url ?? null,
                 listing_type: listing.listing_type ?? 'product',
                 paymentMethods: { stripe: sellerHasStripe, mp: mpEnabled, spei: hasClabe },
-                href: `/l/${listing.id}`,
+                href: `${marketBasePath}/l/${listing.id}`,
                 formattedPrice: formatPrice(listing),
                 status: listing.status,
               }}

@@ -34,6 +34,7 @@ import { CACHE, storefrontCacheControl } from '@/lib/cache-policy'
 import { getPriceGrid } from '@/lib/listings'
 import { isEnabled } from '@/lib/flags'
 import type { Listing } from '@/lib/types'
+import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
 
 const MAX_LIMIT = 50
 const DEFAULT_LIMIT = 20
@@ -68,6 +69,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const origin = req.headers.get('origin') ?? 'https://miyagisanchez.com'
   const baseUrl = origin.startsWith('http') ? origin : 'https://miyagisanchez.com'
+  const marketDecision = planMarketCatalogRead(searchParams.get('market'))
+  if (isMarketUnavailable(marketDecision)) {
+    return NextResponse.json(marketDecision, { headers: CORS })
+  }
 
   const rawLimit = parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT))
   const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT)
@@ -75,8 +80,9 @@ export async function GET(req: NextRequest) {
   // Forward all filter params to Medusa /store/listings
   const forwardParams = new URLSearchParams()
   for (const [key, val] of searchParams.entries()) {
-    if (val) forwardParams.set(key, val)
+    if (val && key !== 'market') forwardParams.set(key, val)
   }
+  forwardParams.set('market', marketDecision.market.code)
   forwardParams.set('limit', String(limit))
   forwardParams.set('sort', searchParams.get('sort') ?? 'reciente')
   // UCP uses min_price/max_price in pesos — Medusa endpoint also takes pesos
@@ -95,17 +101,28 @@ export async function GET(req: NextRequest) {
   }
 
   const data = await res.json()
+  const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+  if (unconfirmedMarket) {
+    return NextResponse.json(unconfirmedMarket, { headers: CORS })
+  }
   const listings = (data.listings ?? []) as Listing[]
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   // Price-grid per item (custom-print-products S4 · 4.2 — exposes configurator
   // options/tiers to agents). `limit` already caps the page, and getPriceGrid
   // is cache-backed, so this stays cheap; null for an ordinary listing.
   const items = await Promise.all(listings.map(async (l: Listing) =>
-    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
+    toUcpListing(
+      l,
+      baseUrl,
+      await getPriceGrid(l.medusa_product_id ?? l.id),
+      inventoryChannelsEnabled,
+      marketDecision.market.code,
+    )))
 
   return NextResponse.json(
     {
       items,
+      market_code: marketDecision.market.code,
       total: data.total ?? 0,
       limit,
       cursor: null,

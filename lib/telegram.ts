@@ -155,7 +155,7 @@ export const tg = {
 
   /** New listing published by a claimed seller */
   newListing(title: string, priceFmt: string, shopName: string, listingId: string) {
-    return tgNotify(`📦 <b>Nuevo anuncio</b>\n${esc(title)} — <b>${esc(priceFmt)}</b>\nVendedor: ${esc(shopName)}\nmiyagisanchez.com/l/${esc(listingId)}`)
+    return tgNotify(`📦 <b>Nuevo anuncio</b>\n${esc(title)} — <b>${esc(priceFmt)}</b>\nVendedor: ${esc(shopName)}\nmiyagisanchez.com/mx/l/${esc(listingId)}`)
   },
 
   /** Sale completed via Stripe */

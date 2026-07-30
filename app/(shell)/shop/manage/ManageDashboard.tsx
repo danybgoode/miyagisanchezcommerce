@@ -71,7 +71,7 @@ export default function ManageDashboard({
               pending-work signal (the Pedidos/Ofertas badges' replacement). */}
           <div className="mt-2 flex flex-col gap-1">
             <Link
-              href={`/s/${shop.slug}`}
+              href={`/mx/s/${shop.slug}`}
               className="text-xs text-[var(--color-accent)] hover:underline no-underline w-fit"
               target="_blank"
             >

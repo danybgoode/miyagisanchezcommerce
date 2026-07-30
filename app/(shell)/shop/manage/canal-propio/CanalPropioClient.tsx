@@ -285,7 +285,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
   }
 
   // ── Slug editor ────────────────────────────────────────────────────────────
-  const shopUrl = `miyagisanchez.com/s/${shopSlug}`
+  const shopUrl = `miyagisanchez.com/mx/s/${shopSlug}`
   const subdomainUrl = `${shopSlug}.miyagisanchez.com`
   const shortUrl = `mschz.org/${shopSlug}`
   function startSlugEdit() { setSlugInput(shopSlug); setSlugStatus('idle'); setSlugError(null); setSlugEditing(true) }
@@ -511,7 +511,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
               {!savedDomain && domainRemovedNote && (
                 <Banner variant="success" className="mb-3">
                   Dominio <span className="font-mono">{domainRemovedNote}</span> eliminado. Tu tienda sigue
-                  activa en <span className="font-mono">miyagisanchez.com/s/{shopSlug}</span>.
+                  activa en <span className="font-mono">miyagisanchez.com/mx/s/{shopSlug}</span>.
                 </Banner>
               )}
 
@@ -771,14 +771,14 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                           </span>
                         </div>
                         <p className="font-mono text-xs font-medium text-[var(--color-muted)] truncate mb-1">
-                          miyagisanchez.com/s/{shopSlug}
+                          miyagisanchez.com/mx/s/{shopSlug}
                         </p>
                         <p className="text-xs text-[var(--color-muted)] mb-3 leading-relaxed">
                           Visible en el marketplace para descubrimiento y SEO. Sin cambios.
                         </p>
                         {shopSlug && (
                           <a
-                            href={`/s/${shopSlug}`}
+                            href={`/mx/s/${shopSlug}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline hover:underline"

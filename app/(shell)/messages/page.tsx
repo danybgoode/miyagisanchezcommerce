@@ -157,7 +157,7 @@ export default async function MessagesPage() {
           <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
             Cuando hagas o recibas una oferta, la conversación aparecerá aquí.
           </p>
-          <Link href="/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+          <Link href="/mx/l" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
             <i className="iconoir-search" style={{ fontSize: 16 }} />
             Explorar anuncios
           </Link>

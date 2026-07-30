@@ -100,15 +100,20 @@ const GENERIC_ASK = '¿Qué estás buscando hoy?'
 /**
  * Map a URL (pathname + searchParams) to the page context. Pure + URL-only.
  * Route groups like `(shell)`/`(site)` don't appear in the pathname, so the live
- * paths are `/l/<id>` (PDP), `/l` (catalog), `/s/<slug>` (shop), `/account/...`,
- * `/vende*`/`/sell*` (seller), `/promotor/*`/`/vende/promotor` (promoter).
+ * paths are `/mx/l/<id>` (PDP), `/mx/l` (catalog), `/mx/s/<slug>` (shop);
+ * tenant aliases stay unprefixed (`/l`, `/s`). Account, seller, and promoter
+ * tools remain outside the country-market namespace.
  * Anything unrecognized falls back to `generic`.
  */
 export function resolveAgentContext(
   pathname: string | null | undefined,
   searchParams?: ReadonlyParams | null,
 ): AgentPromptContext {
-  const seg = (pathname || '').split('/').filter(Boolean)
+  const rawSegments = (pathname || '').split('/').filter(Boolean)
+  // `/mx` is the only active catalog namespace. Do not generically discard a
+  // first segment: `/us` has no catalog, and treating it as one would invent
+  // exactly the market capability the fail-closed contract forbids.
+  const seg = rawSegments[0] === 'mx' ? rawSegments.slice(1) : rawSegments
 
   // PDP: /l/<id>  ·  Catalog: /l (no id)
   if (seg[0] === 'l') {
@@ -197,7 +202,7 @@ Usa el API del marketplace (UCP/MCP) para listar sus productos, comparar precios
     }
 
     case 'catalog': {
-      const url = ctx.queryString ? `${PLATFORM_ORIGIN}/l?${ctx.queryString}` : `${PLATFORM_ORIGIN}/l`
+      const url = ctx.queryString ? `${PLATFORM_ORIGIN}/mx/l?${ctx.queryString}` : `${PLATFORM_ORIGIN}/mx/l`
       if (ctx.search) {
         return `Estoy explorando el catálogo del marketplace con esta búsqueda: «${ctx.search}».
 Revisa estos resultados y ayúdame a encontrar lo mejor: ${url}

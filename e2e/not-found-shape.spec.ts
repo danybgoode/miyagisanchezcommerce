@@ -61,7 +61,11 @@ const MIDDLEWARE_404 = 'Not found.'
 
 test.describe('cheap 404 — junk listing/shop URLs short-circuit', () => {
   test('a junk listing URL 404s with a cache header, no page render', async ({ request }) => {
-    const res = await request.get('/l/wp-admin', { maxRedirects: 0 })
+    // `/l/*` is now a legacy redirect source; exercise the canonical market
+    // route so this remains a cheap-404 test rather than a redirect test.
+    // Avoid a scanner keyword that some hosting edges intercept before the app;
+    // this still fails the exact same listing-id predicate in our middleware.
+    const res = await request.get('/mx/l/not-a-real-id', { maxRedirects: 0 })
     expect(res.status()).toBe(404)
     expect(res.headers()['cache-control'] ?? '').toContain('s-maxage')
     expect(await res.text()).toContain(MIDDLEWARE_404)

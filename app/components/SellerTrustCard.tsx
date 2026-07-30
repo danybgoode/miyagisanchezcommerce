@@ -34,6 +34,7 @@ export default function SellerTrustCard({
   bookingText,
   agendarLabel,
   pickupSpots,
+  marketBasePath = '',
 }: {
   shop: Shop
   onChannel: boolean
@@ -46,10 +47,11 @@ export default function SellerTrustCard({
   bookingText: string | null
   agendarLabel: string
   pickupSpots: PickupSpot[]
+  marketBasePath?: string
 }) {
   return (
     <div data-testid="seller-trust-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 20 }}>
-      <Link href={onChannel ? '/' : `/s/${shop.slug}`} className="no-underline block">
+      <Link href={onChannel ? '/' : `${marketBasePath}/s/${shop.slug}`} className="no-underline block">
         <div className="flex items-center gap-3" style={{ padding: '14px 16px' }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {shop.logo_url ? (
@@ -139,7 +141,7 @@ export default function SellerTrustCard({
       {/* Claim nudge */}
       {!isClaimed && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', background: 'var(--bg-sunk)' }}>
-          <Link href={`/s/${shop.slug}/claim`} style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+          <Link href={`${marketBasePath}/s/${shop.slug}/claim`} style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
             ¿Es tuya esta tienda? Reclamar gratis →
           </Link>
         </div>

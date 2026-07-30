@@ -97,7 +97,7 @@ function TrendingStrip({ listings }: { listings: NeighborhoodTrendingListing[] }
         {listings.map((listing) => (
           <Link
             key={listing.id}
-            href={`/l/${listing.id}`}
+            href={`/mx/l/${listing.id}`}
             className="card-tile block w-44 flex-shrink-0 overflow-hidden no-underline sm:w-52"
           >
             {listing.images?.[0] ? (
@@ -146,7 +146,7 @@ function MerchantSpotlightStrip({ shops }: { shops: NeighborhoodSpotlightShop[] 
         {shops.map((shop) => (
           <Link
             key={shop.slug}
-            href={`/s/${shop.slug}`}
+            href={`/mx/s/${shop.slug}`}
             className="card-tile block w-64 flex-shrink-0 p-4 no-underline sm:w-72"
           >
             <div className="flex items-start gap-3">

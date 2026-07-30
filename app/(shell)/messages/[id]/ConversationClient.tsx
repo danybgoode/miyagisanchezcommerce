@@ -877,7 +877,7 @@ export default function ConversationClient({ conversationId, initialConversation
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Listing header */}
-      <Link href={`/l/${listing?.id}`} className="no-underline" style={{ flexShrink: 0 }}>
+      <Link href={`/mx/l/${listing?.id}`} className="no-underline" style={{ flexShrink: 0 }}>
         <div
           className="flex items-center gap-3"
           style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}

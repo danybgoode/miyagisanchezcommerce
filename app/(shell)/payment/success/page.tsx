@@ -259,12 +259,12 @@ export default async function PaymentSuccessPage({
 
         <div className="flex flex-col gap-3">
           {listingId && (
-            <Link href={`/l/${listingId}`}
+            <Link href={`/mx/l/${listingId}`}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}
-          <Link href="/l"
+          <Link href="/mx/l"
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>
@@ -356,7 +356,7 @@ function SupportSuccessUI({
 
         <div className="flex flex-col gap-3">
           {sellerSlug && (
-            <Link href={`/s/${sellerSlug}`}
+            <Link href={`/mx/s/${sellerSlug}`}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver la tienda
             </Link>
@@ -518,12 +518,12 @@ function SuccessUI({
             Ver mis pedidos
           </Link>
           {listingId && (
-            <Link href={`/l/${listingId}`}
+            <Link href={`/mx/l/${listingId}`}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
               Ver el anuncio
             </Link>
           )}
-          <Link href="/l"
+          <Link href="/mx/l"
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
             Seguir explorando →
           </Link>

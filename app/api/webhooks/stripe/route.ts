@@ -313,7 +313,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   const shop = listing.marketplace_shops as unknown as { name: string; clerk_user_id: string | null }
   const listingCurrency = listing.currency ?? currency
   const amountFormatted = formatOfferAmount(amountTotal, listingCurrency)
-  const listingUrl = `https://miyagisanchez.com/l/${listing_id}`
+  const listingUrl = `https://miyagisanchez.com/mx/l/${listing_id}`
   const isDigital = listing_type === 'digital'
 
   // ── Digital goods: generate signed URL + update order ────────────────────
@@ -502,7 +502,7 @@ async function handleMedusaCheckoutComplete(session: Stripe.Checkout.Session) {
         ? originDomain
         : null
       const siteBase = storeDomain ? `https://${storeDomain}` : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com')
-      const listingUrl = `${siteBase}/l/${product_id}`
+      const listingUrl = `${siteBase}/mx/l/${product_id}`
       const amountFormatted = formatOfferAmount(amountTotal, currency)
       const personalization = completed?.personalization ?? []
 

@@ -111,6 +111,7 @@ import {
 // adds new ones — see that file's header), making the baseline's id set always
 // correct for the schema too.
 import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
+import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -155,10 +156,11 @@ const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDatas
 const TOOLS = [
   {
     name: 'search_listings',
-    description: 'Search the Miyagi Sánchez marketplace catalog. Returns listings with prices, trust signals, and checkout URLs. Use this to find products, services, cars, real estate, and more across Mexico.',
+    description: 'Search a Miyagi Sánchez country-market catalog. Mexico is the active market. `market` temporarily defaults to `mx`; pass it explicitly for durable integrations. Returns listings with market_code, prices, trust signals, and canonical checkout URLs.',
     inputSchema: {
       type: 'object',
       properties: {
+        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
         q:            { type: 'string', description: 'Search query in Spanish (e.g. "iPhone 14 pro" or "taller mecánico CDMX")' },
         category:     { type: 'string', enum: ['autos','inmuebles','electronica','hogar','moda','deportes','servicios','mascotas','herramientas','negocios','otros'], description: 'Product category' },
         listing_type: { type: 'string', enum: ['product','service','rental','digital'], description: 'Type of listing' },
@@ -194,12 +196,13 @@ const TOOLS = [
   },
   {
     name: 'get_listing',
-    description: 'Get full details for a specific listing by ID, including trust signals, seller info, available payment methods, and checkout URLs.',
+    description: 'Get full market-scoped details for a specific listing by ID, including market_code, trust signals, seller info, available payment methods, and checkout URLs. `market` temporarily defaults to mx.',
     inputSchema: {
       type: 'object',
       required: ['id'],
       properties: {
         id: { type: 'string', description: 'Listing UUID from search_listings results' },
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
       },
     },
   },
@@ -498,7 +501,7 @@ const TOOLS = [
   },
   {
     name: 'set_shop_slug',
-    description: "SELLER TOOL. Change YOUR OWN shop's public URL slug (miyagisanchez.com/s/<slug>). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The old slug keeps 301-redirecting to the new one for 90 days. Format: 3–40 chars, lowercase letters/numbers/hyphens; reserved words rejected; taken slugs rejected.",
+    description: "SELLER TOOL. Change YOUR OWN shop's public platform URL slug (miyagisanchez.com/mx/s/<slug>). Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. The old slug keeps 301-redirecting to the new one for 90 days. Format: 3–40 chars, lowercase letters/numbers/hyphens; reserved words rejected; taken slugs rejected.",
     inputSchema: {
       type: 'object',
       required: ['slug'],
@@ -975,8 +978,13 @@ for (const tool of TOOLS) {
 
 async function handleSearchListings(args: Record<string, unknown>, baseUrl: string) {
   const limit = Math.min(Math.max(1, Number(args.limit ?? 10)), 20)
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   const params = new URLSearchParams()
+  params.set('market', marketDecision.market.code)
   params.set('limit', String(limit))
   if (args.q)            params.set('q', String(args.q))
   if (args.category)     params.set('category', String(args.category))
@@ -996,19 +1004,31 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
   if (args.fuel)         params.set('fuel', String(args.fuel))
   if (args.sort)         params.set('sort', String(args.sort))
 
-  let data: { listings?: Listing[] }
+  let data: { listings?: Listing[]; market_code?: unknown }
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Search failed: ${res.status}` }] }
-    data = await res.json() as { listings?: Listing[] }
+    data = await res.json() as { listings?: Listing[]; market_code?: unknown }
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
+  }
+  const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+  if (unconfirmedMarket) {
+    return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
   }
 
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   const items = await Promise.all((data.listings ?? []).map(async (l: Listing) =>
-    toUcpListing(l, baseUrl, await getPriceGrid(l.medusa_product_id ?? l.id), inventoryChannelsEnabled)))
-  if (items.length === 0) return { content: [{ type: 'text', text: 'No listings found matching your search.' }] }
+    toUcpListing(
+      l,
+      baseUrl,
+      await getPriceGrid(l.medusa_product_id ?? l.id),
+      inventoryChannelsEnabled,
+      marketDecision.market.code,
+    )))
+  if (items.length === 0) {
+    return { content: [{ type: 'text', text: JSON.stringify({ listings: [], market_code: marketDecision.market.code }, null, 2) }] }
+  }
 
   const summary = items.map(item => {
     const price = item.price ? item.price.formatted : 'Precio a consultar'
@@ -1021,7 +1041,7 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return `**${item.title}**\n${price} · ${item.location ?? item.state ?? 'México'} · ${item.condition ?? item.listing_type}\n${flags}\nID: \`${item.id}\` | ${item.url}`
   }).join('\n\n---\n\n')
 
-  return { content: [{ type: 'text', text: `Found ${items.length} listings:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items }, null, 2) }] }
+  return { content: [{ type: 'text', text: `Found ${items.length} listings in market ${marketDecision.market.code}:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items, market_code: marketDecision.market.code }, null, 2) }] }
 }
 
 async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl: string) {
@@ -1066,12 +1086,20 @@ async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl
 
 async function handleGetListing(args: Record<string, unknown>, baseUrl: string) {
   const id = String(args.id ?? '')
+  const marketDecision = planMarketCatalogRead(args.market)
+  if (isMarketUnavailable(marketDecision)) {
+    return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
-    const data = await res.json() as { listing?: Listing }
+    const data = await res.json() as { listing?: Listing; market_code?: unknown }
+    const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
+    if (unconfirmedMarket) {
+      return { content: [{ type: 'text', text: JSON.stringify(unconfirmedMarket, null, 2) }] }
+    }
     listing = data.listing ?? null
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(e)}` }] }
@@ -1081,7 +1109,7 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
 
   const priceGrid = await getPriceGrid(listing.medusa_product_id ?? listing.id)
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
-  const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled)
+  const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled, marketDecision.market.code)
 
   // Configurator options/tiers + the file-upload contract (custom-print-products
   // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
@@ -2356,7 +2384,7 @@ async function handleSetShopSlug(args: Record<string, unknown>, authHeader?: str
 
   return {
     content: [
-      { type: 'text', text: `✅ Slug cambiado: \`${shop.slug}\` → \`${newSlug}\`.\n\nTu tienda ahora vive en https://miyagisanchez.com/s/${newSlug} — el slug anterior seguirá redirigiendo (301) durante 90 días.${mirrorError ? '\n⚠ El espejo del catálogo puede tardar en reflejarlo.' : ''}` },
+      { type: 'text', text: `✅ Slug cambiado: \`${shop.slug}\` → \`${newSlug}\`.\n\nTu tienda ahora vive en https://miyagisanchez.com/mx/s/${newSlug} — el slug anterior seguirá redirigiendo (301) durante 90 días.${mirrorError ? '\n⚠ El espejo del catálogo puede tardar en reflejarlo.' : ''}` },
     ],
   }
 }
@@ -3861,7 +3889,7 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
       protocolVersion: '2024-11-05',
       capabilities: { tools: {}, resources: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez marketplace for Mexico. BUYER workflow: search_listings → get_neighborhood_pulse for local context → get_listing → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
+      instructions: 'Miyagi Sánchez is a commerce system with country markets and independent owned-shop channels. Mexico (`mx`) is the active country marketplace; United States (`us`) is invitation-only and returns a structured unavailable result. BUYER workflow: search_listings(market) → get_neighborhood_pulse for local context → get_listing(id, market) → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow stays shop-scoped and market-neutral: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
     }
   }
 

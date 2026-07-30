@@ -989,7 +989,7 @@ export default function OrderDetail({ order }: OrderDetailProps) {
             }
           </div>
           <div className="flex-1">
-            <Link href={`/l/${listing?.id}`}
+            <Link href={`/mx/l/${listing?.id}`}
               className="font-semibold text-sm hover:text-[var(--color-accent)] no-underline">
               {listing?.title}
             </Link>

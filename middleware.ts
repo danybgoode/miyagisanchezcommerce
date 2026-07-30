@@ -11,38 +11,13 @@ import {
 import { isLikelyListingId, isLikelyShopSlug, isBoundaryDeniedPath } from '@/lib/route-shape'
 import { resolveSubdomainEntitlement } from '@/lib/subdomain-entitlement-server'
 import { FUNDADORAS_VISITOR_COOKIE_NAME } from '@/lib/fundadoras-experiment'
+import { isPlatformHost } from '@/lib/platform-host'
+import { platformMarketRedirectPath, stripMarketPrefix } from '@/lib/market-url'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
   '/shop/manage(.*)',
 ])
-
-// Hostnames that are part of the miyagisanchez platform itself
-const PLATFORM_HOSTS = [
-  'miyagisanchez.com',
-  'www.miyagisanchez.com',
-  'localhost',
-  '127.0.0.1',
-  // Cloudflare→ALB→Cloud Run staging hostname (09-platform-infra
-  // frontend-vercel-to-cloudrun, S2.2). NOTE: this alone is not sufficient —
-  // 'gcp' must ALSO be in lib/subdomain.ts's INFRA_SUBDOMAINS, since
-  // shopSlugFromHost() runs BEFORE this check and would otherwise treat it as
-  // a shop-slug lookup first. Both gates are load-bearing (found live: with
-  // only one of the two, the request still 404s "Shop not found" — either as
-  // an unknown subdomain, or as an unknown custom domain).
-  'gcp.miyagisanchez.com',
-]
-
-function isPlatformHost(hostname: string): boolean {
-  if (PLATFORM_HOSTS.some(h => hostname === h || hostname.startsWith(h + ':'))) return true
-  // Vercel preview / branch URLs
-  if (hostname.endsWith('.vercel.app')) return true
-  // Cloud Run's default dark URL (09-platform-infra frontend-vercel-to-cloudrun,
-  // S1.3/S1.4) — same reasoning as .vercel.app: a platform-served preview host,
-  // not a tenant custom domain, before Cloudflare fronts the real domain (S2+).
-  if (hostname.endsWith('.run.app')) return true
-  return false
-}
 
 function isFundadorasSubjectPath(pathname: string): boolean {
   return pathname === '/vende/fundadoras' ||
@@ -147,7 +122,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         const url = req.nextUrl.clone()
         url.protocol = 'https:'
         url.host = ROOT_DOMAIN
-        url.pathname = `/s/${slug}`
+        url.pathname = `/mx/s/${slug}`
         url.search = ''
         return NextResponse.redirect(url, 301)
       }
@@ -377,6 +352,22 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     return NextResponse.next({ request: { headers } })
   }
 
+  // ── Legacy marketplace paths → canonical Mexico market (LAST route rule) ─
+  // Every tenant branch above has already returned. Keeping this below the
+  // subdomain, custom-domain and embed exits is the isolation guarantee: those
+  // channels continue to serve `/l/:id`, `/s/:slug` and `/c/:collection`
+  // without ever learning about `/mx`. Search + query are preserved and the
+  // pure helper normalizes a trailing slash, so the destination is one hop.
+  //
+  // `/c/:collection` is intentionally absent: live evidence confirmed it is a
+  // tenant-only route keyed by x-miyagi-shop-slug, not a marketplace surface.
+  const marketRedirect = platformMarketRedirectPath(req.nextUrl.pathname)
+  if (marketRedirect) {
+    const url = req.nextUrl.clone()
+    url.pathname = marketRedirect
+    return NextResponse.redirect(url, 308)
+  }
+
   // ── Cheap, cached 404 for clearly-malformed listing/shop URLs ─────────────
   // Scanners hammering dead/junk paths (`/l/.env`, `/s/wp-login.php`, …) were the
   // #1 source of `/_not-found` function invocations + Fluid Active CPU (epic 09 ·
@@ -388,7 +379,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Well-formed-but-deleted ids/slugs (and retired-slug 301s) are NOT caught here
   // — they flow to the page, which 404s/redirects them normally. The page guards
   // share these same lib/route-shape predicates (defense-in-depth + channel hosts).
-  const platformPath = req.nextUrl.pathname
+  const platformPath = stripMarketPrefix(req.nextUrl.pathname)
   const listingSeg = /^\/l\/([^/]+)\/?$/.exec(platformPath)
   const shopSeg = /^\/s\/([^/]+)\/?$/.exec(platformPath)
   if (

@@ -24,14 +24,10 @@ import { fileURLToPath } from 'node:url'
  *                       (epic decision D4): adding it there is exactly the failure
  *                       this epic exists to prevent — an owned shop must keep
  *                       working with no marketplace membership at all.
- *   DEFERRED_D10      — the UCP/MCP agent surfaces. Decision D10 assigns their
- *                       `market` parameter to Sprint 2. They are safe to defer for
- *                       one specific, CHECKED reason: they accept no market input
- *                       today, so there is no door into another market through
- *                       them. The last test in this file asserts that, which makes
- *                       the deferral self-expiring — the moment Sprint 2 introduces
- *                       a `market` token in those files, this guard goes red and
- *                       forces them through the seam.
+ *   AGENT_MARKET_SCOPED — UCP/MCP public browse. Sprint 2 expired D10's temporary
+ *                         deferral: these surfaces now accept `market`, must plan
+ *                         through the same fail-closed seam, and verify the backend
+ *                         echo before returning catalog rows.
  *
  * Source-text scanning only: no network, no DB. Comments are stripped before every
  * scan, because a negative-containment guard that fires on a doc comment explaining
@@ -95,6 +91,12 @@ const MARKET_SCOPED = new Set([
   'lib/listings.ts',
 ])
 
+const AGENT_MARKET_SCOPED = new Set([
+  'app/api/ucp/catalog/route.ts',
+  'app/api/ucp/catalog/[id]/route.ts',
+  'app/api/ucp/mcp/route.ts',
+])
+
 const OWNERSHIP_SCOPED = new Set([
   // A seller publishing: is this listing actually checkout-viable for its OWNER?
   'lib/listing-status.ts',
@@ -112,13 +114,7 @@ const OWNERSHIP_SCOPED = new Set([
   'app/api/supply/listing-images/route.ts',
 ])
 
-const DEFERRED_D10 = new Set([
-  'app/api/ucp/catalog/route.ts',
-  'app/api/ucp/catalog/[id]/route.ts',
-  'app/api/ucp/mcp/route.ts',
-])
-
-const CLASSIFIED = new Set([...MARKET_SCOPED, ...OWNERSHIP_SCOPED, ...DEFERRED_D10])
+const CLASSIFIED = new Set([...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED])
 
 const CATALOG_READERS = [join(ROOT, 'app'), join(ROOT, 'lib')]
   .flatMap(listSourceFiles)
@@ -147,7 +143,7 @@ test.describe('population guard · every marketplace catalog reader is classifie
   })
 
   test('the three buckets are disjoint', () => {
-    const all = [...MARKET_SCOPED, ...OWNERSHIP_SCOPED, ...DEFERRED_D10]
+    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
     expect(all.length).toBe(new Set(all).size)
   })
 })
@@ -237,15 +233,13 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
   })
 })
 
-test.describe('population guard · the D10 deferral is self-expiring', () => {
-  for (const file of DEFERRED_D10) {
-    test(`${file} accepts no market input yet — deferring it is still safe`, () => {
-      // This is the ENTIRE justification for deferring these three files to Sprint 2:
-      // with no market input there is no door into another market through them, so
-      // they cannot serve MX rows under a US request. The day that stops being true,
-      // this test fails and the deferral ends.
+test.describe('population guard · D10 agent surfaces are market-scoped', () => {
+  for (const file of AGENT_MARKET_SCOPED) {
+    test(`${file} plans and verifies a market-scoped catalog read`, () => {
       const stripped = stripComments(readFileSync(join(ROOT, file), 'utf8'))
-      expect(/\bmarket(?:_code|s)?\b/.test(stripped), `${file} now mentions a market — route it through lib/market-catalog.ts`).toBe(false)
+      expect(stripped).toContain("from '@/lib/market-catalog'")
+      expect(stripped).toContain('planMarketCatalogRead')
+      expect(stripped).toContain('verifyMarketFilter')
     })
   }
 })

@@ -35,16 +35,16 @@ export function firstSegment(pathname: string): string | null {
 
 /** Canonical platform target for a shop slug. */
 export function shopTarget(slug: string): string {
-  return `${PLATFORM_ORIGIN}/s/${slug}`
+  return `${PLATFORM_ORIGIN}/mx/s/${slug}`
 }
 
 /** Canonical platform target for a listing (Medusa product id). */
 export function listingTarget(productId: string): string {
-  return `${PLATFORM_ORIGIN}/l/${productId}`
+  return `${PLATFORM_ORIGIN}/mx/l/${productId}`
 }
 
 /** Where an empty path and an unknown segment go. */
-export const HOME_TARGET = PLATFORM_ORIGIN
+export const HOME_TARGET = `${PLATFORM_ORIGIN}/mx`
 export const NOT_FOUND_TARGET = `${PLATFORM_ORIGIN}/404`
 
 /**
@@ -74,7 +74,8 @@ export function passthroughTarget(pathname: string, search: string): string | nu
   if (segments.length < 2) return null
   const prefix = segments[0].toLowerCase()
   if (!PASSTHROUGH_PREFIXES.has(prefix)) return null
-  return `${PLATFORM_ORIGIN}${pathname}${search || ''}`
+  const canonicalPath = prefix === 's' || prefix === 'l' ? `/mx${pathname}` : pathname
+  return `${PLATFORM_ORIGIN}${canonicalPath}${search || ''}`
 }
 
 // Lowercase base36 (no uppercase, so links stay case-insensitive-safe and tidy).

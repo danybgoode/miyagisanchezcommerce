@@ -237,7 +237,7 @@ async function handleMarketplaceMpPayment(sellerId: string, paymentId: string) {
     const listingInfo = await getMedusaListing(productId)
     if (listingInfo) {
       const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
-      const listingUrl = `${SITE_URL}/l/${productId}`
+      const listingUrl = `${SITE_URL}/mx/l/${productId}`
       const amountFormatted = formatOfferAmount(amountCents, currency)
       sendOrderConfirmedToBuyer({
         buyerEmail: be, buyerName,
@@ -455,7 +455,7 @@ export async function POST(req: NextRequest) {
     tg.salePaid(amtFmt, listing.title, buyerEmail ?? 'comprador', 'mercadopago')
 
     const shop = listing.marketplace_shops as unknown as { name: string; clerk_user_id: string | null }
-    const listingUrl    = `https://miyagisanchez.com/l/${listing_id}`
+    const listingUrl    = `https://miyagisanchez.com/mx/l/${listing_id}`
     const amountFormatted = formatOfferAmount(amountCents, currency)
     const isDigital     = listing_type === 'digital'
 
@@ -598,7 +598,9 @@ async function handleMedusaMpPayment({
         ? originDomain
         : null
       const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
-      const listingUrl = `${storeDomain ? `https://${storeDomain}` : SITE_URL}/l/${productId}`
+      const listingUrl = storeDomain
+        ? `https://${storeDomain}/l/${productId}`
+        : `${SITE_URL}/mx/l/${productId}`
       const amountFormatted = formatOfferAmount(amountCents, currency)
       const personalization = completed?.personalization ?? []
 

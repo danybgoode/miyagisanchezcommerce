@@ -460,7 +460,7 @@ export default function SupplyClient() {
             <Link href="/admin" className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
               Admin
             </Link>
-            <Link href="/l" className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
+            <Link href="/mx/l" className="rounded border border-zinc-300 px-3 py-1.5 no-underline hover:bg-zinc-50">
               Marketplace
             </Link>
           </div>
@@ -801,7 +801,7 @@ export default function SupplyClient() {
                           className="w-full rounded border border-zinc-300 px-2 py-1.5 text-xs"
                         />
                         {item.source_url && <a href={item.source_url} target="_blank" className="mt-2 block text-xs" rel="noreferrer">Open original</a>}
-                        {item.imported_listing_id && <a href={`/l/${item.imported_listing_id}`} target="_blank" className="mt-1 block text-xs" rel="noreferrer">View imported</a>}
+                        {item.imported_listing_id && <a href={`/mx/l/${item.imported_listing_id}`} target="_blank" className="mt-1 block text-xs" rel="noreferrer">View imported</a>}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col gap-2">
