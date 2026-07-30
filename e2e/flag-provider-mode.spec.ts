@@ -3,6 +3,7 @@ import { createFlagProvider, type FlagProvider, type FlagSnapshot } from '@golde
 import { parseFlagProviderMode, parseGoldenFlagEnvironment } from '../lib/flag-provider-mode'
 import { createFlagShadowObserver, type FlagShadowObservation } from '../lib/flag-shadow-observation'
 import { createFlagProviderEvaluator } from '../lib/flag-provider-evaluator'
+import { createFlagProviderRequestRefreshGate } from '../lib/flag-provider-request-refresh'
 import {
   evaluateDurableGoldenBooleanFlag,
   parseDurableGoldenSnapshot,
@@ -37,6 +38,23 @@ const testDefaults: Record<TestFlag, boolean> = {
   'checkout.stripe_enabled': true,
   'domain.paywall_enabled': false,
 }
+
+test('request refresh gate is bounded, due-driven, and resettable', () => {
+  let current = 1_000
+  const gate = createFlagProviderRequestRefreshGate(60_000, () => current)
+
+  expect(gate.takeIfDue()).toBe(false)
+  gate.markAttempt()
+  current += 59_999
+  expect(gate.takeIfDue()).toBe(false)
+  current += 1
+  expect(gate.takeIfDue()).toBe(true)
+  expect(gate.takeIfDue()).toBe(false)
+  current += 60_000
+  expect(gate.takeIfDue()).toBe(true)
+  gate.reset()
+  expect(gate.takeIfDue()).toBe(false)
+})
 
 function providerEvaluation(provider: FlagProvider, flag: TestFlag, localValue: boolean) {
   const snapshot = provider.getSnapshot()
