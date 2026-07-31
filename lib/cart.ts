@@ -12,7 +12,7 @@ import type { PersonalizationPayload } from './personalization'
 import { DEFAULT_MARKET } from './markets'
 import { PROCESS_MARKET_ENV, resolveRegionIdForMarket } from './market-medusa'
 import { isMarketUnavailable, planMarketCatalogRead } from './market-catalog'
-import { isCheckoutListingAdmitted } from './checkout-market'
+import { isCheckoutListingAdmitted, isVariantOwnedByProduct } from './checkout-market'
 import { readEventDetails } from './event-listing'
 import {
   EVENT_TICKET_METADATA_KEY,
@@ -116,7 +116,20 @@ async function resolveCheckoutLines(
     const productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
     const productVariants: Array<{ id: string }> = product?.variants ?? []
     let resolvedVariantId = lineItem.variantId ?? null
-    if (!resolvedVariantId) {
+    if (resolvedVariantId) {
+      // The admission proof above is keyed on productId, but the thing actually
+      // BOUGHT below is the variant id. If those two are allowed to diverge, the
+      // guard protects a different object than the one that ends up in the cart:
+      // a caller could pair an admitted marketplace productId with a variant of a
+      // product that is NOT published to this market and check it out anyway.
+      // `/api/checkout/start` hands `await req.json()` straight to us, so this
+      // pairing is fully caller-controlled — it must be proven, not trusted.
+      if (!isVariantOwnedByProduct(resolvedVariantId, productVariants)) {
+        throw new Error(
+          `Variant ${resolvedVariantId} does not belong to product ${lineItem.productId}`,
+        )
+      }
+    } else {
       if (productVariants.length > 1 && !offerId) {
         throw new Error(`Product ${lineItem.productId} has multiple variants; variantId is required`)
       }

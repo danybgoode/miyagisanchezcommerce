@@ -27,3 +27,25 @@ export function isCheckoutListingAdmitted(
   const listing = record(record(payload)?.listing)
   return listing?.id === productId && listing.medusa_product_id === productId
 }
+
+/**
+ * The SECOND half of the same admission proof, and it exists because the first
+ * half alone does not cover the money path.
+ *
+ * `isCheckoutListingAdmitted` proves a PRODUCT id is published to this market. The
+ * thing a cart line actually buys is a VARIANT id. The caller supplies both
+ * (`/api/checkout/start` passes `await req.json()` straight through), so if they are
+ * allowed to disagree, the proof and the purchase describe different objects: pair
+ * an admitted marketplace productId with a variant belonging to an unpublished
+ * product and the market boundary is bypassed with the gate still green.
+ *
+ * Fail closed on an empty variant list. "I could not see this product's variants"
+ * is not "the variant is fine" — and a product with no variants cannot be bought
+ * anyway, so nothing legitimate is refused.
+ */
+export function isVariantOwnedByProduct(
+  variantId: string,
+  productVariants: ReadonlyArray<{ id: string }>,
+): boolean {
+  return productVariants.some((variant) => variant.id === variantId)
+}

@@ -108,7 +108,16 @@ export default async function PartnerDashboardPage({
     // The grant/mirror supplies the membership and slug, never the operating
     // market. Resolve that separately from Medusa's public seller projection.
     const enriched = await Promise.all(rawShops.map(async (shop) => {
-      const publicSeller = shop.slug ? await getShop(shop.slug) : null
+      // `getShop` rejects (not returns null) on a network fault, and one rejection
+      // inside Promise.all would 500 the whole partner dashboard over a single
+      // unreachable shop. Degrade per-shop: an unreadable projection is the
+      // explicit unavailable state, not an assumed market.
+      let publicSeller = null
+      try {
+        publicSeller = shop.slug ? await getShop(shop.slug) : null
+      } catch (error) {
+        console.warn(`[partner] seller projection unavailable for ${shop.slug}:`, error)
+      }
       const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
       return [shop.id, { ...shop, ...visibility }] as const
     }))

@@ -75,7 +75,19 @@ export async function listTenants(): Promise<TenantRow[]> {
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {
-    const seller = raw.slug ? await getShop(raw.slug) : null
+    // `getShop` is a bare `fetch` with no error handling of its own, so a network
+    // fault, timeout or malformed body REJECTS rather than returning null. Inside
+    // a Promise.all that would reject the whole batch and 500 the directory —
+    // breaking this function's contract two doc-comments up ("degrades to [] on a
+    // read failure so the admin page never throws") over one unreachable seller.
+    // An unreadable projection is the UNAVAILABLE state, which `readPublicSellerMarket`
+    // already renders as "Mercado operativo no disponible" — never a made-up MX default.
+    let seller = null
+    try {
+      seller = raw.slug ? await getShop(raw.slug) : null
+    } catch (error) {
+      console.warn(`[tenant-directory] seller projection unavailable for ${raw.slug}:`, error)
+    }
     return [raw.id, readPublicSellerMarket(seller)] as const
     },
   ))
