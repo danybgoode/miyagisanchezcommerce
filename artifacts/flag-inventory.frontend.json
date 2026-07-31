@@ -10,8 +10,8 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/shop/manage/catalogo/page.tsx:108",
-        "app/api/ucp/mcp/route.ts:3541",
-        "app/api/ucp/mcp/route.ts:3581",
+        "app/api/ucp/mcp/route.ts:3580",
+        "app/api/ucp/mcp/route.ts:3620",
         "lib/catalog-bulk.ts:252",
         "lib/catalog-bulk.ts:504"
       ]
@@ -29,9 +29,9 @@
         "app/api/ucp/catalog/[id]/route.ts:75",
         "app/api/ucp/catalog/route.ts:109",
         "app/api/ucp/checkout-session/route.ts:639",
-        "app/api/ucp/mcp/route.ts:1028",
-        "app/api/ucp/mcp/route.ts:1126",
-        "app/api/ucp/mcp/route.ts:1641"
+        "app/api/ucp/mcp/route.ts:1030",
+        "app/api/ucp/mcp/route.ts:1128",
+        "app/api/ucp/mcp/route.ts:1643"
       ]
     },
     {
@@ -85,7 +85,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "lib/admin/tenant-directory-server.ts:52",
+        "lib/admin/tenant-directory-server.ts:56",
         "lib/domain-entitlement-server.ts:35"
       ]
     },
@@ -123,7 +123,7 @@
         "app/api/growth/fundadoras/track/route.ts:68",
         "app/api/growth/track/route.ts:39",
         "app/api/vende/fundadoras/apply/route.ts:88",
-        "lib/merchant-lifecycle-server.ts:259",
+        "lib/merchant-lifecycle-server.ts:261",
         "lib/preview-lifecycle.ts:41"
       ]
     },
@@ -162,14 +162,14 @@
         "app/api/sell/launchpad/submissions/[id]/route.ts:22",
         "app/api/sell/launchpad/submissions/route.ts:15",
         "app/api/sell/listing/[id]/route.ts:146",
-        "app/api/ucp/mcp/route.ts:2823",
-        "app/api/ucp/mcp/route.ts:2869",
-        "app/api/ucp/mcp/route.ts:2898",
-        "app/api/ucp/mcp/route.ts:2938",
-        "app/api/ucp/mcp/route.ts:3007",
-        "app/api/ucp/mcp/route.ts:3042",
-        "app/api/ucp/mcp/route.ts:3076",
-        "app/api/ucp/mcp/route.ts:3108"
+        "app/api/ucp/mcp/route.ts:2856",
+        "app/api/ucp/mcp/route.ts:2902",
+        "app/api/ucp/mcp/route.ts:2931",
+        "app/api/ucp/mcp/route.ts:2971",
+        "app/api/ucp/mcp/route.ts:3040",
+        "app/api/ucp/mcp/route.ts:3075",
+        "app/api/ucp/mcp/route.ts:3109",
+        "app/api/ucp/mcp/route.ts:3144"
       ]
     },
     {
@@ -179,7 +179,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3415"
+        "app/api/ucp/mcp/route.ts:3454"
       ]
     },
     {
@@ -189,7 +189,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1962"
+        "app/api/ucp/mcp/route.ts:1971"
       ]
     },
     {
@@ -199,7 +199,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3237"
+        "app/api/ucp/mcp/route.ts:3276"
       ]
     },
     {
@@ -209,7 +209,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:3365"
+        "app/api/ucp/mcp/route.ts:3404"
       ]
     },
     {
@@ -219,7 +219,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/api/ucp/mcp/route.ts:1959"
+        "app/api/ucp/mcp/route.ts:1968"
       ]
     },
     {
@@ -237,7 +237,7 @@
         "app/api/sell/shopify/import/parity/estimate/route.ts:23",
         "app/api/sell/shopify/import/parity/route.ts:17",
         "app/api/sell/shopify/import/route.ts:25",
-        "app/api/ucp/mcp/route.ts:3609"
+        "app/api/ucp/mcp/route.ts:3648"
       ]
     },
     {
@@ -285,7 +285,7 @@
         "app/(shell)/sell/edit/[id]/page.tsx:174",
         "app/api/sell/ml/predict/route.ts:18",
         "app/api/sell/ml/publish/route.ts:19",
-        "app/api/ucp/mcp/route.ts:3390",
+        "app/api/ucp/mcp/route.ts:3429",
         "lib/listing-status.ts:53"
       ]
     },
@@ -358,7 +358,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:64",
+        "app/(shell)/partner/page.tsx:74",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
@@ -434,7 +434,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:69",
+        "app/(shell)/partner/page.tsx:79",
         "lib/portfolio/gate-server.ts:54",
         "lib/portfolio/partner-portfolio-auth.ts:107",
         "lib/portfolio/reminders-server.ts:220"
