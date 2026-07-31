@@ -98,8 +98,7 @@ async function resolveCheckoutLines(
   market: { code: 'mx' | 'us'; query: string },
   offerId?: string,
 ): Promise<ResolvedCheckoutLine[]> {
-  const resolved: ResolvedCheckoutLine[] = []
-  for (const lineItem of lineItems) {
+  return Promise.all(lineItems.map(async (lineItem) => {
     const listingRes = await medusaFetch(
       `/store/listings/${encodeURIComponent(lineItem.productId)}?${market.query}`,
     )
@@ -124,9 +123,8 @@ async function resolveCheckoutLines(
       resolvedVariantId = productVariants[0]?.id ?? null
     }
     if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
-    resolved.push({ ...lineItem, resolvedVariantId, productMetadata })
-  }
-  return resolved
+    return { ...lineItem, resolvedVariantId, productMetadata }
+  }))
 }
 
 async function responseMessage(response: Response, fallback: string) {

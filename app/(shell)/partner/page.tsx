@@ -108,7 +108,8 @@ export default async function PartnerDashboardPage({
     // The grant/mirror supplies the membership and slug, never the operating
     // market. Resolve that separately from Medusa's public seller projection.
     const enriched = await Promise.all(rawShops.map(async (shop) => {
-      const visibility = marketVisibility(readPublicSellerMarket(await getShop(shop.slug)))
+      const publicSeller = shop.slug ? await getShop(shop.slug) : null
+      const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
       return [shop.id, { ...shop, ...visibility }] as const
     }))
     const shopById = new Map(enriched)

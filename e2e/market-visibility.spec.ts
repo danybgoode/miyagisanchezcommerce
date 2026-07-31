@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { marketVisibility } from '../lib/market-visibility'
 import { readPublicSellerMarket } from '../lib/owned-market'
+
+const ROOT = join(import.meta.dirname, '..')
 
 test.describe('market visibility', () => {
   test('distinguishes an active owned shop from MX marketplace publication', () => {
@@ -31,5 +35,10 @@ test.describe('market visibility', () => {
       operatingMarketLabel: 'Mercado operativo no disponible',
       marketplacePublicationLabel: 'Estado de marketplace no disponible',
     })
+  })
+
+  test('does not issue a public-seller lookup for a partner shop without a slug', () => {
+    const source = readFileSync(join(ROOT, 'app/(shell)/partner/page.tsx'), 'utf8')
+    expect(source).toContain('shop.slug ? await getShop(shop.slug) : null')
   })
 })
