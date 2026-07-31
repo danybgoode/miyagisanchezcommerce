@@ -59,7 +59,11 @@ import {
   type TransitionActorType,
 } from '@/lib/merchant-stage'
 import { loadCommerceFacts } from '@/lib/merchant-commerce-facts'
-import { emitMerchantLifecycle, type EmitOutcome } from '@/lib/merchant-lifecycle-server'
+import {
+  emitMerchantLifecycle,
+  resolveOperatingMarketForShop,
+  type EmitOutcome,
+} from '@/lib/merchant-lifecycle-server'
 import type { MerchantLifecycleEvent } from '@/lib/merchant-lifecycle'
 import { getPreviewByShop, type MerchantPreview } from '@/lib/preview-access'
 import { readApprovalState } from '@/lib/preview-consent'
@@ -207,10 +211,16 @@ export async function emitStageTransition(input: StageTransitionEmitInput): Prom
     return 'consent_not_evidenced'
   }
 
+  // Stage transitions may precede shop creation. Resolve a known shop's
+  // authoritative market before the initial outbox claim; no shop/unreadable
+  // projection means no tag, never an MX fallback.
+  const marketCode = input.shopId ? await resolveOperatingMarketForShop(input.shopId) : undefined
+
   return emitMerchantLifecycle(event, {
     merchantId: input.relationshipId,
     occurredAt: input.occurredAt,
     correlationId: input.correlationId,
+    marketCode,
   })
 }
 

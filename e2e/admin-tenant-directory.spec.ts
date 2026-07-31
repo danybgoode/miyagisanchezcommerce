@@ -33,6 +33,27 @@ test.describe('admin tenant-directory · shapeTenantRow', () => {
     expect(row.medusaSellerId).toBe('sel_123')
     expect(row.shopId).toBe('shop_uuid_1')
     expect(row.listingCount).toBe(3)
+    expect(row.operatingMarketCode).toBeNull()
+    expect(row.marketplacePublicationLabel).toBe('Estado de marketplace no disponible')
+  })
+
+  test('uses the public Medusa seller projection for market labels, never mirror metadata', () => {
+    const row = shapeTenantRow(
+      { ...base, metadata: { medusa_seller_id: 'sel_123', operating_market: 'us' } },
+      {
+        paywallEnabled: false,
+        listingCount: 0,
+        publicSellerMarket: {
+          market_code: 'mx',
+          country_code: 'mx',
+          currency_code: 'mxn',
+          marketplace_status: 'active',
+          market: { code: 'mx', country_code: 'mx', currency_code: 'mxn', default_locale: 'es-MX', timezone: 'America/Mexico_City', marketplace_status: 'active' },
+        },
+      },
+    )
+    expect(row.operatingMarketCode).toBe('mx')
+    expect(row.marketplacePublicationLabel).toBe('Marketplace MX')
   })
 
   test('flags an un-imported gem (no medusa_seller_id) with null identity', () => {

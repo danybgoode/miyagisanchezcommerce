@@ -78,7 +78,9 @@ import { resolvePrefs, audienceTelegramInUse, EVENT_GROUPS, CHANNELS, type PrefR
 import { genLinkToken, LINK_TOKEN_TTL_MS } from '@/lib/notifications/telegram-link'
 import { getBotUsername, tgSend, tg } from '@/lib/telegram'
 import { validateFeedbackInput } from '@/lib/feedback'
-import { getShopCollections } from '@/lib/listings'
+import { getShop, getShopCollections } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { agentMarketplacePublicationBlock } from '@/lib/market-publication'
 import { shortCollectionSlug, validateCollectionName, validateListingTitle } from '@/lib/collection-derive'
 import { validateRows, CATALOG_CATEGORY_KEYS, IMPORT_LISTING_TYPES, IMPORT_CONDITIONS, IMPORT_CURRENCIES, type CatalogImportRow } from '@/lib/catalog-import'
 import { ingestImageUrls } from '@/lib/image-ingest'
@@ -1918,10 +1920,17 @@ async function handleGetStoreConfiguration(args: Record<string, unknown>, authHe
   if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
   const shop = agentAuth.shop
 
-  const snapshot = buildStoreConfigSnapshot(shop)
+  // Agent credentials resolve a mirror row. That row may enumerate/identify the
+  // shop, but cannot become market truth; read the public Medusa seller projection
+  // before presenting operating-market data to the agent.
+  const publicSeller = shop.slug ? await getShop(shop.slug) : null
+  const snapshot = buildStoreConfigSnapshot(shop, readPublicSellerMarket(publicSeller))
   const manualLines = snapshot.manual_sections.map((m) => `- ${m.label}: ${m.why}`).join('\n')
   const summary = [
     `## Configuración de ${shop.name ?? 'tu tienda'}`,
+    `**Mercado operativo:** ${snapshot.operating_market
+      ? `${snapshot.operating_market.market_code.toUpperCase()} · ${snapshot.operating_market.marketplace_status}`
+      : 'no disponible (no se asumió MX)'}`,
     `**Bloques con datos:** ${snapshot.configured_blocks.length ? snapshot.configured_blocks.join(', ') : 'ninguno aún'}`,
     '',
     'Estos bloques son editables con `patch_store_configuration`. Lo siguiente requiere un paso manual y NO se puede cambiar por agente:',
@@ -2119,6 +2128,25 @@ async function refusePreviewPrivateWrite(
 }
 
 /**
+ * Seller-agent credentials identify a mirror row, but a mirror is not market
+ * truth. Resolve the public Medusa seller projection before any action that can
+ * create or reactivate a marketplace listing. Failed resolution intentionally
+ * blocks publication rather than treating the shop as MX by default.
+ */
+async function refuseMarketplacePublication(
+  shop: AgentShop,
+  action: string,
+): Promise<{ isError: true; content: Array<{ type: string; text: string }> } | null> {
+  const publicSeller = shop.slug ? await getShop(shop.slug) : null
+  const block = agentMarketplacePublicationBlock(readPublicSellerMarket(publicSeller))
+  if (!block) return null
+  return {
+    isError: true,
+    content: [{ type: 'text', text: `No se puede ${action}. ${block}` }],
+  }
+}
+
+/**
  * A content edit landed on a previewed shop — any current approval is now stale.
  * Idempotent and best-effort: a shop with no anchor, or one whose snapshot didn't
  * materially change, is left completely alone, and a failure here never fails the
@@ -2146,6 +2174,11 @@ async function handleCreateListing(args: Record<string, unknown>, authHeader?: s
   if (!agentAuth.ok) return { isError: true, content: [{ type: 'text', text: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }] }
   const shop = agentAuth.shop
   if (!shop.slug) return { isError: true, content: [{ type: 'text', text: 'Tu tienda no tiene un identificador (slug) configurado.' }] }
+
+  // create_listing publishes a viable listing by default, so this has to run
+  // before image ingestion or any durable catalog work.
+  const marketRefused = await refuseMarketplacePublication(shop, 'crear un anuncio')
+  if (marketRefused) return marketRefused
 
   // Shape the agent's args into a catalog-import row and re-validate server-side
   // (never trust the agent) — reuses the exact rules the bulk importer enforces.
@@ -3079,6 +3112,9 @@ async function handleActivateCampaign(args: Record<string, unknown>, authHeader?
   const context = toCampaignSellerContext(agentShop)
   if (!context) return { isError: true, content: [{ type: 'text', text: 'No se pudo resolver tu tienda en Medusa.' }] }
 
+  const marketRefused = await refuseMarketplacePublication(agentShop, 'activar una campaña')
+  if (marketRefused) return marketRefused
+
   // Activating a campaign publishes its product — same publication boundary as
   // set_listing_status, so a shop awaiting consent must refuse it too.
   const refused = await refusePreviewPrivateWrite(agentShop.id, 'activar una campaña')
@@ -3202,6 +3238,9 @@ async function handleSetListingStatus(args: Record<string, unknown>, authHeader?
   if (refused) return refused
 
   if (status === 'active') {
+    const marketRefused = await refuseMarketplacePublication(shop, 'activar un anuncio')
+    if (marketRefused) return marketRefused
+
     const block = listingActivationBlock(shop.metadata, owned.listing_type)
     if (block) return { isError: true, content: [{ type: 'text', text: block }] }
   }

@@ -26,6 +26,9 @@ import {
   deriveDomainEntitlement,
   type DomainEntitlementReason,
 } from '@/lib/domain-entitlement'
+import { marketVisibility } from '@/lib/market-visibility'
+import type { MarketCode } from '@/lib/markets'
+import type { PublicSellerMarket } from '@/lib/owned-market'
 
 /** Custom-domain state of a tenant, for the directory at a glance. */
 export type TenantDomainStatus = 'none' | 'pending' | 'verified'
@@ -53,6 +56,10 @@ export type TenantRow = {
    */
   subscriptionUnchecked: boolean
   listingCount: number
+  /** Authoritative Medusa seller projection, never mirror metadata. */
+  operatingMarketCode: MarketCode | null
+  operatingMarketLabel: string
+  marketplacePublicationLabel: string
   /** ISO timestamp the mirror row was created. */
   createdAt: string | null
 }
@@ -95,13 +102,14 @@ function deriveDomainStatus(domain: string | null, verified: boolean): TenantDom
  */
 export function shapeTenantRow(
   raw: RawTenantRow,
-  ctx: { paywallEnabled: boolean; listingCount: number },
+  ctx: { paywallEnabled: boolean; listingCount: number; publicSellerMarket?: PublicSellerMarket | null },
 ): TenantRow {
   const customDomain = trimmed(raw.custom_domain) || null
   const entitlement = deriveDomainEntitlement({
     paywallEnabled: ctx.paywallEnabled,
     grant: readDomainGrant(raw.metadata),
   })
+  const market = marketVisibility(ctx.publicSellerMarket ?? null)
   return {
     medusaSellerId: medusaSellerIdOf(raw.metadata),
     shopId: raw.id,
@@ -114,6 +122,9 @@ export function shapeTenantRow(
     entitled: entitlement.entitled,
     subscriptionUnchecked: ctx.paywallEnabled && entitlement.reason === 'none',
     listingCount: Math.max(0, Math.floor(ctx.listingCount) || 0),
+    operatingMarketCode: market.operatingMarketCode,
+    operatingMarketLabel: market.operatingMarketLabel,
+    marketplacePublicationLabel: market.marketplacePublicationLabel,
     createdAt: trimmed(raw.created_at) || null,
   }
 }

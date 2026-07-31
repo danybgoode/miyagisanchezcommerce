@@ -28,6 +28,9 @@ import { fileURLToPath } from 'node:url'
  *                         deferral: these surfaces now accept `market`, must plan
  *                         through the same fail-closed seam, and verify the backend
  *                         echo before returning catalog rows.
+ *   CHECKOUT_MARKET_SCOPED — a money-path admission read. It proves exact marketplace
+ *                            publication BEFORE the cart write, so a guessed product id
+ *                            can never use the product endpoint as a bypass.
  *
  * Source-text scanning only: no network, no DB. Comments are stripped before every
  * scan, because a negative-containment guard that fires on a doc comment explaining
@@ -97,6 +100,10 @@ const AGENT_MARKET_SCOPED = new Set([
   'app/api/ucp/mcp/route.ts',
 ])
 
+const CHECKOUT_MARKET_SCOPED = new Set([
+  'lib/cart.ts',
+])
+
 const OWNERSHIP_SCOPED = new Set([
   // A seller publishing: is this listing actually checkout-viable for its OWNER?
   'lib/listing-status.ts',
@@ -117,7 +124,12 @@ const OWNERSHIP_SCOPED = new Set([
   'app/api/supply/listing-images/route.ts',
 ])
 
-const CLASSIFIED = new Set([...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED])
+const CLASSIFIED = new Set([
+  ...MARKET_SCOPED,
+  ...AGENT_MARKET_SCOPED,
+  ...CHECKOUT_MARKET_SCOPED,
+  ...OWNERSHIP_SCOPED,
+])
 
 const CATALOG_READERS = [join(ROOT, 'app'), join(ROOT, 'lib')]
   .flatMap(listSourceFiles)
@@ -146,7 +158,7 @@ test.describe('population guard · every marketplace catalog reader is classifie
   })
 
   test('the three buckets are disjoint', () => {
-    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
+    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...CHECKOUT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
     expect(all.length).toBe(new Set(all).size)
   })
 })
@@ -446,6 +458,15 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
     expect(stripped).toContain('resolveRegionIdForMarket')
     expect(stripped).toContain('DEFAULT_MARKET')
     expect(stripped).toContain('region_id: regionId')
+  })
+
+  test('cart admission proves marketplace publication before any cart write', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'cart.ts'), 'utf8'))
+    const preflight = stripped.indexOf('resolveCheckoutLines(')
+    const cartWrite = stripped.indexOf("medusaFetch('/store/carts'")
+    expect(preflight).toBeGreaterThan(-1)
+    expect(cartWrite).toBeGreaterThan(preflight)
+    expect(stripped).toContain('isCheckoutListingAdmitted')
   })
 })
 

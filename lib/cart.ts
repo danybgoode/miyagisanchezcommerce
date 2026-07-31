@@ -11,6 +11,8 @@
 import type { PersonalizationPayload } from './personalization'
 import { DEFAULT_MARKET } from './markets'
 import { PROCESS_MARKET_ENV, resolveRegionIdForMarket } from './market-medusa'
+import { isMarketUnavailable, planMarketCatalogRead } from './market-catalog'
+import { isCheckoutListingAdmitted } from './checkout-market'
 import { readEventDetails } from './event-listing'
 import {
   EVENT_TICKET_METADATA_KEY,
@@ -68,6 +70,63 @@ function medusaFetch(path: string, options?: RequestInit) {
       ...(options?.headers ?? {}),
     },
   })
+}
+
+type CheckoutLineInput = {
+  productId: string
+  variantId?: string | null
+  personalization?: PersonalizationPayload | null
+  quantity?: number
+}
+
+type ResolvedCheckoutLine = CheckoutLineInput & {
+  resolvedVariantId: string
+  productMetadata: Record<string, unknown> | null
+}
+
+/**
+ * Admit every item through the market-scoped marketplace DETAIL endpoint
+ * before creating a cart, then load its variants from Medusa's product endpoint.
+ *
+ * The second read is intentionally ownership-neutral commerce data, but it is
+ * only reachable after the first read proved marketplace publication for the
+ * exact requested market. Keeping this before cart creation prevents both a
+ * guessed direct product id bypass and a partly-created mixed-market cart.
+ */
+async function resolveCheckoutLines(
+  lineItems: CheckoutLineInput[],
+  market: { code: 'mx' | 'us'; query: string },
+  offerId?: string,
+): Promise<ResolvedCheckoutLine[]> {
+  const resolved: ResolvedCheckoutLine[] = []
+  for (const lineItem of lineItems) {
+    const listingRes = await medusaFetch(
+      `/store/listings/${encodeURIComponent(lineItem.productId)}?${market.query}`,
+    )
+    if (!listingRes.ok) {
+      throw new Error(`Product ${lineItem.productId} is not available in this marketplace`)
+    }
+    const listingPayload = await listingRes.json()
+    if (!isCheckoutListingAdmitted(listingPayload, market.code, lineItem.productId)) {
+      throw new Error(`Product ${lineItem.productId} could not be verified for this marketplace`)
+    }
+
+    const productRes = await medusaFetch(`/store/products/${encodeURIComponent(lineItem.productId)}?fields=variants.id,metadata`)
+    if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
+    const { product } = await productRes.json()
+    const productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
+    const productVariants: Array<{ id: string }> = product?.variants ?? []
+    let resolvedVariantId = lineItem.variantId ?? null
+    if (!resolvedVariantId) {
+      if (productVariants.length > 1 && !offerId) {
+        throw new Error(`Product ${lineItem.productId} has multiple variants; variantId is required`)
+      }
+      resolvedVariantId = productVariants[0]?.id ?? null
+    }
+    if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
+    resolved.push({ ...lineItem, resolvedVariantId, productMetadata })
+  }
+  return resolved
 }
 
 async function responseMessage(response: Response, fallback: string) {
@@ -225,7 +284,14 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   // unsupported market fails here rather than after a cart already exists.
   // `UnknownMarketError` propagates deliberately: cart creation is a write seam and
   // an unrecognised market at a write seam is a bug, not a degraded read.
-  const regionId = resolveRegionIdForMarket(market ?? DEFAULT_MARKET, PROCESS_MARKET_ENV)
+  const marketDecision = planMarketCatalogRead(market ?? DEFAULT_MARKET)
+  if (isMarketUnavailable(marketDecision)) {
+    throw new Error(
+      `This marketplace is unavailable (${marketDecision.reason}). ` +
+      'US commerce is an explicit non-goal of this epic.',
+    )
+  }
+  const regionId = resolveRegionIdForMarket(marketDecision.market.code, PROCESS_MARKET_ENV)
   if (regionId === null) {
     throw new Error(
       'This market has no Medusa Region, so no cart can be created in it. ' +
@@ -237,7 +303,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
 
   // Normalise to array — single-item path is the same as multi-item with one entry
-  const lineItems: Array<{ productId: string; variantId?: string | null; personalization?: PersonalizationPayload | null; quantity?: number }> =
+  const lineItems: CheckoutLineInput[] =
     items && items.length > 0
       ? items
       : productId
@@ -245,6 +311,14 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
         : []
 
   if (lineItems.length === 0) throw new Error('No items to checkout')
+
+  // There is deliberately no cart/customer write before all product ids have
+  // passed the market-publication proof above.
+  const resolvedLines = await resolveCheckoutLines(
+    lineItems,
+    { code: marketDecision.market.code, query: marketDecision.query },
+    offerId,
+  )
 
   const authHeaders: Record<string, string> = clerkJwt
     ? { Authorization: `Bearer ${clerkJwt}` }
@@ -282,38 +356,14 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const cartId = cart.id
 
   // 3. Add each item (resolve variant ID on-the-fly if missing)
-  for (const lineItem of lineItems) {
-    let resolvedVariantId = lineItem.variantId ?? null
-    let productMetadata: Record<string, unknown> | null = null
-
-    const productRes = await medusaFetch(`/store/products/${lineItem.productId}?fields=variants.id,metadata`)
-    if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
-    const { product } = await productRes.json()
-    productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
-    const productVariants: Array<{ id: string }> = product?.variants ?? []
-    if (!resolvedVariantId) {
-      // Only default to the sole variant on a legacy single-variant product —
-      // a multi-variant (configurator) listing must resolve its variant from
-      // the buyer's selected options before reaching this call. Exception:
-      // an accepted-offer redemption (offerId present) is variant-agnostic
-      // by design (negotiation predates the configurator feature and was
-      // never variant-aware) — never throw there, or a legacy accepted
-      // offer on a since-converted listing becomes permanently unpayable
-      // (cross-agent review catch, 2026-07-05).
-      if (productVariants.length > 1 && !offerId) {
-        throw new Error(`Product ${lineItem.productId} has multiple variants; variantId is required`)
-      }
-      resolvedVariantId = productVariants[0]?.id ?? null
-    }
-    if (!resolvedVariantId) throw new Error(`Product ${lineItem.productId} has no variants`)
-
-    const eventTicket = eventTicketForProduct(lineItem.productId, productMetadata)
+  for (const lineItem of resolvedLines) {
+    const eventTicket = eventTicketForProduct(lineItem.productId, lineItem.productMetadata)
 
     const itemRes = await medusaFetch(`/store/carts/${cartId}/line-items`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({
-        variant_id: resolvedVariantId,
+        variant_id: lineItem.resolvedVariantId,
         // Default 1; event admissions can buy N (clamped to available_quantity
         // upstream). The backend issuance loop mints one ticket PER UNIT.
         quantity: Math.max(1, Math.floor(Number(lineItem.quantity ?? 1)) || 1),

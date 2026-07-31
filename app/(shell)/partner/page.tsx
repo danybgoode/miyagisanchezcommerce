@@ -7,6 +7,9 @@ import { getPromoterByClerkId } from '@/lib/promoter'
 import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { getShop } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { marketVisibility } from '@/lib/market-visibility'
 import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +19,14 @@ interface GrantedShop {
   grantId: string
   role: 'manager' | 'viewer'
   grantedAt: string
-  shop: { id: string; slug: string; name: string }
+  shop: {
+    id: string
+    slug: string
+    name: string
+    operatingMarketCode: 'mx' | 'us' | null
+    operatingMarketLabel: string
+    marketplacePublicationLabel: string
+  }
 }
 
 const ROLE_LABEL: Record<'manager' | 'viewer', string> = { manager: 'Gestor', viewer: 'Solo lectura' }
@@ -94,7 +104,14 @@ export default async function PartnerDashboardPage({
     const { data: shops } = shopIds.length
       ? await db.from('marketplace_shops').select('id, slug, name').in('id', shopIds)
       : { data: [] }
-    const shopById = new Map((shops ?? []).map((s) => [s.id as string, s as { id: string; slug: string; name: string }]))
+    const rawShops = (shops ?? []) as Array<{ id: string; slug: string; name: string }>
+    // The grant/mirror supplies the membership and slug, never the operating
+    // market. Resolve that separately from Medusa's public seller projection.
+    const enriched = await Promise.all(rawShops.map(async (shop) => {
+      const visibility = marketVisibility(readPublicSellerMarket(await getShop(shop.slug)))
+      return [shop.id, { ...shop, ...visibility }] as const
+    }))
+    const shopById = new Map(enriched)
 
     grants = rows
       .map((g) => {
@@ -146,6 +163,9 @@ export default async function PartnerDashboardPage({
                 <div className="font-medium">{g.shop.name}</div>
                 <div className="text-xs text-[var(--color-muted)] mt-0.5">
                   {ROLE_LABEL[g.role]} · desde {fmtDate(g.grantedAt)}
+                </div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                  {g.shop.operatingMarketLabel} · {g.shop.marketplacePublicationLabel}
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0 text-sm">
