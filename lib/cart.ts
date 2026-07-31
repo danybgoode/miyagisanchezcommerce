@@ -9,10 +9,15 @@
  */
 
 import type { PersonalizationPayload } from './personalization'
-import { DEFAULT_MARKET } from './markets'
+import { DEFAULT_MARKET, type MarketCode } from './markets'
 import { PROCESS_MARKET_ENV, resolveRegionIdForMarket } from './market-medusa'
 import { isMarketUnavailable, planMarketCatalogRead } from './market-catalog'
 import { isCheckoutListingAdmitted, isVariantOwnedByProduct } from './checkout-market'
+import {
+  buildCheckoutAdmissionPath,
+  checkoutAdmissionMessage,
+  classifyCheckoutAdmission,
+} from './checkout-admission'
 import { readEventDetails } from './event-listing'
 import {
   EVENT_TICKET_METADATA_KEY,
@@ -72,6 +77,32 @@ function medusaFetch(path: string, options?: RequestInit) {
   })
 }
 
+/**
+ * Read D8's kill-switch WITHOUT pulling `server-only` into this module's import
+ * graph.
+ *
+ * `lib/flags.ts` imports `server-only`, which throws the moment it is evaluated
+ * outside a server request. This module is imported for its types by client
+ * components and directly by the Playwright `api` specs, so a STATIC import of the
+ * flag layer here breaks both — verified, not assumed: with the static import in
+ * place `e2e/personalization-checkout.spec.ts` fails to load at all. The dynamic
+ * import is therefore load-bearing, not a style choice, and it is why the actual
+ * `isEnabled` callsite lives in `lib/checkout-admission-flag.ts` (which is where
+ * the flag-inventory derivation finds it).
+ *
+ * Fails to `false` — the flag's own default, i.e. today's marketplace-only
+ * admission. An unreadable kill-switch must never be the thing that WIDENS an
+ * authorization gate.
+ */
+async function readOwnedShopOnlyFlag(): Promise<boolean> {
+  try {
+    const { ownedShopOnlyEnabled } = await import('./checkout-admission-flag')
+    return await ownedShopOnlyEnabled()
+  } catch {
+    return false
+  }
+}
+
 type CheckoutLineInput = {
   productId: string
   variantId?: string | null
@@ -85,32 +116,93 @@ type ResolvedCheckoutLine = CheckoutLineInput & {
 }
 
 /**
- * Admit every item through the market-scoped marketplace DETAIL endpoint
- * before creating a cart, then load its variants from Medusa's product endpoint.
+ * What `resolveCheckoutLines` needs from the outside world. Injected so the whole
+ * admission gate — both flag branches — is drivable by the Playwright `api` project
+ * with plain objects and no network.
+ */
+export type CheckoutAdmissionDeps = {
+  /**
+   * `catalog.owned_shop_only_enabled` (epic decision D8), resolved ONCE per
+   * checkout rather than per line, so a flag flip cannot split a single cart
+   * across two admission rules.
+   */
+  readonly ownedShopOnlyEnabled: boolean
+  /** The Medusa store fetcher — `medusaFetch` in production. */
+  readonly fetch: (path: string) => Promise<Response>
+}
+
+/**
+ * Prove ONE line item may be bought in this market, before any cart exists.
+ *
+ * Two admission rules live here, and the flag picks between them (D8):
+ *
+ *  · flag OFF — the shipped rule, byte-for-byte: the market-scoped marketplace
+ *    DETAIL endpoint must return this exact product. This is publication truth.
+ *  · flag ON  — the operating-channel seam (D7): is this product BUYABLE in this
+ *    market? A shop may sell something it never listed in the country marketplace,
+ *    and under the old rule that product was refused before a cart could exist.
+ *
+ * The widening is exactly one fact — *buyable on its own shop*. Both branches still
+ * scope to the requested market, still require the backend to echo that market
+ * back, still require both identifier fields to name the requested product, and
+ * still fail closed on anything they cannot prove. Neither branch admits "any
+ * product id", and the variant-ownership proof below is downstream of both.
+ */
+async function admitCheckoutLine(
+  productId: string,
+  market: { code: MarketCode; query: string },
+  deps: CheckoutAdmissionDeps,
+): Promise<void> {
+  if (!deps.ownedShopOnlyEnabled) {
+    const listingRes = await deps.fetch(
+      `/store/listings/${encodeURIComponent(productId)}?${market.query}`,
+    )
+    if (!listingRes.ok) {
+      throw new Error(`Product ${productId} is not available in this marketplace`)
+    }
+    const listingPayload = await listingRes.json()
+    if (!isCheckoutListingAdmitted(listingPayload, market.code, productId)) {
+      throw new Error(`Product ${productId} could not be verified for this marketplace`)
+    }
+    return
+  }
+
+  // The seam answers three ways, and they are NOT interchangeable: a refusal is a
+  // fact about the catalog, an outage is a fact about us. Collapsing the 503 into
+  // "not available in this marketplace" would tell a buyer their product does not
+  // exist because a backend hiccuped. `classifyCheckoutAdmission` keeps them apart.
+  const admissionRes = await deps.fetch(buildCheckoutAdmissionPath(productId, market.query))
+  const admissionPayload = await admissionRes.json().catch(() => null)
+  const outcome = classifyCheckoutAdmission(
+    admissionRes.status,
+    admissionPayload,
+    market.code,
+    productId,
+  )
+  if (outcome.kind !== 'admitted') {
+    throw new Error(checkoutAdmissionMessage(outcome, productId))
+  }
+}
+
+/**
+ * Admit every item through the admission gate above before creating a cart, then
+ * load its variants from Medusa's product endpoint.
  *
  * The second read is intentionally ownership-neutral commerce data, but it is
- * only reachable after the first read proved marketplace publication for the
+ * only reachable after the first read proved this product may be bought in the
  * exact requested market. Keeping this before cart creation prevents both a
  * guessed direct product id bypass and a partly-created mixed-market cart.
  */
-async function resolveCheckoutLines(
+export async function resolveCheckoutLines(
   lineItems: CheckoutLineInput[],
-  market: { code: 'mx' | 'us'; query: string },
-  offerId?: string,
+  market: { code: MarketCode; query: string },
+  offerId: string | undefined,
+  deps: CheckoutAdmissionDeps,
 ): Promise<ResolvedCheckoutLine[]> {
   return Promise.all(lineItems.map(async (lineItem) => {
-    const listingRes = await medusaFetch(
-      `/store/listings/${encodeURIComponent(lineItem.productId)}?${market.query}`,
-    )
-    if (!listingRes.ok) {
-      throw new Error(`Product ${lineItem.productId} is not available in this marketplace`)
-    }
-    const listingPayload = await listingRes.json()
-    if (!isCheckoutListingAdmitted(listingPayload, market.code, lineItem.productId)) {
-      throw new Error(`Product ${lineItem.productId} could not be verified for this marketplace`)
-    }
+    await admitCheckoutLine(lineItem.productId, market, deps)
 
-    const productRes = await medusaFetch(`/store/products/${encodeURIComponent(lineItem.productId)}?fields=variants.id,metadata`)
+    const productRes = await deps.fetch(`/store/products/${encodeURIComponent(lineItem.productId)}?fields=variants.id,metadata`)
     if (!productRes.ok) throw new Error(`Product ${lineItem.productId} not found`)
     const { product } = await productRes.json()
     const productMetadata = (product?.metadata ?? null) as Record<string, unknown> | null
@@ -124,6 +216,13 @@ async function resolveCheckoutLines(
       // product that is NOT published to this market and check it out anyway.
       // `/api/checkout/start` hands `await req.json()` straight to us, so this
       // pairing is fully caller-controlled — it must be proven, not trusted.
+      //
+      // This is UNCHANGED by the D7 relaxation, and deliberately sits below BOTH
+      // admission branches rather than inside either one. Widening what a product
+      // id may be (buyable-on-its-own-shop, not only marketplace-published) does
+      // not weaken this by one step: whatever the gate admitted, the variant sold
+      // must still belong to that same product. Under the operating-channel branch
+      // the divergence would be a variant of a product in NO channel at all.
       if (!isVariantOwnedByProduct(resolvedVariantId, productVariants)) {
         throw new Error(
           `Variant ${resolvedVariantId} does not belong to product ${lineItem.productId}`,
@@ -324,11 +423,12 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   if (lineItems.length === 0) throw new Error('No items to checkout')
 
   // There is deliberately no cart/customer write before all product ids have
-  // passed the market-publication proof above.
+  // passed the admission proof above.
   const resolvedLines = await resolveCheckoutLines(
     lineItems,
     { code: marketDecision.market.code, query: marketDecision.query },
     offerId,
+    { ownedShopOnlyEnabled: await readOwnedShopOnlyFlag(), fetch: medusaFetch },
   )
 
   const authHeaders: Record<string, string> = clerkJwt

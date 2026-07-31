@@ -35,6 +35,16 @@
       ]
     },
     {
+      "key": "catalog.owned_shop_only_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "both",
+      "callsites": [
+        "lib/checkout-admission-flag.ts:25"
+      ]
+    },
+    {
       "key": "checkout.rental_pricing_enabled",
       "compileDefault": false,
       "polarity": "enablement",

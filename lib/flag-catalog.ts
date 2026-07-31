@@ -163,6 +163,12 @@ export const FLAG_CATALOG = {
     criticality: 'high',
     enforcement: 'both',
   },
+  'catalog.owned_shop_only_enabled': {
+    default: false,
+    polarity: 'enablement',
+    criticality: 'high',
+    enforcement: 'both',
+  },
   'catalog.bulk_enabled': {
     default: false,
     polarity: 'killswitch',
