@@ -78,3 +78,17 @@ const CATALOG_STATUS_TOKEN: Record<string, StatusToken> = {
 export function catalogStatusToToken(status: string): StatusToken {
   return CATALOG_STATUS_TOKEN[status] ?? 'neutral'
 }
+
+// owned-shop-operating-channel epic, S3.3 — operating-vs-marketplace publication
+// state (`lib/publication-state.ts#derivePublicationState`), a SEPARATE axis from
+// catalog status above: a paused or draft product can still be `operating_only`.
+const PUBLICATION_STATE_TOKEN: Record<string, StatusToken> = {
+  published: 'success',
+  operating_only: 'info',
+  unsellable: 'danger',
+}
+
+/** Publication state (`derivePublicationState`) → one of the 5 semantic tokens. Unknown values read as neutral. */
+export function publicationStateToToken(state: string): StatusToken {
+  return PUBLICATION_STATE_TOKEN[state] ?? 'neutral'
+}

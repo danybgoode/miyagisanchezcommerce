@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
+import {
+  derivePublicationState,
+  nextPublicationRequest,
+  publicationChangeToastMessage,
+  PUBLICATION_STATE_LABEL,
+  PUBLICATION_STATE_HINT,
+} from '@/lib/publication-state'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
 import { deriveProductMargin, type MarginCell } from '@/lib/catalog-margin'
@@ -13,7 +20,7 @@ import { Toast, useToast } from '@/components/feedback/Toast'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { catalogStatusToToken } from '@/lib/status-badge'
+import { catalogStatusToToken, publicationStateToToken } from '@/lib/status-badge'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
 
@@ -39,6 +46,16 @@ export interface CatalogListing {
   /** Optional Mercado Libre-specific price override, in centavos (catalog-management S2 · 2.3). */
   ml_price_cents?: number | null
   channels: string[]
+  /**
+   * Buyable on the owned shop (owned-shop-operating-channel epic, S3.3) — a
+   * Medusa Sales-Channel-level fact, INDEPENDENT of `in_marketplace_channel` and
+   * of every field above (those are ML-sync/browse-visibility concerns, a
+   * different axis entirely). Absent = deploy-lag fallback to `false`, same
+   * pattern as `catalog-channels.ts#deriveChannelBadges`.
+   */
+  in_operating_channel?: boolean
+  /** Published to the country marketplace (S3.3) — the other separate fact. */
+  in_marketplace_channel?: boolean
   images: Array<{ url: string; alt?: string | null }>
   created_at: string
 }
@@ -134,6 +151,7 @@ export default function CatalogTable({
   filterParams = {},
   profitFlagEnabled = false,
   marginRowsByChannel = [],
+  ownedShopOnlyEnabled = false,
 }: {
   listings: CatalogListing[]
   /** catalog.inventory_channels_enabled (catalog-management S2 · 2.2) — fail-safe OFF: no toggle UI renders while OFF. */
@@ -150,6 +168,12 @@ export default function CatalogTable({
   profitFlagEnabled?: boolean
   /** Per-channel ledger rows (lib/profit.ts's computeSkuMarginsByChannel), already fetched server-side. */
   marginRowsByChannel?: SkuMarginRow[]
+  /**
+   * catalog.owned_shop_only_enabled (owned-shop-operating-channel epic, D8) —
+   * fail-safe OFF: with the flag off, this table renders EXACTLY as it did
+   * before Sprint 3 — no "Mercado" column, no publish/unpublish action.
+   */
+  ownedShopOnlyEnabled?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -348,6 +372,52 @@ export default function CatalogTable({
     }
   }
 
+  // Publish / unpublish to the country marketplace (owned-shop-operating-channel
+  // epic, S3.2/3.3 · D11). NOT optimistic like the toggles above — this flips a
+  // Sales-Channel membership on the money path, so we wait for the backend's
+  // answer before touching local state. `nextPublicationRequest` is the ONE
+  // decision function (pure, tested) for "what does this click mean"; this
+  // handler is pure I/O plumbing around it.
+  async function handlePublicationToggle(listing: CatalogListing) {
+    const id = listing.id
+    const state = derivePublicationState({
+      in_operating_channel: listing.in_operating_channel ?? false,
+      in_marketplace_channel: listing.in_marketplace_channel ?? false,
+    })
+    const requested = nextPublicationRequest(state)
+    if (requested === undefined) return // 'unsellable' — no action offered (see lib/publication-state.ts)
+
+    markPending(id, true)
+    try {
+      const res = await fetch(`/api/sell/listing/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publish_to_market: requested }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) {
+        // 423 (flag off) reads as a different fact from 422/503 — see
+        // publicationChangeToastMessage's header. The backend's own es-MX
+        // message wins whenever present; this is only the fallback.
+        showToast(publicationChangeToastMessage(res.status, data.error), 'error')
+      } else {
+        setListings((prev) => prev.map((l) => (l.id === id
+          ? { ...l, in_marketplace_channel: requested === 'mx' }
+          : l)))
+        showToast(
+          requested === 'mx'
+            ? 'Publicado en el marketplace de México.'
+            : 'Quitado del marketplace — sigue a la venta en tu tienda.',
+          'success',
+        )
+      }
+    } catch {
+      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
+    } finally {
+      markPending(id, false)
+    }
+  }
+
   async function handleDeleteConfirm() {
     if (!deleteTarget) return
     const { id } = deleteTarget
@@ -406,6 +476,7 @@ export default function CatalogTable({
             <th className="p-3 font-medium">Precio</th>
             <th className="p-3 font-medium">Stock</th>
             <th className="p-3 font-medium">Canales</th>
+            {ownedShopOnlyEnabled && <th className="p-3 font-medium">Mercado</th>}
             {profitFlagEnabled && (
               <th className="p-3 font-medium">
                 <button
@@ -498,6 +569,32 @@ export default function CatalogTable({
                     )}
                   </div>
                 </td>
+                {ownedShopOnlyEnabled && (() => {
+                  const pubState = derivePublicationState({
+                    in_operating_channel: listing.in_operating_channel ?? false,
+                    in_marketplace_channel: listing.in_marketplace_channel ?? false,
+                  })
+                  const pubRequest = nextPublicationRequest(pubState)
+                  return (
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1 items-start">
+                        <StatusBadge token={publicationStateToToken(pubState)} title={PUBLICATION_STATE_HINT[pubState]}>
+                          {PUBLICATION_STATE_LABEL[pubState]}
+                        </StatusBadge>
+                        {pubRequest !== undefined && (
+                          <button
+                            type="button"
+                            onClick={() => handlePublicationToggle(listing)}
+                            disabled={isPending}
+                            className="text-[10px] px-1.5 py-0.5 rounded-[var(--r-md)] border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] disabled:opacity-50"
+                          >
+                            {pubRequest === 'mx' ? 'Publicar en el marketplace' : 'Quitar del marketplace'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })()}
                 {profitFlagEnabled && (
                   <td className="p-3">
                     {margin && (
