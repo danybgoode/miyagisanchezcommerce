@@ -10,6 +10,7 @@
  */
 
 import { MANUAL_SECTIONS, CONFIG_BLOCKS, type StoreConfigManifest } from './settings-import'
+import type { PublicSellerMarket } from './owned-market'
 
 export interface StoreConfigSnapshot {
   /** The declarative, agent-patchable config (mirrors StoreConfigManifest). */
@@ -18,6 +19,8 @@ export interface StoreConfigSnapshot {
   configured_blocks: string[]
   /** Sections a config file/patch can't grant — still need a manual step. */
   manual_sections: Array<{ key: string; label: string; why: string }>
+  /** Read-only Medusa projection. Never infer this from the shop mirror. */
+  operating_market: Pick<PublicSellerMarket, 'market_code' | 'country_code' | 'currency_code' | 'marketplace_status'> | null
 }
 
 type ShopProfile = {
@@ -40,7 +43,10 @@ function splitLocation(location?: string | null): { city?: string; state?: strin
   return {}
 }
 
-export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot {
+export function buildStoreConfigSnapshot(
+  shop: ShopProfile,
+  publicSellerMarket: PublicSellerMarket | null = null,
+): StoreConfigSnapshot {
   const settings = obj(obj(shop.metadata)?.settings) ?? {}
   const theme = obj(settings.theme) ?? {}
   const social = obj(theme.social)
@@ -150,5 +156,13 @@ export function buildStoreConfigSnapshot(shop: ShopProfile): StoreConfigSnapshot
     configuration,
     configured_blocks,
     manual_sections: MANUAL_SECTIONS,
+    operating_market: publicSellerMarket
+      ? {
+          market_code: publicSellerMarket.market_code,
+          country_code: publicSellerMarket.country_code,
+          currency_code: publicSellerMarket.currency_code,
+          marketplace_status: publicSellerMarket.marketplace_status,
+        }
+      : null,
   }
 }

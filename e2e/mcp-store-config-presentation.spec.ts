@@ -10,6 +10,29 @@ import { buildStoreConfigSnapshot } from '../lib/store-config'
  * (what `get_store_configuration` calls, `app/api/ucp/mcp/route.ts`).
  */
 test.describe('own-shop premium presentation — MCP store-config round-trip (Sprint 1)', () => {
+  test('returns the separately resolved operating market, never mirror metadata', () => {
+    const snapshot = buildStoreConfigSnapshot(
+      { name: 'Tienda', metadata: { operating_market: 'mx', settings: {} } },
+      {
+        market_code: 'us',
+        country_code: 'us',
+        currency_code: 'usd',
+        marketplace_status: 'invitation',
+        market: { code: 'us', country_code: 'us', currency_code: 'usd', default_locale: 'en-US', timezone: 'America/New_York', marketplace_status: 'invitation' },
+      },
+    )
+    expect(snapshot.operating_market).toEqual({
+      market_code: 'us',
+      country_code: 'us',
+      currency_code: 'usd',
+      marketplace_status: 'invitation',
+    })
+  })
+
+  test('makes an unreadable operating market explicit instead of defaulting to MX', () => {
+    expect(buildStoreConfigSnapshot({ name: 'Tienda', metadata: { settings: {} } }).operating_market).toBeNull()
+  })
+
   test('patch_store_configuration -> get_store_configuration round-trips announcement/hero/theme_preset', () => {
     const manifest = {
       profile: {

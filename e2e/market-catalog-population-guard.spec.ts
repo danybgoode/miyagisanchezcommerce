@@ -28,6 +28,9 @@ import { fileURLToPath } from 'node:url'
  *                         deferral: these surfaces now accept `market`, must plan
  *                         through the same fail-closed seam, and verify the backend
  *                         echo before returning catalog rows.
+ *   CHECKOUT_MARKET_SCOPED — a money-path admission read. It proves exact marketplace
+ *                            publication BEFORE the cart write, so a guessed product id
+ *                            can never use the product endpoint as a bypass.
  *
  * Source-text scanning only: no network, no DB. Comments are stripped before every
  * scan, because a negative-containment guard that fires on a doc comment explaining
@@ -97,6 +100,10 @@ const AGENT_MARKET_SCOPED = new Set([
   'app/api/ucp/mcp/route.ts',
 ])
 
+const CHECKOUT_MARKET_SCOPED = new Set([
+  'lib/cart.ts',
+])
+
 const OWNERSHIP_SCOPED = new Set([
   // A seller publishing: is this listing actually checkout-viable for its OWNER?
   'lib/listing-status.ts',
@@ -117,9 +124,50 @@ const OWNERSHIP_SCOPED = new Set([
   'app/api/supply/listing-images/route.ts',
 ])
 
-const CLASSIFIED = new Set([...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED])
+const CLASSIFIED = new Set([
+  ...MARKET_SCOPED,
+  ...AGENT_MARKET_SCOPED,
+  ...CHECKOUT_MARKET_SCOPED,
+  ...OWNERSHIP_SCOPED,
+])
 
-const CATALOG_READERS = [join(ROOT, 'app'), join(ROOT, 'lib')]
+/**
+ * Every directory in this app that can contain a catalog read.
+ *
+ * This list is itself guarded, immediately below. The first version of this scan
+ * walked only `app/` and `lib/` — which made the guard commit the very error its
+ * doc-comment warns about: a component under `components/` fetching `/store/listings`
+ * directly would never have been classified, and the spec would have stayed green
+ * while the boundary leaked. Widen this list rather than narrowing a scan.
+ */
+const SOURCE_ROOTS = ['app', 'lib', 'components', 'services', 'db']
+
+/** Directories with no shippable request path: fixtures, tooling, build output, assets. */
+const NON_SOURCE_DIRS = new Set([
+  'node_modules', '.next', '.worktrees', '.git', '.vercel', '.claude',
+  'e2e', 'scripts', 'test-results', 'playwright-report',
+  'public', 'locales', 'artifacts', 'memory', 'tasks', 'supabase', 'docs', 'Roadmap',
+])
+
+test.describe('population guard · the SCAN ITSELF covers every source directory', () => {
+  // The meta-guard. Without it, adding a new top-level source directory silently
+  // shrinks the population every other test in this file reasons about — the guard
+  // would keep passing while covering less, which is worse than no guard at all.
+  test('no unscanned top-level directory contains TypeScript source', () => {
+    const unscanned = readdirSync(ROOT)
+      .filter((entry) => !entry.startsWith('.'))
+      .filter((entry) => !NON_SOURCE_DIRS.has(entry))
+      .filter((entry) => !SOURCE_ROOTS.includes(entry))
+      .filter((entry) => statSync(join(ROOT, entry)).isDirectory())
+      .filter((entry) => listSourceFiles(join(ROOT, entry)).length > 0)
+      .sort()
+    // If this fails: add the directory to SOURCE_ROOTS (it ships code), or to
+    // NON_SOURCE_DIRS (it does not). Do not delete this test to make it green.
+    expect(unscanned).toEqual([])
+  })
+})
+
+const CATALOG_READERS = SOURCE_ROOTS.map((dir) => join(ROOT, dir))
   .flatMap(listSourceFiles)
   .filter((file) => hasCatalogRead(stripComments(readFileSync(file, 'utf8'))))
   .map(rel)
@@ -146,7 +194,7 @@ test.describe('population guard · every marketplace catalog reader is classifie
   })
 
   test('the three buckets are disjoint', () => {
-    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
+    const all = [...MARKET_SCOPED, ...AGENT_MARKET_SCOPED, ...CHECKOUT_MARKET_SCOPED, ...OWNERSHIP_SCOPED]
     expect(all.length).toBe(new Set(all).size)
   })
 })
@@ -446,6 +494,15 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
     expect(stripped).toContain('resolveRegionIdForMarket')
     expect(stripped).toContain('DEFAULT_MARKET')
     expect(stripped).toContain('region_id: regionId')
+  })
+
+  test('cart admission proves marketplace publication before any cart write', () => {
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'cart.ts'), 'utf8'))
+    const preflight = stripped.indexOf('resolveCheckoutLines(')
+    const cartWrite = stripped.indexOf("medusaFetch('/store/carts'")
+    expect(preflight).toBeGreaterThan(-1)
+    expect(cartWrite).toBeGreaterThan(preflight)
+    expect(stripped).toContain('isCheckoutListingAdmitted')
   })
 })
 

@@ -81,6 +81,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                   <Badge tone={t.entitled ? 'ok' : t.subscriptionUnchecked ? 'warn' : 'muted'}>
                     {t.subscriptionUnchecked ? 'Sin plan (suscripción sin verificar)' : entitlementReasonLabel(t.entitlementReason)}
                   </Badge>
+                  <Badge tone={t.operatingMarketCode ? 'ok' : 'warn'}>{t.marketplacePublicationLabel}</Badge>
                   <span className="text-[var(--color-muted)]">{t.listingCount} anuncios</span>
                 </span>
               </button>
@@ -96,6 +97,8 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                   </Field>
                   <Field label="Slug">/{t.slug}</Field>
                   <Field label="Reclamo">{claimStatusLabel(t.claimed)}</Field>
+                  <Field label="Mercado operativo">{t.operatingMarketLabel}</Field>
+                  <Field label="Publicación de marketplace">{t.marketplacePublicationLabel}</Field>
                   <Field label="Dominio personalizado">
                     {t.customDomain ? (
                       <>
@@ -159,9 +162,14 @@ function EntitlementControls({
   // shop + SKU (subscription incl.).
   useEffect(() => {
     let cancelled = false
-    setError(null)
-    setGrant(undefined)
     ;(async () => {
+      // Defer the reset into the async synchronization path. React's effect
+      // contract forbids a synchronous state cascade while subscribing to the
+      // external entitlement read.
+      await Promise.resolve()
+      if (cancelled) return
+      setError(null)
+      setGrant(undefined)
       try {
         const res = await fetch(`/api/admin/tenants/${encodeURIComponent(row.shopId)}?sku=${sku}`)
         if (!res.ok) return

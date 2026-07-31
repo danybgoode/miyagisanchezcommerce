@@ -26,3 +26,26 @@ for (const viewport of [
     expect(consoleErrors).toEqual([])
   })
 }
+
+test('US invitation is a research conversation, not a catalog launch', async ({ page }) => {
+  const response = await page.goto('/us')
+
+  expect(response?.status()).toBe(200)
+  await expect(page.getByTestId('us-invitation')).toBeVisible()
+  await expect(page.getByTestId('us-research-cta')).toHaveAttribute(
+    'href',
+    /^mailto:daniel@miyagisanchez\.com\?subject=/,
+  )
+  await expect(page.getByTestId('us-pilot-proof')).toContainText('three consenting client shops')
+  await expect(page.locator('[data-listing-id]')).toHaveCount(0)
+  await expect(page.locator('body')).toContainText('working hypothesis')
+})
+
+test('US has no marketplace children while the market is invitation-only', async ({ page }) => {
+  for (const path of ['/us/l/prod_market_boundary_fixture', '/us/s/shop-boundary-fixture', '/us/search', '/us/category']) {
+    const response = await page.goto(path)
+    expect(response?.status(), path).toBe(404)
+    await expect(page.getByTestId('us-invitation'), path).toHaveCount(0)
+    await expect(page.locator('[data-listing-id]'), path).toHaveCount(0)
+  }
+})

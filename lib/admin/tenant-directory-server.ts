@@ -19,7 +19,11 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { DELETED_STATUS } from '@/lib/listing-lifecycle'
-import { shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
+import { mapWithConcurrency, shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
+import { getShop } from '@/lib/listings'
+import { readPublicSellerMarket, type PublicSellerMarket } from '@/lib/owned-market'
+
+const PUBLIC_SELLER_READ_CONCURRENCY = 8
 
 /**
  * Count non-deleted listings per `shop_id` from the mirror — one read, counted in
@@ -63,7 +67,36 @@ export async function listTenants(): Promise<TenantRow[]> {
     return []
   }
 
-  return (data as RawTenantRow[]).map((raw) =>
-    shapeTenantRow(raw, { paywallEnabled, listingCount: counts.get(raw.id) ?? 0 }),
+  const rows = data as RawTenantRow[]
+  // The mirror is only the enumerable list spine. Market state is read from
+  // Medusa's public seller projection; an unavailable projection stays visibly
+  // unavailable instead of inheriting a made-up MX default.
+  const markets = new Map<string, PublicSellerMarket | null>(await mapWithConcurrency(
+    rows,
+    PUBLIC_SELLER_READ_CONCURRENCY,
+    async (raw) => {
+    // `getShop` is a bare `fetch` with no error handling of its own, so a network
+    // fault, timeout or malformed body REJECTS rather than returning null. Inside
+    // a Promise.all that would reject the whole batch and 500 the directory —
+    // breaking this function's contract two doc-comments up ("degrades to [] on a
+    // read failure so the admin page never throws") over one unreachable seller.
+    // An unreadable projection is the UNAVAILABLE state, which `readPublicSellerMarket`
+    // already renders as "Mercado operativo no disponible" — never a made-up MX default.
+    let seller = null
+    try {
+      seller = raw.slug ? await getShop(raw.slug) : null
+    } catch (error) {
+      console.warn(`[tenant-directory] seller projection unavailable for ${raw.slug}:`, error)
+    }
+    return [raw.id, readPublicSellerMarket(seller)] as const
+    },
+  ))
+
+  return rows.map((raw) =>
+    shapeTenantRow(raw, {
+      paywallEnabled,
+      listingCount: counts.get(raw.id) ?? 0,
+      publicSellerMarket: markets.get(raw.id) ?? null,
+    }),
   )
 }

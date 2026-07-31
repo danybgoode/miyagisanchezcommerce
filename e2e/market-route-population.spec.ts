@@ -39,6 +39,17 @@ test.describe('market route population', () => {
     expect(isMarketPrefixablePath('/c/editorial')).toBe(false)
   })
 
+  test('the invitation market has exactly one static route, never a catalog subtree', () => {
+    const usRoutes = filesBelow('app')
+      .map((file) => path.relative(ROOT, file).replace(/\\/g, '/'))
+      .filter((file) => /\/(?:us)(?:\/|$)/.test(file))
+      .sort()
+
+    // D9: directory absence is the guard. A later `/us/l`, `/us/s`, search, or
+    // category folder cannot quietly become a plausible-but-empty US marketplace.
+    expect(usRoutes).toEqual(['app/(site)/us/page.tsx'])
+  })
+
   test('the root selector is a zero-catalog static surface', () => {
     const source = readFileSync(path.join(ROOT, 'app/(site)/page.tsx'), 'utf8')
     expect(source).toContain('data-testid="market-selector"')

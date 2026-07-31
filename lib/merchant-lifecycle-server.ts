@@ -20,6 +20,8 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { sendGrowthEventWithResult } from '@/lib/growth-engine'
+import { getShop } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
 import {
   buildLifecycleTrackPayload,
   type LifecycleEmitFacts,
@@ -384,6 +386,31 @@ export async function resolveRelationshipIdForShop(shopId: string): Promise<stri
 }
 
 /**
+ * Resolve a shop's market from Medusa's public seller projection.
+ *
+ * The mirror supplies only the slug needed to locate that projection. It is
+ * intentionally never read for `operating_market`: mirror metadata is neither
+ * commerce truth nor an eligibility authority. A missing/invalid projection
+ * yields `undefined`, which makes the immutable event tag absent rather than
+ * falsely Mexico.
+ */
+export async function resolveOperatingMarketForShop(shopId: string): Promise<'mx' | 'us' | undefined> {
+  if (!shopId) return undefined
+  try {
+    const { data } = await db
+      .from('marketplace_shops')
+      .select('slug')
+      .eq('id', shopId)
+      .maybeSingle()
+    const slug = typeof data?.slug === 'string' ? data.slug : ''
+    if (!slug) return undefined
+    return readPublicSellerMarket(await getShop(slug))?.market_code
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Medusa seller id → `merchant_relationships.id` (the merchant subject key).
  *
  * RENAMED from `resolveMerchantIdForSeller` (Sprint 3, README D1 — "its name
@@ -430,11 +457,16 @@ export async function emitMerchantLifecycleForShop(
   facts: Omit<LifecycleEmitFacts, 'merchantId'> & { shopId: string },
 ): Promise<EmitOutcome> {
   const { shopId, ...rest } = facts
-  const relationshipId = await resolveRelationshipIdForShop(shopId)
+  // Resolve before the first durable outbox claim. Retrying must replay the
+  // original market dimension, never rebuild it from whatever the shop says
+  // later; unknown remains deliberately omitted.
+  const [relationshipId, marketCode] = await Promise.all([
+    resolveRelationshipIdForShop(shopId),
+    resolveOperatingMarketForShop(shopId),
+  ])
   if (!relationshipId) {
     console.error(`[merchant-lifecycle] no relationship for shop ${shopId} — ${event} not emitted`)
     return 'claim_failed'
   }
-  return emitMerchantLifecycle(event, { ...rest, merchantId: relationshipId })
+  return emitMerchantLifecycle(event, { ...rest, merchantId: relationshipId, marketCode })
 }
-

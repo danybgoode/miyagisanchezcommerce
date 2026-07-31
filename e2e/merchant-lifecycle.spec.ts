@@ -146,6 +146,16 @@ test.describe('merchant lifecycle · track payload (producer half)', () => {
     })
   })
 
+  test('adds a validated market code as a tag only when it is known', () => {
+    expect(buildLifecycleTrackPayload('merchant.claimed', {
+      merchantId: 'relationship_abc',
+      marketCode: 'us',
+    }).tags).toEqual({ shop_id: 'relationship_abc', market_code: 'us' })
+    expect(buildLifecycleTrackPayload('merchant.claimed', {
+      merchantId: 'relationship_abc',
+    }).tags).toEqual({ shop_id: 'relationship_abc' })
+  })
+
   test('the idempotency key is stable per (merchant, milestone) across rebuilds', () => {
     // This is what makes an AMBIGUOUS send safe to retry: golden-beans enforces
     // UNIQUE (project_id, idempotency_key) and returns the EXISTING event, so a retry

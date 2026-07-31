@@ -249,6 +249,12 @@ export interface LifecycleEmitFacts {
   correlationId?: string
   /** Non-identifying counts only — see the allow-list note below. */
   productCount?: number
+  /**
+   * Read from the validated public Medusa seller projection before this payload
+   * is claimed. This is deliberately not defaulted: lifecycle payloads are
+   * durable/retried verbatim, so an invented MX tag could never be repaired.
+   */
+  marketCode?: 'mx' | 'us'
 }
 
 /**
@@ -267,6 +273,7 @@ export function buildLifecycleTrackPayload(
   const merchantId = String(facts.merchantId ?? '')
   const tags: Record<string, string | number> = { shop_id: merchantId }
   if (typeof facts.productCount === 'number') tags.product_count = facts.productCount
+  if (facts.marketCode === 'mx' || facts.marketCode === 'us') tags.market_code = facts.marketCode
 
   const payload: LifecycleTrackPayload = {
     userId: merchantId,
