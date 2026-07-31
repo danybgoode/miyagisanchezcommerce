@@ -504,6 +504,37 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
     expect(cartWrite).toBeGreaterThan(preflight)
     expect(stripped).toContain('isCheckoutListingAdmitted')
   })
+
+  test('the D7 relaxation is gated, and BOTH admission branches precede the cart write', () => {
+    // Story 2.3 widens admission from marketplace publication to operating-channel
+    // buyability, behind `catalog.owned_shop_only_enabled` (D8). The structural
+    // invariant is unchanged by that: whichever branch runs, it runs before any
+    // cart exists. A branch that skipped the gate would move one of these indices.
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'cart.ts'), 'utf8'))
+    const cartWrite = stripped.indexOf("medusaFetch('/store/carts'")
+    const marketplaceBranch = stripped.indexOf('isCheckoutListingAdmitted(')
+    const operatingBranch = stripped.indexOf('classifyCheckoutAdmission(')
+    expect(marketplaceBranch).toBeGreaterThan(-1)
+    expect(operatingBranch).toBeGreaterThan(-1)
+    expect(cartWrite).toBeGreaterThan(marketplaceBranch)
+    expect(cartWrite).toBeGreaterThan(operatingBranch)
+    // The relaxation may only be reached through the flag, and the flag's own read
+    // lives in the dedicated server module so the inventory derivation can see it.
+    expect(stripped).toContain('ownedShopOnlyEnabled')
+    expect(stripped).toContain("import('./checkout-admission-flag')")
+  })
+
+  test('the variant-ownership proof sits BELOW both branches, exactly once', () => {
+    // The proof that the relaxation cannot bypass what is actually BOUGHT. If a
+    // future edit moved this check inside one branch, the other branch would buy an
+    // unproven variant — so its uniqueness is the assertion, not just its presence.
+    const stripped = stripComments(readFileSync(join(ROOT, 'lib', 'cart.ts'), 'utf8'))
+    const occurrences = [...stripped.matchAll(/isVariantOwnedByProduct\(/g)]
+    expect(occurrences).toHaveLength(1)
+    const variantProof = occurrences[0].index!
+    expect(variantProof).toBeGreaterThan(stripped.indexOf('isCheckoutListingAdmitted('))
+    expect(variantProof).toBeGreaterThan(stripped.indexOf('classifyCheckoutAdmission('))
+  })
 })
 
 test.describe('population guard · D10 agent surfaces are market-scoped', () => {

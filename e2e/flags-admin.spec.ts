@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 40 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(40)
+  test('covers all 41 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(41)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -79,6 +79,11 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // portfolio/SLA/reassign route 404s until Daniel flips it on after the
     // two-partner scope + reassignment-attribution smokes.
     expect(FLAG_META['promoter.partner_portfolio_enabled']).toEqual({ polarity: 'enablement', default: false })
+    // Owned-shop checkout admission (owned-shop-operating-channel D8) — enablement,
+    // fail-open OFF. This one gates an AUTHORIZATION boundary on the money path, so
+    // OFF is also the closed state: a flag-read outage keeps admission at today's
+    // marketplace-publication proof and can never widen it.
+    expect(FLAG_META['catalog.owned_shop_only_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 
