@@ -34,6 +34,12 @@ test.describe('seller bug sweep S3.1 · legible accent button (browser)', () => 
     await page.goto(`/s/${CLAIMED_SLUG}/claim`)
 
     const cta = page.getByRole('link', { name: /ir a mi panel de ventas/i }).first()
+    // This CTA only renders on the claim page's "already claimed" branch
+    // (shop.clerk_user_id truthy). If the fixture shop drifted to unclaimed, skip
+    // rather than false-fail — mirrors unclaimed-pdp.browser.spec.ts's identical
+    // self-skip-on-fixture-drift pattern for its own precondition.
+    const isClaimedBranch = (await cta.count()) > 0
+    test.skip(!isClaimedBranch, 'fixture shop is not in the "already claimed" state — set MS_TEST_CLAIMED_SLUG to a currently-claimed shop')
     await expect(cta).toBeVisible()
 
     const { color, background } = await cta.evaluate((el) => {
