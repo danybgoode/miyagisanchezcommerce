@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
   shapeTenantRow,
+  mapWithConcurrency,
   filterTenants,
   medusaSellerIdOf,
   entitlementReasonLabel,
@@ -28,6 +29,21 @@ const base: RawTenantRow = {
 }
 
 test.describe('admin tenant-directory · shapeTenantRow', () => {
+  test('bounds authoritative public-seller reads while preserving directory order', async () => {
+    let active = 0
+    let peak = 0
+    const result = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (value) => {
+      active += 1
+      peak = Math.max(peak, active)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      active -= 1
+      return value * 10
+    })
+
+    expect(peak).toBe(2)
+    expect(result).toEqual([10, 20, 30, 40, 50])
+  })
+
   test('surfaces the canonical Medusa seller id as identity', () => {
     const row = shapeTenantRow(base, { paywallEnabled: false, listingCount: 3 })
     expect(row.medusaSellerId).toBe('sel_123')

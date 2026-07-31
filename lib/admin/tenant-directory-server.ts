@@ -19,9 +19,11 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { DELETED_STATUS } from '@/lib/listing-lifecycle'
-import { shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
+import { mapWithConcurrency, shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
 import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket, type PublicSellerMarket } from '@/lib/owned-market'
+
+const PUBLIC_SELLER_READ_CONCURRENCY = 8
 
 /**
  * Count non-deleted listings per `shop_id` from the mirror — one read, counted in
@@ -69,10 +71,14 @@ export async function listTenants(): Promise<TenantRow[]> {
   // The mirror is only the enumerable list spine. Market state is read from
   // Medusa's public seller projection; an unavailable projection stays visibly
   // unavailable instead of inheriting a made-up MX default.
-  const markets = new Map<string, PublicSellerMarket | null>(await Promise.all(rows.map(async (raw) => {
+  const markets = new Map<string, PublicSellerMarket | null>(await mapWithConcurrency(
+    rows,
+    PUBLIC_SELLER_READ_CONCURRENCY,
+    async (raw) => {
     const seller = raw.slug ? await getShop(raw.slug) : null
     return [raw.id, readPublicSellerMarket(seller)] as const
-  })))
+    },
+  ))
 
   return rows.map((raw) =>
     shapeTenantRow(raw, {

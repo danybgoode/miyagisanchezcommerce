@@ -76,6 +76,34 @@ export type RawTenantRow = {
   created_at?: string | null
 }
 
+/**
+ * The admin directory may enumerate every mirror shop, while the public seller
+ * projection is one record per slug. Keep that authoritative enrichment from
+ * bursting an unbounded number of Store API requests at Medusa as the tenant
+ * population grows. Results retain the caller's input order.
+ */
+export async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  maxConcurrent: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1) {
+    throw new Error('maxConcurrent must be a positive integer')
+  }
+
+  const output = new Array<R>(values.length)
+  let next = 0
+  async function worker() {
+    while (next < values.length) {
+      const index = next++
+      output[index] = await mapper(values[index])
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(maxConcurrent, values.length) }, worker))
+  return output
+}
+
 function trimmed(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
