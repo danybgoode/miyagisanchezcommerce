@@ -83,7 +83,7 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // fail-open OFF. This one gates an AUTHORIZATION boundary on the money path, so
     // OFF is also the closed state: a flag-read outage keeps admission at today's
     // marketplace-publication proof and can never widen it.
-    expect(FLAG_META['catalog.owned_shop_only_enabled']).toEqual({ polarity: 'enablement', default: false })
+    expect(FLAG_META['catalog.owned_shop_only_enabled']).toEqual({ polarity: 'killswitch', default: true })
   })
 })
 

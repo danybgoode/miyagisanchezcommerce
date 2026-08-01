@@ -36,8 +36,8 @@
     },
     {
       "key": "catalog.owned_shop_only_enabled",
-      "compileDefault": false,
-      "polarity": "enablement",
+      "compileDefault": true,
+      "polarity": "killswitch",
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
