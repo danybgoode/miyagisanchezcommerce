@@ -57,6 +57,17 @@ interface CreatePayload {
     }> | null
     /** Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'. */
     delivery_mode?: 'carrier' | 'arranged'
+    /**
+     * Marketplace publication intent at create time (owned-shop-operating-channel
+     * epic, S3.1). Omitted (the default) preserves today's behaviour byte-for-
+     * byte — publish into the seller's own market. `null` is "solo mi tienda":
+     * buyable on the owned shop, absent from every country marketplace. Only
+     * ever sent when `catalog.owned_shop_only_enabled` is ON (SellWizard gates
+     * the checkbox on the flag prop it's given); the backend refuses `null` with
+     * an actionable 422 while the flag is off regardless, so a stale client is
+     * still safe.
+     */
+    publish_to_market?: 'mx' | null
   }
 }
 
@@ -250,13 +261,27 @@ export async function POST(req: NextRequest) {
       attrs: body.listing.attrs ?? {},
       images: body.listing.images ?? [],
       metadata,
+      // "Solo mi tienda" (owned-shop-operating-channel epic, S3.1) — omitted
+      // when undefined so every existing caller's request body is byte-identical
+      // to before this field existed.
+      ...(body.listing.publish_to_market !== undefined && { publish_to_market: body.listing.publish_to_market }),
     }),
   })
 
-  const productData = await productRes.json()
+  const productData = await productRes.json().catch(() => ({}))
   if (!productRes.ok || !productData.product_id) {
     console.error('[sell/create] product creation failed:', productData)
-    return NextResponse.json({ error: 'Error al publicar el anuncio. Inténtalo de nuevo.' }, { status: 500 })
+    // Surface the backend's own es-MX refusal (422 cross-market/flag-off, 423,
+    // 503 channel-unaddressable — product-publication.ts) instead of a generic
+    // 500, same as the listing PUT/PATCH proxy does. Any other status (a real
+    // backend fault) still reads as a generic 500 with the fallback copy below.
+    const status = productRes.status === 503 || (productRes.status >= 400 && productRes.status < 500)
+      ? productRes.status
+      : 500
+    return NextResponse.json(
+      { error: productData.message ?? 'Error al publicar el anuncio. Inténtalo de nuevo.' },
+      { status },
+    )
   }
 
   const listingId = productData.product_id

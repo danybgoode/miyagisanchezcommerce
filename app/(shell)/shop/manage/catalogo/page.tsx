@@ -111,6 +111,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   // fail-safe OFF: no Margen column/sort toggle render while OFF. Additive
   // fetch, never blocking the table itself if the ledger read fails.
   const profitFlagEnabled = await isEnabled('ops.profit_enabled')
+  // Operating-vs-marketplace publication surface (owned-shop-operating-channel
+  // epic, S3.3) — fail-safe OFF: no "Mercado" column/publish toggle renders
+  // while OFF, so the table looks and behaves exactly as it did before this
+  // sprint (D8).
+  const ownedShopOnlyEnabled = await isEnabled('catalog.owned_shop_only_enabled')
   let marginRowsByChannel: SkuMarginRow[] = []
   if (profitFlagEnabled) {
     try {
@@ -177,6 +182,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             filterParams={params}
             profitFlagEnabled={profitFlagEnabled}
             marginRowsByChannel={marginRowsByChannel}
+            ownedShopOnlyEnabled={ownedShopOnlyEnabled}
           />
 
           {totalPages > 1 && (

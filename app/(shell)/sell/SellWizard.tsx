@@ -10,6 +10,7 @@ import { Banner } from '@/components/feedback/Banner'
 import { SuccessCard } from '@/components/SuccessCard'
 import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { createPublishToMarket } from '@/lib/publication-state'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -618,6 +619,8 @@ function StepListing({
   listingType, setListingType,
   deliveryMode, setDeliveryMode,
   arrangedOnlyEnabled,
+  ownedShopOnly, setOwnedShopOnly,
+  ownedShopOnlyEnabled,
   condition, setCondition,
   quantity, setQuantity,
   priceRaw, setPriceRaw,
@@ -643,6 +646,10 @@ function StepListing({
   listingType: ListingType; setListingType: (v: ListingType) => void
   deliveryMode: 'carrier' | 'arranged'; setDeliveryMode: (v: 'carrier' | 'arranged') => void
   arrangedOnlyEnabled: boolean
+  /** "Solo mi tienda" — owned-shop-operating-channel epic, S3.1. */
+  ownedShopOnly: boolean; setOwnedShopOnly: (v: boolean) => void
+  /** catalog.owned_shop_only_enabled (D8) — gates whether the checkbox renders at all. */
+  ownedShopOnlyEnabled: boolean
   condition: Condition; setCondition: (v: Condition) => void
   quantity: string; setQuantity: (v: string) => void
   priceRaw: string; setPriceRaw: (v: string) => void
@@ -816,6 +823,33 @@ function StepListing({
               pago manual configurado para publicar.
             </p>
           )}
+        </div>
+      )}
+
+      {/* "Solo mi tienda" (owned-shop-operating-channel epic, S3.1) — publish_to_market:
+          null. Gated on catalog.owned_shop_only_enabled (D8): with the flag off this
+          renders nothing, and the create payload never sends the field, so the
+          request is byte-identical to before this sprint. Unchecked (the default)
+          publishes into the marketplace exactly as today — this never offers a
+          market picker, so it can't be used to reach `us` (AGENTS rule "no general
+          seller UI offers US marketplace publication"). */}
+      {ownedShopOnlyEnabled && (
+        <div>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={ownedShopOnly}
+              onChange={e => setOwnedShopOnly(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-sm font-medium text-[var(--color-text)]">Solo mi tienda</span>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                No se publicará en el marketplace de México — seguirá comprable en tu propia tienda.
+                Puedes publicarlo al marketplace más tarde desde tu catálogo.
+              </p>
+            </span>
+          </label>
         </div>
       )}
 
@@ -1233,10 +1267,13 @@ function StepSuccess({
 export default function SellWizard({
   existingShop,
   arrangedOnlyEnabled = false,
+  ownedShopOnlyEnabled = false,
 }: {
   existingShop: ExistingShop | null
   /** Arranged-only delivery (epic, S1.2) — gates the "Entrega" toggle's visibility. */
   arrangedOnlyEnabled?: boolean
+  /** catalog.owned_shop_only_enabled (owned-shop-operating-channel epic, D8) — gates the "Solo mi tienda" checkbox. */
+  ownedShopOnlyEnabled?: boolean
 }) {
   const hasShopStep = existingShop === null
   const initialStep = hasShopStep ? 1 : 2
@@ -1268,6 +1305,10 @@ export default function SellWizard({
   const [listingType, setListingType] = useState<ListingType>('product')
   // Arranged-only delivery (epic, S1.2) — 'carrier' (default) or 'arranged'.
   const [deliveryMode, setDeliveryMode] = useState<'carrier' | 'arranged'>('carrier')
+  // "Solo mi tienda" (owned-shop-operating-channel epic, S3.1) — unchecked by
+  // default, so an untouched form publishes into the marketplace exactly as
+  // before this sprint.
+  const [ownedShopOnly, setOwnedShopOnly] = useState(false)
   const [condition, setCondition] = useState<Condition>('good')
   const [quantity, setQuantity] = useState('1')
   const [priceRaw, setPriceRaw] = useState('')
@@ -1407,6 +1448,11 @@ export default function SellWizard({
           // send 'arranged' when the flag is actually on, so a future code path
           // that sets `deliveryMode` without checking the flag can't submit it.
           delivery_mode: arrangedOnlyEnabled ? deliveryMode : 'carrier',
+          // "Solo mi tienda" (owned-shop-operating-channel epic, S3.1) — only ever
+          // sent when the flag is on AND the seller checked the box; `undefined`
+          // (omitted key) preserves today's default-publish behaviour exactly,
+          // same defense-in-depth shape as `delivery_mode` above.
+          publish_to_market: createPublishToMarket(ownedShopOnlyEnabled && ownedShopOnly),
           category,
           state: listingState || undefined,
           estado_code: listingState ? ESTADO_INEGI_BY_NAME[listingState] : undefined,
@@ -1464,6 +1510,7 @@ export default function SellWizard({
     setCategory('')
     setListingType('product')
     setCondition('good')
+    setOwnedShopOnly(false)
     setAttrs({})
     setSubTiers([{ id: Math.random().toString(36).slice(2), label: '', price_raw: '', interval: 'month', features_raw: '', is_highlighted: false }])
     setPriceRaw('')
@@ -1522,6 +1569,8 @@ export default function SellWizard({
             listingType={listingType} setListingType={setListingType}
             deliveryMode={deliveryMode} setDeliveryMode={setDeliveryMode}
             arrangedOnlyEnabled={arrangedOnlyEnabled}
+            ownedShopOnly={ownedShopOnly} setOwnedShopOnly={setOwnedShopOnly}
+            ownedShopOnlyEnabled={ownedShopOnlyEnabled}
             condition={condition} setCondition={setCondition}
             quantity={quantity} setQuantity={setQuantity}
             priceRaw={priceRaw} setPriceRaw={setPriceRaw}

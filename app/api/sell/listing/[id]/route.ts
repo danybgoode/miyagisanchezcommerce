@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { sanitizeFieldDefs } from '@/lib/personalization'
@@ -70,6 +71,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Arranged-only delivery (epic, S1.2) — validated + service/rental-forced
     // on the backend (seller-product-update.ts).
     delivery_mode?: 'carrier' | 'arranged' | null
+    // Publish / unpublish an EXISTING product to the country marketplace
+    // (owned-shop-operating-channel epic, S3.2 · D11). Same shape as create's
+    // `publish_to_market`: 'mx' publishes (adds the marketplace channel), null
+    // unpublishes (removes ONLY the marketplace channel — the operating channel,
+    // and buyability, are never touched). Gated behind
+    // `catalog.owned_shop_only_enabled` on the BACKEND, in both directions
+    // (product-publication.ts's `planPublicationChange`) — this proxy validates
+    // nothing extra, it forwards the field and the backend's 422/423/503 verbatim.
+    publish_to_market?: 'mx' | null
   }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
@@ -167,7 +177,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     || body.ml_price_cents !== undefined
     || body.inventory_mode !== undefined || body.dispatch_estimate !== undefined
     || body.miyagi_visible !== undefined || body.ml_enabled !== undefined
-    || body.delivery_mode !== undefined
+    || body.delivery_mode !== undefined || body.publish_to_market !== undefined
   // Compose ONE metadata object so custom_fields + excerpt never collide as two
   // `metadata` keys in the literal. The backend shallow-merges body.metadata into
   // the product's existing metadata (seller-product-update.ts), so sending only
@@ -197,6 +207,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(body.miyagi_visible !== undefined && { miyagi_visible: body.miyagi_visible }),
         ...(body.ml_enabled !== undefined && { ml_enabled: body.ml_enabled }),
         ...(body.delivery_mode !== undefined && { delivery_mode: body.delivery_mode }),
+        ...(body.publish_to_market !== undefined && { publish_to_market: body.publish_to_market }),
       }),
     })
 
@@ -206,9 +217,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       // Surface the backend's es-MX message verbatim, preserving 4xx statuses
       // (the Opciones flow shows exact 422 texts — order-history refusal,
       // tier-ladder gaps, mutual-exclusivity — instead of a generic error).
+      // 503 is ALSO preserved verbatim (not collapsed into the generic 500 below)
+      // — owned-shop-operating-channel epic S3.2's publish/unpublish PATCH can
+      // refuse with 503 when the marketplace channel is unaddressable, and that
+      // is an infra-outage fact distinct from every 4xx caller-input refusal.
       const d = await res.json().catch(() => ({})) as { message?: string }
-      const status = res.status >= 400 && res.status < 500 ? res.status : 500
+      const status = res.status === 503 || (res.status >= 400 && res.status < 500) ? res.status : 500
       return NextResponse.json({ error: d.message ?? 'Error al guardar los cambios.' }, { status })
+    }
+
+    // D11 staleness — this repo's own ISR/`unstable_cache` layer (lib/listings.ts)
+    // caches channel membership as part of the listing/shop read, and Medusa
+    // itself invalidates nothing on this side. Revalidate both tags right after a
+    // successful publish/unpublish so `/mx`, the shop page and the listing detail
+    // reflect the new membership on the NEXT request rather than after a deploy —
+    // the same pair every other seller-facing catalog write in this repo already
+    // revalidates (app/api/sell/ml/publish, app/api/sell/shop, …).
+    if (body.publish_to_market !== undefined) {
+      revalidateTag('listings', 'default')
+      revalidateTag('shops', 'default')
     }
   }
 

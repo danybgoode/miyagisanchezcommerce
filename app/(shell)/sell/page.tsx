@@ -114,6 +114,10 @@ export default async function SellPage() {
   // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
   // pre-launch; server-evaluated so the flag flip needs no client round-trip.
   const arrangedOnlyEnabled = await isEnabled('shipping.arranged_only_enabled')
+  // "Solo mi tienda" (owned-shop-operating-channel epic, S3.1) — the checkbox
+  // stays hidden while catalog.owned_shop_only_enabled is off (D8); same
+  // server-evaluated pattern as arrangedOnlyEnabled above.
+  const ownedShopOnlyEnabled = await isEnabled('catalog.owned_shop_only_enabled')
 
   // Onboarding three-doors first-run entry (Sprint 1 · Story 1.1). A fresh,
   // shop-less merchant who hasn't already started (no tenant_intake row) and
@@ -133,7 +137,11 @@ export default async function SellPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {!existingShop && <AgentSetupNudge />}
-      <SellWizard existingShop={existingShop} arrangedOnlyEnabled={arrangedOnlyEnabled} />
+      <SellWizard
+        existingShop={existingShop}
+        arrangedOnlyEnabled={arrangedOnlyEnabled}
+        ownedShopOnlyEnabled={ownedShopOnlyEnabled}
+      />
     </div>
   )
 }
