@@ -164,19 +164,9 @@ export const FLAG_CATALOG = {
     enforcement: 'both',
   },
   'catalog.owned_shop_only_enabled': {
-    // DEFAULT ON since 2026-07-31 (Daniel's call) — see the backend catalog's entry
-    // for the full reasoning. Short version: one user, so a flag buys nothing a
-    // 12-minute deploy does not; and it could not be turned on anyway, because
-    // Golden Beans is the flag authority in production and its Miyagi-flag importer
-    // is unwired. With no Golden definition and no platform_flags row, this default
-    // IS the resolved value.
+    // Live by default. Golden Beans owns its operational definition and activation;
+    // turning this flag OFF is the deliberate rollback.
     default: true,
-    // KILLSWITCH, not enablement — the polarity changed with the role. An enablement
-    // flag means "the feature is not on yet, turning it on is deliberate"; this
-    // feature IS on, and turning it OFF is now the deliberate act. That is the
-    // `checkout.stripe_enabled` pattern, and it keeps the fail-open invariant
-    // ("every enablement defaults false") intact instead of carving an exception
-    // into it. Caught by that very invariant spec when the default flipped.
     polarity: 'killswitch',
     criticality: 'high',
     enforcement: 'both',
