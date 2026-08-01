@@ -364,18 +364,15 @@ export type { FlagKey } from '@/lib/flag-catalog'
  *    owner-history columns) stays forward-compatible regardless of this flag.
  *    Flip ON only after the two-partner scope + reassignment-attribution
  *    smokes pass.
- *  - ENABLEMENT (`catalog.owned_shop_only_enabled`): default `false`
- *    (owned-shop-operating-channel epic, decision D8). Mirrors the backend key of
- *    the same name — a key registered in one repo only is a half-flag. Gates the
- *    two CODE paths that epic adds, and deliberately NOT the channel memberships,
- *    the backfill or the publishable-key move: those are DATA, and their rollback
- *    is a link operation (D9), not a flag. Flag OFF ⇒ `lib/cart.ts`'s checkout
- *    admission runs today's marketplace-publication proof, byte-for-byte; flag ON
- *    ⇒ admission asks the operating-channel seam whether the product is BUYABLE,
- *    which is what lets a shop sell something it never listed in the country
- *    marketplace. This gates an authorization boundary on the money path, so the
- *    fail-open default is the CLOSED one — a flag-read outage can never widen
- *    admission. Flip ON last, after the S2 smoke; it is the epic's true go-live. */
+ *  - KILLSWITCH (`catalog.owned_shop_only_enabled`): default `true`
+ *    (owned-shop-operating-channel epic). Golden Beans owns the live definition
+ *    and activation for both consumer services. It gates the two CODE paths that
+ *    epic adds, and deliberately NOT the channel memberships, the backfill or the
+ *    publishable-key move: those are DATA, and their rollback is a link operation,
+ *    not a flag. Flag ON ⇒ `lib/cart.ts`'s checkout admission asks the
+ *    operating-channel seam whether the product is BUYABLE, which lets a shop
+ *    sell something it never listed in the country marketplace. Flag OFF is the
+ *    deliberate protective rollback to today's marketplace-publication proof. */
 const TABLE = 'platform_flags'
 
 // Module-level in-process cache. Single-threaded module evaluation → no init race.
