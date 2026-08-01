@@ -7,6 +7,35 @@ import {
 } from '../lib/golden-flag-definition-catalog'
 import { resolveFlagSyncConfig } from '../scripts/sync-flag-catalog'
 
+type SharedFlagContractEntry = {
+  key: string
+  defaultVariantKey: 'off' | 'on'
+  polarity: 'enablement' | 'killswitch'
+  criticality: 'low' | 'medium' | 'high'
+  description?: string
+}
+
+const SHARED_FLAG_CONTRACT = [
+  { key: 'catalog.bulk_enabled', defaultVariantKey: 'off', polarity: 'killswitch', criticality: 'high' },
+  { key: 'catalog.inventory_channels_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+  {
+    key: 'catalog.owned_shop_only_enabled',
+    defaultVariantKey: 'on',
+    polarity: 'killswitch',
+    criticality: 'high',
+    description: 'Owned-shop-only buyability and publication controls. The capability is live by default; turning this flag OFF is the deliberate kill switch.',
+  },
+  { key: 'checkout.rental_pricing_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+  { key: 'checkout.stripe_enabled', defaultVariantKey: 'on', polarity: 'killswitch', criticality: 'high' },
+  { key: 'ml.publish_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+  { key: 'ml.sync_enabled', defaultVariantKey: 'off', polarity: 'killswitch', criticality: 'high' },
+  { key: 'ml.sync_paywall_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'low' },
+  { key: 'ops.profit_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'medium' },
+  { key: 'shipping.arranged_only_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+  { key: 'shipping.correos_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+  { key: 'shipping.envia_enabled', defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high' },
+] as const satisfies readonly SharedFlagContractEntry[]
+
 test('frontend publishes its deterministic 40-definition fragment and omits backend-only orders', () => {
   const entries = frontendGoldenFlagDefinitionEntries()
 
@@ -16,6 +45,36 @@ test('frontend publishes its deterministic 40-definition fragment and omits back
   expect(entries.map((entry) => entry.key)).toEqual(
     FLAG_KEYS.filter((key) => FLAG_CATALOG[key].enforcement !== 'backend').sort(),
   )
+})
+
+test('shared definitions exactly match the independently pinned Miyagi contract', () => {
+  const entries = frontendGoldenFlagDefinitionEntries()
+  const definitions = new Map(entries.map((entry) => [entry.key, entry.definition]))
+
+  expect(
+    entries
+      .filter((entry) => entry.definition.metadata?.enforcement === 'both')
+      .map((entry) => entry.key),
+  ).toEqual(SHARED_FLAG_CONTRACT.map((entry) => entry.key))
+
+  for (const contract of SHARED_FLAG_CONTRACT as readonly SharedFlagContractEntry[]) {
+    expect(definitions.get(contract.key)).toEqual({
+      valueType: 'boolean',
+      description: contract.description ?? `Miyagi flag: ${contract.key}.`,
+      defaultVariantKey: contract.defaultVariantKey,
+      variants: [
+        { key: 'off', value: false },
+        { key: 'on', value: true },
+      ],
+      rules: [],
+      metadata: {
+        source: 'miyagi',
+        polarity: contract.polarity,
+        criticality: contract.criticality,
+        enforcement: 'both',
+      },
+    })
+  }
 })
 
 test('every frontend definition is a deterministic mapping of the typed catalog', () => {
