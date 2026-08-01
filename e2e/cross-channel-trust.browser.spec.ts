@@ -19,13 +19,22 @@ import { test, expect } from '@playwright/test'
  *
  * Data-resilient: derives a real shop slug from the public catalog; skips (not
  * fails) when the environment has no active listings.
+ *
+ * The slug MUST belong to a shop the D.1 assertion below can actually pass for
+ * (i.e. one with a payment method configured) — `items[0]` picks whatever is
+ * most recent, which can be a seller with no rail connected yet and would false-
+ * fail D.1 on pure fixture drift, independent of whether trust parity holds.
+ * `actions.buy_now` (`lib/ucp/schema.ts`) is the same public "has price + a
+ * payment method" fact the PDP buy button gates on, so filtering on it picks a
+ * shop the payment grid is guaranteed to render for.
  */
 test.describe('Cross-channel trust parity (Epic D)', () => {
   test('embed grid + white-label shell render trust signals', async ({ page, request }) => {
-    const cat = await request.get('/api/ucp/catalog?limit=1')
+    const cat = await request.get('/api/ucp/catalog?limit=20')
     expect(cat.ok()).toBeTruthy()
-    const slug = (await cat.json())?.items?.[0]?.shop?.slug as string | undefined
-    test.skip(!slug, 'no active listings in this environment')
+    const items = (await cat.json())?.items as Array<{ actions?: { buy_now?: boolean }; shop?: { slug?: string } }> | undefined
+    const slug = items?.find((item) => item.actions?.buy_now)?.shop?.slug
+    test.skip(!slug, 'no active listing with a configured payment method in this environment')
 
     await page.goto(`/embed/s/${slug}`)
 
@@ -35,8 +44,9 @@ test.describe('Cross-channel trust parity (Epic D)', () => {
     await expect(page.getByText('Pago seguro · Compra protegida')).toBeVisible()
 
     // D.1 — the payment/returns/pickup method block renders on the embed grid.
-    // Reliable: Mercado Pago is the platform default-on rail, so the payment grid
-    // (and thus the method box) renders for any normally-configured shop.
+    // Reliable: the `buy_now` filter above only accepts a shop with Stripe or
+    // Mercado Pago connected, so the payment grid (and thus the method box)
+    // is guaranteed at least one entry.
     await expect(page.getByTestId('pdp-methods')).toBeVisible()
   })
 })
