@@ -167,8 +167,21 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
 
     function onScroll() {
       const y = window.scrollY
-      setHidden(prev => nextTabBarHidden(lastY.current, y, prev))
+      // Snapshot the previous Y *before* mutating the ref, and pass the snapshot in.
+      //
+      // This used to read `lastY.current` from INSIDE the setState updater while the
+      // next line reassigned it. A functional updater is invoked lazily by React — at
+      // render time, not at `setHidden()` call time — so by the time it ran, the ref
+      // had already been overwritten with the current `y`. The delta it computed was
+      // therefore `y - y === 0`, which `nextTabBarHidden` maps to "no change, keep
+      // `hidden`" — so once the bar hid on a scroll-down it could never spring back.
+      //
+      // Order-dependent and silent: it only misbehaves when React defers the updater,
+      // which is why it survived five green nightlies before surfacing. Reading the
+      // ref eagerly makes the handler's input independent of when React runs it.
+      const prevY = lastY.current
       lastY.current = y
+      setHidden(prev => nextTabBarHidden(prevY, y, prev))
     }
 
     const vv = window.visualViewport
