@@ -24,11 +24,18 @@ test.describe('pdp · unclaimed is contact-only (browser)', () => {
     // testid picks DOM order, which is the mobile instance — always CSS-hidden on
     // this project's desktop-viewport browser. Scope to the visible one instead,
     // matching pdp-hierarchy.browser.spec.ts / pdp-redesign.browser.spec.ts.
-    await expect(page.locator('[data-testid="seller-trust-card"]:visible').first()).toBeVisible()
+    const sellerTrustCard = page.locator('[data-testid="seller-trust-card"]:visible').first()
+    await expect(sellerTrustCard).toBeVisible()
 
     // Confirm the fixture really is unclaimed — the claim nudge is the tell. If a
     // claimed listing was set by mistake, skip rather than false-fail.
-    const claimNudge = page.getByRole('link', { name: /Reclamar/i })
+    //
+    // Scoped to the VISIBLE card for the same dual-render reason as above: the nudge
+    // lives inside SellerTrustCard (`app/components/SellerTrustCard.tsx` — "¿Es tuya
+    // esta tienda? Reclamar gratis"), so a page-wide match also picks up the hidden
+    // mobile twin, and `/s/[slug]`'s own ClaimButton ("¿Es tu tienda? Reclamar") if a
+    // future layout change ever puts one on this route.
+    const claimNudge = sellerTrustCard.getByRole('link', { name: /Reclamar/i })
     const isUnclaimed = (await claimNudge.count()) > 0
     test.skip(!isUnclaimed, 'fixture listing is claimed (no "Reclamar" nudge) — set an unclaimed one')
     await expect(claimNudge.first()).toBeVisible()

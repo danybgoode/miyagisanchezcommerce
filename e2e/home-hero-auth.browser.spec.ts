@@ -17,7 +17,12 @@ import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
 test.describe('home-hero · signed-out only (browser)', () => {
   test('anonymous: the hero is present and visible', async ({ page }) => {
     await page.goto('/mx')
-    await page.waitForLoadState('networkidle')
+    // No `waitForLoadState('networkidle')` here: both assertions below auto-wait,
+    // so it bought nothing and cost a recurring nightly failure. The marketplace
+    // homepage carries analytics/beacon traffic that can keep the network busy
+    // past any budget, so `networkidle` is not reachable on a bad day and the
+    // 30s test timeout fires inside the wait, before a single assertion runs.
+    // This was the only file pair in the suite using it — and the only one flaking.
     const hero = page.locator('[data-testid="home-hero"]')
     await expect(hero).toHaveCount(1)
     await expect(hero).toBeVisible()

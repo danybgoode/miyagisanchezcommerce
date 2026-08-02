@@ -36,9 +36,17 @@ test('US invitation is a research conversation, not a catalog launch', async ({ 
     'href',
     /^mailto:daniel@miyagisanchez\.com\?subject=/,
   )
-  await expect(page.getByTestId('us-pilot-proof')).toContainText('three consenting client shops')
+  // Title-cased in the source (`app/(site)/us/page.tsx` — `<ProofStep label=…>`), and
+  // `toContainText` is case-SENSITIVE. The lowercase spelling here was a typo from the
+  // day the pilot-proof copy landed (#328), so this asserted a string the page never
+  // rendered and failed every nightly run from the moment the fixture lit it up.
+  await expect(page.getByTestId('us-pilot-proof')).toContainText('Three consenting client shops')
   await expect(page.locator('[data-listing-id]')).toHaveCount(0)
-  await expect(page.locator('body')).toContainText('working hypothesis')
+  // Same case-sensitivity trap as the assertion above, one line later: the page
+  // renders the title-cased eyebrow "Working hypothesis · United States". This one
+  // stayed INVISIBLE until the pilot-proof typo above was fixed, because the test
+  // died on that line first — so a single nightly failure was hiding two defects.
+  await expect(page.locator('body')).toContainText('Working hypothesis')
 })
 
 test('US has no marketplace children while the market is invitation-only', async ({ page }) => {
