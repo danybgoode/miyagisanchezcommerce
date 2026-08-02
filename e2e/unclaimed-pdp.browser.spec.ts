@@ -19,7 +19,12 @@ test.describe('pdp · unclaimed is contact-only (browser)', () => {
   test('no Buy / Offer / Bundle CTAs render; the claim nudge does', async ({ page }) => {
     requireEnv(LISTING_ID, 'MS_TEST_UNCLAIMED_LISTING_ID')
     await page.goto(`/l/${LISTING_ID}`)
-    await expect(page.getByTestId('seller-trust-card').first()).toBeVisible()
+    // The PDP dual-renders SellerTrustCard (mobile `md:hidden` interstitial +
+    // desktop `hidden md:block`, see app/l/[id]/page.tsx). `.first()` on the bare
+    // testid picks DOM order, which is the mobile instance — always CSS-hidden on
+    // this project's desktop-viewport browser. Scope to the visible one instead,
+    // matching pdp-hierarchy.browser.spec.ts / pdp-redesign.browser.spec.ts.
+    await expect(page.locator('[data-testid="seller-trust-card"]:visible').first()).toBeVisible()
 
     // Confirm the fixture really is unclaimed — the claim nudge is the tell. If a
     // claimed listing was set by mistake, skip rather than false-fail.

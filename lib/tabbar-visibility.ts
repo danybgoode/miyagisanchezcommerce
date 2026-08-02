@@ -7,6 +7,8 @@
  * test. Same pattern as `lib/gallery.ts` ↔ `e2e/gallery.spec.ts`.
  */
 
+import { stripMarketPrefix } from './market-url'
+
 /** How tab labels render. The const below is the single switch (no remote flag, no peek mode). */
 export type LabelMode = 'icons-only' | 'active-label' | 'full-labels'
 
@@ -94,15 +96,25 @@ export function isBottomTabActive(key: BottomTabKey, pathname: string): boolean 
  * Detail routes only — the `/l` and `/messages` *index* pages keep the bar.
  *   true  → /l/<id>, /checkout[...], /messages/<id>, /sell[...]
  *   false → /l, /l?…, /messages, /, /account, …
+ *
+ * `/l` is one of the market-cutover's prefixed families (`lib/market-url.ts` —
+ * `MARKET_PREFIXED_PATH_FAMILIES`), so a platform-host PDP request lands on
+ * `/mx/l/<id>`, not the bare `/l/<id>` this predicate was written against.
+ * `stripMarketPrefix` normalizes both shapes to the same un-prefixed input —
+ * the same seam every other pre-cutover path predicate goes through — so this
+ * stays correct on both the legacy path and its `/mx` redirect target.
+ * `/checkout`, `/messages` and `/sell` never carry a market prefix, so the
+ * normalization is a no-op for them.
  */
 export function shouldHideTabBar(pathname: string): boolean {
   if (!pathname) return false
+  const path = stripMarketPrefix(pathname)
   // Detail routes: a non-empty segment after the base.
-  if (/^\/l\/[^/]+/.test(pathname)) return true
-  if (/^\/messages\/[^/]+/.test(pathname)) return true
+  if (/^\/l\/[^/]+/.test(path)) return true
+  if (/^\/messages\/[^/]+/.test(path)) return true
   // Whole-section flows: the base or anything under it.
-  if (pathname === '/checkout' || pathname.startsWith('/checkout/')) return true
-  if (pathname === '/sell' || pathname.startsWith('/sell/')) return true
+  if (path === '/checkout' || path.startsWith('/checkout/')) return true
+  if (path === '/sell' || path.startsWith('/sell/')) return true
   return false
 }
 

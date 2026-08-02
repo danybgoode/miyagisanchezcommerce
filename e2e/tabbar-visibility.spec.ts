@@ -34,6 +34,11 @@ test.describe('tabbar · shouldHideTabBar', () => {
     expect(shouldHideTabBar('/selling-guide')).toBe(false) // not /sell or /sell/
     expect(shouldHideTabBar('/checkout-help')).toBe(false)
   })
+
+  test('normalizes the market-cutover /mx prefix — the platform-host redirect target', () => {
+    expect(shouldHideTabBar('/mx/l/abc123')).toBe(true)  // PDP, post-308 from /l/abc123
+    expect(shouldHideTabBar('/mx/l')).toBe(false)        // listings index ≠ PDP
+  })
 })
 
 test.describe('tabbar · nextTabBarHidden', () => {
